@@ -1,0 +1,49 @@
+{
+  "schemaVersion": 1,
+  "id": "TASK-0004",
+  "type": "bootstrap",
+  "risk": "normal",
+  "status": "implementing",
+  "goal": "Bootstrap dau-viet-mobile Flutter project with heritage theme and mock repository architecture for interactive UI demo.",
+  "owner": "claude",
+  "modules": [
+    "mobile"
+  ],
+  "scope": [
+    "dau-viet-mobile/",
+    "plans/2026-10-09-mobile-demo/plan.md"
+  ],
+  "acceptanceCriteria": [
+    {
+      "id": "AC-1",
+      "text": "dau-viet-mobile initialized with valid pubspec.yaml, flutter_riverpod, go_router, google_fonts."
+    },
+    {
+      "id": "AC-2",
+      "text": "Design tokens DauVietColors and DauVietTypography match Art Direction v2.0."
+    },
+    {
+      "id": "AC-3",
+      "text": "App builds and runs without errors displaying initial heritage scaffold."
+    },
+    {
+      "id": "AC-4",
+      "text": "Mock repository layer provides structured Bach Dang 938 lesson data matching UI_COMPONENT_SPEC."
+    }
+  ],
+  "dependencies": [
+    "TASK-0003"
+  ],
+  "planPath": "plans/2026-10-09-mobile-demo/plan.md",
+  "evidenceRefs": [],
+  "reviewRefs": [],
+  "nextAction": "All 8 Mobile Phases (M1-M8) completed successfully. Full interactive demo ready for comprehensive user review.",
+  "baseCommit": "d5776e57613a580c63873447beccfaf7d2948f8a",
+  "inputFingerprint": "871cce534dc6eb991fe635c3e917e718ed337eff3255f62b6b11249e448fdabc",
+  "snapshot": null,
+  "roleReports": [],
+  "blockedReason": null,
+  "resumeFrom": null,
+  "createdAt": "2026-10-09T10:27:00+07:00",
+  "updatedAt": "2026-10-09T11:30:00+07:00"
+}

@@ -1,0 +1,30 @@
+{
+  "id": "dv_ACH_shared_victory-banner_v01",
+  "name": "Dải băng & Vương hiệu Vinh danh Chiến thắng",
+  "category": "ACHIEVEMENT_BANNER",
+  "version": "1.0.0",
+  "style": "Stylized 2D Vietnamese Heritage Illustration",
+  "dimensions": {
+    "width": 1024,
+    "height": 1024,
+    "aspectRatio": "1:1"
+  },
+  "palette": {
+    "primary": "#A51F18",
+    "gold": "#E7B451",
+    "parchment": "#FFFBF4",
+    "bronze": "#613B28"
+  },
+  "features": [
+    "Mặt trống đồng Đông Sơn họa tiết sao trung tâm và chiến binh Lạc Việt",
+    "Hình tượng rồng thời Ngô / Lý uy nghi uốn lượn chầu mặt trời",
+    "Vòng nguyệt quế vàng đồng sơn son thếp vàng",
+    "Dải lụa đỏ son thêu hoa văn chỉ vàng cổ truyền",
+    "Không chứa chữ bake-in, sẵn sàng làm khung chứa text vinh danh động"
+  ],
+  "usage": [
+    "M-18: Màn hình Hoàn thành sự kiện lịch sử",
+    "M-19: Màn hình Nhận thưởng",
+    "M-20: Mở khóa Thành tích Hào khí Bạch Đằng"
+  ]
+}

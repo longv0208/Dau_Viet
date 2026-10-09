@@ -1,0 +1,19 @@
+{
+  "assetId": "dv_MAP_ngoquyen_bachdang-base_v01",
+  "category": "MAP",
+  "era": "ngoquyen",
+  "subject": "bachdang",
+  "variant": "base",
+  "version": "v01",
+  "style": "stylized_2d_handpainted",
+  "resolution": "1024x768",
+  "hasBakedInText": false,
+  "layerType": "background_terrain",
+  "historicalSources": [
+    "Đại Việt Sử Ký Toàn Thư - Tiền Ngô Vương Kỷ",
+    "Khâm Định Việt Sử Thông Giám Cương Mục"
+  ],
+  "historicalConfidence": "HIGH",
+  "reviewer": "Hội đồng Thẩm định Lịch sử Dấu Việt",
+  "license": "Internal Project IP - Dau Viet Platform"
+}

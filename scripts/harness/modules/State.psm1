@@ -163,12 +163,32 @@ function Set-TaskStatus {
     }
     $t.status = $To
     if ($To -eq 'blocked') {
-      $t.blockedReason = $Reason
-      if ($ResumeFrom) { $t.resumeFrom = $ResumeFrom } elseif (-not $t.resumeFrom) { $t.resumeFrom = 'implementing' }
+      if (-not ($t.PSObject.Properties.Name -contains 'blockedReason')) {
+        $t | Add-Member -NotePropertyName 'blockedReason' -NotePropertyValue $Reason
+      } else {
+        $t.blockedReason = $Reason
+      }
+      if ($ResumeFrom) {
+        if (-not ($t.PSObject.Properties.Name -contains 'resumeFrom')) {
+          $t | Add-Member -NotePropertyName 'resumeFrom' -NotePropertyValue $ResumeFrom
+        } else {
+          $t.resumeFrom = $ResumeFrom
+        }
+      } elseif (-not ($t.PSObject.Properties.Name -contains 'resumeFrom') -or -not $t.resumeFrom) {
+        if (-not ($t.PSObject.Properties.Name -contains 'resumeFrom')) {
+          $t | Add-Member -NotePropertyName 'resumeFrom' -NotePropertyValue 'implementing'
+        } else {
+          $t.resumeFrom = 'implementing'
+        }
+      }
     } else {
-      $t.blockedReason = $null
+      if ($t.PSObject.Properties.Name -contains 'blockedReason') { $t.blockedReason = $null }
     }
-    $t.updatedAt = (Get-Date).ToString('o')
+    if (-not ($t.PSObject.Properties.Name -contains 'updatedAt')) {
+      $t | Add-Member -NotePropertyName 'updatedAt' -NotePropertyValue ((Get-Date).ToString('o'))
+    } else {
+      $t.updatedAt = (Get-Date).ToString('o')
+    }
     Write-TaskAtomic -RepoRoot $RepoRoot -Task $t
     return $t
   } finally { Exit-TaskLock -LockPath $lock }

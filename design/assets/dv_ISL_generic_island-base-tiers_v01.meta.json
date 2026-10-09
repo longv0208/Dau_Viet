@@ -1,0 +1,35 @@
+{
+  "id": "dv_ISL_generic_island-base-tiers_v01",
+  "name": "Bản đồ Đảo cá nhân Cấp 1 - Địa hình Phù sa Đồng bằng",
+  "category": "ISLAND_TERRAIN_BASE",
+  "version": "1.0.0",
+  "style": "Stylized 2D Hand-painted Vietnamese 2.5D Isometric",
+  "dimensions": {
+    "width": 1024,
+    "height": 1024,
+    "aspectRatio": "1:1"
+  },
+  "palette": {
+    "water": "#388EB4",
+    "grass": "#64824C",
+    "bamboo": "#4A6E3B",
+    "earth": "#8B6538",
+    "parchment": "#FFFBF4",
+    "terracotta": "#B85D36"
+  },
+  "features": [
+    "Khối đảo nổi 2.5D isometric trên dòng nước xanh êm đềm",
+    "Ruộng bậc thang màu xanh đồng lúa trù phú và bậc đá cổ kính",
+    "Bụi tre làng Việt Nam xanh tươi sum suê che mát góc bờ cát",
+    "Cây đa cổ thụ sum suê cội rễ buông rủ phong vị làng quê Bắc Bộ",
+    "Bến thuyền gỗ mộc mạc nép bên bờ cát thoai thoải và đầm hoa sen hồng",
+    "Am thờ / miếu đình nhỏ cổ kính với mái ngói cong phong cách thời Lý - Trần",
+    "Không chứa chữ bake-in hay icon UI, là asset địa hình nền tảng cho M-22 và M-23"
+  ],
+  "usage": [
+    "M-22: Bản đồ Đảo cá nhân Cấp 1 (M-C24 IslandScene)",
+    "M-23: Nâng cấp Đảo cá nhân Cấp 2 và Cấp 3",
+    "M-24: Kho Cổ vật & Bày trí Đảo",
+    "M-25: Vườn Nông nghiệp & Dược liệu"
+  ]
+}

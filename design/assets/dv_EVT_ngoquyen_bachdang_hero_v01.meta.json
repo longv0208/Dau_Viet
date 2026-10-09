@@ -1,0 +1,20 @@
+{
+  "assetId": "dv_EVT_ngoquyen_bachdang_hero_v01",
+  "category": "EVT",
+  "era": "ngoquyen",
+  "subject": "bachdang",
+  "variant": "hero",
+  "version": "v01",
+  "style": "stylized_2d_handpainted",
+  "resolution": "1024x768",
+  "hasBakedInText": false,
+  "layerType": "3_layer_composition",
+  "historicalSources": [
+    "Đại Việt Sử Ký Toàn Thư - Tiền Ngô Vương Kỷ",
+    "Việt Sử Tiêu Án",
+    "Khâm Định Việt Sử Thông Giám Cương Mục"
+  ],
+  "historicalConfidence": "HIGH",
+  "reviewer": "Hội đồng Thẩm định Lịch sử Dấu Việt",
+  "license": "Internal Project IP - Dau Viet Platform"
+}

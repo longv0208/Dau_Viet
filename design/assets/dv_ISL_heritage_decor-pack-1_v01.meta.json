@@ -1,0 +1,57 @@
+{
+  "id": "dv_ISL_heritage_decor-pack-1_v01",
+  "name": "Bộ 4 Công trình Dân gian Di sản Đảo Cấp 1",
+  "category": "ISLAND_DECOR_PACK",
+  "version": "1.0.0",
+  "style": "Stylized 2D Hand-painted Vietnamese 2.5D Isometric",
+  "dimensions": {
+    "width": 1024,
+    "height": 1024,
+    "aspectRatio": "1:1"
+  },
+  "palette": {
+    "wood": "#613B28",
+    "thatch_clay": "#B85D36",
+    "nature_green": "#64824C",
+    "bamboo": "#4A6E3B",
+    "lotus_pink": "#D96884",
+    "water": "#388EB4",
+    "stone": "#7A7870"
+  },
+  "structures": [
+    {
+      "name": "Cây đa miếu cổ",
+      "type": "CẢNH QUAN TÂM LINH",
+      "buff": "+10 Uy danh văn hóa",
+      "description": "Cây đa đại thụ rễ buông rủ cùng am thờ đá nhỏ cổ kính khói hương nghi ngút."
+    },
+    {
+      "name": "Cầu kiều gỗ mộc",
+      "type": "KIẾN TRÚC GIAO THƯƠNG",
+      "buff": "+8 Điểm Di Sản / ngày",
+      "description": "Cầu gỗ uốn cong mộc mạc lan can tre bắc qua lạch nước phù sa."
+    },
+    {
+      "name": "Nhà tranh vách đất Đại Việt",
+      "type": "KIẾN TRÚC DÂN GIAN",
+      "buff": "+15 Điểm Di Sản / ngày",
+      "description": "Ngôi nhà tranh vách đất mái rạ truyền thống của cư dân đồng bằng Bắc Bộ thời Lý - Trần."
+    },
+    {
+      "name": "Hồ sen ngát hương",
+      "type": "THỦY SINH DI SẢN",
+      "buff": "+5 Cảnh quan thanh bình",
+      "description": "Đầm sen đá tròn hoa nở rộ hồng ngát hương bên lá sen xanh ngắt."
+    }
+  ],
+  "features": [
+    "Minh họa 2.5D isometric vẽ tay 4 công trình di sản tách biệt rõ ràng",
+    "Chuẩn tỷ lệ góc nhìn isometric đồng bộ với địa hình đảo M-C24",
+    "Không chứa chữ bake-in hay icon UI, sẵn sàng cắt lớp sprite và gắn vào engine"
+  ],
+  "usage": [
+    "M-24: Kho trang trí & Chế độ đặt đồ (InventoryItemCard M-C25)",
+    "M-22: Bản đồ Đảo cá nhân Cấp 1 (Slot công trình)",
+    "M-25: Cửa hàng di sản dân gian"
+  ]
+}

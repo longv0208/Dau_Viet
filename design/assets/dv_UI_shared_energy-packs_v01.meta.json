@@ -1,0 +1,56 @@
+{
+  "id": "dv_UI_shared_energy-packs_v01",
+  "name": "Biểu tượng Năng lượng & Bộ 3 Gói Nạp Thể Lực Viện Thái Y",
+  "category": "ENERGY_UI_PACK",
+  "version": "1.0.0",
+  "style": "Stylized 2D Hand-painted Vietnamese Heritage UI",
+  "dimensions": {
+    "width": 1024,
+    "height": 1024,
+    "aspectRatio": "1:1"
+  },
+  "palette": {
+    "gold": "#E7B451",
+    "cinnabar": "#A51F18",
+    "celadon_tea": "#739886",
+    "herbal_kraft": "#8C6747",
+    "ginseng_amber": "#C48A2C",
+    "lacquer_wood": "#613B28"
+  },
+  "elements": [
+    {
+      "name": "Biểu tượng Nhật Quang Đông Sơn (Tia sét sinh lực)",
+      "type": "VITALITY_CREST",
+      "buff": "Biểu trưng Năng lượng chuẩn ứng dụng",
+      "description": "Vầng dương Trống đồng Đông Sơn kết hợp tia sét quang minh hoàng kim rực rỡ, tượng trưng cho sinh khí học tập."
+    },
+    {
+      "name": "Tách Trà Sen Thảo Mộc (+30 ⚡)",
+      "type": "FREE_DAILY_REFILL",
+      "buff": "+30 Năng lượng",
+      "description": "Chén trà gốm hoa nâu men ngọc bích chạm cánh sen, bốc làn khói hương thảo mộc thanh tao trên đế đan tre."
+    },
+    {
+      "name": "Thang Thuốc Bổ Thái Y Viện (+100 ⚡)",
+      "type": "FULL_REFILL",
+      "buff": "+100 Năng lượng (Đầy bình)",
+      "description": "Gói thuốc bắc bọc giấy bản buộc lạt chỉ đỏ son truyền thống của ngự y cung đình, chứa hạt sen, quế chi và thảo dược quý."
+    },
+    {
+      "name": "Sâm Nhung Thượng Hạng Cung Đình (+300 ⚡)",
+      "type": "OVERCAP_REFILL",
+      "buff": "+300 Năng lượng (Vượt ngưỡng tối đa)",
+      "description": "Hòm sơn mài cẩn rồng phượng hoàng gia tỏa ánh kim quang, bên trong là củ sâm ngọc linh cổ thụ và bình linh dược hồ lô."
+    }
+  ],
+  "features": [
+    "Minh họa 2D vẽ tay gouache thuần phong vị cung đình và y học cổ truyền Đại Việt",
+    "Tỷ lệ chuẩn sprite UI, tách biệt rõ ràng trên nền giấy dó sáng",
+    "Tuyệt đối không chứa chữ bake-in hay nhãn thông số, sẵn sàng gắn logic động"
+  ],
+  "usage": [
+    "M-28: Quản lý Năng lượng & Cửa sổ Nạp (M-C27 EnergyIndicator)",
+    "M-03: Bàn học tập người học (Icon Thể lực)",
+    "M-06: Sa bàn chiến dịch (Kiểm tra điều kiện tiêu hao thể lực)"
+  ]
+}

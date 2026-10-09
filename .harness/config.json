@@ -20,11 +20,26 @@
     },
     "mobile": {
       "path": "dau-viet-mobile",
-      "status": "uninitialized",
+      "status": "active",
       "manifests": [
         "pubspec.yaml"
       ],
-      "gates": []
+      "gates": [
+        {
+          "id": "mobile-analyze",
+          "executable": "flutter",
+          "args": ["analyze"],
+          "cwd": "dau-viet-mobile",
+          "timeoutSeconds": 120
+        },
+        {
+          "id": "mobile-test",
+          "executable": "flutter",
+          "args": ["test"],
+          "cwd": "dau-viet-mobile",
+          "timeoutSeconds": 120
+        }
+      ]
     }
   },
   "gates": [],
