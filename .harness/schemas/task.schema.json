@@ -1,0 +1,55 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://dauviet.local/schemas/task.schema.json",
+  "title": "Dau Viet harness task",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schemaVersion", "id", "type", "risk", "status", "goal", "owner", "modules", "scope", "acceptanceCriteria", "dependencies", "planPath", "evidenceRefs", "reviewRefs", "nextAction"],
+  "properties": {
+    "schemaVersion": { "const": 1 },
+    "id": { "type": "string", "pattern": "^TASK-[0-9]{4,}$" },
+    "type": { "enum": ["docs", "feature", "fix", "refactor", "bootstrap", "harness", "chore"] },
+    "risk": { "enum": ["tiny", "normal", "high-risk"] },
+    "status": { "enum": ["draft", "ready", "implementing", "verifying", "reviewing", "done", "blocked"] },
+    "goal": { "type": "string", "minLength": 1 },
+    "owner": { "type": "string", "minLength": 1 },
+    "modules": { "type": "array", "uniqueItems": true, "items": { "enum": ["backend", "admin", "mobile"] } },
+    "scope": { "type": "array", "minItems": 1, "uniqueItems": true, "items": { "$ref": "#/$defs/path" } },
+    "acceptanceCriteria": {
+      "type": "array", "minItems": 1,
+      "items": { "type": "object", "additionalProperties": false, "required": ["id", "text"], "properties": { "id": { "type": "string", "pattern": "^AC-[0-9]+$" }, "text": { "type": "string", "minLength": 1 } } }
+    },
+    "dependencies": { "type": "array", "uniqueItems": true, "items": { "type": "string", "pattern": "^TASK-[0-9]{4,}$" } },
+    "planPath": { "anyOf": [{ "$ref": "#/$defs/path" }, { "type": "null" }] },
+    "evidenceRefs": { "$ref": "#/$defs/refs" },
+    "reviewRefs": { "$ref": "#/$defs/refs" },
+    "nextAction": { "type": "string", "minLength": 1 },
+    "baseCommit": { "type": ["string", "null"] },
+    "inputFingerprint": { "type": ["string", "null"] },
+    "snapshot": { "type": ["object", "null"] },
+    "roleReports": { "$ref": "#/$defs/refs" },
+    "blockedReason": { "type": ["string", "null"] },
+    "resumeFrom": { "enum": [null, "draft", "ready", "implementing", "verifying", "reviewing"] },
+    "handoffRef": { "anyOf": [{ "$ref": "#/$defs/path" }, { "type": "null" }] },
+    "acEvidence": {
+      "type": "object",
+      "additionalProperties": { "$ref": "#/$defs/refs" },
+      "description": "Optional map from AC id (e.g. 'AC-1') to artifact paths proving it. Finish requires every AC to have at least one artifact listed here or referenced via evidenceRefs/reviewRefs/roleReports whose file mentions the AC id."
+    },
+    "fingerprintExcludes": {
+      "type": "array",
+      "items": { "$ref": "#/$defs/path" },
+      "description": "Optional repo-relative path prefixes excluded from input fingerprint for THIS task. Use when another agent owns those paths and their churn should not mark this task's evidence stale."
+    },
+    "createdAt": { "type": "string" },
+    "updatedAt": { "type": "string" }
+  },
+  "allOf": [
+    { "if": { "properties": { "status": { "const": "blocked" } } }, "then": { "required": ["blockedReason", "resumeFrom"], "properties": { "blockedReason": { "type": "string", "minLength": 1 }, "resumeFrom": { "type": "string" } } } },
+    { "if": { "properties": { "risk": { "enum": ["normal", "high-risk"] } } }, "then": { "properties": { "planPath": { "$ref": "#/$defs/path" } } } }
+  ],
+  "$defs": {
+    "path": { "type": "string", "minLength": 1, "pattern": "^(?!/)(?!.*\\.\\.)(?!.*:)(?!.*\\\\).+$" },
+    "refs": { "type": "array", "uniqueItems": true, "items": { "$ref": "#/$defs/path" } }
+  }
+}

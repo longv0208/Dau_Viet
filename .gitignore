@@ -1,0 +1,19 @@
+# Local indexes and raw execution output
+.gitnexus/
+.harness/runs/
+.harness/locks/
+.harness/local/
+.harness/tmp/
+repomix-output.xml
+
+# Secrets and local environment
+.env
+.env.*
+!.env.example
+
+# Build/dependency outputs
+**/node_modules/
+**/.next/
+**/target/
+**/build/
+**/.dart_tool/

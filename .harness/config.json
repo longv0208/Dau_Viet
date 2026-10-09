@@ -1,0 +1,54 @@
+{
+  "schemaVersion": 1,
+  "profile": "bootstrap",
+  "modules": {
+    "backend": {
+      "path": "dau-viet-backend",
+      "status": "uninitialized",
+      "manifests": [
+        "pom.xml"
+      ],
+      "gates": []
+    },
+    "admin": {
+      "path": "dau-viet-admin",
+      "status": "uninitialized",
+      "manifests": [
+        "package.json"
+      ],
+      "gates": []
+    },
+    "mobile": {
+      "path": "dau-viet-mobile",
+      "status": "uninitialized",
+      "manifests": [
+        "pubspec.yaml"
+      ],
+      "gates": []
+    }
+  },
+  "gates": [],
+  "policy": {
+    "maxRepairAttempts": 3,
+    "requireIndependentReview": true,
+    "requireHandoff": true
+  },
+  "gitnexus": {
+    "enabled": false,
+    "version": null,
+    "fallback": "targeted-search"
+  },
+  "runner": {
+    "entrypoint": "scripts/harness/harness.ps1",
+    "shell": "pwsh",
+    "args": [
+      "-NoProfile",
+      "-File"
+    ],
+    "timeoutSeconds": 600,
+    "cwdAllowlist": [
+      "."
+    ],
+    "note": "Requires PowerShell 7 (pwsh). On machines with only Windows PowerShell 5.1 the runner fails fast via #requires directive."
+  }
+}

@@ -1,0 +1,269 @@
+# DẤU VIỆT — Learning Engine Design (Spring Boot + Flutter)
+
+> **Status:** Proposed implementation design; ưu tiên vertical slice Bạch Đằng 938, nhưng engine phải dùng chung.  
+> **Main principle:** HistoricalEvent → Lesson → Template → Stage → Activity → Content/Evidence → Rule.  
+> **Target:** Spring Boot engine authoritative; Flutter renderer chịu trách nhiệm UI.
+
+## 1. Trách nhiệm từng lớp
+
+| Domain element | Trách nhiệm | Không nên làm |
+|---|---|---|
+| HistoricalEvent | Tri thức lịch sử, metadata, địa điểm/thời kỳ | Lưu UI state của người học |
+| LessonTemplate | Preset stage/activity/rule | Gắn cứng một sự kiện |
+| Lesson | Câu hỏi trung tâm, mục tiêu, audience | Đóng vai version published |
+| LessonVersion | Snapshot immutable có thể chạy | Sửa khi có attempt đang học |
+| Stage | Bước tư duy (`CONTEXT`, `EVIDENCE`, …) | Đồng nhất với một Flutter screen |
+| Activity | Tương tác có type, config, validation, feedback, output | Chứa business logic hard-code theo event |
+| Evidence | Nguồn, nội dung, reliability/relevance, ID | Chỉ lưu ảnh mà không có provenance |
+| LearnerAttempt | State, current cursor, answer/output, revision | Chỉnh sửa lesson config |
+| LearningEngine | Check rules, evaluate, transition, progress | Tin vào `isCorrect`/EXP do client gửi |
+
+## 2. Master stages và outputs
+
+| Stage | Hoạt động tiêu biểu | Output |
+|---|---|---|
+| Context | READ, VIEW_IMAGE | acknowledged/contextViewed |
+| Discovery | EXPLORE_MAP, HOTSPOT | discoveredItemIds[] |
+| Evidence | EVIDENCE_SELECT, CLASSIFY | selectedEvidenceIds[] |
+| Reasoning | MATCHING, REASONING_CONNECT | inferences[] |
+| Hypothesis | HYPOTHESIS_CHOICE, CLAIM_EVIDENCE | hypothesis + linkedEvidenceIds[] |
+| Reconstruction | DRAG_ORDER, MAP_PLACE | orderedSequence / reconstruction |
+| Verification | VERIFY | `SUPPORTED`, `PARTIAL`, `CONTRADICTED` + feedback |
+| Conclusion | CER | claim, evidenceIds[], reasoning |
+| Reflection | REFLECTION_PROMPT (optional MVP) | reflectionText/takeaway |
+
+Framework là tầng tư duy. Template có thể chọn/bỏ/đổi thứ tự stage trong guardrails; `Reflection` có thể optional, còn Conclusion hoặc equivalent phải có trước hoàn thành theo tài liệu BA mới.
+
+## 3. Runtime flow
+
+```mermaid
+flowchart TD
+  A[Flutter start or resume] --> B[Load pinned LessonVersion]
+  B --> C[Read Attempt cursor and outputs]
+  C --> D[Serve learner-safe Activity DTO]
+  D --> E[User submits answer with Idempotency-Key]
+  E --> F{Authorization and state valid?}
+  F -- No --> G[4xx state or validation error]
+  F -- Yes --> H[Find typed ActivityHandler]
+  H --> I[Validate answer and evaluate with evidence/context]
+  I --> J[Persist ActivityAttempt and output]
+  J --> K{Completion and transition rule}
+  K -- Revise --> L[Hypothesis or Reconstruction]
+  K -- Continue --> M[Next activity or stage]
+  K -- Lesson complete --> N[Result and exactly-once rewards]
+  L --> D
+  M --> D
+```
+
+## 4. Published schema & learner-safe projection
+
+**Stored server-side:**
+
+```json
+{
+  "id": "activity-verify",
+  "type": "VERIFICATION",
+  "instruction": "Kiểm chứng giả thuyết với chứng cứ",
+  "config": {"visibleSourceIds": ["ev-tide", "ev-stakes"]},
+  "validation": {
+    "type": "HYPOTHESIS_SUPPORT",
+    "requiredEvidenceIds": ["ev-tide", "ev-stakes"]
+  },
+  "feedback": {
+    "supported": "Giả thuyết được chứng cứ hỗ trợ",
+    "partial": "Cần bổ sung bằng chứng",
+    "contradicted": "Xem xét lại lập luận"
+  },
+  "onPartial": "stage-hypothesis",
+  "onContradicted": "stage-hypothesis"
+}
+```
+
+**Flutter receive:** id/type/instruction, whitelisted `config`, exposed evidence và progress. Không nhận hidden validation keys, required scoring secrets hoặc unpublished asset refs.
+
+**Schema validation:** `schemaVersion` + per-activity config schema (có thể sử dụng Jackson + Bean Validation/custom validators). Admin publish validator phải kiểm tra tất cả supported activity types và foreign IDs trước khi tạo version.
+
+## 5. Java contracts (đề xuất)
+
+```java
+public enum ActivityType {
+    READ, VIEW_IMAGE, MULTIPLE_CHOICE, EXPLORE_MAP,
+    EVIDENCE_SELECT, MATCHING, REASONING_CONNECT,
+    HYPOTHESIS_CHOICE, DRAG_ORDER, VERIFICATION,
+    CER, REFLECTION_PROMPT
+}
+
+public interface ActivityHandler {
+    ActivityType supports();
+    EvaluationResult evaluate(
+        ActivityDefinition activity,
+        JsonNode submittedAnswer,
+        AttemptContext context
+    );
+}
+
+public record EvaluationResult(
+    String outcome,
+    boolean completed,
+    JsonNode output,
+    String feedbackCode
+) {}
+```
+
+`ActivityDefinition`, `AttemptContext` là domain classes sẽ implement; ví dụ là interface design, chưa phải source compile ngay. Không dùng reflection để chạy biểu thức động từ Admin; validation rules chỉ hỗ trợ một tập rule đã whitelist.
+
+### Registry
+
+```java
+@Service
+public class ActivityEngine {
+    private final Map<ActivityType, ActivityHandler> handlers;
+
+    public ActivityEngine(List<ActivityHandler> implementations) {
+        this.handlers = implementations.stream().collect(
+            Collectors.toUnmodifiableMap(ActivityHandler::supports, Function.identity())
+        );
+    }
+
+    public EvaluationResult evaluate(
+        ActivityDefinition definition, JsonNode input, AttemptContext context
+    ) {
+        ActivityHandler handler = handlers.get(definition.type());
+        if (handler == null) throw new UnsupportedActivityTypeException(definition.type());
+        return handler.evaluate(definition, input, context);
+    }
+}
+```
+
+Domain exceptions custom phải định nghĩa khi code. Registry đảm bảo activity type không được hỗ trợ không thể lọt qua publish.
+
+## 6. Activity handler catalog cho MVP
+
+| ActivityType | Input | Server validation | Output |
+|---|---|---|---|
+| READ | acknowledgment | active, required context viewed | viewed |
+| VIEW_IMAGE | acknowledgment | active/asset valid | viewed |
+| MULTIPLE_CHOICE | optionIds[] | valid options, cardinality, answer rule | selected options, correctness/feedback |
+| EXPLORE_MAP | markerId | visible & discoverable marker | discoveredItemIds[] |
+| EVIDENCE_SELECT | evidenceIds[] | evidence in published snapshot, minimum required | selectedEvidenceIds[] |
+| MATCHING | pairs[] | card IDs, allowed relationships | inferences[]/pairs |
+| REASONING_CONNECT | relations[] | source/target IDs, relation rule | inferences[] |
+| HYPOTHESIS_CHOICE | hypothesisId, evidenceIds[] | allowable claim/evidence support | hypothesis |
+| DRAG_ORDER | orderedIds[] | same set as configured, accepted sequences | reconstruction |
+| VERIFICATION | submission/acknowledgment | support mapping from previous outputs | verificationResult |
+| CER | claim, evidenceIds[], reasoning | structure/preset rubric (avoid naive free-text exact match) | conclusion |
+| REFLECTION_PROMPT | text or optionId | length/basic constraints; optional | reflection |
+
+**UX:** Drag & drop cần fallback tap/reorder; kiểm chứng không chỉ pass/fail mà có feedback và đường sửa giả thuyết.
+
+## 7. Attempt state machine
+
+```text
+IN_PROGRESS
+  ├─ activity submitted → progress saved → next activity
+  ├─ verification PARTIAL / CONTRADICTED → revise stage (bounded retries)
+  ├─ interrupted → resume at saved cursor and pinned version
+  └─ required outputs satisfied + conclusion → COMPLETED
+COMPLETED → immutable result (optional repeat = new Attempt)
+ABANDONED → no new reward (replay policy BA to decide)
+```
+
+Không tin `pageIndex` từ client; server tính `currentStageId`, `currentActivityId`. Khi verification revise, phải giữ attempt history; output nào thay đổi phải invalidate hoặc re-evaluate dependent outputs theo dependency graph. MVP có thể giới hạn một loop cố định `VERIFICATION → HYPOTHESIS` thay vì viết workflow DSL đa năng.
+
+## 8. Submit transaction (pseudocode)
+
+```text
+@Transactional submit(user, attemptId, activityId, idempotencyKey, answer)
+  1. Verify owner, state = IN_PROGRESS, pinned version exists
+  2. Check idempotency key & request fingerprint
+  3. Lock attempt (optimistic @Version or SELECT FOR UPDATE)
+  4. Ensure activityId equals current executable activity
+  5. Get ActivityHandler by activity.type
+  6. Evaluate and produce typed domain output
+  7. Append ActivityAttempt (never overwrite previous)
+  8. Merge outputs; compute stage completion and transition
+  9. Persist cursor/progress
+ 10. If finished, persist Result + reward ledger ONCE
+ 11. Persist idempotency response in same transaction
+ 12. Return learner-safe result
+```
+
+Trên lỗi mạng, client retry **cùng key và cùng payload**; backend trả kết quả cũ. Nếu cùng key mà payload khác, trả conflict. Transaction boundary phải đảm bảo không cấp thưởng hai lần; integration test concurrent submissions rất quan trọng.
+
+## 9. Publish validation guardrails
+
+Publish phải chặn nếu:
+
+- Thiếu `centralQuestion` hoặc learning objectives.
+- Required stage không có enabled activity.
+- Activity thiếu instruction/config/rule hoặc thiếu Flutter renderer hỗ trợ.
+- Broken evidence/media reference, evidence/source bắt buộc chưa có.
+- Có Hypothesis mà không có verification/feedback path.
+- Thiếu Conclusion hoặc template-specific equivalent.
+- Transition tới stage/activity không tồn tại, infinite loop không có escape/retry bounds.
+- Schema version/config không phù hợp với published engine.
+
+`Draft → Ready/Valid → Published → Archived`. Publish tạo immutable version snapshot; Preview dùng cùng projection/renderer contract để giảm lệch Admin–Flutter.
+
+## 10. Example: Bạch Đằng 938 vertical slice
+
+| Step | Configured activity | Output target |
+|---|---|---|
+| Context | READ | Nắm central question về chiến thắng |
+| Discovery | EXPLORE_MAP | Tìm dấu địa hình, bãi cọc, thủy triều |
+| Evidence | EVIDENCE_SELECT | `ev-stakes`, `ev-tide` và dữ kiện liên quan |
+| Reasoning | MATCHING/REASONING_CONNECT | Liên hệ nước lên–nước rút với bãi cọc |
+| Hypothesis | HYPOTHESIS_CHOICE | Chọn giải thích và evidence support |
+| Reconstruction | DRAG_ORDER | Chuẩn bị → nhử địch → nước rút → phản công |
+| Verification | VERIFICATION | Supported/Partial/Contradicted và feedback |
+| Conclusion | CER | Trả lời câu hỏi lịch sử bằng claim + evidence + reasoning |
+| Reflection | REFLECTION_PROMPT | Một điều học được (optional) |
+| Result | System screen (không bắt buộc là stage) | Story/result/EXP nếu rule cho phép |
+
+Dùng lesson thứ hai (ví dụ Cách mạng tháng Tám 1945, template `DECISION_ANALYSIS`) để chứng minh **không cần đổi Java handlers/Flutter renderers** khi thêm nội dung.
+
+## 11. Flutter renderer contract
+
+```dart
+Widget buildActivity(ActivityView activity) {
+  switch (activity.type) {
+    case ActivityType.multipleChoice:
+      return MultipleChoiceActivity(activity: activity);
+    case ActivityType.dragOrder:
+      return DragOrderActivity(activity: activity);
+    case ActivityType.evidenceSelect:
+      return EvidenceSelectActivity(activity: activity);
+    default:
+      return UnsupportedActivity(activity: activity);
+  }
+}
+```
+
+Snippet biểu diễn pattern, chưa phải code chạy độc lập; tất cả renderer còn lại được thêm theo activity catalog. Flutter quản lý interaction state + optimistic UI hợp lý; backend là single source of truth của progress.
+
+## 12. Test plan / Acceptance criteria
+
+- [ ] Không có `if (lessonId == "bach-dang")` hoặc switch theo eventId trong engine.
+- [ ] Admin publish chặn missing references/rules/renderer.
+- [ ] Đổi lesson draft rồi publish v2 không thay attempt pinned v1.
+- [ ] Submit sai/partial → feedback + retry/revise như rule.
+- [ ] Output Evidence được sử dụng trong Reasoning, Hypothesis, CER.
+- [ ] Retry same request/idempotency key không thêm duplicate answer/reward.
+- [ ] Hai concurrent submit không vượt state hoặc tăng EXP hai lần.
+- [ ] Learner không truy cập draft/unpublished lesson hoặc đáp án ẩn.
+- [ ] Pause/resume mở đúng activity cùng lesson version.
+- [ ] Bạch Đằng 938 và lesson thứ hai chạy từ snapshot config, không thay handler.
+
+## 13. Open decisions
+
+- 2 template MVP: `EVENT_INVESTIGATION`, `DECISION_ANALYSIS` là đề xuất từ BA mới, cần PO duyệt.
+- CER grading: structure-based/manual rubric/preset choices trong MVP; free text AI grading không thuộc must.
+- Tỷ trọng điểm/retry/hint, số lần học lại, reward repeat và unlock conditions phải có product decision.
+- Reflection optional vs required từng template; Story/Result là stage hay presentation sau hoàn thành?
+- Island/energy/shop là metagame của mockup, chưa ép vào core engine.
+
+## 14. Sources
+
+- `Dau_Viet_BA_MVP_Learning_Framework.docx`: master stages, templates, ENG requirements, Admin authoring, sample lesson 938, gap Conclusion/Reflection.
+- `Functional_Requirements_Dau_Viet_MVP.docx`: activity types, 4 Dấu, progress, map và collection.
+- Architecture/handler code trong file này là **đề xuất triển khai**, không phải trích dẫn code sẵn có trong tài liệu BA.

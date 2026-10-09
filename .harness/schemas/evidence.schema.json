@@ -1,0 +1,44 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://dauviet.local/schemas/evidence.schema.json",
+  "title": "Dau Viet harness evidence record",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["taskId","runId","scope","headSha","inputFingerprint","toolVersions","gates","status","at"],
+  "properties": {
+    "taskId": { "type": "string", "pattern": "^TASK-[0-9]{4,}$" },
+    "runId": { "type": "string", "minLength": 1 },
+    "scope": { "type": "array", "items": { "type": "string" } },
+    "headSha": { "type": ["string","null"] },
+    "inputFingerprint": { "type": "string", "minLength": 16 },
+    "fingerprintAfter": { "type": ["string","null"] },
+    "stale": { "type": "boolean" },
+    "gateConfigHash": { "type": ["string","null"] },
+    "toolVersions": { "type": "object", "additionalProperties": { "type": ["string","null"] } },
+    "gates": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["gateId","status"],
+        "properties": {
+          "gateId": { "type": "string" },
+          "status": { "enum": ["passed","failed","not_applicable","blocked","stale"] },
+          "reason": { "type": ["string","null"] },
+          "exitCode": { "type": ["integer","null"] },
+          "runId": { "type": ["string","null"] },
+          "command": { "type": ["string","null"] },
+          "args": { "type": ["array","null"], "items": { "type": "string" } },
+          "cwd": { "type": ["string","null"] },
+          "startedAt": { "type": ["string","null"] },
+          "finishedAt": { "type": ["string","null"] },
+          "durationMs": { "type": ["number","null"] },
+          "logPath": { "type": ["string","null"] },
+          "timedOut": { "type": ["boolean","null"] }
+        }
+      }
+    },
+    "status": { "enum": ["passed","failed","stale"] },
+    "at": { "type": "string" }
+  }
+}

@@ -1,0 +1,54 @@
+{
+  "schemaVersion": 1,
+  "id": "TASK-0002",
+  "type": "harness",
+  "risk": "normal",
+  "status": "done",
+  "goal": "Implement the Phase 2 harness runner, state/fingerprint/scope modules, GitNexus adapter stub, and CI skeleton so docs-only tasks can be verified deterministically.",
+  "owner": "claude",
+  "modules": [],
+  "scope": [
+    "scripts/harness/",
+    ".harness/schemas/evidence.schema.json",
+    "tests/harness/",
+    ".github/workflows/harness.yml",
+    ".harness/config.json",
+    "docs/AGENT_WORKFLOW.md",
+    "README.md"
+  ],
+  "acceptanceCriteria": [
+    { "id": "AC-1", "text": "harness.ps1 exposes doctor/start/verify/status/resume/finish and returns explicit exit codes." },
+    { "id": "AC-2", "text": "Task state transitions follow contract: draft→ready→implementing→verifying→reviewing→done; blocked carries reason/resumeFrom." },
+    { "id": "AC-3", "text": "Fingerprint covers tracked/staged/deleted/renamed/untracked and unborn HEAD; edits between verify and finish mark evidence stale." },
+    { "id": "AC-4", "text": "Scope selector runs only applicable gates; uninitialized modules produce not_applicable with reason, never fake pass." },
+    { "id": "AC-5", "text": "GitNexus adapter detects availability and falls back to targeted-search with an explicit impact note." },
+    { "id": "AC-6", "text": "Runner unit tests cover failure modes: nonzero exit, timeout, missing gate, stale evidence, uninitialized-module bypass attempt." },
+    { "id": "AC-7", "text": "CI workflow invokes the same runner config as local with least-privilege token; no deploy or publish steps." }
+  ],
+  "dependencies": ["TASK-0001"],
+  "planPath": "plans/2026-10-09-no-issue-vibe-coding-harness/phase-02-harness-and-gitnexus.md",
+  "evidenceRefs": [
+    ".harness/runs/TASK-0002/evidence-verify-20261009-061001.json",
+    ".harness/runs/TASK-0002/run-tests-20261009-061100.log"
+  ],
+  "reviewRefs": ["plans/reports/code-reviewer-261009-0620-phase2-review.md","plans/reports/tester-261009-0611-phase2-tests.md"],
+  "nextAction": "Phase 3: resume/orchestration drill, GitNexus live test on bootstrapped backend, evidence freshness across sessions. P1 cwd-allowlist bug fixed and verified (sibling-dir bypass blocked).",
+  "baseCommit": null,
+  "inputFingerprint": null,
+  "snapshot": null,
+  "roleReports": [],
+  "blockedReason": null,
+  "resumeFrom": null,
+  "handoffRef": "tasks/TASK-0002/handoff.md",
+  "acEvidence": {
+    "AC-1": ["scripts/harness/harness.ps1","tasks/TASK-0002/handoff.md"],
+    "AC-2": ["scripts/harness/modules/State.psm1","tasks/TASK-0002/handoff.md"],
+    "AC-3": ["scripts/harness/modules/Fingerprint.psm1","tests/harness/run-tests.ps1","tasks/TASK-0002/handoff.md"],
+    "AC-4": ["scripts/harness/harness.ps1","tasks/TASK-0002/handoff.md"],
+    "AC-5": ["scripts/harness/modules/GitNexus.psm1","tasks/TASK-0002/handoff.md"],
+    "AC-6": ["tests/harness/run-tests.ps1","tasks/TASK-0002/handoff.md"],
+    "AC-7": [".github/workflows/harness.yml","tasks/TASK-0002/handoff.md"]
+  },
+  "createdAt": "2026-10-09T05:55:00+07:00",
+  "updatedAt": "2026-10-09T06:30:00+07:00"
+}

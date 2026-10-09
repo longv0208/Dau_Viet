@@ -1,0 +1,33 @@
+{
+  "schemaVersion": 1,
+  "id": "TASK-0001",
+  "type": "docs",
+  "risk": "tiny",
+  "status": "done",
+  "goal": "Verify the documentation-only agent workflow pilot against repository evidence.",
+  "owner": "claude",
+  "modules": [],
+  "scope": ["AGENTS.md", "README.md", "docs/AGENT_WORKFLOW.md", "docs/DECISIONS.md", "docs/PROGRESS.md", "tasks/TASK-0001/"],
+  "acceptanceCriteria": [
+    { "id": "AC-1", "text": "Entry-point links resolve and identify the six existing product design documents." },
+    { "id": "AC-2", "text": "Workflow identifies backend, admin and mobile as uninitialized and does not claim successful application builds." },
+    { "id": "AC-3", "text": "Task JSON validates; independent review and a handoff record document the pilot results before finish." }
+  ],
+  "dependencies": [],
+  "planPath": "plans/2026-10-09-no-issue-vibe-coding-harness/phase-01-context-and-tasks.md",
+  "evidenceRefs": [".harness/runs/TASK-0001/phase1-verification.md"],
+  "reviewRefs": ["plans/reports/code-reviewer-261009-0550-phase1-review.md"],
+  "nextAction": "Phase 2: implement harness runner (scripts/harness/harness.ps1) and GitNexus adapter; first real module task = bootstrap dau-viet-backend.",
+  "baseCommit": null,
+  "inputFingerprint": null,
+  "roleReports": [],
+  "blockedReason": null,
+  "resumeFrom": null,
+  "handoffRef": "tasks/TASK-0001/handoff.md",
+  "acEvidence": {
+    "AC-1": [".harness/runs/TASK-0001/phase1-verification.md"],
+    "AC-2": [".harness/runs/TASK-0001/phase1-verification.md","plans/reports/code-reviewer-261009-0550-phase1-review.md"],
+    "AC-3": [".harness/schemas/task.schema.json","tasks/TASK-0001/handoff.md","plans/reports/code-reviewer-261009-0550-phase1-review.md"]
+  },
+  "updatedAt": "2026-10-09T05:52:00+07:00"
+}

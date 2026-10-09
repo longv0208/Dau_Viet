@@ -1,0 +1,106 @@
+{
+    "schemaVersion":  1,
+    "id":  "TASK-0003",
+    "type":  "harness",
+    "risk":  "normal",
+    "status":  "done",
+    "goal":  "Phase 3: resume evidence freshness, handoff template, finish gating, PROGRESS view generation, role mapping, sequential default, friction notes, and runbook.",
+    "owner":  "claude",
+    "modules":  [
+
+                ],
+    "scope":  [
+                  "scripts/harness/",
+                  ".harness/templates/handoff.md",
+                  ".harness/templates/role-report.md",
+                  "docs/HARNESS_RUNBOOK.md",
+                  "docs/PROGRESS.md",
+                  "docs/AGENT_WORKFLOW.md",
+                  "docs/DECISIONS.md",
+                  "tests/harness/"
+              ],
+    "acceptanceCriteria":  [
+                               {
+                                   "id":  "AC-1",
+                                   "text":  "resume command inspects task/deps/branch/HEAD/fingerprint/gate-config/evidence and reports next action plus stale reasons."
+                               },
+                               {
+                                   "id":  "AC-2",
+                                   "text":  "finish blocks done unless gates+review+AC mapping+docs all present; editing after verify marks evidence stale."
+                               },
+                               {
+                                   "id":  "AC-3",
+                                   "text":  "PROGRESS.md regenerated from task JSONs (view-only, not source of truth); missing/invalid task is error."
+                               },
+                               {
+                                   "id":  "AC-4",
+                                   "text":  "handoff template covers intent/files/assumptions/AC state/evidence refs/blockers/one next command."
+                               },
+                               {
+                                   "id":  "AC-5",
+                                   "text":  "role mapping documented; default sequential; parallel only with disjoint file ownership."
+                               },
+                               {
+                                   "id":  "AC-6",
+                                   "text":  "HARNESS_RUNBOOK.md covers setup, update, lock recovery, resume, reindex fallback, CI triage, commit/push authority."
+                               },
+                               {
+                                   "id":  "AC-7",
+                                   "text":  "fresh-session resume drill and stale-evidence block verified via test."
+                               }
+                           ],
+    "dependencies":  [
+                         "TASK-0002"
+                     ],
+    "planPath":  "plans/2026-10-09-no-issue-vibe-coding-harness/phase-03-resume-and-improvement.md",
+    "evidenceRefs":  [
+                         ".harness/runs/TASK-0003/phase3-implementation-notes.md",
+                         ".harness/runs/TASK-0003/evidence-verify-20261009-073306.json"
+                     ],
+    "reviewRefs":  [
+                       "plans/reports/code-reviewer-261009-0724-phase3-postfix.md"
+                   ],
+    "nextAction":  "Collect fresh code-reviewer verdict on post-fix code (prior FAIL at 0645 has been addressed). Then `pwsh -File scripts/harness/harness.ps1 verify -TaskId TASK-0003` on a pwsh-7 host to record passing evidence (harness-self-test needs pwsh). Then `finish`.",
+    "baseCommit":  null,
+    "inputFingerprint":  null,
+    "snapshot":  null,
+    "roleReports":  [
+
+                    ],
+    "blockedReason":  null,
+    "resumeFrom":  null,
+    "handoffRef":  "tasks/TASK-0003/handoff.md",
+    "fingerprintExcludes":  [
+                                "design/"
+                            ],
+    "acEvidence":  {
+                       "AC-1":  [
+                                    "scripts/harness/modules/ResumeFinish.psm1",
+                                    "scripts/harness/harness.ps1"
+                                ],
+                       "AC-2":  [
+                                    "scripts/harness/modules/ResumeFinish.psm1",
+                                    "tests/harness/run-tests.ps1"
+                                ],
+                       "AC-3":  [
+                                    "scripts/harness/modules/Progress.psm1",
+                                    "docs/PROGRESS.md"
+                                ],
+                       "AC-4":  [
+                                    ".harness/templates/handoff.md"
+                                ],
+                       "AC-5":  [
+                                    "docs/AGENT_WORKFLOW.md",
+                                    "tasks/TASK-0003/handoff.md"
+                                ],
+                       "AC-6":  [
+                                    "docs/HARNESS_RUNBOOK.md"
+                                ],
+                       "AC-7":  [
+                                    "tests/harness/run-tests.ps1",
+                                    "tasks/TASK-0003/handoff.md"
+                                ]
+                   },
+    "createdAt":  "2026-10-09T06:30:00+07:00",
+    "updatedAt":  "2026-10-09T07:35:54.7487846+07:00"
+}

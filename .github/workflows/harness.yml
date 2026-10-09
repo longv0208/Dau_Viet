@@ -1,0 +1,54 @@
+name: harness
+
+on:
+  pull_request:
+    types: [opened, synchronize, reopened]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: harness-${{ github.event.pull_request.number || github.run_id }}
+  cancel-in-progress: true
+
+jobs:
+  verify:
+    name: harness verify
+    runs-on: windows-latest
+    timeout-minutes: 15
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+
+      - name: Doctor
+        shell: pwsh
+        run: pwsh -NoProfile -File scripts/harness/harness.ps1 doctor
+        continue-on-error: true
+        timeout-minutes: 2
+
+      - name: Verify task (dry-run on PRs without TASK_ID)
+        shell: pwsh
+        run: |
+          if ($env:HARNESS_TASK_ID) {
+            pwsh -NoProfile -File scripts/harness/harness.ps1 verify -TaskId $env:HARNESS_TASK_ID
+          } else {
+            pwsh -NoProfile -File scripts/harness/harness.ps1 doctor
+            if (Test-Path tests/harness/run-tests.ps1) {
+              pwsh -NoProfile -File tests/harness/run-tests.ps1
+            }
+          }
+        env:
+          HARNESS_TASK_ID: ${{ vars.HARNESS_TASK_ID }}
+        timeout-minutes: 10
+
+      - name: Upload run logs
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: harness-runs-${{ github.run_id }}
+          path: .harness/runs/
+          if-no-files-found: ignore
+          retention-days: 7
