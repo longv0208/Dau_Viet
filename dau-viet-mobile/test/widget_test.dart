@@ -113,6 +113,11 @@ void main() {
     await tester.scrollUntilVisible(find.text('HOÀN THÀNH DẤU VẾT 1 & TIẾP TỤC ›'), 100);
     await tester.tap(find.text('HOÀN THÀNH DẤU VẾT 1 & TIẾP TỤC ›'));
     await tester.pumpAndSettle();
+
+    // Xác nhận và đóng BiteSizedCompletionModal
+    expect(find.text('TIẾP TỤC HÀNH TRÌNH ›'), findsOneWidget);
+    await tester.tap(find.text('TIẾP TỤC HÀNH TRÌNH ›'));
+    await tester.pumpAndSettle();
     expect(find.text('4 DẤU VẾT LỊCH SỬ'), findsOneWidget);
 
     // 10. Tiếp tục mở M-11 Ghép Nối Dữ Kiện (Dấu Vết 2)
@@ -143,8 +148,10 @@ void main() {
     await tester.pumpAndSettle();
 
     // Ghép cặp 4: Quân Nam Hán -> Hạm đội xâm lược
+    await tester.scrollUntilVisible(find.text('Quân Nam Hán'), 100);
     await tester.tap(find.text('Quân Nam Hán'));
     await tester.pumpAndSettle();
+    await tester.scrollUntilVisible(find.textContaining('Hạm đội xâm lược'), 100);
     await tester.tap(find.textContaining('Hạm đội xâm lược'));
     await tester.pumpAndSettle();
 
@@ -158,6 +165,11 @@ void main() {
     // 11. Tiếp tục sang M-12 Sắp Xếp Niên Đại (Dấu Vết 3)
     await tester.scrollUntilVisible(find.textContaining('HOÀN THÀNH DẤU VẾT 2'), 100);
     await tester.tap(find.textContaining('HOÀN THÀNH DẤU VẾT 2'));
+    await tester.pumpAndSettle();
+
+    // Xác nhận và đóng BiteSizedCompletionModal
+    expect(find.text('TIẾP TỤC HÀNH TRÌNH ›'), findsOneWidget);
+    await tester.tap(find.text('TIẾP TỤC HÀNH TRÌNH ›'));
     await tester.pumpAndSettle();
 
     // Xác nhận đã vào M-12 Chronological Order
@@ -187,6 +199,11 @@ void main() {
     await tester.tap(find.textContaining('HOÀN THÀNH DẤU VẾT 3'));
     await tester.pumpAndSettle();
 
+    // Xác nhận và đóng BiteSizedCompletionModal
+    expect(find.text('TIẾP TỤC HÀNH TRÌNH ›'), findsOneWidget);
+    await tester.tap(find.text('TIẾP TỤC HÀNH TRÌNH ›'));
+    await tester.pumpAndSettle();
+
     // Quay lại màn hình 4 Dấu Vết
     expect(find.text('4 DẤU VẾT LỊCH SỬ'), findsOneWidget);
 
@@ -200,6 +217,7 @@ void main() {
     expect(find.textContaining('Giả thuyết nghi vấn là SAI'), findsOneWidget);
 
     // Chọn phương án A (đúng: Giả thuyết nghi vấn là SAI)
+    await tester.scrollUntilVisible(find.textContaining('Giả thuyết nghi vấn là SAI'), 100);
     await tester.tap(find.textContaining('Giả thuyết nghi vấn là SAI'));
     await tester.pumpAndSettle();
 
@@ -213,6 +231,11 @@ void main() {
     // 13. Tiếp tục sang M-14 Lập Luận CER (CER Conclusion)
     await tester.scrollUntilVisible(find.textContaining('TIẾP TỤC SANG LẬP LUẬN CER (M-14)'), 100);
     await tester.tap(find.textContaining('TIẾP TỤC SANG LẬP LUẬN CER (M-14)'));
+    await tester.pumpAndSettle();
+
+    // Xác nhận và đóng BiteSizedCompletionModal
+    expect(find.text('TIẾP TỤC HÀNH TRÌNH ›'), findsOneWidget);
+    await tester.tap(find.text('TIẾP TỤC HÀNH TRÌNH ›'));
     await tester.pumpAndSettle();
 
     // Xác nhận đã vào M-14 CER Conclusion Screen
@@ -235,6 +258,11 @@ void main() {
     // 14. Bấm hoàn thành để chuyển sang M-18 Khải Hoàn Chiến Dịch
     await tester.scrollUntilVisible(find.textContaining('HOÀN THÀNH & KHẢI HOÀN CHIẾN DỊCH (M-18)'), 100);
     await tester.tap(find.textContaining('HOÀN THÀNH & KHẢI HOÀN CHIẾN DỊCH (M-18)'));
+    await tester.pumpAndSettle();
+
+    // Xác nhận và đóng BiteSizedCompletionModal
+    expect(find.text('TIẾP TỤC HÀNH TRÌNH ›'), findsOneWidget);
+    await tester.tap(find.text('TIẾP TỤC HÀNH TRÌNH ›'));
     await tester.pumpAndSettle();
 
     // Xác nhận đã vào M-18 Event Victory Screen

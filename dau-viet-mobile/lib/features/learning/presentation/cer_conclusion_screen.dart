@@ -1,10 +1,16 @@
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
+import '../../../core/audio/dau_viet_audio_service.dart';
 import '../../../core/theme/dau_viet_colors.dart';
 import '../../../core/theme/dau_viet_typography.dart';
+import '../../../core/widgets/ambient_atmosphere_overlay.dart';
+import '../../../core/widgets/bite_sized_completion_modal.dart';
+import '../../../core/widgets/combo_streak_badge_widget.dart';
 import '../../../core/widgets/dong_son_button.dart';
-import '../../../core/widgets/energy_pill.dart';
+import '../../../core/widgets/interactive_historical_mascot_widget.dart';
 import '../../../core/widgets/parchment_card.dart';
+import '../../../core/widgets/sound_toggle_button.dart';
+import '../../../core/widgets/story_audio_player_widget.dart';
 
 /// Màn hình M-14: Kết Luận Lập Luận CER (Claim - Evidence - Reasoning Screen)
 /// Khớp 100% với đặc tả trong MOBILE_SCREEN_DESIGN.md & UI_COMPONENT_SPEC.md
@@ -42,19 +48,22 @@ class _CerConclusionScreenState extends State<CerConclusionScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final mascotState = !_isSubmitted
+        ? MascotState.guiding
+        : (_isStrongEvidence ? MascotState.cheering : MascotState.thinking);
+
+    final mascotMessage = !_isSubmitted
+        ? 'Hãy chọn nguồn bằng chứng có tính thực chứng khảo cổ học cao nhất để hoàn thiện mô hình CER!'
+        : (_isStrongEvidence
+            ? 'Hoan hô! Luận điểm vững chắc kết hợp di chỉ khảo cổ Yên Giang giúp phục dựng lịch sử chân thực nhất!'
+            : 'Truyền thuyết dân gian rất giàu cảm xúc nhưng chưa đủ tính xác thực khoa học bằng di chỉ bãi cọc khảo cổ.');
+
     return Scaffold(
       backgroundColor: DauVietColors.parchmentSurface,
-      body: Container(
-        decoration: const BoxDecoration(
-          gradient: LinearGradient(
-            begin: Alignment.topCenter,
-            end: Alignment.bottomCenter,
-            colors: [
-              DauVietColors.parchmentSurface,
-              Color(0xFFFAF2E4),
-            ],
-          ),
-        ),
+      body: AmbientAtmosphereOverlay(
+        mode: AtmosphereMode.goldEmbers,
+        backgroundImage: 'assets/images/bg_story_thu_phong.jpg',
+        backgroundOpacity: 0.18,
         child: SafeArea(
           child: Column(
             children: [
@@ -68,6 +77,13 @@ class _CerConclusionScreenState extends State<CerConclusionScreen> {
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.stretch,
                     children: [
+                      // 2.1 Mascot Chibi Sĩ Tử Dấu Việt phản hồi
+                      InteractiveHistoricalMascotWidget(
+                        state: mascotState,
+                        message: mascotMessage,
+                      ),
+                      const SizedBox(height: 10),
+
                       // 3. Khung Giới Thiệu Mô Hình CER
                       _buildHeaderIntroCard(),
                       const SizedBox(height: 14),
@@ -100,6 +116,12 @@ class _CerConclusionScreenState extends State<CerConclusionScreen> {
                                   setState(() {
                                     _isSubmitted = true;
                                   });
+                                  if (_isStrongEvidence) {
+                                    DauVietAudioService.instance.playCorrect();
+                                    DauVietAudioService.instance.playStreakUp();
+                                  } else {
+                                    DauVietAudioService.instance.playWrong();
+                                  }
                                 }
                               : null,
                         )
@@ -113,7 +135,20 @@ class _CerConclusionScreenState extends State<CerConclusionScreen> {
                           height: 52,
                           onPressed: () {
                             if (_isStrongEvidence) {
-                              context.go('/rewards/victory');
+                              BiteSizedCompletionModal.show(
+                                context: context,
+                                title: 'TOÀN THẮNG CHIẾN DỊCH!',
+                                subtitle: 'Bạn đã hoàn thiện xuất sắc mô hình lập luận CER và minh định toàn bộ 4 Dấu Vết Bạch Đằng 938!',
+                                scorePoints: 200,
+                                xpPoints: 100,
+                                accuracy: 1.0,
+                                streakCount: 7,
+                                multiplier: 2.0,
+                                badgeAsset: 'assets/badges/badge_trace_1_context.png',
+                                onContinue: () {
+                                  context.go('/rewards/victory');
+                                },
+                              );
                             } else {
                               setState(() {
                                 _isSubmitted = false;
@@ -206,10 +241,11 @@ class _CerConclusionScreenState extends State<CerConclusionScreen> {
               ],
             ),
           ),
-          const EnergyPill(
-            energy: 100,
-            maxEnergy: 100,
-            showHistoryPoints: false,
+          const SoundToggleButton(),
+          const SizedBox(width: 8),
+          const ComboStreakBadgeWidget(
+            streakCount: 7,
+            multiplier: 2.0,
           ),
         ],
       ),
@@ -466,6 +502,12 @@ class _CerConclusionScreenState extends State<CerConclusionScreen> {
             ),
           ),
           if (_isStrongEvidence) ...[
+            const SizedBox(height: 12),
+            const StoryAudioPlayerWidget(
+              title: 'Giọng đọc tổng kết: Luận chứng Bạch Đằng 938',
+              audioAsset: 'audio/narration_bach_dang.wav',
+              compact: true,
+            ),
             const SizedBox(height: 12),
             Container(
               padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),

@@ -1,15 +1,29 @@
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
+import '../../../core/audio/dau_viet_audio_service.dart';
 import '../../../core/theme/dau_viet_colors.dart';
 import '../../../core/theme/dau_viet_typography.dart';
 import '../../../core/widgets/dong_son_button.dart';
 import '../../../core/widgets/energy_pill.dart';
 import '../../../core/widgets/parchment_card.dart';
+import '../../../core/widgets/sound_toggle_button.dart';
 
 /// Màn hình M-19: Nhận Thưởng Chiến Dịch & Rương Báu (Reward Claim Screen)
 /// Khớp 100% với đặc tả trong MOBILE_SCREEN_DESIGN.md & UI_COMPONENT_SPEC.md
-class RewardClaimScreen extends StatelessWidget {
+class RewardClaimScreen extends StatefulWidget {
   const RewardClaimScreen({super.key});
+
+  @override
+  State<RewardClaimScreen> createState() => _RewardClaimScreenState();
+}
+
+class _RewardClaimScreenState extends State<RewardClaimScreen> {
+  @override
+  void initState() {
+    super.initState();
+    // Phát âm thanh rương báu mở ra
+    DauVietAudioService.instance.playChestOpen();
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -160,6 +174,8 @@ class RewardClaimScreen extends StatelessWidget {
               ],
             ),
           ),
+          const SoundToggleButton(),
+          const SizedBox(width: 8),
           const EnergyPill(
             energy: 100,
             maxEnergy: 100,

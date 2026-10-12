@@ -1,11 +1,14 @@
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
+import '../../../core/audio/dau_viet_audio_service.dart';
 import '../../../core/theme/dau_viet_colors.dart';
 import '../../../core/theme/dau_viet_typography.dart';
+import '../../../core/widgets/bite_sized_completion_modal.dart';
+import '../../../core/widgets/combo_streak_badge_widget.dart';
 import '../../../core/widgets/dong_son_button.dart';
-import '../../../core/widgets/energy_pill.dart';
 import '../../../core/widgets/gold_confetti_overlay.dart';
 import '../../../core/widgets/shimmer_progress_bar.dart';
+import '../../../core/widgets/sound_toggle_button.dart';
 import '../../../core/widgets/tactile_3d_card.dart';
 
 /// Màn hình M-12: Kéo Thả & Sắp Xếp Niên Đại Chiến Dịch (Chronological Order Screen)
@@ -80,6 +83,7 @@ class _ChronologicalOrderScreenState extends State<ChronologicalOrderScreen> {
       final item = _items.removeAt(index);
       _items.insert(index - 1, item);
     });
+    DauVietAudioService.instance.playTap();
   }
 
   void _moveDown(int index) {
@@ -88,6 +92,7 @@ class _ChronologicalOrderScreenState extends State<ChronologicalOrderScreen> {
       final item = _items.removeAt(index);
       _items.insert(index + 1, item);
     });
+    DauVietAudioService.instance.playTap();
   }
 
   @override
@@ -159,6 +164,12 @@ class _ChronologicalOrderScreenState extends State<ChronologicalOrderScreen> {
                             setState(() {
                               _isSubmitted = true;
                             });
+                            if (_isOrderCorrect) {
+                              DauVietAudioService.instance.playCorrect();
+                              DauVietAudioService.instance.playStreakUp();
+                            } else {
+                              DauVietAudioService.instance.playWrong();
+                            }
                           },
                         )
                       else
@@ -171,7 +182,20 @@ class _ChronologicalOrderScreenState extends State<ChronologicalOrderScreen> {
                           height: 52,
                           onPressed: () {
                             if (_isOrderCorrect) {
-                              context.go('/traces/evt_bach_dang_938');
+                              BiteSizedCompletionModal.show(
+                                context: context,
+                                title: 'NIÊN BIỂU CHÍNH XÁC!',
+                                subtitle: 'Bạn đã nắm vững toàn bộ 4 giai đoạn chiến dịch Bạch Đằng từ chuẩn bị đến toàn thắng!',
+                                scorePoints: 150,
+                                xpPoints: 80,
+                                accuracy: 1.0,
+                                streakCount: 5,
+                                multiplier: 2.0,
+                                badgeAsset: 'assets/badges/badge_trace_3_tactics.png',
+                                onContinue: () {
+                                  context.go('/traces/evt_bach_dang_938');
+                                },
+                              );
                             } else {
                               setState(() {
                                 _isSubmitted = false;
@@ -264,10 +288,11 @@ class _ChronologicalOrderScreenState extends State<ChronologicalOrderScreen> {
               ],
             ),
           ),
-          const EnergyPill(
-            energy: 100,
-            maxEnergy: 100,
-            showHistoryPoints: false,
+          const SoundToggleButton(),
+          const SizedBox(width: 8),
+          const ComboStreakBadgeWidget(
+            streakCount: 5,
+            multiplier: 2.0,
           ),
         ],
       ),

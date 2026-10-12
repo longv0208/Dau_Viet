@@ -1,12 +1,18 @@
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
+import '../../../core/audio/dau_viet_audio_service.dart';
 import '../../../core/theme/dau_viet_colors.dart';
 import '../../../core/theme/dau_viet_typography.dart';
+import '../../../core/widgets/ambient_atmosphere_overlay.dart';
+import '../../../core/widgets/bite_sized_completion_modal.dart';
+import '../../../core/widgets/combo_streak_badge_widget.dart';
 import '../../../core/widgets/dong_son_button.dart';
 import '../../../core/widgets/gold_confetti_overlay.dart';
+import '../../../core/widgets/interactive_historical_mascot_widget.dart';
 import '../../../core/widgets/parchment_card.dart';
 import '../../../core/widgets/shake_animation_widget.dart';
 import '../../../core/widgets/shimmer_progress_bar.dart';
+import '../../../core/widgets/sound_toggle_button.dart';
 import '../../../core/widgets/tactile_3d_card.dart';
 
 /// Màn hình M-16: Hoạt Động Trắc Nghiệm Tư Liệu Tương Tác (Multiple Choice Quiz Screen)
@@ -71,26 +77,33 @@ class _MultipleChoiceQuizScreenState extends State<MultipleChoiceQuizScreen> {
     });
     if (!_isCorrect && _selectedOptionId != null) {
       _shakeKeys[_selectedOptionId]?.currentState?.shake();
+      DauVietAudioService.instance.playWrong();
+    } else if (_isCorrect) {
+      DauVietAudioService.instance.playCorrect();
+      DauVietAudioService.instance.playStreakUp();
     }
   }
 
   @override
   Widget build(BuildContext context) {
+    final mascotState = !_isSubmitted
+        ? MascotState.guiding
+        : (_isCorrect ? MascotState.cheering : MascotState.thinking);
+
+    final mascotMessage = !_isSubmitted
+        ? 'Hãy đọc kỹ câu hỏi và thời điểm tháng 10 năm 938 để suy luận đáp án nhé!'
+        : (_isCorrect
+            ? 'Tuyệt đỉnh! Chuẩn bị trước khi giặc tới là chìa khóa then chốt của chiến thắng Bạch Đằng!'
+            : 'Chưa chính xác rồi! Khi giặc đã tiến vào cửa biển thì ta không thể bí mật chuẩn bị được nữa.');
+
     return Scaffold(
       backgroundColor: DauVietColors.parchmentSurface,
       body: GoldConfettiOverlay(
         trigger: _isSubmitted && _isCorrect,
-        child: Container(
-          decoration: const BoxDecoration(
-            gradient: LinearGradient(
-              begin: Alignment.topCenter,
-              end: Alignment.bottomCenter,
-              colors: [
-                DauVietColors.parchmentSurface,
-                Color(0xFFFAF2E4),
-              ],
-            ),
-          ),
+        child: AmbientAtmosphereOverlay(
+          mode: AtmosphereMode.goldEmbers,
+          backgroundImage: 'assets/images/bg_story_doanh_trai.jpg',
+          backgroundOpacity: 0.16,
           child: SafeArea(
             child: Column(
               children: [
@@ -118,6 +131,13 @@ class _MultipleChoiceQuizScreenState extends State<MultipleChoiceQuizScreen> {
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.stretch,
                       children: [
+                        // 3.1 Nhân vật Mascot Sĩ Tử Dấu Việt phản hồi
+                        InteractiveHistoricalMascotWidget(
+                          state: mascotState,
+                          message: mascotMessage,
+                        ),
+                        const SizedBox(height: 10),
+
                         // 4. Khung Câu Hỏi Trắc Nghiệm Trung Tâm
                         _buildQuestionCard(),
                         const SizedBox(height: 18),
@@ -153,7 +173,20 @@ class _MultipleChoiceQuizScreenState extends State<MultipleChoiceQuizScreen> {
                             height: 52,
                             onPressed: () {
                               if (_isCorrect) {
-                                context.go('/traces/evt_bach_dang_938');
+                                BiteSizedCompletionModal.show(
+                                  context: context,
+                                  title: 'BẢO VỆ CỬA BIỂN THÀNH CÔNG!',
+                                  subtitle: 'Bạn đã xuất sắc phân tích thời cơ và kế sách đóng cọc ngầm của Ngô Quyền.',
+                                  scorePoints: 100,
+                                  xpPoints: 50,
+                                  accuracy: 1.0,
+                                  streakCount: 3,
+                                  multiplier: 1.5,
+                                  badgeAsset: 'assets/badges/badge_trace_1_context.png',
+                                  onContinue: () {
+                                    context.go('/traces/evt_bach_dang_938');
+                                  },
+                                );
                               } else {
                                 setState(() {
                                   _isSubmitted = false;
@@ -247,26 +280,11 @@ class _MultipleChoiceQuizScreenState extends State<MultipleChoiceQuizScreen> {
               ],
             ),
           ),
-          Container(
-            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
-            decoration: BoxDecoration(
-              color: DauVietColors.parchmentContainer,
-              borderRadius: BorderRadius.circular(20),
-              border: Border.all(color: DauVietColors.imperialGold, width: 1.2),
-            ),
-            child: Row(
-              children: [
-                const Icon(Icons.stars_rounded, size: 16, color: DauVietColors.imperialGold),
-                const SizedBox(width: 4),
-                Text(
-                  '+100',
-                  style: DauVietTypography.labelSmall.copyWith(
-                    fontWeight: FontWeight.w800,
-                    color: DauVietColors.inkText,
-                  ),
-                ),
-              ],
-            ),
+          const SoundToggleButton(),
+          const SizedBox(width: 8),
+          const ComboStreakBadgeWidget(
+            streakCount: 3,
+            multiplier: 1.5,
           ),
         ],
       ),

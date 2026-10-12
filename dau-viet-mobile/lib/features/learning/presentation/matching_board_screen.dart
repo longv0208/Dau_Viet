@@ -1,11 +1,14 @@
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
+import '../../../core/audio/dau_viet_audio_service.dart';
 import '../../../core/theme/dau_viet_colors.dart';
 import '../../../core/theme/dau_viet_typography.dart';
+import '../../../core/widgets/bite_sized_completion_modal.dart';
+import '../../../core/widgets/combo_streak_badge_widget.dart';
 import '../../../core/widgets/dong_son_button.dart';
-import '../../../core/widgets/energy_pill.dart';
 import '../../../core/widgets/gold_confetti_overlay.dart';
 import '../../../core/widgets/shimmer_progress_bar.dart';
+import '../../../core/widgets/sound_toggle_button.dart';
 import '../../../core/widgets/tactile_3d_card.dart';
 
 /// Màn hình M-11: Bảng Ghép Nối Dữ Kiện Lịch Sử (Matching Board Screen)
@@ -68,6 +71,7 @@ class _MatchingBoardScreenState extends State<MatchingBoardScreen> {
       _matches[_selectedLeftId!] = rightId;
       _selectedLeftId = null;
     });
+    DauVietAudioService.instance.playTap();
   }
 
   void _removeMatch(String leftId) {
@@ -149,6 +153,12 @@ class _MatchingBoardScreenState extends State<MatchingBoardScreen> {
                                   setState(() {
                                     _isSubmitted = true;
                                   });
+                                  if (_isAllCorrect) {
+                                    DauVietAudioService.instance.playCorrect();
+                                    DauVietAudioService.instance.playStreakUp();
+                                  } else {
+                                    DauVietAudioService.instance.playWrong();
+                                  }
                                 }
                               : null,
                         )
@@ -162,7 +172,20 @@ class _MatchingBoardScreenState extends State<MatchingBoardScreen> {
                           height: 52,
                           onPressed: () {
                             if (_isAllCorrect) {
-                              context.go('/learning/order');
+                              BiteSizedCompletionModal.show(
+                                context: context,
+                                title: 'CHIẾN CÔNG HOÀN TẤT!',
+                                subtitle: 'Bạn đã ghép nối chuẩn xác các nhân vật, chiến thuật và địa danh Bạch Đằng 938!',
+                                scorePoints: 120,
+                                xpPoints: 60,
+                                accuracy: 1.0,
+                                streakCount: 4,
+                                multiplier: 1.5,
+                                badgeAsset: 'assets/badges/badge_trace_2_characters.png',
+                                onContinue: () {
+                                  context.go('/learning/order');
+                                },
+                              );
                             } else {
                               setState(() {
                                 _isSubmitted = false;
@@ -260,10 +283,11 @@ class _MatchingBoardScreenState extends State<MatchingBoardScreen> {
               ],
             ),
           ),
-          const EnergyPill(
-            energy: 100,
-            maxEnergy: 100,
-            showHistoryPoints: false,
+          const SoundToggleButton(),
+          const SizedBox(width: 8),
+          const ComboStreakBadgeWidget(
+            streakCount: 4,
+            multiplier: 1.5,
           ),
         ],
       ),

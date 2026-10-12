@@ -1,13 +1,18 @@
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
+import '../../../core/audio/dau_viet_audio_service.dart';
 import '../../../core/theme/dau_viet_colors.dart';
 import '../../../core/theme/dau_viet_typography.dart';
+import '../../../core/widgets/ambient_atmosphere_overlay.dart';
+import '../../../core/widgets/bite_sized_completion_modal.dart';
+import '../../../core/widgets/combo_streak_badge_widget.dart';
 import '../../../core/widgets/dong_son_button.dart';
-import '../../../core/widgets/energy_pill.dart';
 import '../../../core/widgets/gold_confetti_overlay.dart';
+import '../../../core/widgets/interactive_historical_mascot_widget.dart';
 import '../../../core/widgets/parchment_card.dart';
 import '../../../core/widgets/shake_animation_widget.dart';
 import '../../../core/widgets/shimmer_progress_bar.dart';
+import '../../../core/widgets/sound_toggle_button.dart';
 import '../../../core/widgets/tactile_3d_card.dart';
 
 /// Màn hình M-13: Kiểm Chứng Giả Thuyết Lịch Sử (Hypothesis Verification Screen)
@@ -65,26 +70,33 @@ class _HypothesisVerificationScreenState extends State<HypothesisVerificationScr
     });
     if (!_isCorrect && _selectedOptionId != null) {
       _shakeKeys[_selectedOptionId]?.currentState?.shake();
+      DauVietAudioService.instance.playWrong();
+    } else if (_isCorrect) {
+      DauVietAudioService.instance.playCorrect();
+      DauVietAudioService.instance.playStreakUp();
     }
   }
 
   @override
   Widget build(BuildContext context) {
+    final mascotState = !_isSubmitted
+        ? MascotState.guiding
+        : (_isCorrect ? MascotState.cheering : MascotState.thinking);
+
+    final mascotMessage = !_isSubmitted
+        ? 'Hãy đối chiếu hiện vật cọc gỗ thực địa Yên Giang với thư tịch cổ để tìm câu trả lời chuẩn xác nhất!'
+        : (_isCorrect
+            ? 'Chính xác! Niên đại C-14 thế kỷ X xác thực trận địa cọc ngầm Bạch Đằng là sự thật lịch sử vĩ đại!'
+            : 'Chưa chính xác! Di chỉ bãi cọc Yên Giang và Đồng Vạn Muối đã được giám định khoa học C-14.');
+
     return Scaffold(
       backgroundColor: DauVietColors.parchmentSurface,
       body: GoldConfettiOverlay(
         trigger: _isSubmitted && _isCorrect,
-        child: Container(
-          decoration: const BoxDecoration(
-            gradient: LinearGradient(
-              begin: Alignment.topCenter,
-              end: Alignment.bottomCenter,
-              colors: [
-                DauVietColors.parchmentSurface,
-                Color(0xFFFAF2E4),
-              ],
-            ),
-          ),
+        child: AmbientAtmosphereOverlay(
+          mode: AtmosphereMode.riverMist,
+          backgroundImage: 'assets/images/bg_story_tran_dia.jpg',
+          backgroundOpacity: 0.18,
           child: SafeArea(
             child: Column(
               children: [
@@ -112,6 +124,13 @@ class _HypothesisVerificationScreenState extends State<HypothesisVerificationScr
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.stretch,
                     children: [
+                      // 2.1 Mascot Chibi Sĩ Tử Dấu Việt phản hồi
+                      InteractiveHistoricalMascotWidget(
+                        state: mascotState,
+                        message: mascotMessage,
+                      ),
+                      const SizedBox(height: 10),
+
                       // 3. Khung Giả Thuyết Nghi Vấn
                       _buildHypothesisBox(),
                       const SizedBox(height: 14),
@@ -160,7 +179,20 @@ class _HypothesisVerificationScreenState extends State<HypothesisVerificationScr
                           height: 52,
                           onPressed: () {
                             if (_isCorrect) {
-                              context.go('/learning/cer');
+                              BiteSizedCompletionModal.show(
+                                context: context,
+                                title: 'ĐỐI CHIẾU SỬ LIỆU THÀNH CÔNG!',
+                                subtitle: 'Bạn đã xuất sắc phân biệt giữa hư cấu văn học và chứng cứ khảo cổ học thực địa!',
+                                scorePoints: 180,
+                                xpPoints: 90,
+                                accuracy: 1.0,
+                                streakCount: 6,
+                                multiplier: 2.0,
+                                badgeAsset: 'assets/badges/badge_trace_4_archaeology.png',
+                                onContinue: () {
+                                  context.go('/learning/cer');
+                                },
+                              );
                             } else {
                               setState(() {
                                 _isSubmitted = false;
@@ -254,10 +286,11 @@ class _HypothesisVerificationScreenState extends State<HypothesisVerificationScr
               ],
             ),
           ),
-          const EnergyPill(
-            energy: 100,
-            maxEnergy: 100,
-            showHistoryPoints: false,
+          const SoundToggleButton(),
+          const SizedBox(width: 8),
+          const ComboStreakBadgeWidget(
+            streakCount: 6,
+            multiplier: 2.0,
           ),
         ],
       ),

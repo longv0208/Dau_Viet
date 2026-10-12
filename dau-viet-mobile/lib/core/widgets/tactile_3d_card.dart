@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import '../audio/dau_viet_audio_service.dart';
 import '../theme/dau_viet_colors.dart';
 
 /// Thẻ lựa chọn 3D nén lò xo (Tactile 3D Option Card)
@@ -18,6 +19,7 @@ class Tactile3DCard extends StatefulWidget {
   final bool isCorrect;
   final bool isWrong;
   final bool isEnabled;
+  final bool enableSound;
 
   const Tactile3DCard({
     super.key,
@@ -34,6 +36,7 @@ class Tactile3DCard extends StatefulWidget {
     this.isCorrect = false,
     this.isWrong = false,
     this.isEnabled = true,
+    this.enableSound = true,
   });
 
   @override
@@ -75,7 +78,12 @@ class _Tactile3DCardState extends State<Tactile3DCard> {
 
     return GestureDetector(
       onTapDown: widget.isEnabled && widget.onTap != null
-          ? (_) => setState(() => _isPressed = true)
+          ? (_) {
+              setState(() => _isPressed = true);
+              if (widget.enableSound) {
+                DauVietAudioService.instance.playTap();
+              }
+            }
           : null,
       onTapUp: widget.isEnabled && widget.onTap != null
           ? (_) {

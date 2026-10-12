@@ -3,9 +3,13 @@ import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import '../../../core/theme/dau_viet_colors.dart';
 import '../../../core/theme/dau_viet_typography.dart';
+import '../../../core/widgets/ambient_atmosphere_overlay.dart';
 import '../../../core/widgets/dong_son_button.dart';
 import '../../../core/widgets/energy_pill.dart';
+import '../../../core/widgets/interactive_historical_mascot_widget.dart';
 import '../../../core/widgets/parchment_card.dart';
+import '../../../core/widgets/sound_toggle_button.dart';
+import '../../../core/widgets/story_audio_player_widget.dart';
 import '../../../mock/data/mock_bach_dang_data.dart';
 
 /// Màn hình M-09: Đọc Bối Cảnh Lịch Sử & Thư Tịch Cổ (Context Reader Screen)
@@ -31,17 +35,10 @@ class _ContextReaderScreenState extends State<ContextReaderScreen> {
 
     return Scaffold(
       backgroundColor: DauVietColors.parchmentSurface,
-      body: Container(
-        decoration: const BoxDecoration(
-          gradient: LinearGradient(
-            begin: Alignment.topCenter,
-            end: Alignment.bottomCenter,
-            colors: [
-              DauVietColors.parchmentSurface,
-              Color(0xFFFAF2E4),
-            ],
-          ),
-        ),
+      body: AmbientAtmosphereOverlay(
+        mode: AtmosphereMode.goldEmbers,
+        backgroundImage: 'assets/images/bg_story_doanh_trai.jpg',
+        backgroundOpacity: 0.20,
         child: SafeArea(
           child: Column(
             children: [
@@ -57,7 +54,21 @@ class _ContextReaderScreenState extends State<ContextReaderScreen> {
                     children: [
                       // 3. Khung Tiêu Đề Bài Học & Gợi Ý Sư Phạm
                       _buildHeaderCard(),
-                      const SizedBox(height: 16),
+                      const SizedBox(height: 12),
+
+                      // 3.1 Nhân vật đại diện Chibi Sĩ Tử Dấu Việt hướng dẫn
+                      const InteractiveHistoricalMascotWidget(
+                        state: MascotState.guiding,
+                        message: 'Chào bạn! Hãy đọc kỹ từng câu chữ trong sử liệu và chạm vào các từ màu đỏ để mở khóa chú giải cổ thư nhé!',
+                      ),
+                      const SizedBox(height: 10),
+
+                      // 3.2 Trình đọc âm thanh giọng dẫn sử liệu Duolingo Story Audio
+                      const StoryAudioPlayerWidget(
+                        title: 'Giọng đọc sử liệu: Đại Việt Sử Ký Toàn Thư (Năm 938)',
+                        audioAsset: 'audio/narration_bach_dang.wav',
+                      ),
+                      const SizedBox(height: 14),
 
                       // 4. Khung Trích Dẫn Thư Tịch Cổ Tương Tác
                       _buildParchmentCitationCard(),
@@ -175,6 +186,8 @@ class _ContextReaderScreenState extends State<ContextReaderScreen> {
               ],
             ),
           ),
+          const SoundToggleButton(),
+          const SizedBox(width: 8),
           const EnergyPill(
             energy: 100,
             maxEnergy: 100,

@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import '../theme/dau_viet_colors.dart';
 import '../theme/dau_viet_typography.dart';
 import 'energy_pill.dart';
+import 'sound_toggle_button.dart';
 
 /// Khung Scaffold chuẩn Di sản Văn hiến cho Dấu Việt
 class HeritageScaffold extends StatelessWidget {
@@ -58,12 +59,16 @@ class HeritageScaffold extends StatelessWidget {
               actions: [
                 if (showEnergyPill)
                   Padding(
-                    padding: const EdgeInsets.only(right: 12),
+                    padding: const EdgeInsets.only(right: 6),
                     child: EnergyPill(
                       energy: energy,
                       historyPoints: historyPoints,
                     ),
                   ),
+                const Padding(
+                  padding: EdgeInsets.only(right: 8),
+                  child: SoundToggleButton(),
+                ),
                 ...?actions,
               ],
               bottom: PreferredSize(

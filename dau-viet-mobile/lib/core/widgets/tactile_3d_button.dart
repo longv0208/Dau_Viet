@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import '../audio/dau_viet_audio_service.dart';
 import '../theme/dau_viet_colors.dart';
 import '../theme/dau_viet_typography.dart';
 
@@ -39,7 +40,10 @@ class Tactile3DButton extends StatefulWidget {
     this.borderRadius,
     this.isSelected = false,
     this.isLoading = false,
+    this.enableSound = true,
   });
+
+  final bool enableSound;
 
   @override
   State<Tactile3DButton> createState() => _Tactile3DButtonState();
@@ -109,7 +113,14 @@ class _Tactile3DButtonState extends State<Tactile3DButton> {
       width: widget.width,
       height: widget.height,
       child: GestureDetector(
-        onTapDown: isEnabled ? (_) => setState(() => _isPressed = true) : null,
+        onTapDown: isEnabled
+            ? (_) {
+                setState(() => _isPressed = true);
+                if (widget.enableSound) {
+                  DauVietAudioService.instance.playTap();
+                }
+              }
+            : null,
         onTapUp: isEnabled
             ? (_) {
                 setState(() => _isPressed = false);
