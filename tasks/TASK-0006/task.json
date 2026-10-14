@@ -1,0 +1,40 @@
+{
+  "schemaVersion": 1,
+  "id": "TASK-0006",
+  "type": "feature",
+  "risk": "normal",
+  "status": "implementing",
+  "goal": "Integrate dau-viet-mobile with the Spring Boot Historical Events API: Timeline lists published events, Event Detail loads the selected event, mock mode stays available behind a flag.",
+  "owner": "claude",
+  "modules": ["mobile"],
+  "scope": [
+    "dau-viet-mobile/",
+    "tasks/TASK-0006/",
+    "docs/",
+    "plans/2026-10-15-flutter-events-integration/"
+  ],
+  "acceptanceCriteria": [
+    { "id": "AC-1", "text": "Dio-based EventsApiClient + shared API client; base URL via --dart-define=API_BASE_URL with per-platform defaults; timeouts + typed errors; no infinite retry." },
+    { "id": "AC-2", "text": "HistoricalEventDto + HistoricalEventRepository abstraction with API impl matching existing structure; type-safe parsing, no rampant dynamic." },
+    { "id": "AC-3", "text": "Riverpod loading/success/empty/error + retry; no redundant calls on rebuild; state kept across navigation." },
+    { "id": "AC-4", "text": "Timeline uses GET /api/v1/events; Event Detail uses GET /api/v1/events/{id}; existing design/animations preserved; Bach Dang demo unbroken." },
+    { "id": "AC-5", "text": "Mock fallback behind explicit flag; never silently substitutes fake data on API failure; clear API vs mock repo separation." },
+    { "id": "AC-6", "text": "AssetResolver maps coverAssetKey to asset path; image fallback widget; no layout breakage; key not assumed public URL." },
+    { "id": "AC-7", "text": "Tests cover parsing, success/error, pagination, empty, 404, loading/retry, Timeline->Detail navigation, mock mode, missing-asset widget; flutter analyze + flutter test pass." },
+    { "id": "AC-8", "text": "Run/config docs updated (API URL per platform, mock flag); no scope creep into auth/admin/learning engine." }
+  ],
+  "dependencies": ["TASK-0005"],
+  "planPath": "plans/2026-10-15-flutter-events-integration/plan.md",
+  "evidenceRefs": [],
+  "reviewRefs": [],
+  "nextAction": "Planner agent drafting implementation plan; then implement phases.",
+  "baseCommit": "ae73daf41ab23bcf38f1049a28af690375b03d39",
+  "inputFingerprint": null,
+  "snapshot": null,
+  "roleReports": [],
+  "blockedReason": null,
+  "resumeFrom": null,
+  "handoffRef": null,
+  "createdAt": "2026-10-15T01:56:00+07:00",
+  "updatedAt": "2026-10-15T01:56:00+07:00"
+}
