@@ -86,11 +86,12 @@ API lỗi KHÔNG BAO GIỜ tự động hiển thị dữ liệu giả.
 
 - `flutter pub get`, `flutter analyze`, `flutter test` — **NOT VERIFIED**:
   Flutter SDK không có trên máy này (không trên PATH, không có pub-cache,
-  không có `.dart_tool/package_config.json` — `pubspec.lock` sinh từ máy khác
-  2026-10-12). Đã delegate tester agent; kết quả sẽ ghi vào
-  `plans/reports/tester-261015-TASK-0006-flutter-events.md`.
+  không có `.dart_tool/package_config.json`, `pubspec.lock` stale chưa có
+  `dio`). Tester agent xác nhận trong
+  `plans/reports/tester-261015-0209-TASK-0006-flutter-events.md` —
+  11 file test tồn tại, `pubspec.yaml` có `dio: ^5.7.0` đúng.
 - Live end-to-end (backend + emulator/device) — **NOT VERIFIED**: cần
-  Flutter SDK + emulator; ghi lại khi tester chạy được.
+  Flutter SDK + emulator; ghi lại khi chạy được trên máy/CI có SDK.
 
 ## Quyết định / giới hạn
 

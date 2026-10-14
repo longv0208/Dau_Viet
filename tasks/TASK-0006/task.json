@@ -25,13 +25,18 @@
   ],
   "dependencies": ["TASK-0005"],
   "planPath": "plans/2026-10-15-flutter-events-integration/plan.md",
-  "evidenceRefs": [],
+  "evidenceRefs": [
+    "plans/reports/tester-261015-0209-TASK-0006-flutter-events.md",
+    "tasks/TASK-0006/handoff.md"
+  ],
   "reviewRefs": [],
-  "nextAction": "All 4 phases implemented + committed (0483a00). flutter analyze/test NOT VERIFIED locally (no Flutter SDK) — tester agent running. If green: `pwsh -File scripts/harness/harness.ps1 verify -TaskId TASK-0006` on pwsh-7 host, then `finish`.",
+  "nextAction": "Implemented + committed (0483a00, 80b40c5). tester-261015-0209 report: NOT VERIFIED — no Flutter SDK on this box. Next: run `flutter pub get`/`analyze`/`test` on a machine with Flutter SDK (or CI), then `pwsh -File scripts/harness/harness.ps1 verify -TaskId TASK-0006` on pwsh-7 host, then `finish`.",
   "baseCommit": "ae73daf41ab23bcf38f1049a28af690375b03d39",
   "inputFingerprint": null,
   "snapshot": null,
-  "roleReports": [],
+  "roleReports": [
+    "plans/reports/tester-261015-0209-TASK-0006-flutter-events.md"
+  ],
   "blockedReason": null,
   "resumeFrom": null,
   "handoffRef": "tasks/TASK-0006/handoff.md",
