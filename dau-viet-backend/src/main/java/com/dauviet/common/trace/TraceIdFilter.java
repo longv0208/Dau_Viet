@@ -2,6 +2,7 @@ package com.dauviet.common.trace;
 
 import java.io.IOException;
 import java.util.UUID;
+import java.util.regex.Pattern;
 
 import jakarta.servlet.FilterChain;
 import jakarta.servlet.ServletException;
@@ -25,14 +26,18 @@ public class TraceIdFilter extends OncePerRequestFilter {
     public static final String HEADER = "X-Request-Id";
     public static final String MDC_KEY = "traceId";
 
+    /** Accepted incoming trace ids: UUID shape or short opaque tokens — bounded
+     *  so clients can't inject huge values or control chars into logs/headers. */
+    private static final Pattern SAFE_TRACE_ID = Pattern.compile("^[A-Za-z0-9-]{1,64}$");
+
     @Override
     protected void doFilterInternal(HttpServletRequest request,
                                     HttpServletResponse response,
                                     FilterChain filterChain) throws ServletException, IOException {
         String incoming = request.getHeader(HEADER);
-        String traceId = (incoming == null || incoming.isBlank())
-                ? UUID.randomUUID().toString()
-                : incoming;
+        String traceId = (incoming != null && SAFE_TRACE_ID.matcher(incoming).matches())
+                ? incoming
+                : UUID.randomUUID().toString();
         MDC.put(MDC_KEY, traceId);
         response.setHeader(HEADER, traceId);
         try {

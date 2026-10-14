@@ -116,11 +116,19 @@ class HistoricalEventControllerTest {
     }
 
     @Test
-    void healthIsPublic() throws Exception {
-        // /actuator/** is outside this slice's dispatch — assert security chain permits pattern.
-        // Covered indirectly: any other path falls through to 401, tested below.
+    void unknownEndpoint_requiresAuthentication() throws Exception {
+        // Any path outside the public GETs must fall through to deny-by-default 401.
         mvc.perform(get("/api/v1/unknown"))
                 .andExpect(status().isUnauthorized())
                 .andExpect(jsonPath("$.code").value("UNAUTHORIZED"));
+    }
+
+    @Test
+    void actuatorHealth_isPublic() throws Exception {
+        // @WebMvcTest slice doesn't dispatch to the actuator endpoint itself, but
+        // the security filter chain should not 401 it — assert the request isn't
+        // rejected by authorization (any non-401 outcome proves permitAll held).
+        mvc.perform(get("/actuator/health"))
+                .andExpect(status().isNotFound()); // no actuator endpoint in slice -> 404, not 401
     }
 }

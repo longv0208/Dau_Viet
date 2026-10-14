@@ -34,13 +34,20 @@ public class EventSeedService {
 
     @Transactional
     public HistoricalEvent upsertBachDang() {
-        HistoricalEvent e = repository.findBySlug(BACH_DANG_SLUG).orElseGet(() -> {
-            HistoricalEvent fresh = new HistoricalEvent();
-            // Assign fixed dev UUID only on insert — never rewrite the PK of a
-            // managed entity loaded under a different id.
-            fresh.setId(BACH_DANG_ID);
-            return fresh;
-        });
+        return repository.findBySlug(BACH_DANG_SLUG)
+                .map(existing -> {
+                    // Insert-only seed: never overwrite a row a developer may
+                    // have edited locally. Re-runs are a no-op.
+                    log.info("seed event slug={} already present id={} — skipping",
+                            existing.getSlug(), existing.getId());
+                    return existing;
+                })
+                .orElseGet(() -> repository.save(buildBachDang()));
+    }
+
+    private HistoricalEvent buildBachDang() {
+        HistoricalEvent e = new HistoricalEvent();
+        e.setId(BACH_DANG_ID);
         e.setSlug(BACH_DANG_SLUG);
         e.setTitle("Đại Chiến Bạch Đằng 938");
         e.setEra("Thời Ngô - Đinh - Tiền Lê (938 - 1009)");
@@ -57,8 +64,8 @@ public class EventSeedService {
         e.setCoverAssetKey("events/bach-dang-938/hero.jpg");
         e.setTags(List.of("ngo-quyen", "thuy-chien", "bac-thuoc", "bach-dang"));
         e.setStatus(EventStatus.PUBLISHED);
-        HistoricalEvent saved = repository.save(e);
-        log.info("seeded historical event slug={} id={}", saved.getSlug(), saved.getId());
+        HistoricalEvent saved = e;
+        log.info("seeded historical event slug={} id={}", BACH_DANG_SLUG, BACH_DANG_ID);
         return saved;
     }
 }
