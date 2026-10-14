@@ -17,7 +17,7 @@
 | Harness | `.harness/config.json`, `.harness/schemas/task.schema.json`, implementation plan |
 
 The three application modules are `dau-viet-backend`, `dau-viet-admin`, and `dau-viet-mobile`.
-Their registry starts uninitialized; product docs describe intended architecture, not running code.
+`dau-viet-backend` is `active` (Spring Boot + Flyway foundation, TASK-0005); `dau-viet-mobile` is `active` (Flutter demo); `dau-viet-admin` remains uninitialized. See `docs/backend-runbook.md` for running the backend locally.
 
 ## Workflow and delegation
 

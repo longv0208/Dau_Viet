@@ -1,0 +1,21 @@
+services:
+  postgres:
+    image: postgres:16-alpine
+    container_name: dauviet-postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: dauviet
+      POSTGRES_USER: dauviet
+      POSTGRES_PASSWORD: dauviet_dev
+    ports:
+      - "5433:5432"
+    volumes:
+      - dauviet-pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U dauviet -d dauviet"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+volumes:
+  dauviet-pgdata:

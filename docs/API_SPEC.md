@@ -43,8 +43,8 @@
 | POST | `/auth/refresh` | Rotate refresh token |
 | POST | `/auth/logout` | Revoke refresh session |
 | GET | `/me` | Profile / level / EXP khi hỗ trợ |
-| GET | `/events` | Danh sách event/lesson published |
-| GET | `/events/{eventId}` | Metadata event, available lessons |
+| GET | `/events` | Danh sách event/lesson published — **đã implement** (TASK-0005) |
+| GET | `/events/{eventId}` | Metadata event, available lessons — **đã implement** (TASK-0005) |
 | GET | `/lessons/{lessonId}` | Public lesson detail, latest publish info |
 | POST | `/lessons/{lessonId}/attempts` | Start/resume theo policy |
 | GET | `/attempts/{attemptId}` | Attempt progress/cursor |
@@ -122,6 +122,38 @@ Content-Type: application/json
 ```
 
 **Không** cho Flutter gửi `correct`, `earnedExp`, `isCompleted`, `nextStageId` với quyền quyết định. Backend tính các dữ liệu đó từ snapshot/rule và state server.
+
+### GET /events — implemented shape (TASK-0005)
+
+`GET /api/v1/events?page=0&size=20&sort=startYear,asc` — public, chỉ trả event `PUBLISHED`.
+`sort` chỉ chấp nhận `startYear` hoặc `title`; field khác → 400 `VALIDATION_ERROR`.
+
+```json
+{
+  "content": [
+    {
+      "id": "00000000-0000-0000-0000-000000000001",
+      "slug": "bach-dang-938",
+      "title": "Đại Chiến Bạch Đằng 938",
+      "era": "Thời Ngô - Đinh - Tiền Lê (938 - 1009)",
+      "period": "Mùa Đông 938 SCN",
+      "startYear": 938,
+      "summary": "…",
+      "coverAssetKey": "events/bach-dang-938/hero.jpg",
+      "tags": ["ngo-quyen", "thuy-chien"]
+    }
+  ],
+  "page": 0,
+  "size": 20,
+  "totalElements": 1,
+  "totalPages": 1
+}
+```
+
+`GET /api/v1/events/{id}` trả thêm `description`, `location`, `publishedAt` (nullable cho tới khi có cột `published_at`); `{id}` phải là UUID, nếu không → 400 `MALFORMED_ID`; không tồn tại hoặc chưa publish → 404 `EVENT_NOT_FOUND`.
+
+- Security hiện tại: permit-all cho `GET /api/v1/events/**` + actuator health/info; mọi endpoint khác → 401 `UNAUTHORIZED` (chưa có JWT).
+- Error envelope `{code, message, details, traceId}` đã active; mọi response mang header `X-Request-Id` (echo hoặc generate).
 
 ## 3. Admin / CMS API endpoints
 

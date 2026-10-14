@@ -1,0 +1,63 @@
+{
+  "schemaVersion": 1,
+  "id": "TASK-0005",
+  "type": "bootstrap",
+  "risk": "high-risk",
+  "status": "reviewing",
+  "goal": "Bootstrap dau-viet-backend (Java 21 + Spring Boot + PostgreSQL + Flyway, modular monolith) and ship public read API for Historical Events with dev seed data.",
+  "owner": "claude",
+  "modules": ["backend"],
+  "scope": [
+    "dau-viet-backend/",
+    "tasks/TASK-0005/",
+    "docs/",
+    ".harness/config.json",
+    "plans/2026-10-15-backend-foundation/",
+    "README.md",
+    "AGENTS.md"
+  ],
+  "acceptanceCriteria": [
+    { "id": "AC-1", "text": "dau-viet-backend contains a buildable Spring Boot application (Maven wrapper, pom.xml, main class) that compiles under Java 21." },
+    { "id": "AC-2", "text": "docker compose provides PostgreSQL locally; Flyway migrations run successfully on a clean database; ddl-auto is not update." },
+    { "id": "AC-3", "text": "historicalevent module follows modular monolith layout (api/application/domain/infrastructure); no business logic in controllers; constructor injection only." },
+    { "id": "AC-4", "text": "GET /api/v1/events (paginated) and GET /api/v1/events/{id} return learner-safe data only; JPA entities never serialized; errors follow {code,message,details,traceId} envelope with correct HTTP status." },
+    { "id": "AC-5", "text": "Schema uses UUID PKs, snake_case, timestamptz UTC, indexes/constraints; does not block future historical_events 1-N lessons relation." },
+    { "id": "AC-6", "text": "Idempotent dev-only seed provides Bach Dang 938 event; never auto-loads in production profile." },
+    { "id": "AC-7", "text": "Spring Security foundation present (public read permitted, deny-by-default otherwise), dev CORS policy without production wildcard, Actuator health enabled." },
+    { "id": "AC-8", "text": "Unit/integration tests pass: context load, Flyway+PostgreSQL, repository, controller/service, validation/not-found, draft-not-exposed; unverifiable items reported NOT VERIFIED." },
+    { "id": "AC-9", "text": "README documents local run; Flutter contract deltas vs lib/mock models recorded for next task." }
+  ],
+  "dependencies": ["TASK-0003"],
+  "planPath": "plans/2026-10-15-backend-foundation/plan.md",
+  "evidenceRefs": [
+    "plans/reports/tester-261015-0113-task0005-verify.md",
+    "tasks/TASK-0005/handoff.md"
+  ],
+  "reviewRefs": [
+    "plans/reports/code-reviewer-261015-0113-task0005-review.md"
+  ],
+  "nextAction": "Tester PASS (19/19) + reviewer PASS WITH P2; P2/P3 fixes applied and re-verified green. Run `pwsh -File scripts/harness/harness.ps1 verify -TaskId TASK-0005` on a pwsh-7 host, then `finish`. Next task: Flutter events integration per docs/backend-flutter-contract-notes.md.",
+  "baseCommit": "06f282e32bbb2d3f2acbd42e8086f9699e0ca0ac",
+  "inputFingerprint": null,
+  "snapshot": null,
+  "roleReports": [
+    "plans/reports/tester-261015-0113-task0005-verify.md",
+    "plans/reports/code-reviewer-261015-0113-task0005-review.md"
+  ],
+  "blockedReason": null,
+  "resumeFrom": null,
+  "handoffRef": "tasks/TASK-0005/handoff.md",
+  "acEvidence": {
+    "AC-1": ["dau-viet-backend/pom.xml", "dau-viet-backend/mvnw.cmd"],
+    "AC-2": ["dau-viet-backend/docker-compose.yml", "dau-viet-backend/src/main/resources/db/migration/V1__create_historical_events.sql", "dau-viet-backend/src/main/resources/application.yml"],
+    "AC-3": ["dau-viet-backend/src/main/java/com/dauviet/historicalevent/api/HistoricalEventController.java", "dau-viet-backend/src/main/java/com/dauviet/historicalevent/application/HistoricalEventService.java"],
+    "AC-4": ["dau-viet-backend/src/test/java/com/dauviet/historicalevent/api/HistoricalEventControllerTest.java", "dau-viet-backend/src/main/java/com/dauviet/common/error/GlobalExceptionHandler.java"],
+    "AC-5": ["dau-viet-backend/src/main/resources/db/migration/V1__create_historical_events.sql", "dau-viet-backend/src/test/java/com/dauviet/FlywayMigrationIT.java"],
+    "AC-6": ["dau-viet-backend/src/main/java/com/dauviet/historicalevent/application/EventSeedService.java", "dau-viet-backend/src/main/java/com/dauviet/historicalevent/infrastructure/seed/EventSeedRunner.java", "dau-viet-backend/src/test/java/com/dauviet/historicalevent/application/EventSeedServiceIT.java"],
+    "AC-7": ["dau-viet-backend/src/main/java/com/dauviet/common/config/SecurityConfig.java", "dau-viet-backend/src/main/java/com/dauviet/common/config/CorsConfig.java"],
+    "AC-8": ["plans/reports/tester-261015-0113-task0005-verify.md"],
+    "AC-9": ["docs/backend-runbook.md", "docs/backend-flutter-contract-notes.md", "README.md"]
+  },
+  "createdAt": "2026-10-15T00:52:20+07:00",
+  "updatedAt": "2026-10-15T01:16:00+07:00"
+}

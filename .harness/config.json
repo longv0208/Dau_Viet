@@ -4,11 +4,28 @@
   "modules": {
     "backend": {
       "path": "dau-viet-backend",
-      "status": "uninitialized",
+      "status": "active",
       "manifests": [
-        "pom.xml"
+        "pom.xml",
+        "mvnw.cmd",
+        "docker-compose.yml"
       ],
-      "gates": []
+      "gates": [
+        {
+          "id": "backend-compile",
+          "executable": "cmd.exe",
+          "args": ["/c", "set JAVA_HOME=E:\\Java\\jdk-21&& mvnw.cmd -q -DskipTests compile"],
+          "cwd": "dau-viet-backend",
+          "timeoutSeconds": 300
+        },
+        {
+          "id": "backend-test",
+          "executable": "cmd.exe",
+          "args": ["/c", "set JAVA_HOME=E:\\Java\\jdk-21&& mvnw.cmd -q verify"],
+          "cwd": "dau-viet-backend",
+          "timeoutSeconds": 600
+        }
+      ]
     },
     "admin": {
       "path": "dau-viet-admin",

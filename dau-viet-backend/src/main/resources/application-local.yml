@@ -1,0 +1,19 @@
+spring:
+  datasource:
+    url: ${DB_URL:jdbc:postgresql://localhost:5433/dauviet}
+    username: ${DB_USER:dauviet}
+    password: ${DB_PASSWORD:dauviet_dev}
+
+app:
+  cors:
+    allowed-origins:
+      - http://localhost:3000
+      - http://localhost:5173
+      - http://localhost
+      - capacitor://localhost
+  seed:
+    enabled: true
+
+logging:
+  level:
+    org.hibernate.orm.deprecation: warn

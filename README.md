@@ -4,7 +4,11 @@
 
 ## Hiện trạng
 
-Repo đang xây nền tảng làm việc cùng AI. Các thư mục `dau-viet-backend`, `dau-viet-admin`, `dau-viet-mobile` chưa có ứng dụng chạy được; cấu hình harness ghi `uninitialized`. Chưa có bằng chứng build/test ứng dụng. Kiến trúc dự kiến là Spring Boot + PostgreSQL, Next.js Admin và Flutter.
+- `dau-viet-backend`: **active** — Spring Boot 3.4 / Java 21 / PostgreSQL + Flyway modular monolith; `GET /api/v1/events` và `GET /api/v1/events/{id}` đã chạy với dev seed Bạch Đằng 938. Chạy local theo [backend runbook](docs/backend-runbook.md).
+- `dau-viet-mobile`: active — Flutter demo với mock data (chưa nối backend; delta contract ở [backend-flutter-contract-notes](docs/backend-flutter-contract-notes.md)).
+- `dau-viet-admin`: chưa khởi tạo.
+
+Kiến trúc dự kiến: Spring Boot + PostgreSQL, Next.js Admin và Flutter (xem [tech stack](docs/TECH_STACK.md)).
 
 ## Bắt đầu
 
