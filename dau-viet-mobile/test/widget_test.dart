@@ -3,6 +3,8 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:dau_viet_mobile/app/app.dart';
 import 'package:dau_viet_mobile/core/widgets/energy_pill.dart';
+import 'package:dau_viet_mobile/features/events/data/events_providers.dart';
+import 'package:dau_viet_mobile/features/events/data/mock_events_repository.dart';
 
 void main() {
   testWidgets('DauVietApp full user journey: M-01 to M-16 & Phase M5 (M-11 Matching, M-12 Order)', (WidgetTester tester) async {
@@ -12,9 +14,15 @@ void main() {
     addTearDown(tester.view.resetPhysicalSize);
     addTearDown(tester.view.resetDevicePixelRatio);
 
+    // Override repository bằng bản mock — journey test không phụ thuộc
+    // vào biến compile-time USE_MOCK (AC-5).
     await tester.pumpWidget(
-      const ProviderScope(
-        child: DauVietApp(),
+      ProviderScope(
+        overrides: [
+          eventsRepositoryProvider
+              .overrideWithValue(MockEventsRepository()),
+        ],
+        child: const DauVietApp(),
       ),
     );
     await tester.pump();

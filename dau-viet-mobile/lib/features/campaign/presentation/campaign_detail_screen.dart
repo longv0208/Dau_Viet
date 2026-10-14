@@ -1,15 +1,22 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import '../../../core/theme/dau_viet_colors.dart';
 import '../../../core/theme/dau_viet_typography.dart';
+import '../../../core/widgets/async_state_view.dart';
 import '../../../core/widgets/dong_son_button.dart';
 import '../../../core/widgets/energy_pill.dart';
+import '../../../core/widgets/event_cover_image.dart';
 import '../../../core/widgets/parchment_card.dart';
 import '../../../mock/data/mock_bach_dang_data.dart';
+import '../../../mock/models/lesson_models.dart';
+import '../../events/data/events_providers.dart';
 
 /// Màn hình M-07: Chi Tiết Chiến Dịch Lịch Sử (Campaign Detail Screen - Bạch Đằng 938)
 /// Khớp 100% với đặc tả trong MOBILE_SCREEN_DESIGN.md & ART_DIRECTION.md
-class CampaignDetailScreen extends StatelessWidget {
+/// Metadata + hero banner lấy từ `GET /api/v1/events/{id}` (hoặc mock).
+/// Phần bài học/4 Dấu Vết vẫn dùng MockBachDangData — lessons endpoint là task sau.
+class CampaignDetailScreen extends ConsumerWidget {
   final String eventId;
 
   const CampaignDetailScreen({
@@ -18,9 +25,29 @@ class CampaignDetailScreen extends StatelessWidget {
   });
 
   @override
-  Widget build(BuildContext context) {
-    final lesson = MockBachDangData.lessonEpisode2;
+  Widget build(BuildContext context, WidgetRef ref) {
+    final AsyncValue<HistoricalEventModel> eventAsync =
+        ref.watch(eventDetailProvider(eventId));
 
+    return eventAsync.when(
+      loading: () => _buildScaffold(
+        context,
+        Expanded(child: AsyncStateView.loading()),
+      ),
+      error: (error, _) => _buildScaffold(
+        context,
+        Expanded(
+          child: AsyncStateView.error(
+            error: error,
+            onRetry: () => ref.invalidate(eventDetailProvider(eventId)),
+          ),
+        ),
+      ),
+      data: (event) => _buildScaffold(context, _buildBody(context, event)),
+    );
+  }
+
+  Widget _buildScaffold(BuildContext context, Widget body) {
     return Scaffold(
       backgroundColor: DauVietColors.parchmentSurface,
       body: Container(
@@ -37,60 +64,64 @@ class CampaignDetailScreen extends StatelessWidget {
         child: SafeArea(
           child: Column(
             children: [
-              // 1. Top Bar Tiêu Đề & Năng Lượng
               _buildTopBar(context),
-
-              // 2. Nội dung chi tiết chiến dịch cuộn dọc
-              Expanded(
-                child: SingleChildScrollView(
-                  padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 14),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.stretch,
-                    children: [
-                      // 3. Hero Banner Chiến Dịch 16:9
-                      _buildHeroBanner(context),
-                      const SizedBox(height: 16),
-
-                      // 4. Khối Thông Số Chiến Dịch (Metadata)
-                      _buildCampaignMetadata(),
-                      const SizedBox(height: 16),
-
-                      // 5. Câu Hỏi Sử Học Trung Tâm (Inquiry Question)
-                      _buildInquiryQuestionCard(lesson.historicalQuestion),
-                      const SizedBox(height: 18),
-
-                      // 6. Lộ Trình 4 Dấu Vết Cốt Lõi
-                      _buildFourTracesOverview(),
-                      const SizedBox(height: 24),
-
-                      // 7. Cặp Nút Hành Động Chính
-                      DongSonButton(
-                        label: 'BẮT ĐẦU KHÁM PHÁ (4 DẤU VẾT) ›',
-                        icon: Icons.explore_rounded,
-                        variant: DongSonButtonVariant.primaryCinnabar,
-                        height: 52,
-                        onPressed: () {
-                          // Điều hướng sang M-08 (Trung tâm 4 Dấu Vết)
-                          context.go('/traces/$eventId');
-                        },
-                      ),
-                      const SizedBox(height: 10),
-                      DongSonButton(
-                        label: 'XEM SA BÀN THỦY CHIẾN (M-06)',
-                        icon: Icons.military_tech_outlined,
-                        variant: DongSonButtonVariant.secondaryParchment,
-                        height: 48,
-                        onPressed: () {
-                          context.go('/saban');
-                        },
-                      ),
-                      const SizedBox(height: 20),
-                    ],
-                  ),
-                ),
-              ),
+              body,
             ],
           ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildBody(BuildContext context, HistoricalEventModel event) {
+    final lesson = MockBachDangData.lessonEpisode2;
+
+    // 2. Nội dung chi tiết chiến dịch cuộn dọc
+    return Expanded(
+      child: SingleChildScrollView(
+        padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 14),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            // 3. Hero Banner Chiến Dịch 16:9
+            _buildHeroBanner(context, event),
+            const SizedBox(height: 16),
+
+            // 4. Khối Thông Số Chiến Dịch (Metadata)
+            _buildCampaignMetadata(event),
+            const SizedBox(height: 16),
+
+            // 5. Câu Hỏi Sử Học Trung Tâm (Inquiry Question)
+            _buildInquiryQuestionCard(lesson.historicalQuestion),
+            const SizedBox(height: 18),
+
+            // 6. Lộ Trình 4 Dấu Vết Cốt Lõi
+            _buildFourTracesOverview(),
+            const SizedBox(height: 24),
+
+            // 7. Cặp Nút Hành Động Chính
+            DongSonButton(
+              label: 'BẮT ĐẦU KHÁM PHÁ (4 DẤU VẾT) ›',
+              icon: Icons.explore_rounded,
+              variant: DongSonButtonVariant.primaryCinnabar,
+              height: 52,
+              onPressed: () {
+                // Điều hướng sang M-08 (Trung tâm 4 Dấu Vết)
+                context.go('/traces/$eventId');
+              },
+            ),
+            const SizedBox(height: 10),
+            DongSonButton(
+              label: 'XEM SA BÀN THỦY CHIẾN (M-06)',
+              icon: Icons.military_tech_outlined,
+              variant: DongSonButtonVariant.secondaryParchment,
+              height: 48,
+              onPressed: () {
+                context.go('/saban');
+              },
+            ),
+            const SizedBox(height: 20),
+          ],
         ),
       ),
     );
@@ -154,8 +185,10 @@ class CampaignDetailScreen extends StatelessWidget {
     );
   }
 
-  // Hero Banner 16:9 phong cách tranh khắc gỗ di sản
-  Widget _buildHeroBanner(BuildContext context) {
+  // Hero Banner 16:9 phong cách tranh khắc gỗ di sản.
+  // [heroAssetPath] do AssetResolver map từ `coverAssetKey` của backend —
+  // null/rỗng → EventCoverImage tự render placeholder (AC-6).
+  Widget _buildHeroBanner(BuildContext context, HistoricalEventModel event) {
     return Container(
       decoration: BoxDecoration(
         color: const Color(0xFF2B3A42),
@@ -168,28 +201,11 @@ class CampaignDetailScreen extends StatelessWidget {
         aspectRatio: 16 / 9,
         child: Stack(
           children: [
-            // Ảnh Hero Banner Chiến Dịch Bạch Đằng 938
-            Image.asset(
-              'assets/images/dv_EVT_ngoquyen_bachdang_hero_v01.jpg',
-              fit: BoxFit.cover,
+            // Ảnh Hero Banner chiến dịch — từ asset path đã resolve
+            EventCoverImage(
+              assetPath: event.heroBannerUrl,
               width: double.infinity,
               height: double.infinity,
-              errorBuilder: (context, error, stackTrace) => Container(
-                decoration: const BoxDecoration(
-                  gradient: LinearGradient(
-                    begin: Alignment.topLeft,
-                    end: Alignment.bottomRight,
-                    colors: [Color(0xFF1E2D38), Color(0xFF3E4D55)],
-                  ),
-                ),
-                child: Center(
-                  child: Icon(
-                    Icons.sailing_rounded,
-                    size: 80,
-                    color: Colors.white.withValues(alpha: 0.15),
-                  ),
-                ),
-              ),
             ),
 
             // Lớp phủ thông tin chữ vàng trên nền khói sóng
@@ -234,8 +250,11 @@ class CampaignDetailScreen extends StatelessWidget {
                     ),
                   ),
                   const SizedBox(height: 4),
+                  // Tóm tắt chiến dịch từ backend (HistoricalEventModel.summary)
                   Text(
-                    'Tiền Ngô Vương Ngô Quyền • Chấm dứt hơn 1.000 năm Bắc thuộc',
+                    event.summary,
+                    maxLines: 2,
+                    overflow: TextOverflow.ellipsis,
                     style: DauVietTypography.bodySmall.copyWith(
                       color: const Color(0xFFE2E2E2),
                       fontSize: 11,
@@ -250,8 +269,10 @@ class CampaignDetailScreen extends StatelessWidget {
     );
   }
 
-  // Khối Thông Số Chiến Dịch (Metadata)
-  Widget _buildCampaignMetadata() {
+  // Khối Thông Số Chiến Dịch (Metadata).
+  // Thời gian/Địa bàn lấy từ API (event.year / summary); phần chỉ huy/đối thủ/
+  // chi phí chưa có trường backend — giữ copy mô tả cho tới task mở rộng DTO.
+  Widget _buildCampaignMetadata(HistoricalEventModel event) {
     return ParchmentCard(
       backgroundColor: DauVietColors.parchmentContainer,
       borderColor: DauVietColors.imperialGold,
@@ -269,7 +290,9 @@ class CampaignDetailScreen extends StatelessWidget {
             ),
           ),
           const SizedBox(height: 12),
-          _buildMetaRow(Icons.calendar_today_rounded, 'Thời gian:', 'Mùa Đông năm 938 (Tháng 10 - 11 Âm lịch)'),
+          _buildMetaRow(Icons.auto_stories_rounded, 'Chiến dịch:', event.title),
+          const SizedBox(height: 8),
+          _buildMetaRow(Icons.calendar_today_rounded, 'Niên đại:', 'Năm ${event.year} • ${event.era}'),
           const SizedBox(height: 8),
           _buildMetaRow(Icons.location_on_rounded, 'Địa bàn:', 'Cửa sông Bạch Đằng (Quảng Ninh & Hải Phòng)'),
           const SizedBox(height: 8),

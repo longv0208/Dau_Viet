@@ -1,35 +1,51 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import '../../../core/theme/dau_viet_colors.dart';
 import '../../../core/theme/dau_viet_typography.dart';
+import '../../../core/widgets/async_state_view.dart';
 import '../../../core/widgets/dong_son_button.dart';
 import '../../../core/widgets/parchment_card.dart';
-import '../../../mock/data/mock_timeline_data.dart';
 import '../../../mock/models/timeline_models.dart';
+import '../../events/data/events_providers.dart';
+import '../../events/data/events_repository.dart';
 
 /// Màn hình M-04: Dòng Thời Gian Lịch Sử Việt Nam (Historical Timeline Screen)
 /// Khớp 100% với đặc tả trong MOBILE_SCREEN_DESIGN.md & ART_DIRECTION.md
-class TimelineScreen extends StatefulWidget {
+/// Dữ liệu nạp từ `GET /api/v1/events` (hoặc mock khi USE_MOCK=true).
+class TimelineScreen extends ConsumerStatefulWidget {
   const TimelineScreen({super.key});
 
   @override
-  State<TimelineScreen> createState() => _TimelineScreenState();
+  ConsumerState<TimelineScreen> createState() => _TimelineScreenState();
 }
 
-class _TimelineScreenState extends State<TimelineScreen> {
-  String _selectedEra = 'Tất cả';
+class _TimelineScreenState extends ConsumerState<TimelineScreen> {
+  static const String _allErasLabel = 'Tất cả';
 
-  List<TimelineMilestoneModel> get _filteredMilestones {
-    if (_selectedEra == 'Tất cả') {
-      return MockTimelineData.milestones;
+  String _selectedEra = _allErasLabel;
+
+  List<TimelineMilestoneModel> _filteredMilestones(
+    List<TimelineMilestoneModel> milestones,
+  ) {
+    if (_selectedEra == _allErasLabel) {
+      return milestones;
     }
-    return MockTimelineData.milestones
-        .where((m) => m.era == _selectedEra)
-        .toList();
+    return milestones.where((m) => m.era == _selectedEra).toList();
+  }
+
+  List<String> _eras(List<TimelineMilestoneModel> milestones) {
+    return <String>{
+      _allErasLabel,
+      ...milestones.map((m) => m.era),
+    }.toList();
   }
 
   @override
   Widget build(BuildContext context) {
+    final AsyncValue<EventsPageResult> eventsAsync =
+        ref.watch(eventsListProvider);
+
     return Scaffold(
       backgroundColor: DauVietColors.parchmentSurface,
       body: Container(
@@ -49,18 +65,20 @@ class _TimelineScreenState extends State<TimelineScreen> {
               // 1. Top Bar Tiêu Đề Cuốn Thư
               _buildTopBar(context),
 
-              // 2. Bộ lọc thời kỳ ngang (Era Filter Chips)
-              _buildEraFilters(),
-
-              // 3. Trục thời gian dọc (Vertical Timeline)
+              // 2. Bộ lọc thời kỳ ngang + Trục thời gian dọc
               Expanded(
-                child: ListView.builder(
-                  padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 12),
-                  itemCount: _filteredMilestones.length,
-                  itemBuilder: (context, index) {
-                    final item = _filteredMilestones[index];
-                    final isLast = index == _filteredMilestones.length - 1;
-                    return _buildTimelineItem(item, isLast);
+                child: eventsAsync.when(
+                  loading: () => AsyncStateView.loading(),
+                  error: (error, _) => AsyncStateView.error(
+                    error: error,
+                    onRetry: () => ref.invalidate(eventsListProvider),
+                  ),
+                  data: (result) {
+                    final milestones = result.milestones;
+                    if (milestones.isEmpty) {
+                      return AsyncStateView.empty();
+                    }
+                    return _buildTimelineContent(milestones);
                   },
                 ),
               ),
@@ -69,6 +87,32 @@ class _TimelineScreenState extends State<TimelineScreen> {
         ),
       ),
       bottomNavigationBar: _buildBottomNav(context),
+    );
+  }
+
+  // Khu vực bộ lọc + danh sách mốc thời gian (chỉ khi đã có dữ liệu).
+  Widget _buildTimelineContent(List<TimelineMilestoneModel> milestones) {
+    final filtered = _filteredMilestones(milestones);
+    return Column(
+      children: [
+        _buildEraFilters(milestones),
+        Expanded(
+          child: filtered.isEmpty
+              ? AsyncStateView.empty(
+                  message: 'Không có sự kiện nào trong thời kỳ này.',
+                )
+              : ListView.builder(
+                  padding:
+                      const EdgeInsets.symmetric(horizontal: 18, vertical: 12),
+                  itemCount: filtered.length,
+                  itemBuilder: (context, index) {
+                    final item = filtered[index];
+                    final isLast = index == filtered.length - 1;
+                    return _buildTimelineItem(item, isLast);
+                  },
+                ),
+        ),
+      ],
     );
   }
 
@@ -156,18 +200,19 @@ class _TimelineScreenState extends State<TimelineScreen> {
     );
   }
 
-  // Bộ lọc danh mục thời kỳ lịch sử
-  Widget _buildEraFilters() {
+  // Bộ lọc danh mục thời kỳ lịch sử — sinh từ dữ liệu đã tải
+  Widget _buildEraFilters(List<TimelineMilestoneModel> milestones) {
+    final List<String> eras = _eras(milestones);
     return Container(
       height: 48,
       padding: const EdgeInsets.symmetric(vertical: 6),
       child: ListView.separated(
         padding: const EdgeInsets.symmetric(horizontal: 16),
         scrollDirection: Axis.horizontal,
-        itemCount: MockTimelineData.eras.length,
+        itemCount: eras.length,
         separatorBuilder: (context, index) => const SizedBox(width: 8),
         itemBuilder: (context, index) {
-          final era = MockTimelineData.eras[index];
+          final era = eras[index];
           final isSelected = era == _selectedEra;
           return ChoiceChip(
             label: Text(

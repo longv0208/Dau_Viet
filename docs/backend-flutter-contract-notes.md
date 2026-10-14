@@ -1,5 +1,8 @@
 # Backend — Flutter contract notes
 
+> **Consumed by TASK-0006** (`dau-viet-mobile`): §1 payload →
+> `HistoricalEvent{Summary,Detail}Dto`, §2 delta → `EventModelAdapter`,
+> §3 decisions → `ApiClient`/`EventsApiClient`/`AssetResolver`/`USE_MOCK`.
 > Written during TASK-0005. Compares the real `GET /api/v1/events` payload with
 > the current `dau-viet-mobile/lib/mock` models. **No Flutter refactor in this
 > task** — this document is the input for the next mobile-integration task.

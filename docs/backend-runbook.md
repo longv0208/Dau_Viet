@@ -51,6 +51,21 @@ $env:JAVA_HOME = 'E:\Java\jdk-21'
 integration tests fail — run `./mvnw test` for unit/MVC only and record the
 integration result as NOT VERIFIED.
 
+## Mobile (dau-viet-mobile)
+
+Timeline `GET /api/v1/events` + Campaign Detail `GET /api/v1/events/{id}` nạp
+từ API này khi app chạy mặc định (`USE_MOCK=false`).
+
+```bash
+cd ../dau-viet-mobile
+flutter pub get
+flutter run                                     # auto: 10.0.2.2:8080 trên Android, localhost:8080 còn lại
+flutter run --dart-define=API_BASE_URL=http://<ip>:8080   # máy thật / backend xa
+flutter run --dart-define=USE_MOCK=true                    # demo offline, không cần backend
+```
+
+Khi API lỗi app hiển thị lỗi + THỬ LẠI; không tự động đổi sang mock.
+
 ## Common issues
 
 - **`JAVA_HOME` broken** — the env var points to `C:\Program Files\Java\jdk-21`
