@@ -27,14 +27,14 @@
   "planPath": "plans/2026-10-15-flutter-events-integration/plan.md",
   "evidenceRefs": [],
   "reviewRefs": [],
-  "nextAction": "Planner agent drafting implementation plan; then implement phases.",
+  "nextAction": "All 4 phases implemented + committed (0483a00). flutter analyze/test NOT VERIFIED locally (no Flutter SDK) — tester agent running. If green: `pwsh -File scripts/harness/harness.ps1 verify -TaskId TASK-0006` on pwsh-7 host, then `finish`.",
   "baseCommit": "ae73daf41ab23bcf38f1049a28af690375b03d39",
   "inputFingerprint": null,
   "snapshot": null,
   "roleReports": [],
   "blockedReason": null,
   "resumeFrom": null,
-  "handoffRef": null,
+  "handoffRef": "tasks/TASK-0006/handoff.md",
   "createdAt": "2026-10-15T01:56:00+07:00",
   "updatedAt": "2026-10-15T01:56:00+07:00"
 }
