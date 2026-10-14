@@ -31,12 +31,13 @@
   "planPath": "plans/2026-10-15-backend-foundation/plan.md",
   "evidenceRefs": [
     "plans/reports/tester-261015-0113-task0005-verify.md",
-    "tasks/TASK-0005/handoff.md"
+    "tasks/TASK-0005/handoff.md",
+    ".github/workflows/backend-ci.yml"
   ],
   "reviewRefs": [
     "plans/reports/code-reviewer-261015-0113-task0005-review.md"
   ],
-  "nextAction": "Tester PASS (19/19) + reviewer PASS WITH P2; P2/P3 fixes applied and re-verified green. Run `pwsh -File scripts/harness/harness.ps1 verify -TaskId TASK-0005` on a pwsh-7 host, then `finish`. Next task: Flutter events integration per docs/backend-flutter-contract-notes.md.",
+  "nextAction": "22/22 tests green (real actuator health IT + insert-only seed verified) + backend-ci.yml added. Run `pwsh -File scripts/harness/harness.ps1 verify -TaskId TASK-0005` on a pwsh-7 host, then `finish`. Next task: Flutter events integration per docs/backend-flutter-contract-notes.md.",
   "baseCommit": "06f282e32bbb2d3f2acbd42e8086f9699e0ca0ac",
   "inputFingerprint": null,
   "snapshot": null,
@@ -55,9 +56,9 @@
     "AC-5": ["dau-viet-backend/src/main/resources/db/migration/V1__create_historical_events.sql", "dau-viet-backend/src/test/java/com/dauviet/FlywayMigrationIT.java"],
     "AC-6": ["dau-viet-backend/src/main/java/com/dauviet/historicalevent/application/EventSeedService.java", "dau-viet-backend/src/main/java/com/dauviet/historicalevent/infrastructure/seed/EventSeedRunner.java", "dau-viet-backend/src/test/java/com/dauviet/historicalevent/application/EventSeedServiceIT.java"],
     "AC-7": ["dau-viet-backend/src/main/java/com/dauviet/common/config/SecurityConfig.java", "dau-viet-backend/src/main/java/com/dauviet/common/config/CorsConfig.java"],
-    "AC-8": ["plans/reports/tester-261015-0113-task0005-verify.md"],
+    "AC-8": ["plans/reports/tester-261015-0113-task0005-verify.md", "dau-viet-backend/src/test/java/com/dauviet/ActuatorHealthIT.java", ".github/workflows/backend-ci.yml"],
     "AC-9": ["docs/backend-runbook.md", "docs/backend-flutter-contract-notes.md", "README.md"]
   },
   "createdAt": "2026-10-15T00:52:20+07:00",
-  "updatedAt": "2026-10-15T01:16:00+07:00"
+  "updatedAt": "2026-10-15T01:47:00+07:00"
 }

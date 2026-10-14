@@ -128,6 +128,7 @@ class HistoricalEventControllerTest {
         // @WebMvcTest slice doesn't dispatch to the actuator endpoint itself, but
         // the security filter chain should not 401 it — assert the request isn't
         // rejected by authorization (any non-401 outcome proves permitAll held).
+        // The real end-to-end 200/UP check lives in ActuatorHealthIT.
         mvc.perform(get("/actuator/health"))
                 .andExpect(status().isNotFound()); // no actuator endpoint in slice -> 404, not 401
     }

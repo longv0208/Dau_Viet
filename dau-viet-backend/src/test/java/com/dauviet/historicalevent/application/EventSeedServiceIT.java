@@ -14,8 +14,8 @@ import com.dauviet.historicalevent.domain.HistoricalEvent;
 import com.dauviet.historicalevent.infrastructure.persistence.HistoricalEventRepository;
 
 /**
- * Idempotent seed must insert once and update on subsequent runs —
- * never duplicate rows.
+ * Insert-only seed: first run inserts, second run is a no-op and must not
+ * overwrite local edits made to the seeded row.
  */
 @DataJpaTest
 @AutoConfigureTestDatabase(replace = AutoConfigureTestDatabase.Replace.NONE)
@@ -29,17 +29,32 @@ class EventSeedServiceIT extends AbstractPostgresIT {
     private HistoricalEventRepository repository;
 
     @Test
-    void seedInsertsOnce_thenUpdates() {
-        seedService.upsertBachDang();
-        seedService.upsertBachDang(); // second run must not duplicate
-
-        assertThat(repository.findBySlug(EventSeedService.BACH_DANG_SLUG)).isPresent();
+    void seedInsertsOnce_thenSecondRunIsNoop() {
+        HistoricalEvent first = seedService.upsertBachDang();
         assertThat(repository.count()).isEqualTo(1);
+        assertThat(first.getId()).isEqualTo(EventSeedService.BACH_DANG_ID);
+        assertThat(first.getStatus()).isEqualTo(EventStatus.PUBLISHED);
 
+        // Second run: no duplicate, same instance returned.
+        HistoricalEvent second = seedService.upsertBachDang();
+        assertThat(repository.count()).isEqualTo(1);
+        assertThat(second.getId()).isEqualTo(first.getId());
+    }
+
+    @Test
+    void seedDoesNotOverwriteLocalEdits() {
+        seedService.upsertBachDang();
+
+        // Developer edits the row locally, then the seed runs again — the edit
+        // must be preserved because the seed is insert-only.
         HistoricalEvent e = repository.findBySlug(EventSeedService.BACH_DANG_SLUG).orElseThrow();
-        assertThat(e.getId()).isEqualTo(EventSeedService.BACH_DANG_ID);
-        assertThat(e.getStatus()).isEqualTo(EventStatus.PUBLISHED);
-        assertThat(e.getStartYear()).isEqualTo(938);
-        assertThat(e.getTags()).contains("ngo-quyen", "bach-dang");
+        e.setTitle("DEV EDITED TITLE");
+        e.setSummary("locally modified summary");
+        repository.save(e);
+
+        HistoricalEvent after = seedService.upsertBachDang();
+        assertThat(after.getTitle()).isEqualTo("DEV EDITED TITLE");
+        assertThat(after.getSummary()).isEqualTo("locally modified summary");
+        assertThat(repository.count()).isEqualTo(1);
     }
 }
