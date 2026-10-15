@@ -85,8 +85,10 @@ public class RefreshTokenService {
         if (current.isRevoked()) {
             // Reuse of a rotated/revoked token: assume theft, kill the family.
             // REQUIRES_NEW so the revoke commits even though this method then
-            // throws and the outer transaction rolls back.
-            familyService.revokeFamily(current.getTokenFamilyId());
+            // throws and the outer transaction rolls back. Excludes `current`:
+            // the outer tx holds its FOR UPDATE lock while suspended, and the
+            // bulk update would otherwise block on it (self-deadlock).
+            familyService.revokeFamily(current.getTokenFamilyId(), current.getId());
             log.warn("refresh token replay detected familyId={} tokenId={}",
                     current.getTokenFamilyId(), current.getId());
             throw new AuthenticationFailedException();
@@ -104,8 +106,9 @@ public class RefreshTokenService {
         User user = userLoader.apply(current.getUserId());
         if (user == null || user.getStatus() != UserStatus.ACTIVE) {
             // Account locked/disabled since issue — contain the family too
-            // (REQUIRES_NEW: must commit despite the exception we then throw).
-            familyService.revokeFamily(current.getTokenFamilyId());
+            // (REQUIRES_NEW: must commit despite the exception we then throw;
+            // excludes `current` which the suspended outer tx has locked).
+            familyService.revokeFamily(current.getTokenFamilyId(), current.getId());
             throw new AuthenticationFailedException();
         }
         return issue(user, current);

@@ -72,8 +72,10 @@ class FlywayMigrationIT extends AbstractPostgresIT {
               + "VALUES ('55555555-5555-5555-5555-555555555555', "
               + "'44444444-4444-4444-4444-444444444444', 1, 1, '{}'::jsonb, "
               + "'11111111-1111-1111-1111-111111111111')");
+        // The trigger RAISE EXCEPTION surfaces as UncategorizedSQLException
+        // (a DataAccessException), not a constraint DataIntegrityViolation.
         org.junit.jupiter.api.Assertions.assertThrows(
-                org.springframework.dao.DataIntegrityViolationException.class,
+                org.springframework.dao.DataAccessException.class,
                 () -> jdbc.execute(
                         "UPDATE lesson_versions SET snapshot_json = '{\"a\":1}'::jsonb "
                       + "WHERE id = '55555555-5555-5555-5555-555555555555'"));

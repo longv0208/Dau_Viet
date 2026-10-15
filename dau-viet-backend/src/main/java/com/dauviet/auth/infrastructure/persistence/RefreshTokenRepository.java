@@ -28,10 +28,16 @@ public interface RefreshTokenRepository extends JpaRepository<RefreshToken, UUID
 
     /**
      * Theft containment: when a revoked token is replayed, revoke every
-     * still-active token in its family in one statement.
+     * still-active token in its family in one statement. {@code excludeId}
+     * skips the row the calling rotate() transaction already holds a
+     * FOR UPDATE lock on: rotate() suspends while the REQUIRES_NEW family
+     * revoke runs, so touching that row would wait on a lock only the
+     * suspended transaction can release (self-deadlock).
      */
     @Modifying
     @Query("update RefreshToken t set t.revokedAt = :now "
-         + "where t.tokenFamilyId = :familyId and t.revokedAt is null")
-    int revokeActiveByFamily(@Param("familyId") UUID familyId, @Param("now") Instant now);
+         + "where t.tokenFamilyId = :familyId and t.revokedAt is null "
+         + "and t.id <> :excludeId")
+    int revokeActiveByFamily(@Param("familyId") UUID familyId, @Param("now") Instant now,
+                             @Param("excludeId") UUID excludeId);
 }

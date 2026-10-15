@@ -41,9 +41,13 @@ class AuthRefreshIT extends AbstractPostgresIT {
     @Autowired RefreshTokenRepository tokens;
     @Autowired RefreshTokenService refreshTokenService;
     @Autowired ObjectMapper om;
+    @Autowired org.springframework.jdbc.core.JdbcTemplate jdbc;
 
     @BeforeEach
     void clean() {
+        // previous_token_id chains tokens inside a family; null it out so
+        // delete order cannot violate the self-referencing FK.
+        jdbc.update("update auth_refresh_tokens set previous_token_id = null");
         tokens.deleteAll();
         users.deleteAll();
     }
@@ -116,8 +120,13 @@ class AuthRefreshIT extends AbstractPostgresIT {
         User u = activeUser("exp@test.vn");
         var issued = refreshTokenService.issue(u, null);
         RefreshToken t = tokens.findByTokenHash(RefreshTokenService.hash(issued.raw())).orElseThrow();
-        t.setExpiresAt(Instant.now().minusSeconds(60));
-        tokens.save(t);
+        // chk_refresh_expiry requires expires_at > created_at, so an expired
+        // token must also have its created_at pushed into the past. JPA marks
+        // created_at updatable=false, so go through JDBC directly.
+        jdbc.update("update auth_refresh_tokens set created_at = ?, expires_at = ? where id = ?",
+                java.sql.Timestamp.from(Instant.now().minusSeconds(7200)),
+                java.sql.Timestamp.from(Instant.now().minusSeconds(60)),
+                t.getId());
         mvc.perform(post("/api/v1/auth/refresh")
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("""

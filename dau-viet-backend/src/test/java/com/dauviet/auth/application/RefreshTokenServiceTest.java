@@ -97,7 +97,7 @@ class RefreshTokenServiceTest {
 
         assertThatThrownBy(() -> service.rotate("raw-old"))
                 .isInstanceOf(AuthenticationFailedException.class);
-        verify(familyService).revokeFamily(old.getTokenFamilyId());
+        verify(familyService).revokeFamily(old.getTokenFamilyId(), old.getId());
     }
 
     @Test
@@ -108,7 +108,7 @@ class RefreshTokenServiceTest {
 
         assertThatThrownBy(() -> service.rotate("raw-old"))
                 .isInstanceOf(AuthenticationFailedException.class);
-        verify(familyService, never()).revokeFamily(any());
+        verify(familyService, never()).revokeFamily(any(), any());
     }
 
     @Test
@@ -130,7 +130,7 @@ class RefreshTokenServiceTest {
 
         assertThatThrownBy(() -> service.rotate("raw-old"))
                 .isInstanceOf(AuthenticationFailedException.class);
-        verify(familyService).revokeFamily(old.getTokenFamilyId());
+        verify(familyService).revokeFamily(old.getTokenFamilyId(), old.getId());
     }
 
     @Test

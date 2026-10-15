@@ -23,9 +23,13 @@ public class RefreshTokenFamilyService {
         this.tokens = tokens;
     }
 
-    /** Revokes every still-active token of the family in its own transaction. */
+    /**
+     * Revokes every still-active token of the family in its own transaction.
+     * {@code excludeId} is the row rotate() currently holds a FOR UPDATE lock
+     * on; updating it here would block on the suspended outer transaction.
+     */
     @Transactional(propagation = Propagation.REQUIRES_NEW)
-    public int revokeFamily(UUID familyId) {
-        return tokens.revokeActiveByFamily(familyId, Instant.now());
+    public int revokeFamily(UUID familyId, UUID excludeId) {
+        return tokens.revokeActiveByFamily(familyId, Instant.now(), excludeId);
     }
 }
