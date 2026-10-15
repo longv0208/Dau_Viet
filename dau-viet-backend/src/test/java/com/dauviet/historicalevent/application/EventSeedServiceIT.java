@@ -36,13 +36,9 @@ class EventSeedServiceIT extends AbstractPostgresIT {
     @BeforeEach
     void cleanTable() {
         // Other ITs on the shared container leave rows behind; isolate so
-        // count() assertions stay deterministic. Bypass the immutable trigger
-        // on lesson_versions and demote PUBLISHED lessons for cleanup only.
-        jdbc.update("set session_replication_role = replica");
-        jdbc.update("update lessons set status = 'DRAFT', current_version_id = null");
-        jdbc.update("delete from lesson_versions");
-        jdbc.update("delete from lessons");
-        jdbc.update("set session_replication_role = origin");
+        // count() assertions stay deterministic. Clear authoring dependents
+        // (lessons/evidences/assets) first so the events delete is FK-safe.
+        clearAuthoringTables(jdbc);
         jdbc.update("delete from historical_events");
     }
 

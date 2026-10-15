@@ -191,9 +191,27 @@ Access token: JWT HS256 (sub = user UUID, claim `role`); access TTL mặc địn
 | PATCH | `/admin/lessons/{lessonId}` | Update title/centralQuestion/objectives/template — **implemented TASK-0008** |
 | PUT | `/admin/lessons/{lessonId}/draft` | Lưu toàn bộ draft, optimistic version — **implemented TASK-0008** |
 | POST | `/admin/lessons/{lessonId}/archive` | Archive, giữ version cũ — **implemented TASK-0008** |
-| POST | `/admin/lessons/{lessonId}/validate` | Validate đầy đủ trước publish — TASK-0009 |
-| POST | `/admin/lessons/{lessonId}/preview` | Trả learner-safe preview payload từ draft — TASK-0009 |
-| POST | `/admin/lessons/{lessonId}/publish` | Transactional publish snapshot version mới — TASK-0009 |
+| POST | `/admin/lessons/{lessonId}/validate` | Publish-readiness probe (200 + `{ready,errors,warnings,summary}`) — **implemented TASK-0009** |
+| GET | `/admin/lessons/{lessonId}/draft/stages` | List stages trong draft (array-order) — **implemented TASK-0009** |
+| POST | `/admin/lessons/{lessonId}/draft/stages` | Thêm stage (id tự sinh nếu bỏ trống) — **implemented TASK-0009** |
+| GET | `/admin/lessons/{lessonId}/draft/stages/{stageId}` | Chi tiết một stage — **implemented TASK-0009** |
+| PATCH | `/admin/lessons/{lessonId}/draft/stages/{stageId}` | Sửa title/required/nextStageIds/requiredEvidenceIds — **implemented TASK-0009** |
+| PUT | `/admin/lessons/{lessonId}/draft/stages/order` | Reorder nguyên tử theo `orderedIds[]` — **implemented TASK-0009** |
+| DELETE | `/admin/lessons/{lessonId}/draft/stages/{stageId}` | Xóa stage + prune nextStageIds/requiredStageIds — **implemented TASK-0009** |
+| GET | `/admin/lessons/{lessonId}/draft/stages/{stageId}/activities` | List activities trong stage — **implemented TASK-0009** |
+| POST | `/admin/lessons/{lessonId}/draft/stages/{stageId}/activities` | Thêm activity — **implemented TASK-0009** |
+| GET | `/admin/lessons/{lessonId}/draft/stages/{stageId}/activities/{activityId}` | Chi tiết một activity — **implemented TASK-0009** |
+| PATCH | `/admin/lessons/{lessonId}/draft/stages/{stageId}/activities/{activityId}` | Sửa activity — **implemented TASK-0009** |
+| PUT | `/admin/lessons/{lessonId}/draft/stages/{stageId}/activities/order` | Reorder activities — **implemented TASK-0009** |
+| DELETE | `/admin/lessons/{lessonId}/draft/stages/{stageId}/activities/{activityId}` | Xóa activity — **implemented TASK-0009** |
+| POST | `/admin/evidences` | Tạo evidence (eventId, source provenance) — **implemented TASK-0009** |
+| GET | `/admin/evidences` | List evidences (page/size/sort, `eventId`, `status`, `q`) — **implemented TASK-0009** |
+| GET | `/admin/evidences/{id}` | Evidence detail — **implemented TASK-0009** |
+| PATCH | `/admin/evidences/{id}` | Sửa evidence metadata/asset — **implemented TASK-0009** |
+| POST | `/admin/evidences/{id}/approve` | DRAFT→APPROVED — **implemented TASK-0009** |
+| POST | `/admin/evidences/{id}/archive` | Archive (body tuỳ chọn `{expectedRowVersion}`; 409 `EVIDENCE_IN_USE` kèm `details.lessonIds` khi snapshot đang ref) — **implemented TASK-0009** |
+| POST | `/admin/lessons/{lessonId}/preview` | Trả learner-safe preview payload từ draft — TASK-0010 |
+| POST | `/admin/lessons/{lessonId}/publish` | Transactional publish snapshot version mới — TASK-0010 |
 | POST | `/admin/assets/upload-intent` | Tạo upload URL tạm thời (implementation proposal) |
 | POST | `/admin/assets/confirm` | Verify file sau upload |
 
@@ -204,7 +222,19 @@ Access token: JWT HS256 (sub = user UUID, claim `role`); access TTL mặc địn
 - Archive event PUBLISHED còn lesson non-archived → 409 `EVENT_IN_USE`; không cascade.
 - `PUT /{id}/draft` validate `draftJson` là JSON object, `objectivesJson` JSON array → 422 `DRAFT_SCHEMA_INVALID`.
 - Template `enabled=false` → 422 `TEMPLATE_DISABLED`; id không tồn tại → 404 `TEMPLATE_NOT_FOUND`.
-- Publish endpoint trả 409 `INVALID_STATUS_TRANSITION` với message TASK-0009 pending.
+- Publish endpoint trả 409 `INVALID_STATUS_TRANSITION` với message TASK-0010 pending.
+
+### Notes đã chốt TASK-0009 (Lesson Builder Core)
+
+- `draft_json` v1: `{schemaVersion:1, stages:[{id,type,title,required,activities[],nextStageIds[],requiredEvidenceIds[]}], completion:{requireAllRequiredStages,requiredStageIds[],minScore}}`. Stage/activity order = vị trí trong mảng; id theo `^[a-z0-9][a-z0-9-]{1,63}$`.
+- Mọi mutation stage/activity chạy pipeline load→mutate→**SAVE-validate**→persist; draft hỏng cấu trúc không bao giờ được ghi → 422 `DRAFT_SCHEMA_INVALID` kèm `details.errors[]` (path/code/message).
+- SAVE-level: JSON well-formed, id hợp lệ & unique, enum stage/activity, không có key lạ, stage→activity allow-map, transition tồn tại, không có chu trình (`CIRCULAR_TRANSITION`). PUBLISH-level thêm: config bắt buộc đủ, evidence refs tồn tại trong event + status `DRAFT|APPROVED` (`EVIDENCE_NOT_FOUND`), asset refs `state=ACTIVE` (`ASSET_NOT_FOUND`), completion khả thi.
+- Stage type cho phép activity theo `STAGE_ALLOWED_ACTIVITIES` (READ được mọi stage); vi phạm → `STAGE_ACTIVITY_MISMATCH`. Type lạ → `UNSUPPORTED_ACTIVITY_TYPE`.
+- Answer keys (`correctOptionIds`, `correctPairs`, `expectedOrder`, `requiredEvidenceIds` trong config...) là server-only — `DraftSchema.LEARNER_HIDDEN_KEYS` liệt kê; snapshot/preview phải strip (TASK-0010).
+- Xóa stage prune `nextStageIds` của stage khác + `completion.requiredStageIds`; `PUT .../order` yêu cầu `orderedIds` liệt kê đúng mọi id (400 khi thiếu/dư/trùng).
+- Evidence không hard-delete: DRAFT→APPROVED→ARCHIVED; archive từ chối khi `lesson_versions.snapshot_json` còn chứa id (409 `EVIDENCE_IN_USE`, quét LIKE bảo thủ phía admin). `assetId` phải tồn tại trong `assets` (404 `ASSET_NOT_FOUND`), `reliability ∈ {HIGH,MEDIUM,LOW,UNASSESSED}`.
+- `POST /{id}/validate` **luôn 200** `{ready,errors,warnings,summary}`: `ready=false` khi có error; warnings (lesson non-DRAFT, thiếu objectives) không chặn; template `schema_version != 1` → `TEMPLATE_SCHEMA_MISMATCH`. PUBLISH-level thêm `NO_TERMINAL_STAGE` (ít nhất một stage có `nextStageIds` rỗng), `NO_REQUIRED_ACTIVITY` (ít nhất một required stage có required non-READ activity), và chặn `requireAllRequiredStages=true` khi không có stage nào `required`. Summary gồm `stageCount/activityCount/evidenceRefs/schemaVersion/errorCount/warningCount`. Không tạo `lesson_versions` — publish thật là TASK-0010.
+- Sub-resource writes chỉ khi lesson `DRAFT`; ARCHIVED → 409 `INVALID_STATUS_TRANSITION`; `expectedRowVersion` ở body/query → 409 `OPTIMISTIC_LOCK_CONFLICT`. Reorder/delete trả `rowVersion` mới trong `DraftStagesResponse`/`DraftActivitiesResponse` để client chain mutation tiếp theo. `POST /admin/evidences/{id}/archive` nhận body tuỳ chọn `{expectedRowVersion}`; `EVIDENCE_IN_USE` trả `details.lessonIds`.
 
 ### Publish request/response
 

@@ -49,6 +49,7 @@ class AuthRefreshIT extends AbstractPostgresIT {
         // delete order cannot violate the self-referencing FK.
         jdbc.update("update auth_refresh_tokens set previous_token_id = null");
         tokens.deleteAll();
+        clearAuthoringTables(jdbc);
         users.deleteAll();
     }
 

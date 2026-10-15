@@ -145,6 +145,56 @@ public class GlobalExceptionHandler {
         return build(HttpStatus.UNPROCESSABLE_ENTITY, ErrorCode.DRAFT_SCHEMA_INVALID, ex.getMessage(), Map.of());
     }
 
+    @ExceptionHandler(com.dauviet.lesson.draft.DraftValidationException.class)
+    public ResponseEntity<ApiError> handleDraftValidation(
+            com.dauviet.lesson.draft.DraftValidationException ex) {
+        Map<String, Object> details = Map.of("errors", ex.getErrors().stream()
+                .map(e -> Map.of("path", e.path(), "code", e.code(), "message", e.message()))
+                .toList());
+        return build(HttpStatus.UNPROCESSABLE_ENTITY, ErrorCode.DRAFT_SCHEMA_INVALID,
+                "Draft validation failed", details);
+    }
+
+    @ExceptionHandler(com.dauviet.lesson.domain.StageNotFoundException.class)
+    public ResponseEntity<ApiError> handleStageNotFound(
+            com.dauviet.lesson.domain.StageNotFoundException ex) {
+        return build(HttpStatus.NOT_FOUND, ErrorCode.STAGE_NOT_FOUND, ex.getMessage(), Map.of());
+    }
+
+    @ExceptionHandler(com.dauviet.lesson.domain.ActivityNotFoundException.class)
+    public ResponseEntity<ApiError> handleActivityNotFound(
+            com.dauviet.lesson.domain.ActivityNotFoundException ex) {
+        return build(HttpStatus.NOT_FOUND, ErrorCode.ACTIVITY_NOT_FOUND, ex.getMessage(), Map.of());
+    }
+
+    @ExceptionHandler(com.dauviet.lesson.domain.EvidenceNotFoundException.class)
+    public ResponseEntity<ApiError> handleEvidenceNotFound(
+            com.dauviet.lesson.domain.EvidenceNotFoundException ex) {
+        return build(HttpStatus.NOT_FOUND, ErrorCode.EVIDENCE_NOT_FOUND, ex.getMessage(), Map.of());
+    }
+
+    @ExceptionHandler(com.dauviet.lesson.domain.EvidenceInUseException.class)
+    public ResponseEntity<ApiError> handleEvidenceInUse(
+            com.dauviet.lesson.domain.EvidenceInUseException ex) {
+        Map<String, Object> details = ex.getLessonIds().isEmpty()
+                ? Map.of()
+                : Map.of("lessonIds", ex.getLessonIds());
+        return build(HttpStatus.CONFLICT, ErrorCode.EVIDENCE_IN_USE, ex.getMessage(), details);
+    }
+
+    @ExceptionHandler(com.dauviet.lesson.domain.AssetNotFoundException.class)
+    public ResponseEntity<ApiError> handleAssetNotFound(
+            com.dauviet.lesson.domain.AssetNotFoundException ex) {
+        return build(HttpStatus.NOT_FOUND, ErrorCode.ASSET_NOT_FOUND, ex.getMessage(), Map.of());
+    }
+
+    @ExceptionHandler(com.dauviet.lesson.domain.TemplateSchemaMismatchException.class)
+    public ResponseEntity<ApiError> handleTemplateSchemaMismatch(
+            com.dauviet.lesson.domain.TemplateSchemaMismatchException ex) {
+        return build(HttpStatus.UNPROCESSABLE_ENTITY, ErrorCode.TEMPLATE_SCHEMA_MISMATCH,
+                ex.getMessage(), Map.of());
+    }
+
     @ExceptionHandler(org.springframework.orm.ObjectOptimisticLockingFailureException.class)
     public ResponseEntity<ApiError> handleOptimisticLock(
             org.springframework.orm.ObjectOptimisticLockingFailureException ex) {

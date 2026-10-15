@@ -35,9 +35,11 @@ class AuthControllerIT extends AbstractPostgresIT {
     @Autowired MockMvc mvc;
     @Autowired UserRepository users;
     @Autowired ObjectMapper om;
+    @Autowired org.springframework.jdbc.core.JdbcTemplate jdbc;
 
     @BeforeEach
     void clean() {
+        clearAuthoringTables(jdbc);
         users.deleteAll();
     }
 

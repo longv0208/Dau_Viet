@@ -49,14 +49,7 @@ class AdminLessonIT extends AbstractPostgresIT {
 
     @BeforeEach
     void setUp() {
-        // Bypass immutable trigger on lesson_versions for test cleanup only.
-        // Then demote PUBLISHED lessons (chk_lesson_published_version forbids
-        // PUBLISHED + null current_version_id) and clear FK references.
-        jdbc.update("set session_replication_role = replica");
-        jdbc.update("update lessons set status = 'DRAFT', current_version_id = null");
-        jdbc.update("delete from lesson_versions");
-        jdbc.update("delete from lessons");
-        jdbc.update("set session_replication_role = origin");
+        clearAuthoringTables(jdbc);
         jdbc.update("delete from lesson_templates");
         jdbc.update("delete from historical_events");
         jdbc.update("delete from auth_refresh_tokens");
@@ -160,11 +153,24 @@ class AdminLessonIT extends AbstractPostgresIT {
         MvcResult res = mvc.perform(put("/api/v1/admin/lessons/" + id + "/draft")
                         .header("Authorization", adminToken)
                         .contentType(MediaType.APPLICATION_JSON)
-                        .content("{\"draftJson\":\"{\\\"stages\\\":[{\\\"id\\\":1}]}\"}"))
+                        .content("{\"draftJson\":\"{\\\"schemaVersion\\\":1,\\\"stages\\\":[]}\"}"))
                 .andExpect(status().isOk()).andReturn();
         JsonNode body = om.readTree(res.getResponse().getContentAsString());
-        assertThat(body.get("draftJson").asText()).contains("\"id\":1");
+        assertThat(body.get("draftJson").asText()).contains("\"stages\":[]");
         assertThat(body.get("rowVersion").asLong()).isEqualTo(1);
+    }
+
+    @Test
+    void updateDraft_saveLevelViolations_422WithFieldErrors() throws Exception {
+        String id = lessonIdOf(createLesson());
+        // Stage id not a string / unknown top-level key -> SAVE errors in details
+        mvc.perform(put("/api/v1/admin/lessons/" + id + "/draft")
+                        .header("Authorization", adminToken)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"draftJson\":\"{\\\"bogus\\\":1}\"}"))
+                .andExpect(status().isUnprocessableEntity())
+                .andExpect(jsonPath("$.code").value("DRAFT_SCHEMA_INVALID"))
+                .andExpect(jsonPath("$.details.errors").isArray());
     }
 
     @Test

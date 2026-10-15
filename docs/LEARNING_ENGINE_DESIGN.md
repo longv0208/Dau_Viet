@@ -156,6 +156,8 @@ Domain exceptions custom phải định nghĩa khi code. Registry đảm bảo a
 
 **UX:** Drag & drop cần fallback tap/reorder; kiểm chứng không chỉ pass/fail mà có feedback và đường sửa giả thuyết.
 
+**Authoring allow-map (đã chốt TASK-0009):** bảng §2 là "hoạt động tiêu biểu" theo tư duy; phía authoring (`DraftSchema.STAGE_ALLOWED_ACTIVITIES`) cho phép `READ` ở mọi stage và `MULTIPLE_CHOICE` cũng được dùng trong `EVIDENCE`, `REASONING`, `VERIFICATION` (kiểm tra nhận diện/đối chứng nhanh), ngoài các ánh xạ tự nhiên theo bảng trên. Vi phạm → `STAGE_ACTIVITY_MISMATCH` (422) khi save draft.
+
 ## 7. Attempt state machine
 
 ```text

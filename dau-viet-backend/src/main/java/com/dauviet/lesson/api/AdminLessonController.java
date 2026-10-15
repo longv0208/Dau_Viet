@@ -32,6 +32,7 @@ import com.dauviet.lesson.api.dto.AdminLessonDraftRequest;
 import com.dauviet.lesson.api.dto.AdminLessonResponse;
 import com.dauviet.lesson.api.dto.AdminLessonSummaryResponse;
 import com.dauviet.lesson.api.dto.AdminLessonUpdateRequest;
+import com.dauviet.lesson.api.dto.PublishReadinessResponse;
 import com.dauviet.lesson.application.LessonService;
 import com.dauviet.lesson.domain.LessonStatus;
 
@@ -97,6 +98,16 @@ public class AdminLessonController {
     public AdminLessonResponse archive(@PathVariable UUID id,
                                        @AuthenticationPrincipal Jwt jwt) {
         return service.archive(id, adminId(jwt));
+    }
+
+    /**
+     * PUBLISH-level readiness probe — read-only, always 200 with
+     * {ready, errors, warnings, summary}. Does NOT create lesson_versions
+     * (that is TASK-0010's publish flow).
+     */
+    @PostMapping("/{id}/validate")
+    public PublishReadinessResponse validate(@PathVariable UUID id) {
+        return service.checkPublishReadiness(id);
     }
 
     private UUID adminId(Jwt jwt) {

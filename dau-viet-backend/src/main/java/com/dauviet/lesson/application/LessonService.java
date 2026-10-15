@@ -17,6 +17,7 @@ import com.dauviet.lesson.api.dto.AdminLessonDraftRequest;
 import com.dauviet.lesson.api.dto.AdminLessonResponse;
 import com.dauviet.lesson.api.dto.AdminLessonSummaryResponse;
 import com.dauviet.lesson.api.dto.AdminLessonUpdateRequest;
+import com.dauviet.lesson.api.dto.PublishReadinessResponse;
 import com.dauviet.lesson.api.mapper.AdminLessonMapper;
 import com.dauviet.lesson.domain.InvalidStatusTransitionException;
 import com.dauviet.lesson.domain.Lesson;
@@ -25,6 +26,15 @@ import com.dauviet.lesson.domain.LessonStatus;
 import com.dauviet.lesson.domain.LessonTemplate;
 import com.dauviet.lesson.domain.TemplateDisabledException;
 import com.dauviet.lesson.domain.TemplateNotFoundException;
+import com.dauviet.lesson.draft.DraftSchema;
+import com.dauviet.lesson.draft.DraftValidationException;
+import com.dauviet.lesson.draft.DraftValidator;
+import com.dauviet.lesson.draft.FieldError;
+import com.dauviet.lesson.draft.ValidationLevel;
+
+import com.fasterxml.jackson.databind.JsonNode;
+
+import java.util.Map;
 import com.dauviet.lesson.infrastructure.persistence.LessonRepository;
 import com.dauviet.lesson.infrastructure.persistence.LessonTemplateRepository;
 
@@ -43,15 +53,21 @@ public class LessonService {
     private final LessonTemplateRepository templates;
     private final HistoricalEventRepository events;
     private final AdminLessonMapper mapper;
+    private final DraftValidator draftValidator;
+    private final com.fasterxml.jackson.databind.ObjectMapper objectMapper;
 
     public LessonService(LessonRepository lessons,
                          LessonTemplateRepository templates,
                          HistoricalEventRepository events,
-                         AdminLessonMapper mapper) {
+                         AdminLessonMapper mapper,
+                         DraftValidator draftValidator,
+                         com.fasterxml.jackson.databind.ObjectMapper objectMapper) {
         this.lessons = lessons;
         this.templates = templates;
         this.events = events;
         this.mapper = mapper;
+        this.draftValidator = draftValidator;
+        this.objectMapper = objectMapper;
     }
 
     @Transactional
@@ -146,7 +162,21 @@ public class LessonService {
             throw new InvalidStatusTransitionException("archived lesson cannot be edited");
         }
         // Replaces draft_json; current_version_id (published snapshot) untouched.
-        l.setDraftJson(DraftValidator.requireJsonObject(req.draftJson(), "draftJson"));
+        String canonical = DraftValidator.requireJsonObject(req.draftJson(), "draftJson");
+        // Structural SAVE-level check on the parsed document — incomplete
+        // drafts are allowed (missing config etc.) but bad shapes are not.
+        List<FieldError> errs;
+        try {
+            errs = draftValidator.validate(
+                    objectMapper.readTree(canonical), l.getEventId(), ValidationLevel.SAVE);
+        } catch (com.fasterxml.jackson.core.JsonProcessingException ex) {
+            throw new com.dauviet.lesson.domain.DraftSchemaInvalidException(
+                    "draftJson is not valid JSON");
+        }
+        if (!errs.isEmpty()) {
+            throw new DraftValidationException(errs);
+        }
+        l.setDraftJson(canonical);
         l.setUpdatedBy(adminId);
         return mapper.toResponse(lessons.saveAndFlush(l));
     }
@@ -158,10 +188,90 @@ public class LessonService {
             throw new InvalidStatusTransitionException(
                     "cannot publish lesson in status " + l.getStatus());
         }
-        // TASK-0009 inserts the lesson_versions row + sets current_version_id.
+        // TASK-0010 inserts the lesson_versions row + sets current_version_id.
         // Without a snapshot the CHECK constraint forbids PUBLISHED — surface it now.
         throw new InvalidStatusTransitionException(
-                "lesson publish workflow is implemented in TASK-0009");
+                "lesson publish workflow is implemented in TASK-0010");
+    }
+
+    /**
+     * PUBLISH-level readiness probe — read-only, always returns 200.
+     * Never creates lesson_versions and never mutates the draft.
+     */
+    @Transactional(readOnly = true)
+    public PublishReadinessResponse checkPublishReadiness(UUID id) {
+        Lesson l = load(id);
+        List<java.util.Map<String, String>> warnings = new ArrayList<>();
+        List<java.util.Map<String, String>> errors = new ArrayList<>();
+
+        // Non-draft states can still be probed but report a warning.
+        if (l.getStatus() != LessonStatus.DRAFT) {
+            warnings.add(java.util.Map.of("code", "LESSON_NOT_DRAFT",
+                    "message", "lesson status is " + l.getStatus()));
+        }
+        if (l.getCentralQuestion() == null || l.getCentralQuestion().isBlank()) {
+            errors.add(java.util.Map.of("path", "centralQuestion",
+                    "code", "MISSING_FIELD",
+                    "message", "central question is required before publish"));
+        }
+        if (l.getObjectivesJson() == null || "[]".equals(l.getObjectivesJson().trim())) {
+            warnings.add(java.util.Map.of("code", "NO_OBJECTIVES",
+                    "message", "lesson has no learning objectives"));
+        }
+        LessonTemplate tpl = templates.findById(l.getTemplateId()).orElse(null);
+        if (tpl == null) {
+            errors.add(java.util.Map.of("path", "templateId",
+                    "code", "TEMPLATE_NOT_FOUND", "message", "template missing"));
+        } else if (tpl.getSchemaVersion() == null
+                || tpl.getSchemaVersion() != DraftSchema.CURRENT_VERSION) {
+            errors.add(java.util.Map.of("path", "templateId",
+                    "code", "TEMPLATE_SCHEMA_MISMATCH",
+                    "message", "template schema_version " + tpl.getSchemaVersion()
+                            + " does not match draft schemaVersion "
+                            + DraftSchema.CURRENT_VERSION));
+        }
+
+        JsonNode draftNode;
+        try {
+            draftNode = objectMapper.readTree(
+                    l.getDraftJson() == null ? "{}" : l.getDraftJson());
+        } catch (com.fasterxml.jackson.core.JsonProcessingException e) {
+            errors.add(java.util.Map.of("path", "draftJson", "code", "INVALID_DRAFT",
+                    "message", "draft_json is not parseable"));
+            return new PublishReadinessResponse(false, errors, warnings, Map.of());
+        }
+        List<FieldError> fieldErrors = draftValidator.validate(
+                draftNode, l.getEventId(), ValidationLevel.PUBLISH);
+        fieldErrors.forEach(fe -> errors.add(java.util.Map.of(
+                "path", fe.path(), "code", fe.code(), "message", fe.message())));
+
+        int stageCount = 0;
+        int activityCount = 0;
+        int evidenceRefCount = 0;
+        JsonNode stages = draftNode.get("stages");
+        if (stages != null && stages.isArray()) {
+            stageCount = stages.size();
+            for (JsonNode s : stages) {
+                JsonNode reqEv = s.get("requiredEvidenceIds");
+                if (reqEv != null && reqEv.isArray()) evidenceRefCount += reqEv.size();
+                JsonNode acts = s.get("activities");
+                if (acts != null && acts.isArray()) {
+                    activityCount += acts.size();
+                    for (JsonNode a : acts) {
+                        JsonNode refs = a.get("evidenceRefs");
+                        if (refs != null && refs.isArray()) evidenceRefCount += refs.size();
+                    }
+                }
+            }
+        }
+        Map<String, Object> summary = Map.of(
+                "stageCount", stageCount,
+                "activityCount", activityCount,
+                "evidenceRefs", evidenceRefCount,
+                "schemaVersion", draftNode.path("schemaVersion").asInt(-1),
+                "errorCount", errors.size(),
+                "warningCount", warnings.size());
+        return new PublishReadinessResponse(errors.isEmpty(), errors, warnings, summary);
     }
 
     @Transactional

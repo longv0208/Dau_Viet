@@ -171,7 +171,49 @@ CREATE TABLE activity_attempts (
 
 `row_version` dùng với JPA `@Version` hoặc lock phù hợp khi concurrent submit. Migration tiếp theo bổ sung `evidences`, `assets`, collection, idempotency và reward ledger. Không sửa migration đã áp dụng trong môi trường shared.
 
-**Trạng thái áp dụng (2026-10-15):** schema thực tế trong `dau-viet-backend/src/main/resources/db/migration/` hiện gồm V1 (`historical_events`), V2 (`users`, `auth_refresh_tokens`), V3 (`assets`, `evidences`, `lesson_templates`, `lessons`, `lesson_versions` + trigger immutable), V4 (`learner_attempts`, `activity_attempts`, `idempotency_records`, `lesson_results`, `user_evidence`, `reward_transactions`). Nguồn đề xuất: `dau-viet-db/` (xem README của nó cho các quyết định mô hình và giới hạn validation phía service).
+**Trạng thái áp dụng (2026-10-15):** schema thực tế trong `dau-viet-backend/src/main/resources/db/migration/` hiện gồm V1 (`historical_events`), V2 (`users`, `auth_refresh_tokens`), V3 (`assets`, `evidences`, `lesson_templates`, `lessons`, `lesson_versions` + trigger immutable), V4 (`learner_attempts`, `activity_attempts`, `idempotency_records`, `lesson_results`, `user_evidence`, `reward_transactions`), V5 (`historical_events.row_version`), V6 (`evidences.row_version` cho optimistic locking phía admin). Nguồn đề xuất: `dau-viet-db/` (xem README của nó cho các quyết định mô hình và giới hạn validation phía service).
+
+### Contract `draft_json` v1 (TASK-0009)
+
+```json
+{
+  "schemaVersion": 1,
+  "stages": [
+    {
+      "id": "stage-context",
+      "type": "CONTEXT",
+      "title": "Bối cảnh",
+      "required": true,
+      "activities": [
+        {
+          "id": "act-intro",
+          "type": "READ",
+          "required": true,
+          "instruction": "Đọc bối cảnh",
+          "config": {"text": "..."},
+          "validation": {},
+          "feedback": {},
+          "evidenceRefs": ["<evidence-uuid>"]
+        }
+      ],
+      "nextStageIds": ["stage-evidence"],
+      "requiredEvidenceIds": []
+    }
+  ],
+  "completion": {
+    "requireAllRequiredStages": true,
+    "requiredStageIds": [],
+    "minScore": null
+  }
+}
+```
+
+- Top-level keys được phép: `schemaVersion`, `stages`, `completion`, `objectives` (mảng string, sync một chiều sang `lessons.objectives_json` khi save nếu có).
+- Stage `id`/`activity.id` theo `^[a-z0-9][a-z0-9-]{1,63}$`, unique trong draft; thứ tự = vị trí mảng (không cần cột `order`).
+- `nextStageIds` là đồ thị chuyển stage (nhiều nhánh được phép); validator DFS chặn chu trình và target không tồn tại.
+- 9 `StageType` × 12 `ActivityType` theo allow-map `STAGE_ALLOWED_ACTIVITIES` (READ ở mọi stage); chi tiết trong `docs/LEARNING_ENGINE_DESIGN.md` §2/§6.
+- `evidenceRefs`/`requiredEvidenceIds` lưu `evidences.id` dạng string UUID; publish-level check yêu cầu cùng `event_id` + status `DRAFT|APPROVED`.
+- Answer keys (`correctOptionIds`, `correctPairs`, `expectedOrder`, ...) tồn tại trong `config`/`validation` nhưng **server-only** — strip khi xuất learner payload (TASK-0010).
 
 ## 6. Invariants giao dịch
 

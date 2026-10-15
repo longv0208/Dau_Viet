@@ -46,13 +46,8 @@ class AdminEventIT extends AbstractPostgresIT {
 
     @BeforeEach
     void setUp() {
-        // Bypass immutable trigger on lesson_versions for cleanup only.
-        // Demote PUBLISHED lessons before clearing current_version_id.
-        jdbc.update("set session_replication_role = replica");
-        jdbc.update("update lessons set status = 'DRAFT', current_version_id = null");
-        jdbc.update("delete from lesson_versions");
-        jdbc.update("delete from lessons");
-        jdbc.update("set session_replication_role = origin");
+        // Clear authoring dependents before events/users (FK-safe order).
+        clearAuthoringTables(jdbc);
         jdbc.update("delete from historical_events");
         jdbc.update("delete from auth_refresh_tokens");
         users.deleteAll();
