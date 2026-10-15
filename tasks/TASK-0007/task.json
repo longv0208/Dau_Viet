@@ -1,0 +1,56 @@
+{
+  "schemaVersion": 1,
+  "id": "TASK-0007",
+  "type": "feature",
+  "risk": "high-risk",
+  "status": "implementing",
+  "goal": "Import the dau-viet-db PostgreSQL schema proposal (Flyway V2 users/auth, V3 authoring/publishing/evidence/assets, V4 learner runtime/progress/rewards) into dau-viet-backend migrations so the MVP learning engine has its full data model.",
+  "owner": "claude",
+  "modules": ["backend"],
+  "scope": [
+    "dau-viet-backend/src/main/resources/db/migration/",
+    "dau-viet-backend/src/test/java/com/dauviet/FlywayMigrationIT.java",
+    "dau-viet-db/",
+    "tasks/TASK-0007/",
+    "docs/DATABASE_DESIGN.md",
+    "plans/2026-10-15-import-dau-viet-db-migrations/"
+  ],
+  "acceptanceCriteria": [
+    { "id": "AC-1", "text": "V2__users_and_auth.sql, V3__authoring_publishing_evidence_assets.sql and V4__learner_runtime_progress_rewards.sql exist under dau-viet-backend/src/main/resources/db/migration/; V1 is unchanged." },
+    { "id": "AC-2", "text": "Copied migrations are identical to the dau-viet-db proposal files; the dau-viet-db source directory is kept in-repo for provenance." },
+    { "id": "AC-3", "text": "Flyway applies V1–V4 cleanly on an empty Postgres (flyway_schema_history records 2,3,4 as success)." },
+    { "id": "AC-4", "text": "All 13 new tables exist: users, auth_refresh_tokens, assets, evidences, lesson_templates, lessons, lesson_versions, learner_attempts, activity_attempts, idempotency_records, lesson_results, user_evidence, reward_transactions." },
+    { "id": "AC-5", "text": "lesson_versions immutability trigger raises an error on UPDATE/DELETE of a real version row." },
+    { "id": "AC-6", "text": "Existing behavior unaffected: historical_events schema/API/seed and dev profile unchanged; ddl-auto=validate still passes because no entity maps the new tables." },
+    { "id": "AC-7", "text": "Backend compiles and test sources compile (mvnw test-compile); full mvnw verify on a Docker host, or NOT VERIFIED is reported." }
+  ],
+  "dependencies": ["TASK-0005"],
+  "planPath": "plans/2026-10-15-import-dau-viet-db-migrations/plan.md",
+  "evidenceRefs": [
+    "dau-viet-backend/src/main/resources/db/migration/V2__users_and_auth.sql",
+    "dau-viet-backend/src/main/resources/db/migration/V3__authoring_publishing_evidence_assets.sql",
+    "dau-viet-backend/src/main/resources/db/migration/V4__learner_runtime_progress_rewards.sql",
+    "dau-viet-backend/src/test/java/com/dauviet/FlywayMigrationIT.java",
+    "dau-viet-db/README.md"
+  ],
+  "reviewRefs": [],
+  "nextAction": "Run `JAVA_HOME=E:\\Java\\jdk-21 ./mvnw -q verify` on a Docker-enabled host so FlywayMigrationIT (V2–V4 applied, 13 tables, immutability trigger) executes for real; Docker Desktop was not running on this machine so ITs are NOT VERIFIED yet. Then code-reviewer + harness verify/finish.",
+  "baseCommit": null,
+  "inputFingerprint": null,
+  "snapshot": null,
+  "roleReports": [],
+  "blockedReason": null,
+  "resumeFrom": null,
+  "handoffRef": null,
+  "acEvidence": {
+    "AC-1": ["dau-viet-backend/src/main/resources/db/migration/V2__users_and_auth.sql", "dau-viet-backend/src/main/resources/db/migration/V3__authoring_publishing_evidence_assets.sql", "dau-viet-backend/src/main/resources/db/migration/V4__learner_runtime_progress_rewards.sql"],
+    "AC-2": ["dau-viet-db/README.md", "dau-viet-db/db/migration/V2__users_and_auth.sql"],
+    "AC-3": ["dau-viet-backend/src/test/java/com/dauviet/FlywayMigrationIT.java"],
+    "AC-4": ["dau-viet-backend/src/test/java/com/dauviet/FlywayMigrationIT.java"],
+    "AC-5": ["dau-viet-backend/src/test/java/com/dauviet/FlywayMigrationIT.java"],
+    "AC-6": ["dau-viet-backend/src/main/java/com/dauviet/historicalevent/api/HistoricalEventController.java"],
+    "AC-7": ["dau-viet-backend/src/test/java/com/dauviet/FlywayMigrationIT.java"]
+  },
+  "createdAt": "2026-10-15T03:00:00+07:00",
+  "updatedAt": "2026-10-15T03:00:00+07:00"
+}
