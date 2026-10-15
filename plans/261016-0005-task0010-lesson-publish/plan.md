@@ -32,7 +32,7 @@ Ship real publish: validate draft at PUBLISH level → build immutable `lesson_v
 | Preview | Reuses same projection service on `draft_json`, no publish | Zero duplication; preview is "what learner would see if published now". |
 | Publish on PUBLISHED lesson | Allowed (creates `version_no = max+1`) | Spec note §3 says republish allowed; `current_version_id` rotates; attempts stay pinned to old version. |
 | Publish on ARCHIVED lesson | 409 `INVALID_STATUS_TRANSITION` | Same rule as edit/archive. |
-| Event must be PUBLISHED to publish lesson? | **Warn, do not block** | Spec is silent; blocking adds coupling. Surface as a warning inside publish flow's readiness check but still allow publish so admin can stage lessons ahead of event publish. Flag as open question. |
+| Event must be PUBLISHED to publish lesson? | ~~Warn, do not block~~ → **BLOCK (error)** | Resolved by follow-up brief: AC-2 requires PUBLISHED event — `EVENT_NOT_PUBLISHED` is now a readiness error (422 on publish, ready=false on validate). |
 | Idempotency-Key on publish | Accept header, **do not implement** `idempotency_records` wiring this task | V4 table exists but no service layer yet. Full idempotent-publish is a separate concern (requires request hash + response replay). Note in plan + open question; surface `Idempotency-Key` in spec but treat as deferred. |
 | Learner attempt-pinning enforcement | **Deferred to learning-engine task** | Attempts table exists (V4) but no `POST /attempts` flow yet, so "authorize specific-version fetch by attempt ownership" has nothing to check against. Learner API returns the *current* published version only; `GET /versions/{versionId}` content stays admin-only until attempt flow lands. |
 | ErrorCode additions | `LESSON_NOT_PUBLISHED`, `VERSION_NOT_FOUND` | Both map to 404 envelope. Reuse `INVALID_STATUS_TRANSITION` for ARCHIVED publish, `DRAFT_SCHEMA_INVALID` envelope for 422 publish-validation failures (same shape as validate endpoint). |
@@ -44,9 +44,9 @@ Ship real publish: validate draft at PUBLISH level → build immutable `lesson_v
 - `GET /api/v1/admin/lessons/{id}/versions` — CONTENT_ADMIN; paged list `{items:[{id,versionNo,schemaVersion,publishedAt,publishedBy}],page,size,total}` ordered `versionNo desc`.
 - `GET /api/v1/admin/lessons/{id}/versions/{versionId}` — CONTENT_ADMIN; full snapshot including server-only keys (admin sees all).
 - `GET /api/v1/admin/lessons/{id}/versions/current` — convenience alias resolving `lessons.current_version_id`.
-- `GET /api/v1/lessons/{id}` — public (permit-all like events); returns metadata `{id,title,centralQuestion,eventId,status,publishedAt,currentVersionId}`; only `PUBLISHED` lessons (404 `LESSON_NOT_FOUND`/`LESSON_NOT_PUBLISHED` otherwise).
-- `GET /api/v1/lessons/{id}/content` — public; learner-safe projection of current published `snapshot_json` with `LEARNER_HIDDEN_KEYS` stripped recursively inside `config`/`validation`, and `validation` fields normalized to non-answer shapes.
-- `GET /api/v1/events/{eventId}/lessons` — public; lists published lessons for a published event (404 event not published).
+- `GET /api/v1/lessons/{id}` — authenticated (any role; AC-10 supersedes earlier permit-all note); returns metadata `{id,title,centralQuestion,eventId,status,publishedAt,currentVersionId}`; only `PUBLISHED` lessons (404 `LESSON_NOT_FOUND`/`LESSON_NOT_PUBLISHED` otherwise).
+- `GET /api/v1/lessons/{id}/content` — authenticated; learner-safe projection of current published `snapshot_json` with `LEARNER_HIDDEN_KEYS` stripped recursively inside `config`/`validation`, and `validation` fields normalized to non-answer shapes. Corrupt snapshot → 500 `SNAPSHOT_CORRUPT`.
+- `GET /api/v1/events/{eventId}/lessons` — authenticated; lists published lessons for a published event (404 event not published).
 
 ## Architecture
 
@@ -163,5 +163,5 @@ Ship real publish: validate draft at PUBLISH level → build immutable `lesson_v
 
 - TASK-0011+: `POST /attempts` flow + learner fetch of pinned `lesson_version_id` (authorize by attempt.user_id == jwt.sub).
 - Idempotent publish (`idempotency_records` wiring) — defer to a task that owns submission/completion idempotency so one service handles all `Idempotency-Key` semantics.
-- Confirm with PO: publish lesson while parent event still `DRAFT` — currently allowed with warning; tighten to block if required.
+- ~~Confirm with PO: publish lesson while parent event still `DRAFT`~~ — resolved: blocks with `EVENT_NOT_PUBLISHED` error per AC-2 (follow-up brief).
 - Confirm learner API needs pagination on `/events/{id}/lessons` (currently returns full list — typical event has ≤ 10 lessons).

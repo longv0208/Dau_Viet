@@ -17,6 +17,7 @@ import com.dauviet.lesson.domain.LessonNotFoundException;
 import com.dauviet.lesson.domain.LessonNotPublishedException;
 import com.dauviet.lesson.domain.LessonStatus;
 import com.dauviet.lesson.domain.LessonVersion;
+import com.dauviet.lesson.domain.SnapshotCorruptException;
 import com.dauviet.lesson.domain.VersionNotFoundException;
 import com.dauviet.lesson.infrastructure.persistence.LessonRepository;
 import com.dauviet.lesson.infrastructure.persistence.LessonVersionRepository;
@@ -99,11 +100,10 @@ public class LearnerLessonService {
         try {
             return objectMapper.readTree(json);
         } catch (Exception e) {
-            // A corrupt published snapshot is a data-integrity defect — log the
-            // fact and surface an empty document rather than leaking internals.
-            org.slf4j.LoggerFactory.getLogger(LearnerLessonService.class)
-                    .error("unparseable snapshot_json: {}", e.getMessage());
-            return objectMapper.createObjectNode();
+            // A corrupt published snapshot is a data-integrity defect — fail
+            // loudly (500 SNAPSHOT_CORRUPT) instead of silently serving empty
+            // content that looks like a valid lesson to learners.
+            throw new SnapshotCorruptException("unparseable snapshot_json: " + e.getMessage());
         }
     }
 }

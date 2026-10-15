@@ -46,9 +46,9 @@
 | GET | `/me` | Profile / level / EXP khi hỗ trợ |
 | GET | `/events` | Danh sách event/lesson published — **đã implement** (TASK-0005) |
 | GET | `/events/{eventId}` | Metadata event, available lessons — **đã implement** (TASK-0005) |
-| GET | `/events/{eventId}/lessons` | Published lessons của một event PUBLISHED — **implemented TASK-0010** |
-| GET | `/lessons/{lessonId}` | Published lesson metadata (title, centralQuestion, currentVersionId, versionNo) — **implemented TASK-0010**; unpublished → 404 `LESSON_NOT_PUBLISHED` |
-| GET | `/lessons/{lessonId}/content` | Learner-safe content của current published version (hidden keys stripped) — **implemented TASK-0010** |
+| GET | `/events/{eventId}/lessons` | Published lessons của một event PUBLISHED — **implemented TASK-0010**; yêu cầu authenticated |
+| GET | `/lessons/{lessonId}` | Published lesson metadata (title, centralQuestion, currentVersionId, versionNo) — **implemented TASK-0010**; yêu cầu authenticated; unpublished → 404 `LESSON_NOT_PUBLISHED` |
+| GET | `/lessons/{lessonId}/content` | Learner-safe content của current published version (hidden keys stripped) — **implemented TASK-0010**; yêu cầu authenticated |
 | POST | `/lessons/{lessonId}/attempts` | Start/resume theo policy |
 | GET | `/attempts/{attemptId}` | Attempt progress/cursor |
 | GET | `/attempts/{attemptId}/current` | Current activity (learner-safe payload) |
@@ -263,15 +263,16 @@ Content-Type: application/json
 }
 ```
 
-Publish chạy PUBLISH-level `DraftValidator` trong một transaction: `SELECT FOR UPDATE` trên `lessons` serialize concurrent publish, `version_no = max+1`, insert `lesson_versions` (trigger DB chặn UPDATE/DELETE), cập nhật `current_version_id` + `status=PUBLISHED`. Lỗi validation → `422 DRAFT_SCHEMA_INVALID` với `details.errors[]` không ghi gì; ARCHIVED → `409 INVALID_STATUS_TRANSITION`; stale `expectedRowVersion` → `409 OPTIMISTIC_LOCK_CONFLICT`. Republish trên lesson PUBLISHED được phép (version_no tăng, snapshot cũ giữ nguyên). Yêu cầu event PUBLISHED hiện chỉ là warning, chưa block — chờ quyết định sản phẩm.
+Publish chạy PUBLISH-level `DraftValidator` trong một transaction: `SELECT FOR UPDATE` trên `lessons` serialize concurrent publish, `version_no = max+1`, insert `lesson_versions` (trigger DB chặn UPDATE/DELETE), cập nhật `current_version_id` + `status=PUBLISHED`. Lỗi validation → `422 DRAFT_SCHEMA_INVALID` với `details.errors[]` không ghi gì; ARCHIVED → `409 INVALID_STATUS_TRANSITION`; stale `expectedRowVersion` → `409 OPTIMISTIC_LOCK_CONFLICT`. Republish trên lesson PUBLISHED được phép (version_no tăng, snapshot cũ giữ nguyên). Event cha phải `PUBLISHED` — nếu không publish bị chặn với `422` và `details.errors[]` chứa `EVENT_NOT_PUBLISHED` (AC-2).
 
 ### Notes đã chốt TASK-0010 (Publish + Learner-safe content)
 
 - `snapshot_json` embed: `schemaVersion`, `lessonId`, `title`, `centralQuestion`, `objectives`, `templateCode`, `stages`/`completion` verbatim từ draft (server-only keys giữ lại cho evaluation phía server sau này), `evidence[]` denormalized (id/title/evidenceType/description/source{title,author,url,citation,publishedAt}/reliability/relevance/assetId), `assets[]` (id/storageKey/mimeType/sizeBytes/originalFilename/altText). Snapshot là single published truth — evidence/asset embed giữ `EVIDENCE_IN_USE` LIKE-scan hoạt động.
 - Learner projection (`LearnerProjectionService`) strip đệ quy `LEARNER_HIDDEN_KEYS` ở mọi depth trong config/feedback/validation, xoá `validation` block và `evidenceRefs` của activity cùng `requiredEvidenceIds` của stage; không mutate snapshot gốc. Renderer-facing refs (`visibleEvidenceIds`, `visibleSourceIds`) vẫn giữ.
-- Readiness (`/validate` + `/publish`) kiểm tra thêm: template `enabled=false` → error `TEMPLATE_DISABLED`; event cha chưa `PUBLISHED` → warning `EVENT_NOT_PUBLISHED` (không block — open product question); event không tồn tại → error `EVENT_NOT_FOUND`.
+- Readiness (`/validate` + `/publish`) kiểm tra thêm: template `enabled=false` → error `TEMPLATE_DISABLED`; event cha chưa `PUBLISHED` → error `EVENT_NOT_PUBLISHED` (block publish theo AC-2); event không tồn tại → error `EVENT_NOT_FOUND`.
 - `POST /admin/lessons/{id}/preview` trả cùng projection trên draft hiện tại (`lessonVersionId`/`versionNo` = null), không ghi bản ghi nào, lesson giữ nguyên trạng thái.
-- Learner GETs là `permitAll` trong SecurityConfig: `/api/v1/events/*/lessons`, `/api/v1/lessons/*` (gồm `/content`). Lesson chưa publish → `404 LESSON_NOT_PUBLISHED`; event chưa publish → `404` theo `EVENT_NOT_FOUND` envelope.
+- Learner GETs yêu cầu authenticated (mọi role; AC-10): `/api/v1/events/*/lessons`, `/api/v1/lessons/*` (gồm `/content`) — anonymous → `401`. Event catalogue (`/api/v1/events`, `/api/v1/events/*`) vẫn `permitAll`. Lesson chưa publish → `404 LESSON_NOT_PUBLISHED`; event chưa publish → `404` theo `EVENT_NOT_FOUND` envelope.
+- `snapshot_json` hỏng (không parse được) → `500 SNAPSHOT_CORRUPT`, không trả content rỗng.
 - Admin version APIs trả full snapshot kể cả server-only keys (admin-only sau `/admin/**` guard).
 
 ## 4. Security và cạnh tranh trạng thái

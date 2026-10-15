@@ -207,6 +207,15 @@ public class GlobalExceptionHandler {
                 ex.getMessage(), Map.of());
     }
 
+    @ExceptionHandler(com.dauviet.lesson.domain.SnapshotCorruptException.class)
+    public ResponseEntity<ApiError> handleSnapshotCorrupt(
+            com.dauviet.lesson.domain.SnapshotCorruptException ex) {
+        String traceId = MDC.get(TraceIdFilter.MDC_KEY);
+        log.error("corrupt snapshot_json traceId={} {}", traceId, ex.getMessage());
+        return build(HttpStatus.INTERNAL_SERVER_ERROR, ErrorCode.SNAPSHOT_CORRUPT,
+                "Lesson content is unavailable", Map.of());
+    }
+
     @ExceptionHandler(org.springframework.orm.ObjectOptimisticLockingFailureException.class)
     public ResponseEntity<ApiError> handleOptimisticLock(
             org.springframework.orm.ObjectOptimisticLockingFailureException ex) {

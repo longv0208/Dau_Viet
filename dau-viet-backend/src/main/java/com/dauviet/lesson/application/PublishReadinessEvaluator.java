@@ -80,15 +80,15 @@ public class PublishReadinessEvaluator {
                             + DraftSchema.CURRENT_VERSION));
         }
 
-        // Parent event not yet PUBLISHED: warn but do not block (open product
-        // question — see plan §Open Questions). Missing event is a data-integrity
-        // problem so it is an error, not a warning.
+        // Parent event must exist and be PUBLISHED (AC-2): a lesson cannot go
+        // live inside an event learners cannot see yet.
         var event = events.findById(l.getEventId()).orElse(null);
         if (event == null) {
             errors.add(Map.of("path", "eventId",
                     "code", "EVENT_NOT_FOUND", "message", "parent event missing"));
         } else if (event.getStatus() != EventStatus.PUBLISHED) {
-            warnings.add(Map.of("code", "EVENT_NOT_PUBLISHED",
+            errors.add(Map.of("path", "eventId",
+                    "code", "EVENT_NOT_PUBLISHED",
                     "message", "parent event status is " + event.getStatus()));
         }
 

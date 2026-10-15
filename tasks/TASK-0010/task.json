@@ -32,7 +32,7 @@
   "planPath": "plans/261016-0005-task0010-lesson-publish/plan.md",
   "evidenceRefs": [],
   "reviewRefs": ["plans/reports/code-reviewer-261016-task0010.md"],
-  "nextAction": "Committed as f52874c. Ready for TASK-0011 (learning-engine attempts; pin attempts to published version). Open questions deferred to user: event-PUBLISHED gating is warn-only (EVENT_NOT_PUBLISHED warning, not block); Idempotency-Key on publish deferred; learner attempt pinning deferred to learning-engine task; /events/{id}/lessons unpaginated, ordered by title. Push to origin/main still awaiting user authorization.",
+  "nextAction": "Done — mvnw verify green (64 unit + 113 IT = 177 tests, 0 failures). Contract fixes: EVENT_NOT_PUBLISHED now blocks publish (AC-2); learner GETs authenticated-only (AC-10), events catalogue stays permitAll; corrupt snapshot_json -> 500 SNAPSHOT_CORRUPT. Ready for TASK-0011 (learning-engine attempts; pin attempts to published version). Open questions deferred: Idempotency-Key on publish deferred; learner attempt pinning deferred to TASK-0011; /events/{id}/lessons unpaginated, ordered by title. Push to origin/main still awaiting user authorization.",
   "baseCommit": "5639e21",
   "inputFingerprint": null,
   "snapshot": null,
@@ -42,16 +42,16 @@
   "handoffRef": null,
   "acEvidence": {
     "AC-1": "AdminLessonPublishIT.publish_happyPath_createsImmutableVersion + publish_invalidDraft_422_withErrors; LessonPublishService.publish @Transactional with SELECT FOR UPDATE",
-    "AC-2": "AdminLessonPublishIT.publish_archived_409; evaluator emits TEMPLATE_NOT_FOUND/TEMPLATE_DISABLED/TEMPLATE_SCHEMA_MISMATCH errors (AdminLessonValidateIT.validate_disabledTemplate_error) and EVENT_NOT_PUBLISHED warning on DRAFT event (validate_draftEvent_warnsNotBlocks); event-PUBLISHED block is open product question",
+    "AC-2": "AdminLessonPublishIT.publish_archived_409 + publish_draftEvent_422_eventNotPublished (blocks, zero versions written); evaluator emits TEMPLATE_NOT_FOUND/TEMPLATE_DISABLED/TEMPLATE_SCHEMA_MISMATCH/EVENT_NOT_FOUND errors and EVENT_NOT_PUBLISHED error on non-PUBLISHED event (AdminLessonValidateIT.validate_draftEvent_error_blocksReadiness)",
     "AC-3": "AdminLessonPublishIT.publish_concurrent_singleWinner_noVersionNoCollision (3 threads, version_no dense 1..N, no 5xx); pessimistic findForUpdate + UNIQUE(lesson_id,version_no) backstop",
     "AC-4": "AdminLessonVersionIT (list/get/getCurrent, 404s, auth matrix); AdminLessonVersionController under /admin/** CONTENT_ADMIN guard",
     "AC-5": "AdminLessonPublishIT asserts snapshot fields lessonId/title/centralQuestion/templateCode/schemaVersion/stages verbatim + evidence[] embedded; SnapshotBuilder collects refs from config fields + evidenceRefs + stage requiredEvidenceIds",
     "AC-6": "LearnerProjectionServiceTest (9 unit tests incl. nested arrays, list-shaped validation, non-mutation); LearnerLessonApiIT.content_stripsAllServerOnlyKeys asserts payload contains no correctOptionIds/answerKey/answer/validation/stage requiredEvidenceIds; post-review also strips activity.evidenceRefs",
-    "AC-7": "LearnerLessonApiIT (list/metadata/content, DRAFT event 404, unpublished lesson LESSON_NOT_PUBLISHED, anonymous permitAll access)",
+    "AC-7": "LearnerLessonApiIT (list/metadata/content, DRAFT event 404, unpublished lesson LESSON_NOT_PUBLISHED, authenticated access)",
     "AC-8": "AdminLessonPreviewIT (strips hidden keys, versionNo/lessonVersionId null, zero lesson_versions rows, status stays DRAFT)",
     "AC-9": "AdminLessonPublishIT.publish_republish_incrementsVersionNo_priorVersionIntact + lessonVersions_immutableTrigger_blocksUpdateAndDelete; learner_attempts table untouched (no UPDATE in publish path; attempt pinning deferred to learning-engine task)",
-    "AC-10": "publish_anon401_learner403 / preview_anon401_learner403 / versions_anon401_learner403; learner GETs permitAll in SecurityConfig",
-    "AC-11": "mvnw verify green: 63 unit + 111 IT = 174 tests, 0 failures (29 new TASK-0010 tests incl. validate_disabledTemplate_error + validate_draftEvent_warnsNotBlocks); docs/API_SPEC.md + docs/DATABASE_DESIGN.md updated; code-reviewer P1/P2 findings fixed"
+    "AC-10": "publish_anon401_learner403 / preview_anon401_learner403 / versions_anon401_learner403; learner GETs authenticated-only (LearnerLessonApiIT.learnerEndpoints_anonymous_401 + learnerEndpoints_learnerAndAdmin_200; events catalogue stays permitAll)",
+    "AC-11": "mvnw verify green: 64 unit + 113 IT = 177 tests, 0 failures (35 new TASK-0010 tests incl. publish_draftEvent_422_eventNotPublished, validate_draftEvent_error_blocksReadiness, learnerEndpoints_anonymous_401/learnerAndAdmin_200, LearnerLessonServiceTest.getContent_corruptSnapshot_throwsSnapshotCorrupt); docs/API_SPEC.md + docs/DATABASE_DESIGN.md updated; code-reviewer P1/P2 findings fixed"
   },
   "createdAt": "2026-10-16T00:06:00+07:00",
   "updatedAt": "2026-10-16T00:30:00+07:00"

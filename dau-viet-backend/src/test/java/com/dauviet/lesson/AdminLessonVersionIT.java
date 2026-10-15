@@ -61,7 +61,7 @@ class AdminLessonVersionIT extends AbstractPostgresIT {
 
         eventId = UUID.randomUUID().toString();
         jdbc.update("insert into historical_events (id, slug, title, summary, status) "
-                  + "values (?::uuid, 'e1', 'E', 's', 'DRAFT')", eventId);
+                  + "values (?::uuid, 'e1', 'E', 's', 'PUBLISHED')", eventId);
         tplId = UUID.randomUUID().toString();
         jdbc.update("insert into lesson_templates (id, code, name, schema_version, preset_json, enabled) "
                   + "values (?::uuid, 't', 'T', 1, '{}'::jsonb, true)", tplId);

@@ -70,7 +70,7 @@ class AdminLessonPublishIT extends AbstractPostgresIT {
 
         eventId = UUID.randomUUID().toString();
         jdbc.update("insert into historical_events (id, slug, title, summary, status) "
-                  + "values (?::uuid, 'e1', 'E', 's', 'DRAFT')", eventId);
+                  + "values (?::uuid, 'e1', 'E', 's', 'PUBLISHED')", eventId);
         tplId = UUID.randomUUID().toString();
         jdbc.update("insert into lesson_templates (id, code, name, schema_version, preset_json, enabled) "
                   + "values (?::uuid, 't', 'T', 1, '{}'::jsonb, true)", tplId);
@@ -317,6 +317,42 @@ class AdminLessonPublishIT extends AbstractPostgresIT {
                         .header("Authorization", adminToken))
                 .andExpect(status().isConflict())
                 .andExpect(jsonPath("$.code").value("EVIDENCE_IN_USE"));
+    }
+
+    @Test
+    void publish_draftEvent_422_eventNotPublished() throws Exception {
+        // AC-2: event must be PUBLISHED — a DRAFT parent blocks publish.
+        String draftEvent = UUID.randomUUID().toString();
+        jdbc.update("insert into historical_events (id, slug, title, summary, status) "
+                  + "values (?::uuid, 'e-draft', 'ED', 's', 'DRAFT')", draftEvent);
+        String evId = UUID.randomUUID().toString();
+        jdbc.update("insert into evidences (id, event_id, title, evidence_type, source_title, status) "
+                  + "values (?::uuid, ?::uuid, 'EV', 'DOC', 'src', 'APPROVED')", evId, draftEvent);
+
+        var req = new java.util.LinkedHashMap<String, Object>();
+        req.put("eventId", draftEvent);
+        req.put("templateId", tplId);
+        req.put("title", "L");
+        req.put("centralQuestion", "Q?");
+        req.put("draftJson", publishableDraft(evId));
+        MvcResult created = mvc.perform(post("/api/v1/admin/lessons")
+                        .header("Authorization", adminToken)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(om.writeValueAsString(req)))
+                .andExpect(status().isCreated()).andReturn();
+        String id = om.readTree(created.getResponse().getContentAsString()).get("id").asText();
+
+        mvc.perform(post("/api/v1/admin/lessons/" + id + "/publish")
+                        .header("Authorization", adminToken))
+                .andExpect(status().isUnprocessableEntity())
+                .andExpect(jsonPath("$.details.errors[?(@.code=='EVENT_NOT_PUBLISHED')]").exists());
+        // nothing written
+        assertThat(jdbc.queryForObject(
+                "select count(*) from lesson_versions where lesson_id = ?::uuid",
+                Integer.class, id)).isZero();
+        assertThat(jdbc.queryForObject(
+                "select status from lessons where id = ?::uuid", String.class, id))
+                .isEqualTo("DRAFT");
     }
 
     @Test

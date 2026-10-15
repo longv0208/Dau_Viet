@@ -43,6 +43,7 @@ class LearnerLessonApiIT extends AbstractPostgresIT {
     @Autowired JdbcTemplate jdbc;
 
     private String adminToken;
+    private String learnerToken;
     private String eventId;
     private String tplId;
 
@@ -62,6 +63,15 @@ class LearnerLessonApiIT extends AbstractPostgresIT {
         admin.setStatus(UserStatus.ACTIVE);
         users.save(admin);
         adminToken = "Bearer " + jwt.createAccessToken(admin);
+
+        User learner = new User();
+        learner.setId(UUID.randomUUID());
+        learner.setEmail("lrn-learner@t.vn");
+        learner.setPasswordHash("$2a$10$dummyhashplaceholderfortestonly");
+        learner.setRole(UserRole.LEARNER);
+        learner.setStatus(UserStatus.ACTIVE);
+        users.save(learner);
+        learnerToken = "Bearer " + jwt.createAccessToken(learner);
 
         eventId = UUID.randomUUID().toString();
         jdbc.update("insert into historical_events (id, slug, title, summary, status) "
@@ -133,7 +143,8 @@ class LearnerLessonApiIT extends AbstractPostgresIT {
         String published = publishLesson(publishableDraft(approvedEvidence()));
         String draftOnly = createLesson("{}"); // stays DRAFT
 
-        MvcResult res = mvc.perform(get("/api/v1/events/" + eventId + "/lessons"))
+        MvcResult res = mvc.perform(get("/api/v1/events/" + eventId + "/lessons")
+                        .header("Authorization", learnerToken))
                 .andExpect(status().isOk())
                 .andReturn();
         JsonNode arr = om.readTree(res.getResponse().getContentAsString());
@@ -150,14 +161,16 @@ class LearnerLessonApiIT extends AbstractPostgresIT {
         String draftEvent = UUID.randomUUID().toString();
         jdbc.update("insert into historical_events (id, slug, title, summary, status) "
                   + "values (?::uuid, 'e2', 'E2', 's', 'DRAFT')", draftEvent);
-        mvc.perform(get("/api/v1/events/" + draftEvent + "/lessons"))
+        mvc.perform(get("/api/v1/events/" + draftEvent + "/lessons")
+                        .header("Authorization", learnerToken))
                 .andExpect(status().isNotFound());
     }
 
     @Test
     void metadata_publishedLesson_200() throws Exception {
         String id = publishLesson(publishableDraft(approvedEvidence()));
-        mvc.perform(get("/api/v1/lessons/" + id))
+        mvc.perform(get("/api/v1/lessons/" + id)
+                        .header("Authorization", learnerToken))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.id").value(id))
                 .andExpect(jsonPath("$.title").value("L"))
@@ -173,7 +186,8 @@ class LearnerLessonApiIT extends AbstractPostgresIT {
         String evId = approvedEvidence();
         String id = publishLesson(publishableDraft(evId));
 
-        MvcResult res = mvc.perform(get("/api/v1/lessons/" + id + "/content"))
+        MvcResult res = mvc.perform(get("/api/v1/lessons/" + id + "/content")
+                        .header("Authorization", learnerToken))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.lessonId").value(id))
                 .andExpect(jsonPath("$.versionNo").value(1))
@@ -203,29 +217,60 @@ class LearnerLessonApiIT extends AbstractPostgresIT {
     @Test
     void learnerEndpoints_unpublishedLesson_404() throws Exception {
         String draftOnly = createLesson("{}");
-        mvc.perform(get("/api/v1/lessons/" + draftOnly))
+        mvc.perform(get("/api/v1/lessons/" + draftOnly)
+                        .header("Authorization", learnerToken))
                 .andExpect(status().isNotFound())
                 .andExpect(jsonPath("$.code").value("LESSON_NOT_PUBLISHED"));
-        mvc.perform(get("/api/v1/lessons/" + draftOnly + "/content"))
+        mvc.perform(get("/api/v1/lessons/" + draftOnly + "/content")
+                        .header("Authorization", learnerToken))
                 .andExpect(status().isNotFound())
                 .andExpect(jsonPath("$.code").value("LESSON_NOT_PUBLISHED"));
     }
 
     @Test
     void learnerEndpoints_missingLesson_404() throws Exception {
-        mvc.perform(get("/api/v1/lessons/" + UUID.randomUUID()))
+        mvc.perform(get("/api/v1/lessons/" + UUID.randomUUID())
+                        .header("Authorization", learnerToken))
                 .andExpect(status().isNotFound())
                 .andExpect(jsonPath("$.code").value("LESSON_NOT_FOUND"));
-        mvc.perform(get("/api/v1/lessons/" + UUID.randomUUID() + "/content"))
+        mvc.perform(get("/api/v1/lessons/" + UUID.randomUUID() + "/content")
+                        .header("Authorization", learnerToken))
                 .andExpect(status().isNotFound());
     }
 
     @Test
-    void learnerEndpoints_anonymousAccess_allowed() throws Exception {
+    void learnerEndpoints_anonymous_401() throws Exception {
+        // AC-10: learner surface requires authentication — anonymous 401.
         String id = publishLesson(publishableDraft(approvedEvidence()));
         mvc.perform(get("/api/v1/events/" + eventId + "/lessons"))
-                .andExpect(status().isOk());
-        mvc.perform(get("/api/v1/lessons/" + id)).andExpect(status().isOk());
-        mvc.perform(get("/api/v1/lessons/" + id + "/content")).andExpect(status().isOk());
+                .andExpect(status().isUnauthorized());
+        mvc.perform(get("/api/v1/lessons/" + id))
+                .andExpect(status().isUnauthorized());
+        mvc.perform(get("/api/v1/lessons/" + id + "/content"))
+                .andExpect(status().isUnauthorized());
     }
+
+    @Test
+    void learnerEndpoints_learnerAndAdmin_200() throws Exception {
+        // Any authenticated role may read published learner content.
+        String id = publishLesson(publishableDraft(approvedEvidence()));
+        mvc.perform(get("/api/v1/events/" + eventId + "/lessons")
+                        .header("Authorization", learnerToken))
+                .andExpect(status().isOk());
+        mvc.perform(get("/api/v1/lessons/" + id)
+                        .header("Authorization", learnerToken))
+                .andExpect(status().isOk());
+        mvc.perform(get("/api/v1/lessons/" + id + "/content")
+                        .header("Authorization", learnerToken))
+                .andExpect(status().isOk());
+        // admin can also read the learner surface (superset access)
+        mvc.perform(get("/api/v1/lessons/" + id + "/content")
+                        .header("Authorization", adminToken))
+                .andExpect(status().isOk());
+    }
+
+    // NOTE: a truly unparseable snapshot_json cannot be injected via SQL —
+    // the jsonb column + jsonb_typeof CHECK reject non-JSON at write time.
+    // The corrupt-snapshot path is covered by LearnerLessonServiceTest
+    // (mocked repository returning invalid JSON -> SnapshotCorruptException).
 }

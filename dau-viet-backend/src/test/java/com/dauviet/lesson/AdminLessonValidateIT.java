@@ -58,7 +58,7 @@ class AdminLessonValidateIT extends AbstractPostgresIT {
 
         eventId = UUID.randomUUID().toString();
         jdbc.update("insert into historical_events (id, slug, title, summary, status) "
-                  + "values (?::uuid, 'e1', 'E', 's', 'DRAFT')", eventId);
+                  + "values (?::uuid, 'e1', 'E', 's', 'PUBLISHED')", eventId);
         tplId = UUID.randomUUID().toString();
         jdbc.update("insert into lesson_templates (id, code, name, schema_version, preset_json, enabled) "
                   + "values (?::uuid, 't', 'T', 1, '{}'::jsonb, true)", tplId);
@@ -159,16 +159,33 @@ class AdminLessonValidateIT extends AbstractPostgresIT {
     }
 
     @Test
-    void validate_draftEvent_warnsNotBlocks() throws Exception {
-        // Fixture event is DRAFT — publish readiness warns EVENT_NOT_PUBLISHED
-        // but does not add an error (open product question, see plan).
-        String evId = approvedEvidence();
-        String id = createLesson(publishableDraft(evId));
+    void validate_draftEvent_error_blocksReadiness() throws Exception {
+        // AC-2: event must be PUBLISHED — DRAFT parent is a readiness error.
+        String draftEvent = UUID.randomUUID().toString();
+        jdbc.update("insert into historical_events (id, slug, title, summary, status) "
+                  + "values (?::uuid, 'e-draft', 'ED', 's', 'DRAFT')", draftEvent);
+        String evId = UUID.randomUUID().toString();
+        jdbc.update("insert into evidences (id, event_id, title, evidence_type, source_title, status) "
+                  + "values (?::uuid, ?::uuid, 'EV', 'DOC', 'src', 'APPROVED')", evId, draftEvent);
+
+        var req = new java.util.LinkedHashMap<String, Object>();
+        req.put("eventId", draftEvent);
+        req.put("templateId", tplId);
+        req.put("title", "L");
+        req.put("centralQuestion", "Q?");
+        req.put("draftJson", publishableDraft(evId));
+        MvcResult created = mvc.perform(post("/api/v1/admin/lessons")
+                        .header("Authorization", adminToken)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(om.writeValueAsString(req)))
+                .andExpect(status().isCreated()).andReturn();
+        String id = om.readTree(created.getResponse().getContentAsString()).get("id").asText();
+
         mvc.perform(post("/api/v1/admin/lessons/" + id + "/validate")
                         .header("Authorization", adminToken))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$.ready").value(true))
-                .andExpect(jsonPath("$.warnings[?(@.code=='EVENT_NOT_PUBLISHED')]").exists());
+                .andExpect(jsonPath("$.ready").value(false))
+                .andExpect(jsonPath("$.errors[?(@.code=='EVENT_NOT_PUBLISHED')]").exists());
     }
 
     private String approvedEvidence() {
