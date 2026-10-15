@@ -256,15 +256,41 @@ Snippet biểu diễn pattern, chưa phải code chạy độc lập; tất cả
 - [ ] Pause/resume mở đúng activity cùng lesson version.
 - [ ] Bạch Đằng 938 và lesson thứ hai chạy từ snapshot config, không thay handler.
 
-## 13. Open decisions
+## 13. Evaluation semantics đã chốt (TASK-0011)
+
+Phần này ghi lại các quyết định semantic cho những điểm BA chưa định nghĩa deterministic rule, đã được duyệt khi implement `com.dauviet.learning`:
+
+| ActivityType | Quy tắc evaluate (server-authoritative) |
+|---|---|
+| READ, VIEW_IMAGE | Bất kỳ submission nào cũng là acknowledgment → `COMPLETED`, output `{viewed:true}`. |
+| MULTIPLE_CHOICE | `selectedOptionIds` so set-equality với `correctOptionIds` → `COMPLETED`/`INCORRECT`. `maxAttempts` (default 1) đạt giới hạn → `exhausted:true`, activity vẫn tính completed (cursor đi tiếp). Option id không khai báo trong `config.options` → `INCORRECT` (không 500). |
+| MATCHING | `pairs` (`"l=r"`) so pair-set với `correctPairs` → `COMPLETED`/`INCORRECT`. |
+| DRAG_ORDER | `orderedIds` so order-equality với `expectedOrder`/`correctOrder` ∪ `acceptedSequences` → `COMPLETED`/`INCORRECT`. |
+| EVIDENCE_SELECT | `selectedEvidenceIds` ⊆ snapshot evidence ∩ `visibleEvidenceIds` (id lạ → `INCORRECT`); `completed` khi số hợp lệ ≥ `minRequired` (default 1). |
+| EXPLORE_MAP | Tích luỹ `discoveredMarkerIds` qua `priorOutputs` (idempotent); `completed` khi đủ `minMarkers` (default = tất cả markers trong config). |
+| HYPOTHESIS_CHOICE | Ghi `{hypothesisId, evidenceIds}` vào outputs (không chấm đúng/sai) → luôn `COMPLETED`; dữ liệu là input cho VERIFICATION. |
+| VERIFICATION | Đọc hypothesis mới nhất từ `priorOutputs`: `SUPPORTED` khi hypothesis khớp `expectedHypothesis` (nếu authored) VÀ `evidenceIds` ⊇ `requiredEvidenceIds`; `PARTIAL` khi có hypothesis nhưng thiếu; `CONTRADICTED` khi không có/không khớp. Chỉ `SUPPORTED` mới `completed`. Không echo required/expected keys trong output. |
+| REASONING_CONNECT | Validate `relations[].{from,to}` ∈ `config.nodes[].id` và `relation` ∈ `allowedRelations` → `COMPLETED` + `relationCount`; id/relation lạ → `INCORRECT`. |
+| CER | `claim` + `reasoning` ≥ 20 ký tự mỗi field → `COMPLETED`; `evidenceIds` được filter theo snapshot evidence; output echo claim/reasoning/evidenceIds. Không exact-match free text. |
+| REFLECTION_PROMPT | `text` non-empty ≤ 4000 ký tự hoặc `optionId` hợp lệ → `COMPLETED`. |
+
+`AttemptState` (`state_json`): `{completedActivityIds[], discoveredMarkerIds[], outputs{activityId:{...}}, currentStageId, currentActivityId}` — learner-safe, không chứa hidden keys.
+
+**Stage transition resolver** (thứ tự ưu tiên): (a) required activity chưa xong kế tiếp trong cùng stage sau activity vừa submit; (b) REVISE hop qua `onPartial`/`onContradicted` của activity (target thiếu → bỏ qua); (c) đi tới qua `nextStageIds` — target đầu tiên còn required activity chưa xong thắng; stage đã COMPLETE không lộ successors, chỉ stage "transparent" (không có required activity) mới được traverse xuyên qua; (d) fallback stage đầu tiên theo array-order còn required chưa xong; (e) `null` = hết đường đi. Cycle-safe qua visited set.
+
+**Completion evaluator**: AND-combination của `requireAllRequiredStages`, `requiredStageIds`, `minScore`; vắng config → `DEFAULT_ALL_REQUIRED`. Reason ưu tiên `ALL_REQUIRED_STAGES` → `REQUIRED_STAGE_IDS` → `MIN_SCORE` → `DEFAULT_ALL_REQUIRED`; thất bại → `NOT_COMPLETE`.
+
+**MVP limits đã ghi nhận**: idempotency chỉ chấp nhận + log header (chưa persist); `complete` chỉ trả verdict, không flip `status`/ghi `lesson_results`/reward (TASK-0012); không dashboard/resume đa attempt (một active attempt per user+lesson theo partial unique index `learner_attempts`).
+
+## 14. Open decisions
 
 - 2 template MVP: `EVENT_INVESTIGATION`, `DECISION_ANALYSIS` là đề xuất từ BA mới, cần PO duyệt.
-- CER grading: structure-based/manual rubric/preset choices trong MVP; free text AI grading không thuộc must.
+- CER grading: structure-based/manual rubric/preset choices trong MVP; free text AI grading không thuộc must. TASK-0011 đã chọn structure-based (độ dài tối thiểu + evidence filter) cho MVP — rubric chấm tay vẫn mở.
 - Tỷ trọng điểm/retry/hint, số lần học lại, reward repeat và unlock conditions phải có product decision.
 - Reflection optional vs required từng template; Story/Result là stage hay presentation sau hoàn thành?
 - Island/energy/shop là metagame của mockup, chưa ép vào core engine.
 
-## 14. Sources
+## 15. Sources
 
 - `Dau_Viet_BA_MVP_Learning_Framework.docx`: master stages, templates, ENG requirements, Admin authoring, sample lesson 938, gap Conclusion/Reflection.
 - `Functional_Requirements_Dau_Viet_MVP.docx`: activity types, 4 Dấu, progress, map và collection.

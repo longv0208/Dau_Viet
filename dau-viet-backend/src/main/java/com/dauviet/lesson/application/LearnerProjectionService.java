@@ -69,6 +69,22 @@ public class LearnerProjectionService {
     }
 
     /**
+     * Learner-safe projection of a single snapshot activity node: drops
+     * `validation`/`evidenceRefs` and strips hidden keys inside
+     * `config`/`feedback`. Never mutates the input.
+     */
+    public ObjectNode projectActivity(JsonNode activity) {
+        if (activity == null || !activity.isObject()) {
+            return com.fasterxml.jackson.databind.node.JsonNodeFactory.instance.objectNode();
+        }
+        ObjectNode copy = (ObjectNode) activity.deepCopy();
+        ACTIVITY_SERVER_ONLY.forEach(copy::remove);
+        ACTIVITY_HIDDEN_TOP.forEach(copy::remove);
+        stripContainer(copy);
+        return copy;
+    }
+
+    /**
      * Recursively removes LEARNER_HIDDEN_KEYS leaf names from `config`,
      * `feedback` and `validation` subtrees at any shape — `validation` is
      * normally an object dropped wholesale, but a list-shaped value must not

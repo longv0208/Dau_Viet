@@ -49,12 +49,12 @@
 | GET | `/events/{eventId}/lessons` | Published lessons của một event PUBLISHED — **implemented TASK-0010**; yêu cầu authenticated |
 | GET | `/lessons/{lessonId}` | Published lesson metadata (title, centralQuestion, currentVersionId, versionNo) — **implemented TASK-0010**; yêu cầu authenticated; unpublished → 404 `LESSON_NOT_PUBLISHED` |
 | GET | `/lessons/{lessonId}/content` | Learner-safe content của current published version (hidden keys stripped) — **implemented TASK-0010**; yêu cầu authenticated |
-| POST | `/lessons/{lessonId}/attempts` | Start/resume theo policy |
-| GET | `/attempts/{attemptId}` | Attempt progress/cursor |
-| GET | `/attempts/{attemptId}/current` | Current activity (learner-safe payload) |
-| POST | `/attempts/{attemptId}/activities/{activityId}/submissions` | Submit answer, nhận feedback + next state |
-| POST | `/attempts/{attemptId}/complete` | Finalize nếu lesson đủ điều kiện |
-| GET | `/attempts/{attemptId}/result` | Xem kết quả |
+| POST | `/lessons/{lessonId}/attempts` | Start/resume theo policy — **implemented TASK-0011** |
+| GET | `/attempts/{attemptId}` | Attempt progress/cursor — **implemented TASK-0011** |
+| GET | `/attempts/{attemptId}/current` | Current activity (learner-safe payload) — **implemented TASK-0011** |
+| POST | `/attempts/{attemptId}/activities/{activityId}/submissions` | Submit answer, nhận feedback + next state — **implemented TASK-0011** |
+| POST | `/attempts/{attemptId}/complete` | Trả completion verdict (không flip status — TASK-0012) — **implemented TASK-0011** |
+| GET | `/attempts/{attemptId}/result` | Xem kết quả (TASK-0012) |
 | GET | `/me/collection` | Evidence đã thu thập (scope phụ thuộc MVP) |
 | GET | `/me/progress` | Lesson in progress/completed |
 
@@ -115,12 +115,13 @@ Content-Type: application/json
 
 ```json
 {
-  "submissionId": "69272410-945e-40b1-88ac-537ea71bb7f0",
   "status": "ACCEPTED",
-  "evaluation": {"outcome": "SUPPORTED", "feedback": "Chính xác."},
+  "evaluation": {"outcome": "COMPLETED", "completed": true, "output": {"correct": true}},
   "activityCompleted": true,
-  "progress": {"completedRequiredActivities": 3, "totalRequiredActivities": 9},
-  "next": {"stageId": "stage-reasoning", "activityId": "act-match-01"}
+  "progress": {"completedRequired": 3, "totalRequired": 9},
+  "next": {"stageId": "stage-reasoning", "activityId": "act-match-01",
+           "activityType": "MATCHING", "learnerConfig": {}},
+  "completion": {"complete": false, "reason": "ALL_REQUIRED_STAGES"}
 }
 ```
 
@@ -274,6 +275,18 @@ Publish chạy PUBLISH-level `DraftValidator` trong một transaction: `SELECT F
 - Learner GETs yêu cầu authenticated (mọi role; AC-10): `/api/v1/events/*/lessons`, `/api/v1/lessons/*` (gồm `/content`) — anonymous → `401`. Event catalogue (`/api/v1/events`, `/api/v1/events/*`) vẫn `permitAll`. Lesson chưa publish → `404 LESSON_NOT_PUBLISHED`; event chưa publish → `404` theo `EVENT_NOT_FOUND` envelope.
 - `snapshot_json` hỏng (không parse được) → `500 SNAPSHOT_CORRUPT`, không trả content rỗng.
 - Admin version APIs trả full snapshot kể cả server-only keys (admin-only sau `/admin/**` guard).
+
+### Notes đã chốt TASK-0011 (Learning Engine runtime)
+
+- `POST /lessons/{id}/attempts` — start/resume: lesson phải `PUBLISHED` với `current_version_id` (không → `404 LESSON_NOT_PUBLISHED`); một active attempt per (user, lesson) — gọi lại trả cùng attempt `resumed=true`. Attempt pin `lessonVersionId` tại thời điểm start; republish v2 không ảnh hưởng attempt đang chạy.
+- Cursor (`currentStageId`/`currentActivityId`) do server tính từ `state_json` — trỏ required activity chưa xong đầu tiên theo thứ tự array; `null` khi không còn required activity.
+- `GET /attempts/{id}` trả `{attemptId, lessonVersionId, status, currentStageId, currentActivityId, progress{completedRequired,totalRequired}, completion}`. `GET /attempts/{id}/current` trả stage/activity (activity đã qua `projectActivity` — strip `validation`, `evidenceRefs`, hidden keys) + progress.
+- Submit chỉ nhận đúng activity tại cursor (`activityId != state.currentActivityId` → `409 ACTIVITY_NOT_AVAILABLE`); owner-only (`403 ATTEMPT_NOT_OWNER`), attempt phải `IN_PROGRESS` (`409 ATTEMPT_NOT_IN_PROGRESS`), attempt không tồn tại `404 ATTEMPT_NOT_FOUND`, snapshot thiếu activity `409 ACTIVITY_NOT_AVAILABLE`, pinned version không đọc được `422 LESSON_VERSION_MISMATCH`/`SNAPSHOT_INVALID_FOR_ACTIVITY`/`UNSUPPORTED_ACTIVITY_TYPE`.
+- Submit chạy trong transaction với `SELECT FOR UPDATE` trên `learner_attempts` (serialize concurrent submit); mỗi submit được chấp nhận append một `activity_attempts` row, `attempt_no = count+1` (unique per attempt+activity). `Idempotency-Key` header được chấp nhận + log nhưng chưa persist (deferred — bảng `idempotency_records` TASK-0012).
+- `POST /attempts/{id}/complete` trả `LessonCompletion` verdict `{complete, reason, detail}` — **không** flip `status` sang `COMPLETED`, không ghi `lesson_results`, không reward (TASK-0012).
+- `completion` config (AND-combination): `requireAllRequiredStages` (mọi stage `required:true` xong hết required activities), `requiredStageIds` (subset chỉ định), `minScore` (% required activities đã xong trên tổng). Không có config → default `DEFAULT_ALL_REQUIRED`. Reason enum: `ALL_REQUIRED_STAGES` | `REQUIRED_STAGE_IDS` | `MIN_SCORE` | `DEFAULT_ALL_REQUIRED` | `NOT_COMPLETE`.
+- Evaluation outcomes per handler: `COMPLETED` | `INCORRECT` | `PARTIAL` | `SUPPORTED` | `CONTRADICTED`. MCQ `maxAttempts` (default 1) đạt giới hạn → `exhausted:true` và activity vẫn tính completed cho transition.
+- Error codes mới: `ATTEMPT_NOT_FOUND`(404), `ATTEMPT_NOT_OWNER`(403), `ATTEMPT_NOT_IN_PROGRESS`(409), `ATTEMPT_ALREADY_COMPLETED`(409), `ACTIVITY_NOT_AVAILABLE`(409), `ACTIVITY_ALREADY_SUBMITTED`(409), `SNAPSHOT_INVALID_FOR_ACTIVITY`(422), `LESSON_VERSION_MISMATCH`(422).
 
 ## 4. Security và cạnh tranh trạng thái
 

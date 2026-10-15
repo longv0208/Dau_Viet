@@ -1,0 +1,58 @@
+{
+  "schemaVersion": 1,
+  "id": "TASK-0011",
+  "type": "feature",
+  "risk": "high-risk",
+  "status": "done",
+  "goal": "Implement the backend Learning Engine that executes pinned published LessonVersion snapshots: server-authoritative evaluation of learner activity submissions via an ActivityHandler registry covering all 12 ActivityTypes, a generic stage transition resolver over the snapshot's nextStageIds graph, lesson completion evaluation per published completion config, and learner-safe results that never expose answer keys — with a minimal runtime API surface coordinated toward TASK-0012.",
+  "owner": "claude",
+  "modules": ["backend"],
+  "scope": [
+    "dau-viet-backend/",
+    "tasks/TASK-0011/",
+    "docs/API_SPEC.md",
+    "docs/LEARNING_ENGINE_DESIGN.md",
+    "docs/DATABASE_DESIGN.md",
+    "plans/261016-0055-task0011-learning-engine/"
+  ],
+  "acceptanceCriteria": [
+    { "id": "AC-1", "text": "Runtime contracts exist: AttemptContext, ActivitySubmission, ActivityResult, StageProgress, NextActivity/NextStage decision, LessonCompletion — all learner-safe (no DraftSchema.LEARNER_HIDDEN_KEYS in any emitted payload)." },
+    { "id": "AC-2", "text": "ActivityHandler registry resolves one handler per ActivityType; unsupported/unknown type fails predictably with a structured error, never a 500." },
+    { "id": "AC-3", "text": "All 12 handlers implemented: READ, VIEW_IMAGE, EXPLORE_MAP, REFLECTION_PROMPT (acknowledgment/completion semantics); MULTIPLE_CHOICE (server-side correctness vs correctOptionIds); MATCHING (correctPairs); DRAG_ORDER (correctOrder/expectedOrder, accepted sequences); EVIDENCE_SELECT (evidence in snapshot, min required); HYPOTHESIS_CHOICE (hypothesis+evidence preserved, documented semantics); VERIFICATION (verify/retry flow); REASONING_CONNECT (relation rules); CER (structure/preset rubric — no naive exact-match). Where BA lacks a deterministic rule, documented completion semantics used and limitation recorded." },
+    { "id": "AC-4", "text": "Stage transition resolver follows snapshot nextStageIds graph: mandatory (required) activities cannot be skipped, invalid stage/activity references rejected, cycle-safe, supports non-linear branching; completion determined by published completion config (requireAllRequiredStages / requiredStageIds / minScore)." },
+    { "id": "AC-5", "text": "Pinned-version safety: execution resolves activities only inside the attempt's pinned LessonVersion; republished lessons do not affect in-flight attempts; missing/incompatible snapshot data produces controlled errors." },
+    { "id": "AC-6", "text": "Invalid submissions rejected with structured errors (VALIDATION_ERROR/domain codes); activity results never contain correctOptionIds/correctPairs/correctOrder/expectedOrder/answerKey/expectedHypothesis or validation internals." },
+    { "id": "AC-7", "text": "Minimal runtime API surface exposes only what evaluation/testing needs; ownership enforced at API boundary where endpoints exist; no reward/EXP side effects." },
+    { "id": "AC-8", "text": "Tests: unit coverage for all 12 handlers (correct+incorrect+invalid payloads), transition resolver (required gating, branching, cycles, invalid refs), completion evaluator, pinned-version behavior, no-answer-key leak; ITs for API surface; TASK-0008/0009/0010 ITs stay green; mvnw verify exit 0." },
+    { "id": "AC-9", "text": "Docs updated: API_SPEC (new endpoints + error codes), LEARNING_ENGINE_DESIGN (evaluation semantics chosen where BA ambiguous), task.json evidence." }
+  ],
+  "dependencies": ["TASK-0010"],
+  "planPath": "plans/261016-0055-task0011-learning-engine/plan.md",
+  "evidenceRefs": [
+    "plans/261016-0055-task0011-learning-engine/",
+    "docs/API_SPEC.md#notes-da-chot-task-0011-learning-engine-runtime",
+    "docs/LEARNING_ENGINE_DESIGN.md#13-evaluation-semantics-da-chot-task-0011"
+  ],
+  "reviewRefs": [],
+  "nextAction": "TASK-0012: attempt lifecycle finalize (status flip, lesson_results, idempotency_records persist, rewards/EXP).",
+  "baseCommit": "a8b0cee",
+  "inputFingerprint": null,
+  "snapshot": null,
+  "roleReports": [],
+  "blockedReason": null,
+  "resumeFrom": null,
+  "handoffRef": null,
+  "acEvidence": {
+    "AC-1": "learning/contract/* (AttemptContext, ActivitySubmission, ActivityResult, StageProgress, NextActivity, NextStage, LessonCompletion); LearnerAttemptApiIT.noHiddenKeyLeak_inAnyResponse; HiddenKeyLeakIT.everyEndpoint_emitsZeroHiddenKeys",
+    "AC-2": "learning/handler/ActivityHandlerRegistry; ActivityHandlerRegistryTest (3 tests incl. unsupported type -> structured error)",
+    "AC-3": "learning/handler/{AcknowledgmentHandlers,SelectionHandlers,ScoredHandlers,ReasoningHandlers,ExploreMapHandler}; AcknowledgmentHandlersTest(7), ExploreMapHandlerTest(4), SelectionHandlersTest(7), ScoredHandlersTest(9), ReasoningHandlersTest(9); semantics recorded in docs/LEARNING_ENGINE_DESIGN.md#13",
+    "AC-4": "learning/resolver/StageTransitionResolver + LessonCompletionEvaluator; StageTransitionResolverTest(10: linear/next-required/forward/null/optional-gating/nonLinear/convergent-fallback/revision/missing-target/cyclic/transparent); LessonCompletionEvaluatorTest(7)",
+    "AC-5": "PinnedVersionIT.attemptPinnedToV1_gradesByV1Keys_afterV2Republish; LearnerAttemptApiIT.ghostAttempt_404/unpublishedLesson_404; LESSON_VERSION_MISMATCH mapping",
+    "AC-6": "HandlerSafetyTest (all 12 handlers, zero LEARNER_HIDDEN_KEYS in outputs; free-text survives reflection); HiddenKeyLeakIT; error codes in GlobalExceptionHandler (409/422/403/404)",
+    "AC-7": "LearnerAttemptController (5 endpoints, owner check via loadOwned -> 404/403); LearnerAttemptApiIT.anonymous_401_onEveryEndpoint/otherUser_cannotReadOrSubmit_403; no reward/EXP writes anywhere in learning/",
+    "AC-8": "mvnw verify BUILD SUCCESS 2026-10-16: 125 tests, Failures 0, Errors 0 — unit 67 + ITs (learning 12 + admin/auth/event/lesson/user 100+); AbstractPostgresIT.clearAuthoringTables extended with activity_attempts/learner_attempts cleanup to fix cross-IT FK violation",
+    "AC-9": "docs/API_SPEC.md attempt endpoint rows marked implemented TASK-0011 + 'Notes da chot TASK-0011' section; docs/LEARNING_ENGINE_DESIGN.md#13 evaluation semantics; this acEvidence map"
+  },
+  "createdAt": "2026-10-16T00:55:00+07:00",
+  "updatedAt": "2026-10-16T01:30:00+07:00"
+}

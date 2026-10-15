@@ -37,15 +37,18 @@ public abstract class AbstractPostgresIT {
     }
 
     /**
-     * Clear authoring tables (lessons → evidences → assets) so ITs that wipe
-     * `users` or `historical_events` do not hit FK violations from rows left
-     * behind by the lesson/evidence ITs. Bypasses the immutable
+     * Clear authoring tables (activity_attempts → learner_attempts →
+     * lessons → evidences → assets) so ITs that wipe `users` or
+     * `historical_events` do not hit FK violations from rows left behind by
+     * the learning/lesson/evidence ITs. Bypasses the immutable
      * lesson_versions trigger + chk_lesson_published_version for cleanup only.
      * Call BEFORE users.deleteAll() / delete from historical_events.
      */
     protected static void clearAuthoringTables(
             org.springframework.jdbc.core.JdbcTemplate jdbc) {
         jdbc.update("set session_replication_role = replica");
+        jdbc.update("delete from activity_attempts");
+        jdbc.update("delete from learner_attempts");
         jdbc.update("update lessons set status = 'DRAFT', current_version_id = null");
         jdbc.update("delete from lesson_versions");
         jdbc.update("delete from lessons");

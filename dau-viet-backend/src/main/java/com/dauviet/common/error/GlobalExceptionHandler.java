@@ -216,6 +216,56 @@ public class GlobalExceptionHandler {
                 "Lesson content is unavailable", Map.of());
     }
 
+    @ExceptionHandler(com.dauviet.learning.domain.AttemptNotFoundException.class)
+    public ResponseEntity<ApiError> handleAttemptNotFound(
+            com.dauviet.learning.domain.AttemptNotFoundException ex) {
+        return build(HttpStatus.NOT_FOUND, ErrorCode.ATTEMPT_NOT_FOUND, ex.getMessage(), Map.of());
+    }
+
+    @ExceptionHandler(com.dauviet.learning.domain.AttemptNotOwnedException.class)
+    public ResponseEntity<ApiError> handleAttemptNotOwned(
+            com.dauviet.learning.domain.AttemptNotOwnedException ex) {
+        return build(HttpStatus.FORBIDDEN, ErrorCode.ATTEMPT_NOT_OWNER, ex.getMessage(), Map.of());
+    }
+
+    @ExceptionHandler(com.dauviet.learning.domain.AttemptNotInProgressException.class)
+    public ResponseEntity<ApiError> handleAttemptNotInProgress(
+            com.dauviet.learning.domain.AttemptNotInProgressException ex) {
+        return build(HttpStatus.CONFLICT, ErrorCode.ATTEMPT_NOT_IN_PROGRESS, ex.getMessage(), Map.of());
+    }
+
+    @ExceptionHandler(com.dauviet.learning.domain.AttemptAlreadyCompletedException.class)
+    public ResponseEntity<ApiError> handleAttemptAlreadyCompleted(
+            com.dauviet.learning.domain.AttemptAlreadyCompletedException ex) {
+        return build(HttpStatus.CONFLICT, ErrorCode.ATTEMPT_ALREADY_COMPLETED, ex.getMessage(), Map.of());
+    }
+
+    @ExceptionHandler(com.dauviet.learning.domain.ActivityNotAvailableException.class)
+    public ResponseEntity<ApiError> handleActivityNotAvailable(
+            com.dauviet.learning.domain.ActivityNotAvailableException ex) {
+        return build(HttpStatus.CONFLICT, ErrorCode.ACTIVITY_NOT_AVAILABLE, ex.getMessage(), Map.of());
+    }
+
+    @ExceptionHandler(com.dauviet.learning.domain.LessonVersionMismatchException.class)
+    public ResponseEntity<ApiError> handleLessonVersionMismatch(
+            com.dauviet.learning.domain.LessonVersionMismatchException ex) {
+        return build(HttpStatus.CONFLICT, ErrorCode.LESSON_VERSION_MISMATCH, ex.getMessage(), Map.of());
+    }
+
+    @ExceptionHandler(com.dauviet.learning.domain.UnsupportedActivityTypeException.class)
+    public ResponseEntity<ApiError> handleUnsupportedActivityType(
+            com.dauviet.learning.domain.UnsupportedActivityTypeException ex) {
+        return build(HttpStatus.UNPROCESSABLE_ENTITY, ErrorCode.UNSUPPORTED_ACTIVITY_TYPE,
+                ex.getMessage(), Map.of());
+    }
+
+    @ExceptionHandler(com.dauviet.learning.domain.SnapshotInvalidForActivityException.class)
+    public ResponseEntity<ApiError> handleSnapshotInvalidForActivity(
+            com.dauviet.learning.domain.SnapshotInvalidForActivityException ex) {
+        return build(HttpStatus.UNPROCESSABLE_ENTITY, ErrorCode.SNAPSHOT_INVALID_FOR_ACTIVITY,
+                ex.getMessage(), Map.of());
+    }
+
     @ExceptionHandler(org.springframework.orm.ObjectOptimisticLockingFailureException.class)
     public ResponseEntity<ApiError> handleOptimisticLock(
             org.springframework.orm.ObjectOptimisticLockingFailureException ex) {
