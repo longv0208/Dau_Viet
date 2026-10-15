@@ -39,13 +39,16 @@ public class RefreshTokenService {
     private final RefreshTokenRepository tokens;
     private final SecurityTokenProperties props;
     private final Function<UUID, User> userLoader;
+    private final RefreshTokenFamilyService familyService;
     private final SecureRandom random = new SecureRandom();
 
     public RefreshTokenService(RefreshTokenRepository tokens, SecurityTokenProperties props,
-                               UserRepository userRepository) {
+                               UserRepository userRepository,
+                               RefreshTokenFamilyService familyService) {
         this.tokens = tokens;
         this.props = props;
         this.userLoader = id -> userRepository.findById(id).orElse(null);
+        this.familyService = familyService;
     }
 
     /** Result of issue/rotate: raw value for the client + the stored row. */
@@ -81,7 +84,9 @@ public class RefreshTokenService {
 
         if (current.isRevoked()) {
             // Reuse of a rotated/revoked token: assume theft, kill the family.
-            revokeFamily(current.getTokenFamilyId());
+            // REQUIRES_NEW so the revoke commits even though this method then
+            // throws and the outer transaction rolls back.
+            familyService.revokeFamily(current.getTokenFamilyId());
             log.warn("refresh token replay detected familyId={} tokenId={}",
                     current.getTokenFamilyId(), current.getId());
             throw new AuthenticationFailedException();
@@ -98,8 +103,9 @@ public class RefreshTokenService {
 
         User user = userLoader.apply(current.getUserId());
         if (user == null || user.getStatus() != UserStatus.ACTIVE) {
-            // Account locked/disabled since issue — contain the family too.
-            revokeFamily(current.getTokenFamilyId());
+            // Account locked/disabled since issue — contain the family too
+            // (REQUIRES_NEW: must commit despite the exception we then throw).
+            familyService.revokeFamily(current.getTokenFamilyId());
             throw new AuthenticationFailedException();
         }
         return issue(user, current);
@@ -114,11 +120,6 @@ public class RefreshTokenService {
                 tokens.save(t);
             }
         });
-    }
-
-    @Transactional
-    public void revokeFamily(UUID familyId) {
-        tokens.revokeActiveByFamily(familyId, Instant.now());
     }
 
     public Optional<RefreshToken> findByRaw(String raw) {

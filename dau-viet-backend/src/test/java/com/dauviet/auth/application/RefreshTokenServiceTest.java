@@ -31,6 +31,7 @@ class RefreshTokenServiceTest {
 
     @Mock private RefreshTokenRepository tokens;
     @Mock private UserRepository users;
+    @Mock private RefreshTokenFamilyService familyService;
 
     private RefreshTokenService service;
     private SecurityTokenProperties props;
@@ -39,7 +40,7 @@ class RefreshTokenServiceTest {
     void setUp() {
         props = new SecurityTokenProperties();
         props.setRefreshTokenTtlSeconds(1209600);
-        service = new RefreshTokenService(tokens, props, users);
+        service = new RefreshTokenService(tokens, props, users, familyService);
     }
 
     private RefreshToken row(UUID userId) {
@@ -96,7 +97,7 @@ class RefreshTokenServiceTest {
 
         assertThatThrownBy(() -> service.rotate("raw-old"))
                 .isInstanceOf(AuthenticationFailedException.class);
-        verify(tokens).revokeActiveByFamily(any(UUID.class), any(Instant.class));
+        verify(familyService).revokeFamily(old.getTokenFamilyId());
     }
 
     @Test
@@ -107,7 +108,7 @@ class RefreshTokenServiceTest {
 
         assertThatThrownBy(() -> service.rotate("raw-old"))
                 .isInstanceOf(AuthenticationFailedException.class);
-        verify(tokens, never()).revokeActiveByFamily(any(), any());
+        verify(familyService, never()).revokeFamily(any());
     }
 
     @Test
@@ -129,7 +130,7 @@ class RefreshTokenServiceTest {
 
         assertThatThrownBy(() -> service.rotate("raw-old"))
                 .isInstanceOf(AuthenticationFailedException.class);
-        verify(tokens).revokeActiveByFamily(any(UUID.class), any(Instant.class));
+        verify(familyService).revokeFamily(old.getTokenFamilyId());
     }
 
     @Test

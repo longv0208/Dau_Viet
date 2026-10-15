@@ -1,0 +1,7 @@
+# Test-only overrides. The HS256 secret satisfies the >=32-byte startup check
+# in JwtConfig; never reused outside tests (CI does not inject JWT_SECRET).
+app:
+  security:
+    jwt-secret: test-secret-key-32-bytes-minimum-0123456789abcdef
+    access-token-ttl-seconds: 900
+    refresh-token-ttl-seconds: 1209600
