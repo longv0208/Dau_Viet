@@ -6,12 +6,14 @@ import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
 
+import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.autoconfigure.jdbc.AutoConfigureTestDatabase;
 import org.springframework.boot.test.autoconfigure.orm.jpa.DataJpaTest;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
+import org.springframework.jdbc.core.JdbcTemplate;
 
 import com.dauviet.AbstractPostgresIT;
 import com.dauviet.historicalevent.domain.EventStatus;
@@ -23,6 +25,17 @@ class HistoricalEventRepositoryIT extends AbstractPostgresIT {
 
     @Autowired
     private HistoricalEventRepository repository;
+
+    @Autowired
+    private JdbcTemplate jdbc;
+
+    @BeforeEach
+    void cleanTable() {
+        // Shared container: events left by other ITs would break count-based
+        // assertions (e.g. findByStatus total). Clear dependents first.
+        clearAuthoringTables(jdbc);
+        jdbc.update("delete from historical_events");
+    }
 
     private HistoricalEvent event(UUID id, String slug, EventStatus status) {
         HistoricalEvent e = new HistoricalEvent();

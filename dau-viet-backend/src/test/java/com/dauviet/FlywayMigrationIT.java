@@ -2,6 +2,7 @@ package com.dauviet;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
+import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.autoconfigure.jdbc.AutoConfigureTestDatabase;
@@ -18,6 +19,19 @@ class FlywayMigrationIT extends AbstractPostgresIT {
 
     @Autowired
     private JdbcTemplate jdbc;
+
+    @BeforeEach
+    void cleanTables() {
+        // This suite shares the Postgres container with the other ITs; rows
+        // left behind (e.g. slug 'e1' events, 'tpl' templates) would collide
+        // with the fixed fixtures below. Clear authoring dependents first so
+        // the events/templates delete is FK-safe.
+        clearAuthoringTables(jdbc);
+        jdbc.update("delete from lesson_templates");
+        jdbc.update("delete from historical_events");
+        jdbc.update("delete from auth_refresh_tokens");
+        jdbc.update("delete from users");
+    }
 
     @Test
     void flywayV1Applied() {
@@ -70,7 +84,8 @@ class FlywayMigrationIT extends AbstractPostgresIT {
               + "VALUES ('11111111-1111-1111-1111-111111111111', 't@t.vn', 'x')");
         jdbc.execute(
                 "INSERT INTO historical_events (id, slug, title, summary, status) "
-              + "VALUES ('22222222-2222-2222-2222-222222222222', 'e1', 't', 's', 'PUBLISHED')");
+              + "VALUES ('22222222-2222-2222-2222-222222222222', "
+              + "'flyway-it-event', 't', 's', 'PUBLISHED')");
         jdbc.execute(
                 "INSERT INTO lesson_templates (id, code, name, schema_version, preset_json) "
               + "VALUES ('33333333-3333-3333-3333-333333333333', 'tpl', 't', 1, '{}'::jsonb)");

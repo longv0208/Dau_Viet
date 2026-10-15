@@ -71,7 +71,7 @@ public class DraftValidator {
         }
 
         checkUnknownKeys(draft, DraftSchema.TOP_LEVEL_KEYS, "$", errors);
-        validateSchemaVersion(draft, errors);
+        validateSchemaVersion(draft, level, errors);
 
         Set<String> stageIds = new HashSet<>();
         Map<String, JsonNode> stageById = new HashMap<>();
@@ -87,7 +87,7 @@ public class DraftValidator {
             errors.add(new FieldError("stages", "MISSING_FIELD", "stages array required"));
         }
 
-        validateStageGraph(stageIds, transitions, level, errors);
+        validateStageGraph(draft, stageIds, transitions, level, errors);
         validateCompletion(draft.get("completion"), stageIds, level, errors);
         if (level == ValidationLevel.PUBLISH) {
             validatePublishGuardrails(stageIds, stageById, draft.get("completion"), errors);
@@ -97,9 +97,18 @@ public class DraftValidator {
 
     /* ---------- structural ---------- */
 
-    private void validateSchemaVersion(JsonNode draft, List<FieldError> errors) {
+    private void validateSchemaVersion(JsonNode draft, ValidationLevel level,
+                                       List<FieldError> errors) {
         JsonNode sv = draft.get("schemaVersion");
-        if (sv == null) return; // missing tolerated at SAVE; PUBLISH catches via other checks
+        if (sv == null) {
+            // Missing is tolerated at SAVE (author may still be assembling the
+            // draft) but a publishable snapshot must declare its schema version.
+            if (level == ValidationLevel.PUBLISH) {
+                errors.add(new FieldError("schemaVersion", "MISSING_FIELD",
+                        "schemaVersion is required and must be " + DraftSchema.CURRENT_VERSION));
+            }
+            return;
+        }
         if (!sv.isInt() || sv.asInt() != DraftSchema.CURRENT_VERSION) {
             errors.add(new FieldError("schemaVersion", "UNSUPPORTED_SCHEMA_VERSION",
                     "schemaVersion must be " + DraftSchema.CURRENT_VERSION));
@@ -228,7 +237,8 @@ public class DraftValidator {
 
     /* ---------- stage graph ---------- */
 
-    private void validateStageGraph(Set<String> stageIds,
+    private void validateStageGraph(JsonNode draft,
+                                    Set<String> stageIds,
                                     Map<String, List<String>> transitions,
                                     ValidationLevel level,
                                     List<FieldError> errors) {
@@ -241,45 +251,92 @@ public class DraftValidator {
                 }
             }
         }
-        // Cycle detection via DFS (iterative to avoid recursion-depth surprises)
-        Set<String> visited = new HashSet<>();
+        // Cycle detection — three-colour iterative DFS over the whole graph.
+        // GRAY nodes are on the current DFS path; an edge to a GRAY node is a
+        // back-edge, i.e. a real directed cycle. Converging paths (diamonds,
+        // shared destinations) revisit only BLACK nodes and are NOT cycles.
+        Map<String, Integer> color = new HashMap<>();
         for (String start : stageIds) {
-            if (visited.contains(start)) continue;
-            if (hasCycle(start, transitions, visited)) {
-                errors.add(new FieldError("stages[id=" + start + "].nextStageIds",
-                        "CIRCULAR_TRANSITION", "cycle detected through stage '" + start + "'"));
+            if (color.containsKey(start)) continue;
+            String cycleAt = findCycle(start, transitions, color);
+            if (cycleAt != null) {
+                errors.add(new FieldError("stages[id=" + cycleAt + "].nextStageIds",
+                        "CIRCULAR_TRANSITION", "cycle detected through stage '" + cycleAt + "'"));
                 break;
             }
         }
-        // Reachable terminal stage — PUBLISH only
+        // Reachable terminal stage — PUBLISH only. The entry stage is
+        // stages[0] in array order; the lesson must be able to end, so a
+        // stage with empty nextStageIds must be reachable from the entry.
         if (level == ValidationLevel.PUBLISH && !stageIds.isEmpty()) {
-            boolean hasTerminal = stageIds.stream()
+            JsonNode stages = draft.get("stages");
+            String entry = (stages != null && stages.isArray() && !stages.isEmpty()
+                    && stages.get(0).isObject())
+                    ? stages.get(0).path("id").asText(null) : null;
+            Set<String> reachable = entry == null ? Set.of()
+                    : reachableFrom(entry, transitions);
+            boolean terminalReachable = reachable.stream()
                     .anyMatch(s -> transitions.getOrDefault(s, List.of()).isEmpty());
-            if (!hasTerminal) {
+            if (!terminalReachable) {
                 errors.add(new FieldError("stages", "NO_TERMINAL_STAGE",
-                        "at least one stage must have empty nextStageIds (terminal)"));
+                        "no terminal stage (empty nextStageIds) is reachable from the entry stage"));
             }
         }
     }
 
-    /** Iterative DFS: true if `start` reaches a node already on its stack. */
-    private boolean hasCycle(String start, Map<String, List<String>> graph,
-                             Set<String> globallyVisited) {
-        Set<String> onStack = new HashSet<>();
-        Deque<String> stack = new ArrayDeque<>();
-        stack.push(start);
-        while (!stack.isEmpty()) {
-            String node = stack.pop();
-            if (onStack.contains(node)) return true;
-            if (globallyVisited.contains(node)) continue;
-            globallyVisited.add(node);
-            onStack.add(node);
-            for (String next : graph.getOrDefault(node, List.of())) {
-                if (onStack.contains(next)) return true;
-                stack.push(next);
+    private static final int WHITE = 0; // unvisited
+    private static final int GRAY = 1;  // on current DFS path
+    private static final int BLACK = 2; // fully explored
+
+    /**
+     * Iterative three-colour DFS. Returns the stage id where a back-edge was
+     * found (a real directed cycle), or null when the component is a DAG.
+     * Frames on the stack are (node, nextChildIndex); a node turns BLACK only
+     * after all children are explored, so GRAY always means "ancestor".
+     */
+    private String findCycle(String start, Map<String, List<String>> graph,
+                             Map<String, Integer> color) {
+        Deque<String> nodes = new ArrayDeque<>();
+        Deque<int[]> cursors = new ArrayDeque<>();
+        color.put(start, GRAY);
+        nodes.push(start);
+        cursors.push(new int[]{0});
+        while (!nodes.isEmpty()) {
+            String node = nodes.peek();
+            int[] cursor = cursors.peek();
+            List<String> next = graph.getOrDefault(node, List.of());
+            if (cursor[0] >= next.size()) {
+                color.put(node, BLACK);
+                nodes.pop();
+                cursors.pop();
+                continue;
+            }
+            String child = next.get(cursor[0]++);
+            Integer c = color.getOrDefault(child, WHITE);
+            if (c == GRAY) return child;
+            if (c == WHITE) {
+                color.put(child, GRAY);
+                nodes.push(child);
+                cursors.push(new int[]{0});
             }
         }
-        return false;
+        return null;
+    }
+
+    /** BFS over nextStageIds edges; returns all stage ids reachable from `entry`. */
+    private Set<String> reachableFrom(String entry, Map<String, List<String>> graph) {
+        Set<String> seen = new HashSet<>();
+        Deque<String> queue = new ArrayDeque<>();
+        if (entry != null) {
+            seen.add(entry);
+            queue.add(entry);
+        }
+        while (!queue.isEmpty()) {
+            for (String next : graph.getOrDefault(queue.poll(), List.of())) {
+                if (seen.add(next)) queue.add(next);
+            }
+        }
+        return seen;
     }
 
     /* ---------- completion ---------- */

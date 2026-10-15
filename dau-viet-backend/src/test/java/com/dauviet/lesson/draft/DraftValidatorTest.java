@@ -93,6 +93,134 @@ class DraftValidatorTest {
         assertThat(codes(errors)).contains("CIRCULAR_TRANSITION", "UNKNOWN_STAGE_ID");
     }
 
+    /* ---------- stage graph: no false-positive cycles ---------- */
+
+    @Test
+    void graph_linearPath_noCycle() throws Exception {
+        JsonNode draft = tree("""
+                {"stages":[{"id":"sa","type":"CONTEXT","nextStageIds":["sb"]},
+                           {"id":"sb","type":"DISCOVERY","nextStageIds":["sc"]},
+                           {"id":"sc","type":"CONCLUSION","nextStageIds":[]}]}
+                """);
+        assertThat(validator.validate(draft, EVENT, ValidationLevel.SAVE)).isEmpty();
+    }
+
+    @Test
+    void graph_branchingSharedDestination_noCycle() throws Exception {
+        // sa -> sb and sa -> sc, both converge on sd. Not a cycle.
+        JsonNode draft = tree("""
+                {"stages":[{"id":"sa","type":"CONTEXT","nextStageIds":["sb","sc"]},
+                           {"id":"sb","type":"DISCOVERY","nextStageIds":["sd"]},
+                           {"id":"sc","type":"EVIDENCE","nextStageIds":["sd"]},
+                           {"id":"sd","type":"CONCLUSION","nextStageIds":[]}]}
+                """);
+        assertThat(validator.validate(draft, EVENT, ValidationLevel.SAVE)).isEmpty();
+    }
+
+    @Test
+    void graph_diamondDag_noCycle() throws Exception {
+        // Classic diamond: sa -> {sb, sc} -> sd. Revisit of sd is via BLACK node.
+        JsonNode draft = tree("""
+                {"stages":[{"id":"sa","type":"CONTEXT","nextStageIds":["sb","sc"]},
+                           {"id":"sb","type":"DISCOVERY","nextStageIds":["sd"]},
+                           {"id":"sc","type":"REASONING","nextStageIds":["sd"]},
+                           {"id":"sd","type":"CONCLUSION","nextStageIds":[]}]}
+                """);
+        List<FieldError> errors = validator.validate(draft, EVENT, ValidationLevel.SAVE);
+        assertThat(codes(errors)).doesNotContain("CIRCULAR_TRANSITION");
+    }
+
+    @Test
+    void graph_selfLoop_flagged() throws Exception {
+        JsonNode draft = tree("""
+                {"stages":[{"id":"sa","type":"CONTEXT","nextStageIds":["sa"]}]}
+                """);
+        List<FieldError> errors = validator.validate(draft, EVENT, ValidationLevel.SAVE);
+        assertThat(codes(errors)).contains("CIRCULAR_TRANSITION");
+    }
+
+    @Test
+    void graph_multiStageCycle_flagged() throws Exception {
+        JsonNode draft = tree("""
+                {"stages":[{"id":"sa","type":"CONTEXT","nextStageIds":["sb"]},
+                           {"id":"sb","type":"DISCOVERY","nextStageIds":["sc"]},
+                           {"id":"sc","type":"REASONING","nextStageIds":["sd"]},
+                           {"id":"sd","type":"VERIFICATION","nextStageIds":["sb"]}]}
+                """);
+        List<FieldError> errors = validator.validate(draft, EVENT, ValidationLevel.SAVE);
+        assertThat(codes(errors)).contains("CIRCULAR_TRANSITION");
+    }
+
+    @Test
+    void graph_disconnectedCycleInSecondComponent_flagged() throws Exception {
+        // Component 1 is a clean DAG; component 2 loops. DFS outer loop must
+        // still walk the second component and find the cycle.
+        JsonNode draft = tree("""
+                {"stages":[{"id":"sa","type":"CONTEXT","nextStageIds":["sb"]},
+                           {"id":"sb","type":"CONCLUSION","nextStageIds":[]},
+                           {"id":"xa","type":"EVIDENCE","nextStageIds":["xb"]},
+                           {"id":"xb","type":"REASONING","nextStageIds":["xa"]}]}
+                """);
+        List<FieldError> errors = validator.validate(draft, EVENT, ValidationLevel.SAVE);
+        assertThat(codes(errors)).contains("CIRCULAR_TRANSITION");
+    }
+
+    @Test
+    void graph_disconnectedDagComponents_noCycle() throws Exception {
+        JsonNode draft = tree("""
+                {"stages":[{"id":"sa","type":"CONTEXT","nextStageIds":["sb"]},
+                           {"id":"sb","type":"CONCLUSION","nextStageIds":[]},
+                           {"id":"xa","type":"EVIDENCE","nextStageIds":["xb"]},
+                           {"id":"xb","type":"REASONING","nextStageIds":[]}]}
+                """);
+        List<FieldError> errors = validator.validate(draft, EVENT, ValidationLevel.SAVE);
+        assertThat(codes(errors)).doesNotContain("CIRCULAR_TRANSITION");
+    }
+
+    /* ---------- publish level: schemaVersion + reachable terminal ---------- */
+
+    @Test
+    void publishLevel_missingSchemaVersion_flagged() throws Exception {
+        // Structurally complete draft minus schemaVersion: SAVE ok, PUBLISH rejects.
+        JsonNode draft = tree("""
+                {"stages":[{"id":"sa","type":"REASONING","required":true,
+                            "activities":[{"id":"r1","type":"READ","required":false,
+                                           "config":{"text":"x"}},
+                                          {"id":"mc","type":"MULTIPLE_CHOICE","required":true,
+                                           "config":{"question":"q","options":[{"id":"o1"},{"id":"o2"}],
+                                                     "correctOptionIds":["o1"]}}],
+                            "nextStageIds":[]}]}
+                """);
+        assertThat(validator.validate(draft, EVENT, ValidationLevel.SAVE)).isEmpty();
+        List<FieldError> errors = validator.validate(draft, EVENT, ValidationLevel.PUBLISH);
+        assertThat(errors.stream().filter(e -> e.path().equals("schemaVersion"))
+                .map(FieldError::code)).contains("MISSING_FIELD");
+    }
+
+    @Test
+    void publishLevel_wrongSchemaVersion_flagged() throws Exception {
+        JsonNode draft = tree("""
+                {"schemaVersion":2,
+                 "stages":[{"id":"sa","type":"CONTEXT","nextStageIds":[]}]}
+                """);
+        List<FieldError> errors = validator.validate(draft, EVENT, ValidationLevel.PUBLISH);
+        assertThat(codes(errors)).contains("UNSUPPORTED_SCHEMA_VERSION");
+    }
+
+    @Test
+    void publishLevel_terminalMustBeReachableFromEntry() throws Exception {
+        // Entry sa loops with sb (no escape); sd is terminal but unreachable.
+        // Cycle is caught by CIRCULAR_TRANSITION; terminal check must also fire
+        // because no terminal is reachable FROM the entry stage.
+        JsonNode draft = tree("""
+                {"stages":[{"id":"sa","type":"CONTEXT","nextStageIds":["sb"]},
+                           {"id":"sb","type":"DISCOVERY","nextStageIds":["sa"]},
+                           {"id":"sd","type":"CONCLUSION","nextStageIds":[]}]}
+                """);
+        List<FieldError> errors = validator.validate(draft, EVENT, ValidationLevel.PUBLISH);
+        assertThat(codes(errors)).contains("NO_TERMINAL_STAGE");
+    }
+
     @Test
     void publishLevel_requiresStageAndConfig() throws Exception {
         // EVIDENCE_SELECT with no visibleEvidenceIds -> config error at PUBLISH
@@ -117,7 +245,8 @@ class DraftValidatorTest {
         when(assets.findActiveIds()).thenReturn(List.of());
 
         JsonNode draft = tree("""
-                {"stages":[{"id":"ev","type":"EVIDENCE","required":true,
+                {"schemaVersion":1,
+                 "stages":[{"id":"ev","type":"EVIDENCE","required":true,
                             "requiredEvidenceIds":["%s","%s"],
                             "activities":[{"id":"es","type":"EVIDENCE_SELECT","required":true,
                                            "config":{"visibleEvidenceIds":["%s"]}}],
@@ -137,10 +266,12 @@ class DraftValidatorTest {
                            {"id":"sb","type":"DISCOVERY","nextStageIds":[]},
                            {"id":"sc","type":"REASONING","nextStageIds":["sc"]}]}
                 """);
-        // sb is terminal so NO_TERMINAL_STAGE must NOT fire even with the sc self-loop
-        // (self-loop itself is caught separately by CIRCULAR_TRANSITION).
+        // sb is terminal AND reachable from entry sa, so NO_TERMINAL_STAGE must
+        // NOT fire even though the unreachable sc self-loops (that loop itself
+        // is still reported as CIRCULAR_TRANSITION).
         List<FieldError> errors = validator.validate(draft, EVENT, ValidationLevel.PUBLISH);
         assertThat(codes(errors)).doesNotContain("NO_TERMINAL_STAGE");
+        assertThat(codes(errors)).contains("CIRCULAR_TRANSITION");
         // Now remove terminal: sa->sb, sb->sa (a cycle, but also no terminal)
         JsonNode cyc = tree("""
                 {"stages":[{"id":"sa","type":"CONTEXT","nextStageIds":["sb"]},
