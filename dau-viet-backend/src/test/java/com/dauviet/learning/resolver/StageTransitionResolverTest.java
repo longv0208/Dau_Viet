@@ -82,7 +82,7 @@ class StageTransitionResolverTest {
         SnapshotModel m = SnapshotModel.parse(linear());
         AttemptState s = at("ctx", "rq");
         s.markCompleted("rq");
-        // pretend current is an optional act after required — resolve should hop
+        // pretend current is an optional act after required â€” resolve should hop
         var t = resolver.resolve(m, s, "rq", ActivityResult.COMPLETED);
         assertThat(t.nextStage()).isNotNull();
     }
@@ -92,16 +92,16 @@ class StageTransitionResolverTest {
         // A -> {B, C} -> D : B complete, C has work -> picks C over D
         JsonNode snap = json("""
                 {"stages":[
-                  {"id":"a","type":"CONTEXT","activities":[
+                  {"id":"a","type":"CONTEXT","required":true,"activities":[
                     {"id":"aq","type":"READ","required":true}],
                    "nextStageIds":["b","c"]},
-                  {"id":"b","type":"EVIDENCE","activities":[
+                  {"id":"b","type":"EVIDENCE","required":true,"activities":[
                     {"id":"bq","type":"READ","required":true}],
                    "nextStageIds":["d"]},
-                  {"id":"c","type":"EVIDENCE","activities":[
+                  {"id":"c","type":"EVIDENCE","required":true,"activities":[
                     {"id":"cq","type":"READ","required":true}],
                    "nextStageIds":["d"]},
-                  {"id":"d","type":"CONCLUSION","activities":[
+                  {"id":"d","type":"CONCLUSION","required":true,"activities":[
                     {"id":"dq","type":"READ","required":true}],
                    "nextStageIds":[]}]}
                 """);
@@ -118,13 +118,13 @@ class StageTransitionResolverTest {
         // all nextStageIds complete -> fall back to first incomplete in array order
         JsonNode snap = json("""
                 {"stages":[
-                  {"id":"a","type":"CONTEXT","activities":[
+                  {"id":"a","type":"CONTEXT","required":true,"activities":[
                     {"id":"aq","type":"READ","required":true}],
                    "nextStageIds":["b"]},
-                  {"id":"b","type":"EVIDENCE","activities":[
+                  {"id":"b","type":"EVIDENCE","required":true,"activities":[
                     {"id":"bq","type":"READ","required":true}],
                    "nextStageIds":[]},
-                  {"id":"z","type":"CONCLUSION","activities":[
+                  {"id":"z","type":"CONCLUSION","required":true,"activities":[
                     {"id":"zq","type":"READ","required":true}],
                    "nextStageIds":[]}]}
                 """);
@@ -141,10 +141,10 @@ class StageTransitionResolverTest {
     void revision_partialOutcome_onPartialTarget() {
         JsonNode snap = json("""
                 {"stages":[
-                  {"id":"hyp","type":"HYPOTHESIS","activities":[
+                  {"id":"hyp","type":"HYPOTHESIS","required":true,"activities":[
                     {"id":"hc","type":"HYPOTHESIS_CHOICE","required":true}],
                    "nextStageIds":[]},
-                  {"id":"ver","type":"VERIFICATION","activities":[
+                  {"id":"ver","type":"VERIFICATION","required":true,"activities":[
                     {"id":"vf","type":"VERIFICATION","required":true,
                      "onPartial":"hyp","onContradicted":"hyp"}],
                    "nextStageIds":[]}]}
@@ -164,11 +164,11 @@ class StageTransitionResolverTest {
         // previously this fell through to forward advance and soft-locked).
         JsonNode snap = json("""
                 {"stages":[
-                  {"id":"ver","type":"VERIFICATION","activities":[
+                  {"id":"ver","type":"VERIFICATION","required":true,"activities":[
                     {"id":"vf","type":"VERIFICATION","required":true,
                      "onPartial":"ghost"}],
                    "nextStageIds":["end"]},
-                  {"id":"end","type":"CONCLUSION","activities":[
+                  {"id":"end","type":"CONCLUSION","required":true,"activities":[
                     {"id":"cer","type":"CER","required":true}],
                    "nextStageIds":[]}]}
                 """);
@@ -185,11 +185,11 @@ class StageTransitionResolverTest {
         // same shape but activity already completed -> normal forward walk
         JsonNode snap = json("""
                 {"stages":[
-                  {"id":"ver","type":"VERIFICATION","activities":[
+                  {"id":"ver","type":"VERIFICATION","required":true,"activities":[
                     {"id":"vf","type":"VERIFICATION","required":true,
                      "onPartial":"ghost"}],
                    "nextStageIds":["end"]},
-                  {"id":"end","type":"CONCLUSION","activities":[
+                  {"id":"end","type":"CONCLUSION","required":true,"activities":[
                     {"id":"cer","type":"CER","required":true}],
                    "nextStageIds":[]}]}
                 """);
@@ -206,10 +206,10 @@ class StageTransitionResolverTest {
         // hand-edited cycle: publish validator would reject, but resolver must not loop
         JsonNode snap = json("""
                 {"stages":[
-                  {"id":"a","type":"CONTEXT","activities":[
+                  {"id":"a","type":"CONTEXT","required":true,"activities":[
                     {"id":"aq","type":"READ","required":true}],
                    "nextStageIds":["b"]},
-                  {"id":"b","type":"EVIDENCE","activities":[
+                  {"id":"b","type":"EVIDENCE","required":true,"activities":[
                     {"id":"bq","type":"READ","required":true}],
                    "nextStageIds":["a"]}]}
                 """);
@@ -246,10 +246,10 @@ class StageTransitionResolverTest {
         // VERIFICATION-style required act with onPartial -> REVISE hop beats stay
         JsonNode snap = json("""
                 {"stages":[
-                  {"id":"hyp","type":"HYPOTHESIS","activities":[
+                  {"id":"hyp","type":"HYPOTHESIS","required":true,"activities":[
                     {"id":"hc","type":"HYPOTHESIS_CHOICE","required":true}],
                    "nextStageIds":[]},
-                  {"id":"ver","type":"VERIFICATION","activities":[
+                  {"id":"ver","type":"VERIFICATION","required":true,"activities":[
                     {"id":"vf","type":"VERIFICATION","required":true,
                      "onPartial":"hyp","onContradicted":"hyp"}],
                    "nextStageIds":[]}]}
@@ -266,11 +266,11 @@ class StageTransitionResolverTest {
     void requiredIncomplete_noHopTarget_stays() {
         JsonNode snap = json("""
                 {"stages":[
-                  {"id":"ver","type":"VERIFICATION","activities":[
+                  {"id":"ver","type":"VERIFICATION","required":true,"activities":[
                     {"id":"vf","type":"VERIFICATION","required":true,
                      "onPartial":"ghost"}],
                    "nextStageIds":["end"]},
-                  {"id":"end","type":"CONCLUSION","activities":[
+                  {"id":"end","type":"CONCLUSION","required":true,"activities":[
                     {"id":"cer","type":"CER","required":true}],
                    "nextStageIds":[]}]}
                 """);
@@ -286,7 +286,7 @@ class StageTransitionResolverTest {
     void optionalIncomplete_stillAdvances() {
         SnapshotModel m = SnapshotModel.parse(linear());
         AttemptState s = at("ctx", "opt");
-        // optional "opt" not completed — never blocks; next required is rq
+        // optional "opt" not completed â€” never blocks; next required is rq
         var t = resolver.resolve(m, s, "opt", ActivityResult.IN_PROGRESS);
         assertThat(t.nextActivity()).isNotNull();
         assertThat(t.nextActivity().activityId()).isEqualTo("rq");
@@ -308,13 +308,13 @@ class StageTransitionResolverTest {
         // stage with NO required activities sits between two real stages
         JsonNode snap = json("""
                 {"stages":[
-                  {"id":"a","type":"CONTEXT","activities":[
+                  {"id":"a","type":"CONTEXT","required":true,"activities":[
                     {"id":"aq","type":"READ","required":true}],
                    "nextStageIds":["mid"]},
                   {"id":"mid","type":"CONTEXT","activities":[
                     {"id":"opt","type":"READ"}],
                    "nextStageIds":["b"]},
-                  {"id":"b","type":"EVIDENCE","activities":[
+                  {"id":"b","type":"EVIDENCE","required":true,"activities":[
                     {"id":"bq","type":"READ","required":true}],
                    "nextStageIds":[]}]}
                 """);

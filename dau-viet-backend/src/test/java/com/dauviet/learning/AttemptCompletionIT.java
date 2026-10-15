@@ -296,6 +296,55 @@ class AttemptCompletionIT extends AbstractPostgresIT {
                 .andExpect(jsonPath("$.completion.reason").value("DEFAULT_ALL_REQUIRED"));
     }
 
+    /**
+     * End-to-end optional-stage semantics: a lesson whose final stage is
+     * `required:false` (Reflection-style) completes once the required
+     * stages' work is done — the optional stage never enters the cursor,
+     * never counts in progress, never gates completion. No soft-lock.
+     */
+    @Test
+    void optionalStage_neverGatesCompletionOrCursor() throws Exception {
+        String draft = """
+                {"schemaVersion":1,
+                 "stages":[
+                   {"id":"ctx","type":"CONTEXT","required":true,
+                    "activities":[{"id":"r1","type":"READ","required":true,
+                                    "config":{"text":"intro"}}],
+                    "nextStageIds":["ev"]},
+                   {"id":"ev","type":"EVIDENCE","required":true,
+                    "activities":[{"id":"mc","type":"MULTIPLE_CHOICE","required":true,
+                                    "config":{"question":"q","options":[{"id":"o1"},{"id":"o2"}],
+                                              "correctOptionIds":["o1"]}}],
+                    "requiredEvidenceIds":["%s"],
+                    "nextStageIds":["ref"]},
+                   {"id":"ref","type":"REFLECTION","required":false,
+                    "activities":[{"id":"note","type":"READ",
+                                    "config":{"text":"takeaway"}}],
+                    "nextStageIds":[]}]}
+                """.formatted(evId);
+        String lessonId = AttemptItFixture.publishLesson(mvc, om, adminToken,
+                eventId, tplId, draft);
+        String attemptId = AttemptItFixture.startAttempt(mvc, om, learnerToken, lessonId);
+
+        // progress counts only required-stage required work (r1 + mc)
+        mvc.perform(get("/api/v1/attempts/" + attemptId)
+                        .header("Authorization", learnerToken))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.progress.totalRequired").value(2));
+
+        submit(learnerToken, attemptId, "r1", "{}");
+        // after ctx done, cursor hops to ev — never to the optional ref stage
+        submit(learnerToken, attemptId, "mc", "{\"selectedOptionIds\":[\"o1\"]}");
+
+        // all required work done — complete succeeds without touching ref
+        mvc.perform(post("/api/v1/attempts/" + attemptId + "/complete")
+                        .header("Authorization", learnerToken))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.status").value("COMPLETED"))
+                .andExpect(jsonPath("$.progress.completedRequired").value(2))
+                .andExpect(jsonPath("$.progress.totalRequired").value(2));
+    }
+
     @Test
     void result_endpoints_ownerAndTiming() throws Exception {
         String lessonId = publish();

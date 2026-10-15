@@ -378,6 +378,50 @@ class DraftValidatorTest {
     }
 
     @Test
+    void requiredActivityInOptionalStage_rejectedAtPublish() throws Exception {
+        // required:true inside a required:false stage can never gate
+        // progress/completion (stage flag wins) — contradictory authoring,
+        // rejected at PUBLISH, tolerated at SAVE.
+        JsonNode draft = tree("""
+                {"schemaVersion":1,
+                 "stages":[
+                  {"id":"sa","type":"EVIDENCE","required":true,
+                   "activities":[{"id":"mc","type":"MULTIPLE_CHOICE","required":true,
+                                   "config":{"question":"q","options":[{"id":"o1"},{"id":"o2"}],
+                                             "correctOptionIds":["o1"]}}],
+                   "nextStageIds":["ref"]},
+                  {"id":"ref","type":"REFLECTION","required":false,
+                   "activities":[{"id":"c1","type":"READ","required":true,
+                                   "config":{"text":"x"}}],
+                   "nextStageIds":[]}]}
+                """);
+        assertThat(validator.validate(draft, EVENT, ValidationLevel.SAVE)).isEmpty();
+        List<FieldError> errors = validator.validate(draft, EVENT, ValidationLevel.PUBLISH);
+        assertThat(errors).anyMatch(e -> e.code().equals("REQUIRED_IN_OPTIONAL_STAGE")
+                && e.path().equals("stages[id=ref].activities[0].required"));
+    }
+
+    @Test
+    void optionalStage_fullyOptional_publishesFine() throws Exception {
+        // Same shape without the contradictory flag -> publishes clean:
+        // optional stage carries only optional activities.
+        JsonNode draft = tree("""
+                {"schemaVersion":1,
+                 "stages":[
+                  {"id":"sa","type":"EVIDENCE","required":true,
+                   "activities":[{"id":"mc","type":"MULTIPLE_CHOICE","required":true,
+                                   "config":{"question":"q","options":[{"id":"o1"},{"id":"o2"}],
+                                             "correctOptionIds":["o1"]}}],
+                   "nextStageIds":["ref"]},
+                  {"id":"ref","type":"REFLECTION","required":false,
+                   "activities":[{"id":"c1","type":"READ",
+                                   "config":{"text":"x"}}],
+                   "nextStageIds":[]}]}
+                """);
+        assertThat(validator.validate(draft, EVENT, ValidationLevel.PUBLISH)).isEmpty();
+    }
+
+    @Test
     void activityIds_uniqueAcrossStages_notJustPerStage() throws Exception {
         // Same activity id in two different stages — the runtime indexes
         // activities by id alone, so cross-stage collision must be rejected.

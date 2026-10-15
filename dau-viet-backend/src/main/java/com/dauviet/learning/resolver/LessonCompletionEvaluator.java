@@ -103,7 +103,13 @@ public class LessonCompletionEvaluator {
             boolean requiredStage = stage.path("required").asBoolean(false);
             if (filter == null && !requiredStage) continue;
             if (filter != null && !filter.contains(sid)) continue;
-            for (JsonNode a : model.requiredActivities(sid)) {
+            // Explicit `requiredStageIds` names stages directly — the clause
+            // wins over the stage-level `required` flag, so count activities
+            // carrying `required:true` even inside an optional stage.
+            List<JsonNode> work = filter == null
+                    ? model.requiredActivities(sid)
+                    : model.requiredFlaggedActivities(sid);
+            for (JsonNode a : work) {
                 if (!state.isCompleted(a.path("id").asText())) {
                     missing.add(sid);
                     break;

@@ -100,8 +100,29 @@ public class SnapshotModel {
         return root.get("completion");
     }
 
-    /** Required activities of a stage, in array order. */
+    /**
+     * Required activities a stage contributes to progress/completion —
+     * EMPTY for a `required:false` stage: an optional stage makes every
+     * activity inside it optional too (BA: Reflection stage optional;
+     * required work lives only in required stages). For the activity-level
+     * flag regardless of the stage flag see {@link #requiredFlaggedActivities}.
+     */
     public List<JsonNode> requiredActivities(String stageId) {
+        JsonNode stage = stageById.get(stageId);
+        if (stage == null || !stage.path("required").asBoolean(false)) {
+            return List.of();
+        }
+        return requiredFlaggedActivities(stageId);
+    }
+
+    /**
+     * Activities carrying `required:true` inside a stage, ignoring the
+     * stage-level flag. Used where an explicit clause names the stage
+     * (completion.requiredStageIds) — the author's explicit stage list wins
+     * over the stage flag — and by publish validation to flag the
+     * contradictory required-in-optional-stage shape.
+     */
+    public List<JsonNode> requiredFlaggedActivities(String stageId) {
         List<JsonNode> out = new ArrayList<>();
         JsonNode stage = stageById.get(stageId);
         if (stage == null) return out;

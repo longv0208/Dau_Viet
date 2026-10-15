@@ -412,6 +412,29 @@ public class DraftValidator {
                     "INVALID_CONFIG",
                     "requireAllRequiredStages=true but no stage has required=true"));
         }
+        // An activity flagged required inside an optional stage can never
+        // gate anything: the stage flag makes its activities optional for
+        // progress, transition and default completion, so the flag only
+        // takes effect through an explicit completion.requiredStageIds.
+        // Reject the contradictory shape at publish — either make the stage
+        // required or drop the activity flag (BA: optional stage = optional
+        // content, e.g. Reflection).
+        for (String sid : stageIds) {
+            JsonNode stage = stageById.get(sid);
+            if (stage == null || stage.path("required").asBoolean(false)) continue;
+            JsonNode acts = stage.get("activities");
+            if (acts == null || !acts.isArray()) continue;
+            for (int i = 0; i < acts.size(); i++) {
+                if (acts.get(i).path("required").asBoolean(false)) {
+                    errors.add(new FieldError(
+                            "stages[id=" + sid + "].activities[" + i + "].required",
+                            "REQUIRED_IN_OPTIONAL_STAGE",
+                            "activity.required=true inside required=false stage '"
+                            + sid + "' never gates progress/completion — drop the "
+                            + "flag or make the stage required"));
+                }
+            }
+        }
     }
 
     /* ---------- helpers ---------- */
