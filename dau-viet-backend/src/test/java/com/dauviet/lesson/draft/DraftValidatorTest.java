@@ -359,6 +359,25 @@ class DraftValidatorTest {
     }
 
     @Test
+    void completion_emptyObject_rejectedAtPublish_toleratedAtSave() throws Exception {
+        // Runtime treats `completion:{}` as DEFAULT_ALL_REQUIRED (absent
+        // config), so publishing it is a no-op or a mistake — rejected at
+        // PUBLISH; SAVE stays tolerant while the author is still composing.
+        JsonNode draft = tree("""
+                {"stages":[{"id":"sa","type":"EVIDENCE","required":true,
+                            "activities":[{"id":"ev","type":"MULTIPLE_CHOICE","required":true,
+                                           "config":{"question":"q","options":[{"id":"o1"},{"id":"o2"}],
+                                                     "correctOptionIds":["o1"]}}],
+                            "nextStageIds":[]}],
+                 "completion":{}}
+                """);
+        assertThat(validator.validate(draft, EVENT, ValidationLevel.SAVE)).isEmpty();
+        List<FieldError> errors = validator.validate(draft, EVENT, ValidationLevel.PUBLISH);
+        assertThat(errors).anyMatch(e -> e.code().equals("EMPTY_COMPLETION")
+                && e.path().equals("completion"));
+    }
+
+    @Test
     void activityIds_uniqueAcrossStages_notJustPerStage() throws Exception {
         // Same activity id in two different stages — the runtime indexes
         // activities by id alone, so cross-stage collision must be rejected.

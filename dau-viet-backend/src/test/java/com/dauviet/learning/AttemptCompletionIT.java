@@ -234,6 +234,68 @@ class AttemptCompletionIT extends AbstractPostgresIT {
         assertThat(newAttemptId).isNotEqualTo(attemptId);
     }
 
+    /**
+     * Regression for the empty-completion bug: a snapshot published with
+     * `completion:{}` must behave like an absent completion — a fresh attempt
+     * CANNOT complete right after start. Simulates a legacy snapshot (written
+     * before publish rejected empty objects) by inserting the version row
+     * directly, bypassing authoring validation.
+     */
+    @Test
+    void emptyCompletionConfig_cannotCompleteRightAfterStart() throws Exception {
+        // Seed a lesson whose CURRENT published snapshot carries completion:{}.
+        String lessonId = publish(); // valid version first
+        String adminId = jdbc.queryForObject(
+                "select id::text from users where email = 'a@c12.vn'",
+                String.class);
+        String snapshot = """
+                {"schemaVersion":1,
+                 "stages":[
+                   {"id":"ctx","type":"CONTEXT","required":true,
+                    "activities":[{"id":"r1","type":"READ","required":true,
+                                    "config":{"text":"intro"}}],
+                    "nextStageIds":["ev"]},
+                   {"id":"ev","type":"EVIDENCE","required":true,
+                    "activities":[{"id":"mc","type":"MULTIPLE_CHOICE","required":true,
+                                    "config":{"question":"q","options":[{"id":"o1"},{"id":"o2"}],
+                                              "correctOptionIds":["o1"]}}],
+                    "requiredEvidenceIds":["%s"],
+                    "nextStageIds":[]}],
+                 "completion":{}}
+                """.formatted(evId);
+        String versionId = java.util.UUID.randomUUID().toString();
+        jdbc.update("insert into lesson_versions (id, lesson_id, version_no, "
+                  + "schema_version, snapshot_json, published_by) "
+                  + "values (?::uuid, ?::uuid, 2, 1, ?::jsonb, ?::uuid)",
+                versionId, lessonId, snapshot, adminId);
+        jdbc.update("update lessons set current_version_id = ?::uuid where id = ?::uuid",
+                versionId, lessonId);
+
+        // Fresh attempt on the {}-completion snapshot — complete must be
+        // refused (nothing done), not auto-complete.
+        String attemptId = AttemptItFixture.startAttempt(mvc, om, learnerToken, lessonId);
+        MvcResult res = complete(learnerToken, attemptId, null);
+        assertThat(res.getResponse().getStatus()).isEqualTo(409);
+        assertThat(AttemptItFixture.body(om, res).get("code").asText())
+                .isEqualTo("ATTEMPT_NOT_COMPLETE");
+        assertThat(jdbc.queryForObject(
+                "select status from learner_attempts where id = ?::uuid",
+                String.class, attemptId)).isEqualTo("IN_PROGRESS");
+        assertThat(jdbc.queryForObject(
+                "select count(*) from lesson_results where learner_attempt_id = ?::uuid",
+                Integer.class, attemptId)).isZero();
+
+        // ...but completing the required work DOES complete — the empty object
+        // fell back to DEFAULT_ALL_REQUIRED, not a permanent lock-out.
+        submit(learnerToken, attemptId, "r1", "{}");
+        submit(learnerToken, attemptId, "mc", "{\"selectedOptionIds\":[\"o1\"]}");
+        mvc.perform(post("/api/v1/attempts/" + attemptId + "/complete")
+                        .header("Authorization", learnerToken))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.status").value("COMPLETED"))
+                .andExpect(jsonPath("$.completion.reason").value("DEFAULT_ALL_REQUIRED"));
+    }
+
     @Test
     void result_endpoints_ownerAndTiming() throws Exception {
         String lessonId = publish();

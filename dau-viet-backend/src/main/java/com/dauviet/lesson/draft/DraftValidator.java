@@ -355,6 +355,15 @@ public class DraftValidator {
             return;
         }
         checkUnknownKeys(completion, DraftSchema.COMPLETION_KEYS, "completion", errors);
+        // An empty object selects no completion clause. At runtime it falls
+        // back to DEFAULT_ALL_REQUIRED (same as an absent completion), so
+        // publishing it is either a mistake or a redundant no-op — reject to
+        // keep authoring intent explicit and consistent with the evaluator.
+        if (level == ValidationLevel.PUBLISH && completion.isEmpty()) {
+            errors.add(new FieldError("completion", "EMPTY_COMPLETION",
+                    "empty completion object: declare a clause or omit the field"));
+            return;
+        }
         JsonNode reqIds = completion.get("requiredStageIds");
         if (reqIds != null && reqIds.isArray()) {
             for (int i = 0; i < reqIds.size(); i++) {

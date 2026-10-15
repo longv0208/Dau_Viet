@@ -40,9 +40,11 @@
     "code-reviewer (agent): no blockers; should-fix items addressed — concurrent start race -> resume-winner (TransactionTemplate fresh tx, LearnerAttemptConcurrencyIT.concurrentStart_singleAttempt), cross-attempt same-key claim -> 409 IDEMPOTENCY_CONFLICT, key>160 -> 409, HiddenKeyLeakIT extended to /result + /me/attempts + /me/progress, myProgress bounded at 50",
     "mvnw verify after review fixes 2026-10-16: 148 unit + 148 Testcontainers IT, 0 failures, BUILD SUCCESS",
     "final review follow-up 2026-10-16: pg_advisory_xact_lock(hashtextextended(userId|lessonId)) serializes check+insert per (user,lesson) — cross-version race CLOSED without breaking version pinning; CrossVersionStartRaceIT (2, deterministic: republish between starts + 4-thread mid-race) proves exactly one IN_PROGRESS; score documented as completion percentage (not assessment) in LessonResult/scoreOf/API_SPEC/LEARNING_ENGINE_DESIGN",
-    "mvnw verify final 2026-10-16: 148 unit + 150 Testcontainers IT, 0 failures, BUILD SUCCESS"
+    "mvnw verify final 2026-10-16: 148 unit + 150 Testcontainers IT, 0 failures, BUILD SUCCESS",
+    "P1 review 2026-10-16: empty completion:{} early-complete CLOSED — evaluator no-clause config falls back to DEFAULT_ALL_REQUIRED (was complete=true with 0 done); DraftValidator PUBLISH rejects completion:{} (EMPTY_COMPLETION); AttemptCompletionIT.emptyCompletionConfig proves 409 after start on legacy {} snapshot + completes correctly after required work; stage.required vs activity.required semantics logged as open BA question (LEARNING_ENGINE_DESIGN §14)",
+    "mvnw verify after P1 fix 2026-10-16: 151 unit + 151 Testcontainers IT, 0 failures, BUILD SUCCESS"
   ],
-  "reviewRefs": ["code-reviewer agent report 2026-10-16: ship-ready, no blockers; all should-fix items resolved and re-verified green"],
+  "reviewRefs": ["code-reviewer agent report 2026-10-16: ship-ready, no blockers; all should-fix items resolved and re-verified green", "P1 findings 2026-10-16: completion:{} early-complete FIXED + regression IT; stage/activity required-flag semantics -> open BA question, no code change pending decision"],
   "nextAction": "Commit (auto-commit rule); no push without permission.",
   "baseCommit": "a9f6df8",
   "inputFingerprint": null,
@@ -52,5 +54,5 @@
   "resumeFrom": null,
   "handoffRef": null,
   "createdAt": "2026-10-16T03:48:00+07:00",
-  "updatedAt": "2026-10-16T04:30:00+07:00"
+  "updatedAt": "2026-10-16T04:45:00+07:00"
 }

@@ -18,8 +18,11 @@ import com.fasterxml.jackson.databind.node.ObjectNode;
  * Evaluates the snapshot `completion` config against AttemptState.
  * Clauses AND-combine: requireAllRequiredStages, requiredStageIds[],
  * minScore (percent of ALL required activities in the snapshot completed).
- * Absent completion config -> default rule: complete when no required
- * activity remains un-completed anywhere (DEFAULT_ALL_REQUIRED).
+ * Absent completion config — or a config object carrying no active clause
+ * (e.g. `completion:{}`) -> default rule: complete when no required
+ * activity remains un-completed anywhere (DEFAULT_ALL_REQUIRED). An
+ * empty config must never complete early (published-legacy snapshots
+ * predate the publish-time rejection in DraftValidator).
  */
 @Component
 public class LessonCompletionEvaluator {
@@ -78,10 +81,16 @@ public class LessonCompletionEvaluator {
         }
 
         // All specified clauses held — pick the deciding reason for reporting.
+        // A config object with NO active clause (`{}`, or only falsy/empty
+        // values) is not an opt-out: it falls back to the default rule so a
+        // lesson can never complete before its required work is done.
+        if (!requireAll && requiredStageIds.isEmpty() && minScore == null) {
+            boolean done = totalRequired == doneRequired;
+            return verdict(done, LessonCompletion.DEFAULT_ALL_REQUIRED, detail);
+        }
         String reason = requireAll ? LessonCompletion.ALL_REQUIRED_STAGES
                 : !requiredStageIds.isEmpty() ? LessonCompletion.REQUIRED_STAGE_IDS
-                : minScore != null ? LessonCompletion.MIN_SCORE
-                : LessonCompletion.DEFAULT_ALL_REQUIRED;
+                : LessonCompletion.MIN_SCORE;
         return verdict(true, reason, detail);
     }
 

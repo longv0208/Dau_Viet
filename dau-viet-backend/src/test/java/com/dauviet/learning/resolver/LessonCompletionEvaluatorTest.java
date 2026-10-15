@@ -61,6 +61,34 @@ class LessonCompletionEvaluatorTest {
     }
 
     @Test
+    void emptyCompletionObject_fallsBackToDefaultAllRequired() {
+        // `completion:{}` (legacy-published or hand-edited) must behave like
+        // an absent completion: NOT complete before all required work is done.
+        SnapshotModel m = SnapshotModel.parse(snapshotWithCompletion("{}"));
+        LessonCompletion fresh = evaluator.evaluate(m, done());
+        assertThat(fresh.complete()).isFalse();
+        assertThat(fresh.reason()).isEqualTo(LessonCompletion.NOT_COMPLETE);
+        assertThat(fresh.detail().get("completedRequired").asInt()).isZero();
+        assertThat(fresh.detail().get("totalRequired").asInt()).isEqualTo(4);
+
+        LessonCompletion doneAll = evaluator.evaluate(m, done("a1", "a2", "b1", "c1"));
+        assertThat(doneAll.complete()).isTrue();
+        assertThat(doneAll.reason()).isEqualTo(LessonCompletion.DEFAULT_ALL_REQUIRED);
+    }
+
+    @Test
+    void completionObjectWithoutActiveClause_fallsBackToDefault() {
+        // Clauses present but inert (empty ids array, false flag, null score)
+        // are equivalent to `{}` — never an early-complete opt-out.
+        SnapshotModel m = SnapshotModel.parse(snapshotWithCompletion(
+                "{\"requireAllRequiredStages\":false,\"requiredStageIds\":[],"
+              + "\"minScore\":null}"));
+        assertThat(evaluator.evaluate(m, done()).complete()).isFalse();
+        assertThat(evaluator.evaluate(m, done("a1", "a2", "b1", "c1")).complete())
+                .isTrue();
+    }
+
+    @Test
     void requireAllRequiredStages_optionalStageIgnored() {
         SnapshotModel m = SnapshotModel.parse(
                 snapshotWithCompletion("{\"requireAllRequiredStages\":true}"));

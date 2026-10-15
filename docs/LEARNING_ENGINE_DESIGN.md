@@ -282,7 +282,7 @@ Phần này ghi lại các quyết định semantic cho những điểm BA chưa
 
 **Activity id uniqueness** (chốt 2026-10-16): activity id phải unique **toàn snapshot** (runtime index theo id đơn, collision cross-stage sẽ shadow ngầm). Publish-time: `DUPLICATE_ID` → `422 DRAFT_SCHEMA_INVALID`; runtime hand-edited snapshot: `SnapshotCorruptException`.
 
-**Completion evaluator**: AND-combination của `requireAllRequiredStages`, `requiredStageIds`, `minScore`; vắng config → `DEFAULT_ALL_REQUIRED`. Reason ưu tiên `ALL_REQUIRED_STAGES` → `REQUIRED_STAGE_IDS` → `MIN_SCORE` → `DEFAULT_ALL_REQUIRED`; thất bại → `NOT_COMPLETE`.
+**Completion evaluator**: AND-combination của `requireAllRequiredStages`, `requiredStageIds`, `minScore`; vắng config → `DEFAULT_ALL_REQUIRED`. Reason ưu tiên `ALL_REQUIRED_STAGES` → `REQUIRED_STAGE_IDS` → `MIN_SCORE` → `DEFAULT_ALL_REQUIRED`; thất bại → `NOT_COMPLETE`. **Config rỗng/không-clause (đã chốt 2026-10-16 sau P1 review):** object `completion` không chứa clause nào được kích hoạt (`{}`, hoặc chỉ `requireAllRequiredStages:false` + `requiredStageIds:[]` + `minScore:null`) được evaluator coi như **vắng mặt** → `DEFAULT_ALL_REQUIRED`, KHÔNG được trả `complete=true` sớm (trước fix, `completion:{}` complete ngay với 0 activity). Phía authoring: `DraftValidator` reject `completion:{}` ở PUBLISH (`EMPTY_COMPLETION` → 422) để authoring intent tường minh; SAVE vẫn tolerant. Snapshot legacy đã publish trước siết vẫn an toàn nhờ fallback runtime.
 
 **MVP limits đã ghi nhận**: idempotency chỉ chấp nhận + log header (chưa persist); `complete` chỉ trả verdict, không flip `status`/ghi `lesson_results`/reward (TASK-0012); không dashboard/resume đa attempt (một active attempt per user+lesson theo partial unique index `learner_attempts`).
 
@@ -307,6 +307,7 @@ Phần này ghi lại các quyết định semantic cho những điểm BA chưa
 - Tỷ trọng điểm/retry/hint, số lần học lại, reward repeat và unlock conditions phải có product decision.
 - Reflection optional vs required từng template; Story/Result là stage hay presentation sau hoàn thành?
 - Island/energy/shop là metagame của mockup, chưa ép vào core engine.
+- **`stage.required` vs `activity.required` semantics (P1 review 2026-10-16, cần BA chốt):** default rule `DEFAULT_ALL_REQUIRED` đếm `activity.required=true` trên **mọi stage** — kể cả stage `required:false` (ví dụ REFLECTION optional chứa activity required). Nếu stage transition bỏ qua stage không-bắt-buộc, một lesson có activity "required-in-optional-stage" có thể **không thể complete**. Đây là hành vi có chủ đích theo test hiện tại (`absentCompletion_defaultAllRequiredRule` comment "c1 lives in optional stage but is still a required activity"), nhưng mâu thuẫn tiềm ẩn với "Reflection optional" ở trên — phải đối chiếu BA trước khi thay đổi (chưa sửa).
 
 ## 15. Sources
 
