@@ -13,6 +13,9 @@ app:
       - capacitor://localhost
   seed:
     enabled: true
+  security:
+    # Dev-only fallback; production MUST override via JWT_SECRET env.
+    jwt-secret: ${JWT_SECRET:local-dev-secret-change-me-32bytes-minimum-0123456789abcdef}
 
 logging:
   level:

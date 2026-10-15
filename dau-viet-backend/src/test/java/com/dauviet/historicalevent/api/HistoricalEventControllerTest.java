@@ -16,6 +16,8 @@ import org.springframework.boot.test.autoconfigure.web.servlet.WebMvcTest;
 import org.springframework.context.annotation.Import;
 import org.springframework.data.domain.PageImpl;
 import org.springframework.data.domain.PageRequest;
+import org.springframework.security.oauth2.jwt.JwtDecoder;
+import org.springframework.security.oauth2.server.resource.authentication.JwtAuthenticationConverter;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.test.web.servlet.MockMvc;
 
@@ -40,6 +42,14 @@ class HistoricalEventControllerTest {
 
     @MockitoBean
     private HistoricalEventService service;
+
+    // Resource-server beans are absent from the @WebMvcTest slice; mocks keep
+    // the security filter chain wiring loadable without a real JwtDecoder.
+    @MockitoBean
+    private JwtDecoder jwtDecoder;
+
+    @MockitoBean
+    private JwtAuthenticationConverter jwtAuthenticationConverter;
 
     private HistoricalEventSummaryDto summary() {
         return new HistoricalEventSummaryDto(ID, "bach-dang-938", "Đại Chiến Bạch Đằng 938",

@@ -30,3 +30,8 @@ app:
     allowed-origins: []
   seed:
     enabled: false
+  security:
+    # HS256 signing secret — set JWT_SECRET (>= 32 bytes) outside local dev.
+    jwt-secret: ${JWT_SECRET:}
+    access-token-ttl-seconds: 900
+    refresh-token-ttl-seconds: 1209600

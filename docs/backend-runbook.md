@@ -66,6 +66,33 @@ flutter run --dart-define=USE_MOCK=true                    # demo offline, khôn
 
 Khi API lỗi app hiển thị lỗi + THỬ LẠI; không tự động đổi sang mock.
 
+## Authentication (TASK-0007)
+
+Endpoints (public): `POST /api/v1/auth/register|login|refresh|logout`.
+Protected: `GET /api/v1/users/me` (any authenticated), `/api/v1/admin/**`
+(requires `CONTENT_ADMIN`).
+
+- **JWT secret** — env `JWT_SECRET`, HS256 needs >= 32 bytes. Local dev has a
+  fallback in `application-local.yml`; production MUST set the env var or the
+  app fails to start. Generate: `openssl rand -base64 48`.
+- **TTLs** — `app.security.access-token-ttl-seconds` (default 900),
+  `app.security.refresh-token-ttl-seconds` (default 1209600 = 14 days).
+- **Admin bootstrap (dev)** — with profile `local` + `app.seed.enabled=true`,
+  set `ADMIN_EMAIL` + `ADMIN_PASSWORD` (optional `ADMIN_DISPLAY_NAME`) env vars
+  before launching: `AdminBootstrapRunner` creates the account insert-only
+  (never overwrites or promotes an existing user).
+- **Admin bootstrap (non-local)** — insert directly, e.g.:
+
+  ```sql
+  INSERT INTO users (id, email, password_hash, display_name, role, status)
+  VALUES (gen_random_uuid(), 'admin@example.com',
+          '<bcrypt-hash>', 'Admin', 'CONTENT_ADMIN', 'ACTIVE');
+  ```
+
+  Hash a password with any BCrypt tool (e.g. `htpasswd -bnBC 10 "" pw | tr -d ':\n'`).
+
+Quick check: `curl -X POST localhost:8080/api/v1/auth/register -H "Content-Type: application/json" -d '{"email":"a@b.vn","password":"password123"}'` → 201.
+
 ## Common issues
 
 - **`JAVA_HOME` broken** — the env var points to `C:\Program Files\Java\jdk-21`

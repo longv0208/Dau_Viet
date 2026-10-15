@@ -89,6 +89,20 @@ public class GlobalExceptionHandler {
         return build(HttpStatus.NOT_FOUND, ErrorCode.EVENT_NOT_FOUND, ex.getMessage(), Map.of());
     }
 
+    @ExceptionHandler(com.dauviet.auth.domain.EmailTakenException.class)
+    public ResponseEntity<ApiError> handleEmailTaken(
+            com.dauviet.auth.domain.EmailTakenException ex) {
+        return build(HttpStatus.CONFLICT, ErrorCode.EMAIL_TAKEN,
+                "Email already registered", Map.of());
+    }
+
+    @ExceptionHandler(com.dauviet.auth.domain.AuthenticationFailedException.class)
+    public ResponseEntity<ApiError> handleAuthFailed(
+            com.dauviet.auth.domain.AuthenticationFailedException ex) {
+        return build(HttpStatus.UNAUTHORIZED, ErrorCode.INVALID_CREDENTIALS,
+                "Invalid credentials", Map.of());
+    }
+
     @ExceptionHandler(IllegalArgumentException.class)
     public ResponseEntity<ApiError> handleIllegalArgument(IllegalArgumentException ex) {
         Map<String, Object> details = Map.of("reason", ex.getMessage() == null ? "invalid argument" : ex.getMessage());

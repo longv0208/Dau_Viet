@@ -38,10 +38,11 @@
 
 | Method | Path | Mục đích |
 |---|---|---|
-| POST | `/auth/register` | Đăng ký |
-| POST | `/auth/login` | Trả access + refresh token theo policy |
-| POST | `/auth/refresh` | Rotate refresh token |
-| POST | `/auth/logout` | Revoke refresh session |
+| POST | `/auth/register` | Đăng ký — **đã implement** (TASK-0007) |
+| POST | `/auth/login` | Trả access + refresh token — **đã implement** (TASK-0007) |
+| POST | `/auth/refresh` | Rotate refresh token — **đã implement** (TASK-0007) |
+| POST | `/auth/logout` | Revoke refresh session — **đã implement** (TASK-0007) |
+| GET | `/users/me` | Profile hiện tại — **đã implement** (TASK-0007) |
 | GET | `/me` | Profile / level / EXP khi hỗ trợ |
 | GET | `/events` | Danh sách event/lesson published — **đã implement** (TASK-0005) |
 | GET | `/events/{eventId}` | Metadata event, available lessons — **đã implement** (TASK-0005) |
@@ -152,8 +153,24 @@ Content-Type: application/json
 
 `GET /api/v1/events/{id}` trả thêm `description`, `location`, `publishedAt` (nullable cho tới khi có cột `published_at`); `{id}` phải là UUID, nếu không → 400 `MALFORMED_ID`; không tồn tại hoặc chưa publish → 404 `EVENT_NOT_FOUND`.
 
-- Security hiện tại: permit-all cho `GET /api/v1/events/**` + actuator health/info; mọi endpoint khác → 401 `UNAUTHORIZED` (chưa có JWT).
+- Security hiện tại: permit-all cho `GET /api/v1/events/**` + actuator health/info + `POST /api/v1/auth/**`; `/api/v1/admin/**` cần `CONTENT_ADMIN`; còn lại cần JWT Bearer.
 - Error envelope `{code, message, details, traceId}` đã active; mọi response mang header `X-Request-Id` (echo hoặc generate).
+
+### Auth endpoints (implemented — TASK-0007)
+
+`POST /api/v1/auth/register` — body `{email, password, displayName?, role?}`; `role` khác null → 400 `VALIDATION_ERROR` (không cho tự gán quyền); email chuẩn hoá `trim().toLowerCase`; trùng email → 409 `EMAIL_TAKEN`; thành công → 201 profile DTO (không chứa hash).
+
+`POST /api/v1/auth/login` — `{email, password}` → 200 `{accessToken, tokenType:"Bearer", expiresIn, refreshToken, refreshExpiresIn}`. Sai mật khẩu / không tồn tại / LOCKED / DISABLED → 401 `INVALID_CREDENTIALS` (đồng nhất, không lộ tài khoản tồn tại).
+
+`POST /api/v1/auth/refresh` — `{refreshToken}` → 200 cặp token mới (rotation: token cũ revoked, `previous_token_id` chain trong cùng `token_family_id`). Token đã revoked/replayed → 401 và **toàn bộ family bị thu hồi** (reuse detection). Hết hạn → 401.
+
+`POST /api/v1/auth/logout` — `{refreshToken}` → 204, idempotent (retry vẫn 204, refresh sau logout → 401).
+
+`GET /api/v1/users/me` — cần `Authorization: Bearer <access>`; trả `{id, email, displayName, role, status, emailVerifiedAt, createdAt}`; subject sai định dạng → 401.
+
+`GET /api/v1/admin/ping` — placeholder gating: anonymous 401, LEARNER 403, CONTENT_ADMIN 200 `{status:"ok"}`.
+
+Access token: JWT HS256 (sub = user UUID, claim `role`); access TTL mặc định 900s, refresh TTL 1209600s — cấu hình qua `app.security.*`. Secret từ `JWT_SECRET` env (≥32 bytes); fallback dev trong `application-local.yml`.
 
 ## 3. Admin / CMS API endpoints
 
