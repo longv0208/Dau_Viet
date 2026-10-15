@@ -158,8 +158,10 @@ class StageTransitionResolverTest {
     }
 
     @Test
-    void revision_missingTarget_fallsThroughToForward() {
-        // onPartial points at a stage that doesn't exist -> treat as normal
+    void revision_missingTarget_incompleteRequired_staysNotForward() {
+        // onPartial points at a stage that doesn't exist -> hop can't fire;
+        // required activity still incomplete -> cursor stays (TASK-0011 fix:
+        // previously this fell through to forward advance and soft-locked).
         JsonNode snap = json("""
                 {"stages":[
                   {"id":"ver","type":"VERIFICATION","activities":[
@@ -172,6 +174,28 @@ class StageTransitionResolverTest {
                 """);
         SnapshotModel m = SnapshotModel.parse(snap);
         AttemptState s = at("ver", "vf");
+        var t = resolver.resolve(m, s, "vf", ActivityResult.PARTIAL);
+        assertThat(t.nextActivity()).isNotNull();
+        assertThat(t.nextActivity().activityId()).isEqualTo("vf");
+        assertThat(t.nextActivity().stageId()).isEqualTo("ver");
+    }
+
+    @Test
+    void revision_missingTarget_completedRequired_fallsThroughToForward() {
+        // same shape but activity already completed -> normal forward walk
+        JsonNode snap = json("""
+                {"stages":[
+                  {"id":"ver","type":"VERIFICATION","activities":[
+                    {"id":"vf","type":"VERIFICATION","required":true,
+                     "onPartial":"ghost"}],
+                   "nextStageIds":["end"]},
+                  {"id":"end","type":"CONCLUSION","activities":[
+                    {"id":"cer","type":"CER","required":true}],
+                   "nextStageIds":[]}]}
+                """);
+        SnapshotModel m = SnapshotModel.parse(snap);
+        AttemptState s = at("ver", "vf");
+        s.markCompleted("vf");
         var t = resolver.resolve(m, s, "vf", ActivityResult.PARTIAL);
         assertThat(t.nextStage().stageId()).isEqualTo("end");
         assertThat(t.nextStage().reason()).isEqualTo(NextStage.FORWARD);
@@ -202,6 +226,81 @@ class StageTransitionResolverTest {
         s2.markCompleted("bq");
         var t2 = resolver.resolve(m, s2, "bq", ActivityResult.COMPLETED);
         assertThat(t2).isNull();
+    }
+
+    /* ---- step (0): incomplete required keeps cursor (TASK-0011 fixes) ---- */
+
+    @Test
+    void requiredIncomplete_staysOnSameActivity() {
+        SnapshotModel m = SnapshotModel.parse(linear());
+        AttemptState s = at("ctx", "rq");
+        // rq required, not completed -> resolver must NOT advance past it
+        var t = resolver.resolve(m, s, "rq", ActivityResult.INCORRECT);
+        assertThat(t.nextActivity()).isNotNull();
+        assertThat(t.nextActivity().stageId()).isEqualTo("ctx");
+        assertThat(t.nextActivity().activityId()).isEqualTo("rq");
+    }
+
+    @Test
+    void requiredIncomplete_partial_outcomeDrivenHopWins() {
+        // VERIFICATION-style required act with onPartial -> REVISE hop beats stay
+        JsonNode snap = json("""
+                {"stages":[
+                  {"id":"hyp","type":"HYPOTHESIS","activities":[
+                    {"id":"hc","type":"HYPOTHESIS_CHOICE","required":true}],
+                   "nextStageIds":[]},
+                  {"id":"ver","type":"VERIFICATION","activities":[
+                    {"id":"vf","type":"VERIFICATION","required":true,
+                     "onPartial":"hyp","onContradicted":"hyp"}],
+                   "nextStageIds":[]}]}
+                """);
+        SnapshotModel m = SnapshotModel.parse(snap);
+        AttemptState s = at("ver", "vf");
+        var t = resolver.resolve(m, s, "vf", ActivityResult.PARTIAL);
+        assertThat(t.nextStage()).isNotNull();
+        assertThat(t.nextStage().stageId()).isEqualTo("hyp");
+        assertThat(t.nextStage().reason()).isEqualTo(NextStage.REVISE);
+    }
+
+    @Test
+    void requiredIncomplete_noHopTarget_stays() {
+        JsonNode snap = json("""
+                {"stages":[
+                  {"id":"ver","type":"VERIFICATION","activities":[
+                    {"id":"vf","type":"VERIFICATION","required":true,
+                     "onPartial":"ghost"}],
+                   "nextStageIds":["end"]},
+                  {"id":"end","type":"CONCLUSION","activities":[
+                    {"id":"cer","type":"CER","required":true}],
+                   "nextStageIds":[]}]}
+                """);
+        SnapshotModel m = SnapshotModel.parse(snap);
+        AttemptState s = at("ver", "vf");
+        var t = resolver.resolve(m, s, "vf", ActivityResult.PARTIAL);
+        assertThat(t.nextActivity()).isNotNull();
+        assertThat(t.nextActivity().activityId()).isEqualTo("vf");
+        assertThat(t.nextActivity().stageId()).isEqualTo("ver");
+    }
+
+    @Test
+    void optionalIncomplete_stillAdvances() {
+        SnapshotModel m = SnapshotModel.parse(linear());
+        AttemptState s = at("ctx", "opt");
+        // optional "opt" not completed — never blocks; next required is rq
+        var t = resolver.resolve(m, s, "opt", ActivityResult.IN_PROGRESS);
+        assertThat(t.nextActivity()).isNotNull();
+        assertThat(t.nextActivity().activityId()).isEqualTo("rq");
+    }
+
+    @Test
+    void exhausted_completedRequired_advances() {
+        // retry budget spent -> handler reported completed -> advance normally
+        SnapshotModel m = SnapshotModel.parse(linear());
+        AttemptState s = at("ctx", "rq");
+        s.markCompleted("rq");
+        var t = resolver.resolve(m, s, "rq", ActivityResult.INCORRECT);
+        assertThat(t.nextStage()).isNotNull();
+        assertThat(t.nextStage().stageId()).isEqualTo("ev");
     }
 
     @Test

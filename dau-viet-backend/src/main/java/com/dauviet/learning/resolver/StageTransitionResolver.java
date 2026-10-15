@@ -15,9 +15,12 @@ import com.fasterxml.jackson.databind.JsonNode;
 
 /**
  * Decides the next executable pointer after a submission.
- * Order: (a) first incomplete required activity after the current one inside
- * the same stage; (b) REVISE hop when the last outcome maps through the
- * activity's onPartial/onContradicted field; (c) first nextStageIds target
+ * Order: (0) the just-submitted activity is required and not completed ->
+ * REVISE hop when its outcome maps through onPartial/onContradicted, else
+ * STAY on the same activity so the learner can retry (fixes the advance-
+ * past-failure soft-lock); then, for completed or optional submissions:
+ * (a) first incomplete required activity after the current one inside
+ * the same stage; (b) REVISE hop; (c) first nextStageIds target
  * still holding incomplete required activities (skipping required-free
  * stages recursively, cycle-guarded); (d) first stage in array order with
  * incomplete required activities — deterministic policy for convergent
@@ -44,6 +47,21 @@ public class StageTransitionResolver {
             return null;
         }
 
+        // (0) incomplete REQUIRED submission: retry, or revise when authored.
+        // Without this the cursor advanced past failed required work and the
+        // submit guard locked every later retry (soft-lock).
+        JsonNode activity = model.activityById(lastActivityId);
+        boolean lastRequiredIncomplete = activity != null
+                && activity.path("required").asBoolean(false)
+                && !state.isCompleted(lastActivityId);
+        if (lastRequiredIncomplete) {
+            NextStage hop = reviseTarget(model, activity, lastOutcome);
+            if (hop != null) {
+                return Transition.of(hop);
+            }
+            return Transition.of(toNextActivity(model, stageId, lastActivityId));
+        }
+
         // (a) same-stage progression
         String nextInStage = nextIncompleteRequired(
                 model.activitiesOf(stageId), state, lastActivityId);
@@ -52,21 +70,10 @@ public class StageTransitionResolver {
         }
 
         // (b) outcome-driven revision hop
-        JsonNode activity = model.activityById(lastActivityId);
         if (activity != null) {
-            String field = switch (lastOutcome == null ? "" : lastOutcome) {
-                case ActivityResult.PARTIAL -> "onPartial";
-                case ActivityResult.CONTRADICTED -> "onContradicted";
-                default -> null;
-            };
-            if (field != null) {
-                JsonNode target = activity.get(field);
-                if (target != null && target.isTextual()
-                        && model.stageById(target.asText()) != null) {
-                    return Transition.of(new NextStage(
-                            target.asText(), stageTypeOf(model, target.asText()),
-                            NextStage.REVISE));
-                }
+            NextStage hop = reviseTarget(model, activity, lastOutcome);
+            if (hop != null) {
+                return Transition.of(hop);
             }
         }
 
@@ -86,6 +93,27 @@ public class StageTransitionResolver {
                 return Transition.of(new NextStage(
                         sid, stageTypeOf(model, sid), NextStage.FORWARD));
             }
+        }
+        return null;
+    }
+
+    /**
+     * REVISE hop target for the activity's onPartial/onContradicted field, or
+     * null when the outcome maps to no field or the target stage is missing.
+     */
+    private NextStage reviseTarget(SnapshotModel model, JsonNode activity,
+                                   String lastOutcome) {
+        String field = switch (lastOutcome == null ? "" : lastOutcome) {
+            case ActivityResult.PARTIAL -> "onPartial";
+            case ActivityResult.CONTRADICTED -> "onContradicted";
+            default -> null;
+        };
+        if (field == null) return null;
+        JsonNode target = activity.get(field);
+        if (target != null && target.isTextual()
+                && model.stageById(target.asText()) != null) {
+            return new NextStage(target.asText(),
+                    stageTypeOf(model, target.asText()), NextStage.REVISE);
         }
         return null;
     }

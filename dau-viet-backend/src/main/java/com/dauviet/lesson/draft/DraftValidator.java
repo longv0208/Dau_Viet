@@ -82,7 +82,11 @@ public class DraftValidator {
 
         JsonNode stages = draft.get("stages");
         if (stages != null && stages.isArray()) {
-            validateStages(stages, stageIds, stageById, transitions, ctx, errors);
+            // Activity ids share one global namespace inside a snapshot —
+            // the runtime indexes activities by id alone, so a collision
+            // across stages would silently shadow an activity.
+            Set<String> activityIds = new HashSet<>();
+            validateStages(stages, stageIds, stageById, transitions, activityIds, ctx, errors);
         } else if (level == ValidationLevel.PUBLISH) {
             errors.add(new FieldError("stages", "MISSING_FIELD", "stages array required"));
         }
@@ -128,6 +132,7 @@ public class DraftValidator {
     private void validateStages(JsonNode stages, Set<String> stageIds,
                                 Map<String, JsonNode> stageById,
                                 Map<String, List<String>> transitions,
+                                Set<String> activityIds,
                                 ValidationContext ctx,
                                 List<FieldError> errors) {
         for (int i = 0; i < stages.size(); i++) {
@@ -150,7 +155,7 @@ public class DraftValidator {
 
             collectTransitions(stage, id, transitions, errors, base);
             validateStageEvidenceRefs(stage, base, ctx, errors);
-            validateActivities(stage, st, base, ctx, errors);
+            validateActivities(stage, st, base, activityIds, ctx, errors);
         }
     }
 
@@ -191,11 +196,11 @@ public class DraftValidator {
     }
 
     private void validateActivities(JsonNode stage, StageType stageType,
-                                    String stagePath, ValidationContext ctx,
+                                    String stagePath, Set<String> activityIds,
+                                    ValidationContext ctx,
                                     List<FieldError> errors) {
         JsonNode acts = stage.get("activities");
         if (acts == null || !acts.isArray()) return;
-        Set<String> actIds = new HashSet<>();
         for (int j = 0; j < acts.size(); j++) {
             JsonNode act = acts.get(j);
             String apath = stagePath + ".activities[" + j + "]";
@@ -205,7 +210,7 @@ public class DraftValidator {
             }
             checkUnknownKeys(act, DraftSchema.ACTIVITY_KEYS, apath, errors);
             String actId = validateId(act.get("id"), apath + ".id", errors);
-            if (actId != null && !actIds.add(actId)) {
+            if (actId != null && !activityIds.add(actId)) {
                 errors.add(new FieldError(apath + ".id", "DUPLICATE_ID",
                         "duplicate activity id '" + actId + "'"));
             }

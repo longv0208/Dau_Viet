@@ -77,6 +77,22 @@ class SnapshotModelTest {
     }
 
     @Test
+    void duplicateActivityIdAcrossStages_throwsSnapshotCorrupt() {
+        // Runtime indexes activities by id alone — a cross-stage collision
+        // would silently shadow the earlier activity; reject at parse time.
+        JsonNode snap = json("""
+                {"stages":[
+                  {"id":"a","type":"CONTEXT","activities":[
+                    {"id":"xa","type":"READ"}],"nextStageIds":["b"]},
+                  {"id":"b","type":"EVIDENCE","activities":[
+                    {"id":"xa","type":"READ"}],"nextStageIds":[]}]}
+                """);
+        assertThatThrownBy(() -> SnapshotModel.parse(snap))
+                .isInstanceOf(SnapshotCorruptException.class)
+                .hasMessageContaining("duplicate activity id 'xa'");
+    }
+
+    @Test
     void activityMissingId_throwsSnapshotCorrupt() {
         assertThatThrownBy(() -> SnapshotModel.parse(json(
                 "{\"stages\":[{\"id\":\"s\",\"activities\":[{\"type\":\"READ\"}]}]}")))

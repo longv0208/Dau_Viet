@@ -257,6 +257,173 @@ class LearnerAttemptApiIT extends AbstractPostgresIT {
         assertThat(body.at("/activity/config/options").isArray()).isTrue();
     }
 
+    /* ---------- TASK-0011 correctness fixes ---------- */
+
+    private static final String MC_CONFIG_RETRY =
+            "{\"question\":\"q\",\"options\":[{\"id\":\"o1\"},{\"id\":\"o2\"}],"
+          + "\"correctOptionIds\":[\"o1\"],\"maxAttempts\":2}";
+
+    private String publishOptional() throws Exception {
+        return AttemptItFixture.publishLesson(mvc, om, adminToken, eventId, tplId,
+                AttemptItFixture.draftWithOptional(evId, MC_CONFIG_RETRY));
+    }
+
+    private JsonNode currentOf(String attemptId) throws Exception {
+        MvcResult res = mvc.perform(get("/api/v1/attempts/" + attemptId + "/current")
+                        .header("Authorization", learnerToken))
+                .andExpect(status().isOk()).andReturn();
+        return AttemptItFixture.body(om, res);
+    }
+
+    private JsonNode progressOf(String attemptId) throws Exception {
+        MvcResult res = mvc.perform(get("/api/v1/attempts/" + attemptId)
+                        .header("Authorization", learnerToken))
+                .andExpect(status().isOk()).andReturn();
+        return AttemptItFixture.body(om, res);
+    }
+
+    @Test
+    void requiredFailure_retryStaysThenExhaustionAdvances() throws Exception {
+        String lessonId = publishOptional();
+        String attemptId = AttemptItFixture.startAttempt(mvc, om, learnerToken, lessonId);
+
+        submit(learnerToken, attemptId, "r1", "{}");
+
+        // wrong answer #1 of 2 -> INCORRECT, not completed, cursor stays on mc
+        MvcResult w1 = submit(learnerToken, attemptId, "mc",
+                "{\"selectedOptionIds\":[\"o2\"]}");
+        JsonNode w1Body = AttemptItFixture.body(om, w1);
+        assertThat(w1Body.get("evaluation").get("outcome").asText()).isEqualTo("INCORRECT");
+        assertThat(w1Body.get("activityCompleted").asBoolean()).isFalse();
+        assertThat(w1Body.get("next").get("activityId").asText()).isEqualTo("mc");
+        assertThat(currentOf(attemptId).get("activity").get("id").asText()).isEqualTo("mc");
+        assertThat(progressOf(attemptId).get("progress").get("completedRequired").asInt())
+                .isEqualTo(1);
+
+        // retry is accepted (was soft-locked before the fix)
+        MvcResult w2 = submit(learnerToken, attemptId, "mc",
+                "{\"selectedOptionIds\":[\"o2\"]}");
+        JsonNode w2Body = AttemptItFixture.body(om, w2);
+        assertThat(w2Body.get("evaluation").get("output").get("exhausted").asBoolean()).isTrue();
+        assertThat(w2Body.get("activityCompleted").asBoolean()).isTrue();
+
+        // exhausted -> advanced; required count now 2/2 -> lesson complete
+        JsonNode prog = progressOf(attemptId);
+        assertThat(prog.get("progress").get("completedRequired").asInt()).isEqualTo(2);
+        assertThat(prog.get("completion").get("complete").asBoolean()).isTrue();
+    }
+
+    @Test
+    void optionalActivity_submittable_recordsWithoutMovingCursor() throws Exception {
+        String lessonId = publishOptional();
+        String attemptId = AttemptItFixture.startAttempt(mvc, om, learnerToken, lessonId);
+        // cursor at r1; opt1/mcOpt are optional in the same stage
+
+        MvcResult o1 = submit(learnerToken, attemptId, "opt1", "{}");
+        JsonNode o1Body = AttemptItFixture.body(om, o1);
+        assertThat(o1.getResponse().getStatus()).isEqualTo(200);
+        assertThat(o1Body.get("activityCompleted").asBoolean()).isTrue();
+        // next echoes the unchanged cursor — still r1
+        assertThat(o1Body.get("next").get("activityId").asText()).isEqualTo("r1");
+        assertThat(currentOf(attemptId).get("activity").get("id").asText()).isEqualTo("r1");
+        // progress unchanged — optionals never count
+        assertThat(progressOf(attemptId).get("progress").get("totalRequired").asInt())
+                .isEqualTo(2);
+        assertThat(progressOf(attemptId).get("progress").get("completedRequired").asInt())
+                .isEqualTo(0);
+
+        // optional EVIDENCE_SELECT evaluates too — but lives in stage ev,
+        // not current stage ctx, so it is NOT accessible yet
+        MvcResult notYet = submit(learnerToken, attemptId, "es-opt",
+                "{\"selectedEvidenceIds\":[\"" + evId + "\"]}");
+        assertThat(notYet.getResponse().getStatus()).isEqualTo(409);
+
+        // skipping: learner proceeds by submitting the required cursor activity
+        submit(learnerToken, attemptId, "r1", "{}");
+        assertThat(currentOf(attemptId).get("activity").get("id").asText()).isEqualTo("mc");
+
+        // now inside ev: optional esOpt in CURRENT stage is submittable
+        MvcResult o2 = submit(learnerToken, attemptId, "es-opt",
+                "{\"selectedEvidenceIds\":[\"" + evId + "\"]}");
+        JsonNode o2Body = AttemptItFixture.body(om, o2);
+        assertThat(o2.getResponse().getStatus()).isEqualTo(200);
+        assertThat(o2Body.get("activityCompleted").asBoolean()).isTrue();
+        // cursor still on required mc
+        assertThat(currentOf(attemptId).get("activity").get("id").asText()).isEqualTo("mc");
+
+        // activity_attempts rows recorded for optional submits (opt1 + esOpt)
+        Integer rows = jdbc.queryForObject(
+                "select count(*) from activity_attempts where learner_attempt_id = ?::uuid",
+                Integer.class, attemptId);
+        assertThat(rows).isEqualTo(3);
+
+        // optional in a PREVIOUS stage is no longer accessible
+        MvcResult stale = submit(learnerToken, attemptId, "opt1", "{}");
+        assertThat(stale.getResponse().getStatus()).isEqualTo(409);
+        // optional submit never leaks hidden keys
+        assertNoHiddenKeys(o2Body);
+    }
+
+    @Test
+    void multiStage_cursorAndProgressConsistentAfterEverySubmit() throws Exception {
+        String lessonId = publishOptional();
+        String attemptId = AttemptItFixture.startAttempt(mvc, om, learnerToken, lessonId);
+
+        // r1 -> mc (ev stage), then correct mc -> nothing left
+        submit(learnerToken, attemptId, "r1", "{}");
+        JsonNode cur = currentOf(attemptId);
+        assertThat(cur.get("activity").get("id").asText()).isEqualTo("mc");
+        assertThat(cur.get("stage").get("id").asText()).isEqualTo("ev");
+
+        MvcResult fin = submit(learnerToken, attemptId, "mc",
+                "{\"selectedOptionIds\":[\"o1\"]}");
+        JsonNode finBody = AttemptItFixture.body(om, fin);
+        assertThat(finBody.get("activityCompleted").asBoolean()).isTrue();
+        assertThat(finBody.get("completion").get("complete").asBoolean()).isTrue();
+
+        JsonNode prog = progressOf(attemptId);
+        assertThat(prog.get("progress").get("completedRequired").asInt()).isEqualTo(2);
+        assertThat(prog.get("progress").get("totalRequired").asInt()).isEqualTo(2);
+        // cursor response and progress response agree
+        assertThat(prog.get("currentActivityId").isNull()
+                || !prog.get("currentActivityId").asText().isBlank()).isTrue();
+    }
+
+    @Test
+    void duplicateActivityIdAcrossStages_publishRejected422() throws Exception {
+        String draft = """
+                {"schemaVersion":1,
+                 "stages":[
+                   {"id":"ctx","type":"CONTEXT","required":true,
+                    "activities":[{"id":"r1","type":"READ","required":true,
+                                    "config":{"text":"a"}}],
+                    "nextStageIds":["ev"]},
+                   {"id":"ev","type":"EVIDENCE","required":true,
+                    "activities":[{"id":"r1","type":"READ","required":true,
+                                    "config":{"text":"b"}}],
+                    "nextStageIds":[]}],
+                 "completion":{"requireAllRequiredStages":true}}
+                """;
+        // create lesson with this draft -> publish must fail DRAFT_SCHEMA_INVALID
+        var req = new java.util.LinkedHashMap<String, Object>();
+        req.put("eventId", eventId);
+        req.put("templateId", tplId);
+        req.put("title", "L");
+        req.put("centralQuestion", "Q?");
+        req.put("draftJson", draft);
+        MvcResult created = mvc.perform(post("/api/v1/admin/lessons")
+                        .header("Authorization", adminToken)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(om.writeValueAsString(req)))
+                .andExpect(status().isCreated()).andReturn();
+        String lessonId = om.readTree(created.getResponse().getContentAsString())
+                .get("id").asText();
+        mvc.perform(post("/api/v1/admin/lessons/" + lessonId + "/publish")
+                        .header("Authorization", adminToken))
+                .andExpect(status().isUnprocessableEntity())
+                .andExpect(jsonPath("$.code").value("DRAFT_SCHEMA_INVALID"));
+    }
+
     private void assertNoHiddenKeys(JsonNode node) {
         java.util.List<String> found = new java.util.ArrayList<>();
         collect(node, found);

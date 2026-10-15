@@ -162,9 +162,11 @@ public class LearnerAttemptService {
 
     /**
      * Evaluate one submission inside a pessimistic-locked transaction.
-     * The cursor check (activityId == state.currentActivityId) prevents
-     * skipping; a retried submit after advancement reads as
-     * ACTIVITY_NOT_AVAILABLE rather than double-applying.
+     * Accepts the activity at the cursor, or any OPTIONAL activity inside the
+     * current stage (submittable without moving the cursor — optional work is
+     * experienced or skipped freely). A retried submit after advancement past
+     * a required activity reads as ACTIVITY_NOT_AVAILABLE; required activity
+     * submits that stay incomplete keep the cursor so retries are possible.
      */
     @Transactional
     public SubmitActivityResponse submit(UUID userId, UUID attemptId,
@@ -184,11 +186,19 @@ public class LearnerAttemptService {
         }
         SnapshotModel model = snapshotOf(a.getLessonVersionId());
         AttemptState state = AttemptState.fromJson(parse(a.getStateJson()));
-        if (activityId == null || !activityId.equals(state.currentActivityId())) {
+        JsonNode activity = model.activityById(activityId);
+        boolean onCursor = activityId != null
+                && activityId.equals(state.currentActivityId());
+        // Optional activities in the CURRENT stage are submittable without
+        // moving the cursor — learners experience them or skip past freely.
+        boolean optionalInStage = !onCursor && activity != null
+                && !activity.path("required").asBoolean(false)
+                && state.currentStageId() != null
+                && state.currentStageId().equals(model.stageIdOf(activityId));
+        if (!onCursor && !optionalInStage) {
             throw new ActivityNotAvailableException(
                     "activity " + activityId + " is not the current activity");
         }
-        JsonNode activity = model.activityById(activityId);
         if (activity == null) {
             throw new SnapshotCorruptException(
                     "current activity missing from pinned snapshot: " + activityId);
@@ -211,33 +221,21 @@ public class LearnerAttemptService {
         activityAttempts.save(ActivityAttempt.of(a.getId(), activityId, attemptNo,
                 answer == null ? "{}" : answer.toString(), resultJson(result)));
 
-        var transition = transitionResolver.resolve(model, state, activityId, result.outcome());
-        if (transition != null && transition.nextStage() != null) {
+        StageTransitionResolver.Transition transition = optionalInStage ? null
+                : transitionResolver.resolve(model, state, activityId, result.outcome());
+        if (!optionalInStage && transition != null && transition.nextStage() != null) {
             state.setCurrentStageId(transition.nextStage().stageId());
             state.setCurrentActivityId(
                     model.firstRequiredActivityId(transition.nextStage().stageId()));
-        } else if (transition != null && transition.nextActivity() != null) {
+        } else if (!optionalInStage && transition != null && transition.nextActivity() != null) {
             state.setCurrentActivityId(transition.nextActivity().activityId());
         }
-        // transition == null: keep cursor — lesson is finished by progression.
+        // transition == null or optional submit: keep cursor unchanged.
         a.recordProgress(state);
         attempts.save(a);
 
         LessonCompletion completion = completionEvaluator.evaluate(model, state);
-        SubmitActivityResponse.Next next = transition == null ? null
-                : transition.nextActivity() != null
-                ? new SubmitActivityResponse.Next(
-                        transition.nextActivity().stageId(),
-                        transition.nextActivity().activityId(),
-                        transition.nextActivity().activityType(),
-                        transition.nextActivity().learnerConfig() == null ? null
-                                : projection.projectActivity(
-                                        model.activityById(transition.nextActivity().activityId()))
-                                        .get("config"))
-                : new SubmitActivityResponse.Next(
-                        transition.nextStage().stageId(),
-                        model.firstRequiredActivityId(transition.nextStage().stageId()),
-                        null, null);
+        SubmitActivityResponse.Next next = nextDto(model, state, transition, optionalInStage);
         return new SubmitActivityResponse("ACCEPTED", result, result.completed(),
                 progressOf(model, state), next, completion);
     }
@@ -249,6 +247,39 @@ public class LearnerAttemptService {
         SnapshotModel model = snapshotOf(a.getLessonVersionId());
         AttemptState state = AttemptState.fromJson(parse(a.getStateJson()));
         return completionEvaluator.evaluate(model, state);
+    }
+
+    /**
+     * Build the learner-facing `next` pointer: for optional off-cursor submits
+     * the cursor did not move, so `next` echoes the unchanged cursor; for
+     * on-cursor submits it mirrors the resolver transition.
+     */
+    private SubmitActivityResponse.Next nextDto(SnapshotModel model, AttemptState state,
+                                                StageTransitionResolver.Transition transition,
+                                                boolean optionalInStage) {
+        if (optionalInStage) {
+            if (state.currentActivityId() == null) return null;
+            return cursorNext(model, state.currentStageId(), state.currentActivityId());
+        }
+        if (transition == null) return null;
+        if (transition.nextActivity() != null) {
+            var na = transition.nextActivity();
+            return cursorNext(model, na.stageId(), na.activityId());
+        }
+        return new SubmitActivityResponse.Next(
+                transition.nextStage().stageId(),
+                model.firstRequiredActivityId(transition.nextStage().stageId()),
+                null, null);
+    }
+
+    private SubmitActivityResponse.Next cursorNext(SnapshotModel model,
+                                                   String stageId, String activityId) {
+        JsonNode act = model.activityById(activityId);
+        JsonNode projectedConfig = act == null ? null
+                : projection.projectActivity(act).get("config");
+        return new SubmitActivityResponse.Next(stageId, activityId,
+                act == null ? null : act.path("type").asText(null),
+                projectedConfig);
     }
 
     /* ---------- internals ---------- */

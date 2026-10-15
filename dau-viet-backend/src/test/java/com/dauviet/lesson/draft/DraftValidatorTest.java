@@ -357,4 +357,22 @@ class DraftValidatorTest {
         List<FieldError> errors = validator.validate(draft, EVENT, ValidationLevel.SAVE);
         assertThat(codes(errors)).contains("UNKNOWN_STAGE_ID");
     }
+
+    @Test
+    void activityIds_uniqueAcrossStages_notJustPerStage() throws Exception {
+        // Same activity id in two different stages — the runtime indexes
+        // activities by id alone, so cross-stage collision must be rejected.
+        JsonNode draft = tree("""
+                {"stages":[
+                  {"id":"sa","type":"CONTEXT",
+                   "activities":[{"id":"xa","type":"READ"}],
+                   "nextStageIds":["sb"]},
+                  {"id":"sb","type":"EVIDENCE",
+                   "activities":[{"id":"xa","type":"READ"}],
+                   "nextStageIds":[]}]}
+                """);
+        List<FieldError> errors = validator.validate(draft, EVENT, ValidationLevel.SAVE);
+        assertThat(errors).anyMatch(e -> e.code().equals("DUPLICATE_ID")
+                && e.path().equals("stages[1].activities[0].id"));
+    }
 }

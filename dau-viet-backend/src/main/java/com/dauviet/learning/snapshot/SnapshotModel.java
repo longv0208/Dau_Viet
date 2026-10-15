@@ -46,7 +46,10 @@ public class SnapshotModel {
                     throw new SnapshotCorruptException(
                             "activity missing id in stage " + sid);
                 }
-                activityById.put(aid, act);
+                if (activityById.put(aid, act) != null) {
+                    throw new SnapshotCorruptException(
+                            "duplicate activity id '" + aid + "' in snapshot");
+                }
                 stageOfActivity.put(aid, sid);
             }
         }

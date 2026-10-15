@@ -85,6 +85,36 @@ final class AttemptItFixture {
                 """.formatted(mcConfig, evId);
     }
 
+    /**
+     * Draft mixing optional + required activities across two stages:
+     * ctx(required): r1 READ required, opt1 READ optional
+     * -> ev(required): esOpt EVIDENCE_SELECT optional, mc MC required
+     *    (caller controls maxAttempts).
+     * totalRequired = 2 (r1 + mc); optional activities never gate progress.
+     */
+    static String draftWithOptional(String evId, String mcConfig) {
+        return """
+                {"schemaVersion":1,
+                 "stages":[
+                   {"id":"ctx","type":"CONTEXT","required":true,
+                    "activities":[
+                      {"id":"r1","type":"READ","required":true,
+                       "config":{"text":"intro"}},
+                      {"id":"opt1","type":"READ",
+                       "config":{"text":"side note"}}],
+                    "nextStageIds":["ev"]},
+                   {"id":"ev","type":"EVIDENCE","required":true,
+                    "activities":[
+                      {"id":"es-opt","type":"EVIDENCE_SELECT",
+                       "config":{"visibleEvidenceIds":["%s"],"minRequired":1}},
+                      {"id":"mc","type":"MULTIPLE_CHOICE","required":true,
+                       "config":%s}],
+                    "requiredEvidenceIds":["%s"],
+                    "nextStageIds":[]}],
+                 "completion":{"requireAllRequiredStages":true}}
+                """.formatted(evId, mcConfig, evId);
+    }
+
     /** Full pipeline: create lesson -> PUT draft -> publish. Returns lessonId. */
     static String publishLesson(MockMvc mvc, ObjectMapper om, String adminToken,
                                 String eventId, String tplId, String draftJson)
@@ -102,9 +132,14 @@ final class AttemptItFixture {
                 .andExpect(status().isCreated()).andReturn();
         String lessonId = om.readTree(created.getResponse().getContentAsString())
                 .get("id").asText();
-        mvc.perform(post("/api/v1/admin/lessons/" + lessonId + "/publish")
+        MvcResult pub = mvc.perform(post("/api/v1/admin/lessons/" + lessonId + "/publish")
                         .header("Authorization", adminToken))
-                .andExpect(status().isOk());
+                .andReturn();
+        if (pub.getResponse().getStatus() != 200) {
+            throw new AssertionError("publish failed "
+                    + pub.getResponse().getStatus() + ": "
+                    + pub.getResponse().getContentAsString());
+        }
         return lessonId;
     }
 

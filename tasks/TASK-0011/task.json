@@ -53,6 +53,15 @@
     "AC-8": "mvnw verify BUILD SUCCESS 2026-10-16: 125 tests, Failures 0, Errors 0 — unit 67 + ITs (learning 12 + admin/auth/event/lesson/user 100+); AbstractPostgresIT.clearAuthoringTables extended with activity_attempts/learner_attempts cleanup to fix cross-IT FK violation",
     "AC-9": "docs/API_SPEC.md attempt endpoint rows marked implemented TASK-0011 + 'Notes da chot TASK-0011' section; docs/LEARNING_ENGINE_DESIGN.md#13 evaluation semantics; this acEvidence map"
   },
+  "followUpFixes": {
+    "note": "2026-10-16 correctness pass (plans/261016-0134-task0011-learning-flow-fixes): required-incomplete stay-rule (retry soft-lock fix incl. exhausted advance), optional-in-stage submits (no cursor move, no progress), global activity-id uniqueness (DUPLICATE_ID + SnapshotCorruptException), +4 ITs +6 unit tests; mvnw verify 129/129 green",
+    "evidence": [
+      "StageTransitionResolverTest.requiredIncomplete_*/exhausted_completedRequired_advances/optionalIncomplete_stillAdvances",
+      "SnapshotModelTest.duplicateActivityIdAcrossStages_throwsSnapshotCorrupt",
+      "DraftValidatorTest.activityIds_uniqueAcrossStages_notJustPerStage",
+      "LearnerAttemptApiIT.requiredFailure_retryStaysThenExhaustionAdvances/optionalActivity_submittable_recordsWithoutMovingCursor/multiStage_cursorAndProgressConsistentAfterEverySubmit/duplicateActivityIdAcrossStages_publishRejected422"
+    ]
+  },
   "createdAt": "2026-10-16T00:55:00+07:00",
-  "updatedAt": "2026-10-16T01:30:00+07:00"
+  "updatedAt": "2026-10-16T01:51:00+07:00"
 }
