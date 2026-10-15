@@ -60,6 +60,8 @@ import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.node.ObjectNode;
 
+import jakarta.persistence.EntityManager;
+
 /**
  * Server-authoritative attempt runtime (LEARNING_ENGINE_DESIGN §8).
  * Start/resume pins the attempt to lessons.current_version_id; submits
@@ -84,6 +86,7 @@ public class LearnerAttemptService {
     private final IdempotencyService idempotency;
     private final ObjectMapper mapper;
     private final TransactionTemplate txTemplate;
+    private final EntityManager entityManager;
 
     public LearnerAttemptService(LearnerAttemptRepository attempts,
                                  ActivityAttemptRepository activityAttempts,
@@ -97,7 +100,8 @@ public class LearnerAttemptService {
                                  IdempotencyService idempotency,
                                  ObjectMapper mapper,
                                  org.springframework.transaction
-                                         .PlatformTransactionManager txManager) {
+                                         .PlatformTransactionManager txManager,
+                                 EntityManager entityManager) {
         this.attempts = attempts;
         this.activityAttempts = activityAttempts;
         this.lessonResults = lessonResults;
@@ -110,6 +114,7 @@ public class LearnerAttemptService {
         this.idempotency = idempotency;
         this.mapper = mapper;
         this.txTemplate = new TransactionTemplate(txManager);
+        this.entityManager = entityManager;
     }
 
     /**
@@ -135,6 +140,18 @@ public class LearnerAttemptService {
     }
 
     private AttemptStartResponse doStartOrResume(UUID userId, UUID lessonId) {
+        // Per-(user, lesson) advisory lock for the WHOLE tx (TASK-0012 review):
+        // the partial unique index only covers (user_id, lesson_version_id),
+        // so two concurrent starts racing a republish could each pin a
+        // different version and create TWO IN_PROGRESS attempts for one
+        // lesson. The lock serializes check+insert for this pair; version
+        // pinning is unchanged — whichever current_version_id is read under
+        // the lock is what the single attempt pins to.
+        entityManager.createNativeQuery(
+                "select pg_advisory_xact_lock(hashtextextended(:k, 0::bigint))")
+                .setParameter("k", userId + "|" + lessonId)
+                .getSingleResult();
+
         Lesson lesson = lessons.findById(lessonId)
                 .orElseThrow(() -> new LessonNotFoundException("Lesson not found: " + lessonId));
 
@@ -435,7 +452,12 @@ public class LearnerAttemptService {
                 a.getStartedAt(), a.getLastActiveAt(), a.getCompletedAt());
     }
 
-    /** Score = percent of required activities completed (0-100, 2 decimals). */
+    /**
+     * Completion percentage (0-100, 2 decimals), NOT an assessment score:
+     * completedRequired counts activities marked completed — including ones
+     * exhausted on incorrect retries — over totalRequired. BA does not define
+     * a separate assessment metric; do not reinterpret this field.
+     */
     private BigDecimal scoreOf(AttemptProgressResponse.Progress p) {
         if (p.totalRequired() == 0) return BigDecimal.ZERO.setScale(2);
         return BigDecimal.valueOf(p.completedRequired() * 100.0 / p.totalRequired())

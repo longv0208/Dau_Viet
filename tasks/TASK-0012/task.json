@@ -38,7 +38,9 @@
     "IdempotencyServiceTest (5): SHA-256 fingerprint stable, canonical sorted-fields at every depth, attempt-scoped hash",
     "docs/API_SPEC.md, docs/LEARNING_ENGINE_DESIGN.md §13-TASK-0012, docs/DATABASE_DESIGN.md updated",
     "code-reviewer (agent): no blockers; should-fix items addressed — concurrent start race -> resume-winner (TransactionTemplate fresh tx, LearnerAttemptConcurrencyIT.concurrentStart_singleAttempt), cross-attempt same-key claim -> 409 IDEMPOTENCY_CONFLICT, key>160 -> 409, HiddenKeyLeakIT extended to /result + /me/attempts + /me/progress, myProgress bounded at 50",
-    "mvnw verify after review fixes 2026-10-16: 148 unit + 148 Testcontainers IT, 0 failures, BUILD SUCCESS"
+    "mvnw verify after review fixes 2026-10-16: 148 unit + 148 Testcontainers IT, 0 failures, BUILD SUCCESS",
+    "final review follow-up 2026-10-16: pg_advisory_xact_lock(hashtextextended(userId|lessonId)) serializes check+insert per (user,lesson) — cross-version race CLOSED without breaking version pinning; CrossVersionStartRaceIT (2, deterministic: republish between starts + 4-thread mid-race) proves exactly one IN_PROGRESS; score documented as completion percentage (not assessment) in LessonResult/scoreOf/API_SPEC/LEARNING_ENGINE_DESIGN",
+    "mvnw verify final 2026-10-16: 148 unit + 150 Testcontainers IT, 0 failures, BUILD SUCCESS"
   ],
   "reviewRefs": ["code-reviewer agent report 2026-10-16: ship-ready, no blockers; all should-fix items resolved and re-verified green"],
   "nextAction": "Commit (auto-commit rule); no push without permission.",
@@ -50,5 +52,5 @@
   "resumeFrom": null,
   "handoffRef": null,
   "createdAt": "2026-10-16T03:48:00+07:00",
-  "updatedAt": "2026-10-16T04:20:00+07:00"
+  "updatedAt": "2026-10-16T04:30:00+07:00"
 }

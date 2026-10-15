@@ -29,6 +29,12 @@ public class LessonResult {
     @Column(name = "learner_attempt_id", nullable = false, updatable = false)
     private UUID learnerAttemptId;
 
+    /**
+     * Completion percentage (0-100, 2 decimals): required activities the
+     * learner finished / total required. NOT an assessment score — a required
+     * activity counts as completed even when its retries were exhausted on
+     * incorrect answers (per the TASK-0011 exhausted-still-advances rule).
+     */
     @Column(name = "score", nullable = false, updatable = false)
     private BigDecimal score;
 
