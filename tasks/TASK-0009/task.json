@@ -40,7 +40,7 @@
     "dau-viet-backend/src/main/resources/db/migration/V6__evidences_row_version.sql"
   ],
   "reviewRefs": ["plans/reports/code-reviewer-261016-task0009.md"],
-  "nextAction": "Awaiting user authorization to push. TASK-0010 implements publish (lesson_versions snapshot + learner-safe preview).",
+  "nextAction": "Awaiting user authorization to push. TASK-0010 implements publish (lesson_versions snapshot + learner-safe preview). Correctness pass af9dbdd fixed false-positive CIRCULAR_TRANSITION on converging DAGs, publish-level schemaVersion + reachable-terminal checks, and FlywayMigrationIT/HistoricalEventRepositoryIT isolation; mvnw verify 126 tests green.",
   "baseCommit": "47179b9",
   "inputFingerprint": null,
   "snapshot": null,
@@ -62,5 +62,5 @@
     "AC-11": ["dau-viet-backend/target/failsafe-reports", "dau-viet-backend/target/surefire-reports", "docs/API_SPEC.md", "docs/DATABASE_DESIGN.md"]
   },
   "createdAt": "2026-10-15T23:15:00+07:00",
-  "updatedAt": "2026-10-16T00:05:00+07:00"
+  "updatedAt": "2026-10-15T23:59:00+07:00"
 }
