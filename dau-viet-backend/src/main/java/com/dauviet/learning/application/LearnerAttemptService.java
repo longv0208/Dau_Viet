@@ -1,15 +1,25 @@
 package com.dauviet.learning.application;
 
+import java.math.BigDecimal;
+import java.math.RoundingMode;
+import java.time.Instant;
+import java.util.List;
 import java.util.UUID;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.transaction.support.TransactionTemplate;
 
+import com.dauviet.common.api.PageResponse;
 import com.dauviet.learning.api.dto.AttemptProgressResponse;
 import com.dauviet.learning.api.dto.AttemptStartResponse;
+import com.dauviet.learning.api.dto.AttemptSummaryResponse;
+import com.dauviet.learning.api.dto.CompleteAttemptResponse;
 import com.dauviet.learning.api.dto.CurrentActivityResponse;
+import com.dauviet.learning.api.dto.LessonResultResponse;
 import com.dauviet.learning.api.dto.SubmitActivityResponse;
 import com.dauviet.learning.contract.ActivityResult;
 import com.dauviet.learning.contract.ActivitySubmission;
@@ -17,16 +27,21 @@ import com.dauviet.learning.contract.AttemptContext;
 import com.dauviet.learning.contract.LessonCompletion;
 import com.dauviet.learning.domain.ActivityAttempt;
 import com.dauviet.learning.domain.ActivityNotAvailableException;
+import com.dauviet.learning.domain.AttemptAlreadyCompletedException;
+import com.dauviet.learning.domain.AttemptIncompleteException;
 import com.dauviet.learning.domain.AttemptNotFoundException;
 import com.dauviet.learning.domain.AttemptNotInProgressException;
 import com.dauviet.learning.domain.AttemptNotOwnedException;
 import com.dauviet.learning.domain.AttemptState;
 import com.dauviet.learning.domain.LearnerAttempt;
 import com.dauviet.learning.domain.LearnerAttemptStatus;
+import com.dauviet.learning.domain.LessonResult;
+import com.dauviet.learning.domain.ResultNotFoundException;
 import com.dauviet.learning.handler.ActivityHandler;
 import com.dauviet.learning.handler.ActivityHandlerRegistry;
 import com.dauviet.learning.infrastructure.persistence.ActivityAttemptRepository;
 import com.dauviet.learning.infrastructure.persistence.LearnerAttemptRepository;
+import com.dauviet.learning.infrastructure.persistence.LessonResultRepository;
 import com.dauviet.learning.resolver.LessonCompletionEvaluator;
 import com.dauviet.learning.resolver.StageTransitionResolver;
 import com.dauviet.learning.snapshot.SnapshotModel;
@@ -59,46 +74,71 @@ public class LearnerAttemptService {
 
     private final LearnerAttemptRepository attempts;
     private final ActivityAttemptRepository activityAttempts;
+    private final LessonResultRepository lessonResults;
     private final LessonRepository lessons;
     private final LessonVersionRepository versions;
     private final ActivityHandlerRegistry handlers;
     private final StageTransitionResolver transitionResolver;
     private final LessonCompletionEvaluator completionEvaluator;
     private final LearnerProjectionService projection;
+    private final IdempotencyService idempotency;
     private final ObjectMapper mapper;
+    private final TransactionTemplate txTemplate;
 
     public LearnerAttemptService(LearnerAttemptRepository attempts,
                                  ActivityAttemptRepository activityAttempts,
+                                 LessonResultRepository lessonResults,
                                  LessonRepository lessons,
                                  LessonVersionRepository versions,
                                  ActivityHandlerRegistry handlers,
                                  StageTransitionResolver transitionResolver,
                                  LessonCompletionEvaluator completionEvaluator,
                                  LearnerProjectionService projection,
-                                 ObjectMapper mapper) {
+                                 IdempotencyService idempotency,
+                                 ObjectMapper mapper,
+                                 org.springframework.transaction
+                                         .PlatformTransactionManager txManager) {
         this.attempts = attempts;
         this.activityAttempts = activityAttempts;
+        this.lessonResults = lessonResults;
         this.lessons = lessons;
         this.versions = versions;
         this.handlers = handlers;
         this.transitionResolver = transitionResolver;
         this.completionEvaluator = completionEvaluator;
         this.projection = projection;
+        this.idempotency = idempotency;
         this.mapper = mapper;
+        this.txTemplate = new TransactionTemplate(txManager);
     }
 
-    /** Start a new attempt or resume the existing IN_PROGRESS one. */
-    @Transactional
+    /**
+     * Start a new attempt or resume the IN_PROGRESS one FOR THE LESSON —
+     * resume is scoped to the lesson, not the version (TASK-0012): an
+     * in-flight attempt pinned to v1 is returned even after a v2 republish,
+     * so progress survives republishing and a second attempt is never
+     * created for the same lesson.
+     */
+    /**
+     * Two explicit transactions via TransactionTemplate (avoids self-invocation
+     * pitfalls): a concurrent start that loses the partial-unique-index race
+     * rolls its tx back aborted, so the resume re-query must run in a FRESH tx.
+     */
     public AttemptStartResponse startOrResume(UUID userId, UUID lessonId) {
+        try {
+            return txTemplate.execute(tx -> doStartOrResume(userId, lessonId));
+        } catch (org.springframework.dao.DataIntegrityViolationException dup) {
+            // ux_attempt_active_user_version fired on the loser's insert — the
+            // winner's row is committed; resume it in a new tx, never a 500.
+            return txTemplate.execute(tx -> resumeAfterRace(userId, lessonId, dup));
+        }
+    }
+
+    private AttemptStartResponse doStartOrResume(UUID userId, UUID lessonId) {
         Lesson lesson = lessons.findById(lessonId)
                 .orElseThrow(() -> new LessonNotFoundException("Lesson not found: " + lessonId));
-        if (lesson.getStatus() != LessonStatus.PUBLISHED || lesson.getCurrentVersionId() == null) {
-            throw new LessonNotPublishedException("lesson is not published: " + lessonId);
-        }
-        UUID versionId = lesson.getCurrentVersionId();
 
-        var existing = attempts.findByUserIdAndLessonVersionIdAndStatus(
-                userId, versionId, LearnerAttemptStatus.IN_PROGRESS);
+        var existing = attempts.findInProgressByUserIdAndLessonId(userId, lessonId);
         if (existing.isPresent()) {
             LearnerAttempt a = existing.get();
             return new AttemptStartResponse(a.getId(), a.getLessonVersionId(),
@@ -106,16 +146,32 @@ public class LearnerAttemptService {
                     a.getCurrentStageId(), a.getCurrentActivityId());
         }
 
+        if (lesson.getStatus() != LessonStatus.PUBLISHED || lesson.getCurrentVersionId() == null) {
+            throw new LessonNotPublishedException("lesson is not published: " + lessonId);
+        }
+        UUID versionId = lesson.getCurrentVersionId();
+
         SnapshotModel model = snapshotOf(versionId);
         AttemptState state = new AttemptState();
         state.setCurrentStageId(model.entryStageId());
         state.setCurrentActivityId(model.firstRequiredActivityId(model.entryStageId()));
         LearnerAttempt attempt = LearnerAttempt.start(userId, versionId);
         attempt.recordProgress(state);
-        attempts.save(attempt);
+        attempts.saveAndFlush(attempt);
         return new AttemptStartResponse(attempt.getId(), versionId,
                 attempt.getStatus().name(), false,
                 state.currentStageId(), state.currentActivityId());
+    }
+
+    /** Re-query after a lost start race; rethrows if the row is truly absent. */
+    private AttemptStartResponse resumeAfterRace(UUID userId, UUID lessonId,
+                                                 org.springframework.dao
+                                                         .DataIntegrityViolationException dup) {
+        return attempts.findInProgressByUserIdAndLessonId(userId, lessonId)
+                .map(a -> new AttemptStartResponse(a.getId(),
+                        a.getLessonVersionId(), a.getStatus().name(), true,
+                        a.getCurrentStageId(), a.getCurrentActivityId()))
+                .orElseThrow(() -> dup);
     }
 
     /** Attempt progress + completion verdict; owner only. */
@@ -172,17 +228,35 @@ public class LearnerAttemptService {
     public SubmitActivityResponse submit(UUID userId, UUID attemptId,
                                          String activityId, JsonNode answer,
                                          String idempotencyKey) {
-        if (idempotencyKey != null && log.isDebugEnabled()) {
-            log.debug("submit idempotency-key={} attempt={}", idempotencyKey, attemptId);
-        }
+        // Lock the attempt row BEFORE touching idempotency_records so a
+        // concurrent duplicate blocks on the lock, then sees the committed
+        // response — never a double-write (brief §3/§7).
         LearnerAttempt a = attempts.findForUpdate(attemptId)
                 .orElseThrow(() -> new AttemptNotFoundException("attempt not found: " + attemptId));
         if (!a.getUserId().equals(userId)) {
             throw new AttemptNotOwnedException("attempt not owned by user: " + attemptId);
         }
+        String operation = "SUBMIT_ACTIVITY";
+        String fingerprint = attemptId + "|" + activityId + "|"
+                + idempotency.canonical(answer);
+        return idempotency.execute(userId, operation, idempotencyKey, fingerprint,
+                () -> doSubmit(userId, a, activityId, answer, idempotencyKey),
+                SubmitActivityResponse.class);
+    }
+
+    private SubmitActivityResponse doSubmit(UUID userId, LearnerAttempt a,
+                                            String activityId, JsonNode answer,
+                                            String idempotencyKey) {
+        if (a.getStatus() == LearnerAttemptStatus.COMPLETED) {
+            // Dedicated code (plan decision #6): completed is terminal —
+            // submits get 409 ATTEMPT_ALREADY_COMPLETED, not the generic
+            // not-in-progress signal.
+            throw new AttemptAlreadyCompletedException(
+                    "attempt " + a.getId() + " is COMPLETED");
+        }
         if (a.getStatus() != LearnerAttemptStatus.IN_PROGRESS) {
             throw new AttemptNotInProgressException(
-                    "attempt " + attemptId + " is " + a.getStatus());
+                    "attempt " + a.getId() + " is " + a.getStatus());
         }
         SnapshotModel model = snapshotOf(a.getLessonVersionId());
         AttemptState state = AttemptState.fromJson(parse(a.getStateJson()));
@@ -210,7 +284,7 @@ public class LearnerAttemptService {
                 a.getLessonVersionId(), state.currentStageId(), activityId,
                 activity, model.root(), state.outputs());
         ActivityResult result = handler.evaluate(ctx,
-                new ActivitySubmission(attemptId, activityId, answer, idempotencyKey));
+                new ActivitySubmission(a.getId(), activityId, answer, idempotencyKey));
 
         state.recordOutput(activityId, result.output());
         if (result.completed()) {
@@ -240,13 +314,146 @@ public class LearnerAttemptService {
                 progressOf(model, state), next, completion);
     }
 
-    /** Completion verdict only — does not flip status (TASK-0012). */
-    @Transactional(readOnly = true)
-    public LessonCompletion complete(UUID userId, UUID attemptId) {
-        LearnerAttempt a = loadOwned(userId, attemptId);
+    /**
+     * Server-authoritative completion (brief §5): re-evaluates the published
+     * completion config against persisted state; refuses incomplete attempts
+     * with 409 ATTEMPT_INCOMPLETE; on success flips status to COMPLETED and
+     * writes exactly one lesson_results row in the same transaction.
+     * Repeated/concurrent calls are idempotent — the pessimistic lock
+     * serializes them and the second caller reads the stored result.
+     */
+    @Transactional
+    public CompleteAttemptResponse complete(UUID userId, UUID attemptId,
+                                            String idempotencyKey) {
+        LearnerAttempt a = attempts.findForUpdate(attemptId)
+                .orElseThrow(() -> new AttemptNotFoundException("attempt not found: " + attemptId));
+        if (!a.getUserId().equals(userId)) {
+            throw new AttemptNotOwnedException("attempt not owned by user: " + attemptId);
+        }
+        String operation = "COMPLETE_ATTEMPT";
+        return idempotency.execute(userId, operation, idempotencyKey,
+                attemptId.toString(),
+                () -> doComplete(userId, a), CompleteAttemptResponse.class);
+    }
+
+    private CompleteAttemptResponse doComplete(UUID userId, LearnerAttempt a) {
         SnapshotModel model = snapshotOf(a.getLessonVersionId());
         AttemptState state = AttemptState.fromJson(parse(a.getStateJson()));
-        return completionEvaluator.evaluate(model, state);
+        var progress = progressOf(model, state);
+
+        if (a.getStatus() == LearnerAttemptStatus.COMPLETED) {
+            // Idempotent repeat: return the stored facts, never rewrite.
+            LessonCompletion verdict = completionEvaluator.evaluate(model, state);
+            return new CompleteAttemptResponse(a.getId(), a.getStatus().name(),
+                    true, a.getCompletedAt(), verdict, progress);
+        }
+        if (a.getStatus() != LearnerAttemptStatus.IN_PROGRESS) {
+            throw new AttemptNotInProgressException(
+                    "attempt " + a.getId() + " is " + a.getStatus());
+        }
+
+        LessonCompletion verdict = completionEvaluator.evaluate(model, state);
+        if (!verdict.complete()) {
+            throw new AttemptIncompleteException(
+                    "attempt " + a.getId() + " is not complete", verdict.detail());
+        }
+
+        a.markCompleted();
+        attempts.save(a);
+        BigDecimal score = scoreOf(progress);
+        String resultJson = resultJsonOf(a, verdict, progress, score);
+        lessonResults.save(LessonResult.of(a.getId(), score, resultJson,
+                a.getCompletedAt()));
+        return new CompleteAttemptResponse(a.getId(), a.getStatus().name(),
+                false, a.getCompletedAt(), verdict, progress);
+    }
+
+    /** Persisted lesson_results for an owned, completed attempt. */
+    @Transactional(readOnly = true)
+    public LessonResultResponse getResult(UUID userId, UUID attemptId) {
+        LearnerAttempt a = loadOwned(userId, attemptId);
+        LessonResult r = lessonResults.findByLearnerAttemptId(a.getId())
+                .orElseThrow(() -> new ResultNotFoundException(
+                        "no result for attempt: " + attemptId));
+        return new LessonResultResponse(a.getId(), a.getLessonVersionId(),
+                a.getStatus().name(), r.getScore(), parse(r.getResultJson()),
+                r.getCompletedAt(), a.getStartedAt());
+    }
+
+    /**
+     * Learner's own attempt history/resume list — paged, newest activity
+     * first; IN_PROGRESS rows carry the resume cursor for the mobile client.
+     */
+    @Transactional(readOnly = true)
+    public PageResponse<AttemptSummaryResponse> listMyAttempts(UUID userId,
+                                                             LearnerAttemptStatus status,
+                                                             Pageable pageable) {
+        var page = status == null
+                ? attempts.findByUserIdOrderByLastActiveAtDesc(userId, pageable)
+                : attempts.findByUserIdAndStatusOrderByLastActiveAtDesc(
+                        userId, status, pageable);
+        return PageResponse.from(page.map(a -> summaryOf(userId, a)));
+    }
+
+    /**
+     * Mobile resume surface: IN_PROGRESS attempts (bounded at 50 — one per
+     * lesson makes unbounded growth unlikely, but the cap keeps the payload
+     * predictable) + completed count.
+     */
+    @Transactional(readOnly = true)
+    public com.dauviet.learning.api.dto.MyProgressResponse myProgress(UUID userId) {
+        List<LearnerAttempt> inProgress = attempts
+                .findByUserIdAndStatusOrderByLastActiveAtDesc(
+                        userId, LearnerAttemptStatus.IN_PROGRESS,
+                        org.springframework.data.domain.PageRequest.of(0, 50))
+                .getContent();
+        long completed = attempts.countByUserIdAndStatus(
+                userId, LearnerAttemptStatus.COMPLETED);
+        return new com.dauviet.learning.api.dto.MyProgressResponse(
+                inProgress.stream().map(a -> summaryOf(userId, a)).toList(),
+                completed);
+    }
+
+    private AttemptSummaryResponse summaryOf(UUID userId, LearnerAttempt a) {
+        AttemptProgressResponse.Progress progress;
+        UUID lessonId = null;
+        try {
+            LessonVersion v = versions.findById(a.getLessonVersionId()).orElse(null);
+            lessonId = v == null ? null : v.getLessonId();
+            SnapshotModel model = v == null ? null
+                    : SnapshotModel.parse(parse(v.getSnapshotJson()));
+            AttemptState state = AttemptState.fromJson(parse(a.getStateJson()));
+            progress = model == null
+                    ? new AttemptProgressResponse.Progress(0, 0)
+                    : progressOf(model, state);
+        } catch (RuntimeException corrupt) {
+            progress = new AttemptProgressResponse.Progress(0, 0);
+        }
+        return new AttemptSummaryResponse(a.getId(), lessonId,
+                a.getLessonVersionId(), a.getStatus().name(),
+                a.getCurrentStageId(), a.getCurrentActivityId(), progress,
+                a.getStartedAt(), a.getLastActiveAt(), a.getCompletedAt());
+    }
+
+    /** Score = percent of required activities completed (0-100, 2 decimals). */
+    private BigDecimal scoreOf(AttemptProgressResponse.Progress p) {
+        if (p.totalRequired() == 0) return BigDecimal.ZERO.setScale(2);
+        return BigDecimal.valueOf(p.completedRequired() * 100.0 / p.totalRequired())
+                .setScale(2, RoundingMode.HALF_UP);
+    }
+
+    private String resultJsonOf(LearnerAttempt a, LessonCompletion verdict,
+                                AttemptProgressResponse.Progress progress,
+                                BigDecimal score) {
+        ObjectNode node = mapper.createObjectNode();
+        node.put("attemptId", a.getId().toString());
+        node.put("lessonVersionId", a.getLessonVersionId().toString());
+        node.put("reason", verdict.reason());
+        node.put("score", score.doubleValue());
+        node.put("completedRequired", progress.completedRequired());
+        node.put("totalRequired", progress.totalRequired());
+        if (verdict.detail() != null) node.set("detail", verdict.detail());
+        return node.toString();
     }
 
     /**

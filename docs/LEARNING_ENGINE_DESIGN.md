@@ -286,6 +286,18 @@ Phần này ghi lại các quyết định semantic cho những điểm BA chưa
 
 **MVP limits đã ghi nhận**: idempotency chỉ chấp nhận + log header (chưa persist); `complete` chỉ trả verdict, không flip `status`/ghi `lesson_results`/reward (TASK-0012); không dashboard/resume đa attempt (một active attempt per user+lesson theo partial unique index `learner_attempts`).
 
+### TASK-0012 — attempt lifecycle, resume, idempotency & completion (đã chốt 2026-10-16)
+
+**Resume scope = lesson, không phải version.** `POST /lessons/{id}/attempts` tra `learner_attempts` IN_PROGRESS join `lesson_versions.lesson_id` trước: có → trả cùng attempt `resumed=true` (pin version cũ, progress giữ nguyên); không có → validate `PUBLISHED` + pin `current_version_id` mới. Vậy attempt v1 sống sót republish v2 mà không phá version pinning; server không bao giờ tự thay attempt đang chạy. Race giữa 2 start cùng lúc không có DB-level guard (partial unique index chỉ theo `lesson_version_id`, không theo lesson) — chấp nhận cho MVP, documented residual.
+
+**Persistent idempotency** trên `idempotency_records`, scope `(user_id, operation, idempotency_key)`; `operation` ∈ `SUBMIT_ACTIVITY` | `COMPLETE_ATTEMPT`, `request_hash` = SHA-256(`attemptId|activityId|canonical(answerJson)`) cho submit (canonical = sorted-field JSON — cùng payload khác thứ tự field trùng hash), `attemptId` cho complete. `submit()`/`complete()` lock `learner_attempts` `PESSIMISTIC_WRITE` **trước** khi tra idempotency → duplicate concurrent block trên row lock rồi thấy committed response (không thể double-write). Claim row `saveAndFlush` + response lưu `response_json`/`http_status=200` commit **cùng transaction** với `activity_attempts`/state — business error rollback luôn claim, key không bị burn. Expired (TTL `app.learning.idempotency-ttl`, default 24h) → delete + reclaim. Không dùng in-memory cache cho correctness.
+
+**Completion server-authoritative.** `complete()`: lock → nếu `COMPLETED` trả stored verdict `alreadyCompleted=true` (idempotent repeat); nếu không `IN_PROGRESS` → `409 ATTEMPT_NOT_IN_PROGRESS`; `completionEvaluator` `!complete` → `409 ATTEMPT_NOT_COMPLETE` + `details`; else `markCompleted` + `lesson_results` row (unique per attempt) cùng tx. `score` = `completedRequired*100/totalRequired` percent, HALF_UP 2 decimals (0 khi totalRequired=0). Submit-on-`COMPLETED` → `409 ATTEMPT_ALREADY_COMPLETED`; start-after-complete → attempt mới pin version hiện tại.
+
+**Progress/history APIs (owner-only).** `GET /attempts/{id}/result` (404 `RESULT_NOT_FOUND` trước khi complete), `GET /me/attempts?status&page&size` (PageResponse, `size≤50`, `AttemptSummaryResponse` với cursor+progress cho resume), `GET /me/progress` (`inProgress[]` + `completedCount` — mobile resume surface). `lessonId` resolve qua `lesson_versions`; snapshot corrupt → progress `0/0` thay vì 500. `JwtSubjectExtractor` chung: malformed `sub` → `AuthenticationFailedException` → `401` trên mọi learner endpoint (không 500, không bypass ownership).
+
+**Vẫn mở**: retention policy 24h là config mặc định (PO xác nhận nếu cần khác); `result_json` shape `{attemptId,lessonVersionId,reason,score,completedRequired,totalRequired,detail}` chưa có field reward/EXP (TASK reward sau).
+
 ## 14. Open decisions
 
 - 2 template MVP: `EVENT_INVESTIGATION`, `DECISION_ANALYSIS` là đề xuất từ BA mới, cần PO duyệt.

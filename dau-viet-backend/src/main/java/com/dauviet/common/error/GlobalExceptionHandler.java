@@ -266,6 +266,29 @@ public class GlobalExceptionHandler {
                 ex.getMessage(), Map.of());
     }
 
+    @ExceptionHandler(com.dauviet.learning.domain.IdempotencyConflictException.class)
+    public ResponseEntity<ApiError> handleIdempotencyConflict(
+            com.dauviet.learning.domain.IdempotencyConflictException ex) {
+        return build(HttpStatus.CONFLICT, ErrorCode.IDEMPOTENCY_CONFLICT,
+                ex.getMessage(), Map.of());
+    }
+
+    @ExceptionHandler(com.dauviet.learning.domain.AttemptIncompleteException.class)
+    public ResponseEntity<ApiError> handleAttemptIncomplete(
+            com.dauviet.learning.domain.AttemptIncompleteException ex) {
+        Map<String, Object> details = ex.getDetail() == null
+                ? Map.of() : Map.of("completion", ex.getDetail());
+        return build(HttpStatus.CONFLICT, ErrorCode.ATTEMPT_NOT_COMPLETE,
+                ex.getMessage(), details);
+    }
+
+    @ExceptionHandler(com.dauviet.learning.domain.ResultNotFoundException.class)
+    public ResponseEntity<ApiError> handleResultNotFound(
+            com.dauviet.learning.domain.ResultNotFoundException ex) {
+        return build(HttpStatus.NOT_FOUND, ErrorCode.RESULT_NOT_FOUND,
+                ex.getMessage(), Map.of());
+    }
+
     @ExceptionHandler(org.springframework.orm.ObjectOptimisticLockingFailureException.class)
     public ResponseEntity<ApiError> handleOptimisticLock(
             org.springframework.orm.ObjectOptimisticLockingFailureException ex) {

@@ -2,6 +2,8 @@ package com.dauviet.learning.api;
 
 import java.util.UUID;
 
+import org.springframework.data.domain.PageRequest;
+import org.springframework.data.domain.Pageable;
 import org.springframework.security.oauth2.jwt.Jwt;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.GetMapping;
@@ -10,53 +12,66 @@ import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestHeader;
 import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
+import com.dauviet.common.api.PageResponse;
+import com.dauviet.common.security.JwtSubjectExtractor;
 import com.dauviet.learning.api.dto.AttemptProgressResponse;
 import com.dauviet.learning.api.dto.AttemptStartResponse;
+import com.dauviet.learning.api.dto.AttemptSummaryResponse;
+import com.dauviet.learning.api.dto.CompleteAttemptResponse;
 import com.dauviet.learning.api.dto.CurrentActivityResponse;
+import com.dauviet.learning.api.dto.LessonResultResponse;
+import com.dauviet.learning.api.dto.MyProgressResponse;
 import com.dauviet.learning.api.dto.SubmitActivityRequest;
 import com.dauviet.learning.api.dto.SubmitActivityResponse;
 import com.dauviet.learning.application.LearnerAttemptService;
-import com.dauviet.learning.contract.LessonCompletion;
+import com.dauviet.learning.domain.LearnerAttemptStatus;
 
 import jakarta.validation.Valid;
 
 /**
  * Learner attempt runtime surface. All endpoints are authenticated
  * (anyRequest().authenticated() in SecurityConfig); ownership is enforced
- * server-side in the service. The submit endpoint accepts an optional
- * Idempotency-Key header — logged, not yet persisted (TASK-0012).
+ * server-side in the service. Submit and complete honour a persistent
+ * Idempotency-Key (TASK-0012): same key + same payload replays the stored
+ * response; same key + different payload -> 409 IDEMPOTENCY_CONFLICT.
  */
 @RestController
 @RequestMapping("/api/v1")
 public class LearnerAttemptController {
 
-    private final LearnerAttemptService service;
+    private static final int MAX_PAGE_SIZE = 50;
 
-    public LearnerAttemptController(LearnerAttemptService service) {
+    private final LearnerAttemptService service;
+    private final JwtSubjectExtractor subjects;
+
+    public LearnerAttemptController(LearnerAttemptService service,
+                                    JwtSubjectExtractor subjects) {
         this.service = service;
+        this.subjects = subjects;
     }
 
-    /** Start a new attempt or resume the IN_PROGRESS one for this user. */
+    /** Start a new attempt or resume the IN_PROGRESS one for this lesson. */
     @PostMapping("/lessons/{lessonId}/attempts")
     public AttemptStartResponse start(@PathVariable UUID lessonId,
                                       @AuthenticationPrincipal Jwt jwt) {
-        return service.startOrResume(userId(jwt), lessonId);
+        return service.startOrResume(subjects.userId(jwt), lessonId);
     }
 
     /** Attempt cursor + progress + completion verdict. */
     @GetMapping("/attempts/{attemptId}")
     public AttemptProgressResponse get(@PathVariable UUID attemptId,
                                        @AuthenticationPrincipal Jwt jwt) {
-        return service.getAttempt(userId(jwt), attemptId);
+        return service.getAttempt(subjects.userId(jwt), attemptId);
     }
 
     /** Learner-safe view of the current activity. */
     @GetMapping("/attempts/{attemptId}/current")
     public CurrentActivityResponse current(@PathVariable UUID attemptId,
                                            @AuthenticationPrincipal Jwt jwt) {
-        return service.getCurrent(userId(jwt), attemptId);
+        return service.getCurrent(subjects.userId(jwt), attemptId);
     }
 
     /** Evaluate one submission against the pinned snapshot. */
@@ -67,18 +82,45 @@ public class LearnerAttemptController {
                                          @RequestHeader(name = "Idempotency-Key", required = false)
                                          String idempotencyKey,
                                          @AuthenticationPrincipal Jwt jwt) {
-        return service.submit(userId(jwt), attemptId, activityId,
+        return service.submit(subjects.userId(jwt), attemptId, activityId,
                 body.answer(), idempotencyKey);
     }
 
-    /** Completion verdict only; does not flip status (TASK-0012). */
+    /**
+     * Server-authoritative completion: re-evaluates, flips status and writes
+     * lesson_results atomically; 409 ATTEMPT_NOT_COMPLETE when requirements
+     * are unmet; repeated calls replay the stored result.
+     */
     @PostMapping("/attempts/{attemptId}/complete")
-    public LessonCompletion complete(@PathVariable UUID attemptId,
-                                     @AuthenticationPrincipal Jwt jwt) {
-        return service.complete(userId(jwt), attemptId);
+    public CompleteAttemptResponse complete(@PathVariable UUID attemptId,
+                                            @RequestHeader(name = "Idempotency-Key", required = false)
+                                            String idempotencyKey,
+                                            @AuthenticationPrincipal Jwt jwt) {
+        return service.complete(subjects.userId(jwt), attemptId, idempotencyKey);
     }
 
-    private UUID userId(Jwt jwt) {
-        return UUID.fromString(jwt.getSubject());
+    /** Persisted result of a completed attempt (owner only). */
+    @GetMapping("/attempts/{attemptId}/result")
+    public LessonResultResponse result(@PathVariable UUID attemptId,
+                                       @AuthenticationPrincipal Jwt jwt) {
+        return service.getResult(subjects.userId(jwt), attemptId);
+    }
+
+    /** Learner's own attempt list — resume info + history, newest first. */
+    @GetMapping("/me/attempts")
+    public PageResponse<AttemptSummaryResponse> myAttempts(
+            @RequestParam(required = false) LearnerAttemptStatus status,
+            @RequestParam(defaultValue = "0") int page,
+            @RequestParam(defaultValue = "20") int size,
+            @AuthenticationPrincipal Jwt jwt) {
+        Pageable pageable = PageRequest.of(Math.max(0, page),
+                Math.min(Math.max(1, size), MAX_PAGE_SIZE));
+        return service.listMyAttempts(subjects.userId(jwt), status, pageable);
+    }
+
+    /** Mobile resume surface: IN_PROGRESS attempts + completed count. */
+    @GetMapping("/me/progress")
+    public MyProgressResponse myProgress(@AuthenticationPrincipal Jwt jwt) {
+        return service.myProgress(subjects.userId(jwt));
     }
 }

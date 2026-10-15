@@ -50,8 +50,8 @@ erDiagram
 | `assets` | `id`, `storage_key`, `mime_type`, `size_bytes`, `checksum`, `state`, `created_at` | Lưu metadata; file nằm trong object storage |
 | `learner_attempts` | `id`, `user_id`, `lesson_version_id`, `status`, `current_stage_id`, `current_activity_id`, `state_json`, `started_at`, `completed_at` | Status `IN_PROGRESS`, `COMPLETED`, `ABANDONED`; ID stage/activity là stable IDs trong snapshot |
 | `activity_attempts` | `id`, `learner_attempt_id`, `activity_id`, `attempt_no`, `submitted_answer_json`, `result_json`, `created_at` | Giữ lịch sử retry/revision, không sửa lesson config |
-| `idempotency_records` | `id`, `user_id`, `idempotency_key`, `operation`, `request_hash`, `response_json`, `created_at` | Unique `(user_id, operation, idempotency_key)`; key reused với payload khác → 409 |
-| `lesson_results` | `id`, `learner_attempt_id`, `score`, `completed_at`, `result_json` | Unique attempt; kết thúc một lần |
+| `idempotency_records` | `id`, `user_id`, `idempotency_key`, `operation`, `request_hash`, `response_json`, `http_status`, `created_at`, `expires_at` | Unique `(user_id, operation, idempotency_key)`; key reused với payload khác → 409. TASK-0012: `operation` ∈ `SUBMIT_ACTIVITY`/`COMPLETE_ATTEMPT`; `expires_at` = `created_at` + `app.learning.idempotency-ttl` (default 24h), expired → reclaim |
+| `lesson_results` | `id`, `learner_attempt_id`, `score`, `completed_at`, `result_json` | Unique attempt; kết thúc một lần. TASK-0012: ghi cùng transaction với flip `COMPLETED` |
 | `user_evidence` | `id`, `user_id`, `learner_attempt_id`, `evidence_id`, `collected_at` | Collection; unique `(learner_attempt_id, evidence_id)` |
 | `reward_transactions` | `id`, `user_id`, `learner_attempt_id`, `reward_type`, `amount`, `reason`, `created_at` | Unique event/cause key để không cấp trùng EXP/currency |
 

@@ -133,6 +133,17 @@ class HiddenKeyLeakIT extends AbstractPostgresIT {
                         .header("Authorization", learnerToken))
                 .andExpect(status().isOk()).andReturn(), "POST complete"));
 
+        // TASK-0012 surfaces: persisted result + history/progress lists
+        found.addAll(scan(mvc.perform(get("/api/v1/attempts/" + attemptId + "/result")
+                        .header("Authorization", learnerToken))
+                .andExpect(status().isOk()).andReturn(), "GET result"));
+        found.addAll(scan(mvc.perform(get("/api/v1/me/attempts")
+                        .header("Authorization", learnerToken))
+                .andExpect(status().isOk()).andReturn(), "GET me/attempts"));
+        found.addAll(scan(mvc.perform(get("/api/v1/me/progress")
+                        .header("Authorization", learnerToken))
+                .andExpect(status().isOk()).andReturn(), "GET me/progress"));
+
         assertThat(found).as("hidden key leaks across endpoint surface").isEmpty();
     }
 

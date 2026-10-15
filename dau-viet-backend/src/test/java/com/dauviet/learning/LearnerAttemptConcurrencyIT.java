@@ -46,6 +46,9 @@ class LearnerAttemptConcurrencyIT extends AbstractPostgresIT {
 
     private String adminToken;
     private String learnerToken;
+    private String eventId;
+    private String tplId;
+    private String evId;
     private String lessonId;
     private String attemptId;
 
@@ -59,14 +62,64 @@ class LearnerAttemptConcurrencyIT extends AbstractPostgresIT {
 
         adminToken = AttemptItFixture.token(users, jwt, "a@c.vn", UserRole.CONTENT_ADMIN);
         learnerToken = AttemptItFixture.token(users, jwt, "l@c.vn", UserRole.LEARNER);
-        String eventId = AttemptItFixture.newEvent(jdbc, "e-conc");
-        String tplId = AttemptItFixture.newTemplate(jdbc, "t-conc");
-        String evId = AttemptItFixture.newEvidence(jdbc, eventId);
+        eventId = AttemptItFixture.newEvent(jdbc, "e-conc");
+        tplId = AttemptItFixture.newTemplate(jdbc, "t-conc");
+        evId = AttemptItFixture.newEvidence(jdbc, eventId);
         lessonId = AttemptItFixture.publishLesson(mvc, om, adminToken, eventId, tplId,
                 AttemptItFixture.draftTwoStage(evId,
                         "{\"question\":\"q\",\"options\":[{\"id\":\"o1\"},{\"id\":\"o2\"}],"
                       + "\"correctOptionIds\":[\"o1\"]}"));
         attemptId = AttemptItFixture.startAttempt(mvc, om, learnerToken, lessonId);
+    }
+
+    /**
+     * Concurrent POST /lessons/{id}/attempts on the same lesson: the partial
+     * unique index admits exactly one row; every caller gets 200 and the SAME
+     * attemptId (loser resumes the winner's committed row — never a 500).
+     */
+    @Test
+    void concurrentStart_singleAttempt_allResumeSameRow() throws Exception {
+        // a second published lesson nobody has started yet — the concurrent
+        // starts below race on its partial-unique index, not the resume path
+        String freshLesson = AttemptItFixture.publishLesson(mvc, om, adminToken,
+                eventId, tplId,
+                AttemptItFixture.draftTwoStage(evId,
+                        "{\"question\":\"q2\",\"options\":[{\"id\":\"o1\"},{\"id\":\"o2\"}],"
+                      + "\"correctOptionIds\":[\"o1\"]}"));
+
+        int threads = 3;
+        ExecutorService pool = Executors.newFixedThreadPool(threads);
+        CountDownLatch ready = new CountDownLatch(threads);
+        CountDownLatch go = new CountDownLatch(1);
+        List<Future<MvcResult>> futures = new java.util.ArrayList<>();
+        for (int i = 0; i < threads; i++) {
+            futures.add(pool.submit(() -> {
+                ready.countDown();
+                go.await(5, TimeUnit.SECONDS);
+                return mvc.perform(post("/api/v1/lessons/" + freshLesson + "/attempts")
+                                .header("Authorization", learnerToken))
+                        .andReturn();
+            }));
+        }
+        assertThat(ready.await(10, TimeUnit.SECONDS)).isTrue();
+        go.countDown();
+
+        java.util.Set<String> ids = new java.util.HashSet<>();
+        for (Future<MvcResult> f : futures) {
+            MvcResult res = f.get(60, TimeUnit.SECONDS);
+            assertThat(res.getResponse().getStatus())
+                    .as("every start returns 200 — loser resumes, never 500")
+                    .isEqualTo(200);
+            ids.add(AttemptItFixture.body(om, res).get("attemptId").asText());
+        }
+        pool.shutdown();
+
+        assertThat(ids).as("all callers converge on ONE attempt row").hasSize(1);
+        assertThat(jdbc.queryForObject(
+                "select count(*) from learner_attempts a "
+              + "join lesson_versions v on a.lesson_version_id = v.id "
+              + "join lessons l on v.lesson_id = l.id where l.id = ?::uuid",
+                Integer.class, freshLesson)).isEqualTo(1);
     }
 
     @Test

@@ -129,18 +129,20 @@ class LearnerAttemptApiIT extends AbstractPostgresIT {
         // maxAttempts defaults 1 -> exhausted -> activity counts done
         assertThat(s2Body.get("activityCompleted").asBoolean()).isTrue();
 
-        // completion verdict: required stages done -> complete=true
+        // completion: server flips status -> COMPLETED + lesson_results row
         mvc.perform(post("/api/v1/attempts/" + attemptId + "/complete")
                         .header("Authorization", learnerToken))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$.complete").value(true))
-                .andExpect(jsonPath("$.reason").value("ALL_REQUIRED_STAGES"));
+                .andExpect(jsonPath("$.status").value("COMPLETED"))
+                .andExpect(jsonPath("$.alreadyCompleted").value(false))
+                .andExpect(jsonPath("$.completion.complete").value(true))
+                .andExpect(jsonPath("$.completion.reason").value("ALL_REQUIRED_STAGES"));
 
-        // progress view reflects all required done; status still IN_PROGRESS
+        // progress view reflects all required done; status now COMPLETED
         mvc.perform(get("/api/v1/attempts/" + attemptId)
                         .header("Authorization", learnerToken))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$.status").value("IN_PROGRESS"))
+                .andExpect(jsonPath("$.status").value("COMPLETED"))
                 .andExpect(jsonPath("$.progress.completedRequired").value(2))
                 .andExpect(jsonPath("$.completion.complete").value(true));
     }

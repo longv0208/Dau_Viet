@@ -48,6 +48,8 @@ public abstract class AbstractPostgresIT {
             org.springframework.jdbc.core.JdbcTemplate jdbc) {
         jdbc.update("set session_replication_role = replica");
         jdbc.update("delete from activity_attempts");
+        jdbc.update("delete from lesson_results");
+        jdbc.update("delete from idempotency_records");
         jdbc.update("delete from learner_attempts");
         jdbc.update("update lessons set status = 'DRAFT', current_version_id = null");
         jdbc.update("delete from lesson_versions");
