@@ -53,4 +53,14 @@ public class LessonVersion {
     public String getSnapshotJson() { return snapshotJson; }
     public Instant getPublishedAt() { return publishedAt; }
     public UUID getPublishedBy() { return publishedBy; }
+
+    // Insert-time mutators only: every column is updatable=false and the DB
+    // trigger forbids UPDATE, so these can never change a persisted row.
+    public void setId(UUID id) { this.id = id; }
+    public void setLessonId(UUID lessonId) { this.lessonId = lessonId; }
+    public void setVersionNo(Integer versionNo) { this.versionNo = versionNo; }
+    public void setSchemaVersion(Integer schemaVersion) { this.schemaVersion = schemaVersion; }
+    public void setSnapshotJson(String snapshotJson) { this.snapshotJson = snapshotJson; }
+    public void setPublishedAt(Instant publishedAt) { this.publishedAt = publishedAt; }
+    public void setPublishedBy(UUID publishedBy) { this.publishedBy = publishedBy; }
 }

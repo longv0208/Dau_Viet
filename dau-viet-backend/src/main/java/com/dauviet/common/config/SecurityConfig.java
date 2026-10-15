@@ -60,7 +60,8 @@ public class SecurityConfig {
             .logout(logout -> logout.disable())
             .authorizeHttpRequests(auth -> auth
                 .requestMatchers(org.springframework.http.HttpMethod.GET,
-                        "/api/v1/events", "/api/v1/events/*").permitAll()
+                        "/api/v1/events", "/api/v1/events/*", "/api/v1/events/*/lessons",
+                        "/api/v1/lessons", "/api/v1/lessons/*", "/api/v1/lessons/*/content").permitAll()
                 .requestMatchers(org.springframework.http.HttpMethod.POST,
                         "/api/v1/auth/**").permitAll()
                 .requestMatchers("/api/v1/admin/**").hasRole("CONTENT_ADMIN")

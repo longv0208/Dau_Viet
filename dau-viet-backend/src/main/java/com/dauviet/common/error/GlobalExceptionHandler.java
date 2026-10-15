@@ -188,6 +188,18 @@ public class GlobalExceptionHandler {
         return build(HttpStatus.NOT_FOUND, ErrorCode.ASSET_NOT_FOUND, ex.getMessage(), Map.of());
     }
 
+    @ExceptionHandler(com.dauviet.lesson.domain.LessonNotPublishedException.class)
+    public ResponseEntity<ApiError> handleLessonNotPublished(
+            com.dauviet.lesson.domain.LessonNotPublishedException ex) {
+        return build(HttpStatus.NOT_FOUND, ErrorCode.LESSON_NOT_PUBLISHED, ex.getMessage(), Map.of());
+    }
+
+    @ExceptionHandler(com.dauviet.lesson.domain.VersionNotFoundException.class)
+    public ResponseEntity<ApiError> handleVersionNotFound(
+            com.dauviet.lesson.domain.VersionNotFoundException ex) {
+        return build(HttpStatus.NOT_FOUND, ErrorCode.VERSION_NOT_FOUND, ex.getMessage(), Map.of());
+    }
+
     @ExceptionHandler(com.dauviet.lesson.domain.TemplateSchemaMismatchException.class)
     public ResponseEntity<ApiError> handleTemplateSchemaMismatch(
             com.dauviet.lesson.domain.TemplateSchemaMismatchException ex) {

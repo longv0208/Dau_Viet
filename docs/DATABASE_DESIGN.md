@@ -215,9 +215,44 @@ CREATE TABLE activity_attempts (
 - `evidenceRefs`/`requiredEvidenceIds` lưu `evidences.id` dạng string UUID; publish-level check yêu cầu cùng `event_id` + status `DRAFT|APPROVED`.
 - Answer keys (`correctOptionIds`, `correctPairs`, `expectedOrder`, ...) tồn tại trong `config`/`validation` nhưng **server-only** — strip khi xuất learner payload (TASK-0010).
 
+### Contract `snapshot_json` (TASK-0010)
+
+Bản ghi bất biến được `POST /admin/lessons/{id}/publish` ghi vào `lesson_versions.snapshot_json`; là single published source of truth — admin sửa draft/evidence sau đó không ảnh hưởng version đã publish.
+
+```json
+{
+  "schemaVersion": 1,
+  "lessonId": "<uuid>",
+  "title": "...",
+  "centralQuestion": "...",
+  "objectives": ["..."],
+  "templateCode": "tpl-code",
+  "stages": [ /* verbatim từ draft — giữ server-only keys */ ],
+  "completion": { /* verbatim nếu có */ },
+  "evidence": [
+    {
+      "id": "<uuid>", "title": "...", "evidenceType": "...",
+      "description": "...",
+      "source": {"title": "...", "author": "...", "url": "...",
+                 "citation": "...", "publishedAt": "..."},
+      "reliability": "HIGH", "relevance": "...",
+      "assetId": "<uuid|null>"
+    }
+  ],
+  "assets": [
+    {"id": "<uuid>", "storageKey": "...", "mimeType": "...",
+     "sizeBytes": 0, "originalFilename": "...", "altText": "..."}
+  ]
+}
+```
+
+- `evidence[]` được embed **denormalized** từ bảng `evidences` tại thời điểm publish (id thu thập từ `config.visibleEvidenceIds/requiredEvidenceIds/visibleSourceIds`, `activity.evidenceRefs`, `stage.requiredEvidenceIds`); `assets[]` từ `evidence.assetId` + `config.imageAssetId`. Embed giữ cho quét `EVIDENCE_IN_USE` LIKE-based vẫn thấy id trong snapshot — trả lời câu hỏi mở §7.3: chọn embed đầy đủ learner-facing fields, không pin version.
+- Server-only keys (`correctOptionIds`, `validation`, stage `requiredEvidenceIds`...) **có trong snapshot** để phục vụ evaluation phía server; `LearnerProjectionService` strip khi đọc learner. Admin `GET /versions/{id}` thấy snapshot đầy đủ.
+- Immutability: trigger `trg_lesson_versions_immutable` chặn UPDATE/DELETE ở DB level — không phụ thuộc code phía app.
+
 ## 6. Invariants giao dịch
 
-- **Publish:** validate toàn snapshot → transaction insert version → cập nhật current version; attempt cũ không đổi version.
+- **Publish:** `SELECT FOR UPDATE` trên `lessons` (pessimistic lock) → PUBLISH-level `DraftValidator` → `version_no = max+1` → insert `lesson_versions` → cập nhật `current_version_id` + `status=PUBLISHED` — tất cả trong một transaction; attempt cũ không đổi version (đã implement TASK-0010).
 - **Start/resume:** ưu tiên resume attempt `IN_PROGRESS` đã có theo chính sách PO; tránh hai attempt active ngoài ý muốn bằng transaction/constraint phù hợp.
 - **Submit:** xác thực owner → check state/version/activity → lock/optimistic concurrency → evaluate server-side → append activity attempt → update cursor/state → commit.
 - **Complete/reward:** ghi result và reward ledger trong cùng transaction; `UNIQUE` guard + idempotency key giúp không trao thưởng trùng.

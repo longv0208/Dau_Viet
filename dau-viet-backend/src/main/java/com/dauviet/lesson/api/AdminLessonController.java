@@ -32,7 +32,11 @@ import com.dauviet.lesson.api.dto.AdminLessonDraftRequest;
 import com.dauviet.lesson.api.dto.AdminLessonResponse;
 import com.dauviet.lesson.api.dto.AdminLessonSummaryResponse;
 import com.dauviet.lesson.api.dto.AdminLessonUpdateRequest;
+import com.dauviet.lesson.api.dto.LearnerLessonContent;
 import com.dauviet.lesson.api.dto.PublishReadinessResponse;
+import com.dauviet.lesson.api.dto.PublishRequest;
+import com.dauviet.lesson.api.dto.PublishResponse;
+import com.dauviet.lesson.application.LessonPublishService;
 import com.dauviet.lesson.application.LessonService;
 import com.dauviet.lesson.domain.LessonStatus;
 
@@ -51,9 +55,12 @@ public class AdminLessonController {
     private static final Sort DEFAULT_SORT = Sort.by(Sort.Direction.DESC, "updatedAt");
 
     private final LessonService service;
+    private final LessonPublishService publishService;
 
-    public AdminLessonController(LessonService service) {
+    public AdminLessonController(LessonService service,
+                                 LessonPublishService publishService) {
         this.service = service;
+        this.publishService = publishService;
     }
 
     @PostMapping
@@ -108,6 +115,27 @@ public class AdminLessonController {
     @PostMapping("/{id}/validate")
     public PublishReadinessResponse validate(@PathVariable UUID id) {
         return service.checkPublishReadiness(id);
+    }
+
+    /**
+     * Transactional publish: validates the draft at PUBLISH level, writes an
+     * immutable lesson_versions snapshot, and rotates current_version_id.
+     */
+    @PostMapping("/{id}/publish")
+    public PublishResponse publish(@PathVariable UUID id,
+                                   @RequestBody(required = false) PublishRequest req,
+                                   @AuthenticationPrincipal Jwt jwt) {
+        Long expected = req == null ? null : req.expectedRowVersion();
+        return publishService.publish(id, expected, adminId(jwt));
+    }
+
+    /**
+     * Learner-safe projection of the current draft — what a learner would see
+     * if it were published now. Read-only; never writes lesson_versions.
+     */
+    @PostMapping("/{id}/preview")
+    public LearnerLessonContent preview(@PathVariable UUID id) {
+        return service.preview(id);
     }
 
     private UUID adminId(Jwt jwt) {

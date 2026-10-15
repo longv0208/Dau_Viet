@@ -143,6 +143,58 @@ class AdminLessonValidateIT extends AbstractPostgresIT {
     }
 
     @Test
+    void validate_disabledTemplate_error() throws Exception {
+        String tpl2 = UUID.randomUUID().toString();
+        jdbc.update("insert into lesson_templates (id, code, name, schema_version, preset_json, enabled) "
+                  + "values (?::uuid, 't2', 'T2', 1, '{}'::jsonb, false)", tpl2);
+        String id = createLesson("{}");
+        // PATCH rightly refuses a disabled template (422 TEMPLATE_DISABLED);
+        // rebind directly so the readiness probe itself can be asserted.
+        jdbc.update("update lessons set template_id = ?::uuid where id = ?::uuid", tpl2, id);
+        mvc.perform(post("/api/v1/admin/lessons/" + id + "/validate")
+                        .header("Authorization", adminToken))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.ready").value(false))
+                .andExpect(jsonPath("$.errors[?(@.code=='TEMPLATE_DISABLED')]").exists());
+    }
+
+    @Test
+    void validate_draftEvent_warnsNotBlocks() throws Exception {
+        // Fixture event is DRAFT — publish readiness warns EVENT_NOT_PUBLISHED
+        // but does not add an error (open product question, see plan).
+        String evId = approvedEvidence();
+        String id = createLesson(publishableDraft(evId));
+        mvc.perform(post("/api/v1/admin/lessons/" + id + "/validate")
+                        .header("Authorization", adminToken))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.ready").value(true))
+                .andExpect(jsonPath("$.warnings[?(@.code=='EVENT_NOT_PUBLISHED')]").exists());
+    }
+
+    private String approvedEvidence() {
+        String evId = UUID.randomUUID().toString();
+        jdbc.update("insert into evidences (id, event_id, title, evidence_type, source_title, status) "
+                  + "values (?::uuid, ?::uuid, 'EV', 'DOC', 'src', 'APPROVED')", evId, eventId);
+        return evId;
+    }
+
+    private String publishableDraft(String evId) {
+        return """
+                {"schemaVersion":1,
+                 "stages":[
+                   {"id":"ctx","type":"CONTEXT","required":true,
+                    "activities":[{"id":"r1","type":"READ","config":{"text":"hi"}}],
+                    "nextStageIds":["ev"]},
+                   {"id":"ev","type":"EVIDENCE","required":true,
+                    "activities":[{"id":"es","type":"EVIDENCE_SELECT","required":true,
+                                   "config":{"visibleEvidenceIds":["%s"]},
+                                   "evidenceRefs":["%s"]}],
+                    "nextStageIds":[]}],
+                 "completion":{"requireAllRequiredStages":true}}
+                """.formatted(evId, evId);
+    }
+
+    @Test
     void validate_templateSchemaMismatch_error() throws Exception {
         String tpl2 = UUID.randomUUID().toString();
         jdbc.update("insert into lesson_templates (id, code, name, schema_version, preset_json, enabled) "

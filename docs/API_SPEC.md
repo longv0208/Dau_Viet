@@ -46,7 +46,9 @@
 | GET | `/me` | Profile / level / EXP khi hỗ trợ |
 | GET | `/events` | Danh sách event/lesson published — **đã implement** (TASK-0005) |
 | GET | `/events/{eventId}` | Metadata event, available lessons — **đã implement** (TASK-0005) |
-| GET | `/lessons/{lessonId}` | Public lesson detail, latest publish info |
+| GET | `/events/{eventId}/lessons` | Published lessons của một event PUBLISHED — **implemented TASK-0010** |
+| GET | `/lessons/{lessonId}` | Published lesson metadata (title, centralQuestion, currentVersionId, versionNo) — **implemented TASK-0010**; unpublished → 404 `LESSON_NOT_PUBLISHED` |
+| GET | `/lessons/{lessonId}/content` | Learner-safe content của current published version (hidden keys stripped) — **implemented TASK-0010** |
 | POST | `/lessons/{lessonId}/attempts` | Start/resume theo policy |
 | GET | `/attempts/{attemptId}` | Attempt progress/cursor |
 | GET | `/attempts/{attemptId}/current` | Current activity (learner-safe payload) |
@@ -210,8 +212,11 @@ Access token: JWT HS256 (sub = user UUID, claim `role`); access TTL mặc địn
 | PATCH | `/admin/evidences/{id}` | Sửa evidence metadata/asset — **implemented TASK-0009** |
 | POST | `/admin/evidences/{id}/approve` | DRAFT→APPROVED — **implemented TASK-0009** |
 | POST | `/admin/evidences/{id}/archive` | Archive (body tuỳ chọn `{expectedRowVersion}`; 409 `EVIDENCE_IN_USE` kèm `details.lessonIds` khi snapshot đang ref) — **implemented TASK-0009** |
-| POST | `/admin/lessons/{lessonId}/preview` | Trả learner-safe preview payload từ draft — TASK-0010 |
-| POST | `/admin/lessons/{lessonId}/publish` | Transactional publish snapshot version mới — TASK-0010 |
+| POST | `/admin/lessons/{lessonId}/preview` | Learner-safe projection của draft hiện tại; không ghi lesson_versions — **implemented TASK-0010** |
+| POST | `/admin/lessons/{lessonId}/publish` | Transactional publish: PUBLISH-validate → snapshot bất biến → xoay current_version_id — **implemented TASK-0010** |
+| GET | `/admin/lessons/{lessonId}/versions` | List version history (paged, newest-first) — **implemented TASK-0010** |
+| GET | `/admin/lessons/{lessonId}/versions/{versionId}` | Chi tiết một version, full snapshot — **implemented TASK-0010** |
+| GET | `/admin/lessons/{lessonId}/versions/current` | Version mà current_version_id đang trỏ — **implemented TASK-0010** |
 | POST | `/admin/assets/upload-intent` | Tạo upload URL tạm thời (implementation proposal) |
 | POST | `/admin/assets/confirm` | Verify file sau upload |
 
@@ -241,22 +246,33 @@ Access token: JWT HS256 (sub = user UUID, claim `role`); access TTL mặc địn
 ```http
 POST /api/v1/admin/lessons/{lessonId}/publish
 Authorization: Bearer <admin_token>
-Idempotency-Key: 7c76c47c-b31f-46fb-9d47-bab36d75af61
 Content-Type: application/json
 
-{"expectedDraftRevision": 12}
+{"expectedRowVersion": 12}
 ```
+
+`expectedRowVersion` là tuỳ chọn (optimistic-lock guard trên row `lessons`); `Idempotency-Key` chưa implement — xem open questions.
 
 ```json
 {
   "lessonId": "4e18d732-62d6-4c6f-b62d-9f746197322a",
   "lessonVersionId": "e9d113ac-1c82-4d33-8ba0-1807422a9d6a",
   "versionNo": 2,
-  "status": "PUBLISHED"
+  "status": "PUBLISHED",
+  "publishedAt": "2026-10-16T00:00:00Z"
 }
 ```
 
-Nếu thiếu question/objective, required activity, evidence reference, validation rule hoặc renderer phù hợp, trả `422` cùng mảng lỗi có `fieldPath` để Admin highlight.
+Publish chạy PUBLISH-level `DraftValidator` trong một transaction: `SELECT FOR UPDATE` trên `lessons` serialize concurrent publish, `version_no = max+1`, insert `lesson_versions` (trigger DB chặn UPDATE/DELETE), cập nhật `current_version_id` + `status=PUBLISHED`. Lỗi validation → `422 DRAFT_SCHEMA_INVALID` với `details.errors[]` không ghi gì; ARCHIVED → `409 INVALID_STATUS_TRANSITION`; stale `expectedRowVersion` → `409 OPTIMISTIC_LOCK_CONFLICT`. Republish trên lesson PUBLISHED được phép (version_no tăng, snapshot cũ giữ nguyên). Yêu cầu event PUBLISHED hiện chỉ là warning, chưa block — chờ quyết định sản phẩm.
+
+### Notes đã chốt TASK-0010 (Publish + Learner-safe content)
+
+- `snapshot_json` embed: `schemaVersion`, `lessonId`, `title`, `centralQuestion`, `objectives`, `templateCode`, `stages`/`completion` verbatim từ draft (server-only keys giữ lại cho evaluation phía server sau này), `evidence[]` denormalized (id/title/evidenceType/description/source{title,author,url,citation,publishedAt}/reliability/relevance/assetId), `assets[]` (id/storageKey/mimeType/sizeBytes/originalFilename/altText). Snapshot là single published truth — evidence/asset embed giữ `EVIDENCE_IN_USE` LIKE-scan hoạt động.
+- Learner projection (`LearnerProjectionService`) strip đệ quy `LEARNER_HIDDEN_KEYS` ở mọi depth trong config/feedback/validation, xoá `validation` block và `evidenceRefs` của activity cùng `requiredEvidenceIds` của stage; không mutate snapshot gốc. Renderer-facing refs (`visibleEvidenceIds`, `visibleSourceIds`) vẫn giữ.
+- Readiness (`/validate` + `/publish`) kiểm tra thêm: template `enabled=false` → error `TEMPLATE_DISABLED`; event cha chưa `PUBLISHED` → warning `EVENT_NOT_PUBLISHED` (không block — open product question); event không tồn tại → error `EVENT_NOT_FOUND`.
+- `POST /admin/lessons/{id}/preview` trả cùng projection trên draft hiện tại (`lessonVersionId`/`versionNo` = null), không ghi bản ghi nào, lesson giữ nguyên trạng thái.
+- Learner GETs là `permitAll` trong SecurityConfig: `/api/v1/events/*/lessons`, `/api/v1/lessons/*` (gồm `/content`). Lesson chưa publish → `404 LESSON_NOT_PUBLISHED`; event chưa publish → `404` theo `EVENT_NOT_FOUND` envelope.
+- Admin version APIs trả full snapshot kể cả server-only keys (admin-only sau `/admin/**` guard).
 
 ## 4. Security và cạnh tranh trạng thái
 
