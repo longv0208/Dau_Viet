@@ -16,6 +16,7 @@ import jakarta.persistence.EnumType;
 import jakarta.persistence.Enumerated;
 import jakarta.persistence.Id;
 import jakarta.persistence.Table;
+import jakarta.persistence.Version;
 
 /**
  * A historical event (e.g. Bạch Đằng 938) — knowledge metadata only.
@@ -81,6 +82,11 @@ public class HistoricalEvent {
     @Column(name = "updated_at", nullable = false)
     private Instant updatedAt;
 
+    /** Optimistic-lock column added by V5; never expose to public DTOs. */
+    @Version
+    @Column(name = "row_version", nullable = false)
+    private Long rowVersion;
+
     public HistoricalEvent() {
         // JPA + seed/factory use; always assign id via setId before persisting.
     }
@@ -123,4 +129,5 @@ public class HistoricalEvent {
 
     public Instant getCreatedAt() { return createdAt; }
     public Instant getUpdatedAt() { return updatedAt; }
+    public Long getRowVersion() { return rowVersion; }
 }

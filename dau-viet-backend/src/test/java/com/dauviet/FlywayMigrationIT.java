@@ -37,6 +37,19 @@ class FlywayMigrationIT extends AbstractPostgresIT {
     }
 
     @Test
+    void flywayV5Applied_rowVersionPresent() {
+        Integer applied = jdbc.queryForObject(
+                "SELECT count(*) FROM flyway_schema_history WHERE version = '5' AND success",
+                Integer.class);
+        assertThat(applied).isEqualTo(1);
+        Integer col = jdbc.queryForObject(
+                "SELECT count(*) FROM information_schema.columns "
+              + "WHERE table_name='historical_events' AND column_name='row_version'",
+                Integer.class);
+        assertThat(col).isEqualTo(1);
+    }
+
+    @Test
     void authoringAndRuntimeTablesExist() {
         Integer count = jdbc.queryForObject(
                 "SELECT count(*) FROM information_schema.tables "

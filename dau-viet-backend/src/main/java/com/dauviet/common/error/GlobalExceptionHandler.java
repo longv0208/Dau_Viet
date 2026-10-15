@@ -109,6 +109,49 @@ public class GlobalExceptionHandler {
         return build(HttpStatus.BAD_REQUEST, ErrorCode.VALIDATION_ERROR, "Invalid request", details);
     }
 
+    @ExceptionHandler(com.dauviet.lesson.domain.InvalidStatusTransitionException.class)
+    public ResponseEntity<ApiError> handleInvalidTransition(
+            com.dauviet.lesson.domain.InvalidStatusTransitionException ex) {
+        return build(HttpStatus.CONFLICT, ErrorCode.INVALID_STATUS_TRANSITION, ex.getMessage(), Map.of());
+    }
+
+    @ExceptionHandler(com.dauviet.lesson.domain.EventInUseException.class)
+    public ResponseEntity<ApiError> handleEventInUse(
+            com.dauviet.lesson.domain.EventInUseException ex) {
+        return build(HttpStatus.CONFLICT, ErrorCode.EVENT_IN_USE, ex.getMessage(), Map.of());
+    }
+
+    @ExceptionHandler(com.dauviet.lesson.domain.LessonNotFoundException.class)
+    public ResponseEntity<ApiError> handleLessonNotFound(
+            com.dauviet.lesson.domain.LessonNotFoundException ex) {
+        return build(HttpStatus.NOT_FOUND, ErrorCode.LESSON_NOT_FOUND, ex.getMessage(), Map.of());
+    }
+
+    @ExceptionHandler(com.dauviet.lesson.domain.TemplateNotFoundException.class)
+    public ResponseEntity<ApiError> handleTemplateNotFound(
+            com.dauviet.lesson.domain.TemplateNotFoundException ex) {
+        return build(HttpStatus.NOT_FOUND, ErrorCode.TEMPLATE_NOT_FOUND, ex.getMessage(), Map.of());
+    }
+
+    @ExceptionHandler(com.dauviet.lesson.domain.TemplateDisabledException.class)
+    public ResponseEntity<ApiError> handleTemplateDisabled(
+            com.dauviet.lesson.domain.TemplateDisabledException ex) {
+        return build(HttpStatus.UNPROCESSABLE_ENTITY, ErrorCode.TEMPLATE_DISABLED, ex.getMessage(), Map.of());
+    }
+
+    @ExceptionHandler(com.dauviet.lesson.domain.DraftSchemaInvalidException.class)
+    public ResponseEntity<ApiError> handleDraftInvalid(
+            com.dauviet.lesson.domain.DraftSchemaInvalidException ex) {
+        return build(HttpStatus.UNPROCESSABLE_ENTITY, ErrorCode.DRAFT_SCHEMA_INVALID, ex.getMessage(), Map.of());
+    }
+
+    @ExceptionHandler(org.springframework.orm.ObjectOptimisticLockingFailureException.class)
+    public ResponseEntity<ApiError> handleOptimisticLock(
+            org.springframework.orm.ObjectOptimisticLockingFailureException ex) {
+        return build(HttpStatus.CONFLICT, ErrorCode.OPTIMISTIC_LOCK_CONFLICT,
+                "Resource was modified concurrently; reload and retry", Map.of());
+    }
+
     @ExceptionHandler(Exception.class)
     public ResponseEntity<ApiError> handleGeneric(Exception ex) {
         String traceId = MDC.get(TraceIdFilter.MDC_KEY);

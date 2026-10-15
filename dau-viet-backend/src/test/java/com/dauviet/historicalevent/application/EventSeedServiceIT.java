@@ -13,6 +13,8 @@ import com.dauviet.historicalevent.domain.EventStatus;
 import com.dauviet.historicalevent.domain.HistoricalEvent;
 import com.dauviet.historicalevent.infrastructure.persistence.HistoricalEventRepository;
 
+import org.junit.jupiter.api.BeforeEach;
+
 /**
  * Insert-only seed: first run inserts, second run is a no-op and must not
  * overwrite local edits made to the seeded row.
@@ -27,6 +29,22 @@ class EventSeedServiceIT extends AbstractPostgresIT {
 
     @Autowired
     private HistoricalEventRepository repository;
+
+    @Autowired
+    private org.springframework.jdbc.core.JdbcTemplate jdbc;
+
+    @BeforeEach
+    void cleanTable() {
+        // Other ITs on the shared container leave rows behind; isolate so
+        // count() assertions stay deterministic. Bypass the immutable trigger
+        // on lesson_versions and demote PUBLISHED lessons for cleanup only.
+        jdbc.update("set session_replication_role = replica");
+        jdbc.update("update lessons set status = 'DRAFT', current_version_id = null");
+        jdbc.update("delete from lesson_versions");
+        jdbc.update("delete from lessons");
+        jdbc.update("set session_replication_role = origin");
+        jdbc.update("delete from historical_events");
+    }
 
     @Test
     void seedInsertsOnce_thenSecondRunIsNoop() {

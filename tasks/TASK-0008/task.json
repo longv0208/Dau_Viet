@@ -1,0 +1,59 @@
+{
+  "schemaVersion": 1,
+  "id": "TASK-0008",
+  "type": "feature",
+  "risk": "high-risk",
+  "status": "reviewing",
+  "goal": "Implement Admin management APIs for Historical Events (CRUD + publish/archive, public stays read-only published) and Lessons (create/list/get/update metadata/update draft/archive) plus read-only Lesson Template list/get. All admin endpoints require CONTENT_ADMIN; LEARNER -> 403; unauthenticated -> 401. Follows Flyway V1-V4 schema, no destructive changes.",
+  "owner": "claude",
+  "modules": ["backend"],
+  "scope": [
+    "dau-viet-backend/",
+    "tasks/TASK-0008/",
+    "docs/API_SPEC.md",
+    "plans/"
+  ],
+  "acceptanceCriteria": [
+    { "id": "AC-1", "text": "Admin event endpoints /api/v1/admin/events: create, list (pagination+search+status filter), detail, update metadata, publish, archive. Validation + valid status transitions enforced; referenced events cannot be unsafely deleted; archive preferred over delete." },
+    { "id": "AC-2", "text": "Admin lesson endpoints /api/v1/admin/lessons: create (linked to event + valid template), list (pagination+filter), detail, update metadata, update draft (JSONB), archive. Published lesson_versions snapshots are immutable; draft edit preserves current published version." },
+    { "id": "AC-3", "text": "Read-only lesson template endpoints: list enabled, get detail/config. No template editing." },
+    { "id": "AC-4", "text": "Authorization: admin endpoints require CONTENT_ADMIN; LEARNER -> 403; unauthenticated -> 401; public GET /api/v1/events* unchanged and still permitAll (published only)." },
+    { "id": "AC-5", "text": "Integrity: FK integrity, consistent status transitions, tx boundaries, optimistic locking (@Version) on entities touched by concurrent update; no destructive changes to V1-V4; any new field/constraint via new migration." },
+    { "id": "AC-6", "text": "Tests cover: event CRUD + transitions, lesson create + draft edit, event-lesson FK validation, invalid template refs, JSONB persistence, admin auth, learner 403, public API backward-compat, concurrent update (optimistic lock), existing auth tests stay green." },
+    { "id": "AC-7", "text": "mvnw verify green locally (Docker up) or NOT VERIFIED honestly; no fake data/mocks to pass; docs/API_SPEC updated; no secrets committed." }
+  ],
+  "dependencies": ["TASK-0007"],
+  "planPath": "plans/261015-2236-task0008-event-lesson-admin/plan.md",
+  "evidenceRefs": [
+    "dau-viet-backend/src/main/resources/db/migration/V5__add_historical_events_row_version.sql",
+    "dau-viet-backend/src/main/java/com/dauviet/historicalevent/admin/api/AdminEventController.java",
+    "dau-viet-backend/src/main/java/com/dauviet/historicalevent/admin/AdminEventService.java",
+    "dau-viet-backend/src/main/java/com/dauviet/lesson/api/AdminLessonController.java",
+    "dau-viet-backend/src/main/java/com/dauviet/lesson/api/AdminLessonTemplateController.java",
+    "dau-viet-backend/src/main/java/com/dauviet/lesson/application/LessonService.java",
+    "dau-viet-backend/src/main/java/com/dauviet/lesson/application/DraftValidator.java",
+    "dau-viet-backend/src/main/java/com/dauviet/lesson/domain/Lesson.java",
+    "dau-viet-backend/src/test/java/com/dauviet/historicalevent/admin/AdminEventIT.java",
+    "dau-viet-backend/src/test/java/com/dauviet/lesson/AdminLessonIT.java"
+  ],
+  "reviewRefs": [],
+  "nextAction": "Code-reviewer report -> fix findings -> commit. mvnw verify already green locally (85 tests, 0 failures) with Docker up.",
+  "baseCommit": "b57e7f2",
+  "inputFingerprint": null,
+  "snapshot": null,
+  "roleReports": ["plans/reports/planner-261015-2236-task0008.md"],
+  "blockedReason": null,
+  "resumeFrom": null,
+  "handoffRef": null,
+  "acEvidence": {
+    "AC-1": ["dau-viet-backend/src/main/java/com/dauviet/historicalevent/admin/api/AdminEventController.java", "dau-viet-backend/src/main/java/com/dauviet/historicalevent/admin/AdminEventService.java", "dau-viet-backend/src/test/java/com/dauviet/historicalevent/admin/AdminEventIT.java"],
+    "AC-2": ["dau-viet-backend/src/main/java/com/dauviet/lesson/api/AdminLessonController.java", "dau-viet-backend/src/main/java/com/dauviet/lesson/application/LessonService.java", "dau-viet-backend/src/test/java/com/dauviet/lesson/AdminLessonIT.java"],
+    "AC-3": ["dau-viet-backend/src/main/java/com/dauviet/lesson/api/AdminLessonTemplateController.java", "dau-viet-backend/src/main/java/com/dauviet/lesson/application/LessonTemplateService.java"],
+    "AC-4": ["dau-viet-backend/src/main/java/com/dauviet/common/config/SecurityConfig.java", "dau-viet-backend/src/test/java/com/dauviet/historicalevent/admin/AdminEventIT.java#auth_anon401_learner403", "dau-viet-backend/src/test/java/com/dauviet/lesson/AdminLessonIT.java#auth_anon401_learner403"],
+    "AC-5": ["dau-viet-backend/src/main/resources/db/migration/V5__add_historical_events_row_version.sql", "dau-viet-backend/src/main/java/com/dauviet/historicalevent/domain/HistoricalEvent.java", "dau-viet-backend/src/main/java/com/dauviet/lesson/domain/Lesson.java"],
+    "AC-6": ["dau-viet-backend/src/test/java/com/dauviet/historicalevent/admin/AdminEventIT.java", "dau-viet-backend/src/test/java/com/dauviet/lesson/AdminLessonIT.java", "dau-viet-backend/src/test/java/com/dauviet/FlywayMigrationIT.java"],
+    "AC-7": ["dau-viet-backend/target/failsafe-reports", "docs/API_SPEC.md"]
+  },
+  "createdAt": "2026-10-15T22:35:00+07:00",
+  "updatedAt": "2026-10-15T22:50:00+07:00"
+}

@@ -177,17 +177,34 @@ Access token: JWT HS256 (sub = user UUID, claim `role`); access TTL mặc địn
 | Method | Path | Mục đích |
 |---|---|---|
 | POST | `/admin/events` | Tạo event |
-| PATCH | `/admin/events/{eventId}` | Sửa event metadata |
-| GET | `/admin/templates` | Danh sách template supported |
-| POST | `/admin/lessons` | Tạo lesson/draft từ template |
-| GET | `/admin/lessons/{lessonId}` | Lấy draft + metadata |
-| PUT | `/admin/lessons/{lessonId}/draft` | Lưu toàn bộ draft, optimistic version |
-| POST | `/admin/lessons/{lessonId}/validate` | Validate đầy đủ trước publish |
-| POST | `/admin/lessons/{lessonId}/preview` | Trả learner-safe preview payload từ draft |
-| POST | `/admin/lessons/{lessonId}/publish` | Transactional publish snapshot version mới |
-| POST | `/admin/lessons/{lessonId}/archive` | Archive, giữ version cũ |
+| GET | `/admin/events` | List events (page/size/sort, `status`, `q`) — **implemented TASK-0008** |
+| GET | `/admin/events/{id}` | Event detail — **implemented TASK-0008** |
+| PATCH | `/admin/events/{eventId}` | Sửa event metadata — **implemented TASK-0008** |
+| POST | `/admin/events/{id}/publish` | DRAFT→PUBLISHED — **implemented TASK-0008** |
+| POST | `/admin/events/{id}/archive` | →ARCHIVED (409 `EVENT_IN_USE` if non-archived lessons) — **implemented TASK-0008** |
+| GET | `/admin/lesson-templates` | List enabled templates — **implemented TASK-0008** |
+| GET | `/admin/lesson-templates/{id}` | Template detail + `preset_json` — **implemented TASK-0008** |
+| GET | `/admin/templates` | Alias kế hoạch cũ — dùng `/admin/lesson-templates` |
+| POST | `/admin/lessons` | Tạo lesson/draft từ template — **implemented TASK-0008** |
+| GET | `/admin/lessons` | List lessons (page/size/sort, `eventId`, `status`, `q`) — **implemented TASK-0008** |
+| GET | `/admin/lessons/{lessonId}` | Lấy draft + metadata — **implemented TASK-0008** |
+| PATCH | `/admin/lessons/{lessonId}` | Update title/centralQuestion/objectives/template — **implemented TASK-0008** |
+| PUT | `/admin/lessons/{lessonId}/draft` | Lưu toàn bộ draft, optimistic version — **implemented TASK-0008** |
+| POST | `/admin/lessons/{lessonId}/archive` | Archive, giữ version cũ — **implemented TASK-0008** |
+| POST | `/admin/lessons/{lessonId}/validate` | Validate đầy đủ trước publish — TASK-0009 |
+| POST | `/admin/lessons/{lessonId}/preview` | Trả learner-safe preview payload từ draft — TASK-0009 |
+| POST | `/admin/lessons/{lessonId}/publish` | Transactional publish snapshot version mới — TASK-0009 |
 | POST | `/admin/assets/upload-intent` | Tạo upload URL tạm thời (implementation proposal) |
 | POST | `/admin/assets/confirm` | Verify file sau upload |
+
+### Notes đã chốt TASK-0008
+
+- `PATCH`/`PUT` admin endpoints chấp nhận `expectedRowVersion` trong body → optimistic-lock 409 `OPTIMISTIC_LOCK_CONFLICT` khi stale.
+- Slug event immutable sau khi `PUBLISHED` (409 `INVALID_STATUS_TRANSITION`).
+- Archive event PUBLISHED còn lesson non-archived → 409 `EVENT_IN_USE`; không cascade.
+- `PUT /{id}/draft` validate `draftJson` là JSON object, `objectivesJson` JSON array → 422 `DRAFT_SCHEMA_INVALID`.
+- Template `enabled=false` → 422 `TEMPLATE_DISABLED`; id không tồn tại → 404 `TEMPLATE_NOT_FOUND`.
+- Publish endpoint trả 409 `INVALID_STATUS_TRANSITION` với message TASK-0009 pending.
 
 ### Publish request/response
 
