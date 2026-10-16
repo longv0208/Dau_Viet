@@ -2,6 +2,7 @@ import { http, HttpResponse } from "msw";
 
 import {
   adminUserFixture,
+  draftFixture,
   emptyPageFixture,
   eventsPageFixture,
   lessonsPageFixture,
@@ -117,7 +118,7 @@ export const handlers = [
       templateId: templatesFixture[0]!.id,
       centralQuestion: "Vì sao Ngô Quyền thắng?",
       objectivesJson: '["Hiểu bối cảnh lịch sử"]',
-      draftJson: "{}",
+      draftJson: draftFixture,
       createdBy: adminUserFixture.id,
       updatedBy: adminUserFixture.id,
       createdAt: "2026-01-01T00:00:00Z",
@@ -140,6 +141,46 @@ export const handlers = [
       updatedBy: adminUserFixture.id,
       createdAt: "2026-01-01T00:00:00Z",
       updatedAt: "2026-01-02T00:00:00Z",
+    });
+  }),
+  http.put("*/api/proxy/admin/lessons/:id/draft", async ({ params, request }) => {
+    const body = (await request.json()) as Record<string, unknown>;
+    const l = lessonsPageFixture.content.find((x) => x.id === params.id);
+    if (!l) return HttpResponse.json({ code: "LESSON_NOT_FOUND" }, { status: 404 });
+    if (typeof body.draftJson !== "string") {
+      return HttpResponse.json({ code: "DRAFT_SCHEMA_INVALID" }, { status: 422 });
+    }
+    return HttpResponse.json({
+      id: l.id,
+      eventId: l.eventId,
+      templateId: templatesFixture[0]!.id,
+      title: l.title,
+      centralQuestion: "Vì sao Ngô Quyền thắng?",
+      objectivesJson: "[]",
+      draftJson: body.draftJson,
+      status: l.status,
+      currentVersionId: l.currentVersionId,
+      rowVersion: ((body.expectedRowVersion as number | undefined) ?? l.rowVersion) + 1,
+      createdBy: adminUserFixture.id,
+      updatedBy: adminUserFixture.id,
+      createdAt: "2026-01-01T00:00:00Z",
+      updatedAt: "2026-01-02T00:00:00Z",
+    });
+  }),
+  http.post("*/api/proxy/admin/lessons/:id/validate", ({ params }) => {
+    const l = lessonsPageFixture.content.find((x) => x.id === params.id);
+    if (!l) return HttpResponse.json({ code: "LESSON_NOT_FOUND" }, { status: 404 });
+    return HttpResponse.json({
+      ready: false,
+      errors: [
+        {
+          path: "stages[3]",
+          code: "NO_REQUIRED_ACTIVITY",
+          message: "Giai đoạn bắt buộc cần ít nhất một hoạt động bắt buộc",
+        },
+      ],
+      warnings: [],
+      summary: "Còn 1 lỗi cần xử lý trước khi xuất bản",
     });
   }),
   http.get("*/api/proxy/admin/lesson-templates", () =>

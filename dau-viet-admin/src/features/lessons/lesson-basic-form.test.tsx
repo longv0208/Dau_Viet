@@ -78,9 +78,10 @@ describe("LessonBasicEditor", () => {
     );
   });
 
-  it("shows Sắp triển khai for the stage builder entry", async () => {
+  it("links to the stage builder route", async () => {
     authStore.setAccessToken("t", 900);
     renderEditor();
-    await waitFor(() => screen.getByText("Sắp triển khai — Stage Builder sẽ có ở TASK tiếp theo."));
+    const link = await screen.findByRole("link", { name: /mở trình soạn bài học/i });
+    expect(link).toHaveAttribute("href", "/lessons/33333333-3333-3333-3333-333333333333/builder");
   });
 });

@@ -86,6 +86,83 @@ export const lessonsPageFixture = {
   ],
 };
 
+/** Bạch Đằng-style draft used by builder tests (CONTEXT → EVIDENCE → RECONSTRUCTION → CONCLUSION). */
+export const draftFixture = JSON.stringify({
+  schemaVersion: 1,
+  stages: [
+    {
+      id: "stage-context",
+      type: "CONTEXT",
+      title: "Bối cảnh 938",
+      required: true,
+      nextStageIds: ["stage-evidence"],
+      activities: [
+        {
+          id: "act-read-context",
+          type: "READ",
+          required: true,
+          instruction: "Đọc đoạn tư liệu về thời điểm 938",
+          config: { text: "Năm 938, quân Nam Hán kéo sang xâm lược…" },
+        },
+      ],
+    },
+    {
+      id: "stage-evidence",
+      type: "EVIDENCE",
+      title: "Bằng chứng trận sông",
+      required: true,
+      nextStageIds: ["stage-reconstruction"],
+      activities: [
+        {
+          id: "act-mc-evidence",
+          type: "MULTIPLE_CHOICE",
+          required: true,
+          instruction: "Vì sao cọc ngầm hiệu quả?",
+          config: {
+            question: "Yếu tố nào làm cọc ngầm hiệu quả?",
+            options: [
+              { id: "opt-tide", label: "Thủy triều lên xuống" },
+              { id: "opt-wind", label: "Gió mùa" },
+            ],
+            correctOptionIds: ["opt-tide"],
+          },
+        },
+      ],
+    },
+    {
+      id: "stage-reconstruction",
+      type: "RECONSTRUCTION",
+      title: "Tái dựng diễn biến",
+      required: true,
+      nextStageIds: ["stage-conclusion"],
+      activities: [
+        {
+          id: "act-order-battle",
+          type: "DRAG_ORDER",
+          required: true,
+          instruction: "Sắp xếp diễn biến trận sông",
+          config: {
+            items: [
+              { id: "it-enter", label: "Quân Nam Hán vào cửa sông lúc triều lên" },
+              { id: "it-retreat", label: "Triều xuống, thuyền đâm phải cọc" },
+            ],
+            expectedOrder: ["it-enter", "it-retreat"],
+          },
+        },
+      ],
+    },
+    {
+      id: "stage-conclusion",
+      type: "CONCLUSION",
+      title: "Kết luận",
+      required: true,
+      nextStageIds: [],
+      activities: [],
+    },
+  ],
+  completion: { requireAllRequiredStages: true },
+});
+
 /** GET /admin/lesson-templates returns a plain array (not paged). */
 export const templatesFixture = [
   {
@@ -94,7 +171,35 @@ export const templatesFixture = [
     name: "Điều tra sự kiện",
     description: "Khung stage chuẩn cho bài điều tra sự kiện lịch sử",
     schemaVersion: 1,
-    presetJson: "{}",
+    presetJson: JSON.stringify({
+      schemaVersion: 1,
+      stages: [
+        {
+          id: "tpl-context",
+          type: "CONTEXT",
+          title: "Bối cảnh (mẫu)",
+          required: true,
+          nextStageIds: ["tpl-evidence"],
+          activities: [
+            {
+              id: "tpl-act-read",
+              type: "READ",
+              required: false,
+              instruction: "Đọc tư liệu nền",
+              config: { text: "Nội dung mẫu…" },
+            },
+          ],
+        },
+        {
+          id: "tpl-evidence",
+          type: "EVIDENCE",
+          title: "Bằng chứng (mẫu)",
+          required: true,
+          nextStageIds: [],
+          activities: [],
+        },
+      ],
+    }),
     enabled: true,
     createdAt: "2026-01-01T00:00:00Z",
     updatedAt: "2026-01-01T00:00:00Z",

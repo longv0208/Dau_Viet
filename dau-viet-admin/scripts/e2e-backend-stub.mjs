@@ -61,7 +61,35 @@ const templates = [
     name: "Điều tra sự kiện",
     description: "Khung stage chuẩn cho bài điều tra sự kiện lịch sử",
     schemaVersion: 1,
-    presetJson: "{}",
+    presetJson: JSON.stringify({
+      schemaVersion: 1,
+      stages: [
+        {
+          id: "tpl-context",
+          type: "CONTEXT",
+          title: "Bối cảnh (mẫu)",
+          required: true,
+          nextStageIds: ["tpl-evidence"],
+          activities: [
+            {
+              id: "tpl-act-read",
+              type: "READ",
+              required: false,
+              instruction: "Đọc tư liệu nền",
+              config: { text: "Nội dung mẫu…" },
+            },
+          ],
+        },
+        {
+          id: "tpl-evidence",
+          type: "EVIDENCE",
+          title: "Bằng chứng (mẫu)",
+          required: true,
+          nextStageIds: [],
+          activities: [],
+        },
+      ],
+    }),
     enabled: true,
     createdAt: NOW,
     updatedAt: NOW,
@@ -251,6 +279,98 @@ const server = http.createServer(async (req, res) => {
       });
       return json(res, 200, lesson);
     }
+  }
+
+  // --- admin/lessons/{id}/draft + /validate ---
+  const draftMatch = path.match(/^\/api\/v1\/admin\/lessons\/([0-9a-f-]+)\/draft$/);
+  if (draftMatch && m === "PUT") {
+    const lesson = lessons.find((l) => l.id === draftMatch[1]);
+    if (!lesson) return json(res, 404, { code: "LESSON_NOT_FOUND", message: "not found" });
+    const body = await readBody(req);
+    if (
+      body?.expectedRowVersion !== undefined &&
+      body.expectedRowVersion !== lesson.rowVersion
+    ) {
+      return json(res, 409, {
+        code: "OPTIMISTIC_LOCK_CONFLICT",
+        message: "modified concurrently",
+      });
+    }
+    if (typeof body?.draftJson !== "string") {
+      return json(res, 422, {
+        code: "DRAFT_SCHEMA_INVALID",
+        message: "draftJson must be a string",
+        details: { errors: [{ path: "draftJson", code: "REQUIRED", message: "missing" }] },
+      });
+    }
+    let parsed;
+    try {
+      parsed = JSON.parse(body.draftJson);
+    } catch {
+      return json(res, 422, {
+        code: "DRAFT_SCHEMA_INVALID",
+        message: "draftJson is not valid JSON",
+        details: { errors: [{ path: "draftJson", code: "INVALID_JSON", message: "unparseable" }] },
+      });
+    }
+    // Minimal SAVE-level check mirroring the real validator: MC needs question+options.
+    const errors = [];
+    (parsed.stages ?? []).forEach((s, si) => {
+      (s.activities ?? []).forEach((a, ai) => {
+        if (a.type === "MULTIPLE_CHOICE") {
+          const cfg = a.config ?? {};
+          if (!cfg.question || !Array.isArray(cfg.options) || cfg.options.length < 2) {
+            errors.push({
+              path: `stages[${si}].activities[${ai}].config`,
+              code: "INVALID_CONFIG",
+              message: "Trắc nghiệm cần câu hỏi và ≥2 đáp án",
+            });
+          }
+        }
+      });
+    });
+    if (errors.length) {
+      return json(res, 422, {
+        code: "DRAFT_SCHEMA_INVALID",
+        message: "draft không hợp lệ",
+        details: { errors },
+      });
+    }
+    lesson.draftJson = body.draftJson;
+    lesson.rowVersion += 1;
+    lesson.updatedAt = NOW;
+    return json(res, 200, lesson);
+  }
+  const validateMatch = path.match(/^\/api\/v1\/admin\/lessons\/([0-9a-f-]+)\/validate$/);
+  if (validateMatch && m === "POST") {
+    const lesson = lessons.find((l) => l.id === validateMatch[1]);
+    if (!lesson) return json(res, 404, { code: "LESSON_NOT_FOUND", message: "not found" });
+    // Canned readiness: ready when every required stage has ≥1 required activity.
+    let draft;
+    try {
+      draft = JSON.parse(lesson.draftJson || "{}");
+    } catch {
+      draft = {};
+    }
+    const errors = [];
+    (draft.stages ?? []).forEach((s, si) => {
+      if (s.required && !(s.activities ?? []).some((a) => a.required)) {
+        errors.push({
+          path: `stages[${si}]`,
+          code: "NO_REQUIRED_ACTIVITY",
+          message: "Giai đoạn bắt buộc cần ít nhất một hoạt động bắt buộc",
+        });
+      }
+    });
+    return json(res, 200, {
+      ready: errors.length === 0,
+      errors,
+      warnings: [],
+      summary:
+        errors.length === 0
+          ? "Đủ điều kiện xuất bản"
+          : `Còn ${errors.length} lỗi cần xử lý trước khi xuất bản`,
+    });
   }
 
   if (m === "GET" && path === "/api/v1/admin/lesson-templates") {

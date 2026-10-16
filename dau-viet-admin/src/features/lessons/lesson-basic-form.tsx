@@ -2,6 +2,7 @@
 
 import { zodResolver } from "@hookform/resolvers/zod";
 import { skipToken, useQuery, useQueryClient } from "@tanstack/react-query";
+import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useState } from "react";
 import { useFieldArray, useForm } from "react-hook-form";
@@ -275,10 +276,13 @@ export function LessonBasicEditor({ lessonId }: { lessonId: string }) {
             Xây dựng cấu trúc giai đoạn và các hoạt động học tập của bài học.
           </CardDescription>
         </CardHeader>
-        <CardContent>
-          <p className="rounded-md bg-surface-alt px-3 py-2 text-sm text-ink-muted">
-            Sắp triển khai — Stage Builder sẽ có ở TASK tiếp theo.
+        <CardContent className="flex flex-col gap-2">
+          <p className="text-sm text-ink-muted">
+            Xây dựng cấu trúc giai đoạn và hoạt động học tập bằng trình soạn trực quan.
           </p>
+          <Button asChild variant="secondary" className="self-start">
+            <Link href={`/lessons/${lesson.id}/builder`}>Mở trình soạn bài học</Link>
+          </Button>
         </CardContent>
       </Card>
     </div>

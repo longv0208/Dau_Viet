@@ -22,6 +22,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { Skeleton } from "@/components/ui/skeleton";
 import { ErrorState } from "@/components/error-state";
 import { EmptyState } from "@/components/empty-state";
+import { useUnsavedChangesGuard } from "@/components/unsaved-changes-guard";
 
 const basicSchema = z.object({
   title: z.string().min(1, "Vui lòng nhập tiêu đề bài học").max(255),
@@ -70,13 +71,16 @@ export function LessonWizard() {
     register,
     control,
     handleSubmit,
-    formState: { errors },
+    formState: { errors, isDirty },
     getValues,
   } = useForm<BasicValues>({
     resolver: zodResolver(basicSchema),
     defaultValues: { title: "", centralQuestion: "", objectives: [{ value: "" }] },
   });
   const objectives = useFieldArray({ control, name: "objectives" });
+
+  // Warn before leaving once the admin has picked anything or typed anything.
+  useUnsavedChangesGuard(isDirty || step > 1);
 
   async function saveDraft(v: BasicValues) {
     if (!eventId || !templateId) return;
@@ -199,6 +203,12 @@ export function LessonWizard() {
             {templatesQuery.isPending && <Skeleton className="h-40 w-full" />}
             {templatesQuery.isError && (
               <ErrorState error={templatesQuery.error} onRetry={() => templatesQuery.refetch()} />
+            )}
+            {templatesQuery.data && templatesQuery.data.length === 0 && (
+              <EmptyState
+                title="Chưa có khung bài học khả dụng"
+                description="Hệ thống chưa có khung bài học nào được bật. Vui lòng liên hệ quản trị hệ thống để được hỗ trợ."
+              />
             )}
             <div className="grid gap-2">
               {(templatesQuery.data ?? []).map((t) => (

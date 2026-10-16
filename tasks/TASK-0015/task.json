@@ -1,0 +1,50 @@
+{
+  "schemaVersion": 1,
+  "id": "TASK-0015",
+  "type": "feature",
+  "risk": "high-risk",
+  "status": "completed",
+  "goal": "Implement a visual Stage & Activity Builder at /lessons/[id]/builder in dau-viet-admin: non-technical Content Admin creates/reorders/configures stages and typed activities through forms (no raw JSON), saves the structure as a backend-compatible draftJson via PUT /admin/lessons/{id}/draft, and reopens without data loss.",
+  "owner": "claude",
+  "modules": ["admin"],
+  "scope": [
+    "dau-viet-admin/",
+    "tasks/TASK-0015/",
+    "docs/admin-runbook.md",
+    "plans/"
+  ],
+  "acceptanceCriteria": [
+    { "id": "AC-1", "text": "/lessons/[id]/builder opens from lesson detail; 3-pane workspace (stage navigator | editor | inspector) responsive-collapses on small screens." },
+    { "id": "AC-2", "text": "Stage ops: add/rename/change-type/reorder/delete-with-confirm (duplicate if straightforward), required flag, nextStageIds via stage selectors — no manual UUID entry; only backend-verified stage types offered." },
+    { "id": "AC-3", "text": "Activity ops: add/edit/reorder/remove inside a stage; type picker shows Vietnamese name + explanation + icon; only backend-supported ActivityType values selectable." },
+    { "id": "AC-4", "text": "Typed editors for READ, VIEW_IMAGE, MULTIPLE_CHOICE, EVIDENCE_SELECT, MATCHING, DRAG_ORDER, CER where backend schemas support them; remaining types show honest unsupported state; no invalid placeholder configs saved." },
+    { "id": "AC-5", "text": "draftJson round-trip: load GET /admin/lessons/{id}, parse to typed models, save PUT /admin/lessons/{id}/draft with expectedRowVersion; unknown fields preserved; IDs stable across reorder/edit; published snapshots untouched." },
+    { "id": "AC-6", "text": "Validation UX: field/stage/activity indicators + error list + save feedback + unsaved-changes guard + delete confirm; SAVE vs PUBLISH validation kept distinct — partial drafts saveable." },
+    { "id": "AC-7", "text": "Semantics preserved: optional stages don't block completion, required activities consistent with parent, transitions reference valid IDs, no unsupported types emitted." },
+    { "id": "AC-8", "text": "Template handling correct for empty draft / existing structure / template-based lesson; explicit 'Tạo cấu trúc từ khung bài học' action if backend doesn't instantiate — never silently replaces work." },
+    { "id": "AC-9", "text": "Tests: builder flows (add/edit/reorder/delete, MC + DRAG_ORDER config, partial save, reload persistence, validation errors, published immutability) + Playwright authoring scenario vs controlled stub; stub never represented as real backend." },
+    { "id": "AC-10", "text": "All gates pass (lint, tsc, vitest, build, playwright); Vietnamese UI throughout; no regression on TASK-0013/0014." }
+  ],
+  "dependencies": ["TASK-0014"],
+  "planPath": "dau-viet-admin/plans/261017-0531-task0015-stage-activity-builder/plan.md",
+  "evidenceRefs": [
+    "dau-viet-admin/plans/reports/planner-261017-0531-task0015-draft-contract.md",
+    "vitest 59/59 pass, 14 files (builder: draft-model 5, use-builder 8, multiple-choice-editor 3, builder-page 7)",
+    "playwright 8/8 pass incl. tests/e2e/builder.spec.ts 3/3 (controlled stub, not real backend)",
+    "tsc --noEmit clean; next lint 0 warnings; next build OK (builder route 21.4 kB)"
+  ],
+  "reviewRefs": [
+    "plans/reports/reviewer-261017-task0015-builder-review.md",
+    "plans/reports/task0015-261017-0630-stage-activity-builder-final-report.md"
+  ],
+  "nextAction": "TASK-0016: evidence/asset pickers for EVIDENCE_SELECT + requiredEvidenceIds + VIEW_IMAGE upload; editors for remaining ActivityTypes; discuss backend gap on onPartial/onContradicted feedback; one manual smoke test vs real backend when environment available.",
+  "baseCommit": "8bbe157",
+  "inputFingerprint": null,
+  "snapshot": null,
+  "roleReports": [],
+  "blockedReason": null,
+  "resumeFrom": null,
+  "handoffRef": null,
+  "createdAt": "2026-10-17T05:30:00+07:00",
+  "updatedAt": "2026-10-17T06:30:00+07:00"
+}

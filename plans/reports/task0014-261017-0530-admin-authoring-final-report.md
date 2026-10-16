@@ -36,6 +36,12 @@ Không có trường JSON thô nào lộ ra UI; `objectivesJson` được serial
 
 `tests/e2e/authoring.spec.ts` chạy đúng kịch bản: đăng nhập → `/lessons/new` → chọn "Trận Bạch Đằng 938" → chọn khung "Điều tra sự kiện" → nhập tiêu đề "Bí mật chiến thắng Bạch Đằng" + câu hỏi trung tâm + 1 mục tiêu → "Lưu bản nháp" → điều hướng tới `/lessons/<uuid>` → reload cứng → dữ liệu vẫn còn (stub giữ in-memory). Test thứ hai tạo sự kiện "Chiến thắng Điện Biên Phủ" qua form và kiểm slug tự gợi ý `chien-thang-dien-bien-phu`.
 
+## Sửa sau review (P2)
+
+- `/events/[id]` hiện có nút **"+ Tạo bài học cho sự kiện này"** dẫn tới `/lessons/new?event=<id>` (wizard tự chọn sẵn sự kiện) — khép kín luồng event → lesson.
+- Wizard bước 2 hiển thị `EmptyState` "Chưa có khung bài học khả dụng" + hướng dẫn liên hệ quản trị hệ thống khi `/admin/lesson-templates` trả mảng rỗng.
+- Wizard áp `useUnsavedChangesGuard(isDirty || step > 1)` — cùng cơ chế cảnh báo của các editor, chặn cả điều hướng nội bộ lẫn reload/đóng tab khi đã nhập liệu.
+
 ## Tính năng chưa hoàn thiện / ngoài phạm vi
 
 - Stage Builder, trình sửa hoạt động, evidence, upload media, UI xuất bản/lưu trữ, preview, danh sách phiên bản — tất cả hiển thị "Sắp triển khai".
@@ -66,4 +72,5 @@ Lưu ý trung thực: Playwright chạy trên stub `scripts/e2e-backend-stub.mjs
 
 - Không có CSRF token (chấp nhận được sau `SameSite=Lax`, hardening ở task sau).
 - Lọc sự kiện ở `/lessons` tải tối đa 100 sự kiện (`size=100`) — đủ cho quy mô nội dung hiện tại; nếu vượt cần combobox tìm kiếm.
-- `useUnsavedChangesGuard` chỉ chặn unload cấp trình duyệt; điều hướng trong app dựa vào nút Huỷ + `window.confirm` (quyết định KISS có chủ đích, ghi trong plan).
+- AC-3: cột "template" và "updatedAt" chưa có ở `/lessons` vì `AdminLessonSummaryResponse` của backend không trả 2 field này — cần mở rộng summary DTO phía server hoặc điều chỉnh AC.
+- `event-form.tsx` (~320 LOC) và `lesson-wizard.tsx` (~380 LOC) vượt soft-cap 200 LOC — tách step components ở refactor sau; hiện vẫn mạch lạc, dễ đọc.

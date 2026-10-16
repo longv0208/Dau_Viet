@@ -74,10 +74,12 @@ npm run test:e2e          # Playwright + node:http stub backend
 
 `test:e2e` spins up `scripts/e2e-backend-stub.mjs` on `:8081` and `next dev`
 on `:3100`. The stub is a controlled `node:http` server that keeps a small
-in-memory store for auth, `/admin/events`, `/admin/lessons` and
+in-memory store for auth, `/admin/events`, `/admin/lessons`,
+`PUT /admin/lessons/{id}/draft`, `POST /admin/lessons/{id}/validate` and
 `/admin/lesson-templates` — it is not the real backend; it proves the
 browser → BFF → backend wiring and the authoring flow (create event →
-lesson wizard → save draft → reopen) end-to-end.
+lesson wizard → save draft → reopen → build stages → save → reload)
+end-to-end.
 
 If Playwright browsers cannot be installed on a machine, the component-level
 suite still covers login validation, dashboard rendering, table states and the
@@ -91,7 +93,51 @@ npm run build
 npm start
 ```
 
-## Known limitations
+## Stage & Activity Builder (`/lessons/[id]/builder`)
+
+Added in TASK-0015. A 3-pane workspace for authoring `draftJson` without
+writing JSON:
+
+- **Left — stage navigator**: ordered stage list, add (9 stage types), reorder
+  up/down, duplicate (re-ids stage + activities, appends "(bản sao)"), delete
+  with inline Xoá/Giữ confirm.
+- **Center — stage editor**: title, stage type, required toggle, nextStageIds
+  checkbox chips (empty = terminal stage), activity list with reorder/delete,
+  "Thêm hoạt động" opens the type picker filtered by
+  `STAGE_ALLOWED_ACTIVITIES` (READ is universal).
+- **Right — inspector**: template seeding, completion editor, server-error
+  panel (click-to-jump), publish-readiness card.
+
+Save pipeline: the whole `Draft` document serializes to one
+`PUT /admin/lessons/{id}/draft` with `expectedRowVersion`. Responses:
+
+- `200` → clean state, `rowVersion` refreshed, cache invalidated.
+- `422 DRAFT_SCHEMA_INVALID` → `details.errors[]` mapped into the validation
+  panel; clicking an entry selects the failing stage/activity.
+- `409 OPTIMISTIC_LOCK_CONFLICT` → banner prompts reload; never auto-retries.
+
+Typed editors exist for READ, VIEW_IMAGE, MULTIPLE_CHOICE, EVIDENCE_SELECT,
+MATCHING, DRAG_ORDER, CER, REFLECTION_PROMPT. The other four types
+(EXPLORE_MAP, REASONING_CONNECT, HYPOTHESIS_CHOICE, VERIFICATION) render an
+honest read-only fallback — the raw config is preserved on save via the
+spread-through codec; they are never silently rewritten. Evidence/asset id
+fields are free-text UUID inputs until the pickers land in TASK-0016.
+
+Server-only keys (correctOptionIds, correctPairs, expectedOrder,
+requiredEvidenceIds) are emitted by the visual arrangement — MC option
+marking, DRAG_ORDER list order, MATCHING pair pairing — and labelled as not
+shown to learners.
+
+Template seeding ("Tạo cấu trúc từ khung bài học") parses the template's
+`presetJson`, regenerates every stage/activity id (slug pattern
+`^[a-z0-9][a-z0-9-]{1,63}$`, NOT UUIDs), remaps internal `nextStageIds`, and
+appends after an explicit confirm — it never replaces existing stages.
+
+Status semantics: `PUBLISHED` shows a banner (edits go to a new draft; the
+published snapshot is immutable), `ARCHIVED` renders the whole builder
+read-only. Unsaved-changes guard warns on in-app navigation and tab close.
+
+
 
 - The real-backend smoke test (CONTENT_ADMIN login, reload, logout,
   LEARNER-denied, expired-token recovery, refresh rotation) has NOT been run
@@ -102,14 +148,15 @@ npm start
   production sign-off.
 - No CSRF token yet — acceptable behind `SameSite=Lax`, but hardening is a
   follow-up before any state-changing public surface.
-- Authoring scope after TASK-0014: `/events` list + search + status filter,
+- Authoring scope after TASK-0015: `/events` list + search + status filter,
   `/events/new` + `/events/[id]` create/edit (slug auto-suggest, tags, unsaved
   guard, optimistic-lock via `expectedRowVersion`); `/lessons` list +
   event/status filters, `/lessons/new` 4-step wizard (event → template →
   basic info → confirm), `/lessons/[id]` basic editor (title, central
-  question, objectives list; PATCHes `expectedRowVersion`). Stage Builder,
-  activity editor, media upload and publish UI remain out of scope — see
-  `design/ADMIN_SCREEN_DESIGN.md` for the roadmap.
+  question, objectives list; PATCHes `expectedRowVersion`),
+  `/lessons/[id]/builder` visual Stage & Activity Builder (see section
+  above). Media upload, evidence catalogue pickers and publish UI remain out
+  of scope — see `design/ADMIN_SCREEN_DESIGN.md` for the roadmap.
 - `Secure` is only added to the cookie in production — dev runs on plain
   `http://localhost`.
 - `sort=updatedAt,desc` is whitelisted on both `/admin/events` and
