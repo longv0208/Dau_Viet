@@ -1,31 +1,14 @@
 import { ApiClientError } from "./api-error";
 import { authStore } from "@/features/auth/auth-store";
+import { coordinatedRefresh } from "@/features/auth/refresh-coordinator";
 
 /**
  * Client-side fetcher for the BFF proxy. Attaches the in-memory access token
  * and parses the ApiError envelope into a typed ApiClientError. On 401 it
- * single-flights one refresh, then retries the request once.
+ * single-flights one refresh (via coordinatedRefresh — shared with the
+ * session bootstrap, so bootstrap and a query can't rotate twice), then
+ * retries the request once.
  */
-let refreshInFlight: Promise<boolean> | null = null;
-
-async function tryRefresh(): Promise<boolean> {
-  if (!refreshInFlight) {
-    refreshInFlight = (async () => {
-      try {
-        const res = await fetch("/api/auth/refresh", { method: "POST" });
-        if (!res.ok) return false;
-        const data = (await res.json()) as { accessToken: string; expiresIn: number };
-        authStore.setAccessToken(data.accessToken, data.expiresIn);
-        return true;
-      } catch {
-        return false;
-      } finally {
-        refreshInFlight = null;
-      }
-    })();
-  }
-  return refreshInFlight;
-}
 
 async function rawFetch<T>(path: string, init?: RequestInit): Promise<T> {
   const token = authStore.getAccessToken();
@@ -48,7 +31,7 @@ export async function apiFetch<T>(path: string, init?: RequestInit): Promise<T> 
     return await rawFetch<T>(path, init);
   } catch (err) {
     if (err instanceof ApiClientError && err.isUnauthorized) {
-      const refreshed = await tryRefresh();
+      const refreshed = await coordinatedRefresh();
       if (refreshed) return rawFetch<T>(path, init);
       authStore.clear();
       if (typeof window !== "undefined") window.location.assign("/login");

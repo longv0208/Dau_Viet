@@ -6,6 +6,7 @@ import { useRouter } from "next/navigation";
 import { ApiClientError } from "@/lib/api-error";
 
 import { authStore } from "./auth-store";
+import { coordinatedRefresh } from "./refresh-coordinator";
 
 interface SessionResponse {
   accessToken: string;
@@ -46,15 +47,11 @@ export function useLogout() {
   });
 }
 
-/** POST /api/auth/refresh — single-flight token rehydration (page reload). */
-export async function refreshSession(): Promise<boolean> {
-  try {
-    const res = await fetch("/api/auth/refresh", { method: "POST" });
-    if (!res.ok) return false;
-    const data = (await res.json()) as SessionResponse;
-    authStore.setAccessToken(data.accessToken, data.expiresIn);
-    return true;
-  } catch {
-    return false;
-  }
+/**
+ * Token rehydration (page reload / bootstrap). Delegates to the shared
+ * single-flight coordinator so StrictMode remounts, a racing apiFetch 401 and
+ * this call all await ONE rotation instead of double-rotating the cookie.
+ */
+export function refreshSession(): Promise<boolean> {
+  return coordinatedRefresh();
 }

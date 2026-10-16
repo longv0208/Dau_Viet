@@ -52,6 +52,15 @@ logout ──► POST /api/auth/logout ──► revoke + clear cookie
   `dv_refresh` HttpOnly cookie (`Path=/`, `SameSite=Lax`, `Secure` in prod).
 - The access token lives in module memory only (`authStore`), never in
   `localStorage`/cookies. Reloading rehydrates via `/api/auth/session`.
+- Refresh rotation is coordinated on both sides:
+  - Client: `refresh-coordinator.ts` single-flights every call (bootstrap,
+    401 retry, StrictMode remount) onto one in-flight Promise, and a
+    `BroadcastChannel("dv-auth")` lets a second tab adopt the rotated token
+    instead of rotating the same cookie again.
+  - Server: `api/auth/refresh/route.ts` keeps a module-level map keyed by
+    the presented token's SHA-256. Two requests carrying the same cookie
+    await the same upstream rotate and each gets its own `Set-Cookie` —
+    prevents the replay → `revokeFamily` forced logout.
 - `middleware.ts` is a presence-only guard; role enforcement happens in
   `(admin)/layout.tsx` (server-side `/users/me` check) and again in the
   backend's `hasRole('CONTENT_ADMIN')` on `/api/v1/admin/**`.
@@ -82,8 +91,13 @@ npm start
 
 ## Known limitations
 
-- Refresh-token rotation is single-flight in the client; a hard reload racing
-  a background refresh can still surface a 401 before the cookie settles.
+- The real-backend smoke test (CONTENT_ADMIN login, reload, logout,
+  LEARNER-denied, expired-token recovery, refresh rotation) has NOT been run
+  on this machine — Docker daemon is stopped, the `postgresql-x64-18`
+  service has an incomplete install (`lib/` missing), and no other Postgres
+  instance is reachable. The stub-backed Playwright suite is the closest
+  current evidence; a real-backend pass remains a follow-up gate before any
+  production sign-off.
 - No CSRF token yet — acceptable behind `SameSite=Lax`, but hardening is a
   follow-up before any state-changing public surface.
 - Module pages (`/events`, `/lessons`, …) are list shells only; create/edit

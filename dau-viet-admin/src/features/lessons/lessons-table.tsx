@@ -19,10 +19,16 @@ const COLUMNS: Column<AdminLessonSummary>[] = [
   { key: "status", header: "Trạng thái", cell: (r) => <StatusChip status={r.status} /> },
   {
     key: "version",
-    header: "Phiên bản hiện tại",
+    header: "Xuất bản",
     cell: (r) =>
       r.currentVersionId ? (
-        <span className="text-xs">v#{r.rowVersion}</span>
+        // AdminLessonSummaryResponse carries currentVersionId, not the
+        // version's versionNo — the real number lives on
+        // /admin/lessons/{id}/versions/current. Show the honest publication
+        // state instead of a fabricated v#.
+        <span className="text-xs" title={`ID phiên bản: ${r.currentVersionId}`}>
+          Đã xuất bản
+        </span>
       ) : (
         <span className="text-xs text-ink-muted">Chưa xuất bản</span>
       ),
