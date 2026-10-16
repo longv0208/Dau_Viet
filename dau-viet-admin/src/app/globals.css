@@ -1,0 +1,33 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/*
+ * Design tokens — semantic CSS variables from design/ART_DIRECTION.md §3.
+ * Components must use Tailwind semantic color names (brand/surface/ink/...)
+ * which resolve through these variables; never hard-code hex in components.
+ */
+:root {
+  --color-brand: #a51f18; /* brand.red.700 — CTA, primary */
+  --color-brand-press: #751b19; /* brand.red.900 — pressed state */
+  --color-surface: #fffbf4; /* surface.cream — page background */
+  --color-surface-alt: #fff1d5; /* surface.parchment — cards */
+  --color-ink: #30251f; /* ink.primary — body text */
+  --color-ink-muted: #685f56; /* ink.secondary — supporting text */
+  --color-border: #e7e0d6; /* muted wood-derived border */
+  --color-error: #b3261e; /* state.error — validation */
+  --color-success: #64824c; /* nature.green — always with icon, never color-only */
+  --color-warning: #e7b451; /* heritage.gold.500 — dark text only */
+  --ring: var(--color-brand);
+}
+
+body {
+  background-color: var(--color-surface);
+  color: var(--color-ink);
+}
+
+/* Visible keyboard focus ring — accessibility requirement (AC-7). */
+*:focus-visible {
+  outline: 2px solid var(--ring);
+  outline-offset: 2px;
+}

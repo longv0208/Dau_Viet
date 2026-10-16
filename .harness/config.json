@@ -29,11 +29,50 @@
     },
     "admin": {
       "path": "dau-viet-admin",
-      "status": "uninitialized",
+      "status": "active",
       "manifests": [
-        "package.json"
+        "package.json",
+        "package-lock.json",
+        "next.config.mjs",
+        "tsconfig.json"
       ],
-      "gates": []
+      "gates": [
+        {
+          "id": "admin-install",
+          "executable": "cmd.exe",
+          "args": ["/c", "npm ci"],
+          "cwd": "dau-viet-admin",
+          "timeoutSeconds": 300
+        },
+        {
+          "id": "admin-lint",
+          "executable": "cmd.exe",
+          "args": ["/c", "npm run lint"],
+          "cwd": "dau-viet-admin",
+          "timeoutSeconds": 180
+        },
+        {
+          "id": "admin-typecheck",
+          "executable": "cmd.exe",
+          "args": ["/c", "npm run typecheck"],
+          "cwd": "dau-viet-admin",
+          "timeoutSeconds": 180
+        },
+        {
+          "id": "admin-test",
+          "executable": "cmd.exe",
+          "args": ["/c", "npm run test -- --run"],
+          "cwd": "dau-viet-admin",
+          "timeoutSeconds": 300
+        },
+        {
+          "id": "admin-build",
+          "executable": "cmd.exe",
+          "args": ["/c", "npm run build"],
+          "cwd": "dau-viet-admin",
+          "timeoutSeconds": 600
+        }
+      ]
     },
     "mobile": {
       "path": "dau-viet-mobile",

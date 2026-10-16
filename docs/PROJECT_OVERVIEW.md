@@ -2,7 +2,7 @@
 
 > **Status:** MVP planning / implementation baseline  
 > **Product:** Ứng dụng học lịch sử Việt Nam theo hướng khám phá và tư duy dựa trên bằng chứng.  
-> **Clients:** Flutter learner app và web Admin Lesson Builder.  
+> **Clients:** Flutter learner app và web Admin Lesson Builder (`dau-viet-admin` — Next.js 15, bootstrapped in TASK-0013).  
 > **Backend:** Spring Boot.
 
 ## 1. Giới thiệu

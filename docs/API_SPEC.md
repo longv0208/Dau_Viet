@@ -327,3 +327,7 @@ Publish chạy PUBLISH-level `DraftValidator` trong một transaction: `SELECT F
 - `Dau_Viet_BA_MVP_Learning_Framework.docx`: functional requirements LRN/ADM/ENG và use cases.
 - `Functional_Requirements_Dau_Viet_MVP.docx`: FR-01…46 và luồng chức năng.
 - Endpoint names, HTTP errors và payloads ở đây là **đề xuất kỹ thuật**, chưa phải API đã có hoặc được kiểm thử.
+
+## Admin client implementation note
+
+`dau-viet-admin` (TASK-0013) consumes this contract through a same-origin BFF layer: the browser only talks to `/api/auth/*` and `/api/proxy/*` inside the Next.js app, which forwards to `/api/v1/*` on `BACKEND_URL`. The refresh token is held in an HttpOnly `dv_refresh` cookie; access tokens live in browser memory only. See `docs/admin-runbook.md` for the full flow.

@@ -1,0 +1,62 @@
+{
+  "schemaVersion": 1,
+  "id": "TASK-0013",
+  "type": "bootstrap",
+  "risk": "high-risk",
+  "status": "done",
+  "goal": "Bootstrap the dau-viet-admin Next.js + TypeScript CMS foundation: real admin authentication against the Spring Boot /api/v1 auth contract (login, refresh rotation, logout, CONTENT_ADMIN authorization), reusable responsive Admin shell (sidebar/header/breadcrumbs), dashboard and honest module entry shells (events, lessons, evidence/assets, templates, versions), typed API client layer with TanStack Query, Vietnamese design-system components, automated tests incl. one browser-level Login->Dashboard test, CI job, and harness registration — without implementing the full Lesson Builder.",
+  "owner": "claude",
+  "modules": ["admin"],
+  "scope": [
+    "dau-viet-admin/",
+    "tasks/TASK-0013/",
+    "docs/API_SPEC.md",
+    "docs/admin-runbook.md",
+    ".harness/config.json",
+    ".github/workflows/admin-ci.yml",
+    "plans/"
+  ],
+  "acceptanceCriteria": [
+    { "id": "AC-1", "text": "dau-viet-admin Next.js App Router + strict TypeScript + Tailwind + shadcn/ui + TanStack Query + React Hook Form/Zod initialized; pinned lockfile; ESLint, type-check, env validation, import aliases, dev and production build configured." },
+    { "id": "AC-2", "text": "Real admin authentication: email/password login posts to POST /api/v1/auth/login; no mock auth; validation + meaningful error messages; logout calls POST /api/v1/auth/logout and clears session." },
+    { "id": "AC-3", "text": "Session handling is safe: refresh token never in localStorage; secure HttpOnly cookie / server-side BFF session where practical; access-token expiry handled via POST /api/v1/auth/refresh rotation; authenticated state restored after page reload; redirect URLs validated." },
+    { "id": "AC-4", "text": "Authorization: users without CONTENT_ADMIN role cannot reach protected admin functionality; unauthenticated users redirected to /login; learner JWT gets denied UX (backend still enforces hasRole CONTENT_ADMIN on /api/v1/admin/**)." },
+    { "id": "AC-5", "text": "Admin Layout per ADMIN_SCREEN_DESIGN.md: sidebar navigation, top header, breadcrumbs, current admin identity, logout, collapsible sidebar, mobile/narrow navigation, loading/error boundaries, not-found and forbidden states; working pages distinguished from coming-soon modules." },
+    { "id": "AC-6", "text": "Screens A-01 Login and A-02 Dashboard implemented; dashboard shows welcome/header, quick navigation to content modules and only backend-supported summary info (no fabricated metrics)." },
+    { "id": "AC-7", "text": "Reusable design system per ART_DIRECTION/UI_COMPONENT_SPEC: buttons, inputs, labels/field errors, cards, status chips, table+pagination shell, confirm dialog, toasts, empty states, skeletons, page header, error states; Vietnamese labels; accessible contrast/focus/keyboard; responsive." },
+    { "id": "AC-8", "text": "Typed API layer for /api/v1: configurable base URL, typed contracts matching backend DTOs, standardized error parsing for 400/401/403/404/409/422/5xx, pagination helpers, TanStack Query key conventions; no invented endpoints or fields." },
+    { "id": "AC-9", "text": "Module entry page shells exist for Historical Events, Lessons, Evidence/Assets, Templates and Versions with honest empty/coming-soon states; no fake CRUD." },
+    { "id": "AC-10", "text": "Tests: unit/component tests for login validation, auth success/failure, expired session + refresh, unauthorized/learner-denied, logout, layout and navigation, API error parsing; at least one browser-level test Login -> Dashboard against a mocked/controlled backend; mocked tests are clearly labeled, not claimed as real backend E2E." },
+    { "id": "AC-11", "text": "CI: GitHub Actions job lints, type-checks, tests and builds dau-viet-admin without breaking existing backend/mobile workflows." },
+    { "id": "AC-12", "text": "Docs + harness: docs/admin-runbook.md (install, env vars, dev/test/build commands, auth flow, API base URL, known limitations, remaining modules); .env.example without secrets; .harness/config.json admin module active with real gates; task.json evidence complete; no P0/P1 security/auth/startup issues." }
+  ],
+  "dependencies": ["TASK-0012"],
+  "planPath": "plans/261016-0530-task0013-admin-foundation/plan.md",
+  "evidenceRefs": [
+    "dau-viet-admin/package.json",
+    "dau-viet-admin/.env.example",
+    "dau-viet-admin/src/app/api/auth/",
+    "dau-viet-admin/src/app/api/proxy/[...path]/route.ts",
+    "dau-viet-admin/src/middleware.ts",
+    "dau-viet-admin/src/features/auth/session-bootstrap.tsx",
+    "dau-viet-admin/src/components/admin-shell.tsx",
+    "dau-viet-admin/tests/e2e/login.spec.ts",
+    "dau-viet-admin/scripts/e2e-backend-stub.mjs",
+    "dau-viet-admin/playwright.config.ts",
+    ".github/workflows/admin-ci.yml",
+    "docs/admin-runbook.md"
+  ],
+  "reviewRefs": [
+    "dau-viet-admin/plans/reports/code-reviewer-261016-1921-admin-foundation.md"
+  ],
+  "nextAction": "Manual smoke against real backend (backend local profile + seeded admin) remains the only un-run gate — pwsh harness runner unavailable on this machine (PS 5.1 only). Next task: TASK-0014 lesson builder.",
+  "baseCommit": "fd0a43b",
+  "inputFingerprint": null,
+  "snapshot": null,
+  "roleReports": [],
+  "blockedReason": null,
+  "resumeFrom": null,
+  "handoffRef": null,
+  "createdAt": "2026-10-16T05:30:00+07:00",
+  "updatedAt": "2026-10-16T05:30:00+07:00"
+}

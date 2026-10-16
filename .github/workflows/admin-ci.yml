@@ -1,0 +1,58 @@
+name: admin-ci
+
+on:
+  pull_request:
+    types: [opened, synchronize, reopened]
+    paths:
+      - "dau-viet-admin/**"
+      - ".github/workflows/admin-ci.yml"
+  push:
+    branches: [main]
+    paths:
+      - "dau-viet-admin/**"
+      - ".github/workflows/admin-ci.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: admin-ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  verify:
+    name: admin verify (Node 22)
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    defaults:
+      run:
+        working-directory: dau-viet-admin
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: npm
+          cache-dependency-path: dau-viet-admin/package-lock.json
+
+      - run: npm ci
+      - run: npm run lint
+      - run: npm run typecheck
+      - run: npm run test -- --run
+      - run: npm run build
+
+      - name: Playwright E2E (chromium)
+        run: npx playwright install --with-deps chromium && npm run test:e2e
+
+      - name: Upload test reports
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: admin-test-reports-${{ github.run_id }}
+          path: |
+            dau-viet-admin/test-results/
+            dau-viet-admin/playwright-report/
+          if-no-files-found: ignore
+          retention-days: 14
