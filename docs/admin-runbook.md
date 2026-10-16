@@ -73,9 +73,11 @@ npm run test:e2e          # Playwright + node:http stub backend
 ```
 
 `test:e2e` spins up `scripts/e2e-backend-stub.mjs` on `:8081` and `next dev`
-on `:3100`. The stub is a controlled `node:http` server returning canned
-`TokenResponse`/`UserProfileDto` — it is not the real backend; it only proves
-the browser → BFF → backend wiring end-to-end.
+on `:3100`. The stub is a controlled `node:http` server that keeps a small
+in-memory store for auth, `/admin/events`, `/admin/lessons` and
+`/admin/lesson-templates` — it is not the real backend; it proves the
+browser → BFF → backend wiring and the authoring flow (create event →
+lesson wizard → save draft → reopen) end-to-end.
 
 If Playwright browsers cannot be installed on a machine, the component-level
 suite still covers login validation, dashboard rendering, table states and the
@@ -100,9 +102,14 @@ npm start
   production sign-off.
 - No CSRF token yet — acceptable behind `SameSite=Lax`, but hardening is a
   follow-up before any state-changing public surface.
-- Module pages (`/events`, `/lessons`, …) are list shells only; create/edit
-  forms, media upload and the Lesson Builder are out of scope for the
-  foundation task. See `design/ADMIN_SCREEN_DESIGN.md` for the roadmap.
+- Authoring scope after TASK-0014: `/events` list + search + status filter,
+  `/events/new` + `/events/[id]` create/edit (slug auto-suggest, tags, unsaved
+  guard, optimistic-lock via `expectedRowVersion`); `/lessons` list +
+  event/status filters, `/lessons/new` 4-step wizard (event → template →
+  basic info → confirm), `/lessons/[id]` basic editor (title, central
+  question, objectives list; PATCHes `expectedRowVersion`). Stage Builder,
+  activity editor, media upload and publish UI remain out of scope — see
+  `design/ADMIN_SCREEN_DESIGN.md` for the roadmap.
 - `Secure` is only added to the cookie in production — dev runs on plain
   `http://localhost`.
 - `sort=updatedAt,desc` is whitelisted on both `/admin/events` and

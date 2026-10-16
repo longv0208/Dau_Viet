@@ -1,3 +1,5 @@
+import Link from "next/link";
+
 import { PageHeader } from "@/components/page-header";
 import { Button } from "@/components/ui/button";
 import { LessonsTable } from "@/features/lessons/lessons-table";
@@ -11,8 +13,8 @@ export default function LessonsPage() {
         title="Bài học"
         description="Danh sách bài học và trạng thái xuất bản."
         actions={
-          <Button disabled title="Sắp ra mắt">
-            Tạo bài học
+          <Button asChild>
+            <Link href="/lessons/new">Tạo bài học</Link>
           </Button>
         }
       />

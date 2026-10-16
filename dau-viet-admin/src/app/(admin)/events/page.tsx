@@ -1,3 +1,5 @@
+import Link from "next/link";
+
 import { PageHeader } from "@/components/page-header";
 import { Button } from "@/components/ui/button";
 import { EventsTable } from "@/features/events/events-table";
@@ -11,8 +13,8 @@ export default function EventsPage() {
         title="Sự kiện"
         description="Danh sách sự kiện lịch sử trong hệ thống."
         actions={
-          <Button disabled title="Sắp ra mắt">
-            Tạo sự kiện
+          <Button asChild>
+            <Link href="/events/new">Tạo sự kiện</Link>
           </Button>
         }
       />

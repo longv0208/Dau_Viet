@@ -12,7 +12,44 @@ export interface AdminLessonSummary {
   rowVersion: number;
 }
 
-/** LessonTemplateResponse — read-only template catalogue entry. */
+/** AdminLessonResponse — full detail with draft + audit fields. */
+export interface AdminLessonDetail {
+  id: string;
+  eventId: string;
+  templateId: string;
+  title: string;
+  centralQuestion: string;
+  objectivesJson: string;
+  draftJson: string;
+  status: LessonStatus;
+  currentVersionId: string | null;
+  rowVersion: number;
+  createdBy: string;
+  updatedBy: string;
+  createdAt: string;
+  updatedAt: string;
+}
+
+/** AdminLessonCreateRequest — POST /admin/lessons. */
+export interface AdminLessonCreateRequest {
+  eventId: string;
+  templateId: string;
+  title: string;
+  centralQuestion: string;
+  objectivesJson?: string;
+  draftJson?: string;
+}
+
+/** AdminLessonUpdateRequest — PATCH /admin/lessons/{id}. */
+export interface AdminLessonUpdateRequest {
+  templateId?: string;
+  title?: string;
+  centralQuestion?: string;
+  objectivesJson?: string;
+  expectedRowVersion?: number;
+}
+
+/** LessonTemplateResponse — template catalogue entry (GET returns List, not paged). */
 export interface LessonTemplate {
   id: string;
   code: string;

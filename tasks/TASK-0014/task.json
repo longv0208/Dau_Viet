@@ -1,0 +1,49 @@
+{
+  "schemaVersion": 1,
+  "id": "TASK-0014",
+  "type": "feature",
+  "risk": "high-risk",
+  "status": "in_progress",
+  "goal": "Implement the first complete admin content-authoring workflow: Historical Event list/create/edit and Lesson list/create-wizard/basic-editor against the real Spring Boot /api/v1 admin contract, all Vietnamese UI, no fake persistence, following TASK-0013's BFF/auth/API-client foundation.",
+  "owner": "claude",
+  "modules": ["admin"],
+  "scope": [
+    "dau-viet-admin/",
+    "tasks/TASK-0014/",
+    "docs/admin-runbook.md",
+    "plans/"
+  ],
+  "acceptanceCriteria": [
+    { "id": "AC-1", "text": "A-03 events list shows real events with title/era/year/status/tags, search q + status filter + pagination, loading/empty/error/retry states, create/edit actions." },
+    { "id": "AC-2", "text": "A-04 event editor creates (POST /admin/events) and edits (PATCH /admin/events/{id}) with Vietnamese labels, field-level validation errors, unsaved-changes guard, slug/title/summary required per backend DTO." },
+    { "id": "AC-3", "text": "A-05 lessons list shows real lessons with title/event/status/template/updatedAt, eventId + status + q filters, create/edit actions; no rowVersion shown as versionNo." },
+    { "id": "AC-4", "text": "A-06 lesson creation wizard: step 1 choose event (real list, can create inline), step 2 choose template (GET /admin/lesson-templates, real data), step 3 basic info (title, centralQuestion, objectives[]), step 4 POST /admin/lessons → navigate to editor." },
+    { "id": "AC-5", "text": "A-07 lesson basic editor opens existing lesson (GET /admin/lessons/{id}), shows event + template, edits title/centralQuestion/objectives via PATCH, saves with expectedRowVersion optimistic-lock, shows DRAFT/PUBLISHED status, 'Sắp triển khai' for stage builder." },
+    { "id": "AC-6", "text": "Vietnamese UX throughout: labels, validation, empty states, save feedback, unsaved-changes warning; no raw JSON fields, no UUID text inputs where a selector works." },
+    { "id": "AC-7", "text": "Tests: event form validation + create + edit, lesson wizard steps, template selection, draft save/load/update, validation errors, unsaved-changes; Playwright login→create event→create lesson→save→reopen; all gates pass." },
+    { "id": "AC-8", "text": "Existing TASK-0013 functionality still works: login, refresh rotation, dashboard, navigation, logout." }
+  ],
+  "dependencies": ["TASK-0013"],
+  "planPath": "plans/261017-0455-task0014-admin-authoring/plan.md",
+  "evidenceRefs": [
+    "vitest 36/36 pass (10 files) 2026-10-17",
+    "tsc --noEmit clean 2026-10-17",
+    "next lint 0 warnings 2026-10-17",
+    "next build pass 17 routes 2026-10-17",
+    "playwright 5/5 pass vs node:http stub (login 3 + authoring 2) 2026-10-17",
+    "plans/reports/task0014-261017-0530-admin-authoring-final-report.md"
+  ],
+  "reviewRefs": [
+    "plans/261017-0455-task0014-admin-authoring/reports/code-reviewer-261017-task0014-review.md"
+  ],
+  "nextAction": "Review verdict APPROVE_WITH_NITS; medium nits addressed (submitted-search, internal-nav dirty guard, skipToken, startYear assertion). Remaining lows deferred (wizard step split, AC-3 template/updatedAt columns need backend summary expansion). Await user sign-off; TASK-0015 = Stage Builder on draftJson.",
+  "baseCommit": "997a65a",
+  "inputFingerprint": null,
+  "snapshot": null,
+  "roleReports": [],
+  "blockedReason": null,
+  "resumeFrom": null,
+  "handoffRef": null,
+  "createdAt": "2026-10-17T04:55:00+07:00",
+  "updatedAt": "2026-10-17T05:20:00+07:00"
+}

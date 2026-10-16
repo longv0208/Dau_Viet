@@ -28,8 +28,8 @@ describe("EventsTable", () => {
       expect(screen.getByText("Trận Bạch Đằng 938")).toBeInTheDocument();
       expect(screen.getByText("Chiến thắng Điện Biên Phủ")).toBeInTheDocument();
     });
-    expect(screen.getByText("Đã xuất bản")).toBeInTheDocument();
-    expect(screen.getByText("Bản nháp")).toBeInTheDocument();
+    expect(screen.getAllByText("Đã xuất bản").length).toBeGreaterThanOrEqual(1);
+    expect(screen.getAllByText("Bản nháp").length).toBeGreaterThanOrEqual(1);
   });
 
   it("shows error state on 500", async () => {
