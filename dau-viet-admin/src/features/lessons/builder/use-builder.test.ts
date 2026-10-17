@@ -55,6 +55,44 @@ describe("useBuilder", () => {
     expect(ID_PATTERN.test(copy!.activities[0]!.id)).toBe(true);
   });
 
+  it("duplicateStage remaps internal nextStageIds and leaves the original untouched", () => {
+    const { result } = setup(
+      JSON.stringify({
+        stages: [
+          { id: "s1", type: "CONTEXT", activities: [], nextStageIds: ["s2"] },
+          {
+            id: "s2",
+            type: "EVIDENCE",
+            activities: [
+              { id: "a1", type: "READ" },
+              { id: "a2", type: "READ" },
+            ],
+            nextStageIds: ["s2", "s3"],
+          },
+          { id: "s3", type: "CONCLUSION", activities: [] },
+        ],
+      }),
+    );
+    act(() => result.current.actions.duplicateStage("s2"));
+    const stages = result.current.state.draft.stages;
+    const orig = stages[1]!;
+    const copy = stages[2]!;
+
+    // Id mới đôi một khác nhau và unique toàn draft.
+    const allIds = stages.flatMap((s) => [s.id, ...s.activities.map((a) => a.id)]);
+    expect(new Set(allIds).size).toBe(allIds.length);
+    expect(copy.activities.map((a) => a.id)).not.toContain("a1");
+    expect(copy.activities.map((a) => a.id)).not.toContain("a2");
+
+    // Self-loop "s2" → id mới của bản sao; tham chiếu ngoài ("s3") giữ nguyên.
+    expect(copy.nextStageIds).toEqual([copy.id, "s3"]);
+
+    // Stage gốc không bị đụng vào.
+    expect(orig.id).toBe("s2");
+    expect(orig.nextStageIds).toEqual(["s2", "s3"]);
+    expect(orig.activities.map((a) => a.id)).toEqual(["a1", "a2"]);
+  });
+
   it("removeStage prunes nextStageIds + completion.requiredStageIds", () => {
     const { result } = setup(
       JSON.stringify({
@@ -100,15 +138,33 @@ describe("useBuilder", () => {
 
   it("markSaved clears dirty/errors and bumps rowVersion", () => {
     const { result } = setup();
-    act(() => {
-      result.current.actions.addStage(makeStage("CONTEXT", []));
-      result.current.actions.setErrors([{ path: "p", code: "c", message: "m" }]);
-      result.current.actions.markSaved(4);
-    });
+    act(() => result.current.actions.addStage(makeStage("CONTEXT", [])));
+    const rev = result.current.state.revision;
+    act(() => result.current.actions.setErrors([{ path: "p", code: "c", message: "m" }]));
+    act(() => result.current.actions.markSaved(4, rev));
     expect(result.current.state.dirty).toBe(false);
     expect(result.current.state.rowVersion).toBe(4);
     expect(result.current.state.serverErrors).toEqual([]);
     expect(result.current.state.lastSavedAt).toBeTruthy();
+  });
+
+  it("markSaved keeps dirty when edits happened during a pending save", () => {
+    const { result } = setup(
+      JSON.stringify({ stages: [{ id: "s1", type: "CONTEXT", activities: [] }] }),
+    );
+    // Edit 1 → revision 1 → save bắt đầu, capture revision 1.
+    act(() => result.current.actions.updateStage("s1", { title: "A" }));
+    const savedRev = result.current.state.revision;
+    // Edit 2 trong lúc save đang chạy → revision 2.
+    act(() => result.current.actions.updateStage("s1", { title: "B" }));
+    // PUT thành công với revision cũ → dirty phải còn nguyên.
+    act(() => result.current.actions.markSaved(4, savedRev));
+    expect(result.current.state.dirty).toBe(true);
+    expect(result.current.state.draft.stages[0]!.title).toBe("B");
+    // Save lần 2 với revision mới nhất → sạch.
+    const latest = result.current.state.revision;
+    act(() => result.current.actions.markSaved(5, latest));
+    expect(result.current.state.dirty).toBe(false);
   });
 
   it("mergeStages appends template stages and marks dirty", () => {

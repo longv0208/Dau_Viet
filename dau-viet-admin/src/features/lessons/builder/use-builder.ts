@@ -21,6 +21,10 @@ export interface FieldError {
 export interface BuilderState {
   draft: Draft;
   dirty: boolean;
+  /** Monotonic counter, +1 on every draft mutation — used to detect edits during a pending save. */
+  revision: number;
+  /** Revision captured at the last successful save; dirty = revision !== savedRevision. */
+  savedRevision: number;
   rowVersion: number;
   lastSavedAt: string | null;
   selectedStageId: string | null;
@@ -43,7 +47,7 @@ type Action =
   | { type: "moveActivity"; stageId: string; activityId: string; dir: -1 | 1 }
   | { type: "setCompletion"; completion: Draft["completion"] }
   | { type: "setErrors"; errors: FieldError[] }
-  | { type: "markSaved"; rowVersion: number }
+  | { type: "markSaved"; rowVersion: number; revision: number }
   | { type: "setDraft"; draft: Draft; rowVersion: number };
 
 function mapStage(draft: Draft, id: string, fn: (s: Stage) => Stage): Draft {
@@ -78,12 +82,14 @@ function reducer(state: BuilderState, a: Action): BuilderState {
       return {
         ...state,
         dirty: true,
+        revision: state.revision + 1,
         draft: mapStage(state.draft, a.id, (s) => ({ ...s, ...a.patch })),
       };
     case "addStage":
       return {
         ...state,
         dirty: true,
+        revision: state.revision + 1,
         draft: { ...state.draft, stages: [...state.draft.stages, a.stage] },
         selectedStageId: a.stage.id,
         selectedActivityId: null,
@@ -93,6 +99,7 @@ function reducer(state: BuilderState, a: Action): BuilderState {
       return {
         ...state,
         dirty: true,
+        revision: state.revision + 1,
         draft,
         selectedStageId: state.selectedStageId === a.id ? null : state.selectedStageId,
         selectedActivityId:
@@ -105,7 +112,7 @@ function reducer(state: BuilderState, a: Action): BuilderState {
       if (i < 0 || j < 0 || j >= state.draft.stages.length) return state;
       const stages = [...state.draft.stages];
       [stages[i], stages[j]] = [stages[j]!, stages[i]!];
-      return { ...state, dirty: true, draft: { ...state.draft, stages } };
+      return { ...state, dirty: true, revision: state.revision + 1, draft: { ...state.draft, stages } };
     }
     case "duplicateStage": {
       const i = state.draft.stages.findIndex((s) => s.id === a.id);
@@ -114,6 +121,8 @@ function reducer(state: BuilderState, a: Action): BuilderState {
       const ids = allIds(state.draft);
       const copyId = genSlugId("stage", ids);
       const taken = [...ids, copyId];
+      // idMap remap nextStageIds nội bộ (trỏ vào chính stage nguồn) sang id mới.
+      const idMap = new Map<string, string>([[src.id, copyId]]);
       const copy: Stage = {
         ...src,
         id: copyId,
@@ -121,23 +130,29 @@ function reducer(state: BuilderState, a: Action): BuilderState {
         activities: src.activities.map((act) => {
           const id = genSlugId("act", taken);
           taken.push(id);
+          idMap.set(act.id, id);
           return { ...act, id };
         }),
       };
+      if (Array.isArray(copy.nextStageIds)) {
+        copy.nextStageIds = copy.nextStageIds.map((n) => idMap.get(n) ?? n);
+      }
       const stages = [...state.draft.stages];
       stages.splice(i + 1, 0, copy);
-      return { ...state, dirty: true, draft: { ...state.draft, stages } };
+      return { ...state, dirty: true, revision: state.revision + 1, draft: { ...state.draft, stages } };
     }
     case "mergeStages":
       return {
         ...state,
         dirty: true,
+        revision: state.revision + 1,
         draft: { ...state.draft, stages: [...state.draft.stages, ...a.stages] },
       };
     case "addActivity":
       return {
         ...state,
         dirty: true,
+        revision: state.revision + 1,
         draft: mapStage(state.draft, a.stageId, (s) => ({
           ...s,
           activities: [...s.activities, a.activity],
@@ -148,6 +163,7 @@ function reducer(state: BuilderState, a: Action): BuilderState {
       return {
         ...state,
         dirty: true,
+        revision: state.revision + 1,
         draft: mapStage(state.draft, a.stageId, (s) => ({
           ...s,
           activities: s.activities.map((act) =>
@@ -159,6 +175,7 @@ function reducer(state: BuilderState, a: Action): BuilderState {
       return {
         ...state,
         dirty: true,
+        revision: state.revision + 1,
         draft: mapStage(state.draft, a.stageId, (s) => ({
           ...s,
           activities: s.activities.filter((act) => act.id !== a.activityId),
@@ -170,6 +187,7 @@ function reducer(state: BuilderState, a: Action): BuilderState {
       return {
         ...state,
         dirty: true,
+        revision: state.revision + 1,
         draft: mapStage(state.draft, a.stageId, (s) => {
           const i = s.activities.findIndex((act) => act.id === a.activityId);
           const j = i + a.dir;
@@ -180,23 +198,35 @@ function reducer(state: BuilderState, a: Action): BuilderState {
         }),
       };
     case "setCompletion":
-      return { ...state, dirty: true, draft: { ...state.draft, completion: a.completion } };
-    case "setErrors":
-      return { ...state, serverErrors: a.errors };
-    case "markSaved":
       return {
         ...state,
-        dirty: false,
+        dirty: true,
+        revision: state.revision + 1,
+        draft: { ...state.draft, completion: a.completion },
+      };
+    case "setErrors":
+      return { ...state, serverErrors: a.errors };
+    case "markSaved": {
+      // Chỉ tắt dirty khi revision lúc bắt đầu lưu khớp revision hiện tại —
+      // nếu người dùng sửa trong lúc PUT đang chạy, dirty vẫn giữ để lưu tiếp.
+      const clean = a.revision === state.revision;
+      return {
+        ...state,
+        dirty: !clean,
+        savedRevision: a.revision,
         rowVersion: a.rowVersion,
         lastSavedAt: new Date().toISOString(),
         serverErrors: [],
       };
+    }
     case "setDraft":
       return {
         ...state,
         draft: a.draft,
         rowVersion: a.rowVersion,
         dirty: false,
+        revision: state.revision + 1,
+        savedRevision: state.revision + 1,
         serverErrors: [],
       };
   }
@@ -214,6 +244,8 @@ export function useBuilder(initial: Draft, rowVersion: number) {
   const [state, dispatch] = useReducer(reducer, {
     draft: initial,
     dirty: false,
+    revision: 0,
+    savedRevision: 0,
     rowVersion,
     lastSavedAt: null,
     selectedStageId: initial.stages[0]?.id ?? null,
@@ -252,7 +284,8 @@ export function useBuilder(initial: Draft, rowVersion: number) {
       setCompletion: (completion: Draft["completion"]) =>
         dispatch({ type: "setCompletion", completion }),
       setErrors: (errors: FieldError[]) => dispatch({ type: "setErrors", errors }),
-      markSaved: (rowVersion: number) => dispatch({ type: "markSaved", rowVersion }),
+      markSaved: (rowVersion: number, revision: number) =>
+        dispatch({ type: "markSaved", rowVersion, revision }),
       setDraft: (draft: Draft, rv: number) => dispatch({ type: "setDraft", draft, rowVersion: rv }),
     }),
     [],

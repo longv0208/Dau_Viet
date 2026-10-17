@@ -10,11 +10,6 @@ import { Textarea } from "@/components/ui/textarea";
 import { genItemId } from "../draft-id";
 import { ActivityCommonFields, type EditorProps } from "./shared-fields";
 
-interface Option {
-  id: string;
-  label: string;
-}
-
 interface Option extends Record<string, unknown> {
   id: string;
   label: string;
@@ -82,7 +77,11 @@ export function MultipleChoiceEditor(props: EditorProps) {
             onChange({ config: { ...config, question: e.target.value } });
           }}
         />
-        {!question.trim() && <p role="alert" className="text-xs text-error">Nhập câu hỏi.</p>}
+        {!question.trim() && (
+          <p role="alert" className="text-xs text-error">
+            Câu hỏi còn trống — học viên sẽ không biết cần trả lời gì.
+          </p>
+        )}
       </div>
 
       <div className="flex items-center gap-4 text-sm">
@@ -170,10 +169,19 @@ export function MultipleChoiceEditor(props: EditorProps) {
           </Button>
         )}
         {options.length < 2 && (
-          <p role="alert" className="text-xs text-error">Cần ít nhất 2 đáp án.</p>
+          <p role="alert" className="text-xs text-error">
+            Cần ít nhất 2 đáp án để tạo câu trắc nghiệm.
+          </p>
+        )}
+        {options.length >= 2 && options.some((o) => !o.label.trim()) && (
+          <p role="alert" className="text-xs text-error">
+            Có đáp án chưa nhập nội dung — điền đủ hoặc xoá bớt.
+          </p>
         )}
         {options.length >= 2 && correctSet.size === 0 && (
-          <p role="alert" className="text-xs text-error">Chọn ít nhất 1 đáp án đúng.</p>
+          <p role="alert" className="text-xs text-error">
+            Chưa chọn đáp án đúng — hệ thống sẽ không chấm được câu này.
+          </p>
         )}
       </div>
     </div>

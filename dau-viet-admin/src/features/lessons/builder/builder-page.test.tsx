@@ -105,6 +105,54 @@ describe("BuilderPage", () => {
     expect(screen.getByText("Lỗi từ máy chủ (1)")).toBeInTheDocument();
   });
 
+  it("keeps dirty + lets user save again when editing during a pending save", async () => {
+    authStore.setAccessToken("t", 900);
+    // Giả PUT chậm: giữ promise chờ cho tới khi test release.
+    let releasePut: (() => void) | null = null;
+    server.use(
+      http.put(`*/api/proxy/admin/lessons/${LESSON_ID}/draft`, async ({ request }) => {
+        const body = (await request.json()) as Record<string, unknown>;
+        await new Promise<void>((resolve) => {
+          releasePut = resolve;
+        });
+        return HttpResponse.json({
+          id: LESSON_ID,
+          eventId: "11111111-1111-1111-1111-111111111111",
+          templateId: "66666666-6666-6666-6666-666666666666",
+          title: "L",
+          centralQuestion: "Q",
+          objectivesJson: "[]",
+          draftJson: body.draftJson,
+          status: "DRAFT",
+          currentVersionId: null,
+          rowVersion: 4,
+          createdBy: "u",
+          updatedBy: "u",
+          createdAt: "x",
+          updatedAt: "y",
+        });
+      }),
+    );
+    renderBuilder();
+    await waitFor(() => screen.getByText("Giai đoạn (4)"));
+    const titleInput = await screen.findByLabelText(/tên giai đoạn/i);
+
+    // Edit 1 → dirty → bấm Lưu → PUT bị giữ chờ.
+    await userEvent.type(titleInput, "A");
+    await userEvent.click(screen.getByRole("button", { name: /lưu nháp/i }));
+    await waitFor(() => expect(releasePut).not.toBeNull());
+
+    // Edit 2 trong lúc PUT đang chạy.
+    await userEvent.type(titleInput, "B");
+    releasePut!();
+
+    // Sau save: vẫn "Chưa lưu" vì có edit mới hơn — KHÔNG mất thay đổi.
+    await waitFor(() => expect(screen.getByText(/Chưa lưu/)).toBeInTheDocument());
+    expect(screen.queryByText(/Đã lưu/)).toBeNull();
+    // Nút Lưu vẫn bật để lưu tiếp edit mới.
+    expect(screen.getByRole("button", { name: /lưu nháp/i })).toBeEnabled();
+  });
+
   it("shows conflict banner on 409 and reload resets it", async () => {
     authStore.setAccessToken("t", 900);
     server.use(

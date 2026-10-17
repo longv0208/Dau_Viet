@@ -129,16 +129,21 @@ function BuilderInner({
   useUnsavedChangesGuard(state.dirty && !readOnly);
 
   const saveMutation = useMutation({
-    mutationFn: () =>
-      apiFetch<AdminLessonDetail>(`/admin/lessons/${lesson.id}/draft`, {
+    // Capture revision + draft tại thời điểm bấm Lưu — nếu người dùng sửa tiếp
+    // trong lúc PUT đang chạy, markSaved sẽ giữ dirty (không mất thay đổi mới).
+    mutationFn: () => {
+      const revision = state.revision;
+      const body = serializeDraft(state.draft);
+      return apiFetch<AdminLessonDetail>(`/admin/lessons/${lesson.id}/draft`, {
         method: "PUT",
         body: JSON.stringify({
-          draftJson: serializeDraft(state.draft),
+          draftJson: body,
           expectedRowVersion: state.rowVersion,
         }),
-      }),
-    onSuccess: (res) => {
-      actions.markSaved(res.rowVersion);
+      }).then((res) => ({ res, revision }));
+    },
+    onSuccess: ({ res, revision }) => {
+      actions.markSaved(res.rowVersion, revision);
       setSaveError(null);
       qc.invalidateQueries({ queryKey: qk.lessons.detail(lesson.id) });
     },
@@ -167,9 +172,7 @@ function BuilderInner({
       {/* Thanh trạng thái + lưu */}
       <div className="flex flex-wrap items-center gap-3">
         <StatusChip status={lesson.status} />
-        <span className="text-xs text-ink-muted">
-          {lesson.title} · v{state.rowVersion}
-        </span>
+        <span className="text-xs text-ink-muted">{lesson.title}</span>
         {state.dirty ? (
           <span className="rounded bg-warning/15 px-2 py-0.5 text-xs font-medium text-ink">
             Chưa lưu

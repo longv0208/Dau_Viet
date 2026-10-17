@@ -128,7 +128,14 @@ export function MatchingEditor(props: EditorProps) {
           </Button>
         )}
         {pairs.length < 2 && (
-          <p role="alert" className="text-xs text-error">Cần ít nhất 2 cặp.</p>
+          <p role="alert" className="text-xs text-error">
+            Cần ít nhất 2 cặp ghép để tạo hoạt động nối.
+          </p>
+        )}
+        {pairs.some((p) => !p.left.label.trim() || !p.right.label.trim()) && (
+          <p role="alert" className="text-xs text-error">
+            Có cặp chưa nhập đủ hai vế — điền đủ hoặc xoá bớt.
+          </p>
         )}
       </div>
     </div>

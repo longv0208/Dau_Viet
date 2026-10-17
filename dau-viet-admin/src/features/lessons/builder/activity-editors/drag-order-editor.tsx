@@ -115,7 +115,14 @@ export function DragOrderEditor(props: EditorProps) {
           </Button>
         )}
         {items.length < 2 && (
-          <p role="alert" className="text-xs text-error">Cần ít nhất 2 bước/sự kiện.</p>
+          <p role="alert" className="text-xs text-error">
+            Cần ít nhất 2 bước/sự kiện để tạo hoạt động sắp xếp.
+          </p>
+        )}
+        {items.some((it) => !it.label.trim()) && (
+          <p role="alert" className="text-xs text-error">
+            Có bước chưa nhập nội dung — điền đủ hoặc xoá bớt.
+          </p>
         )}
       </div>
     </div>
