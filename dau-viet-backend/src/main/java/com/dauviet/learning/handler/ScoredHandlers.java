@@ -48,7 +48,12 @@ public final class ScoredHandlers {
             }
             int maxAttempts = config.path("maxAttempts").asInt(1);
             int attemptNo = priorAttempts(ctx) + 1;
+            // Canonical key is correctOptionIds; legacy drafts used
+            // multiCorrect for the multi-answer mode — grade both identically.
             Set<String> correct = stringIds(config.get("correctOptionIds"));
+            if (correct.isEmpty()) {
+                correct = stringIds(config.get("multiCorrect"));
+            }
             boolean right = !correct.isEmpty() && selected.equals(correct);
             boolean exhausted = !right && attemptNo >= maxAttempts;
             boolean done = right || exhausted;

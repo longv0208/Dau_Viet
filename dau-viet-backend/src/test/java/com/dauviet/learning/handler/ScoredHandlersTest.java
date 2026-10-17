@@ -71,6 +71,35 @@ class ScoredHandlersTest {
     }
 
     @Test
+    void mcq_multiCorrectLegacy_gradesCorrectly() {
+        // Legacy drafts authored multi-answer via multiCorrect — the handler
+        // must grade it identically to canonical correctOptionIds.
+        JsonNode act = HandlerTestSupport.json(
+                "{\"id\":\"mc\",\"type\":\"MULTIPLE_CHOICE\",\"config\":{"
+              + "\"question\":\"q\",\"options\":[{\"id\":\"o1\"},{\"id\":\"o2\"},{\"id\":\"o3\"}],"
+              + "\"multiCorrect\":[\"o1\",\"o3\"],\"multiSelect\":true}}");
+        ActivityResult r = mcq.evaluate(
+                HandlerTestSupport.ctx(act, snapshot()),
+                HandlerTestSupport.sub("mc", "{\"selectedOptionIds\":[\"o3\",\"o1\"]}"));
+        assertThat(r.outcome()).isEqualTo(ActivityResult.COMPLETED);
+        assertThat(r.output().get("correct").asBoolean()).isTrue();
+        assertThat(r.output().has("multiCorrect")).isFalse();
+    }
+
+    @Test
+    void mcq_multiCorrectLegacy_wrongSet_incorrect() {
+        JsonNode act = HandlerTestSupport.json(
+                "{\"id\":\"mc\",\"type\":\"MULTIPLE_CHOICE\",\"config\":{"
+              + "\"question\":\"q\",\"options\":[{\"id\":\"o1\"},{\"id\":\"o2\"},{\"id\":\"o3\"}],"
+              + "\"multiCorrect\":[\"o1\",\"o3\"]}}");
+        ActivityResult r = mcq.evaluate(
+                HandlerTestSupport.ctx(act, snapshot()),
+                HandlerTestSupport.sub("mc", "{\"selectedOptionIds\":[\"o1\"]}"));
+        assertThat(r.outcome()).isEqualTo(ActivityResult.INCORRECT);
+        assertThat(r.output().get("correct").asBoolean()).isFalse();
+    }
+
+    @Test
     void mcq_undeclaredOption_rejected() {
         assertThatThrownBy(() -> mcq.evaluate(
                 HandlerTestSupport.ctx(mcActivity(0), snapshot()),

@@ -13,6 +13,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 
 import { parseDraft, type Draft } from "../builder/draft-model";
 import { MobileFrame } from "./mobile-frame";
+import type { EmbeddedAsset, EmbeddedEvidence } from "./renderers/types";
 import { StageNav } from "./stage-nav";
 import { StageView } from "./stage-view";
 
@@ -44,6 +45,19 @@ export function PreviewPage({ lessonId }: { lessonId: string }) {
     } catch {
       return null;
     }
+  }, [preview.data]);
+
+  // Denormalized documents embedded by the preview/snapshot pipeline —
+  // renderers resolve ids to titles/sources instead of showing raw uuids.
+  const embedded = useMemo(() => {
+    const content = preview.data?.content as Record<string, unknown> | undefined;
+    const evidence = Array.isArray(content?.evidence)
+      ? (content.evidence as EmbeddedEvidence[])
+      : [];
+    const assets = Array.isArray(content?.assets)
+      ? (content.assets as EmbeddedAsset[])
+      : [];
+    return { evidence, assets };
   }, [preview.data]);
 
   const stages = draft?.stages ?? [];
@@ -113,6 +127,8 @@ export function PreviewPage({ lessonId }: { lessonId: string }) {
                     stage={stage}
                     activityIndex={activityIndex}
                     onActivityChange={setActivityIndex}
+                    evidence={embedded.evidence}
+                    assets={embedded.assets}
                   />
                 )}
               </MobileFrame>

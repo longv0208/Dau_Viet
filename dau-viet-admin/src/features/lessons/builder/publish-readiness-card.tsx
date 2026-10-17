@@ -3,7 +3,7 @@
 import { useMutation } from "@tanstack/react-query";
 import { CheckCircle2, ChevronDown, ChevronUp, RefreshCw, XCircle } from "lucide-react";
 import Link from "next/link";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 
 import { apiFetch } from "@/lib/api-client";
 import { toUserMessage } from "@/lib/api-error";
@@ -26,6 +26,12 @@ interface Props {
   lessonId: string;
   /** Draft hiện tại — dùng để resolve error path → jump. Bỏ qua trên màn publish. */
   draft?: Draft | null;
+  /**
+   * Draft revision — bất kỳ thay đổi nào của bản nháp đều vô hiệu kết quả
+   * kiểm tra trước đó (stale readiness). Bỏ qua trên màn publish (không có
+   * draft session đang sửa).
+   */
+  revision?: number;
   onJump?: (stageId: string | null, activityId: string | null) => void;
 }
 
@@ -75,12 +81,24 @@ function IssueList({
 }
 
 /** Kiểm tra sẵn sàng xuất bản — POST /admin/lessons/{id}/validate (read-only). */
-export function PublishReadinessCard({ lessonId, draft, onJump }: Props) {
+export function PublishReadinessCard({ lessonId, draft, revision, onJump }: Props) {
   const [open, setOpen] = useState(true);
+  const [checkedAt, setCheckedAt] = useState<Date | null>(null);
   const mutation = useMutation({
     mutationFn: () =>
       apiFetch<PublishReadiness>(`/admin/lessons/${lessonId}/validate`, { method: "POST" }),
+    onSuccess: () => setCheckedAt(new Date()),
   });
+
+  // Stale readiness: kết quả validate chỉ đúng với đúng revision bản nháp
+  // đã kiểm tra — mọi chỉnh sửa draft sau đó phải xoá trạng thái cũ.
+  useEffect(() => {
+    if (revision === undefined) return;
+    mutation.reset();
+    setCheckedAt(null);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [revision]);
+
   const data = mutation.data;
   const summaryEntries = data?.summary ? Object.entries(data.summary) : [];
 
@@ -114,6 +132,11 @@ export function PublishReadinessCard({ lessonId, draft, onJump }: Props) {
             <XCircle className="size-4" aria-hidden />
           )}
           {data.ready ? "Bài học đủ điều kiện xuất bản." : "Chưa sẵn sàng xuất bản — xem chi tiết bên dưới."}
+          {checkedAt && (
+            <span className="ml-auto text-[10px] font-normal text-ink-muted">
+              Kiểm tra lúc {checkedAt.toLocaleTimeString("vi-VN")}
+            </span>
+          )}
         </p>
       )}
 

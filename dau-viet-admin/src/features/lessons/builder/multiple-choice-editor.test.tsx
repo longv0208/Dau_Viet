@@ -12,7 +12,7 @@ function makeMc(config: Record<string, unknown>): Activity {
 }
 
 describe("MultipleChoiceEditor", () => {
-  it("emits exactly one of correctOptionIds/multiCorrect", async () => {
+  it("always emits canonical correctOptionIds + multiSelect flag", async () => {
     const onChange = vi.fn();
     const act = makeMc({
       question: "Q?",
@@ -24,11 +24,39 @@ describe("MultipleChoiceEditor", () => {
     });
     render(<MultipleChoiceEditor stage={stage} activity={act} onChange={onChange} />);
 
-    // chuyển sang "Nhiều đáp án" → chỉ emit multiCorrect
+    // Switch to "Nhiều đáp án" → canonical key stays correctOptionIds,
+    // multiSelect becomes true, legacy multiCorrect is deleted.
     await userEvent.click(screen.getByLabelText(/nhiều đáp án/i));
     const patch = onChange.mock.calls.at(-1)![0] as { config: Record<string, unknown> };
-    expect(patch.config.multiCorrect).toEqual(["o1"]);
-    expect("correctOptionIds" in patch.config).toBe(false);
+    expect(patch.config.correctOptionIds).toEqual(["o1"]);
+    expect(patch.config.multiSelect).toBe(true);
+    expect("multiCorrect" in patch.config).toBe(false);
+  });
+
+  it("reads legacy multiCorrect drafts and normalizes on save", async () => {
+    const onChange = vi.fn();
+    const act = makeMc({
+      question: "Q?",
+      options: [
+        { id: "o1", label: "A" },
+        { id: "o2", label: "B" },
+        { id: "o3", label: "C" },
+      ],
+      multiCorrect: ["o1", "o3"],
+    });
+    render(<MultipleChoiceEditor stage={stage} activity={act} onChange={onChange} />);
+    // Legacy draft shows multi mode + both answers pre-checked.
+    expect(screen.getByLabelText(/nhiều đáp án/i)).toBeChecked();
+    expect(screen.getByLabelText("Đáp án đúng 1")).toBeChecked();
+    expect(screen.getByLabelText("Đáp án đúng 3")).toBeChecked();
+    // Any subsequent write emits canonical keys only.
+    await userEvent.click(screen.getByLabelText("Đáp án đúng 2"));
+    const patch = onChange.mock.calls.at(-1)![0] as { config: Record<string, unknown> };
+    expect(patch.config.correctOptionIds).toEqual(
+      expect.arrayContaining(["o1", "o3", "o2"]),
+    );
+    expect(patch.config.multiSelect).toBe(true);
+    expect("multiCorrect" in patch.config).toBe(false);
   });
 
   it("marks a single correct option", async () => {

@@ -37,8 +37,8 @@ const EMPTY_PAGE = { content: [], page: 0, size: 20, totalElements: 0, totalPage
 // Strips answer-bearing keys from the learner-facing projection so the e2e
 // preview endpoint returns the same shape a real backend would.
 const LEARNER_HIDDEN_KEYS = new Set([
-  "correctOptionIds", "correctPairs", "correctOrder", "expectedOrder",
-  "requiredEvidenceIds", "expectedHypothesis", "answerKey",
+  "correctOptionIds", "multiCorrect", "correctPairs", "correctOrder",
+  "expectedOrder", "requiredEvidenceIds", "expectedHypothesis", "answerKey",
   "answer", "key", "expected",
 ]);
 const ACTIVITY_SERVER_ONLY = new Set(["validation"]);
@@ -66,6 +66,120 @@ function stripContainer(node) {
   stripValue(node.validation);
 }
 
+// Per-type learner-facing transforms — mirror LearnerProjectionService.
+// MATCHING pairs[] reveals the correct mapping by row order: emit two
+// independent columns (left asc, right desc by deterministic hash).
+// DRAG_ORDER items[] is authored in correct order: re-sort deterministically.
+function sortKey(activityId, itemId) {
+  const s = `${activityId}|${itemId}`;
+  let h = 0;
+  for (let i = 0; i < s.length; i++) h = (Math.imul(h, 31) + s.charCodeAt(i)) | 0;
+  return h;
+}
+
+function itemOf(raw) {
+  if (!raw || typeof raw !== "object") return null;
+  const id = String(raw.id ?? "");
+  if (!id) return null;
+  return { id, label: String(raw.label ?? raw.text ?? "") };
+}
+
+function transformActivity(act) {
+  const cfg = act.config;
+  if (!cfg || typeof cfg !== "object") return;
+  const activityId = String(act.id ?? "");
+  if (act.type === "MATCHING" && Array.isArray(cfg.pairs)) {
+    const left = [];
+    const right = [];
+    for (const p of cfg.pairs) {
+      const l = itemOf(p?.left);
+      const r = itemOf(p?.right);
+      if (l) left.push(l);
+      if (r) right.push(r);
+    }
+    left.sort((x, y) => sortKey(activityId, x.id) - sortKey(activityId, y.id));
+    right.sort((x, y) => sortKey(activityId, y.id) - sortKey(activityId, x.id));
+    delete cfg.pairs;
+    cfg.leftItems = left;
+    cfg.rightItems = right;
+  }
+  if (act.type === "DRAG_ORDER" && Array.isArray(cfg.items)) {
+    const items = cfg.items.map((it) => it);
+    items.sort(
+      (x, y) => sortKey(activityId, String(x.id ?? "")) - sortKey(activityId, String(y.id ?? "")),
+    );
+    const projected = items.map((it) => String(it.id ?? ""));
+    const expected =
+      (Array.isArray(cfg.expectedOrder) ? cfg.expectedOrder : null) ??
+      (Array.isArray(cfg.correctOrder) ? cfg.correctOrder : null) ??
+      cfg.items.map((it) => it.id);
+    const answer = expected.map((x) => String(x ?? ""));
+    if (projected.length >= 2 && JSON.stringify(projected) === JSON.stringify(answer)) {
+      items.reverse();
+    }
+    cfg.items = items;
+  }
+}
+
+/**
+ * Mirror SnapshotBuilder: embed evidence[]/assets[] resolved from the
+ * in-memory stores so preview + learner content carry document bodies
+ * (titles, sources) instead of bare ids. Read-only — never mutates draft.
+ */
+function enrichDraft(draft) {
+  const copy = JSON.parse(JSON.stringify(draft ?? {}));
+  const ids = new Set();
+  for (const s of copy.stages ?? []) {
+    for (const id of s.requiredEvidenceIds ?? []) ids.add(String(id));
+    for (const a of s.activities ?? []) {
+      for (const id of a.evidenceRefs ?? []) ids.add(String(id));
+      const cfg = a.config ?? {};
+      for (const f of ["visibleEvidenceIds", "requiredEvidenceIds", "visibleSourceIds"]) {
+        for (const id of cfg[f] ?? []) ids.add(String(id));
+      }
+    }
+  }
+  const evidence = evidences
+    .filter((e) => ids.has(e.id))
+    .map((e) => ({
+      id: e.id,
+      title: e.title,
+      evidenceType: e.evidenceType,
+      ...(e.description != null ? { description: e.description } : {}),
+      source: {
+        title: e.sourceTitle,
+        ...(e.sourceAuthor != null ? { author: e.sourceAuthor } : {}),
+        ...(e.sourceUrl != null ? { url: e.sourceUrl } : {}),
+        ...(e.sourceCitation != null ? { citation: e.sourceCitation } : {}),
+        ...(e.sourcePublishedAt != null ? { publishedAt: e.sourcePublishedAt } : {}),
+      },
+      ...(e.reliability != null ? { reliability: e.reliability } : {}),
+      ...(e.relevance != null ? { relevance: e.relevance } : {}),
+      ...(e.assetId != null ? { assetId: e.assetId } : {}),
+    }));
+  const assetIds = new Set();
+  for (const e of evidence) if (e.assetId) assetIds.add(e.assetId);
+  for (const s of copy.stages ?? []) {
+    for (const a of s.activities ?? []) {
+      const cfg = a.config ?? {};
+      if (cfg.imageAssetId) assetIds.add(String(cfg.imageAssetId));
+    }
+  }
+  const embeddedAssets = assets
+    .filter((a) => assetIds.has(a.id))
+    .map((a) => ({
+      id: a.id,
+      storageKey: a.contentUrl,
+      mimeType: a.mimeType,
+      sizeBytes: a.sizeBytes,
+      originalFilename: a.originalFilename,
+      ...(a.altText != null ? { altText: a.altText } : {}),
+    }));
+  copy.evidence = evidence;
+  copy.assets = embeddedAssets;
+  return copy;
+}
+
 function projectSnapshot(snapshot) {
   if (!snapshot || typeof snapshot !== "object" || Array.isArray(snapshot)) {
     return snapshot && typeof snapshot === "object" ? snapshot : {};
@@ -80,6 +194,7 @@ function projectSnapshot(snapshot) {
     const acts = Array.isArray(stage.activities) ? stage.activities : [];
     for (const act of acts) {
       if (!act || typeof act !== "object") continue;
+      transformActivity(act);
       ACTIVITY_SERVER_ONLY.forEach((k) => delete act[k]);
       ACTIVITY_HIDDEN_TOP.forEach((k) => delete act[k]);
       stripContainer(act);
@@ -387,7 +502,7 @@ const server = http.createServer(async (req, res) => {
       lessonId: lesson.id,
       lessonVersionId: null,
       versionNo: null,
-      content: projectSnapshot(draft),
+      content: projectSnapshot(enrichDraft(draft)),
     });
   }
   const publishMatch = path.match(/^\/api\/v1\/admin\/lessons\/([0-9a-f-]+)\/publish$/);
@@ -451,7 +566,9 @@ const server = http.createServer(async (req, res) => {
       versionNo,
       status: "PUBLISHED",
       publishedAt: NOW,
-      snapshot: projectSnapshot(draft),
+      // Snapshot keeps the authored doc + embedded evidence/assets — grading
+      // keys stay server-side; projectSnapshot strips them at serve time.
+      snapshot: projectSnapshot(enrichDraft(draft)),
     };
     lessonVersions.push(version);
     lesson.status = "PUBLISHED";

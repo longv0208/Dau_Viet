@@ -307,6 +307,7 @@ function BuilderInner({
           <PublishReadinessCard
             lessonId={lesson.id}
             draft={state.dirty ? null : state.draft}
+            revision={state.revision}
             onJump={(sid, aid) => {
               actions.selectStage(sid);
               if (aid) actions.selectActivity(aid);

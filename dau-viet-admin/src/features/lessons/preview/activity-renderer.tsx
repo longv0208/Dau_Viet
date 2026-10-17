@@ -18,6 +18,7 @@ import {
   ReflectionPromptActivityView,
   ViewImageActivityView,
 } from "./renderers/text-renderers";
+import type { EmbeddedAsset, EmbeddedEvidence } from "./renderers/types";
 import { UnsupportedActivity } from "./unsupported-activity";
 
 const ACTIVITY_LABELS: Record<string, string> = {
@@ -44,31 +45,42 @@ export function activityLabel(type: string): string {
  * POST /preview projection — validation/evidenceRefs/requiredEvidenceIds and
  * every LEARNER_HIDDEN_KEYS leaf have already been stripped server-side, so
  * renderers simply read `config` fields and never see answer keys.
+ * `evidence`/`assets` carry the denormalized documents embedded in the
+ * lesson content so renderers can resolve ids to titles/sources.
  */
-export function ActivityRenderer({ activity }: { activity: Activity }) {
+export function ActivityRenderer({
+  activity,
+  evidence,
+  assets,
+}: {
+  activity: Activity;
+  evidence?: EmbeddedEvidence[];
+  assets?: EmbeddedAsset[];
+}) {
+  const props = { activity, evidence, assets };
   switch (activity.type) {
     case "READ":
-      return <ReadActivityView activity={activity} />;
+      return <ReadActivityView {...props} />;
     case "VIEW_IMAGE":
-      return <ViewImageActivityView activity={activity} />;
+      return <ViewImageActivityView {...props} />;
     case "MULTIPLE_CHOICE":
-      return <MultipleChoiceActivityView activity={activity} />;
+      return <MultipleChoiceActivityView {...props} />;
     case "EVIDENCE_SELECT":
-      return <EvidenceSelectActivityView activity={activity} />;
+      return <EvidenceSelectActivityView {...props} />;
     case "MATCHING":
-      return <MatchingActivityView activity={activity} />;
+      return <MatchingActivityView {...props} />;
     case "REASONING_CONNECT":
-      return <ReasoningConnectActivityView activity={activity} />;
+      return <ReasoningConnectActivityView {...props} />;
     case "HYPOTHESIS_CHOICE":
-      return <HypothesisChoiceActivityView activity={activity} />;
+      return <HypothesisChoiceActivityView {...props} />;
     case "DRAG_ORDER":
-      return <DragOrderActivityView activity={activity} />;
+      return <DragOrderActivityView {...props} />;
     case "VERIFICATION":
-      return <VerificationActivityView activity={activity} />;
+      return <VerificationActivityView {...props} />;
     case "CER":
-      return <CerActivityView activity={activity} />;
+      return <CerActivityView {...props} />;
     case "REFLECTION_PROMPT":
-      return <ReflectionPromptActivityView activity={activity} />;
+      return <ReflectionPromptActivityView {...props} />;
     default:
       return <UnsupportedActivity activity={activity} />;
   }

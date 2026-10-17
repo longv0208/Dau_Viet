@@ -49,7 +49,10 @@ class LearnerProjectionServiceTest {
                                                      "expected":42}}]}]}
                 """);
         JsonNode config = out.at("/stages/0/activities/0/config");
-        assertThat(config.has("pairs")).isTrue();
+        // MATCHING transform replaces pairs[] with leftItems/rightItems columns.
+        assertThat(config.has("pairs")).isFalse();
+        assertThat(config.has("leftItems")).isTrue();
+        assertThat(config.has("rightItems")).isTrue();
         for (String hidden : new String[]{"correctPairs", "correctOrder", "expectedOrder",
                 "requiredEvidenceIds", "expectedHypothesis", "answerKey",
                 "answer", "key", "expected"}) {
@@ -140,6 +143,150 @@ class LearnerProjectionServiceTest {
         assertThat(payload).doesNotContain("answerKey");
         assertThat(payload).doesNotContain("answer");
         assertThat(payload).contains("item");
+    }
+
+    @Test
+    void stripsMultiCorrectLegacyKey() throws Exception {
+        JsonNode out = project("""
+                {"stages":[{"id":"s","type":"EVIDENCE",
+                            "activities":[{"id":"a","type":"MULTIPLE_CHOICE",
+                                           "config":{"question":"q?",
+                                                     "options":[{"id":"o1"},{"id":"o2"}],
+                                                     "multiCorrect":["o1","o2"],
+                                                     "multiSelect":true}}]}]}
+                """);
+        JsonNode config = out.at("/stages/0/activities/0/config");
+        assertThat(config.has("multiCorrect")).isFalse();
+        assertThat(config.has("correctOptionIds")).isFalse();
+        // multiSelect is a display flag, not an answer key — it stays.
+        assertThat(config.get("multiSelect").asBoolean()).isTrue();
+    }
+
+    @Test
+    void matching_stripsPairsAndEmitsIndependentColumns() throws Exception {
+        JsonNode out = project("""
+                {"stages":[{"id":"s","type":"REASONING",
+                            "activities":[{"id":"m1","type":"MATCHING",
+                                           "config":{"pairs":[
+                                                     {"left":{"id":"l1","label":"L1"},
+                                                      "right":{"id":"r1","label":"R1"}},
+                                                     {"left":{"id":"l2","label":"L2"},
+                                                      "right":{"id":"r2","label":"R2"}},
+                                                     {"left":{"id":"l3","label":"L3"},
+                                                      "right":{"id":"r3","label":"R3"}}],
+                                                     "correctPairs":[
+                                                     {"left":"l1","right":"r1"},
+                                                     {"left":"l2","right":"r2"},
+                                                     {"left":"l3","right":"r3"}]}}]}]}
+                """);
+        JsonNode config = out.at("/stages/0/activities/0/config");
+        assertThat(config.has("pairs")).isFalse();
+        assertThat(config.has("correctPairs")).isFalse();
+        JsonNode left = config.get("leftItems");
+        JsonNode right = config.get("rightItems");
+        assertThat(left.isArray() && left.size() == 3).isTrue();
+        assertThat(right.isArray() && right.size() == 3).isTrue();
+        // All authored ids present on each side.
+        var leftIds = new java.util.TreeSet<String>();
+        left.forEach(n -> leftIds.add(n.get("id").asText()));
+        var rightIds = new java.util.TreeSet<String>();
+        right.forEach(n -> rightIds.add(n.get("id").asText()));
+        assertThat(leftIds).containsExactly("l1", "l2", "l3");
+        assertThat(rightIds).containsExactly("r1", "r2", "r3");
+        // Structural non-reveal: index i on the left must not map to the
+        // authored partner index on the right for at least one position —
+        // i.e. you cannot reconstruct the mapping by zipping the two arrays.
+        boolean reconstructible = true;
+        java.util.Map<String, String> authored = java.util.Map.of(
+                "l1", "r1", "l2", "r2", "l3", "r3");
+        for (int i = 0; i < left.size(); i++) {
+            if (!authored.get(left.get(i).get("id").asText())
+                    .equals(right.get(i).get("id").asText())) {
+                reconstructible = false;
+                break;
+            }
+        }
+        assertThat(reconstructible).isFalse();
+    }
+
+    @Test
+    void matching_projectionDeterministicAcrossCalls() throws Exception {
+        String draft = """
+                {"stages":[{"id":"s","type":"REASONING",
+                            "activities":[{"id":"m1","type":"MATCHING",
+                                           "config":{"pairs":[
+                                                     {"left":{"id":"l1","label":"L1"},
+                                                      "right":{"id":"r1","label":"R1"}},
+                                                     {"left":{"id":"l2","label":"L2"},
+                                                      "right":{"id":"r2","label":"R2"}}],
+                                                     "correctPairs":[
+                                                     {"left":"l1","right":"r1"},
+                                                     {"left":"l2","right":"r2"}]}}]}]}
+                """;
+        JsonNode first = project(draft);
+        JsonNode second = project(draft);
+        assertThat(first.at("/stages/0/activities/0/config/leftItems").toString())
+                .isEqualTo(second.at("/stages/0/activities/0/config/leftItems").toString());
+        assertThat(first.at("/stages/0/activities/0/config/rightItems").toString())
+                .isEqualTo(second.at("/stages/0/activities/0/config/rightItems").toString());
+    }
+
+    @Test
+    void matching_inputSnapshotNotMutated() throws Exception {
+        JsonNode input = MAPPER.readTree("""
+                {"stages":[{"id":"s","type":"REASONING",
+                            "activities":[{"id":"m1","type":"MATCHING",
+                                           "config":{"pairs":[
+                                                     {"left":{"id":"l1"},"right":{"id":"r1"}}],
+                                                     "correctPairs":[{"left":"l1","right":"r1"}]}}]}]}
+                """);
+        String before = MAPPER.writeValueAsString(input);
+        projection.project(input);
+        assertThat(MAPPER.writeValueAsString(input)).isEqualTo(before);
+    }
+
+    @Test
+    void dragOrder_projectsItemsInDifferentStableOrder() throws Exception {
+        String draft = """
+                {"stages":[{"id":"s","type":"RECONSTRUCTION",
+                            "activities":[{"id":"d1","type":"DRAG_ORDER",
+                                           "config":{"items":[
+                                                     {"id":"i1","label":"B1"},
+                                                     {"id":"i2","label":"B2"},
+                                                     {"id":"i3","label":"B3"}],
+                                                     "expectedOrder":["i1","i2","i3"]}}]}]}
+                """;
+        JsonNode out = project(draft);
+        JsonNode config = out.at("/stages/0/activities/0/config");
+        assertThat(config.has("expectedOrder")).isFalse();
+        JsonNode items = config.get("items");
+        assertThat(items.size()).isEqualTo(3);
+        var projectedIds = items.findValuesAsText("id");
+        // Learner order must differ from the answer key.
+        assertThat(projectedIds).isNotEqualTo(java.util.List.of("i1", "i2", "i3"));
+        // All items still present.
+        assertThat(new java.util.TreeSet<>(projectedIds))
+                .containsExactly("i1", "i2", "i3");
+        // Deterministic: same input → same projected order.
+        JsonNode again = project(draft);
+        assertThat(again.at("/stages/0/activities/0/config/items").toString())
+                .isEqualTo(items.toString());
+    }
+
+    @Test
+    void dragOrder_answerKeyStillGradesOriginalSequence() throws Exception {
+        // Projection only rewrites the learner-facing copy — the snapshot the
+        // handler reads keeps items + expectedOrder untouched.
+        JsonNode input = MAPPER.readTree("""
+                {"stages":[{"id":"s","type":"RECONSTRUCTION",
+                            "activities":[{"id":"d1","type":"DRAG_ORDER",
+                                           "config":{"items":[{"id":"i1"},{"id":"i2"}],
+                                                     "expectedOrder":["i1","i2"]}}]}]}
+                """);
+        String before = MAPPER.writeValueAsString(input);
+        projection.project(input);
+        // Input snapshot unchanged → grading unaffected.
+        assertThat(MAPPER.writeValueAsString(input)).isEqualTo(before);
     }
 
     @Test

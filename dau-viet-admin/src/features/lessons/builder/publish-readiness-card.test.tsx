@@ -2,6 +2,7 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { HttpResponse, http } from "msw";
+import { useState } from "react";
 import { describe, expect, it, vi } from "vitest";
 
 import { server } from "@/test/msw/server";
@@ -17,11 +18,20 @@ vi.mock("next/navigation", () => ({
   useRouter: () => ({ push: vi.fn() }),
 }));
 
-function renderCard(props?: { draft?: ReturnType<typeof parseDraft> | null; onJump?: (s: string | null, a: string | null) => void }) {
+function renderCard(props?: {
+  draft?: ReturnType<typeof parseDraft> | null;
+  revision?: number;
+  onJump?: (s: string | null, a: string | null) => void;
+}) {
   const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
   return render(
     <QueryClientProvider client={client}>
-      <PublishReadinessCard lessonId={LESSON_ID} draft={props?.draft} onJump={props?.onJump} />
+      <PublishReadinessCard
+        lessonId={LESSON_ID}
+        draft={props?.draft}
+        revision={props?.revision}
+        onJump={props?.onJump}
+      />
     </QueryClientProvider>,
   );
 }
@@ -71,5 +81,46 @@ describe("PublishReadinessCard", () => {
       "href",
       `/lessons/${LESSON_ID}/publish`,
     );
+  });
+
+  it("invalidates the result when the draft revision changes", async () => {
+    authStore.setAccessToken("t", 900);
+    server.use(
+      http.post(`*/api/proxy/admin/lessons/${LESSON_ID}/validate`, () =>
+        HttpResponse.json({
+          ready: true,
+          errors: [],
+          warnings: [],
+          summary: { stageCount: 1, activityCount: 1, errorCount: 0, warningCount: 0 },
+        }),
+      ),
+    );
+    // Stateful harness — the builder bumps revision on every draft mutation.
+    function Harness() {
+      const [rev, setRev] = useState(1);
+      return (
+        <>
+          <PublishReadinessCard lessonId={LESSON_ID} revision={rev} />
+          <button onClick={() => setRev((r) => r + 1)}>edit draft</button>
+        </>
+      );
+    }
+    const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+    render(
+      <QueryClientProvider client={client}>
+        <Harness />
+      </QueryClientProvider>,
+    );
+    await userEvent.click(screen.getByRole("button", { name: /kiểm tra xuất bản/i }));
+    await waitFor(() => screen.getByText(/đủ điều kiện xuất bản/i));
+    // Simulate a draft save — stale READY must disappear.
+    await userEvent.click(screen.getByRole("button", { name: /edit draft/i }));
+    await waitFor(() =>
+      expect(screen.queryByText(/đủ điều kiện xuất bản/i)).not.toBeInTheDocument(),
+    );
+    // Editing must NOT be blocked — the check button is still available.
+    expect(
+      screen.getByRole("button", { name: /kiểm tra xuất bản/i }),
+    ).toBeInTheDocument();
   });
 });

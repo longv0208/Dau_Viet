@@ -29,9 +29,11 @@ function readOptions(config: Record<string, unknown> | undefined): Option[] {
 }
 
 /**
- * MULTIPLE_CHOICE — question + options[≥2 unique ids] + exactly ONE of
- * correctOptionIds[] (single-answer) or multiCorrect[] (multi-answer).
- * Emits the active mode only; clears the other so both never coexist.
+ * MULTIPLE_CHOICE — question + options[≥2 unique ids] + correctOptionIds[]
+ * (canonical answer key for BOTH modes) + multiSelect flag (display only:
+ * single → radio, multi → checkbox). Legacy `multiCorrect` drafts still load —
+ * mode/correctness fall back to it — but saves always rewrite canonical keys
+ * and delete the legacy one.
  */
 export function MultipleChoiceEditor(props: EditorProps) {
   const { activity, readOnly, onChange } = props;
@@ -39,9 +41,15 @@ export function MultipleChoiceEditor(props: EditorProps) {
   const question = (config.question as string) ?? "";
   const options = readOptions(activity.config);
   const singleIds = (config.correctOptionIds as string[] | undefined) ?? null;
-  const multiIds = (config.multiCorrect as string[] | undefined) ?? null;
-  const mode: "single" | "multi" = multiIds ? "multi" : "single";
-  const correctSet = new Set(mode === "single" ? (singleIds ?? []) : (multiIds ?? []));
+  const legacyMulti = (config.multiCorrect as string[] | undefined) ?? null;
+  // Mode: explicit multiSelect flag wins; legacy multiCorrect implies multi.
+  const mode: "single" | "multi" =
+    config.multiSelect === true || (config.multiSelect == null && legacyMulti != null)
+      ? "multi"
+      : "single";
+  const correctSet = new Set(
+    singleIds ?? legacyMulti ?? [],
+  );
 
   function write(next: { options?: Option[]; correct?: string[]; nextMode?: "single" | "multi" }) {
     const opts = next.options ?? options;
@@ -56,8 +64,8 @@ export function MultipleChoiceEditor(props: EditorProps) {
     };
     delete cfg.correctOptionIds;
     delete cfg.multiCorrect;
-    if (m === "single") cfg.correctOptionIds = correct.slice(0, 1);
-    else cfg.multiCorrect = correct;
+    cfg.correctOptionIds = m === "single" ? correct.slice(0, 1) : correct;
+    cfg.multiSelect = m === "multi";
     onChange({ config: cfg });
   }
 

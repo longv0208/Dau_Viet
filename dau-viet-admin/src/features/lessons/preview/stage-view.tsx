@@ -6,20 +6,27 @@ import type { Stage } from "../builder/draft-model";
 import { Button } from "@/components/ui/button";
 
 import { ActivityRenderer, activityLabel } from "./activity-renderer";
+import type { EmbeddedAsset, EmbeddedEvidence } from "./renderers/types";
 import { stageLabel } from "./stage-nav";
 
 /**
  * Renders one stage of the projection: header + the currently selected
  * activity with prev/next navigation across the stage's activities.
+ * The renderer subtree is keyed by activity id so interactive local state
+ * (picks, orders, drafts) resets when switching between same-type activities.
  */
 export function StageView({
   stage,
   activityIndex,
   onActivityChange,
+  evidence,
+  assets,
 }: {
   stage: Stage;
   activityIndex: number;
   onActivityChange: (index: number) => void;
+  evidence?: EmbeddedEvidence[];
+  assets?: EmbeddedAsset[];
 }) {
   const activities = stage.activities ?? [];
   const clamped = Math.min(Math.max(activityIndex, 0), Math.max(activities.length - 1, 0));
@@ -71,7 +78,13 @@ export function StageView({
             </p>
           )}
 
-          <ActivityRenderer activity={activity} />
+          {/* key={activity.id}: remount resets local state across activities. */}
+          <ActivityRenderer
+            key={activity.id}
+            activity={activity}
+            evidence={evidence}
+            assets={assets}
+          />
 
           {/* Numbered chips for direct activity navigation. */}
           {activities.length > 1 && (

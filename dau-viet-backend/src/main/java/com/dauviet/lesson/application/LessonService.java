@@ -54,6 +54,7 @@ public class LessonService {
     private final DraftValidator draftValidator;
     private final PublishReadinessEvaluator readiness;
     private final LearnerProjectionService learnerProjection;
+    private final com.dauviet.lesson.draft.SnapshotBuilder snapshotBuilder;
     private final com.fasterxml.jackson.databind.ObjectMapper objectMapper;
 
     public LessonService(LessonRepository lessons,
@@ -63,6 +64,7 @@ public class LessonService {
                          DraftValidator draftValidator,
                          PublishReadinessEvaluator readiness,
                          LearnerProjectionService learnerProjection,
+                         com.dauviet.lesson.draft.SnapshotBuilder snapshotBuilder,
                          com.fasterxml.jackson.databind.ObjectMapper objectMapper) {
         this.lessons = lessons;
         this.templates = templates;
@@ -71,6 +73,7 @@ public class LessonService {
         this.draftValidator = draftValidator;
         this.readiness = readiness;
         this.learnerProjection = learnerProjection;
+        this.snapshotBuilder = snapshotBuilder;
         this.objectMapper = objectMapper;
     }
 
@@ -208,8 +211,25 @@ public class LessonService {
             throw new com.dauviet.lesson.domain.DraftSchemaInvalidException(
                     "draftJson is not valid JSON");
         }
+        // Enrich with denormalized evidence[]/assets[] so the draft preview
+        // resolves the same document bodies learners would get after publish.
+        // Falls back to the bare draft when the lesson has no template or the
+        // template row is missing — preview must stay available for drafts.
+        JsonNode source = draft;
+        if (l.getTemplateId() != null) {
+            try {
+                LessonTemplate tpl = templates.findById(l.getTemplateId()).orElse(null);
+                if (tpl != null) {
+                    source = snapshotBuilder.build(l, draft, tpl);
+                }
+            } catch (RuntimeException ignored) {
+                // Missing evidence/asset rows in an unfinished draft must not
+                // break preview; publish-time validation is authoritative.
+                source = draft;
+            }
+        }
         return new com.dauviet.lesson.api.dto.LearnerLessonContent(
-                l.getId(), null, null, learnerProjection.project(draft));
+                l.getId(), null, null, learnerProjection.project(source));
     }
 
     @Transactional

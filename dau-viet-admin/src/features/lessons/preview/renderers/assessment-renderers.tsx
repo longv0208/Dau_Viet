@@ -5,6 +5,7 @@ import { useState } from "react";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 
+import { evidenceLabel, findEvidence } from "./resolve-evidence";
 import type { PreviewActivityProps } from "./types";
 
 const VERDICTS = [
@@ -17,7 +18,7 @@ const VERDICTS = [
  * VERIFICATION — visibleSourceIds chips + verdict pick. requiredEvidenceIds
  * is a hidden key (already stripped by the projection) and is NOT rendered.
  */
-export function VerificationActivityView({ activity }: PreviewActivityProps) {
+export function VerificationActivityView({ activity, evidence }: PreviewActivityProps) {
   const sources = Array.isArray(activity.config?.visibleSourceIds)
     ? (activity.config.visibleSourceIds as unknown[]).map((x) => String(x ?? "")).filter(Boolean)
     : [];
@@ -25,15 +26,29 @@ export function VerificationActivityView({ activity }: PreviewActivityProps) {
   return (
     <div className="flex flex-col gap-3">
       <p className="text-sm font-medium text-ink">Đối chiếu giả thuyết với các nguồn:</p>
-      <div className="flex flex-wrap gap-1.5">
-        {sources.map((id, i) => (
-          <span
-            key={id}
-            className="rounded-full border border-border bg-surface px-2.5 py-1 text-xs text-ink"
-          >
-            Nguồn {i + 1}
-          </span>
-        ))}
+      <div className="flex flex-col gap-1.5">
+        {sources.map((id, i) => {
+          const doc = findEvidence(evidence, id);
+          const sourceTitle = doc?.source?.title?.trim();
+          const attribution = [doc?.source?.author, doc?.source?.publishedAt]
+            .filter(Boolean)
+            .join(" · ");
+          return (
+            <div
+              key={id}
+              className="rounded-md border border-border bg-surface px-3 py-2"
+            >
+              <p className="text-xs font-medium text-ink">
+                {evidenceLabel(evidence, id, `Nguồn ${i + 1}`)}
+              </p>
+              {sourceTitle && (
+                <p className="text-[11px] italic text-ink-muted">
+                  {sourceTitle}{attribution ? ` — ${attribution}` : ""}
+                </p>
+              )}
+            </div>
+          );
+        })}
         {sources.length === 0 && (
           <p className="text-sm italic text-ink-muted">Chưa khai báo nguồn nào.</p>
         )}

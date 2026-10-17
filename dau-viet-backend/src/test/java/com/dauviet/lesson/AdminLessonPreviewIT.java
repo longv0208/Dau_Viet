@@ -146,6 +146,56 @@ class AdminLessonPreviewIT extends AbstractPostgresIT {
     }
 
     @Test
+    void preview_embedsEvidenceAndAssetsFromDraft() throws Exception {
+        String evId = UUID.randomUUID().toString();
+        jdbc.update("insert into evidences (id, event_id, title, evidence_type, description, "
+                  + "source_title, source_author, reliability, relevance, status) "
+                  + "values (?::uuid, ?::uuid, 'Thư tịch thực dân', 'DOCUMENT', "
+                  + "'Mô tả bằng chứng A', 'Nguồn A', 'Tác giả A', 'HIGH', '80', 'APPROVED')",
+                evId, eventId);
+        String draft = """
+                {"schemaVersion":1,
+                 "stages":[{"id":"ev","type":"EVIDENCE","required":true,
+                            "activities":[{"id":"es","type":"EVIDENCE_SELECT",
+                                           "config":{"visibleEvidenceIds":["%s"]}}],
+                            "nextStageIds":[]}]}
+                """.formatted(evId);
+        String id = createLesson(draft);
+        MvcResult res = mvc.perform(post("/api/v1/admin/lessons/" + id + "/preview")
+                        .header("Authorization", adminToken))
+                .andExpect(status().isOk()).andReturn();
+        JsonNode content = om.readTree(res.getResponse().getContentAsString())
+                .get("content");
+        JsonNode evidence = content.get("evidence");
+        assertThat(evidence.isArray() && evidence.size() == 1).isTrue();
+        assertThat(evidence.get(0).get("title").asText()).isEqualTo("Thư tịch thực dân");
+        assertThat(evidence.get(0).at("/source/title").asText()).isEqualTo("Nguồn A");
+        // id reference stays inside config (renderer-facing), not required ids
+        assertThat(content.at("/stages/0/activities/0/config/visibleEvidenceIds/0")
+                .asText()).isEqualTo(evId);
+    }
+
+    @Test
+    void preview_referencesMissingEvidence_fallsBackGracefully() throws Exception {
+        // Draft referencing an evidence row that doesn't exist yet still
+        // previews: enrichment is best-effort, publish validation is the gate.
+        String ghostId = UUID.randomUUID().toString();
+        String draft = """
+                {"schemaVersion":1,
+                 "stages":[{"id":"ev","type":"EVIDENCE","required":true,
+                            "activities":[{"id":"es","type":"EVIDENCE_SELECT",
+                                           "config":{"visibleEvidenceIds":["%s"]}}],
+                            "nextStageIds":[]}]}
+                """.formatted(ghostId);
+        String id = createLesson(draft);
+        mvc.perform(post("/api/v1/admin/lessons/" + id + "/preview")
+                        .header("Authorization", adminToken))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.content.stages[0].activities[0]"
+                        + ".config.visibleEvidenceIds[0]").value(ghostId));
+    }
+
+    @Test
     void preview_anon401_learner403() throws Exception {
         User learner = new User();
         learner.setId(UUID.randomUUID());

@@ -58,9 +58,9 @@ public final class DraftSchema {
      * Listed by leaf field name; matching is by simple name inside config/validation.
      */
     public static final Set<String> LEARNER_HIDDEN_KEYS = Set.of(
-            "correctOptionIds", "correctPairs", "correctOrder", "expectedOrder",
-            "requiredEvidenceIds", "expectedHypothesis", "answerKey",
-            "answer", "key", "expected");
+            "correctOptionIds", "multiCorrect", "correctPairs", "correctOrder",
+            "expectedOrder", "requiredEvidenceIds", "expectedHypothesis",
+            "answerKey", "answer", "key", "expected");
 
     private DraftSchema() {
     }

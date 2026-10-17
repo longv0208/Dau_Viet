@@ -12,6 +12,175 @@ import {
 } from "../fixtures";
 
 /**
+ * MSW mirror of the backend learner projection — keep in sync with
+ * LearnerProjectionService: hidden keys stripped, MATCHING pairs →
+ * leftItems/rightItems, DRAG_ORDER items re-shuffled deterministically,
+ * evidence[]/assets[] embedded for ids the draft references.
+ */
+const HIDDEN_CONFIG_KEYS = new Set([
+  "correctOptionIds",
+  "multiCorrect",
+  "correctPairs",
+  "correctOrder",
+  "expectedOrder",
+  "requiredEvidenceIds",
+  "expectedHypothesis",
+  "answerKey",
+  "answer",
+  "key",
+  "expected",
+]);
+
+type AnyObj = Record<string, unknown>;
+
+function stripHiddenDeep(value: unknown): void {
+  if (Array.isArray(value)) {
+    value.forEach(stripHiddenDeep);
+    return;
+  }
+  if (!value || typeof value !== "object") return;
+  const o = value as AnyObj;
+  for (const k of Object.keys(o)) {
+    if (HIDDEN_CONFIG_KEYS.has(k)) delete o[k];
+    else stripHiddenDeep(o[k]);
+  }
+}
+
+function itemOf(raw: unknown): { id: string; label: string } | null {
+  if (!raw || typeof raw !== "object") return null;
+  const r = raw as AnyObj;
+  const id = String(r.id ?? "");
+  if (!id) return null;
+  return { id, label: String(r.label ?? r.text ?? "") };
+}
+
+/** Deterministic pseudo key — mirrors Objects.hash ordering spirit. */
+function sortKey(activityId: string, itemId: string): number {
+  const s = `${activityId}|${itemId}`;
+  let h = 0;
+  for (let i = 0; i < s.length; i++) h = (Math.imul(h, 31) + s.charCodeAt(i)) | 0;
+  return h;
+}
+
+function transformActivity(a: AnyObj): void {
+  const cfg = a.config as AnyObj | undefined;
+  if (!cfg) return;
+  const activityId = String(a.id ?? "");
+  if (a.type === "MATCHING" && Array.isArray(cfg.pairs)) {
+    const left: { id: string; label: string }[] = [];
+    const right: { id: string; label: string }[] = [];
+    for (const p of cfg.pairs as AnyObj[]) {
+      const l = itemOf(p?.left);
+      const r = itemOf(p?.right);
+      if (l) left.push(l);
+      if (r) right.push(r);
+    }
+    left.sort((x, y) => sortKey(activityId, x.id) - sortKey(activityId, y.id));
+    right.sort((x, y) => sortKey(activityId, y.id) - sortKey(activityId, x.id));
+    delete cfg.pairs;
+    cfg.leftItems = left;
+    cfg.rightItems = right;
+  }
+  if (a.type === "DRAG_ORDER" && Array.isArray(cfg.items)) {
+    const items = (cfg.items as AnyObj[]).map((it) => it);
+    items.sort(
+      (x, y) =>
+        sortKey(activityId, String(x.id ?? "")) - sortKey(activityId, String(y.id ?? "")),
+    );
+    const projected = items.map((it) => String(it.id ?? ""));
+    const expected =
+      (Array.isArray(cfg.expectedOrder) ? (cfg.expectedOrder as unknown[]) : null) ??
+      (Array.isArray(cfg.correctOrder) ? (cfg.correctOrder as unknown[]) : null) ??
+      (cfg.items as AnyObj[]).map((it) => it.id);
+    const answer = (expected as unknown[]).map((x) => String(x ?? ""));
+    if (projected.length >= 2 && JSON.stringify(projected) === JSON.stringify(answer)) {
+      items.reverse();
+    }
+    cfg.items = items;
+  }
+}
+
+function collectIds(node: unknown, field: string, out: Set<string>): void {
+  if (!node || typeof node !== "object") return;
+  const v = (node as AnyObj)[field];
+  if (Array.isArray(v)) v.forEach((x) => out.add(String(x ?? "")));
+}
+
+function embedEvidence(draft: AnyObj): AnyObj[] {
+  const ids = new Set<string>();
+  for (const s of (draft.stages as AnyObj[]) ?? []) {
+    for (const a of (s.activities as AnyObj[]) ?? []) {
+      collectIds(a, "evidenceRefs", ids);
+      const cfg = a.config as AnyObj | undefined;
+      if (cfg) {
+        collectIds(cfg, "visibleEvidenceIds", ids);
+        collectIds(cfg, "requiredEvidenceIds", ids);
+        collectIds(cfg, "visibleSourceIds", ids);
+      }
+    }
+    collectIds(s, "requiredEvidenceIds", ids);
+  }
+  return evidencesPageFixture.content
+    .filter((e) => ids.has(e.id))
+    .map((e) => ({
+      id: e.id,
+      title: e.title,
+      evidenceType: e.evidenceType,
+      description: e.description ?? undefined,
+      source: {
+        title: e.sourceTitle,
+        author: e.sourceAuthor ?? undefined,
+        url: e.sourceUrl ?? undefined,
+        citation: e.sourceCitation ?? undefined,
+      },
+      reliability: e.reliability ?? undefined,
+      relevance: e.relevance ?? undefined,
+      assetId: e.assetId ?? undefined,
+    }));
+}
+
+function embedAssets(evidence: AnyObj[], draft: AnyObj): AnyObj[] {
+  const ids = new Set<string>();
+  for (const e of evidence) if (e.assetId) ids.add(String(e.assetId));
+  for (const s of (draft.stages as AnyObj[]) ?? []) {
+    for (const a of (s.activities as AnyObj[]) ?? []) {
+      const cfg = a.config as AnyObj | undefined;
+      if (cfg?.imageAssetId) ids.add(String(cfg.imageAssetId));
+    }
+  }
+  return assetsPageFixture.content
+    .filter((a) => ids.has(a.id))
+    .map((a) => ({
+      id: a.id,
+      storageKey: a.contentUrl,
+      mimeType: a.mimeType,
+      sizeBytes: a.sizeBytes,
+      originalFilename: a.originalFilename,
+      altText: a.altText ?? undefined,
+    }));
+}
+
+/** Full learner-facing projection: transform + strip + embed. */
+function projectDraft(draftJson: string): AnyObj {
+  const draft = JSON.parse(draftJson) as AnyObj;
+  const evidence = embedEvidence(draft);
+  const assets = embedAssets(evidence, draft);
+  for (const s of (draft.stages as AnyObj[]) ?? []) {
+    delete s.requiredEvidenceIds;
+    for (const a of (s.activities as AnyObj[]) ?? []) {
+      transformActivity(a);
+      delete a.validation;
+      delete a.evidenceRefs;
+      stripHiddenDeep(a.config);
+      stripHiddenDeep(a.feedback);
+    }
+  }
+  draft.evidence = evidence;
+  draft.assets = assets;
+  return draft;
+}
+
+/**
  * Default stubs for component tests. MSW intercepts the BROWSER-FACING URLs
  * (/api/auth/*, /api/proxy/*), not the upstream backend — the proxy route is a
  * server-side boundary and never runs in jsdom.
@@ -196,26 +365,11 @@ export const handlers = [
   http.post("*/api/proxy/admin/lessons/:id/preview", ({ params }) => {
     const l = lessonsPageFixture.content.find((x) => x.id === params.id);
     if (!l) return HttpResponse.json({ code: "LESSON_NOT_FOUND" }, { status: 404 });
-    // Projection: same draft shape minus hidden keys (already stripped in fixture).
-    const draft = JSON.parse(draftFixture) as Record<string, unknown>;
-    for (const s of (draft.stages as { activities?: Record<string, unknown>[] }[]) ?? []) {
-      for (const a of s.activities ?? []) {
-        delete a.validation;
-        delete a.evidenceRefs;
-        const cfg = a.config as Record<string, unknown> | undefined;
-        if (cfg) {
-          delete cfg.correctOptionIds;
-          delete cfg.expectedOrder;
-          delete cfg.multiCorrect;
-        }
-      }
-      delete (s as Record<string, unknown>).requiredEvidenceIds;
-    }
     return HttpResponse.json({
       lessonId: l.id,
       lessonVersionId: null,
       versionNo: null,
-      content: draft,
+      content: projectDraft(draftFixture),
     });
   }),
   http.post("*/api/proxy/admin/lessons/:id/publish", async ({ params, request }) => {
@@ -244,24 +398,11 @@ export const handlers = [
     if (!l || l.status !== "PUBLISHED") {
       return HttpResponse.json({ code: "LESSON_NOT_PUBLISHED" }, { status: 404 });
     }
-    const draft = JSON.parse(draftFixture) as Record<string, unknown>;
-    for (const s of (draft.stages as { activities?: Record<string, unknown>[] }[]) ?? []) {
-      for (const a of s.activities ?? []) {
-        delete a.validation;
-        delete a.evidenceRefs;
-        const cfg = a.config as Record<string, unknown> | undefined;
-        if (cfg) {
-          delete cfg.correctOptionIds;
-          delete cfg.expectedOrder;
-          delete cfg.multiCorrect;
-        }
-      }
-    }
     return HttpResponse.json({
       lessonId: l.id,
       lessonVersionId: l.currentVersionId,
       versionNo: 1,
-      content: draft,
+      content: projectDraft(draftFixture),
     });
   }),
   http.post("*/api/proxy/admin/events/:id/publish", ({ params }) => {

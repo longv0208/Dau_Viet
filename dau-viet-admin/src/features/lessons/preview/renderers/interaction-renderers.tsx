@@ -5,6 +5,7 @@ import { useState } from "react";
 
 import { Button } from "@/components/ui/button";
 
+import { evidenceLabel, findEvidence } from "./resolve-evidence";
 import type { PreviewActivityProps } from "./types";
 
 interface Item {
@@ -31,7 +32,7 @@ function readStrings(raw: unknown): string[] {
  * EVIDENCE_SELECT — visibleEvidenceIds list (multi-pick demo).
  * requiredEvidenceIds / evidenceRefs are hidden keys the projection stripped.
  */
-export function EvidenceSelectActivityView({ activity }: PreviewActivityProps) {
+export function EvidenceSelectActivityView({ activity, evidence }: PreviewActivityProps) {
   const ids = readStrings(activity.config?.visibleEvidenceIds);
   const minRequired =
     typeof activity.config?.minRequired === "number" ? activity.config.minRequired : null;
@@ -42,28 +43,48 @@ export function EvidenceSelectActivityView({ activity }: PreviewActivityProps) {
         Chọn bằng chứng{minRequired ? ` (tối thiểu ${minRequired})` : ""}:
       </p>
       <div className="flex flex-col gap-2">
-        {ids.map((id, i) => (
-          <label
-            key={id}
-            className={
-              "flex items-center gap-2.5 rounded-md border px-3 py-2 text-sm " +
-              (picked.includes(id) ? "border-brand bg-brand/5" : "border-border")
-            }
-          >
-            <input
-              type="checkbox"
-              checked={picked.includes(id)}
-              onChange={() =>
-                setPicked((p) =>
-                  p.includes(id) ? p.filter((x) => x !== id) : [...p, id],
-                )
+        {ids.map((id, i) => {
+          const doc = findEvidence(evidence, id);
+          const source = doc?.source;
+          const sourceLine = [source?.title, source?.author]
+            .filter(Boolean)
+            .join(" — ");
+          return (
+            <label
+              key={id}
+              className={
+                "flex items-start gap-2.5 rounded-md border px-3 py-2 text-sm " +
+                (picked.includes(id) ? "border-brand bg-brand/5" : "border-border")
               }
-              className="size-4 accent-brand"
-            />
-            Bằng chứng {i + 1}
-            <span className="ml-auto font-mono text-[10px] text-ink-muted">{id.slice(0, 8)}…</span>
-          </label>
-        ))}
+            >
+              <input
+                type="checkbox"
+                checked={picked.includes(id)}
+                onChange={() =>
+                  setPicked((p) =>
+                    p.includes(id) ? p.filter((x) => x !== id) : [...p, id],
+                  )
+                }
+                className="mt-0.5 size-4 accent-brand"
+              />
+              <span className="flex flex-col gap-0.5">
+                <span className="font-medium text-ink">
+                  {evidenceLabel(evidence, id, `Bằng chứng ${i + 1}`)}
+                </span>
+                {doc?.description && (
+                  <span className="line-clamp-2 text-xs text-ink-muted">
+                    {doc.description}
+                  </span>
+                )}
+                {sourceLine && (
+                  <span className="text-[11px] italic text-ink-muted">
+                    Nguồn: {sourceLine}
+                  </span>
+                )}
+              </span>
+            </label>
+          );
+        })}
         {ids.length === 0 && (
           <p className="text-sm italic text-ink-muted">Chưa khai báo bằng chứng nào.</p>
         )}
@@ -72,38 +93,91 @@ export function EvidenceSelectActivityView({ activity }: PreviewActivityProps) {
   );
 }
 
-/** MATCHING — pairs[{left,right}] rendered as two columns to connect. */
+/**
+ * MATCHING — two INDEPENDENT columns (leftItems/rightItems). The projection
+ * removed `pairs`/`correctPairs` so row position can never encode the answer;
+ * learners connect a left id to a right id, preview only shows the columns.
+ */
 export function MatchingActivityView({ activity }: PreviewActivityProps) {
-  const raw = activity.config?.pairs;
-  const pairs = (Array.isArray(raw) ? raw : [])
-    .filter((p) => p && typeof p === "object")
-    .map((p) => {
-      const r = p as { left?: Record<string, unknown>; right?: Record<string, unknown> };
-      return {
-        left: String(r.left?.label ?? r.left?.text ?? ""),
-        right: String(r.right?.label ?? r.right?.text ?? ""),
-      };
+  const left = readItems(activity.config?.leftItems);
+  const right = readItems(activity.config?.rightItems);
+  const [selectedLeft, setSelectedLeft] = useState<string | null>(null);
+  const [links, setLinks] = useState<Record<string, string>>({});
+
+  function pickRight(rightId: string) {
+    if (!selectedLeft) return;
+    setLinks((prev) => {
+      const next = { ...prev };
+      for (const k of Object.keys(next)) {
+        if (next[k] === rightId) delete next[k];
+      }
+      next[selectedLeft] = rightId;
+      return next;
     });
+    setSelectedLeft(null);
+  }
+
+  const linkedRight = new Set(Object.values(links));
+  const hasColumns = left.length > 0 || right.length > 0;
+
   return (
     <div className="flex flex-col gap-3">
       <p className="text-sm font-medium text-ink">Nối các cặp tương ứng:</p>
-      {pairs.length > 0 ? (
-        <div className="flex flex-col gap-2">
-          {pairs.map((p, i) => (
-            <div key={i} className="flex items-center gap-3 text-sm">
-              <span className="flex-1 rounded-md border border-border px-3 py-2">{p.left}</span>
-              <span className="text-ink-muted">↔</span>
-              <span className="flex-1 rounded-md border border-dashed border-border px-3 py-2 text-ink-muted">
-                {p.right}
-              </span>
-            </div>
-          ))}
+      {hasColumns ? (
+        <div className="grid grid-cols-2 gap-3">
+          <div className="flex flex-col gap-1.5">
+            {left.map((item) => {
+              const linked = links[item.id];
+              const active = selectedLeft === item.id;
+              return (
+                <button
+                  key={item.id}
+                  type="button"
+                  onClick={() => setSelectedLeft(active ? null : item.id)}
+                  className={
+                    "rounded-md border px-3 py-2 text-left text-sm " +
+                    (active
+                      ? "border-brand bg-brand/10 text-ink"
+                      : linked
+                        ? "border-brand/50 bg-brand/5 text-ink"
+                        : "border-border bg-white text-ink")
+                  }
+                >
+                  {item.label || "(mục trống)"}
+                </button>
+              );
+            })}
+          </div>
+          <div className="flex flex-col gap-1.5">
+            {right.map((item) => {
+              const used = linkedRight.has(item.id);
+              return (
+                <button
+                  key={item.id}
+                  type="button"
+                  onClick={() => pickRight(item.id)}
+                  disabled={!selectedLeft && !used}
+                  className={
+                    "rounded-md border px-3 py-2 text-left text-sm " +
+                    (used
+                      ? "border-brand/50 bg-brand/5 text-ink"
+                      : "border-dashed border-border bg-white text-ink")
+                  }
+                >
+                  {item.label || "(mục trống)"}
+                </button>
+              );
+            })}
+          </div>
         </div>
       ) : (
         <p className="text-sm italic text-ink-muted">Chưa có cặp nối nào.</p>
       )}
+      {selectedLeft && (
+        <p className="text-[11px] text-brand">Chọn mục bên phải để nối.</p>
+      )}
       <p className="text-[11px] text-ink-muted">
-        Xem trước — thứ tự đúng không được hiển thị.
+        Xem trước — hai cột hiển thị độc lập, cặp đúng không được tiết lộ.
       </p>
     </div>
   );
@@ -200,7 +274,7 @@ export function DragOrderActivityView({ activity }: PreviewActivityProps) {
         <p className="text-sm italic text-ink-muted">Chưa có mục nào để sắp xếp.</p>
       )}
       <p className="text-[11px] text-ink-muted">
-        Xem trước — thứ tự đúng (expectedOrder) không được hiển thị.
+        Xem trước — thứ tự đúng không được hiển thị.
       </p>
     </div>
   );

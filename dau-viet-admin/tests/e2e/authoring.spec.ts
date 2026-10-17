@@ -16,6 +16,9 @@ async function login(page: Page) {
 }
 
 test("content admin creates an event via the form", async ({ page }) => {
+  // Cold dev-server compiles /events/new + /events/[id] on first hit — the
+  // default 30s budget is not enough on a cold start.
+  test.setTimeout(120_000);
   await login(page);
 
   await page.goto("/events/new");
