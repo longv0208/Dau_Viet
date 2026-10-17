@@ -14,8 +14,8 @@ import jakarta.persistence.Id;
 import jakarta.persistence.Table;
 
 /**
- * Read-only lesson template (list + detail only in TASK-0008).
- * preset_json describes the default stages/activities for the template.
+ * Lesson template (admin authoring). preset_json describes the default
+ * stages/activities skeleton applied when a lesson is created from it.
  */
 @Entity
 @Table(name = "lesson_templates")
@@ -53,6 +53,20 @@ public class LessonTemplate {
     private Instant updatedAt;
 
     public LessonTemplate() {
+    }
+
+    /** Factory for creating a new enabled template at the current schema version. */
+    public static LessonTemplate create(UUID id, String code, String name, String description,
+                                        int schemaVersion, String presetJson) {
+        LessonTemplate t = new LessonTemplate();
+        t.id = id;
+        t.code = code;
+        t.name = name;
+        t.description = description;
+        t.schemaVersion = schemaVersion;
+        t.presetJson = presetJson;
+        t.enabled = true;
+        return t;
     }
 
     public UUID getId() { return id; }

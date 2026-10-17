@@ -48,9 +48,11 @@ export function LessonWizard() {
   const searchParams = useSearchParams();
   const presetEvent = searchParams.get("event") ?? undefined;
 
+  const presetTemplate = searchParams.get("template") ?? undefined;
+
   const [step, setStep] = useState(1);
   const [eventId, setEventId] = useState<string | undefined>(presetEvent);
-  const [templateId, setTemplateId] = useState<string | undefined>();
+  const [templateId, setTemplateId] = useState<string | undefined>(presetTemplate);
   const [serverError, setServerError] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
 
@@ -95,7 +97,9 @@ export function LessonWizard() {
           title: v.title.trim(),
           centralQuestion: v.centralQuestion.trim(),
           objectivesJson: JSON.stringify(v.objectives.map((o) => o.value.trim()).filter(Boolean)),
-          draftJson: "{}",
+          // Seed the draft with the template's preset so the builder opens
+          // with the template's stage skeleton instead of an empty document.
+          draftJson: template?.presetJson ?? "{}",
         }),
       });
       qc.invalidateQueries({ queryKey: ["lessons"] });
@@ -207,7 +211,18 @@ export function LessonWizard() {
             {templatesQuery.data && templatesQuery.data.length === 0 && (
               <EmptyState
                 title="Chưa có khung bài học khả dụng"
-                description="Hệ thống chưa có khung bài học nào được bật. Vui lòng liên hệ quản trị hệ thống để được hỗ trợ."
+                description="Hệ thống chưa có khung bài học nào được bật. Tạo một khung mới để tiếp tục soạn bài học."
+                action={
+                  <Button asChild>
+                    <Link
+                      href={`/templates/new?return=${encodeURIComponent(
+                        `/lessons/new${eventId ? `?event=${eventId}` : ""}`,
+                      )}`}
+                    >
+                      Tạo khung bài học
+                    </Link>
+                  </Button>
+                }
               />
             )}
             <div className="grid gap-2">

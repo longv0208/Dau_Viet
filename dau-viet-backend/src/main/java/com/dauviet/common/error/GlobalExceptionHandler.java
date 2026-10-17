@@ -139,6 +139,12 @@ public class GlobalExceptionHandler {
         return build(HttpStatus.UNPROCESSABLE_ENTITY, ErrorCode.TEMPLATE_DISABLED, ex.getMessage(), Map.of());
     }
 
+    @ExceptionHandler(com.dauviet.lesson.domain.TemplateCodeTakenException.class)
+    public ResponseEntity<ApiError> handleTemplateCodeTaken(
+            com.dauviet.lesson.domain.TemplateCodeTakenException ex) {
+        return build(HttpStatus.CONFLICT, ErrorCode.TEMPLATE_CODE_TAKEN, ex.getMessage(), Map.of());
+    }
+
     @ExceptionHandler(com.dauviet.lesson.domain.DraftSchemaInvalidException.class)
     public ResponseEntity<ApiError> handleDraftInvalid(
             com.dauviet.lesson.domain.DraftSchemaInvalidException ex) {

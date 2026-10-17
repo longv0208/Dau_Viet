@@ -61,3 +61,11 @@ export interface LessonTemplate {
   createdAt: string;
   updatedAt: string;
 }
+
+/** AdminLessonTemplateCreateRequest — POST /admin/lesson-templates. */
+export interface AdminLessonTemplateCreateRequest {
+  code: string;
+  name: string;
+  description?: string;
+  presetJson: string;
+}
