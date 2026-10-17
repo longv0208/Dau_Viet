@@ -1,0 +1,48 @@
+{
+  "schemaVersion": 1,
+  "id": "TASK-0016",
+  "type": "feature",
+  "risk": "high-risk",
+  "status": "completed",
+  "goal": "Evidence & Asset Library + Activity Configuration: Content Admin creates/edits source-backed evidence, uploads/selects media assets, attaches them to activities via visual pickers (no raw UUID), configures feedback, and completes remaining activity editors — all persisting through the existing PUT /admin/lessons/{id}/draft contract.",
+  "owner": "claude",
+  "modules": ["admin", "backend"],
+  "scope": [
+    "dau-viet-admin/",
+    "dau-viet-backend/",
+    "tasks/TASK-0016/",
+    "docs/admin-runbook.md",
+    "plans/"
+  ],
+  "acceptanceCriteria": [
+    { "id": "AC-1", "text": "Admin can create/edit/list/search/filter evidence with eventId, title, evidenceType, sourceTitle (required), author/url/citation/publishedAt, reliability, relevance, optional assetId; approve/archive honored; incomplete-source items visibly marked." },
+    { "id": "AC-2", "text": "Asset slice: POST /admin/assets multipart upload (PNG/JPEG/WebP, size cap, sha256, ACTIVE state), GET list, GET detail, serve content URL; local dev storage only; no frontend-fake persistence." },
+    { "id": "AC-3", "text": "/assets library page replaces coming-soon: list thumbnails, upload with progress + error messages, preview; asset selectable." },
+    { "id": "AC-4", "text": "EvidencePickerDialog + AssetPickerDialog reusable; EVIDENCE_SELECT visibleEvidenceIds + CER requiredEvidenceIds pick via dialog filtered by lesson eventId; VIEW_IMAGE picks imageAssetId visually with preview + caption." },
+    { "id": "AC-5", "text": "FeedbackPanel configures feedback.{COMPLETED,INCORRECT,PARTIAL,SUPPORTED,CONTRADICTED,IN_PROGRESS} with Vietnamese labels; empty keys removed; no invented fields." },
+    { "id": "AC-6", "text": "New editors HYPOTHESIS_CHOICE (hypotheses≥2), VERIFICATION (visibleSourceIds/requiredEvidenceIds), REASONING_CONNECT (nodes≥2 + allowedRelations≥1); EXPLORE_MAP stays honest unsupported; READ supports multi-paragraph text." },
+    { "id": "AC-7", "text": "Draft round-trip: evidence/asset ids, feedback object, and all editor configs survive save+reload; unknown keys preserved; stage/activity ids stable; pending-save dirty guard intact." },
+    { "id": "AC-8", "text": "Bạch Đằng demo draft authors end-to-end: READ intro + VIEW_IMAGE + EVIDENCE_SELECT + DRAG_ORDER + CER with feedback; no fabricated sources presented as verified." },
+    { "id": "AC-9", "text": "Tests: unit for pickers/editors/feedback; Playwright journey evidence-create → attach → feedback → save → reload persists vs controlled stub; stub never called real backend." },
+    { "id": "AC-10", "text": "Gates green: eslint, tsc, vitest, next build, playwright; backend slice compiles + tests if backend changed; no regression TASK-0013/14/15." }
+  ],
+  "dependencies": ["TASK-0015"],
+  "planPath": "dau-viet-admin/plans/261017-0720-task0016-evidence-asset-library/plan.md",
+  "evidenceRefs": [
+    "dau-viet-admin/plans/reports/task0016-261017-0800-evidence-asset-library-report.md",
+    "dau-viet-admin/tests/e2e/evidence-authoring.spec.ts",
+    "dau-viet-admin/src/features/lessons/builder/activity-editors/evidence-ref-picker.test.tsx",
+    "dau-viet-admin/src/features/lessons/builder/activity-editors/feedback-panel.test.tsx"
+  ],
+  "reviewRefs": [],
+  "nextAction": "TASK-0017 (nếu có) — EXPLORE_MAP editor khi backend chốt marker schema; nâng proxy cap >2MiB cho media nếu cần.",
+  "baseCommit": "8bbe157",
+  "inputFingerprint": null,
+  "snapshot": null,
+  "roleReports": [],
+  "blockedReason": null,
+  "resumeFrom": null,
+  "handoffRef": null,
+  "createdAt": "2026-10-17T07:20:00+07:00",
+  "updatedAt": "2026-10-17T08:10:00+07:00"
+}

@@ -3,6 +3,7 @@
 import {
   BookOpen,
   Calendar,
+  FileText,
   History,
   Image as ImageIcon,
   LayoutDashboard,
@@ -27,6 +28,7 @@ const NAV_ITEMS = [
   { href: "/dashboard", label: "Tổng quan", icon: LayoutDashboard },
   { href: "/events", label: "Sự kiện", icon: Calendar },
   { href: "/lessons", label: "Bài học", icon: BookOpen },
+  { href: "/evidence", label: "Bằng chứng", icon: FileText },
   { href: "/templates", label: "Mẫu bài học", icon: LayoutTemplate },
   { href: "/assets", label: "Thư viện media", icon: ImageIcon },
   { href: "/versions", label: "Phiên bản", icon: History },

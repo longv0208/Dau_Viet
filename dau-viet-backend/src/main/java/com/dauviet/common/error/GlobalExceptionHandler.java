@@ -188,6 +188,12 @@ public class GlobalExceptionHandler {
         return build(HttpStatus.NOT_FOUND, ErrorCode.ASSET_NOT_FOUND, ex.getMessage(), Map.of());
     }
 
+    @ExceptionHandler(com.dauviet.lesson.domain.InvalidAssetUploadException.class)
+    public ResponseEntity<ApiError> handleInvalidAssetUpload(
+            com.dauviet.lesson.domain.InvalidAssetUploadException ex) {
+        return build(HttpStatus.BAD_REQUEST, ErrorCode.VALIDATION_ERROR, ex.getMessage(), Map.of());
+    }
+
     @ExceptionHandler(com.dauviet.lesson.domain.LessonNotPublishedException.class)
     public ResponseEntity<ApiError> handleLessonNotPublished(
             com.dauviet.lesson.domain.LessonNotPublishedException ex) {

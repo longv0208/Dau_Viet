@@ -163,6 +163,74 @@ export const draftFixture = JSON.stringify({
   completion: { requireAllRequiredStages: true },
 });
 
+/** PageResponse<EvidenceResponse> — Bạch Đằng evidence list. */
+export const evidencesPageFixture = {
+  ...emptyPageFixture,
+  totalElements: 2,
+  totalPages: 1,
+  content: [
+    {
+      id: "e1111111-1111-1111-1111-111111111111",
+      eventId: "11111111-1111-1111-1111-111111111111",
+      title: "Cọc ngầm sông Bạch Đằng",
+      evidenceType: "HIEN_VAT",
+      description: "Cọc gỗ lim ngâm nước còn sót lại ở đáy sông.",
+      sourceTitle: "Bảo tàng Lịch sử Quốc gia",
+      sourceAuthor: null,
+      sourceUrl: null,
+      sourceCitation: null,
+      sourcePublishedAt: null,
+      reliability: "HIGH",
+      relevance: "Bằng chứng vật lý trực tiếp của trận sông.",
+      assetId: null,
+      status: "APPROVED",
+      createdBy: adminUserFixture.id,
+      createdAt: "2026-01-01T00:00:00Z",
+      updatedAt: "2026-01-01T00:00:00Z",
+      rowVersion: 1,
+    },
+    {
+      id: "e2222222-2222-2222-2222-222222222222",
+      eventId: "11111111-1111-1111-1111-111111111111",
+      title: "Đại Việt sử ký toàn thư — trận Bạch Đằng",
+      evidenceType: "VAN_BAN",
+      description: "Ghi chép của sử thần về chiến thắng năm 938.",
+      sourceTitle: "Đại Việt sử ký toàn thư",
+      sourceAuthor: "Ngô Sĩ Liên",
+      sourceUrl: null,
+      sourceCitation: "Toàn thư, quyển V, phần Thuận Thiên",
+      sourcePublishedAt: null,
+      reliability: "MEDIUM",
+      relevance: "Nguồn tư liệu chính về diễn biến trận chiến.",
+      assetId: null,
+      status: "DRAFT",
+      createdBy: adminUserFixture.id,
+      createdAt: "2026-01-02T00:00:00Z",
+      updatedAt: "2026-01-02T00:00:00Z",
+      rowVersion: 1,
+    },
+  ],
+};
+
+/** PageResponse<AssetResponse> — admin asset library. */
+export const assetsPageFixture = {
+  ...emptyPageFixture,
+  totalElements: 1,
+  totalPages: 1,
+  content: [
+    {
+      id: "a1111111-1111-1111-1111-111111111111",
+      originalFilename: "ban-do-bach-dang.png",
+      mimeType: "image/png",
+      sizeBytes: 102400,
+      state: "ACTIVE",
+      altText: "Bản đồ khu vực sông Bạch Đằng",
+      createdAt: "2026-01-01T00:00:00Z",
+      contentUrl: "/api/v1/admin/assets/a1111111-1111-1111-1111-111111111111/content",
+    },
+  ],
+};
+
 /** GET /admin/lesson-templates returns a plain array (not paged). */
 export const templatesFixture = [
   {

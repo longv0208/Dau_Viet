@@ -4,6 +4,7 @@ import { cn } from "@/lib/utils";
 
 const CONFIG: Record<string, { label: string; className: string; icon: typeof FileEdit }> = {
   DRAFT: { label: "Bản nháp", className: "bg-warning/25 text-ink", icon: FileEdit },
+  APPROVED: { label: "Đã phê duyệt", className: "bg-success/20 text-ink", icon: CheckCircle2 },
   PUBLISHED: { label: "Đã xuất bản", className: "bg-success/20 text-ink", icon: CheckCircle2 },
   ARCHIVED: { label: "Đã lưu trữ", className: "bg-surface-alt text-ink-muted", icon: Archive },
 };

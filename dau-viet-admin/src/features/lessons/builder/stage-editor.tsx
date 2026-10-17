@@ -17,6 +17,8 @@ import { Select } from "@/components/ui/select";
 interface Props {
   draft: Draft;
   stage: Stage;
+  /** Event the lesson belongs to — forwarded to activity editors. */
+  eventId?: string;
   readOnly?: boolean;
   selectedActivityId: string | null;
   onUpdate: (patch: Partial<Stage>) => void;
@@ -31,6 +33,7 @@ interface Props {
 export function StageEditor({
   draft,
   stage,
+  eventId,
   readOnly,
   selectedActivityId,
   onUpdate,
@@ -276,6 +279,7 @@ export function StageEditor({
           key={selectedActivity.id}
           stage={stage}
           activity={selectedActivity}
+          eventId={eventId}
           readOnly={readOnly}
           onChange={(patch) => onUpdateActivity(selectedActivity.id, patch)}
         />

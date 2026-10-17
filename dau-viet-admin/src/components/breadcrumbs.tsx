@@ -10,6 +10,7 @@ const CRUMB_LABELS: Record<string, string> = {
   dashboard: "Tổng quan",
   events: "Sự kiện",
   lessons: "Bài học",
+  evidence: "Bằng chứng",
   templates: "Mẫu bài học",
   assets: "Thư viện media",
   versions: "Phiên bản",

@@ -54,6 +54,67 @@ const events = [
   },
 ];
 const lessons = [];
+// In-memory evidence + asset stores (TASK-0016): mirror the real admin API
+// so the browser can create/list/pick evidences and assets end-to-end.
+const evidences = [
+  {
+    id: "e1111111-1111-1111-1111-111111111111",
+    eventId: "11111111-1111-1111-1111-111111111111",
+    title: "Cọc ngầm sông Bạch Đằng",
+    evidenceType: "HIEN_VAT",
+    description: "Cọc gỗ lim ngâm nước còn sót lại ở đáy sông.",
+    sourceTitle: "Bảo tàng Lịch sử Quốc gia",
+    sourceAuthor: null,
+    sourceUrl: null,
+    sourceCitation: null,
+    sourcePublishedAt: null,
+    reliability: "HIGH",
+    relevance: "Bằng chứng vật lý trực tiếp của trận sông.",
+    assetId: null,
+    status: "APPROVED",
+    createdBy: "11111111-1111-1111-1111-111111111111",
+    createdAt: NOW,
+    updatedAt: NOW,
+    rowVersion: 1,
+  },
+  {
+    id: "e2222222-2222-2222-2222-222222222222",
+    eventId: "11111111-1111-1111-1111-111111111111",
+    title: "Đại Việt sử ký toàn thư — trận Bạch Đằng",
+    evidenceType: "VAN_BAN",
+    description: "Ghi chép của sử thần về chiến thắng năm 938.",
+    sourceTitle: "Đại Việt sử ký toàn thư",
+    sourceAuthor: "Ngô Sĩ Liên",
+    sourceUrl: null,
+    sourceCitation: "Toàn thư, quyển V, phần Thuận Thiên",
+    sourcePublishedAt: null,
+    reliability: "MEDIUM",
+    relevance: "Nguồn tư liệu chính về diễn biến trận chiến.",
+    assetId: null,
+    status: "APPROVED",
+    createdBy: "11111111-1111-1111-1111-111111111111",
+    createdAt: NOW,
+    updatedAt: NOW,
+    rowVersion: 1,
+  },
+];
+const assets = [
+  {
+    id: "a1111111-1111-1111-1111-111111111111",
+    originalFilename: "ban-do-bach-dang.png",
+    mimeType: "image/png",
+    sizeBytes: 128,
+    state: "ACTIVE",
+    altText: "Bản đồ khu vực sông Bạch Đằng",
+    createdAt: NOW,
+    contentUrl: "/api/v1/admin/assets/a1111111-1111-1111-1111-111111111111/content",
+  },
+];
+// 1x1 transparent PNG (real bytes so <img> renders in the browser).
+const PNG_1X1 = Buffer.from(
+  "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNkYPhfDwAChwGA60e6kgAAAABJRU5ErkJggg==",
+  "base64",
+);
 const templates = [
   {
     id: "66666666-6666-6666-6666-666666666666",
@@ -376,8 +437,121 @@ const server = http.createServer(async (req, res) => {
   if (m === "GET" && path === "/api/v1/admin/lesson-templates") {
     return json(res, 200, templates.filter((t) => t.enabled));
   }
-  if (m === "GET" && path === "/api/v1/admin/evidences") {
-    return json(res, 200, EMPTY_PAGE);
+
+  // --- admin/evidences ---
+  if (path === "/api/v1/admin/evidences") {
+    if (m === "GET") {
+      const status = url.searchParams.get("status");
+      const eventId = url.searchParams.get("eventId");
+      const q = (url.searchParams.get("q") ?? "").toLowerCase();
+      let rows = evidences;
+      if (status) rows = rows.filter((e) => e.status === status);
+      if (eventId) rows = rows.filter((e) => e.eventId === eventId);
+      if (q) rows = rows.filter((e) => e.title.toLowerCase().includes(q));
+      return json(res, 200, pageOf(rows, url));
+    }
+    if (m === "POST") {
+      const body = await readBody(req);
+      if (!body || !body.eventId || !body.title || !body.evidenceType || !body.sourceTitle) {
+        return json(res, 400, { code: "VALIDATION_ERROR", message: "missing fields" });
+      }
+      const e = {
+        id: crypto.randomUUID(),
+        eventId: body.eventId,
+        title: body.title,
+        evidenceType: body.evidenceType,
+        description: body.description ?? null,
+        sourceTitle: body.sourceTitle,
+        sourceAuthor: body.sourceAuthor ?? null,
+        sourceUrl: body.sourceUrl ?? null,
+        sourceCitation: body.sourceCitation ?? null,
+        sourcePublishedAt: body.sourcePublishedAt ?? null,
+        reliability: body.reliability ?? "UNASSESSED",
+        relevance: body.relevance ?? null,
+        assetId: body.assetId ?? null,
+        status: "DRAFT",
+        createdBy: ADMIN.id,
+        createdAt: NOW,
+        updatedAt: NOW,
+        rowVersion: 1,
+      };
+      evidences.push(e);
+      return json(res, 201, e);
+    }
+  }
+  const eviMatch = path.match(/^\/api\/v1\/admin\/evidences\/([0-9a-f-]+)$/);
+  if (eviMatch) {
+    const e = evidences.find((x) => x.id === eviMatch[1]);
+    if (!e) return json(res, 404, { code: "EVIDENCE_NOT_FOUND", message: "not found" });
+    if (m === "GET") return json(res, 200, e);
+    if (m === "PATCH") {
+      const body = await readBody(req);
+      for (const k of [
+        "title", "evidenceType", "description", "sourceTitle", "sourceAuthor",
+        "sourceUrl", "sourceCitation", "sourcePublishedAt", "reliability",
+        "relevance", "assetId",
+      ]) {
+        if (body && k in body) e[k] = body[k];
+      }
+      e.rowVersion += 1;
+      e.updatedAt = NOW;
+      return json(res, 200, e);
+    }
+  }
+  const eviApprove = path.match(/^\/api\/v1\/admin\/evidences\/([0-9a-f-]+)\/approve$/);
+  if (eviApprove && m === "POST") {
+    const e = evidences.find((x) => x.id === eviApprove[1]);
+    if (!e) return json(res, 404, { code: "EVIDENCE_NOT_FOUND", message: "not found" });
+    e.status = "APPROVED";
+    e.rowVersion += 1;
+    return json(res, 200, e);
+  }
+  const eviArchive = path.match(/^\/api\/v1\/admin\/evidences\/([0-9a-f-]+)\/archive$/);
+  if (eviArchive && m === "POST") {
+    const e = evidences.find((x) => x.id === eviArchive[1]);
+    if (!e) return json(res, 404, { code: "EVIDENCE_NOT_FOUND", message: "not found" });
+    e.status = "ARCHIVED";
+    e.rowVersion += 1;
+    return json(res, 200, e);
+  }
+
+  // --- admin/assets ---
+  if (path === "/api/v1/admin/assets") {
+    if (m === "GET") return json(res, 200, pageOf(assets.filter((a) => a.state === "ACTIVE"), url));
+    if (m === "POST") {
+      // Accept multipart or any body — stub just records a new ACTIVE asset.
+      await new Promise((r) => req.on("end", r).resume());
+      const id = crypto.randomUUID();
+      const a = {
+        id,
+        originalFilename: "upload-e2e.png",
+        mimeType: "image/png",
+        sizeBytes: PNG_1X1.length,
+        state: "ACTIVE",
+        altText: null,
+        createdAt: NOW,
+        contentUrl: `/api/v1/admin/assets/${id}/content`,
+      };
+      assets.push(a);
+      return json(res, 201, a);
+    }
+  }
+  const assetMatch = path.match(/^\/api\/v1\/admin\/assets\/([0-9a-f-]+)$/);
+  if (assetMatch && m === "GET") {
+    const a = assets.find((x) => x.id === assetMatch[1]);
+    if (!a) return json(res, 404, { code: "ASSET_NOT_FOUND", message: "not found" });
+    return json(res, 200, a);
+  }
+  const assetContent = path.match(/^\/api\/v1\/admin\/assets\/([0-9a-f-]+)\/content$/);
+  if (assetContent && m === "GET") {
+    const a = assets.find((x) => x.id === assetContent[1]);
+    if (!a) return json(res, 404, { code: "ASSET_NOT_FOUND", message: "not found" });
+    res.writeHead(200, {
+      "content-type": a.mimeType,
+      "content-length": PNG_1X1.length,
+      "content-disposition": `inline; filename="${a.originalFilename}"`,
+    });
+    return res.end(PNG_1X1);
   }
 
   json(res, 404, { code: "NOT_FOUND", message: `no stub for ${m} ${path}` });

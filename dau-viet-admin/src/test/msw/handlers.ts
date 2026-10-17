@@ -2,9 +2,11 @@ import { http, HttpResponse } from "msw";
 
 import {
   adminUserFixture,
+  assetsPageFixture,
   draftFixture,
   emptyPageFixture,
   eventsPageFixture,
+  evidencesPageFixture,
   lessonsPageFixture,
   templatesFixture,
 } from "../fixtures";
@@ -186,5 +188,68 @@ export const handlers = [
   http.get("*/api/proxy/admin/lesson-templates", () =>
     HttpResponse.json(templatesFixture),
   ),
-  http.get("*/api/proxy/admin/evidences", () => HttpResponse.json(emptyPageFixture)),
+  // Evidence library
+  http.get("*/api/proxy/admin/evidences", ({ request }) => {
+    const url = new URL(request.url);
+    const status = url.searchParams.get("status");
+    const eventId = url.searchParams.get("eventId");
+    const q = (url.searchParams.get("q") ?? "").toLowerCase();
+    let content = evidencesPageFixture.content;
+    if (status) content = content.filter((e) => e.status === status);
+    if (eventId) content = content.filter((e) => e.eventId === eventId);
+    if (q) content = content.filter((e) => e.title.toLowerCase().includes(q));
+    return HttpResponse.json({
+      ...emptyPageFixture,
+      content,
+      totalElements: content.length,
+      totalPages: content.length ? 1 : 0,
+    });
+  }),
+  http.get("*/api/proxy/admin/evidences/:id", ({ params }) => {
+    const e = evidencesPageFixture.content.find((x) => x.id === params.id);
+    if (!e) return HttpResponse.json({ code: "EVIDENCE_NOT_FOUND" }, { status: 404 });
+    return HttpResponse.json(e);
+  }),
+  http.post("*/api/proxy/admin/evidences", async ({ request }) => {
+    const body = (await request.json()) as Record<string, unknown>;
+    return HttpResponse.json(
+      {
+        id: "e9999999-9999-9999-9999-999999999999",
+        ...body,
+        status: "DRAFT",
+        createdBy: adminUserFixture.id,
+        createdAt: "2026-01-03T00:00:00Z",
+        updatedAt: "2026-01-03T00:00:00Z",
+        rowVersion: 1,
+      },
+      { status: 201 },
+    );
+  }),
+  http.patch("*/api/proxy/admin/evidences/:id", async ({ params, request }) => {
+    const e = evidencesPageFixture.content.find((x) => x.id === params.id);
+    if (!e) return HttpResponse.json({ code: "EVIDENCE_NOT_FOUND" }, { status: 404 });
+    const body = (await request.json()) as Record<string, unknown>;
+    return HttpResponse.json({ ...e, ...body, rowVersion: e.rowVersion + 1 });
+  }),
+  http.post("*/api/proxy/admin/evidences/:id/approve", ({ params }) => {
+    const e = evidencesPageFixture.content.find((x) => x.id === params.id);
+    if (!e) return HttpResponse.json({ code: "EVIDENCE_NOT_FOUND" }, { status: 404 });
+    return HttpResponse.json({ ...e, status: "APPROVED", rowVersion: e.rowVersion + 1 });
+  }),
+  http.post("*/api/proxy/admin/evidences/:id/archive", ({ params }) => {
+    const e = evidencesPageFixture.content.find((x) => x.id === params.id);
+    if (!e) return HttpResponse.json({ code: "EVIDENCE_NOT_FOUND" }, { status: 404 });
+    return HttpResponse.json({ ...e, status: "ARCHIVED", rowVersion: e.rowVersion + 1 });
+  }),
+
+  // Asset library
+  http.get("*/api/proxy/admin/assets", () => HttpResponse.json(assetsPageFixture)),
+  http.get("*/api/proxy/admin/assets/:id", ({ params }) => {
+    const a = assetsPageFixture.content.find((x) => x.id === params.id);
+    if (!a) return HttpResponse.json({ code: "ASSET_NOT_FOUND" }, { status: 404 });
+    return HttpResponse.json(a);
+  }),
+  http.post("*/api/proxy/admin/assets", async () =>
+    HttpResponse.json(assetsPageFixture.content[0], { status: 201 }),
+  ),
 ];

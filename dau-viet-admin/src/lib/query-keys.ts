@@ -24,4 +24,19 @@ export const qk = {
   templates: {
     list: () => ["templates", "list"] as const,
   },
+  evidences: {
+    list: (params?: {
+      page?: number;
+      size?: number;
+      eventId?: string;
+      status?: string;
+      q?: string;
+    }) => ["evidences", "list", params ?? {}] as const,
+    detail: (id: string) => ["evidences", "detail", id] as const,
+  },
+  assets: {
+    list: (params?: { page?: number; size?: number }) =>
+      ["assets", "list", params ?? {}] as const,
+    detail: (id: string) => ["assets", "detail", id] as const,
+  },
 };

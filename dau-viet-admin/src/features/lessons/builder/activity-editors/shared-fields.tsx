@@ -2,12 +2,15 @@
 
 import type { Activity, Stage } from "../draft-model";
 import { ACTIVITY_LABELS } from "../labels";
+import { FeedbackPanel } from "./feedback-panel";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 
 export interface EditorProps {
   stage: Stage;
   activity: Activity;
+  /** Event the lesson belongs to — lets pickers default-filter evidence. */
+  eventId?: string;
   readOnly?: boolean;
   /** Merge patch into the activity (config merges via onChange({config:{...}})). */
   onChange: (patch: Partial<Activity>) => void;
@@ -47,6 +50,7 @@ export function ActivityCommonFields({ stage, activity, readOnly, onChange }: Ed
       <p className="text-xs text-ink-muted">
         Loại: {ACTIVITY_LABELS[activity.type].label} · ID: {activity.id}
       </p>
+      <FeedbackPanel stage={stage} activity={activity} readOnly={readOnly} onChange={onChange} />
     </div>
   );
 }

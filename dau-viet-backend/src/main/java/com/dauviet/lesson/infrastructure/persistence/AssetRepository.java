@@ -1,11 +1,13 @@
 package com.dauviet.lesson.infrastructure.persistence;
 
+import java.util.Collection;
 import java.util.List;
 import java.util.UUID;
 
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Query;
-import org.springframework.data.repository.query.Param;
 
 import com.dauviet.lesson.domain.Asset;
 
@@ -15,4 +17,6 @@ public interface AssetRepository extends JpaRepository<Asset, UUID> {
     List<UUID> findActiveIds();
 
     boolean existsByIdAndState(UUID id, String state);
+
+    Page<Asset> findAllByStateIn(Collection<String> states, Pageable pageable);
 }

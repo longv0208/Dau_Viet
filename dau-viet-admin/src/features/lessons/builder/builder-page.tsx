@@ -241,6 +241,7 @@ function BuilderInner({
             <StageEditor
               draft={state.draft}
               stage={selectedStage}
+              eventId={lesson.eventId}
               readOnly={readOnly}
               selectedActivityId={state.selectedActivityId}
               onUpdate={(patch) => actions.updateStage(selectedStage.id, patch)}

@@ -5,8 +5,8 @@ import { Plus, Trash2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Textarea } from "@/components/ui/textarea";
 
+import { EvidenceRefPicker } from "./evidence-ref-picker";
 import { ActivityCommonFields, type EditorProps } from "./shared-fields";
 
 function readCriteria(config: Record<string, unknown> | undefined): string[] {
@@ -22,7 +22,7 @@ function readCriteria(config: Record<string, unknown> | undefined): string[] {
  * tiêu chí rubric và bằng chứng bắt buộc, không tự chấm.
  */
 export function CerEditor(props: EditorProps) {
-  const { activity, readOnly, onChange } = props;
+  const { activity, eventId, readOnly, onChange } = props;
   const config = activity.config ?? {};
   const criteria = readCriteria(activity.config);
   const evidenceIds = (config.requiredEvidenceIds as string[] | undefined) ?? [];
@@ -82,36 +82,17 @@ export function CerEditor(props: EditorProps) {
         )}
       </div>
 
-      <div className="flex flex-col gap-1.5">
-        <Label htmlFor={`cer-ev-${activity.id}`}>Bằng chứng bắt buộc phải dùng *</Label>
-        <Textarea
-          id={`cer-ev-${activity.id}`}
-          rows={3}
-          value={evidenceIds.join("\n")}
-          disabled={readOnly}
-          placeholder="Mỗi dòng một UUID bằng chứng"
-          onChange={(e) =>
-            onChange({
-              config: {
-                ...config,
-                requiredEvidenceIds: e.target.value
-                  .split("\n")
-                  .map((s) => s.trim())
-                  .filter(Boolean),
-              },
-            })
-          }
-        />
-        <p className="text-xs text-ink-muted">
-          Học viên phải trích các bằng chứng này trong bài CER (không hiển thị cho học viên).
-          Trình chọn trực quan sẽ có ở TASK-0016.
-        </p>
-        {evidenceIds.length === 0 && (
-          <p role="alert" className="text-xs text-error">
-            Cần ít nhất 1 bằng chứng bắt buộc để xuất bản.
-          </p>
-        )}
-      </div>
+      <EvidenceRefPicker
+        label="Bằng chứng bắt buộc phải dùng"
+        hint="Học viên phải trích các bằng chứng này trong bài CER (không hiển thị cho học viên)."
+        required
+        selectedIds={evidenceIds}
+        eventId={eventId}
+        readOnly={readOnly}
+        onChange={(next) =>
+          onChange({ config: { ...config, requiredEvidenceIds: next } })
+        }
+      />
     </div>
   );
 }
