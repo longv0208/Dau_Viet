@@ -59,8 +59,8 @@ public final class DraftSchema {
      */
     public static final Set<String> LEARNER_HIDDEN_KEYS = Set.of(
             "correctOptionIds", "multiCorrect", "correctPairs", "correctOrder",
-            "expectedOrder", "requiredEvidenceIds", "expectedHypothesis",
-            "answerKey", "answer", "key", "expected");
+            "expectedOrder", "acceptedSequences", "requiredEvidenceIds",
+            "expectedHypothesis", "answerKey", "answer", "key", "expected");
 
     private DraftSchema() {
     }

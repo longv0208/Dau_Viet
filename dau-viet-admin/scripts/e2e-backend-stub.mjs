@@ -38,8 +38,8 @@ const EMPTY_PAGE = { content: [], page: 0, size: 20, totalElements: 0, totalPage
 // preview endpoint returns the same shape a real backend would.
 const LEARNER_HIDDEN_KEYS = new Set([
   "correctOptionIds", "multiCorrect", "correctPairs", "correctOrder",
-  "expectedOrder", "requiredEvidenceIds", "expectedHypothesis", "answerKey",
-  "answer", "key", "expected",
+  "expectedOrder", "acceptedSequences", "requiredEvidenceIds",
+  "expectedHypothesis", "answerKey", "answer", "key", "expected",
 ]);
 const ACTIVITY_SERVER_ONLY = new Set(["validation"]);
 const STAGE_SERVER_ONLY = new Set(["requiredEvidenceIds"]);
@@ -91,14 +91,44 @@ function transformActivity(act) {
   if (act.type === "MATCHING" && Array.isArray(cfg.pairs)) {
     const left = [];
     const right = [];
+    const partnerByLeft = new Map();
     for (const p of cfg.pairs) {
       const l = itemOf(p?.left);
       const r = itemOf(p?.right);
       if (l) left.push(l);
       if (r) right.push(r);
+      if (l && r) partnerByLeft.set(l.id, r.id);
     }
+    // Mirror LearnerProjectionService: left sorted by hash asc, then the right
+    // column is DERANGED against the real mapping — rotate by the first offset
+    // in 1..n-1 where no row shows a correct pair; if none exists, re-sort by
+    // a salted hash. Deterministic for the same input.
     left.sort((x, y) => sortKey(activityId, x.id) - sortKey(activityId, y.id));
-    right.sort((x, y) => sortKey(activityId, y.id) - sortKey(activityId, x.id));
+    right.sort((x, y) => sortKey(activityId, x.id) - sortKey(activityId, y.id));
+    const n = Math.min(left.length, right.length);
+    if (n >= 2) {
+      const rightIds = right.map((x) => x.id);
+      let chosen = -1;
+      for (let offset = 1; offset < n && chosen < 0; offset++) {
+        let ok = true;
+        for (let i = 0; i < n; i++) {
+          if (rightIds[(i + offset) % n] === partnerByLeft.get(left[i].id)) {
+            ok = false;
+            break;
+          }
+        }
+        if (ok) chosen = offset;
+      }
+      if (chosen >= 0) {
+        const rotated = right.map((_, i) => right[(i + chosen) % right.length]);
+        right.length = 0;
+        right.push(...rotated);
+      } else {
+        right.sort(
+          (x, y) => sortKey(`${activityId}#r`, x.id) - sortKey(`${activityId}#r`, y.id),
+        );
+      }
+    }
     delete cfg.pairs;
     cfg.leftItems = left;
     cfg.rightItems = right;
@@ -118,6 +148,18 @@ function transformActivity(act) {
       items.reverse();
     }
     cfg.items = items;
+  }
+  // MULTIPLE_CHOICE legacy compat: `multiCorrect` with >1 entry and no
+  // explicit `multiSelect` → emit multiSelect=true so the learner renderer
+  // picks checkboxes. multiCorrect itself is stripped by LEARNER_HIDDEN_KEYS.
+  if (act.type === "MULTIPLE_CHOICE") {
+    if (
+      cfg.multiSelect === undefined &&
+      Array.isArray(cfg.multiCorrect) &&
+      cfg.multiCorrect.length > 1
+    ) {
+      cfg.multiSelect = true;
+    }
   }
 }
 

@@ -211,7 +211,7 @@ describe("BuilderPage", () => {
     renderBuilder();
     await waitFor(() => screen.getByText("Giai đoạn (4)"));
     await userEvent.click(screen.getByRole("button", { name: /kiểm tra xuất bản/i }));
-    await waitFor(() => screen.getByText(/Chưa sẵn sàng xuất bản — xem chi tiết/));
+    await waitFor(() => screen.getByText(/chưa sẵn sàng xuất bản — xem chi tiết/i));
     expect(screen.getByText(/NO_REQUIRED_ACTIVITY/)).toBeInTheDocument();
   });
 

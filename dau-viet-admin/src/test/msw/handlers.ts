@@ -23,6 +23,7 @@ const HIDDEN_CONFIG_KEYS = new Set([
   "correctPairs",
   "correctOrder",
   "expectedOrder",
+  "acceptedSequences",
   "requiredEvidenceIds",
   "expectedHypothesis",
   "answerKey",
@@ -68,15 +69,41 @@ function transformActivity(a: AnyObj): void {
   const activityId = String(a.id ?? "");
   if (a.type === "MATCHING" && Array.isArray(cfg.pairs)) {
     const left: { id: string; label: string }[] = [];
-    const right: { id: string; label: string }[] = [];
+    let right: { id: string; label: string }[] = [];
+    const partnerByLeft = new Map<string, string>();
     for (const p of cfg.pairs as AnyObj[]) {
       const l = itemOf(p?.left);
       const r = itemOf(p?.right);
       if (l) left.push(l);
       if (r) right.push(r);
+      if (l && r) partnerByLeft.set(l.id, r.id);
     }
+    // Mirror LearnerProjectionService: right column is deranged against the
+    // real mapping — rotate by the first offset where no row is a correct pair.
     left.sort((x, y) => sortKey(activityId, x.id) - sortKey(activityId, y.id));
-    right.sort((x, y) => sortKey(activityId, y.id) - sortKey(activityId, x.id));
+    right.sort((x, y) => sortKey(activityId, x.id) - sortKey(activityId, y.id));
+    const n = Math.min(left.length, right.length);
+    if (n >= 2) {
+      const rightIds = right.map((x) => x.id);
+      let chosen = -1;
+      for (let offset = 1; offset < n && chosen < 0; offset++) {
+        let ok = true;
+        for (let i = 0; i < n; i++) {
+          if (rightIds[(i + offset) % n] === partnerByLeft.get(left[i]!.id)) {
+            ok = false;
+            break;
+          }
+        }
+        if (ok) chosen = offset;
+      }
+      right =
+        chosen >= 0
+          ? right.map((_, i) => right[(i + chosen) % right.length]!)
+          : [...right].sort(
+              (x, y) =>
+                sortKey(`${activityId}#r`, x.id) - sortKey(`${activityId}#r`, y.id),
+            );
+    }
     delete cfg.pairs;
     cfg.leftItems = left;
     cfg.rightItems = right;
@@ -97,6 +124,15 @@ function transformActivity(a: AnyObj): void {
       items.reverse();
     }
     cfg.items = items;
+  }
+  // MULTIPLE_CHOICE legacy compat — mirror LearnerProjectionService.
+  if (
+    a.type === "MULTIPLE_CHOICE" &&
+    cfg.multiSelect === undefined &&
+    Array.isArray(cfg.multiCorrect) &&
+    cfg.multiCorrect.length > 1
+  ) {
+    cfg.multiSelect = true;
   }
 }
 

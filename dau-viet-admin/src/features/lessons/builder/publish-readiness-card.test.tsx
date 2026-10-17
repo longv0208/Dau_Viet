@@ -21,6 +21,8 @@ vi.mock("next/navigation", () => ({
 function renderCard(props?: {
   draft?: ReturnType<typeof parseDraft> | null;
   revision?: number;
+  dirty?: boolean;
+  saving?: boolean;
   onJump?: (s: string | null, a: string | null) => void;
 }) {
   const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
@@ -30,6 +32,8 @@ function renderCard(props?: {
         lessonId={LESSON_ID}
         draft={props?.draft}
         revision={props?.revision}
+        dirty={props?.dirty}
+        saving={props?.saving}
         onJump={props?.onJump}
       />
     </QueryClientProvider>,
@@ -41,7 +45,7 @@ describe("PublishReadinessCard", () => {
     authStore.setAccessToken("t", 900);
     renderCard();
     await userEvent.click(screen.getByRole("button", { name: /kiểm tra xuất bản/i }));
-    await waitFor(() => screen.getByText(/Chưa sẵn sàng xuất bản/));
+    await waitFor(() => screen.getByText(/chưa sẵn sàng xuất bản/i));
     expect(screen.getByText("Số giai đoạn")).toBeInTheDocument();
     expect(screen.getByText("Số hoạt động")).toBeInTheDocument();
     expect(screen.queryByText(/\[object Object\]/)).toBeNull();
@@ -122,5 +126,64 @@ describe("PublishReadinessCard", () => {
     expect(
       screen.getByRole("button", { name: /kiểm tra xuất bản/i }),
     ).toBeInTheDocument();
+  });
+
+  it("blocks validation while dirty and clears stale READY after save", async () => {
+    authStore.setAccessToken("t", 900);
+    server.use(
+      http.post(`*/api/proxy/admin/lessons/${LESSON_ID}/validate`, () =>
+        HttpResponse.json({
+          ready: true,
+          errors: [],
+          warnings: [],
+          summary: { stageCount: 1, activityCount: 1, errorCount: 0, warningCount: 0 },
+        }),
+      ),
+    );
+    // Stateful harness mirroring the builder: edit bumps revision + sets dirty;
+    // save clears dirty without touching revision (markSaved semantics).
+    function Harness() {
+      const [rev, setRev] = useState(1);
+      const [dirty, setDirty] = useState(false);
+      return (
+        <>
+          <PublishReadinessCard lessonId={LESSON_ID} revision={rev} dirty={dirty} />
+          <button
+            onClick={() => {
+              setRev((r) => r + 1);
+              setDirty(true);
+            }}
+          >
+            edit
+          </button>
+          <button onClick={() => setDirty(false)}>save</button>
+        </>
+      );
+    }
+    const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+    render(
+      <QueryClientProvider client={client}>
+        <Harness />
+      </QueryClientProvider>,
+    );
+
+    // 1) Validate the saved draft → READY shows.
+    await userEvent.click(screen.getByRole("button", { name: /kiểm tra xuất bản/i }));
+    await waitFor(() => screen.getByText(/đủ điều kiện xuất bản/i));
+
+    // 2) Edit → dirty; validation is now blocked with a clear label.
+    await userEvent.click(screen.getByRole("button", { name: /^edit$/i }));
+    await waitFor(() =>
+      expect(
+        screen.getByRole("button", { name: /kiểm tra xuất bản \(cần lưu trước\)/i }),
+      ).toBeDisabled(),
+    );
+    // Old READY must not be presented as applying to the unsaved content.
+    expect(screen.queryByText(/đủ điều kiện xuất bản/i)).not.toBeInTheDocument();
+
+    // 3) Save → button re-enables; validate again against the new saved draft.
+    await userEvent.click(screen.getByRole("button", { name: /^save$/i }));
+    await userEvent.click(screen.getByRole("button", { name: /kiểm tra xuất bản/i }));
+    await waitFor(() => screen.getByText(/đủ điều kiện xuất bản/i));
   });
 });

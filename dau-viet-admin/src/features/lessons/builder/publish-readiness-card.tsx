@@ -32,6 +32,10 @@ interface Props {
    * draft session đang sửa).
    */
   revision?: number;
+  /** Bản nháp đang sửa chưa lưu — khoá kiểm tra để tránh hiểu nhầm kết quả áp dụng cho bản chưa lưu. */
+  dirty?: boolean;
+  /** Đang lưu nháp — khoá kiểm tra trong lúc PUT đang chạy. */
+  saving?: boolean;
   onJump?: (stageId: string | null, activityId: string | null) => void;
 }
 
@@ -81,7 +85,7 @@ function IssueList({
 }
 
 /** Kiểm tra sẵn sàng xuất bản — POST /admin/lessons/{id}/validate (read-only). */
-export function PublishReadinessCard({ lessonId, draft, revision, onJump }: Props) {
+export function PublishReadinessCard({ lessonId, draft, revision, dirty, saving, onJump }: Props) {
   const [open, setOpen] = useState(true);
   const [checkedAt, setCheckedAt] = useState<Date | null>(null);
   const mutation = useMutation({
@@ -131,7 +135,9 @@ export function PublishReadinessCard({ lessonId, draft, revision, onJump }: Prop
           ) : (
             <XCircle className="size-4" aria-hidden />
           )}
-          {data.ready ? "Bài học đủ điều kiện xuất bản." : "Chưa sẵn sàng xuất bản — xem chi tiết bên dưới."}
+          {data.ready
+            ? "Bản nháp đã lưu đủ điều kiện xuất bản."
+            : "Bản nháp đã lưu chưa sẵn sàng xuất bản — xem chi tiết bên dưới."}
           {checkedAt && (
             <span className="ml-auto text-[10px] font-normal text-ink-muted">
               Kiểm tra lúc {checkedAt.toLocaleTimeString("vi-VN")}
@@ -178,16 +184,26 @@ export function PublishReadinessCard({ lessonId, draft, revision, onJump }: Prop
         </p>
       )}
 
+      {(dirty || saving) && (
+        <p className="rounded bg-warning/10 px-2 py-1.5 text-[11px] text-ink-muted">
+          Kiểm tra xuất bản luôn chạy trên bản nháp đã lưu trên máy chủ — lưu
+          nháp trước để kiểm tra nội dung mới nhất.
+        </p>
+      )}
       <div className="flex items-center gap-2">
         <Button
           variant="secondary"
           size="sm"
           className="self-start"
-          disabled={mutation.isPending}
+          disabled={mutation.isPending || dirty || saving}
           onClick={() => mutation.mutate()}
         >
           <RefreshCw className={"size-3.5 " + (mutation.isPending ? "animate-spin" : "")} />
-          {mutation.isPending ? "Đang kiểm tra..." : "Kiểm tra xuất bản"}
+          {mutation.isPending
+            ? "Đang kiểm tra..."
+            : dirty || saving
+              ? "Kiểm tra xuất bản (cần lưu trước)"
+              : "Kiểm tra xuất bản"}
         </Button>
         {data?.ready && (
           <Button asChild size="sm" className="self-start">

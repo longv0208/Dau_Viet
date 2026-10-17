@@ -102,6 +102,7 @@ public class LearnerProjectionService {
         switch (type) {
             case "MATCHING" -> transformMatching(act.path("id").asText(""), cfg);
             case "DRAG_ORDER" -> transformDragOrder(act.path("id").asText(""), cfg);
+            case "MULTIPLE_CHOICE" -> transformMultipleChoice(cfg);
             default -> { }
         }
     }
@@ -109,15 +110,26 @@ public class LearnerProjectionService {
     /**
      * MATCHING: `pairs[{left,right}]` declares the correct mapping by position —
      * keeping it would hand learners the answer. Replace with two independent
-     * columns `leftItems[]`/`rightItems[]` ({id,label}), each sorted by its own
-     * deterministic key so row index never implies the matching partner.
-     * `correctPairs`/`pairs` are stripped from the learner copy only.
+     * columns `leftItems[]`/`rightItems[]` ({id,label}).
+     *
+     * Left column is sorted by the deterministic per-(activity,item) hash.
+     * The right column is then DERANGED relative to the real mapping: for every
+     * displayed row i, right[i] must not be the correct partner of left[i].
+     * A single sorted order cannot guarantee that (some id sets align by hash),
+     * so we pick a deterministic rotation offset among candidates 1..n-1 that
+     * satisfies the derangement invariant; if none exists (pathological id sets)
+     * we fall back to a second hash pass with a fixed salt.
+     * `correctPairs`/`pairs` are stripped from the learner copy only — the
+     * server-side snapshot keeps them for grading.
      */
     private void transformMatching(String activityId, ObjectNode config) {
         JsonNode pairs = config.get("pairs");
         if (pairs == null || !pairs.isArray()) return;
         var left = new java.util.ArrayList<com.fasterxml.jackson.databind.node.ObjectNode>();
         var right = new java.util.ArrayList<com.fasterxml.jackson.databind.node.ObjectNode>();
+        // partnerByLeft: real server-side mapping so the derangement uses the
+        // actual answer, not a positional guess.
+        var partnerByLeft = new java.util.HashMap<String, String>();
         for (JsonNode p : pairs) {
             if (!p.isObject()) continue;
             JsonNode l = p.get("left");
@@ -128,14 +140,46 @@ public class LearnerProjectionService {
             if (r != null && r.isObject()) {
                 right.add(itemNode(r));
             }
+            if (l != null && l.isObject() && r != null && r.isObject()) {
+                partnerByLeft.put(l.path("id").asText(""), r.path("id").asText(""));
+            }
         }
-        // Independent deterministic orderings: left sorted by hash asc,
-        // right by hash desc — same input always yields the same two columns,
-        // and left[i] never trivially maps to right[i].
         left.sort(java.util.Comparator.comparingInt(n -> sortKey(activityId, n.get("id").asText())));
-        right.sort(java.util.Comparator.comparingInt(
-                (com.fasterxml.jackson.databind.node.ObjectNode n) ->
-                        sortKey(activityId, n.get("id").asText())).reversed());
+        right.sort(java.util.Comparator.comparingInt(n -> sortKey(activityId, n.get("id").asText())));
+
+        int n = Math.min(left.size(), right.size());
+        if (n >= 2) {
+            // Try rotation offsets 1..n-1 on the sorted right column; accept the
+            // first that guarantees no row shows a correct pair. Deterministic:
+            // same input → same offset.
+            var rightIds = right.stream().map(x -> x.get("id").asText()).toList();
+            int chosen = -1;
+            for (int offset = 1; offset < n && chosen < 0; offset++) {
+                boolean ok = true;
+                for (int i = 0; i < n; i++) {
+                    String lid = left.get(i).get("id").asText();
+                    String rid = rightIds.get((i + offset) % n);
+                    if (rid.equals(partnerByLeft.get(lid))) {
+                        ok = false;
+                        break;
+                    }
+                }
+                if (ok) chosen = offset;
+            }
+            var rotated = new java.util.ArrayList<com.fasterxml.jackson.databind.node.ObjectNode>();
+            if (chosen >= 0) {
+                for (int i = 0; i < right.size(); i++) {
+                    rotated.add(right.get((i + chosen) % right.size()));
+                }
+            } else {
+                // No pure rotation deranges every row — re-sort rights by a
+                // salted hash so the column still differs deterministically.
+                rotated.addAll(right);
+                rotated.sort(java.util.Comparator.comparingInt(
+                        x -> sortKey(activityId + "#r", x.get("id").asText())));
+            }
+            right = rotated;
+        }
         var f = com.fasterxml.jackson.databind.node.JsonNodeFactory.instance;
         var leftArr = f.arrayNode();
         var rightArr = f.arrayNode();
@@ -144,6 +188,21 @@ public class LearnerProjectionService {
         config.remove("pairs");
         config.set("leftItems", leftArr);
         config.set("rightItems", rightArr);
+    }
+
+    /**
+     * MULTIPLE_CHOICE legacy compat: drafts authored before the canonical
+     * contract used `multiCorrect` without an explicit `multiSelect` flag.
+     * Learner renderers key off `multiSelect` to pick checkboxes vs radio —
+     * emit multiSelect=true when the legacy key carries multiple answers.
+     * `multiCorrect` itself is stripped by LEARNER_HIDDEN_KEYS afterwards.
+     */
+    private void transformMultipleChoice(ObjectNode config) {
+        if (config.has("multiSelect")) return;
+        JsonNode legacy = config.get("multiCorrect");
+        if (legacy != null && legacy.isArray() && legacy.size() > 1) {
+            config.put("multiSelect", true);
+        }
     }
 
     private com.fasterxml.jackson.databind.node.ObjectNode itemNode(JsonNode side) {

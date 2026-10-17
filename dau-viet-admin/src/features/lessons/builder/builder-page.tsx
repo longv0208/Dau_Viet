@@ -308,6 +308,8 @@ function BuilderInner({
             lessonId={lesson.id}
             draft={state.dirty ? null : state.draft}
             revision={state.revision}
+            dirty={state.dirty}
+            saving={saveMutation.isPending}
             onJump={(sid, aid) => {
               actions.selectStage(sid);
               if (aid) actions.selectActivity(aid);

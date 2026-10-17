@@ -209,6 +209,149 @@ class LearnerProjectionServiceTest {
         assertThat(reconstructible).isFalse();
     }
 
+    /**
+     * Asserts the derangement invariant: no displayed row pairs a left item
+     * with its correct right partner.
+     */
+    private void assertNoCorrectPairSharesRow(JsonNode config,
+            java.util.Map<String, String> authored) {
+        JsonNode left = config.get("leftItems");
+        JsonNode right = config.get("rightItems");
+        int n = Math.min(left.size(), right.size());
+        for (int i = 0; i < n; i++) {
+            String lid = left.get(i).get("id").asText();
+            String rid = right.get(i).get("id").asText();
+            assertThat(rid)
+                    .as("row %d must not show the correct pair %s=%s", i, lid, rid)
+                    .isNotEqualTo(authored.get(lid));
+        }
+    }
+
+    @Test
+    void matching_twoPairs_specificIds_neverShareRow() throws Exception {
+        // Regression: with ids it-rani02/it-omc41x ↔ it-dddqfe/it-wbrtxc the old
+        // left-asc/right-desc hash sort could line both correct pairs up.
+        JsonNode out = project("""
+                {"stages":[{"id":"s","type":"REASONING",
+                            "activities":[{"id":"m-reg","type":"MATCHING",
+                                           "config":{"pairs":[
+                                                     {"left":{"id":"it-rani02","label":"A"},
+                                                      "right":{"id":"it-dddqfe","label":"X"}},
+                                                     {"left":{"id":"it-omc41x","label":"B"},
+                                                      "right":{"id":"it-wbrtxc","label":"Y"}}],
+                                                     "correctPairs":[
+                                                     {"left":"it-rani02","right":"it-dddqfe"},
+                                                     {"left":"it-omc41x","right":"it-wbrtxc"}]}}]}]}
+                """);
+        JsonNode config = out.at("/stages/0/activities/0/config");
+        assertThat(config.has("pairs")).isFalse();
+        assertThat(config.get("leftItems").size()).isEqualTo(2);
+        assertThat(config.get("rightItems").size()).isEqualTo(2);
+        assertNoCorrectPairSharesRow(config, java.util.Map.of(
+                "it-rani02", "it-dddqfe", "it-omc41x", "it-wbrtxc"));
+    }
+
+    @Test
+    void matching_fivePairs_noCorrectPairSharesRow() throws Exception {
+        JsonNode out = project("""
+                {"stages":[{"id":"s","type":"REASONING",
+                            "activities":[{"id":"m5","type":"MATCHING",
+                                           "config":{"pairs":[
+                                                     {"left":{"id":"a1"},"right":{"id":"b1"}},
+                                                     {"left":{"id":"a2"},"right":{"id":"b2"}},
+                                                     {"left":{"id":"a3"},"right":{"id":"b3"}},
+                                                     {"left":{"id":"a4"},"right":{"id":"b4"}},
+                                                     {"left":{"id":"a5"},"right":{"id":"b5"}}]}}]}]}
+                """);
+        JsonNode config = out.at("/stages/0/activities/0/config");
+        assertThat(config.get("leftItems").size()).isEqualTo(5);
+        assertNoCorrectPairSharesRow(config, java.util.Map.of(
+                "a1", "b1", "a2", "b2", "a3", "b3", "a4", "b4", "a5", "b5"));
+    }
+
+    @Test
+    void matching_manyGeneratedIds_noCorrectPairSharesRow() throws Exception {
+        // Sweep several generated-id-looking datasets; every projected row must
+        // satisfy the derangement invariant.
+        String[][] datasets = {
+            {"it-aa01", "it-bb02", "it-cc03", "it-dd04"},
+            {"it-x1y2", "it-p9q8", "it-m4n5", "it-z7w6"},
+            {"it-1111", "it-2222", "it-3333", "it-4444"},
+        };
+        for (String[] ids : datasets) {
+            String pairsJson = String.format(
+                    "[{\"left\":{\"id\":\"%s\"},\"right\":{\"id\":\"%s\"}},"
+                  + "{\"left\":{\"id\":\"%s\"},\"right\":{\"id\":\"%s\"}}]",
+                    ids[0], ids[1], ids[2], ids[3]);
+            JsonNode out = project(String.format("""
+                    {"stages":[{"id":"s","type":"REASONING",
+                                "activities":[{"id":"m-%s","type":"MATCHING",
+                                               "config":{"pairs":%s}}]}]}
+                    """, "sweep", pairsJson));
+            JsonNode config = out.at("/stages/0/activities/0/config");
+            assertNoCorrectPairSharesRow(config, java.util.Map.of(
+                    ids[0], ids[1], ids[2], ids[3]));
+        }
+    }
+
+    @Test
+    void matching_derangementStable_acrossRepeatedProjection() throws Exception {
+        String draft = """
+                {"stages":[{"id":"s","type":"REASONING",
+                            "activities":[{"id":"m-stable","type":"MATCHING",
+                                           "config":{"pairs":[
+                                                     {"left":{"id":"it-rani02"},
+                                                      "right":{"id":"it-dddqfe"}},
+                                                     {"left":{"id":"it-omc41x"},
+                                                      "right":{"id":"it-wbrtxc"}},
+                                                     {"left":{"id":"it-third"},
+                                                      "right":{"id":"it-r3"}}]}}]}]}
+                """;
+        JsonNode a = project(draft);
+        JsonNode b = project(draft);
+        assertThat(a.at("/stages/0/activities/0/config/leftItems").toString())
+                .isEqualTo(b.at("/stages/0/activities/0/config/leftItems").toString());
+        assertThat(a.at("/stages/0/activities/0/config/rightItems").toString())
+                .isEqualTo(b.at("/stages/0/activities/0/config/rightItems").toString());
+        assertNoCorrectPairSharesRow(a.at("/stages/0/activities/0/config"),
+                java.util.Map.of("it-rani02", "it-dddqfe", "it-omc41x",
+                        "it-wbrtxc", "it-third", "it-r3"));
+    }
+
+    @Test
+    void dragOrder_stripsAcceptedSequences() throws Exception {
+        JsonNode out = project("""
+                {"stages":[{"id":"s","type":"RECONSTRUCTION",
+                            "activities":[{"id":"d1","type":"DRAG_ORDER",
+                                           "config":{"items":[{"id":"i1"},{"id":"i2"},{"id":"i3"}],
+                                                     "expectedOrder":["i1","i2","i3"],
+                                                     "acceptedSequences":[["i1","i3","i2"]]}}]}]}
+                """);
+        JsonNode config = out.at("/stages/0/activities/0/config");
+        assertThat(config.has("acceptedSequences")).isFalse();
+        assertThat(config.has("expectedOrder")).isFalse();
+        assertThat(config.has("correctOrder")).isFalse();
+        // Items survive — only the answer keys are hidden.
+        assertThat(config.get("items").size()).isEqualTo(3);
+    }
+
+    @Test
+    void multipleChoice_legacyMultiCorrect_emitsMultiSelect() throws Exception {
+        // Legacy drafts: `multiCorrect` with >1 entry, no `multiSelect` flag —
+        // the learner contract must still say multi-select so the renderer
+        // picks checkboxes. The answer ids themselves stay hidden.
+        JsonNode out = project("""
+                {"stages":[{"id":"s","type":"EVIDENCE",
+                            "activities":[{"id":"a","type":"MULTIPLE_CHOICE",
+                                           "config":{"question":"q?",
+                                                     "options":[{"id":"o1"},{"id":"o2"},{"id":"o3"}],
+                                                     "multiCorrect":["o1","o3"]}}]}]}
+                """);
+        JsonNode config = out.at("/stages/0/activities/0/config");
+        assertThat(config.has("multiCorrect")).isFalse();
+        assertThat(config.get("multiSelect").asBoolean()).isTrue();
+    }
+
     @Test
     void matching_projectionDeterministicAcrossCalls() throws Exception {
         String draft = """
