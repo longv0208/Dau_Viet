@@ -29,15 +29,17 @@
   "planPath": "dau-viet-admin/plans/261017-0531-task0015-stage-activity-builder/plan.md",
   "evidenceRefs": [
     "dau-viet-admin/plans/reports/planner-261017-0531-task0015-draft-contract.md",
-    "vitest 59/59 pass, 14 files (builder: draft-model 5, use-builder 8, multiple-choice-editor 3, builder-page 7)",
+    "dau-viet-admin/plans/reports/task0015-261017-0715-product-bugfixes-report.md",
+    "vitest 62/62 pass, 14 files (builder: draft-model 5, use-builder 10, multiple-choice-editor 3, builder-page 8)",
     "playwright 8/8 pass incl. tests/e2e/builder.spec.ts 3/3 (controlled stub, not real backend)",
     "tsc --noEmit clean; next lint 0 warnings; next build OK (builder route 21.4 kB)"
   ],
   "reviewRefs": [
     "plans/reports/reviewer-261017-task0015-builder-review.md",
-    "plans/reports/task0015-261017-0630-stage-activity-builder-final-report.md"
+    "plans/reports/task0015-261017-0630-stage-activity-builder-final-report.md",
+    "dau-viet-admin/plans/reports/task0015-261017-0715-product-bugfixes-report.md"
   ],
-  "nextAction": "TASK-0016: evidence/asset pickers for EVIDENCE_SELECT + requiredEvidenceIds + VIEW_IMAGE upload; editors for remaining ActivityTypes; discuss backend gap on onPartial/onContradicted feedback; one manual smoke test vs real backend when environment available.",
+  "nextAction": "TASK-0016: evidence/asset pickers for EVIDENCE_SELECT + requiredEvidenceIds + VIEW_IMAGE upload; editors for remaining ActivityTypes; discuss backend gap on onPartial/onContradicted feedback; one manual smoke test vs real backend when environment available. Post-review bugfixes applied: pending-save revision guard, draft-status label (no rowVersion shown as version), MC/MATCHING/DRAG_ORDER inline hints, duplicateStage internal-ref remap.",
   "baseCommit": "8bbe157",
   "inputFingerprint": null,
   "snapshot": null,
@@ -46,5 +48,5 @@
   "resumeFrom": null,
   "handoffRef": null,
   "createdAt": "2026-10-17T05:30:00+07:00",
-  "updatedAt": "2026-10-17T06:30:00+07:00"
+  "updatedAt": "2026-10-17T07:15:00+07:00"
 }
