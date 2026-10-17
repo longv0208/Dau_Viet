@@ -58,14 +58,14 @@ export function ViewImageEditor(props: EditorProps) {
             )}
             <div className="min-w-0 flex-1">
               <p className="truncate text-sm font-medium text-ink">
-                {asset?.originalFilename ?? assetId}
+                {asset?.originalFilename ?? "Ảnh đã chọn"}
               </p>
               {assetQuery.isPending && (
                 <p className="text-xs text-ink-muted">Đang tải thông tin ảnh…</p>
               )}
               {assetQuery.isError && (
                 <p className="text-xs text-error">
-                  Không tìm thấy asset (có thể đã bị xoá) — chọn lại ảnh khác.
+                  Không tìm thấy ảnh (có thể đã bị xoá) — hãy chọn lại.
                 </p>
               )}
               {asset?.altText && (

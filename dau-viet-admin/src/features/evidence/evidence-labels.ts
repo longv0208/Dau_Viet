@@ -41,5 +41,5 @@ export const RELIABILITY_LABELS: Record<string, string> = {
 };
 
 export function evidenceTypeLabel(t: string): string {
-  return EVIDENCE_TYPE_LABELS[t]?.label ?? t;
+  return EVIDENCE_TYPE_LABELS[t]?.label ?? "Khác";
 }

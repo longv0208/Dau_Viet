@@ -68,7 +68,7 @@ export function LessonsTable() {
       key: "eventId",
       header: "Sự kiện",
       cell: (r) => (
-        <span className="text-xs text-ink-muted">{eventsById.get(r.eventId) ?? r.eventId}</span>
+        <span className="text-xs text-ink-muted">{eventsById.get(r.eventId) ?? "—"}</span>
       ),
     },
     { key: "status", header: "Trạng thái", cell: (r) => <StatusChip status={r.status} /> },
@@ -77,9 +77,7 @@ export function LessonsTable() {
       header: "Xuất bản",
       cell: (r) =>
         r.currentVersionId ? (
-          <span className="text-xs" title={`ID phiên bản: ${r.currentVersionId}`}>
-            Đã xuất bản
-          </span>
+          <span className="text-xs">Đã xuất bản</span>
         ) : (
           <span className="text-xs text-ink-muted">Chưa xuất bản</span>
         ),

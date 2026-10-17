@@ -9,6 +9,14 @@ import type { UseFormSetError, FieldValues, Path } from "react-hook-form";
 
 import { ApiClientError } from "./api-error";
 
+/** Keep backend field messages only when they are already Vietnamese. */
+const VI_DIACRITICS =
+  /[àáảãạăắằẳẵặâấầẩẫậèéẻẽẹêếềểễệìíỉĩịòóỏõọôốồổỗộơớờởỡợùúủũụưứừửữựỳýỷỹỵđ]/i;
+
+function toDisplayMessage(msg: string): string {
+  return VI_DIACRITICS.test(msg) ? msg : "Giá trị chưa hợp lệ";
+}
+
 /** Vietnamese diacritics → ASCII for slug suggestion. */
 const VI_MAP: Record<string, string> = {
   à: "a", á: "a", ả: "a", ã: "a", ạ: "a",
@@ -54,7 +62,7 @@ export function applyServerFieldErrors<T extends FieldValues>(
   for (const f of fields) {
     const msg = err.details?.[f as string];
     if (typeof msg === "string") {
-      setError(f, { type: "server", message: msg });
+      setError(f, { type: "server", message: toDisplayMessage(msg) });
       mapped = true;
     }
   }

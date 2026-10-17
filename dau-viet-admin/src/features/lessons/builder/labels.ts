@@ -48,6 +48,6 @@ export const ACTIVITY_LABELS: Record<
   HYPOTHESIS_CHOICE: { label: "Chọn giả thuyết", description: "Chọn giả thuyết hợp lý", icon: HelpCircle },
   DRAG_ORDER: { label: "Sắp xếp diễn biến", description: "Sắp xếp theo thứ tự đúng", icon: ArrowDownUp },
   VERIFICATION: { label: "Kiểm chứng", description: "Xác nhận/bác bỏ khẳng định", icon: CheckSquare },
-  CER: { label: "Kết luận có dẫn chứng", description: "Viết Claim–Evidence–Reasoning", icon: FileQuestion },
+  CER: { label: "Kết luận có dẫn chứng", description: "Viết lập luận có dẫn chứng", icon: FileQuestion },
   REFLECTION_PROMPT: { label: "Câu hỏi suy ngẫm", description: "Câu hỏi mở cho học viên", icon: PenLine },
 };

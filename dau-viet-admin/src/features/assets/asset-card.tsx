@@ -40,7 +40,7 @@ export function AssetCard({
         type="button"
         onClick={() => onPreview(asset)}
         className="relative block aspect-square w-full overflow-hidden bg-surface-alt"
-        aria-label={`Xem ${asset.originalFilename ?? asset.id}`}
+        aria-label={`Xem ${asset.originalFilename ?? "Ảnh không tên"}`}
       >
         <AssetImage
           asset={asset}
@@ -50,12 +50,12 @@ export function AssetCard({
       <div className="flex flex-col gap-1 px-2 py-2">
         <p
           className="truncate text-xs font-medium text-ink"
-          title={asset.originalFilename ?? asset.id}
+          title={asset.originalFilename ?? "Ảnh không tên"}
         >
-          {asset.originalFilename ?? asset.id}
+          {asset.originalFilename ?? "Ảnh không tên"}
         </p>
         <p className="text-xs text-ink-muted">
-          {asset.mimeType} · {formatAssetSize(asset.sizeBytes)}
+          {formatAssetSize(asset.sizeBytes)}
         </p>
         {asset.altText && (
           <p className="truncate text-xs text-ink-muted" title={asset.altText}>
@@ -68,9 +68,9 @@ export function AssetCard({
             variant="secondary"
             size="sm"
             onClick={copyId}
-            aria-label={`Sao chép ID ${asset.id}`}
+            aria-label={`Sao chép mã ảnh ${asset.id}`}
           >
-            <Copy aria-hidden /> {copied ? "Đã chép" : "Sao chép ID"}
+            <Copy aria-hidden /> {copied ? "Đã chép" : "Sao chép mã ảnh"}
           </Button>
         </div>
       </div>

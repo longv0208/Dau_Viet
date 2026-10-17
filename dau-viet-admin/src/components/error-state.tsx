@@ -2,7 +2,7 @@
 
 import { AlertTriangle, RotateCcw } from "lucide-react";
 
-import { ApiClientError } from "@/lib/api-error";
+import { ApiClientError, toUserMessage } from "@/lib/api-error";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 
@@ -21,9 +21,9 @@ export function ErrorState({
         <AlertTriangle className="size-10 text-error" aria-hidden />
         <p className="font-medium text-ink">Có lỗi xảy ra</p>
         <p className="max-w-md text-sm text-ink-muted">
-          {error instanceof ApiClientError ? error.message : "Không thể tải dữ liệu, vui lòng thử lại."}
+          {error ? toUserMessage(error) : "Không thể tải dữ liệu, vui lòng thử lại."}
         </p>
-        {traceId && <p className="text-xs text-ink-muted">Mã lỗi: {traceId}</p>}
+        {traceId && <p className="text-xs text-ink-muted">Mã tra cứu lỗi: {traceId}</p>}
         {onRetry && (
           <Button variant="secondary" onClick={onRetry}>
             <RotateCcw aria-hidden /> Thử lại

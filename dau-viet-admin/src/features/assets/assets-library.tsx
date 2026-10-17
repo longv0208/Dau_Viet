@@ -74,7 +74,7 @@ export function AssetsLibrary() {
     <div className="flex flex-col gap-4">
       <div className="flex flex-wrap items-end gap-3 rounded-md border border-border bg-white p-4">
         <div className="flex min-w-64 flex-1 flex-col gap-1.5">
-          <Label htmlFor="assetAlt">Mô tả thay thế (alt text)</Label>
+          <Label htmlFor="assetAlt">Mô tả ảnh</Label>
           <Input
             id="assetAlt"
             value={altText}
@@ -83,7 +83,7 @@ export function AssetsLibrary() {
             maxLength={255}
           />
           <p className="text-xs text-ink-muted">
-            Được dùng làm alt cho ảnh tải lên; có thể để trống.
+            Hiển thị khi ảnh không tải được và đọc cho người khiếm thị; có thể để trống.
           </p>
         </div>
         <div>

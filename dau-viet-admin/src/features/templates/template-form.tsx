@@ -243,7 +243,7 @@ export function TemplateForm({ templateId }: Props) {
         <CardHeader>
           <CardTitle>Thông tin khung</CardTitle>
           <CardDescription>
-            Tên và mã hiển thị trong danh sách khung và bước chọn khung của wizard.
+            Tên và mã hiển thị trong danh sách khung và bước chọn khung khi tạo bài học.
           </CardDescription>
         </CardHeader>
         <CardContent className="flex flex-col gap-4">
@@ -271,8 +271,8 @@ export function TemplateForm({ templateId }: Props) {
               />
               <p className="text-xs text-ink-muted">
                 {isEdit
-                  ? "Mã là định danh cố định — không thể đổi sau khi tạo."
-                  : "Duy nhất, chữ thường, dùng dấu gạch ngang — không đổi sau khi tạo."}
+                  ? "Mã dùng để nhận diện khung — không đổi sau khi tạo."
+                  : "Duy nhất, chỉ gồm chữ thường không dấu, số và gạch ngang — không đổi sau khi tạo."}
               </p>
               {errors.code && (
                 <p role="alert" className="text-xs text-error">{errors.code.message}</p>
@@ -294,7 +294,7 @@ export function TemplateForm({ templateId }: Props) {
           {isEdit && (
             <label className="flex items-center gap-2 text-sm text-ink">
               <input type="checkbox" {...register("enabled")} />
-              Khung đang bật (hiển thị trong wizard tạo bài học)
+              Khung đang bật (hiển thị khi tạo bài học)
             </label>
           )}
         </CardContent>
@@ -348,16 +348,14 @@ export function TemplateForm({ templateId }: Props) {
                     {errors.stages[i]?.title?.message}
                   </p>
                 )}
-                <p className="text-xs text-ink-muted">
-                  id: <code>{watch(`stages.${i}.id`)}</code>
-                </p>
+
               </div>
               <div className="flex flex-col gap-1.5">
                 <Label htmlFor={`stages.${i}.type`}>Loại giai đoạn</Label>
                 <Select id={`stages.${i}.type`} {...register(`stages.${i}.type` as const)}>
                   {STAGE_TYPES.map((t) => (
                     <option key={t} value={t}>
-                      {STAGE_TYPE_LABELS[t]} ({t})
+                      {STAGE_TYPE_LABELS[t]}
                     </option>
                   ))}
                 </Select>

@@ -72,7 +72,7 @@ export function describePath(draft: Draft, path: string): string | null {
   if (!stage) {
     if (path.startsWith("completion")) return "Điều kiện hoàn thành";
     if (path.startsWith("objectives")) return "Mục tiêu học tập";
-    if (path === "schemaVersion") return "Phiên bản cấu trúc";
+    if (path === "schemaVersion") return "Định dạng bản nháp";
     return null; // whole-document errors
   }
   const stageName = stage.title || STAGE_LABELS[stage.type]?.label || `Giai đoạn ${stageIdx + 1}`;
@@ -109,7 +109,7 @@ export function ValidationPanel({ draft, errors, onJump }: Props) {
                   <span className="block text-[10px] font-medium text-ink-muted">{where}</span>
                 )}
                 <span className="text-error">
-                  {CODE_MESSAGES[e.code] ?? e.message}
+                  {CODE_MESSAGES[e.code] ?? "Cần xem lại nội dung đã nhập"}
                 </span>
               </button>
             </li>

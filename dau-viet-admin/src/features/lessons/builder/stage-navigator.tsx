@@ -61,10 +61,10 @@ export function StageNavigator({
                   {Icon && <Icon className="mt-0.5 size-4 shrink-0 text-ink-muted" aria-hidden />}
                   <span className="min-w-0 flex-1">
                     <span className="block truncate text-sm font-medium text-ink">
-                      {i + 1}. {s.title || meta?.label || s.id}
+                      {i + 1}. {s.title || meta?.label || "Giai đoạn"}
                     </span>
                     <span className="mt-0.5 flex flex-wrap items-center gap-1.5 text-[11px] text-ink-muted">
-                      <span>{meta?.label ?? s.type}</span>
+                      <span>{meta?.label ?? "—"}</span>
                       <span aria-hidden>·</span>
                       <span>{s.activities.length} hoạt động</span>
                       {s.required ? (

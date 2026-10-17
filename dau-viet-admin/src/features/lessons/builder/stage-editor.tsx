@@ -201,10 +201,10 @@ export function StageEditor({
                     {Icon && <Icon className="size-4 shrink-0 text-ink-muted" aria-hidden />}
                     <span className="min-w-0">
                       <span className="block truncate text-sm font-medium text-ink">
-                        {i + 1}. {a.instruction?.slice(0, 50) || meta?.label || a.id}
+                        {i + 1}. {a.instruction?.slice(0, 50) || meta?.label || "Hoạt động"}
                       </span>
                       <span className="text-[11px] text-ink-muted">
-                        {meta?.label ?? a.type}
+                        {meta?.label ?? "—"}
                         {a.required ? " · bắt buộc" : " · tuỳ chọn"}
                       </span>
                     </span>

@@ -39,7 +39,7 @@ describe("EventForm", () => {
     renderForm();
     await userEvent.type(screen.getByLabelText(/tiêu đề/i), "Trận Bạch Đằng 938");
     await waitFor(() =>
-      expect(screen.getByLabelText(/slug/i)).toHaveValue("tran-bach-dang-938"),
+      expect(screen.getByLabelText(/đường dẫn rút gọn/i)).toHaveValue("tran-bach-dang-938"),
     );
   });
 
@@ -76,6 +76,7 @@ describe("EventForm", () => {
             code: "VALIDATION_ERROR",
             message: "Validation failed",
             details: { slug: "slug must be lowercase kebab-case" },
+            // ASCII-only backend detail → replaced by generic Vietnamese message.
           },
           { status: 400 },
         ),
@@ -86,7 +87,7 @@ describe("EventForm", () => {
     await userEvent.type(screen.getByLabelText(/tóm tắt/i), "Y");
     await userEvent.click(screen.getByRole("button", { name: /tạo sự kiện/i }));
     await waitFor(() =>
-      expect(screen.getByText("slug must be lowercase kebab-case")).toBeInTheDocument(),
+      expect(screen.getByText("Giá trị chưa hợp lệ")).toBeInTheDocument(),
     );
   });
 

@@ -33,7 +33,7 @@ export function ReadEditor(props: EditorProps) {
       </div>
       <EvidenceRefPicker
         label="Nguồn tư liệu (bằng chứng lịch sử)"
-        hint="Gắn bằng chứng làm nguồn cho đoạn đọc — học viên thấy nguồn gốc tư liệu, server kiểm tra khi xuất bản."
+        hint="Gắn bằng chứng làm nguồn cho đoạn đọc — học viên thấy nguồn gốc tư liệu, hệ thống kiểm tra khi xuất bản."
         selectedIds={refs}
         eventId={eventId}
         readOnly={readOnly}

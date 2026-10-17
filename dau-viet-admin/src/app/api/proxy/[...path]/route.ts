@@ -36,7 +36,7 @@ async function forward(req: NextRequest, path: string[]): Promise<Response> {
     const buf = await req.arrayBuffer();
     if (buf.byteLength > 2 * 1024 * 1024) {
       return NextResponse.json(
-        { code: "PAYLOAD_TOO_LARGE", message: "Payload quá lớn" },
+        { code: "PAYLOAD_TOO_LARGE", message: "Nội dung quá lớn — hãy rút ngắn văn bản hoặc bớt nội dung" },
         { status: 413 },
       );
     }
@@ -48,7 +48,7 @@ async function forward(req: NextRequest, path: string[]): Promise<Response> {
     upstream = await fetch(url, { method: req.method, headers, body, cache: "no-store" });
   } catch {
     return NextResponse.json(
-      { code: "UPSTREAM_UNAVAILABLE", message: "Không thể kết nối máy chủ backend" },
+      { code: "UPSTREAM_UNAVAILABLE", message: "Không kết nối được máy chủ" },
       { status: 502 },
     );
   }

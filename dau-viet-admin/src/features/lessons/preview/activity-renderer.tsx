@@ -37,7 +37,7 @@ const ACTIVITY_LABELS: Record<string, string> = {
 };
 
 export function activityLabel(type: string): string {
-  return ACTIVITY_LABELS[type] ?? type;
+  return ACTIVITY_LABELS[type] ?? "—";
 }
 
 /**

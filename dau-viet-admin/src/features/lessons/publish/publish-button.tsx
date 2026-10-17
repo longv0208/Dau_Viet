@@ -12,6 +12,8 @@ import { qk } from "@/lib/query-keys";
 import { Button } from "@/components/ui/button";
 import { ConfirmDialog } from "@/components/confirm-dialog";
 
+import { CODE_MESSAGES } from "../builder/validation-panel";
+
 interface Props {
   lesson: AdminLessonDetail;
   onPublished?: (res: PublishResponse) => void;
@@ -112,9 +114,7 @@ export function PublishButton({ lesson, onPublished, onConflict }: Props) {
             <ul className="flex flex-col gap-1">
               {detailErrors.map((e, i) => (
                 <li key={i} className="text-xs text-ink">
-                  <span className="block font-mono text-[10px] text-ink-muted">{e.path ?? ""}</span>
-                  <span className="font-medium text-error">{e.code ? `[${e.code}] ` : ""}</span>
-                  {e.message}
+                  {(e.code && CODE_MESSAGES[e.code]) ?? "Cần xem lại nội dung đã nhập"}
                 </li>
               ))}
             </ul>
@@ -154,7 +154,7 @@ export function PublishButton({ lesson, onPublished, onConflict }: Props) {
         description={
           republish
             ? "Một phiên bản mới sẽ được tạo từ bản nháp hiện tại và phát hành cho học viên. Phiên bản đã xuất bản trước đó được giữ nguyên và không thể sửa."
-            : "Bản nháp hiện tại sẽ được đóng gói thành phiên bản đầu tiên cho học viên. Phiên bản đã xuất bản là bất biến — thay đổi sau đó cần xuất bản phiên bản mới."
+            : "Bản nháp hiện tại sẽ được đóng gói thành phiên bản đầu tiên cho học viên. Phiên bản đã xuất bản không thể thay đổi — muốn sửa nội dung thì phải xuất bản phiên bản mới."
         }
         confirmLabel="Xuất bản"
         onConfirm={() => publish.mutate()}

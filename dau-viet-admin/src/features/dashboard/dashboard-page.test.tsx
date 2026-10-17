@@ -31,7 +31,7 @@ describe("DashboardPage (A-02)", () => {
       expect(screen.getByText(/Xin chào, Quản trị viên/)).toBeInTheDocument(),
     );
     await waitFor(() =>
-      expect(screen.getByText("Backend: Hoạt động")).toBeInTheDocument(),
+      expect(screen.getByText("Máy chủ: Hoạt động")).toBeInTheDocument(),
     );
     expect(screen.getByText("Truy cập nhanh")).toBeInTheDocument();
     expect(screen.getByText("Bài học gần đây")).toBeInTheDocument();
@@ -49,7 +49,7 @@ describe("DashboardPage (A-02)", () => {
     );
     renderPage();
     await waitFor(() =>
-      expect(screen.getByText("Backend: Lỗi")).toBeInTheDocument(),
+      expect(screen.getByText("Máy chủ: Lỗi")).toBeInTheDocument(),
     );
     expect(screen.getByText(/trace-abc/)).toBeInTheDocument();
   });

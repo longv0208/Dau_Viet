@@ -40,7 +40,7 @@ export function CerEditor(props: EditorProps) {
       <ActivityCommonFields {...props} />
 
       <div className="flex flex-col gap-2">
-        <Label>Tiêu chí chấm (rubric) *</Label>
+        <Label>Tiêu chí chấm điểm *</Label>
         {criteria.map((c, i) => (
           <div key={i} className="flex items-center gap-2">
             <span className="w-6 text-center text-xs text-ink-muted">{i + 1}</span>
@@ -84,7 +84,7 @@ export function CerEditor(props: EditorProps) {
 
       <EvidenceRefPicker
         label="Bằng chứng bắt buộc phải dùng"
-        hint="Học viên phải trích các bằng chứng này trong bài CER (không hiển thị cho học viên)."
+        hint="Học viên phải trích các bằng chứng này trong bài kết luận có dẫn chứng (không hiển thị cho học viên)."
         required
         selectedIds={evidenceIds}
         eventId={eventId}

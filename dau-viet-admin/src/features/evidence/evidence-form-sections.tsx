@@ -59,7 +59,7 @@ export function EvidenceBasicFields({
             <option value="">— Chọn loại —</option>
             {EVIDENCE_TYPES.map((t) => (
               <option key={t} value={t}>
-                {EVIDENCE_TYPE_LABELS[t]?.label ?? t}
+                {EVIDENCE_TYPE_LABELS[t]?.label ?? "Khác"}
               </option>
             ))}
           </Select>
@@ -172,7 +172,7 @@ export function EvidenceSourceFields({
             <option value="">— Chưa đánh giá —</option>
             {(["HIGH", "MEDIUM", "LOW", "UNASSESSED"] as EvidenceReliability[]).map((r) => (
               <option key={r} value={r}>
-                {RELIABILITY_LABELS[r] ?? r}
+                {RELIABILITY_LABELS[r] ?? "Chưa đánh giá"}
               </option>
             ))}
           </Select>

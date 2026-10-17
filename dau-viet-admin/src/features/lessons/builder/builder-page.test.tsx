@@ -101,8 +101,9 @@ describe("BuilderPage", () => {
     const titleInput = await screen.findByLabelText(/tên giai đoạn/i);
     await userEvent.type(titleInput, "x");
     await userEvent.click(screen.getByRole("button", { name: /lưu nháp/i }));
-    await waitFor(() => screen.getByText(/INVALID_CONFIG/));
-    expect(screen.getByText("Lỗi từ máy chủ (1)")).toBeInTheDocument();
+    // Codes never reach the admin — CODE_MESSAGES text renders instead.
+    await waitFor(() => screen.getByText(/Cấu hình chưa hợp lệ/));
+    expect(screen.getByText("Cần sửa (1)")).toBeInTheDocument();
   });
 
   it("keeps dirty + lets user save again when editing during a pending save", async () => {
@@ -212,7 +213,10 @@ describe("BuilderPage", () => {
     await waitFor(() => screen.getByText("Giai đoạn (4)"));
     await userEvent.click(screen.getByRole("button", { name: /kiểm tra xuất bản/i }));
     await waitFor(() => screen.getByText(/chưa sẵn sàng xuất bản — xem chi tiết/i));
-    expect(screen.getByText(/NO_REQUIRED_ACTIVITY/)).toBeInTheDocument();
+    // NO_REQUIRED_ACTIVITY renders as its CODE_MESSAGES Vietnamese text.
+    expect(
+      screen.getByText(/Cần ít nhất một hoạt động bắt buộc/),
+    ).toBeInTheDocument();
   });
 
   it("seeds stages from template presetJson on confirm (append, remapped ids)", async () => {

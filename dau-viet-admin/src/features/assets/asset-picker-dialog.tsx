@@ -145,7 +145,7 @@ export function AssetPickerDialog({
                   className="aspect-square w-full bg-surface-alt object-cover"
                 />
                 <span className="truncate px-2 py-1.5 text-xs text-ink group-hover:text-brand">
-                  {a.originalFilename ?? a.id}
+                  {a.originalFilename ?? "Ảnh không tên"}
                 </span>
               </button>
             ))}

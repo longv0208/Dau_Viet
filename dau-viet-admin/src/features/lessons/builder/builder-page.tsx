@@ -63,7 +63,7 @@ export function BuilderPage({ lessonId }: { lessonId: string }) {
     } catch (e) {
       return {
         initialDraft: null,
-        parseError: e instanceof Error ? e.message : "Bản nháp không hợp lệ",
+        parseError: e instanceof Error ? e.message : "invalid",
       };
     }
   }, [lesson]);
@@ -84,8 +84,8 @@ export function BuilderPage({ lessonId }: { lessonId: string }) {
   if (parseError) {
     return (
       <div className="rounded-md bg-error/10 px-4 py-3 text-sm text-error">
-        Không đọc được bản nháp hiện có: {parseError}. Vui lòng sửa draftJson qua API trước khi
-        dùng Builder.
+        Không đọc được bản nháp hiện có — dữ liệu bài học bị lỗi. Vui lòng liên hệ quản trị hệ thống
+        trước khi tiếp tục chỉnh sửa.
       </div>
     );
   }

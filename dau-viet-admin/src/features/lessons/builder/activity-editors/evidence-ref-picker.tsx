@@ -104,13 +104,13 @@ export function EvidenceRefPicker({
             <span
               key={id}
               className="inline-flex items-center gap-1 rounded-md border border-border bg-white px-2 py-1 text-xs text-ink"
-              title={e ? `${e.title} — ${e.sourceTitle ?? "chưa có nguồn"}` : id}
+              title={e ? `${e.title} — ${e.sourceTitle ?? "chưa có nguồn"}` : "Bằng chứng không còn tồn tại"}
             >
-              {e ? e.title.slice(0, 40) : id.slice(0, 8)}
+              {e ? e.title.slice(0, 40) : "Đã xoá"}
               {!readOnly && (
                 <button
                   type="button"
-                  aria-label={`Gỡ ${e?.title ?? id}`}
+                  aria-label={`Gỡ ${e?.title ?? "bằng chứng"}`}
                   className="text-ink-muted hover:text-error"
                   onClick={() => onChange(selectedIds.filter((x) => x !== id))}
                 >

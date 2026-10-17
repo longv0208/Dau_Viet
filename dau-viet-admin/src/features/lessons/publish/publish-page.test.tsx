@@ -38,7 +38,9 @@ describe("PublishPage", () => {
     await userEvent.click(screen.getByRole("button", { name: /^Xuất bản$/ }));
 
     await waitFor(() => screen.getByText(/Đã xuất bản phiên bản 1 thành công/i));
-    expect(screen.getByText(/v-55555555/)).toBeInTheDocument();
+    // Success banner shows the publish timestamp — no versionId is exposed.
+    expect(screen.getByText(/Thời điểm:/)).toBeInTheDocument();
+    expect(screen.queryByText(/v-55555555/)).not.toBeInTheDocument();
   });
 
   it("maps 422 EVENT_NOT_PUBLISHED to a VN message + link to the event", async () => {
@@ -106,8 +108,8 @@ describe("PublishPage", () => {
   it("learner verify card fetches /lessons/{id}/content and shows versionNo", async () => {
     authStore.setAccessToken("t", 900);
     renderPage(LESSON_ID); // fixture: PUBLISHED + currentVersionId
-    await waitFor(() => screen.getByRole("button", { name: /kiểm tra nội dung learner/i }));
-    await userEvent.click(screen.getByRole("button", { name: /kiểm tra nội dung learner/i }));
+    await waitFor(() => screen.getByRole("button", { name: /kiểm tra nội dung/i }));
+    await userEvent.click(screen.getByRole("button", { name: /kiểm tra nội dung/i }));
     await waitFor(() => screen.getByText(/Phiên bản 1 đang phát hành/i));
   });
 });

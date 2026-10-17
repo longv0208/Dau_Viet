@@ -48,7 +48,7 @@ export function ActivityCommonFields({ stage, activity, readOnly, onChange }: Ed
         </p>
       )}
       <p className="text-xs text-ink-muted">
-        Loại: {ACTIVITY_LABELS[activity.type].label} · ID: {activity.id}
+        Loại: {ACTIVITY_LABELS[activity.type].label}
       </p>
       <FeedbackPanel stage={stage} activity={activity} readOnly={readOnly} onChange={onChange} />
     </div>

@@ -11,7 +11,7 @@ const CONFIG: Record<string, { label: string; className: string; icon: typeof Fi
 
 /** Status chip — text + icon (never color-only). */
 export function StatusChip({ status }: { status: string }) {
-  const cfg = CONFIG[status] ?? { label: status, className: "bg-surface-alt text-ink", icon: FileEdit };
+  const cfg = CONFIG[status] ?? { label: "Khác", className: "bg-surface-alt text-ink", icon: FileEdit };
   const Icon = cfg.icon;
   return (
     <span

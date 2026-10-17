@@ -80,7 +80,6 @@ export function PublishPage({ lessonId }: { lessonId: string }) {
       <div className="flex flex-wrap items-center gap-3">
         <StatusChip status={lesson.status} />
         <span className="text-sm font-medium text-ink">{lesson.title}</span>
-        <span className="text-xs text-ink-muted">rowVersion {lesson.rowVersion}</span>
         <Button asChild variant="secondary" size="sm" className="ml-auto">
           <Link href={`/lessons/${lesson.id}/preview`}>
             <Eye className="size-4" /> Xem trước
@@ -118,7 +117,7 @@ export function PublishPage({ lessonId }: { lessonId: string }) {
             <CardTitle className="text-base">Khung bài học</CardTitle>
           </CardHeader>
           <CardContent>
-            <p className="text-sm font-medium text-ink">{template?.name ?? lesson.templateId}</p>
+            <p className="text-sm font-medium text-ink">{template?.name ?? "—"}</p>
             {template && <p className="mt-1 text-xs text-ink-muted">{template.description}</p>}
           </CardContent>
         </Card>
@@ -145,13 +144,7 @@ export function PublishPage({ lessonId }: { lessonId: string }) {
           )}
           <div className="text-ink-muted">
             Phiên bản đang phát hành:{" "}
-            {lesson.currentVersionId ? (
-              <span className="font-mono text-xs" title={lesson.currentVersionId}>
-                {lesson.currentVersionId.slice(0, 8)}
-              </span>
-            ) : (
-              "chưa có — bài học chưa từng xuất bản"
-            )}
+            {lesson.currentVersionId ? "Đã xuất bản" : "chưa có — bài học chưa từng xuất bản"}
           </div>
         </CardContent>
       </Card>
@@ -183,11 +176,7 @@ export function PublishPage({ lessonId }: { lessonId: string }) {
             Đã xuất bản phiên bản {publishedInfo.versionNo} thành công.
           </p>
           <p className="text-xs text-ink-muted">
-            Thời điểm: {new Date(publishedInfo.publishedAt).toLocaleString("vi-VN")} ·
-            Mã phiên bản:{" "}
-            <span className="font-mono" title={publishedInfo.lessonVersionId}>
-              {publishedInfo.lessonVersionId.slice(0, 8)}
-            </span>
+            Thời điểm: {new Date(publishedInfo.publishedAt).toLocaleString("vi-VN")}
           </p>
         </div>
       )}

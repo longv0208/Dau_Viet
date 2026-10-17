@@ -35,7 +35,7 @@ export async function POST(req: NextRequest) {
   const contentType = req.headers.get("content-type");
   if (!contentType || !contentType.toLowerCase().startsWith("multipart/form-data")) {
     return NextResponse.json(
-      { code: "VALIDATION_ERROR", message: "Yêu cầu phải là multipart/form-data" },
+      { code: "VALIDATION_ERROR", message: "Tệp tải lên không hợp lệ" },
       { status: 400 },
     );
   }
@@ -59,7 +59,7 @@ export async function POST(req: NextRequest) {
     });
   } catch {
     return NextResponse.json(
-      { code: "UPSTREAM_UNAVAILABLE", message: "Không thể kết nối máy chủ backend" },
+      { code: "UPSTREAM_UNAVAILABLE", message: "Không kết nối được máy chủ" },
       { status: 502 },
     );
   }

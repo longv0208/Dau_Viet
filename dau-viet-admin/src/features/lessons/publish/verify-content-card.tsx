@@ -47,14 +47,8 @@ export function VerifyContentCard({ lessonId }: { lessonId: string }) {
           className="flex flex-col gap-1 rounded bg-success/10 px-3 py-2 text-xs text-success"
         >
           <p className="font-medium">
-            Phiên bản {verify.data.versionNo ?? "?"} đang phát hành — học viên đã đọc được nội dung.
-          </p>
-          <p className="text-ink-muted">
-            Mã phiên bản:{" "}
-            <span className="font-mono" title={verify.data.lessonVersionId ?? ""}>
-              {(verify.data.lessonVersionId ?? "").slice(0, 8)}
-            </span>
-            {stageCount !== null ? ` · ${stageCount} giai đoạn` : ""}
+            Phiên bản {verify.data.versionNo ?? "?"} đang phát hành — học viên đã đọc được nội dung
+            {stageCount !== null ? ` · ${stageCount} giai đoạn` : ""}.
           </p>
         </div>
       )}

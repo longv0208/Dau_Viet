@@ -15,7 +15,7 @@ const STAGE_LABELS: Record<string, string> = {
 };
 
 export function stageLabel(type: string): string {
-  return STAGE_LABELS[type] ?? type;
+  return STAGE_LABELS[type] ?? "—";
 }
 
 /** Stage chips row — preview lets the admin jump to ANY stage (no gating). */

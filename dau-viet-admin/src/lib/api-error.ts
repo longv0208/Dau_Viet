@@ -55,7 +55,7 @@ export function toUserMessage(err: unknown): string {
       case "FORBIDDEN":
         return "Bạn không có quyền thực hiện thao tác này";
       case "UPSTREAM_UNAVAILABLE":
-        return "Không thể kết nối máy chủ backend";
+        return "Không thể kết nối máy chủ";
       case "EVENT_NOT_PUBLISHED":
         return "Sự kiện lịch sử chưa được xuất bản — bài học chỉ xuất bản khi sự kiện đã ở trạng thái ĐÃ XUẤT BẢN";
       case "EVENT_IN_USE":
@@ -69,7 +69,8 @@ export function toUserMessage(err: unknown): string {
       case "LESSON_NOT_PUBLISHED":
         return "Bài học chưa được xuất bản";
       default:
-        return err.message || "Có lỗi xảy ra, vui lòng thử lại";
+        console.warn("Unmapped API error", err.code, err.message);
+        return "Có lỗi xảy ra, vui lòng thử lại";
     }
   }
   return "Không thể kết nối máy chủ, vui lòng thử lại";

@@ -26,9 +26,9 @@ const eventSchema = z.object({
   title: z.string().min(1, "Vui lòng nhập tiêu đề").max(255, "Tối đa 255 ký tự"),
   slug: z
     .string()
-    .min(1, "Vui lòng nhập slug")
+    .min(1, "Vui lòng nhập đường dẫn rút gọn")
     .max(150, "Tối đa 150 ký tự")
-    .regex(SLUG_RE, "Slug chỉ gồm chữ thường, số và dấu gạch ngang"),
+    .regex(SLUG_RE, "Chỉ gồm chữ thường không dấu, số và gạch ngang"),
   era: z.string().max(100, "Tối đa 100 ký tự").optional().or(z.literal("")),
   period: z.string().max(100, "Tối đa 100 ký tự").optional().or(z.literal("")),
   startYear: z
@@ -188,7 +188,7 @@ export function EventForm({ initial }: Props) {
           {errors.title && <p role="alert" className="text-xs text-error">{errors.title.message}</p>}
         </div>
         <div className="flex flex-col gap-1.5">
-          <Label htmlFor="slug">Slug *</Label>
+          <Label htmlFor="slug">Đường dẫn rút gọn *</Label>
           <Input
             id="slug"
             placeholder="tran-bach-dang-938"
@@ -197,7 +197,7 @@ export function EventForm({ initial }: Props) {
               onChange: () => setSlugTouched(true),
             })}
           />
-          <p className="text-xs text-ink-muted">URL-friendly, chữ thường, dùng dấu gạch ngang.</p>
+          <p className="text-xs text-ink-muted">Dùng trong đường dẫn trang — chỉ chữ thường không dấu, số và gạch ngang.</p>
           {errors.slug && <p role="alert" className="text-xs text-error">{errors.slug.message}</p>}
         </div>
       </div>
@@ -249,14 +249,14 @@ export function EventForm({ initial }: Props) {
       </div>
 
       <div className="flex flex-col gap-1.5">
-        <Label htmlFor="coverAssetKey">Ảnh bìa (asset key)</Label>
+        <Label htmlFor="coverAssetKey">Ảnh bìa</Label>
         <Input
           id="coverAssetKey"
           placeholder="events/bach-dang-938/hero.jpg"
           {...register("coverAssetKey")}
         />
         <p className="text-xs text-ink-muted">
-          Chức năng upload sẽ có ở giai đoạn sau — hiện nhập key thủ công nếu đã có asset.
+          Chức năng tải ảnh sẽ có sau — hiện để trống hoặc liên hệ quản trị để gắn ảnh.
         </p>
         {errors.coverAssetKey && <p role="alert" className="text-xs text-error">{errors.coverAssetKey.message}</p>}
       </div>

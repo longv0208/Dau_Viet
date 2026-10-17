@@ -17,7 +17,7 @@ const SUMMARY_LABELS: Record<string, string> = {
   stageCount: "Số giai đoạn",
   activityCount: "Số hoạt động",
   evidenceRefs: "Bằng chứng tham chiếu",
-  schemaVersion: "Phiên bản schema",
+  schemaVersion: "Định dạng bản nháp",
   errorCount: "Số lỗi",
   warningCount: "Số cảnh báo",
 };
@@ -62,7 +62,7 @@ function IssueList({
               <span className="block text-[10px] font-medium text-ink-muted">{where}</span>
             )}
             <span className={tone === "error" ? "text-error" : "text-ink"}>
-              {(e.code && CODE_MESSAGES[e.code]) ?? e.message}
+              {(e.code && CODE_MESSAGES[e.code]) ?? "Cần xem lại nội dung đã nhập"}
             </span>
           </>
         );
@@ -152,12 +152,14 @@ export function PublishReadinessCard({ lessonId, draft, revision, dirty, saving,
         <div className="flex flex-col gap-2 text-xs">
           {summaryEntries.length > 0 && (
             <dl className="grid grid-cols-2 gap-x-3 gap-y-1 rounded bg-surface px-2 py-1.5">
-              {summaryEntries.map(([k, v]) => (
-                <div key={k} className="flex items-baseline justify-between gap-1">
-                  <dt className="text-ink-muted">{SUMMARY_LABELS[k] ?? k}</dt>
-                  <dd className="font-medium text-ink">{String(v ?? "—")}</dd>
-                </div>
-              ))}
+              {summaryEntries
+                .filter(([k]) => SUMMARY_LABELS[k])
+                .map(([k, v]) => (
+                  <div key={k} className="flex items-baseline justify-between gap-1">
+                    <dt className="text-ink-muted">{SUMMARY_LABELS[k]}</dt>
+                    <dd className="font-medium text-ink">{String(v ?? "—")}</dd>
+                  </div>
+                ))}
             </dl>
           )}
           {data.errors.length > 0 && (

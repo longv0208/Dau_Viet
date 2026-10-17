@@ -31,7 +31,9 @@ export function Breadcrumbs() {
       <ol className="flex items-center gap-1 text-sm text-ink-muted">
         {segments.map((seg, i) => {
           acc += `/${seg}`;
-          const label = CRUMB_LABELS[seg] ?? seg;
+          const isIdLike =
+            /^[0-9a-f]{8}-[0-9a-f-]{20,}$/i.test(seg) || seg.length > 24;
+          const label = CRUMB_LABELS[seg] ?? (isIdLike ? "Chi tiết" : seg);
           const isLast = i === segments.length - 1;
           return (
             <Fragment key={acc}>

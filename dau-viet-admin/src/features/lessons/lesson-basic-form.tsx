@@ -169,7 +169,7 @@ export function LessonBasicEditor({ lessonId }: { lessonId: string }) {
             <CardTitle className="text-base">Khung bài học</CardTitle>
           </CardHeader>
           <CardContent>
-            <p className="text-sm font-medium text-ink">{template?.name ?? lesson.templateId}</p>
+            <p className="text-sm font-medium text-ink">{template?.name ?? "—"}</p>
             {template && <p className="mt-1 text-xs text-ink-muted">{template.description}</p>}
             {lesson.status !== "DRAFT" && (
               <p className="mt-2 text-xs text-ink-muted">

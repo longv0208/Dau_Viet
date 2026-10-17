@@ -24,14 +24,14 @@ export function UnsupportedEditor(props: EditorProps) {
       <div className="flex items-start gap-2 rounded-md bg-warning/15 px-3 py-2 text-xs text-ink">
         <AlertTriangle className="mt-0.5 size-4 shrink-0" aria-hidden />
         <p>
-          Loại hoạt động <strong>{meta?.label ?? activity.type}</strong> chưa có trình
-          soạn trực quan. Nội dung bên dưới chỉ để xem — cấu hình được giữ nguyên khi
-          lưu; liên hệ quản trị hệ thống nếu cần sửa JSON thủ công.
+          Loại hoạt động <strong>{meta?.label ?? activity.type}</strong> chưa hỗ trợ chỉnh
+          sửa trực quan. Nội dung bên dưới chỉ để xem — dữ liệu được giữ nguyên khi
+          lưu; liên hệ quản trị hệ thống nếu cần thay đổi.
         </p>
       </div>
       <ActivityCommonFields {...props} />
       <div className="flex flex-col gap-1.5">
-        <Label htmlFor={`raw-${activity.id}`}>Cấu hình thô (chỉ đọc)</Label>
+        <Label htmlFor={`raw-${activity.id}`}>Dữ liệu đã lưu (chỉ xem)</Label>
         <Textarea
           id={`raw-${activity.id}`}
           rows={Math.min(12, raw.split("\n").length + 1)}

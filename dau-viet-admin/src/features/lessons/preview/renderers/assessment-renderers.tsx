@@ -97,7 +97,7 @@ export function CerActivityView({ activity }: PreviewActivityProps) {
   return (
     <div className="flex flex-col gap-3">
       <div className="flex flex-col gap-1.5">
-        <Label htmlFor={`claim-${activity.id}`}>Luận điểm (Claim)</Label>
+        <Label htmlFor={`claim-${activity.id}`}>Luận điểm</Label>
         <Textarea
           id={`claim-${activity.id}`}
           rows={2}
@@ -107,7 +107,7 @@ export function CerActivityView({ activity }: PreviewActivityProps) {
         />
       </div>
       <div className="flex flex-col gap-1.5">
-        <Label htmlFor={`ev-${activity.id}`}>Bằng chứng (Evidence)</Label>
+        <Label htmlFor={`ev-${activity.id}`}>Bằng chứng</Label>
         <Textarea
           id={`ev-${activity.id}`}
           rows={3}
@@ -117,7 +117,7 @@ export function CerActivityView({ activity }: PreviewActivityProps) {
         />
       </div>
       <div className="flex flex-col gap-1.5">
-        <Label htmlFor={`re-${activity.id}`}>Lập luận (Reasoning)</Label>
+        <Label htmlFor={`re-${activity.id}`}>Lập luận</Label>
         <Textarea
           id={`re-${activity.id}`}
           rows={3}

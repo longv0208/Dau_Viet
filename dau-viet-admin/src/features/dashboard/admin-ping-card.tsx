@@ -23,7 +23,7 @@ export function AdminPingCard() {
   return (
     <Card>
       <CardHeader>
-        <CardTitle className="text-base">Kết nối backend</CardTitle>
+        <CardTitle className="text-base">Kết nối máy chủ</CardTitle>
       </CardHeader>
       <CardContent>
         {query.isPending ? (
@@ -31,9 +31,9 @@ export function AdminPingCard() {
         ) : query.isError ? (
           <div className="flex flex-col gap-1">
             <p className="flex items-center gap-2 text-sm font-medium text-error">
-              <XCircle className="size-4" aria-hidden /> Backend: Lỗi
+              <XCircle className="size-4" aria-hidden /> Máy chủ: Lỗi
             </p>
-            {traceId && <p className="text-xs text-ink-muted">Mã lỗi: {traceId}</p>}
+            {traceId && <p className="text-xs text-ink-muted">Mã tra cứu lỗi: {traceId}</p>}
           </div>
         ) : (
           <p
@@ -45,11 +45,11 @@ export function AdminPingCard() {
           >
             {ok ? (
               <>
-                <CheckCircle2 className="size-4" aria-hidden /> Backend: Hoạt động
+                <CheckCircle2 className="size-4" aria-hidden /> Máy chủ: Hoạt động
               </>
             ) : (
               <>
-                <XCircle className="size-4" aria-hidden /> Backend: Phản hồi bất thường
+                <XCircle className="size-4" aria-hidden /> Máy chủ: Phản hồi bất thường
               </>
             )}
           </p>

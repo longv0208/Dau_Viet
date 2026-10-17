@@ -6,6 +6,7 @@ import { describe, expect, it, vi } from "vitest";
 
 import { server } from "@/test/msw/server";
 import { authStore } from "@/features/auth/auth-store";
+import { templatesFixture } from "@/test/fixtures";
 
 import { LessonWizard } from "./lesson-wizard";
 
@@ -62,7 +63,8 @@ describe("LessonWizard", () => {
     expect(posted).toMatchObject({
       title: "Bí mật Bạch Đằng",
       centralQuestion: "Vì sao Ngô Quyền thắng?",
-      draftJson: "{}",
+      // Draft is seeded from the template's presetJson, not an empty document.
+      draftJson: templatesFixture[0]!.presetJson,
     });
     expect(JSON.parse(posted!.objectivesJson as string)).toEqual(["Hiểu bối cảnh"]);
   });

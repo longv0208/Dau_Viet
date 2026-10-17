@@ -209,6 +209,8 @@ describe("preview activity renderers", () => {
       config: { center: [105, 20] },
     });
     expect(screen.getByText(/chưa có bản xem trước/i)).toBeInTheDocument();
-    expect(screen.getByText(/EXPLORE_MAP/)).toBeInTheDocument();
+    // Type renders via its Vietnamese label, not the raw code.
+    expect(screen.getByText(/Khám phá bản đồ/)).toBeInTheDocument();
+    expect(screen.queryByText(/EXPLORE_MAP/)).not.toBeInTheDocument();
   });
 });

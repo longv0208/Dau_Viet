@@ -35,18 +35,12 @@ export function AssetPreviewDialog({
           />
           <dl className="grid gap-1 text-xs text-ink-muted">
             <div>
-              <dt className="font-medium text-ink">ID</dt>
-              <dd className="break-all">{asset.id}</dd>
-            </div>
-            <div>
               <dt className="font-medium text-ink">Định dạng</dt>
-              <dd>
-                {asset.mimeType} · {formatAssetSize(asset.sizeBytes)}
-              </dd>
+              <dd>{formatAssetSize(asset.sizeBytes)}</dd>
             </div>
             {asset.altText && (
               <div>
-                <dt className="font-medium text-ink">Alt text</dt>
+                <dt className="font-medium text-ink">Mô tả ảnh</dt>
                 <dd>{asset.altText}</dd>
               </div>
             )}

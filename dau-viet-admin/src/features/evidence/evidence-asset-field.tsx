@@ -26,9 +26,8 @@ export function EvidenceAssetField({
           />
           <div className="min-w-0 flex-1">
             <p className="truncate text-sm font-medium text-ink">
-              {attached.originalFilename ?? attached.id}
+              {attached.originalFilename ?? "Ảnh đính kèm"}
             </p>
-            <p className="text-xs text-ink-muted">{attached.mimeType}</p>
             <div className="mt-2 flex gap-2">
               <Button type="button" variant="secondary" size="sm" onClick={onPick}>
                 Đổi ảnh

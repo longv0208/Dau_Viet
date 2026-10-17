@@ -149,7 +149,7 @@ export function ReasoningConnectEditor(props: EditorProps) {
           .filter((r) => !(RELATION_PRESETS as readonly string[]).includes(r))
           .map((r) => (
             <div key={r} className="flex items-center gap-2">
-              <Input value={r} disabled className="w-52" />
+              <Input value={RELATION_LABELS[r] ?? r} disabled className="w-52" />
               {!readOnly && (
                 <Button
                   variant="secondary"
@@ -183,7 +183,7 @@ function CustomRelationInput({ disabled, onAdd }: { disabled: boolean; onAdd: (r
   return (
     <div className="flex items-center gap-2">
       <Input
-        placeholder="Quan hệ khác (ví dụ: dan-den)…"
+        placeholder="Quan hệ khác (ví dụ: dẫn đến)…"
         className="w-52"
         disabled={disabled}
         onKeyDown={(e) => {

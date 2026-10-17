@@ -60,7 +60,10 @@ describe("PublishReadinessCard", () => {
     await waitFor(() => screen.getByText(/Lỗi chặn xuất bản \(1\)/));
 
     // Path stages[3] resolves to the 4th stage id in draftFixture.
-    const errItem = screen.getByText(/NO_REQUIRED_ACTIVITY/).closest("button");
+    // NO_REQUIRED_ACTIVITY renders as its CODE_MESSAGES Vietnamese text.
+    const errItem = screen
+      .getByText(/Cần ít nhất một hoạt động bắt buộc/)
+      .closest("button");
     expect(errItem).not.toBeNull();
     await userEvent.click(errItem!);
     expect(onJump).toHaveBeenCalledWith("stage-conclusion", null);
