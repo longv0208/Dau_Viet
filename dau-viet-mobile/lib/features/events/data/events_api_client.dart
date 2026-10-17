@@ -24,8 +24,7 @@ class EventsApiClient {
   /// `GET /api/v1/events/{id}` — [id] truyền thẳng; server tự trả
   /// `MALFORMED_ID`/`EVENT_NOT_FOUND` qua envelope lỗi chuẩn.
   Future<HistoricalEventDetailDto> getEventById(String id) async {
-    final Map<String, dynamic> json =
-        await _client.get('/api/v1/events/$id');
+    final Map<String, dynamic> json = await _client.get('/api/v1/events/$id');
     return HistoricalEventDetailDto.fromJson(json);
   }
 }

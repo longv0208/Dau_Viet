@@ -27,6 +27,7 @@ import com.dauviet.learning.api.dto.MyProgressResponse;
 import com.dauviet.learning.api.dto.SubmitActivityRequest;
 import com.dauviet.learning.api.dto.SubmitActivityResponse;
 import com.dauviet.learning.application.LearnerAttemptService;
+import com.dauviet.lesson.api.dto.LearnerLessonContent;
 import com.dauviet.learning.domain.LearnerAttemptStatus;
 
 import jakarta.validation.Valid;
@@ -67,11 +68,22 @@ public class LearnerAttemptController {
         return service.getAttempt(subjects.userId(jwt), attemptId);
     }
 
-    /** Learner-safe view of the current activity. */
+    /** Learner-safe view of the activity the cursor points at. */
     @GetMapping("/attempts/{attemptId}/current")
     public CurrentActivityResponse current(@PathVariable UUID attemptId,
                                            @AuthenticationPrincipal Jwt jwt) {
         return service.getCurrent(subjects.userId(jwt), attemptId);
+    }
+
+    /**
+     * Learner-safe content of the attempt's PINNED version (TASK-0018):
+     * resume-after-republish keeps evidence[]/assets[]/stage config of the
+     * version submissions are graded against; owner only.
+     */
+    @GetMapping("/attempts/{attemptId}/content")
+    public LearnerLessonContent content(@PathVariable UUID attemptId,
+                                        @AuthenticationPrincipal Jwt jwt) {
+        return service.getContent(subjects.userId(jwt), attemptId);
     }
 
     /** Evaluate one submission against the pinned snapshot. */

@@ -8,7 +8,8 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 /// và trình đọc giọng dẫn sử liệu (Historical Narration) của Dấu Việt.
 class DauVietAudioService extends ChangeNotifier {
   static DauVietAudioService? _instance;
-  static DauVietAudioService get instance => _instance ??= DauVietAudioService();
+  static DauVietAudioService get instance =>
+      _instance ??= DauVietAudioService();
 
   /// Phát hiện môi trường kiểm thử tự động headless để kích hoạt giả lập an toàn
   static bool get isTestEnvironment {
@@ -135,7 +136,10 @@ class DauVietAudioService extends ChangeNotifier {
 
   // --- HỆ THỐNG PHÁT SFX PHẢN HỒI TỨC THÌ ---
 
-  Future<void> _playSfx(String assetPath, {double volumeMultiplier = 1.0}) async {
+  Future<void> _playSfx(
+    String assetPath, {
+    double volumeMultiplier = 1.0,
+  }) async {
     if (!_isSoundEnabled) return;
     if (isTestEnvironment) return;
 

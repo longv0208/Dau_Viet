@@ -5,7 +5,7 @@ import '../theme/dau_viet_colors.dart';
 
 enum AtmosphereMode {
   goldEmbers, // Bụi vàng / Tàn đóm lửa bập bùng (Doanh trại, Thư phòng)
-  riverMist,  // Làn sương mờ trên mặt nước sông (Bến sông Bạch Đằng)
+  riverMist, // Làn sương mờ trên mặt nước sông (Bến sông Bạch Đằng)
 }
 
 /// Lớp nền động môi trường (Ambient Atmosphere Overlay)
@@ -28,7 +28,8 @@ class AmbientAtmosphereOverlay extends StatefulWidget {
   });
 
   @override
-  State<AmbientAtmosphereOverlay> createState() => _AmbientAtmosphereOverlayState();
+  State<AmbientAtmosphereOverlay> createState() =>
+      _AmbientAtmosphereOverlayState();
 }
 
 class _AmbientAtmosphereOverlayState extends State<AmbientAtmosphereOverlay>
@@ -66,7 +67,8 @@ class _AmbientAtmosphereOverlayState extends State<AmbientAtmosphereOverlay>
               child: Image.asset(
                 widget.backgroundImage!,
                 fit: BoxFit.cover,
-                errorBuilder: (context, error, stackTrace) => const SizedBox.shrink(),
+                errorBuilder: (context, error, stackTrace) =>
+                    const SizedBox.shrink(),
               ),
             ),
           ),
@@ -118,10 +120,7 @@ class _AtmospherePainter extends CustomPainter {
   final double progress;
   final AtmosphereMode mode;
 
-  _AtmospherePainter({
-    required this.progress,
-    required this.mode,
-  });
+  _AtmospherePainter({required this.progress, required this.mode});
 
   @override
   void paint(Canvas canvas, Size size) {
@@ -150,7 +149,9 @@ class _AtmospherePainter extends CustomPainter {
       final radius = 1.2 + (i % 3) * 0.8;
       final alpha = math.sin(phase * math.pi) * 0.35; // Mờ dần ở 2 đầu
 
-      paint.color = DauVietColors.imperialGold.withValues(alpha: alpha.clamp(0.0, 1.0));
+      paint.color = DauVietColors.imperialGold.withValues(
+        alpha: alpha.clamp(0.0, 1.0),
+      );
       canvas.drawCircle(Offset(x, y), radius, paint);
     }
   }
@@ -167,7 +168,9 @@ class _AtmospherePainter extends CustomPainter {
     path.lineTo(0, yBase);
 
     for (double x = 0; x <= size.width; x += 30) {
-      final wave = math.sin((x / size.width * 2 * math.pi) + (progress * 2 * math.pi)) * 14.0;
+      final wave =
+          math.sin((x / size.width * 2 * math.pi) + (progress * 2 * math.pi)) *
+          14.0;
       path.lineTo(x, yBase + wave);
     }
 

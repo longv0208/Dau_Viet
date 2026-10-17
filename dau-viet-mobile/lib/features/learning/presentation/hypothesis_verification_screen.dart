@@ -21,10 +21,12 @@ class HypothesisVerificationScreen extends StatefulWidget {
   const HypothesisVerificationScreen({super.key});
 
   @override
-  State<HypothesisVerificationScreen> createState() => _HypothesisVerificationScreenState();
+  State<HypothesisVerificationScreen> createState() =>
+      _HypothesisVerificationScreenState();
 }
 
-class _HypothesisVerificationScreenState extends State<HypothesisVerificationScreen> {
+class _HypothesisVerificationScreenState
+    extends State<HypothesisVerificationScreen> {
   String? _selectedOptionId;
   bool _isSubmitted = false;
   final Map<String, GlobalKey<ShakeAnimationWidgetState>> _shakeKeys = {};
@@ -33,19 +35,22 @@ class _HypothesisVerificationScreenState extends State<HypothesisVerificationScr
     {
       'id': 'opt_a',
       'label': 'A',
-      'text': 'Giả thuyết nghi vấn là SAI. Hiện vật cọc gỗ lim khảo cổ học thế kỷ X và thư tịch cổ của cả hai phía chứng minh kế cọc ngầm là sự thật lịch sử được khoa học xác thực.',
+      'text':
+          'Giả thuyết nghi vấn là SAI. Hiện vật cọc gỗ lim khảo cổ học thế kỷ X và thư tịch cổ của cả hai phía chứng minh kế cọc ngầm là sự thật lịch sử được khoa học xác thực.',
       'isCorrect': true,
     },
     {
       'id': 'opt_b',
       'label': 'B',
-      'text': 'Giả thuyết đúng. Trận cọc ngầm chỉ là sự thêu dệt trong truyền thuyết dân gian của cư dân chài lưới.',
+      'text':
+          'Giả thuyết đúng. Trận cọc ngầm chỉ là sự thêu dệt trong truyền thuyết dân gian của cư dân chài lưới.',
       'isCorrect': false,
     },
     {
       'id': 'opt_c',
       'label': 'C',
-      'text': 'Hiện nay vẫn chưa có đủ cứ liệu khảo cổ học để đưa ra bất kỳ kết luận xác đáng nào.',
+      'text':
+          'Hiện nay vẫn chưa có đủ cứ liệu khảo cổ học để đưa ra bất kỳ kết luận xác đáng nào.',
       'isCorrect': false,
     },
   ];
@@ -86,8 +91,8 @@ class _HypothesisVerificationScreenState extends State<HypothesisVerificationScr
     final mascotMessage = !_isSubmitted
         ? 'Hãy đối chiếu hiện vật cọc gỗ thực địa Yên Giang với thư tịch cổ để tìm câu trả lời chuẩn xác nhất!'
         : (_isCorrect
-            ? 'Chính xác! Niên đại C-14 thế kỷ X xác thực trận địa cọc ngầm Bạch Đằng là sự thật lịch sử vĩ đại!'
-            : 'Chưa chính xác! Di chỉ bãi cọc Yên Giang và Đồng Vạn Muối đã được giám định khoa học C-14.');
+              ? 'Chính xác! Niên đại C-14 thế kỷ X xác thực trận địa cọc ngầm Bạch Đằng là sự thật lịch sử vĩ đại!'
+              : 'Chưa chính xác! Di chỉ bãi cọc Yên Giang và Đồng Vạn Muối đã được giám định khoa học C-14.');
 
     return Scaffold(
       backgroundColor: DauVietColors.parchmentSurface,
@@ -105,7 +110,10 @@ class _HypothesisVerificationScreenState extends State<HypothesisVerificationScr
 
                 // 2. Thanh tiến độ lướt sáng hoàng kim Duolingo
                 Padding(
-                  padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 6),
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 16,
+                    vertical: 6,
+                  ),
                   child: ShimmerProgressBar(
                     progress: _isSubmitted && _isCorrect
                         ? 1.0
@@ -117,102 +125,111 @@ class _HypothesisVerificationScreenState extends State<HypothesisVerificationScr
                   ),
                 ),
 
-              // 2. Nội dung cuộn chính
-              Expanded(
-                child: SingleChildScrollView(
-                  padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.stretch,
-                    children: [
-                      // 2.1 Mascot Chibi Sĩ Tử Dấu Việt phản hồi
-                      InteractiveHistoricalMascotWidget(
-                        state: mascotState,
-                        message: mascotMessage,
-                      ),
-                      const SizedBox(height: 10),
-
-                      // 3. Khung Giả Thuyết Nghi Vấn
-                      _buildHypothesisBox(),
-                      const SizedBox(height: 14),
-
-                      // 4. Khung Dữ Liệu Đối Chiếu Thực Địa & Thư Tịch
-                      _buildEvidenceComparisonSection(),
-                      const SizedBox(height: 16),
-
-                      // 5. Câu Hỏi Phản Biện & Các Lựa Chọn
-                      Text(
-                        'KẾT LUẬN CỦA BẠN SAU KHI ĐỐI CHIẾU DỮ LIỆU:',
-                        style: DauVietTypography.labelSmall.copyWith(
-                          color: DauVietColors.inkMuted,
-                          fontWeight: FontWeight.w800,
-                          letterSpacing: 0.8,
+                // 2. Nội dung cuộn chính
+                Expanded(
+                  child: SingleChildScrollView(
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 16,
+                      vertical: 12,
+                    ),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.stretch,
+                      children: [
+                        // 2.1 Mascot Chibi Sĩ Tử Dấu Việt phản hồi
+                        InteractiveHistoricalMascotWidget(
+                          state: mascotState,
+                          message: mascotMessage,
                         ),
-                      ),
-                      const SizedBox(height: 10),
-                      ..._options.map((option) => _buildOptionTile(option)),
-                      const SizedBox(height: 14),
+                        const SizedBox(height: 10),
 
-                      // 6. Khung Phản Hồi Sư Phạm
-                      if (_isSubmitted) ...[
-                        _buildFeedbackCard(),
+                        // 3. Khung Giả Thuyết Nghi Vấn
+                        _buildHypothesisBox(),
+                        const SizedBox(height: 14),
+
+                        // 4. Khung Dữ Liệu Đối Chiếu Thực Địa & Thư Tịch
+                        _buildEvidenceComparisonSection(),
+                        const SizedBox(height: 16),
+
+                        // 5. Câu Hỏi Phản Biện & Các Lựa Chọn
+                        Text(
+                          'KẾT LUẬN CỦA BẠN SAU KHI ĐỐI CHIẾU DỮ LIỆU:',
+                          style: DauVietTypography.labelSmall.copyWith(
+                            color: DauVietColors.inkMuted,
+                            fontWeight: FontWeight.w800,
+                            letterSpacing: 0.8,
+                          ),
+                        ),
+                        const SizedBox(height: 10),
+                        ..._options.map((option) => _buildOptionTile(option)),
+                        const SizedBox(height: 14),
+
+                        // 6. Khung Phản Hồi Sư Phạm
+                        if (_isSubmitted) ...[
+                          _buildFeedbackCard(),
+                          const SizedBox(height: 16),
+                        ],
+
+                        // 7. Cặp Nút Hành Động
+                        if (!_isSubmitted)
+                          DongSonButton(
+                            label: 'KIỂM TRA KẾT LUẬN ĐỐI CHIẾU',
+                            icon: Icons.check_circle_outline_rounded,
+                            variant: _selectedOptionId != null
+                                ? DongSonButtonVariant.primaryCinnabar
+                                : DongSonButtonVariant.secondaryParchment,
+                            height: 52,
+                            onPressed: _selectedOptionId != null
+                                ? _submitAnswer
+                                : null,
+                          )
+                        else
+                          DongSonButton(
+                            label: _isCorrect
+                                ? 'TIẾP TỤC SANG LẬP LUẬN CER (M-14) ›'
+                                : 'CHỌN LẠI KẾT LUẬN',
+                            icon: _isCorrect
+                                ? Icons.arrow_forward_rounded
+                                : Icons.replay_rounded,
+                            variant: DongSonButtonVariant.primaryCinnabar,
+                            height: 52,
+                            onPressed: () {
+                              if (_isCorrect) {
+                                BiteSizedCompletionModal.show(
+                                  context: context,
+                                  title: 'ĐỐI CHIẾU SỬ LIỆU THÀNH CÔNG!',
+                                  subtitle:
+                                      'Bạn đã xuất sắc phân biệt giữa hư cấu văn học và chứng cứ khảo cổ học thực địa!',
+                                  scorePoints: 180,
+                                  xpPoints: 90,
+                                  accuracy: 1.0,
+                                  streakCount: 6,
+                                  multiplier: 2.0,
+                                  badgeAsset:
+                                      'assets/badges/badge_trace_4_archaeology.png',
+                                  onContinue: () {
+                                    context.go('/learning/cer');
+                                  },
+                                );
+                              } else {
+                                setState(() {
+                                  _isSubmitted = false;
+                                  _selectedOptionId = null;
+                                });
+                              }
+                            },
+                          ),
                         const SizedBox(height: 16),
                       ],
-
-                      // 7. Cặp Nút Hành Động
-                      if (!_isSubmitted)
-                        DongSonButton(
-                          label: 'KIỂM TRA KẾT LUẬN ĐỐI CHIẾU',
-                          icon: Icons.check_circle_outline_rounded,
-                          variant: _selectedOptionId != null
-                              ? DongSonButtonVariant.primaryCinnabar
-                              : DongSonButtonVariant.secondaryParchment,
-                          height: 52,
-                          onPressed: _selectedOptionId != null ? _submitAnswer : null,
-                        )
-                      else
-                        DongSonButton(
-                          label: _isCorrect
-                              ? 'TIẾP TỤC SANG LẬP LUẬN CER (M-14) ›'
-                              : 'CHỌN LẠI KẾT LUẬN',
-                          icon: _isCorrect ? Icons.arrow_forward_rounded : Icons.replay_rounded,
-                          variant: DongSonButtonVariant.primaryCinnabar,
-                          height: 52,
-                          onPressed: () {
-                            if (_isCorrect) {
-                              BiteSizedCompletionModal.show(
-                                context: context,
-                                title: 'ĐỐI CHIẾU SỬ LIỆU THÀNH CÔNG!',
-                                subtitle: 'Bạn đã xuất sắc phân biệt giữa hư cấu văn học và chứng cứ khảo cổ học thực địa!',
-                                scorePoints: 180,
-                                xpPoints: 90,
-                                accuracy: 1.0,
-                                streakCount: 6,
-                                multiplier: 2.0,
-                                badgeAsset: 'assets/badges/badge_trace_4_archaeology.png',
-                                onContinue: () {
-                                  context.go('/learning/cer');
-                                },
-                              );
-                            } else {
-                              setState(() {
-                                _isSubmitted = false;
-                                _selectedOptionId = null;
-                              });
-                            }
-                          },
-                        ),
-                      const SizedBox(height: 16),
-                    ],
+                    ),
                   ),
                 ),
-              ),
-            ],
+              ],
+            ),
           ),
         ),
       ),
-    ),
-  );
-}
+    );
+  }
 
   // Header đỉnh trang
   Widget _buildTopBar(BuildContext context) {
@@ -248,7 +265,10 @@ class _HypothesisVerificationScreenState extends State<HypothesisVerificationScr
                 Row(
                   children: [
                     Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 6,
+                        vertical: 2,
+                      ),
                       decoration: BoxDecoration(
                         color: DauVietColors.cinnabarRed,
                         borderRadius: BorderRadius.circular(4),
@@ -288,10 +308,7 @@ class _HypothesisVerificationScreenState extends State<HypothesisVerificationScr
           ),
           const SoundToggleButton(),
           const SizedBox(width: 8),
-          const ComboStreakBadgeWidget(
-            streakCount: 6,
-            multiplier: 2.0,
-          ),
+          const ComboStreakBadgeWidget(streakCount: 6, multiplier: 2.0),
         ],
       ),
     );
@@ -304,14 +321,21 @@ class _HypothesisVerificationScreenState extends State<HypothesisVerificationScr
       decoration: BoxDecoration(
         color: const Color(0xFFFBF2E8),
         borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: DauVietColors.cinnabarRed.withValues(alpha: 0.6), width: 1.5),
+        border: Border.all(
+          color: DauVietColors.cinnabarRed.withValues(alpha: 0.6),
+          width: 1.5,
+        ),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Row(
             children: [
-              const Icon(Icons.help_outline_rounded, color: DauVietColors.cinnabarRed, size: 20),
+              const Icon(
+                Icons.help_outline_rounded,
+                color: DauVietColors.cinnabarRed,
+                size: 20,
+              ),
               const SizedBox(width: 8),
               Expanded(
                 child: Text(
@@ -364,7 +388,11 @@ class _HypothesisVerificationScreenState extends State<HypothesisVerificationScr
           child: Row(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              const Icon(Icons.museum_rounded, color: DauVietColors.natureGreen, size: 22),
+              const Icon(
+                Icons.museum_rounded,
+                color: DauVietColors.natureGreen,
+                size: 22,
+              ),
               const SizedBox(width: 10),
               Expanded(
                 child: Column(
@@ -380,7 +408,10 @@ class _HypothesisVerificationScreenState extends State<HypothesisVerificationScr
                     const SizedBox(height: 3),
                     Text(
                       'Phát hiện hàng trăm cọc gỗ lim đường kính 20-30cm, cắm nghiêng 15-45 độ xuôi dòng triều. Định tuổi Carbon phóng xạ C-14: Thế kỷ X SCN (trùng khớp năm 938).',
-                      style: DauVietTypography.bodySmall.copyWith(fontSize: 11, height: 1.35),
+                      style: DauVietTypography.bodySmall.copyWith(
+                        fontSize: 11,
+                        height: 1.35,
+                      ),
                     ),
                   ],
                 ),
@@ -399,7 +430,11 @@ class _HypothesisVerificationScreenState extends State<HypothesisVerificationScr
           child: Row(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              const Icon(Icons.auto_stories_rounded, color: DauVietColors.riverBlue, size: 22),
+              const Icon(
+                Icons.auto_stories_rounded,
+                color: DauVietColors.riverBlue,
+                size: 22,
+              ),
               const SizedBox(width: 10),
               Expanded(
                 child: Column(
@@ -415,7 +450,10 @@ class _HypothesisVerificationScreenState extends State<HypothesisVerificationScr
                     const SizedBox(height: 3),
                     Text(
                       'Đại Việt Sử Ký Toàn Thư (nước ta) và Tân Đường Thư, Tống Sử (phương Bắc) đều ghi nhận Hoằng Tháo đền tội và toàn bộ chiến thuyền bị tiêu diệt tại cửa sông Bạch Đằng.',
-                      style: DauVietTypography.bodySmall.copyWith(fontSize: 11, height: 1.35),
+                      style: DauVietTypography.bodySmall.copyWith(
+                        fontSize: 11,
+                        height: 1.35,
+                      ),
                     ),
                   ],
                 ),
@@ -489,7 +527,11 @@ class _HypothesisVerificationScreenState extends State<HypothesisVerificationScr
                 alignment: Alignment.center,
                 child: Text(
                   label,
-                  style: TextStyle(color: labelFg, fontWeight: FontWeight.w800, fontSize: 12),
+                  style: TextStyle(
+                    color: labelFg,
+                    fontWeight: FontWeight.w800,
+                    fontSize: 12,
+                  ),
                 ),
               ),
               const SizedBox(width: 10),
@@ -505,7 +547,13 @@ class _HypothesisVerificationScreenState extends State<HypothesisVerificationScr
               ),
               if (statusIcon != null) ...[
                 const SizedBox(width: 6),
-                Icon(statusIcon, size: 22, color: isOptionCorrect ? DauVietColors.natureGreen : DauVietColors.cinnabarRed),
+                Icon(
+                  statusIcon,
+                  size: 22,
+                  color: isOptionCorrect
+                      ? DauVietColors.natureGreen
+                      : DauVietColors.cinnabarRed,
+                ),
               ],
             ],
           ),
@@ -522,7 +570,9 @@ class _HypothesisVerificationScreenState extends State<HypothesisVerificationScr
         color: _isCorrect ? const Color(0xFFEAF5EE) : const Color(0xFFFDEEEC),
         borderRadius: BorderRadius.circular(12),
         border: Border.all(
-          color: _isCorrect ? DauVietColors.natureGreen : DauVietColors.cinnabarRed,
+          color: _isCorrect
+              ? DauVietColors.natureGreen
+              : DauVietColors.cinnabarRed,
           width: 1.5,
         ),
       ),
@@ -533,16 +583,22 @@ class _HypothesisVerificationScreenState extends State<HypothesisVerificationScr
             children: [
               Icon(
                 _isCorrect ? Icons.stars_rounded : Icons.info_outline_rounded,
-                color: _isCorrect ? DauVietColors.natureGreen : DauVietColors.cinnabarRed,
+                color: _isCorrect
+                    ? DauVietColors.natureGreen
+                    : DauVietColors.cinnabarRed,
                 size: 22,
               ),
               const SizedBox(width: 8),
               Expanded(
                 child: Text(
-                  _isCorrect ? 'CHÍNH XÁC! TƯ DUY PHẢN BIỆN KHOA HỌC' : 'CHƯA CHÍNH XÁC',
+                  _isCorrect
+                      ? 'CHÍNH XÁC! TƯ DUY PHẢN BIỆN KHOA HỌC'
+                      : 'CHƯA CHÍNH XÁC',
                   style: DauVietTypography.labelMedium.copyWith(
                     fontWeight: FontWeight.w800,
-                    color: _isCorrect ? DauVietColors.natureGreen : DauVietColors.cinnabarRed,
+                    color: _isCorrect
+                        ? DauVietColors.natureGreen
+                        : DauVietColors.cinnabarRed,
                   ),
                 ),
               ),

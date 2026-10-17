@@ -4,16 +4,16 @@ import 'package:flutter_test/flutter_test.dart';
 void main() {
   group('HistoricalEventSummaryDto', () {
     Map<String, dynamic> validJson() => {
-          'id': '00000000-0000-0000-0000-000000000001',
-          'slug': 'bach-dang-938',
-          'title': 'Đại Chiến Bạch Đằng 938',
-          'era': 'Thời Ngô - Đinh - Tiền Lê (938 - 1009)',
-          'period': 'Mùa Đông 938 SCN',
-          'startYear': 938,
-          'summary': 'Trận thủy chiến kinh điển...',
-          'coverAssetKey': 'events/bach-dang-938/hero.jpg',
-          'tags': ['ngo-quyen', 'thuy-chien', 'bac-thuoc'],
-        };
+      'id': '00000000-0000-0000-0000-000000000001',
+      'slug': 'bach-dang-938',
+      'title': 'Đại Chiến Bạch Đằng 938',
+      'era': 'Thời Ngô - Đinh - Tiền Lê (938 - 1009)',
+      'period': 'Mùa Đông 938 SCN',
+      'startYear': 938,
+      'summary': 'Trận thủy chiến kinh điển...',
+      'coverAssetKey': 'events/bach-dang-938/hero.jpg',
+      'tags': ['ngo-quyen', 'thuy-chien', 'bac-thuoc'],
+    };
 
     test('parse đầy đủ field chuẩn contract §1', () {
       final dto = HistoricalEventSummaryDto.fromJson(validJson());
@@ -74,7 +74,7 @@ void main() {
             'period': 'p',
             'startYear': 100,
             'summary': 'x',
-          }
+          },
         ],
         'page': 0,
         'size': 20,

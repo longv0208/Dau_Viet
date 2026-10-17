@@ -16,9 +16,7 @@ final assetResolverProvider = Provider<AssetResolver>(
 );
 
 /// HTTP client chung cho các API client feature.
-final apiClientProvider = Provider<ApiClient>(
-  (ref) => ApiClient.fromConfig(),
-);
+final apiClientProvider = Provider<ApiClient>((ref) => ApiClient.fromConfig());
 
 /// Client REST `/api/v1/events`.
 final eventsApiClientProvider = Provider<EventsApiClient>(
@@ -38,16 +36,24 @@ final eventsRepositoryProvider = Provider<EventsRepository>((ref) {
   );
 });
 
+/// Không auto-retry: lỗi hiển thị để người dùng quyết định bấm "THỬ LẠI"
+/// (Riverpod 3 mặc định retry 10 lần exponential backoff → vòng lặp ngầm).
+Duration? _noRetry(int retryCount, Object error) => null;
+
 /// Danh sách mốc sự kiện cho Trục Thời Gian.
 /// `keepAlive` giữ state khi điều hướng — không gọi lại API vô cớ (AC-3).
-final eventsListProvider = FutureProvider<EventsPageResult>((ref) async {
+final eventsListProvider = FutureProvider<EventsPageResult>(retry: _noRetry, (
+  ref,
+) async {
   ref.keepAlive();
   return ref.watch(eventsRepositoryProvider).getEvents();
 });
 
 /// Chi tiết một sự kiện theo id (UUID backend trong chế độ thật).
-final eventDetailProvider =
-    FutureProvider.family<HistoricalEventModel, String>((ref, eventId) async {
-  ref.keepAlive();
-  return ref.watch(eventsRepositoryProvider).getEventById(eventId);
-});
+final eventDetailProvider = FutureProvider.family<HistoricalEventModel, String>(
+  retry: _noRetry,
+  (ref, eventId) async {
+    ref.keepAlive();
+    return ref.watch(eventsRepositoryProvider).getEventById(eventId);
+  },
+);

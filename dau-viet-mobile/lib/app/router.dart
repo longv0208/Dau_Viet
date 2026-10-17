@@ -1,13 +1,20 @@
 import 'package:go_router/go_router.dart';
+import '../core/api/api_config.dart';
+import '../features/auth/data/auth_state.dart';
 import '../features/auth/presentation/auth_screen.dart';
 import '../features/auth/presentation/splash_screen.dart';
 import '../features/campaign/presentation/campaign_detail_screen.dart';
 import '../features/dashboard/presentation/learner_dashboard_screen.dart';
 import '../features/demo/presentation/theme_showcase_screen.dart';
+import '../features/learning/data/attempt_dtos.dart';
+import '../features/learning/data/learning_providers.dart';
 import '../features/learning/presentation/chronological_order_screen.dart';
 import '../features/learning/presentation/context_reader_screen.dart';
 import '../features/learning/presentation/cer_conclusion_screen.dart';
 import '../features/learning/presentation/hypothesis_verification_screen.dart';
+import '../features/learning/presentation/lesson_entry_screen.dart';
+import '../features/learning/presentation/lesson_player_screen.dart';
+import '../features/learning/presentation/lesson_result_screen.dart';
 import '../features/learning/presentation/matching_board_screen.dart';
 import '../features/learning/presentation/multiple_choice_quiz_screen.dart';
 import '../features/meta/presentation/energy_management_screen.dart';
@@ -20,9 +27,41 @@ import '../features/saban/presentation/battle_saban_screen.dart';
 import '../features/timeline/presentation/timeline_screen.dart';
 import '../features/traces/presentation/traces_hub_screen.dart';
 
+/// Đường đi học thật — real mode yêu cầu đăng nhập (guard chuyển về /auth).
+const _learningPrefixes = [
+  '/learning/lesson/',
+  '/learning/attempt/',
+  '/learning/result/',
+];
+
 /// Bộ định tuyến toàn cục của Dấu Việt Mobile (go_router)
 final appRouter = GoRouter(
   initialLocation: '/',
+  redirect: (context, state) {
+    // Đọc auth state qua container toàn cục (router tạo trước ProviderScope).
+    final container = appContainer;
+    if (container == null) return null;
+    final auth = container.read(authSessionProvider);
+    final loc = state.matchedLocation;
+
+    // Mock mode: guest hợp lệ → không chặn gì.
+    if (ApiConfig.useMock) return null;
+
+    // Đang restore phiên (splash) → giữ nguyên; splash tự điều hướng.
+    if (auth.status == AuthStatus.unknown) return null;
+
+    // Đã login mà vào /auth → về dashboard.
+    if (auth.status == AuthStatus.authenticated && loc == '/auth') {
+      return '/dashboard';
+    }
+
+    // Chưa login mà vào đường học thật → bắt đăng nhập.
+    final bool needsAuth = _learningPrefixes.any((p) => loc.startsWith(p));
+    if (needsAuth && auth.status != AuthStatus.authenticated) {
+      return '/auth';
+    }
+    return null;
+  },
   routes: [
     // M-01: Splash Screen Thương hiệu
     GoRoute(
@@ -121,12 +160,37 @@ final appRouter = GoRouter(
       builder: (context, state) => const MultipleChoiceQuizScreen(),
     ),
 
+    // Learning journey thật (backend-connected)
+    GoRoute(
+      path: '/learning/lesson/:lessonId',
+      name: 'lesson_entry',
+      builder: (context, state) =>
+          LessonEntryScreen(lessonId: state.pathParameters['lessonId']!),
+    ),
+    GoRoute(
+      path: '/learning/attempt/:attemptId',
+      name: 'lesson_player',
+      builder: (context, state) =>
+          LessonPlayerScreen(attemptId: state.pathParameters['attemptId']!),
+    ),
+    GoRoute(
+      path: '/learning/result/:attemptId',
+      name: 'lesson_result',
+      builder: (context, state) => LessonResultScreen(
+        attemptId: state.pathParameters['attemptId']!,
+        initialResult: state.extra is LessonResultDto
+            ? state.extra as LessonResultDto
+            : null,
+      ),
+    ),
+
     // M-18: Khải Hoàn Chiến Dịch & Tổng Kết Điểm (Event Victory)
     GoRoute(
       path: '/rewards/victory',
       name: 'event_victory',
       builder: (context, state) {
-        final eventId = state.uri.queryParameters['eventId'] ?? 'evt_bach_dang_938';
+        final eventId =
+            state.uri.queryParameters['eventId'] ?? 'evt_bach_dang_938';
         return EventVictoryScreen(eventId: eventId);
       },
     ),
@@ -143,7 +207,8 @@ final appRouter = GoRouter(
       path: '/rewards/artifact/:artifactId',
       name: 'artifact_detail',
       builder: (context, state) {
-        final artifactId = state.pathParameters['artifactId'] ?? 'art_thuyen_chien_938';
+        final artifactId =
+            state.pathParameters['artifactId'] ?? 'art_thuyen_chien_938';
         return WarshipArtifactDetailScreen(artifactId: artifactId);
       },
     ),

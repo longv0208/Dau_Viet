@@ -11,10 +11,7 @@ import '../../../core/widgets/parchment_card.dart';
 class TracesHubScreen extends StatelessWidget {
   final String eventId;
 
-  const TracesHubScreen({
-    super.key,
-    required this.eventId,
-  });
+  const TracesHubScreen({super.key, required this.eventId});
 
   @override
   Widget build(BuildContext context) {
@@ -25,10 +22,7 @@ class TracesHubScreen extends StatelessWidget {
           gradient: LinearGradient(
             begin: Alignment.topCenter,
             end: Alignment.bottomCenter,
-            colors: [
-              DauVietColors.parchmentSurface,
-              Color(0xFFFAF2E4),
-            ],
+            colors: [DauVietColors.parchmentSurface, Color(0xFFFAF2E4)],
           ),
         ),
         child: SafeArea(
@@ -40,7 +34,10 @@ class TracesHubScreen extends StatelessWidget {
               // 2. Nội dung cuộn chính
               Expanded(
                 child: SingleChildScrollView(
-                  padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 14),
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 18,
+                    vertical: 14,
+                  ),
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.stretch,
                     children: [
@@ -79,7 +76,8 @@ class TracesHubScreen extends StatelessWidget {
                         context: context,
                         number: '1',
                         title: 'Dấu Vết 1: Bối Cảnh & Quân Mưu',
-                        subtitle: 'Thư tịch cổ: Vì sao đóng cọc trước khi giặc đến?',
+                        subtitle:
+                            'Thư tịch cổ: Vì sao đóng cọc trước khi giặc đến?',
                         statusLabel: 'SẴN SÀNG KHÁM PHÁ',
                         statusColor: DauVietColors.natureGreen,
                         icon: Icons.auto_stories_rounded,
@@ -95,7 +93,8 @@ class TracesHubScreen extends StatelessWidget {
                         context: context,
                         number: '2',
                         title: 'Dấu Vết 2: Nhân Vật & Bố Phòng',
-                        subtitle: 'Ghép dữ kiện: Tiền Ngô Vương & Bãi cọc Yên Giang',
+                        subtitle:
+                            'Ghép dữ kiện: Tiền Ngô Vương & Bãi cọc Yên Giang',
                         statusLabel: 'SẴN SÀNG GHÉP NỐI',
                         statusColor: DauVietColors.imperialGold,
                         icon: Icons.shield_rounded,
@@ -111,7 +110,8 @@ class TracesHubScreen extends StatelessWidget {
                         context: context,
                         number: '3',
                         title: 'Dấu Vết 3: Sa Bàn Tác Chiến',
-                        subtitle: 'Sắp xếp niên đại: Nhịp con nước triều & Phản công',
+                        subtitle:
+                            'Sắp xếp niên đại: Nhịp con nước triều & Phản công',
                         statusLabel: 'SẴN SÀNG KÉO THẢ',
                         statusColor: DauVietColors.riverBlue,
                         icon: Icons.military_tech_rounded,
@@ -127,7 +127,8 @@ class TracesHubScreen extends StatelessWidget {
                         context: context,
                         number: '4',
                         title: 'Dấu Vết 4: Khảo Cổ & Di Sản',
-                        subtitle: 'Kiểm chứng giả thuyết (M-13) & Lập luận CER (M-14)',
+                        subtitle:
+                            'Kiểm chứng giả thuyết (M-13) & Lập luận CER (M-14)',
                         statusLabel: 'SẴN SÀNG KHÁM PHÁ',
                         statusColor: DauVietColors.natureGreen,
                         icon: Icons.museum_rounded,
@@ -245,7 +246,10 @@ class TracesHubScreen extends StatelessWidget {
                 child: Align(
                   alignment: Alignment.centerLeft,
                   child: Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 8,
+                      vertical: 3,
+                    ),
                     decoration: BoxDecoration(
                       color: DauVietColors.cinnabarRed,
                       borderRadius: BorderRadius.circular(4),
@@ -286,7 +290,9 @@ class TracesHubScreen extends StatelessWidget {
               value: 0.25,
               minHeight: 8,
               backgroundColor: DauVietColors.parchmentHigh,
-              valueColor: const AlwaysStoppedAnimation<Color>(DauVietColors.cinnabarRed),
+              valueColor: const AlwaysStoppedAnimation<Color>(
+                DauVietColors.cinnabarRed,
+              ),
             ),
           ),
         ],
@@ -313,13 +319,13 @@ class TracesHubScreen extends StatelessWidget {
         backgroundColor: isCurrent
             ? DauVietColors.parchmentContainer
             : isUnlocked
-                ? Colors.white.withValues(alpha: 0.85)
-                : const Color(0xFFF0EAE1),
+            ? Colors.white.withValues(alpha: 0.85)
+            : const Color(0xFFF0EAE1),
         borderColor: isCurrent
             ? DauVietColors.imperialGold
             : isUnlocked
-                ? DauVietColors.outlineVariant
-                : Colors.black12,
+            ? DauVietColors.outlineVariant
+            : Colors.black12,
         borderWidth: isCurrent ? 2.0 : 1.0,
         padding: const EdgeInsets.all(14),
         child: Row(
@@ -334,8 +340,8 @@ class TracesHubScreen extends StatelessWidget {
                 color: isCurrent
                     ? DauVietColors.cinnabarRed
                     : isUnlocked
-                        ? DauVietColors.imperialGold
-                        : DauVietColors.inkMuted.withValues(alpha: 0.5),
+                    ? DauVietColors.imperialGold
+                    : DauVietColors.inkMuted.withValues(alpha: 0.5),
                 border: Border.all(
                   color: isCurrent ? DauVietColors.imperialGold : Colors.white,
                   width: 2,
@@ -369,11 +375,17 @@ class TracesHubScreen extends StatelessWidget {
                   Row(
                     children: [
                       Container(
-                        padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 6,
+                          vertical: 2,
+                        ),
                         decoration: BoxDecoration(
                           color: statusColor.withValues(alpha: 0.15),
                           borderRadius: BorderRadius.circular(4),
-                          border: Border.all(color: statusColor.withValues(alpha: 0.4), width: 0.8),
+                          border: Border.all(
+                            color: statusColor.withValues(alpha: 0.4),
+                            width: 0.8,
+                          ),
                         ),
                         child: Text(
                           statusLabel,
@@ -386,7 +398,11 @@ class TracesHubScreen extends StatelessWidget {
                       ),
                       const Spacer(),
                       if (!isUnlocked)
-                        const Icon(Icons.lock_outline_rounded, size: 16, color: DauVietColors.inkMuted),
+                        const Icon(
+                          Icons.lock_outline_rounded,
+                          size: 16,
+                          color: DauVietColors.inkMuted,
+                        ),
                     ],
                   ),
                   const SizedBox(height: 6),
@@ -395,7 +411,9 @@ class TracesHubScreen extends StatelessWidget {
                     style: DauVietTypography.labelMedium.copyWith(
                       fontWeight: FontWeight.w700,
                       fontSize: 14,
-                      color: isCurrent ? DauVietColors.cinnabarRed : DauVietColors.inkText,
+                      color: isCurrent
+                          ? DauVietColors.cinnabarRed
+                          : DauVietColors.inkText,
                     ),
                   ),
                   const SizedBox(height: 2),
@@ -416,7 +434,9 @@ class TracesHubScreen extends StatelessWidget {
             Icon(
               icon,
               size: 24,
-              color: isCurrent ? DauVietColors.cinnabarRed : DauVietColors.inkMuted,
+              color: isCurrent
+                  ? DauVietColors.cinnabarRed
+                  : DauVietColors.inkMuted,
             ),
           ],
         ),

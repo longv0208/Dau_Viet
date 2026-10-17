@@ -103,9 +103,9 @@ class EventsPageDto {
     final Object? rawContent = json['content'];
     final List<HistoricalEventSummaryDto> content = rawContent is List
         ? rawContent
-            .cast<Map<String, dynamic>>()
-            .map(HistoricalEventSummaryDto.fromJson)
-            .toList()
+              .cast<Map<String, dynamic>>()
+              .map(HistoricalEventSummaryDto.fromJson)
+              .toList()
         : const [];
     return EventsPageDto(
       content: content,

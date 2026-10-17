@@ -56,7 +56,8 @@ class AsyncStateView extends StatelessWidget {
       key: key,
       icon: Icons.auto_stories_outlined,
       title: 'Chưa có sự kiện nào',
-      message: message ?? 'Hồ sơ sử liệu đang được biên soạn, quay lại sau nhé.',
+      message:
+          message ?? 'Hồ sơ sử liệu đang được biên soạn, quay lại sau nhé.',
     );
   }
 

@@ -37,7 +37,8 @@ class HeritageScaffold extends StatelessWidget {
   Widget build(BuildContext context) {
     return Scaffold(
       backgroundColor: DauVietColors.parchmentSurface,
-      appBar: (title != null || titleWidget != null || showBack || showEnergyPill)
+      appBar:
+          (title != null || titleWidget != null || showBack || showEnergyPill)
           ? AppBar(
               backgroundColor: DauVietColors.parchmentSurface,
               elevation: 0,
@@ -46,14 +47,18 @@ class HeritageScaffold extends StatelessWidget {
                   ? IconButton(
                       icon: const Icon(Icons.arrow_back_ios_new_rounded),
                       color: DauVietColors.inkText,
-                      onPressed: onBack ?? () => Navigator.of(context).maybePop(),
+                      onPressed:
+                          onBack ?? () => Navigator.of(context).maybePop(),
                     )
                   : null,
-              title: titleWidget ??
+              title:
+                  titleWidget ??
                   (title != null
                       ? Text(
                           title!,
-                          style: DauVietTypography.headlineMedium.copyWith(fontSize: 18),
+                          style: DauVietTypography.headlineMedium.copyWith(
+                            fontSize: 18,
+                          ),
                         )
                       : null),
               actions: [
@@ -85,10 +90,7 @@ class HeritageScaffold extends StatelessWidget {
           gradient: LinearGradient(
             begin: Alignment.topCenter,
             end: Alignment.bottomCenter,
-            colors: [
-              DauVietColors.parchmentSurface,
-              Color(0xFFFAF2E4),
-            ],
+            colors: [DauVietColors.parchmentSurface, Color(0xFFFAF2E4)],
           ),
         ),
         child: SafeArea(

@@ -95,10 +95,7 @@ class _Tactile3DCardState extends State<Tactile3DCard> {
         if (_isPressed) setState(() => _isPressed = false);
       },
       child: Container(
-        decoration: BoxDecoration(
-          color: bottomBg,
-          borderRadius: radius,
-        ),
+        decoration: BoxDecoration(color: bottomBg, borderRadius: radius),
         padding: EdgeInsets.only(bottom: bottomOffset),
         child: AnimatedContainer(
           duration: const Duration(milliseconds: 60),

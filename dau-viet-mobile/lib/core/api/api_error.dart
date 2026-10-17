@@ -1,9 +1,11 @@
 /// Mô hình lỗi chuẩn từ Backend Dấu Việt.
 /// Khớp envelope `{code, message, details, traceId}` trong docs/API_SPEC.md.
+/// `details` là object tự do (vd `details.errors[]`, `details.missing`) nên
+/// giữ nguyên dạng dynamic thay vì ép String.
 class ApiError {
   final String code;
   final String message;
-  final String? details;
+  final Object? details;
   final String? traceId;
 
   const ApiError({
@@ -19,14 +21,15 @@ class ApiError {
     final Object? code = json['code'];
     final Object? message = json['message'];
     if (code is! String || message is! String) {
-      throw const FormatException('Invalid ApiError envelope: missing code/message');
+      throw const FormatException(
+        'Invalid ApiError envelope: missing code/message',
+      );
     }
-    final Object? details = json['details'];
     final Object? traceId = json['traceId'];
     return ApiError(
       code: code,
       message: message,
-      details: details is String ? details : null,
+      details: json['details'],
       traceId: traceId is String ? traceId : null,
     );
   }

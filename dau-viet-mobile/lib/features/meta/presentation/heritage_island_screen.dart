@@ -27,7 +27,8 @@ class _HeritageIslandScreenState extends State<HeritageIslandScreen> {
       'assetImage': 'assets/items/decor_nha_tranh.png',
       'color': DauVietColors.cinnabarRed,
       'status': 'Đã hoàn thành',
-      'desc': 'Kiến trúc gỗ lim truyền thống thời Ngô, nơi phụng thờ anh linh các bậc tiền nhân.',
+      'desc':
+          'Kiến trúc gỗ lim truyền thống thời Ngô, nơi phụng thờ anh linh các bậc tiền nhân.',
     },
     {
       'id': 2,
@@ -37,7 +38,8 @@ class _HeritageIslandScreenState extends State<HeritageIslandScreen> {
       'assetImage': 'assets/items/decor_cau_kieu.png',
       'color': DauVietColors.riverBlue,
       'status': 'Chiến thuyền đã neo đậu',
-      'desc': 'Nơi neo đậu Mô hình Chiến Thuyền Độc Mộc Thế Kỷ X vừa mở khóa từ chiến dịch.',
+      'desc':
+          'Nơi neo đậu Mô hình Chiến Thuyền Độc Mộc Thế Kỷ X vừa mở khóa từ chiến dịch.',
     },
     {
       'id': 3,
@@ -47,7 +49,8 @@ class _HeritageIslandScreenState extends State<HeritageIslandScreen> {
       'assetImage': 'assets/items/decor_ho_sen.png',
       'color': DauVietColors.natureGreen,
       'status': 'Sẵn sàng đặt',
-      'desc': 'Ô đất cảnh quan, dùng Điểm Sử Ký trong Túi Đồ để đặt công trình kiến trúc cổ.',
+      'desc':
+          'Ô đất cảnh quan, dùng Điểm Sử Ký trong Túi Đồ để đặt công trình kiến trúc cổ.',
     },
     {
       'id': 4,
@@ -57,13 +60,16 @@ class _HeritageIslandScreenState extends State<HeritageIslandScreen> {
       'assetImage': 'assets/items/decor_cay_da.png',
       'color': DauVietColors.imperialGold,
       'status': 'Mở khóa ở Đảo Cấp 2',
-      'desc': 'Cây đa cổ thụ che bóng mát cho di sản đảo, kết nối cội nguồn dòng dõi Tiên Rồng.',
+      'desc':
+          'Cây đa cổ thụ che bóng mát cho di sản đảo, kết nối cội nguồn dòng dõi Tiên Rồng.',
     },
   ];
 
   @override
   Widget build(BuildContext context) {
-    final selectedSlotData = _islandSlots.firstWhere((s) => s['id'] == _selectedSlot);
+    final selectedSlotData = _islandSlots.firstWhere(
+      (s) => s['id'] == _selectedSlot,
+    );
 
     return Scaffold(
       backgroundColor: DauVietColors.parchmentSurface,
@@ -89,7 +95,10 @@ class _HeritageIslandScreenState extends State<HeritageIslandScreen> {
               Expanded(
                 child: SingleChildScrollView(
                   physics: const BouncingScrollPhysics(),
-                  padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 16,
+                    vertical: 12,
+                  ),
                   child: Column(
                     children: [
                       // 3. Khung Mô Phỏng Bản Đồ Đảo Di Sản 2.5D
@@ -188,7 +197,10 @@ class _HeritageIslandScreenState extends State<HeritageIslandScreen> {
                 Row(
                   children: [
                     Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 6,
+                        vertical: 2,
+                      ),
                       decoration: BoxDecoration(
                         color: DauVietColors.cinnabarRed,
                         borderRadius: BorderRadius.circular(4),
@@ -257,9 +269,8 @@ class _HeritageIslandScreenState extends State<HeritageIslandScreen> {
               child: Image.asset(
                 'assets/images/dv_ISL_generic_island-base-tiers_v01.jpg',
                 fit: BoxFit.cover,
-                errorBuilder: (context, error, stackTrace) => Container(
-                  color: const Color(0xFFE2D6B5),
-                ),
+                errorBuilder: (context, error, stackTrace) =>
+                    Container(color: const Color(0xFFE2D6B5)),
               ),
             ),
             // Lớp phủ tinh tế bảo đảm tương phản các điểm chạm
@@ -334,11 +345,16 @@ class _HeritageIslandScreenState extends State<HeritageIslandScreen> {
             Positioned(
               bottom: 8,
               child: Container(
-                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 12,
+                  vertical: 4,
+                ),
                 decoration: BoxDecoration(
                   color: Colors.white.withValues(alpha: 0.92),
                   borderRadius: BorderRadius.circular(12),
-                  border: Border.all(color: DauVietColors.imperialGold.withValues(alpha: 0.6)),
+                  border: Border.all(
+                    color: DauVietColors.imperialGold.withValues(alpha: 0.6),
+                  ),
                   boxShadow: const [
                     BoxShadow(
                       color: Color(0x33000000),
@@ -392,12 +408,15 @@ class _HeritageIslandScreenState extends State<HeritageIslandScreen> {
               shape: BoxShape.circle,
               color: Colors.white.withValues(alpha: 0.95),
               border: Border.all(
-                color: isSelected ? DauVietColors.cinnabarRed : DauVietColors.imperialGold,
+                color: isSelected
+                    ? DauVietColors.cinnabarRed
+                    : DauVietColors.imperialGold,
                 width: isSelected ? 3 : 2,
               ),
               boxShadow: [
                 BoxShadow(
-                  color: (isSelected ? DauVietColors.cinnabarRed : Colors.black).withValues(alpha: 0.35),
+                  color: (isSelected ? DauVietColors.cinnabarRed : Colors.black)
+                      .withValues(alpha: 0.35),
                   blurRadius: isSelected ? 12 : 6,
                   spreadRadius: isSelected ? 2 : 0,
                 ),
@@ -409,7 +428,11 @@ class _HeritageIslandScreenState extends State<HeritageIslandScreen> {
                 fit: BoxFit.contain,
                 errorBuilder: (context, error, stackTrace) => Container(
                   color: color,
-                  child: Icon(icon, color: Colors.white, size: isSelected ? 24 : 18),
+                  child: Icon(
+                    icon,
+                    color: Colors.white,
+                    size: isSelected ? 24 : 18,
+                  ),
                 ),
               ),
             ),
@@ -418,10 +441,14 @@ class _HeritageIslandScreenState extends State<HeritageIslandScreen> {
           Container(
             padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 2),
             decoration: BoxDecoration(
-              color: isSelected ? DauVietColors.cinnabarRed : Colors.white.withValues(alpha: 0.92),
+              color: isSelected
+                  ? DauVietColors.cinnabarRed
+                  : Colors.white.withValues(alpha: 0.92),
               borderRadius: BorderRadius.circular(6),
               border: Border.all(
-                color: isSelected ? DauVietColors.imperialGold : DauVietColors.outlineVariant,
+                color: isSelected
+                    ? DauVietColors.imperialGold
+                    : DauVietColors.outlineVariant,
                 width: 1,
               ),
               boxShadow: const [
@@ -537,7 +564,10 @@ class _HeritageIslandScreenState extends State<HeritageIslandScreen> {
                 decoration: BoxDecoration(
                   color: Colors.white,
                   borderRadius: BorderRadius.circular(8),
-                  border: Border.all(color: DauVietColors.imperialGold, width: 1.5),
+                  border: Border.all(
+                    color: DauVietColors.imperialGold,
+                    width: 1.5,
+                  ),
                   boxShadow: const [
                     BoxShadow(
                       color: Color(0x18000000),
@@ -554,7 +584,11 @@ class _HeritageIslandScreenState extends State<HeritageIslandScreen> {
                       color: slot['color'] as Color,
                       borderRadius: BorderRadius.circular(6),
                     ),
-                    child: Icon(slot['icon'] as IconData, color: Colors.white, size: 22),
+                    child: Icon(
+                      slot['icon'] as IconData,
+                      color: Colors.white,
+                      size: 22,
+                    ),
                   ),
                 ),
               ),
@@ -566,7 +600,10 @@ class _HeritageIslandScreenState extends State<HeritageIslandScreen> {
                     Row(
                       children: [
                         Container(
-                          padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 6,
+                            vertical: 2,
+                          ),
                           decoration: BoxDecoration(
                             color: DauVietColors.cinnabarRed,
                             borderRadius: BorderRadius.circular(4),

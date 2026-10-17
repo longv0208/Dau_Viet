@@ -51,7 +51,10 @@ class _RewardClaimScreenState extends State<RewardClaimScreen> {
               Expanded(
                 child: SingleChildScrollView(
                   physics: const BouncingScrollPhysics(),
-                  padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 16,
+                    vertical: 12,
+                  ),
                   child: Column(
                     children: [
                       // 3. Hoạt cảnh Rương Báu Mở Ra
@@ -136,7 +139,10 @@ class _RewardClaimScreenState extends State<RewardClaimScreen> {
                 Row(
                   children: [
                     Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 6,
+                        vertical: 2,
+                      ),
                       decoration: BoxDecoration(
                         color: DauVietColors.cinnabarRed,
                         borderRadius: BorderRadius.circular(4),
@@ -220,7 +226,10 @@ class _RewardClaimScreenState extends State<RewardClaimScreen> {
                 decoration: BoxDecoration(
                   color: DauVietColors.cinnabarRed,
                   borderRadius: BorderRadius.circular(16),
-                  border: Border.all(color: DauVietColors.imperialGold, width: 2.5),
+                  border: Border.all(
+                    color: DauVietColors.imperialGold,
+                    width: 2.5,
+                  ),
                   boxShadow: DauVietColors.heritageShadow,
                 ),
                 child: const Icon(
@@ -365,7 +374,11 @@ class _RewardClaimScreenState extends State<RewardClaimScreen> {
               shape: BoxShape.circle,
               color: DauVietColors.natureGreen,
             ),
-            child: const Icon(Icons.emoji_events_rounded, color: Colors.white, size: 24),
+            child: const Icon(
+              Icons.emoji_events_rounded,
+              color: Colors.white,
+              size: 24,
+            ),
           ),
           const SizedBox(width: 12),
           Expanded(
@@ -375,7 +388,10 @@ class _RewardClaimScreenState extends State<RewardClaimScreen> {
                 Row(
                   children: [
                     Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 6,
+                        vertical: 2,
+                      ),
                       decoration: BoxDecoration(
                         color: DauVietColors.natureGreen,
                         borderRadius: BorderRadius.circular(4),
@@ -449,7 +465,10 @@ class _RewardClaimScreenState extends State<RewardClaimScreen> {
                 Row(
                   children: [
                     Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 6,
+                        vertical: 2,
+                      ),
                       decoration: BoxDecoration(
                         color: DauVietColors.imperialGold,
                         borderRadius: BorderRadius.circular(4),

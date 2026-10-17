@@ -84,51 +84,58 @@ void main() {
       expect(stub.lastQuery, {'page': 2, 'size': 5, 'sort': 'title,desc'});
     });
 
-    test('getEvents content rỗng → milestones rỗng, isActive không crash', () async {
-      stub.onGetEvents = ({int page = 0, int size = 20, String sort = ''}) =>
-          const EventsPageDto(
-            content: [],
-            page: 0,
-            size: 20,
-            totalElements: 0,
-            totalPages: 0,
-          );
-      final result = await repo.getEvents();
-      expect(result.milestones, isEmpty);
-    });
+    test(
+      'getEvents content rỗng → milestones rỗng, isActive không crash',
+      () async {
+        stub.onGetEvents = ({int page = 0, int size = 20, String sort = ''}) =>
+            const EventsPageDto(
+              content: [],
+              page: 0,
+              size: 20,
+              totalElements: 0,
+              totalPages: 0,
+            );
+        final result = await repo.getEvents();
+        expect(result.milestones, isEmpty);
+      },
+    );
 
     test('getEventById map detail + resolve cover asset', () async {
       stub.onGetEventById = (id) => HistoricalEventDetailDto(
-            id: id,
-            slug: 'bach-dang-938',
-            title: 'Bạch Đằng',
-            era: 'Ngô',
-            period: '938',
-            startYear: 938,
-            summary: 'sum',
-            coverAssetKey: 'events/bach-dang-938/hero.jpg',
-            description: 'dài',
-            location: 'Sông Bạch Đằng',
-          );
+        id: id,
+        slug: 'bach-dang-938',
+        title: 'Bạch Đằng',
+        era: 'Ngô',
+        period: '938',
+        startYear: 938,
+        summary: 'sum',
+        coverAssetKey: 'events/bach-dang-938/hero.jpg',
+        description: 'dài',
+        location: 'Sông Bạch Đằng',
+      );
       final event = await repo.getEventById('uuid-1');
       expect(event.title, 'Bạch Đằng');
       expect(event.year, 938);
-      expect(event.heroBannerUrl,
-          'assets/images/dv_EVT_ngoquyen_bachdang_hero_v01.jpg');
+      expect(
+        event.heroBannerUrl,
+        'assets/images/dv_EVT_ngoquyen_bachdang_hero_v01.jpg',
+      );
     });
 
     test('getEventById ApiException 404 lan truyền nguyên vẹn', () async {
       stub.onGetEventById = (id) => throw const ApiException(
-            ApiError(code: 'EVENT_NOT_FOUND', message: 'not found'),
-            statusCode: 404,
-          );
+        ApiError(code: 'EVENT_NOT_FOUND', message: 'not found'),
+        statusCode: 404,
+      );
       expect(
         () => repo.getEventById('bad-id'),
-        throwsA(isA<ApiException>().having(
-          (e) => e.error.code,
-          'code',
-          'EVENT_NOT_FOUND',
-        )),
+        throwsA(
+          isA<ApiException>().having(
+            (e) => e.error.code,
+            'code',
+            'EVENT_NOT_FOUND',
+          ),
+        ),
       );
     });
   });
@@ -156,8 +163,9 @@ void main() {
     test('getEventById id lạ → ApiException EVENT_NOT_FOUND 404', () {
       expect(
         () => repo.getEventById('uuid-la'),
-        throwsA(isA<ApiException>()
-            .having((e) => e.isNotFound, 'isNotFound', isTrue)),
+        throwsA(
+          isA<ApiException>().having((e) => e.isNotFound, 'isNotFound', isTrue),
+        ),
       );
     });
   });

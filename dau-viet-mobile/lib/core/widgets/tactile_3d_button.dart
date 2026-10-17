@@ -4,11 +4,11 @@ import '../theme/dau_viet_colors.dart';
 import '../theme/dau_viet_typography.dart';
 
 enum Tactile3DVariant {
-  primaryCinnabar,   // Đỏ chu sa
-  secondaryParchment,// Giấy dó viền gỗ
-  imperialGold,      // Vàng ngự xưởng
-  natureGreen,       // Xanh di sản
-  dangerRed,         // Đỏ cảnh báo
+  primaryCinnabar, // Đỏ chu sa
+  secondaryParchment, // Giấy dó viền gỗ
+  imperialGold, // Vàng ngự xưởng
+  natureGreen, // Xanh di sản
+  dangerRed, // Đỏ cảnh báo
 }
 
 /// Nút bấm xúc giác 3D chuẩn phong cách Duolingo kết hợp mỹ thuật Dấu Việt
@@ -71,11 +71,17 @@ class _Tactile3DButtonState extends State<Tactile3DButton> {
         border = Border.all(color: DauVietColors.cinnabarRedDark, width: 1.2);
         break;
       case Tactile3DVariant.secondaryParchment:
-        topColor = widget.isSelected ? const Color(0xFFFBF4E4) : DauVietColors.parchmentContainer;
-        bottomColor = widget.isSelected ? DauVietColors.imperialGold : const Color(0xFFC7B596);
+        topColor = widget.isSelected
+            ? const Color(0xFFFBF4E4)
+            : DauVietColors.parchmentContainer;
+        bottomColor = widget.isSelected
+            ? DauVietColors.imperialGold
+            : const Color(0xFFC7B596);
         textColor = DauVietColors.inkText;
         border = Border.all(
-          color: widget.isSelected ? DauVietColors.imperialGold : DauVietColors.outline,
+          color: widget.isSelected
+              ? DauVietColors.imperialGold
+              : DauVietColors.outline,
           width: widget.isSelected ? 2.0 : 1.2,
         );
         break;
@@ -127,12 +133,11 @@ class _Tactile3DButtonState extends State<Tactile3DButton> {
                 widget.onPressed?.call();
               }
             : null,
-        onTapCancel: isEnabled && _isPressed ? () => setState(() => _isPressed = false) : null,
+        onTapCancel: isEnabled && _isPressed
+            ? () => setState(() => _isPressed = false)
+            : null,
         child: Container(
-          decoration: BoxDecoration(
-            color: bottomColor,
-            borderRadius: radius,
-          ),
+          decoration: BoxDecoration(color: bottomColor, borderRadius: radius),
           padding: EdgeInsets.only(bottom: bottomOffset),
           child: AnimatedContainer(
             duration: const Duration(milliseconds: 60),
@@ -145,7 +150,9 @@ class _Tactile3DButtonState extends State<Tactile3DButton> {
               boxShadow: widget.isSelected
                   ? [
                       BoxShadow(
-                        color: DauVietColors.imperialGold.withValues(alpha: 0.35),
+                        color: DauVietColors.imperialGold.withValues(
+                          alpha: 0.35,
+                        ),
                         blurRadius: 8,
                         spreadRadius: 1,
                       ),
@@ -164,30 +171,30 @@ class _Tactile3DButtonState extends State<Tactile3DButton> {
                     ),
                   )
                 : widget.child ??
-                    Row(
-                      mainAxisSize: MainAxisSize.min,
-                      mainAxisAlignment: MainAxisAlignment.center,
-                      children: [
-                        if (widget.icon != null) ...[
-                          Icon(widget.icon, size: 20, color: textColor),
-                          const SizedBox(width: 8),
-                        ],
-                        if (widget.label != null)
-                          Flexible(
-                            child: Text(
-                              widget.label!,
-                              style: DauVietTypography.labelLarge.copyWith(
-                                color: textColor,
-                                fontWeight: FontWeight.w800,
-                                fontSize: 14,
-                                letterSpacing: 0.3,
+                      Row(
+                        mainAxisSize: MainAxisSize.min,
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        children: [
+                          if (widget.icon != null) ...[
+                            Icon(widget.icon, size: 20, color: textColor),
+                            const SizedBox(width: 8),
+                          ],
+                          if (widget.label != null)
+                            Flexible(
+                              child: Text(
+                                widget.label!,
+                                style: DauVietTypography.labelLarge.copyWith(
+                                  color: textColor,
+                                  fontWeight: FontWeight.w800,
+                                  fontSize: 14,
+                                  letterSpacing: 0.3,
+                                ),
+                                overflow: TextOverflow.ellipsis,
+                                maxLines: 1,
                               ),
-                              overflow: TextOverflow.ellipsis,
-                              maxLines: 1,
                             ),
-                          ),
-                      ],
-                    ),
+                        ],
+                      ),
           ),
         ),
       ),

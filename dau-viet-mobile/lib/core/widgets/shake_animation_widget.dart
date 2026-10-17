@@ -50,14 +50,12 @@ class ShakeAnimationWidgetState extends State<ShakeAnimationWidget>
         // Hàm dao động hình sin tắt dần
         final progress = _controller.value;
         final damping = 1.0 - progress; // Giảm biên độ dần về 0
-        final offset = math.sin(progress * math.pi * 2 * widget.shakeCount) *
+        final offset =
+            math.sin(progress * math.pi * 2 * widget.shakeCount) *
             widget.amplitude *
             damping;
 
-        return Transform.translate(
-          offset: Offset(offset, 0),
-          child: child,
-        );
+        return Transform.translate(offset: Offset(offset, 0), child: child);
       },
       child: widget.child,
     );

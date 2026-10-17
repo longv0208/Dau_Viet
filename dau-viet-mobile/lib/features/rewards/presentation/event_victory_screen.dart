@@ -10,10 +10,7 @@ import '../../../core/widgets/parchment_card.dart';
 class EventVictoryScreen extends StatelessWidget {
   final String eventId;
 
-  const EventVictoryScreen({
-    super.key,
-    this.eventId = 'evt_bach_dang_938',
-  });
+  const EventVictoryScreen({super.key, this.eventId = 'evt_bach_dang_938'});
 
   @override
   Widget build(BuildContext context) {
@@ -41,7 +38,10 @@ class EventVictoryScreen extends StatelessWidget {
               Expanded(
                 child: SingleChildScrollView(
                   physics: const BouncingScrollPhysics(),
-                  padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 16,
+                    vertical: 12,
+                  ),
                   child: Column(
                     children: [
                       // 3. Khung Vinh danh Khải hoàn Hero
@@ -126,7 +126,10 @@ class EventVictoryScreen extends StatelessWidget {
                 Row(
                   children: [
                     Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 6,
+                        vertical: 2,
+                      ),
                       decoration: BoxDecoration(
                         color: DauVietColors.cinnabarRed,
                         borderRadius: BorderRadius.circular(4),
@@ -191,7 +194,11 @@ class EventVictoryScreen extends StatelessWidget {
                 color: DauVietColors.cinnabarRed,
                 border: Border.all(color: DauVietColors.imperialGold, width: 3),
               ),
-              child: const Icon(Icons.military_tech_rounded, color: Colors.white, size: 46),
+              child: const Icon(
+                Icons.military_tech_rounded,
+                color: Colors.white,
+                size: 46,
+              ),
             ),
           ),
           const SizedBox(height: 12),
@@ -252,7 +259,11 @@ class EventVictoryScreen extends StatelessWidget {
             child: Row(
               mainAxisSize: MainAxisSize.min,
               children: [
-                const Icon(Icons.workspace_premium_rounded, color: DauVietColors.cinnabarRed, size: 16),
+                const Icon(
+                  Icons.workspace_premium_rounded,
+                  color: DauVietColors.cinnabarRed,
+                  size: 16,
+                ),
                 const SizedBox(width: 6),
                 Text(
                   'SĨ TỬ THÔNG TUỆ',
@@ -345,10 +356,26 @@ class EventVictoryScreen extends StatelessWidget {
   // Danh sách 4 Dấu vết đã chinh phục
   Widget _buildTracesBreakdownCard() {
     final traces = [
-      {'num': '1', 'name': 'Bối Cảnh & Quân Mưu', 'type': 'Khảo cứu thư tịch & Trắc nghiệm'},
-      {'num': '2', 'name': 'Nhân Vật & Bố Phòng', 'type': 'Ghép nối dữ kiện 4 cặp'},
-      {'num': '3', 'name': 'Sa Bàn Tác Chiến', 'type': 'Sắp xếp niên đại con nước triều'},
-      {'num': '4', 'name': 'Khảo Cổ & Di Sản', 'type': 'Kiểm chứng giả thuyết & Mô hình CER'},
+      {
+        'num': '1',
+        'name': 'Bối Cảnh & Quân Mưu',
+        'type': 'Khảo cứu thư tịch & Trắc nghiệm',
+      },
+      {
+        'num': '2',
+        'name': 'Nhân Vật & Bố Phòng',
+        'type': 'Ghép nối dữ kiện 4 cặp',
+      },
+      {
+        'num': '3',
+        'name': 'Sa Bàn Tác Chiến',
+        'type': 'Sắp xếp niên đại con nước triều',
+      },
+      {
+        'num': '4',
+        'name': 'Khảo Cổ & Di Sản',
+        'type': 'Kiểm chứng giả thuyết & Mô hình CER',
+      },
     ];
 
     return Column(
@@ -356,7 +383,11 @@ class EventVictoryScreen extends StatelessWidget {
       children: [
         Row(
           children: [
-            const Icon(Icons.fact_check_outlined, color: DauVietColors.cinnabarRed, size: 18),
+            const Icon(
+              Icons.fact_check_outlined,
+              color: DauVietColors.cinnabarRed,
+              size: 18,
+            ),
             const SizedBox(width: 8),
             Expanded(
               child: Text(
@@ -380,7 +411,10 @@ class EventVictoryScreen extends StatelessWidget {
             decoration: BoxDecoration(
               color: const Color(0xFFF6FAF7),
               borderRadius: BorderRadius.circular(10),
-              border: Border.all(color: DauVietColors.natureGreen.withValues(alpha: 0.5), width: 1.2),
+              border: Border.all(
+                color: DauVietColors.natureGreen.withValues(alpha: 0.5),
+                width: 1.2,
+              ),
             ),
             child: Row(
               children: [
@@ -394,7 +428,11 @@ class EventVictoryScreen extends StatelessWidget {
                   alignment: Alignment.center,
                   child: Text(
                     trace['num']!,
-                    style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 11),
+                    style: const TextStyle(
+                      color: Colors.white,
+                      fontWeight: FontWeight.bold,
+                      fontSize: 11,
+                    ),
                   ),
                 ),
                 const SizedBox(width: 10),
@@ -419,7 +457,11 @@ class EventVictoryScreen extends StatelessWidget {
                     ],
                   ),
                 ),
-                const Icon(Icons.check_circle_rounded, color: DauVietColors.natureGreen, size: 20),
+                const Icon(
+                  Icons.check_circle_rounded,
+                  color: DauVietColors.natureGreen,
+                  size: 20,
+                ),
               ],
             ),
           );
@@ -442,7 +484,11 @@ class EventVictoryScreen extends StatelessWidget {
         children: [
           Row(
             children: [
-              const Icon(Icons.format_quote_rounded, color: DauVietColors.cinnabarRed, size: 20),
+              const Icon(
+                Icons.format_quote_rounded,
+                color: DauVietColors.cinnabarRed,
+                size: 20,
+              ),
               const SizedBox(width: 6),
               Expanded(
                 child: Text(

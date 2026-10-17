@@ -44,7 +44,10 @@ class _EnergyManagementScreenState extends State<EnergyManagementScreen> {
               Expanded(
                 child: SingleChildScrollView(
                   physics: const BouncingScrollPhysics(),
-                  padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 16,
+                    vertical: 12,
+                  ),
                   child: Column(
                     children: [
                       // 3. Khung Thước Đo Năng Lượng Hero
@@ -67,11 +70,16 @@ class _EnergyManagementScreenState extends State<EnergyManagementScreen> {
                         height: 52,
                         onPressed: () {
                           setState(() {
-                            _currentEnergy = (_currentEnergy + 20).clamp(0, _maxEnergy);
+                            _currentEnergy = (_currentEnergy + 20).clamp(
+                              0,
+                              _maxEnergy,
+                            );
                           });
                           ScaffoldMessenger.of(context).showSnackBar(
                             const SnackBar(
-                              content: Text('Đã phục hồi +20 Thể Lực qua Tĩnh Tâm Ôn Luyện!'),
+                              content: Text(
+                                'Đã phục hồi +20 Thể Lực qua Tĩnh Tâm Ôn Luyện!',
+                              ),
                               backgroundColor: DauVietColors.natureGreen,
                             ),
                           );
@@ -133,7 +141,10 @@ class _EnergyManagementScreenState extends State<EnergyManagementScreen> {
                 Row(
                   children: [
                     Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 6,
+                        vertical: 2,
+                      ),
                       decoration: BoxDecoration(
                         color: DauVietColors.natureGreen,
                         borderRadius: BorderRadius.circular(4),
@@ -189,7 +200,11 @@ class _EnergyManagementScreenState extends State<EnergyManagementScreen> {
         children: [
           Row(
             children: [
-              const Icon(Icons.bolt_rounded, color: DauVietColors.cinnabarRed, size: 24),
+              const Icon(
+                Icons.bolt_rounded,
+                color: DauVietColors.cinnabarRed,
+                size: 24,
+              ),
               const SizedBox(width: 6),
               Expanded(
                 child: Text(
@@ -221,15 +236,23 @@ class _EnergyManagementScreenState extends State<EnergyManagementScreen> {
             child: LinearProgressIndicator(
               value: percent,
               minHeight: 14,
-              backgroundColor: DauVietColors.outlineVariant.withValues(alpha: 0.4),
-              valueColor: const AlwaysStoppedAnimation<Color>(DauVietColors.natureGreen),
+              backgroundColor: DauVietColors.outlineVariant.withValues(
+                alpha: 0.4,
+              ),
+              valueColor: const AlwaysStoppedAnimation<Color>(
+                DauVietColors.natureGreen,
+              ),
             ),
           ),
           const SizedBox(height: 12),
 
           Row(
             children: [
-              const Icon(Icons.timelapse_rounded, size: 16, color: DauVietColors.inkMuted),
+              const Icon(
+                Icons.timelapse_rounded,
+                size: 16,
+                color: DauVietColors.inkMuted,
+              ),
               const SizedBox(width: 4),
               Expanded(
                 child: Text(
@@ -262,7 +285,8 @@ class _EnergyManagementScreenState extends State<EnergyManagementScreen> {
     final remedies = [
       {
         'title': 'Tĩnh Tâm Ôn Luyện (Nước Vối Miễn Phí)',
-        'desc': 'Bát nước vối ấm lành tính giúp sĩ tử giải nhiệt, thư giãn gân cốt.',
+        'desc':
+            'Bát nước vối ấm lành tính giúp sĩ tử giải nhiệt, thư giãn gân cốt.',
         'reward': '+20 Thể Lực',
         'cost': 'Miễn phí',
         'assetImage': 'assets/items/energy_nuoc_voi.png',
@@ -323,7 +347,11 @@ class _EnergyManagementScreenState extends State<EnergyManagementScreen> {
       children: [
         Row(
           children: [
-            const Icon(Icons.medical_services_outlined, color: DauVietColors.natureGreen, size: 18),
+            const Icon(
+              Icons.medical_services_outlined,
+              color: DauVietColors.natureGreen,
+              size: 18,
+            ),
             const SizedBox(width: 8),
             Text(
               'LIỆU PHÁP VIỆN THÁI Y:',
@@ -347,7 +375,10 @@ class _EnergyManagementScreenState extends State<EnergyManagementScreen> {
               decoration: BoxDecoration(
                 color: Colors.white.withValues(alpha: 0.9),
                 borderRadius: BorderRadius.circular(10),
-                border: Border.all(color: (rem['color'] as Color).withValues(alpha: 0.5), width: 1.2),
+                border: Border.all(
+                  color: (rem['color'] as Color).withValues(alpha: 0.5),
+                  width: 1.2,
+                ),
               ),
               child: Row(
                 children: [
@@ -358,17 +389,26 @@ class _EnergyManagementScreenState extends State<EnergyManagementScreen> {
                     decoration: BoxDecoration(
                       color: Colors.white,
                       borderRadius: BorderRadius.circular(8),
-                      border: Border.all(color: (rem['color'] as Color).withValues(alpha: 0.4), width: 1.2),
+                      border: Border.all(
+                        color: (rem['color'] as Color).withValues(alpha: 0.4),
+                        width: 1.2,
+                      ),
                     ),
                     child: Image.asset(
                       rem['assetImage'] as String,
                       fit: BoxFit.contain,
                       errorBuilder: (context, error, stackTrace) => Container(
                         decoration: BoxDecoration(
-                          color: (rem['color'] as Color).withValues(alpha: 0.15),
+                          color: (rem['color'] as Color).withValues(
+                            alpha: 0.15,
+                          ),
                           borderRadius: BorderRadius.circular(6),
                         ),
-                        child: Icon(rem['icon'] as IconData, color: rem['color'] as Color, size: 22),
+                        child: Icon(
+                          rem['icon'] as IconData,
+                          color: rem['color'] as Color,
+                          size: 22,
+                        ),
                       ),
                     ),
                   ),
@@ -440,7 +480,11 @@ class _EnergyManagementScreenState extends State<EnergyManagementScreen> {
         children: [
           Row(
             children: [
-              const Icon(Icons.favorite_rounded, color: DauVietColors.cinnabarRed, size: 18),
+              const Icon(
+                Icons.favorite_rounded,
+                color: DauVietColors.cinnabarRed,
+                size: 18,
+              ),
               const SizedBox(width: 6),
               Expanded(
                 child: Text(

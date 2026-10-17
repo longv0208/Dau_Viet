@@ -11,29 +11,27 @@ import '../../../core/widgets/parchment_card.dart';
 import '../../../mock/data/mock_bach_dang_data.dart';
 import '../../../mock/models/lesson_models.dart';
 import '../../events/data/events_providers.dart';
+import '../../learning/presentation/lesson_list_section.dart';
 
 /// Màn hình M-07: Chi Tiết Chiến Dịch Lịch Sử (Campaign Detail Screen - Bạch Đằng 938)
 /// Khớp 100% với đặc tả trong MOBILE_SCREEN_DESIGN.md & ART_DIRECTION.md
 /// Metadata + hero banner lấy từ `GET /api/v1/events/{id}` (hoặc mock).
-/// Phần bài học/4 Dấu Vết vẫn dùng MockBachDangData — lessons endpoint là task sau.
+/// Section "BÀI HỌC LỊCH SỬ" dùng `LessonListSection` — gọi thật
+/// `GET /api/v1/events/{id}/lessons` (real) hoặc demo repo (USE_MOCK).
 class CampaignDetailScreen extends ConsumerWidget {
   final String eventId;
 
-  const CampaignDetailScreen({
-    super.key,
-    required this.eventId,
-  });
+  const CampaignDetailScreen({super.key, required this.eventId});
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final AsyncValue<HistoricalEventModel> eventAsync =
-        ref.watch(eventDetailProvider(eventId));
+    final AsyncValue<HistoricalEventModel> eventAsync = ref.watch(
+      eventDetailProvider(eventId),
+    );
 
     return eventAsync.when(
-      loading: () => _buildScaffold(
-        context,
-        Expanded(child: AsyncStateView.loading()),
-      ),
+      loading: () =>
+          _buildScaffold(context, Expanded(child: AsyncStateView.loading())),
       error: (error, _) => _buildScaffold(
         context,
         Expanded(
@@ -55,20 +53,10 @@ class CampaignDetailScreen extends ConsumerWidget {
           gradient: LinearGradient(
             begin: Alignment.topCenter,
             end: Alignment.bottomCenter,
-            colors: [
-              DauVietColors.parchmentSurface,
-              Color(0xFFFAF2E4),
-            ],
+            colors: [DauVietColors.parchmentSurface, Color(0xFFFAF2E4)],
           ),
         ),
-        child: SafeArea(
-          child: Column(
-            children: [
-              _buildTopBar(context),
-              body,
-            ],
-          ),
-        ),
+        child: SafeArea(child: Column(children: [_buildTopBar(context), body])),
       ),
     );
   }
@@ -97,6 +85,10 @@ class CampaignDetailScreen extends ConsumerWidget {
 
             // 6. Lộ Trình 4 Dấu Vết Cốt Lõi
             _buildFourTracesOverview(),
+            const SizedBox(height: 24),
+
+            // 6b. Bài học published của sự kiện (real backend / demo repo)
+            LessonListSection(eventId: eventId),
             const SizedBox(height: 24),
 
             // 7. Cặp Nút Hành Động Chính
@@ -175,11 +167,7 @@ class CampaignDetailScreen extends ConsumerWidget {
               ],
             ),
           ),
-          const EnergyPill(
-            energy: 100,
-            maxEnergy: 100,
-            historyPoints: 150,
-          ),
+          const EnergyPill(energy: 100, maxEnergy: 100, historyPoints: 150),
         ],
       ),
     );
@@ -226,7 +214,10 @@ class CampaignDetailScreen extends ConsumerWidget {
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 8,
+                      vertical: 3,
+                    ),
                     decoration: BoxDecoration(
                       color: DauVietColors.cinnabarRed,
                       borderRadius: BorderRadius.circular(4),
@@ -292,15 +283,35 @@ class CampaignDetailScreen extends ConsumerWidget {
           const SizedBox(height: 12),
           _buildMetaRow(Icons.auto_stories_rounded, 'Chiến dịch:', event.title),
           const SizedBox(height: 8),
-          _buildMetaRow(Icons.calendar_today_rounded, 'Niên đại:', 'Năm ${event.year} • ${event.era}'),
+          _buildMetaRow(
+            Icons.calendar_today_rounded,
+            'Niên đại:',
+            'Năm ${event.year} • ${event.era}',
+          ),
           const SizedBox(height: 8),
-          _buildMetaRow(Icons.location_on_rounded, 'Địa bàn:', 'Cửa sông Bạch Đằng (Quảng Ninh & Hải Phòng)'),
+          _buildMetaRow(
+            Icons.location_on_rounded,
+            'Địa bàn:',
+            'Cửa sông Bạch Đằng (Quảng Ninh & Hải Phòng)',
+          ),
           const SizedBox(height: 8),
-          _buildMetaRow(Icons.shield_rounded, 'Chỉ huy Ta:', 'Tiền Ngô Vương Ngô Quyền (Ái Châu)'),
+          _buildMetaRow(
+            Icons.shield_rounded,
+            'Chỉ huy Ta:',
+            'Tiền Ngô Vương Ngô Quyền (Ái Châu)',
+          ),
           const SizedBox(height: 8),
-          _buildMetaRow(Icons.dangerous_rounded, 'Đối thủ:', 'Vạn sứ quân Nam Hán dưới trướng Lưu Hoằng Tháo'),
+          _buildMetaRow(
+            Icons.dangerous_rounded,
+            'Đối thủ:',
+            'Vạn sứ quân Nam Hán dưới trướng Lưu Hoằng Tháo',
+          ),
           const SizedBox(height: 8),
-          _buildMetaRow(Icons.bolt_rounded, 'Chi phí:', '⚡ 20 Thể lực  •  Nhận 150 Điểm Sử Ký + 50 XP'),
+          _buildMetaRow(
+            Icons.bolt_rounded,
+            'Chi phí:',
+            '⚡ 20 Thể lực  •  Nhận 150 Điểm Sử Ký + 50 XP',
+          ),
         ],
       ),
     );
@@ -344,7 +355,11 @@ class CampaignDetailScreen extends ConsumerWidget {
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          const Icon(Icons.help_outline_rounded, color: DauVietColors.cinnabarRed, size: 24),
+          const Icon(
+            Icons.help_outline_rounded,
+            color: DauVietColors.cinnabarRed,
+            size: 24,
+          ),
           const SizedBox(width: 12),
           Expanded(
             child: Column(
@@ -389,25 +404,57 @@ class CampaignDetailScreen extends ConsumerWidget {
           ),
         ),
         const SizedBox(height: 10),
-        _buildTraceTile('1', 'Khảo Cổ & Hiện Vật', 'Bãi cọc Yên Giang và vũ khí thế kỷ X', Icons.museum_outlined, true),
+        _buildTraceTile(
+          '1',
+          'Khảo Cổ & Hiện Vật',
+          'Bãi cọc Yên Giang và vũ khí thế kỷ X',
+          Icons.museum_outlined,
+          true,
+        ),
         const SizedBox(height: 8),
-        _buildTraceTile('2', 'Nhân Vật & Chiến Lược', 'Quân mưu Tiền Ngô Vương và thế trận lòng dân', Icons.person_pin_outlined, true),
+        _buildTraceTile(
+          '2',
+          'Nhân Vật & Chiến Lược',
+          'Quân mưu Tiền Ngô Vương và thế trận lòng dân',
+          Icons.person_pin_outlined,
+          true,
+        ),
         const SizedBox(height: 8),
-        _buildTraceTile('3', 'Sa Bàn Tác Chiến', 'Nhịp con nước thủy triều và kế đóng cọc ngầm', Icons.military_tech_outlined, true),
+        _buildTraceTile(
+          '3',
+          'Sa Bàn Tác Chiến',
+          'Nhịp con nước thủy triều và kế đóng cọc ngầm',
+          Icons.military_tech_outlined,
+          true,
+        ),
         const SizedBox(height: 8),
-        _buildTraceTile('4', 'Di Sản & Ý Nghĩa', 'Dấu mốc son chấm dứt một thiên niên kỷ Bắc thuộc', Icons.auto_stories_outlined, false),
+        _buildTraceTile(
+          '4',
+          'Di Sản & Ý Nghĩa',
+          'Dấu mốc son chấm dứt một thiên niên kỷ Bắc thuộc',
+          Icons.auto_stories_outlined,
+          false,
+        ),
       ],
     );
   }
 
-  Widget _buildTraceTile(String number, String title, String subtitle, IconData icon, bool isAvailable) {
+  Widget _buildTraceTile(
+    String number,
+    String title,
+    String subtitle,
+    IconData icon,
+    bool isAvailable,
+  ) {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
       decoration: BoxDecoration(
         color: Colors.white.withValues(alpha: 0.8),
         borderRadius: BorderRadius.circular(10),
         border: Border.all(
-          color: isAvailable ? DauVietColors.imperialGold : DauVietColors.outlineVariant,
+          color: isAvailable
+              ? DauVietColors.imperialGold
+              : DauVietColors.outlineVariant,
           width: 1,
         ),
       ),
@@ -418,12 +465,18 @@ class CampaignDetailScreen extends ConsumerWidget {
             height: 28,
             decoration: BoxDecoration(
               shape: BoxShape.circle,
-              color: isAvailable ? DauVietColors.cinnabarRed : DauVietColors.outlineVariant,
+              color: isAvailable
+                  ? DauVietColors.cinnabarRed
+                  : DauVietColors.outlineVariant,
             ),
             alignment: Alignment.center,
             child: Text(
               number,
-              style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 13),
+              style: const TextStyle(
+                color: Colors.white,
+                fontWeight: FontWeight.bold,
+                fontSize: 13,
+              ),
             ),
           ),
           const SizedBox(width: 12),
@@ -433,16 +486,27 @@ class CampaignDetailScreen extends ConsumerWidget {
               children: [
                 Text(
                   title,
-                  style: DauVietTypography.labelMedium.copyWith(fontWeight: FontWeight.w700),
+                  style: DauVietTypography.labelMedium.copyWith(
+                    fontWeight: FontWeight.w700,
+                  ),
                 ),
                 Text(
                   subtitle,
-                  style: DauVietTypography.bodySmall.copyWith(color: DauVietColors.inkMuted, fontSize: 11),
+                  style: DauVietTypography.bodySmall.copyWith(
+                    color: DauVietColors.inkMuted,
+                    fontSize: 11,
+                  ),
                 ),
               ],
             ),
           ),
-          Icon(icon, size: 20, color: isAvailable ? DauVietColors.cinnabarRed : DauVietColors.inkMuted),
+          Icon(
+            icon,
+            size: 20,
+            color: isAvailable
+                ? DauVietColors.cinnabarRed
+                : DauVietColors.inkMuted,
+          ),
         ],
       ),
     );

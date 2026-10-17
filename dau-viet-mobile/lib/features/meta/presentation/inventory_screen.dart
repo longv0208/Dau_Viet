@@ -30,7 +30,8 @@ class _InventoryScreenState extends State<InventoryScreen> {
       'assetImage': 'assets/items/decor_cau_kieu.png',
       'icon': Icons.directions_boat_filled_rounded,
       'color': DauVietColors.cinnabarRed,
-      'desc': 'Thuyền chiến đáy nông cơ động thế kỷ X, báu vật mở khóa sau đại thắng Bạch Đằng 938.',
+      'desc':
+          'Thuyền chiến đáy nông cơ động thế kỷ X, báu vật mở khóa sau đại thắng Bạch Đằng 938.',
       'actionRoute': '/rewards/artifact/art_thuyen_chien_938',
       'actionLabel': 'XEM CHI TIẾT CỔ VẬT (M-21) ›',
     },
@@ -44,7 +45,8 @@ class _InventoryScreenState extends State<InventoryScreen> {
       'assetImage': 'assets/badges/badge_trace_4_archaeology.png',
       'icon': Icons.architecture_rounded,
       'color': DauVietColors.riverBlue,
-      'desc': 'Hiện vật cọc gỗ lim vót nhọn bịt sắt, định tuổi Carbon C-14 trùng khớp năm 938.',
+      'desc':
+          'Hiện vật cọc gỗ lim vót nhọn bịt sắt, định tuổi Carbon C-14 trùng khớp năm 938.',
       'actionRoute': null,
       'actionLabel': 'CỔ VẬT ĐANG TRƯNG BÀY',
     },
@@ -58,7 +60,8 @@ class _InventoryScreenState extends State<InventoryScreen> {
       'assetImage': 'assets/items/decor_ho_sen.png',
       'icon': Icons.park_rounded,
       'color': DauVietColors.natureGreen,
-      'desc': 'Công trình thủy tạ hoa sen thanh tịnh, dùng đặt lên ô cảnh quan của Đảo Di Sản.',
+      'desc':
+          'Công trình thủy tạ hoa sen thanh tịnh, dùng đặt lên ô cảnh quan của Đảo Di Sản.',
       'actionRoute': '/island',
       'actionLabel': 'ĐẶT LÊN ĐẢO DI SẢN (M-22) ›',
     },
@@ -72,7 +75,8 @@ class _InventoryScreenState extends State<InventoryScreen> {
       'assetImage': 'assets/items/decor_nha_tranh.png',
       'icon': Icons.account_balance_rounded,
       'color': DauVietColors.cinnabarRed,
-      'desc': 'Công trình đình làng kiến trúc thời Ngô trang nghiêm, lưu dấu truyền thống ngàn năm.',
+      'desc':
+          'Công trình đình làng kiến trúc thời Ngô trang nghiêm, lưu dấu truyền thống ngàn năm.',
       'actionRoute': '/island',
       'actionLabel': 'ĐẶT LÊN ĐẢO DI SẢN (M-22) ›',
     },
@@ -86,7 +90,8 @@ class _InventoryScreenState extends State<InventoryScreen> {
       'assetImage': 'assets/badges/badge_trace_3_tactics.png',
       'icon': Icons.shield_moon_rounded,
       'color': DauVietColors.cinnabarRed,
-      'desc': 'Lệnh bài xuất quân Tiền Ngô Vương trao tặng Sĩ Tử thấu triệt binh lược.',
+      'desc':
+          'Lệnh bài xuất quân Tiền Ngô Vương trao tặng Sĩ Tử thấu triệt binh lược.',
       'actionRoute': null,
       'actionLabel': 'LỆNH BÀI DANH DỰ',
     },
@@ -100,7 +105,8 @@ class _InventoryScreenState extends State<InventoryScreen> {
       'assetImage': 'assets/items/energy_tra_sen.png',
       'icon': Icons.local_cafe_rounded,
       'color': DauVietColors.imperialGold,
-      'desc': 'Trà sen ướp hương thơm ngát của Viện Thái Y giúp tăng tốc hồi phục thể lực.',
+      'desc':
+          'Trà sen ướp hương thơm ngát của Viện Thái Y giúp tăng tốc hồi phục thể lực.',
       'actionRoute': '/energy',
       'actionLabel': 'ĐẾN VIỆN THÁI Y (M-28) ›',
     },
@@ -141,7 +147,10 @@ class _InventoryScreenState extends State<InventoryScreen> {
               Expanded(
                 child: SingleChildScrollView(
                   physics: const BouncingScrollPhysics(),
-                  padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 16,
+                    vertical: 12,
+                  ),
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
@@ -223,7 +232,10 @@ class _InventoryScreenState extends State<InventoryScreen> {
                 Row(
                   children: [
                     Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 6,
+                        vertical: 2,
+                      ),
                       decoration: BoxDecoration(
                         color: DauVietColors.cinnabarRed,
                         borderRadius: BorderRadius.circular(4),
@@ -275,9 +287,21 @@ class _InventoryScreenState extends State<InventoryScreen> {
   Widget _buildCategoryFilters() {
     final categories = [
       {'key': 'all', 'label': 'Tất Cả (${_items.length})'},
-      {'key': 'artifacts', 'label': 'Cổ Vật (${_items.where((i) => i['category'] == 'artifacts').length})'},
-      {'key': 'island', 'label': 'Công Trình (${_items.where((i) => i['category'] == 'island').length})'},
-      {'key': 'tokens', 'label': 'Vật Phẩm (${_items.where((i) => i['category'] == 'tokens').length})'},
+      {
+        'key': 'artifacts',
+        'label':
+            'Cổ Vật (${_items.where((i) => i['category'] == 'artifacts').length})',
+      },
+      {
+        'key': 'island',
+        'label':
+            'Công Trình (${_items.where((i) => i['category'] == 'island').length})',
+      },
+      {
+        'key': 'tokens',
+        'label':
+            'Vật Phẩm (${_items.where((i) => i['category'] == 'tokens').length})',
+      },
     ];
 
     return SingleChildScrollView(
@@ -296,12 +320,19 @@ class _InventoryScreenState extends State<InventoryScreen> {
               },
               child: AnimatedContainer(
                 duration: const Duration(milliseconds: 200),
-                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 12,
+                  vertical: 6,
+                ),
                 decoration: BoxDecoration(
-                  color: isSelected ? DauVietColors.cinnabarRed : Colors.white.withValues(alpha: 0.9),
+                  color: isSelected
+                      ? DauVietColors.cinnabarRed
+                      : Colors.white.withValues(alpha: 0.9),
                   borderRadius: BorderRadius.circular(20),
                   border: Border.all(
-                    color: isSelected ? DauVietColors.cinnabarRed : DauVietColors.outlineVariant,
+                    color: isSelected
+                        ? DauVietColors.cinnabarRed
+                        : DauVietColors.outlineVariant,
                     width: 1.2,
                   ),
                 ),
@@ -347,10 +378,14 @@ class _InventoryScreenState extends State<InventoryScreen> {
             duration: const Duration(milliseconds: 200),
             padding: const EdgeInsets.all(10),
             decoration: BoxDecoration(
-              color: isSelected ? const Color(0xFFFBF4E4) : Colors.white.withValues(alpha: 0.9),
+              color: isSelected
+                  ? const Color(0xFFFBF4E4)
+                  : Colors.white.withValues(alpha: 0.9),
               borderRadius: BorderRadius.circular(12),
               border: Border.all(
-                color: isSelected ? DauVietColors.cinnabarRed : (item['rarityColor'] as Color).withValues(alpha: 0.5),
+                color: isSelected
+                    ? DauVietColors.cinnabarRed
+                    : (item['rarityColor'] as Color).withValues(alpha: 0.5),
                 width: isSelected ? 2.0 : 1.2,
               ),
               boxShadow: isSelected ? DauVietColors.heritageShadow : null,
@@ -362,9 +397,14 @@ class _InventoryScreenState extends State<InventoryScreen> {
                   mainAxisAlignment: MainAxisAlignment.spaceBetween,
                   children: [
                     Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 2),
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 5,
+                        vertical: 2,
+                      ),
                       decoration: BoxDecoration(
-                        color: (item['rarityColor'] as Color).withValues(alpha: 0.15),
+                        color: (item['rarityColor'] as Color).withValues(
+                          alpha: 0.15,
+                        ),
                         borderRadius: BorderRadius.circular(4),
                       ),
                       child: Text(
@@ -377,7 +417,11 @@ class _InventoryScreenState extends State<InventoryScreen> {
                       ),
                     ),
                     if (isSelected)
-                      const Icon(Icons.check_circle_rounded, color: DauVietColors.cinnabarRed, size: 16),
+                      const Icon(
+                        Icons.check_circle_rounded,
+                        color: DauVietColors.cinnabarRed,
+                        size: 16,
+                      ),
                   ],
                 ),
                 const Spacer(),
@@ -390,7 +434,9 @@ class _InventoryScreenState extends State<InventoryScreen> {
                       color: Colors.white,
                       shape: BoxShape.circle,
                       border: Border.all(
-                        color: (item['rarityColor'] as Color).withValues(alpha: 0.4),
+                        color: (item['rarityColor'] as Color).withValues(
+                          alpha: 0.4,
+                        ),
                         width: 1.2,
                       ),
                       boxShadow: const [
@@ -406,11 +452,12 @@ class _InventoryScreenState extends State<InventoryScreen> {
                           ? Image.asset(
                               item['assetImage'] as String,
                               fit: BoxFit.contain,
-                              errorBuilder: (context, error, stackTrace) => Icon(
-                                item['icon'] as IconData,
-                                color: item['color'] as Color,
-                                size: 26,
-                              ),
+                              errorBuilder: (context, error, stackTrace) =>
+                                  Icon(
+                                    item['icon'] as IconData,
+                                    color: item['color'] as Color,
+                                    size: 26,
+                                  ),
                             )
                           : Icon(
                               item['icon'] as IconData,
@@ -440,7 +487,10 @@ class _InventoryScreenState extends State<InventoryScreen> {
   }
 
   // Thẻ soi chi tiết vật phẩm đang chọn
-  Widget _buildItemInspectorCard(Map<String, dynamic> item, BuildContext context) {
+  Widget _buildItemInspectorCard(
+    Map<String, dynamic> item,
+    BuildContext context,
+  ) {
     return ParchmentCard(
       backgroundColor: const Color(0xFFFBF4E4),
       borderColor: DauVietColors.imperialGold,
@@ -458,7 +508,10 @@ class _InventoryScreenState extends State<InventoryScreen> {
                 decoration: BoxDecoration(
                   color: Colors.white,
                   borderRadius: BorderRadius.circular(10),
-                  border: Border.all(color: item['rarityColor'] as Color, width: 1.5),
+                  border: Border.all(
+                    color: item['rarityColor'] as Color,
+                    width: 1.5,
+                  ),
                   boxShadow: const [
                     BoxShadow(
                       color: Color(0x18000000),
@@ -476,7 +529,11 @@ class _InventoryScreenState extends State<InventoryScreen> {
                             color: item['color'] as Color,
                             borderRadius: BorderRadius.circular(6),
                           ),
-                          child: Icon(item['icon'] as IconData, color: Colors.white, size: 24),
+                          child: Icon(
+                            item['icon'] as IconData,
+                            color: Colors.white,
+                            size: 24,
+                          ),
                         ),
                       )
                     : Container(
@@ -484,7 +541,11 @@ class _InventoryScreenState extends State<InventoryScreen> {
                           color: item['color'] as Color,
                           borderRadius: BorderRadius.circular(6),
                         ),
-                        child: Icon(item['icon'] as IconData, color: Colors.white, size: 24),
+                        child: Icon(
+                          item['icon'] as IconData,
+                          color: Colors.white,
+                          size: 24,
+                        ),
                       ),
               ),
               const SizedBox(width: 12),
@@ -495,14 +556,21 @@ class _InventoryScreenState extends State<InventoryScreen> {
                     Row(
                       children: [
                         Container(
-                          padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 6,
+                            vertical: 2,
+                          ),
                           decoration: BoxDecoration(
                             color: DauVietColors.cinnabarRed,
                             borderRadius: BorderRadius.circular(4),
                           ),
                           child: Text(
                             item['rarity'] as String,
-                            style: const TextStyle(color: Colors.white, fontSize: 9.5, fontWeight: FontWeight.bold),
+                            style: const TextStyle(
+                              color: Colors.white,
+                              fontSize: 9.5,
+                              fontWeight: FontWeight.bold,
+                            ),
                           ),
                         ),
                       ],

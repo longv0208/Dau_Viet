@@ -18,15 +18,21 @@ class ApiEventsRepository implements EventsRepository {
     int size = 20,
     String sort = 'startYear,asc',
   }) async {
-    final EventsPageDto dto =
-        await _apiClient.getEvents(page: page, size: size, sort: sort);
+    final EventsPageDto dto = await _apiClient.getEvents(
+      page: page,
+      size: size,
+      sort: sort,
+    );
     // Sự kiện đầu danh sách = chiến dịch đang mở (giữ CTA Bạch Đằng demo).
-    final String? activeId =
-        dto.content.isEmpty ? null : dto.content.first.id;
+    final String? activeId = dto.content.isEmpty ? null : dto.content.first.id;
     return EventsPageResult(
       milestones: dto.content
-          .map((e) =>
-              EventModelAdapter.toTimelineMilestone(e, activeEventId: activeId))
+          .map(
+            (e) => EventModelAdapter.toTimelineMilestone(
+              e,
+              activeEventId: activeId,
+            ),
+          )
           .toList(),
       page: dto.page,
       size: dto.size,
@@ -40,8 +46,10 @@ class ApiEventsRepository implements EventsRepository {
     final HistoricalEventDetailDto dto = await _apiClient.getEventById(id);
     return EventModelAdapter.toHistoricalEvent(
       dto,
-      heroAssetPath:
-          _assetResolver.resolveEventCover(dto.coverAssetKey, dto.slug),
+      heroAssetPath: _assetResolver.resolveEventCover(
+        dto.coverAssetKey,
+        dto.slug,
+      ),
     );
   }
 }

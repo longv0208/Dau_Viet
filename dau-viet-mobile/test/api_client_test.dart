@@ -31,8 +31,10 @@ void main() {
   });
 
   group('ApiException predicates', () {
-    ApiException ex(String code, int? status) =>
-        ApiException(ApiError(code: code, message: 'm'), statusCode: status);
+    ApiException ex(String code, int? status) => ApiException(
+      ApiError(code: code, message: 'm'),
+      statusCode: status,
+    );
 
     test('isNotFound / isUnauthorized / isBadRequest', () {
       expect(ex('EVENT_NOT_FOUND', 404).isNotFound, isTrue);

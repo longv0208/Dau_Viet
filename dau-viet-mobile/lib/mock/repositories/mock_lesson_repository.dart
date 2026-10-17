@@ -47,7 +47,8 @@ class MockLessonRepository implements LessonRepository {
       'isCorrect': true,
       'earnedXp': 50,
       'earnedHistoryPoints': 100,
-      'feedback': 'Xuất sắc! Bạn đã tái hiện chuẩn xác mưu lược của Tiền Ngô Vương.',
+      'feedback':
+          'Xuất sắc! Bạn đã tái hiện chuẩn xác mưu lược của Tiền Ngô Vương.',
     };
   }
 }

@@ -45,6 +45,7 @@ import com.dauviet.learning.infrastructure.persistence.LessonResultRepository;
 import com.dauviet.learning.resolver.LessonCompletionEvaluator;
 import com.dauviet.learning.resolver.StageTransitionResolver;
 import com.dauviet.learning.snapshot.SnapshotModel;
+import com.dauviet.lesson.api.dto.LearnerLessonContent;
 import com.dauviet.lesson.application.LearnerProjectionService;
 import com.dauviet.lesson.domain.Lesson;
 import com.dauviet.lesson.domain.LessonNotFoundException;
@@ -383,6 +384,23 @@ public class LearnerAttemptService {
                 a.getCompletedAt()));
         return new CompleteAttemptResponse(a.getId(), a.getStatus().name(),
                 false, a.getCompletedAt(), verdict, progress);
+    }
+
+    /**
+     * Learner-safe projected content of the attempt's PINNED lesson version
+     * (TASK-0018): unlike GET /lessons/{id}/content which always serves the
+     * current published version, this keeps a resumed attempt consistent after
+     * an admin republish — evidence[]/assets[] embeds and stage config all
+     * come from the same snapshot the submissions are graded against.
+     */
+    @Transactional(readOnly = true)
+    public LearnerLessonContent getContent(UUID userId, UUID attemptId) {
+        LearnerAttempt a = loadOwned(userId, attemptId);
+        LessonVersion v = versions.findById(a.getLessonVersionId())
+                .orElseThrow(() -> new VersionNotFoundException(
+                        "lesson version missing: " + a.getLessonVersionId()));
+        return new LearnerLessonContent(v.getLessonId(), v.getId(),
+                v.getVersionNo(), projection.project(parse(v.getSnapshotJson())));
     }
 
     /** Persisted lesson_results for an owned, completed attempt. */

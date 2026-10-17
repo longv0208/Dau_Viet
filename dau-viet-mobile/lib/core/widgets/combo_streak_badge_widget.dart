@@ -39,18 +39,24 @@ class _ComboStreakBadgeWidgetState extends State<ComboStreakBadgeWidget>
 
     _scaleAnimation = TweenSequence<double>([
       TweenSequenceItem(
-        tween: Tween<double>(begin: 1.0, end: 1.08)
-            .chain(CurveTween(curve: Curves.easeInOut)),
+        tween: Tween<double>(
+          begin: 1.0,
+          end: 1.08,
+        ).chain(CurveTween(curve: Curves.easeInOut)),
         weight: 50,
       ),
       TweenSequenceItem(
-        tween: Tween<double>(begin: 1.08, end: 1.0)
-            .chain(CurveTween(curve: Curves.easeInOut)),
+        tween: Tween<double>(
+          begin: 1.08,
+          end: 1.0,
+        ).chain(CurveTween(curve: Curves.easeInOut)),
         weight: 50,
       ),
     ]).animate(_pulseController);
 
-    if (widget.isActive && widget.streakCount >= 2 && !DauVietAudioService.isTestEnvironment) {
+    if (widget.isActive &&
+        widget.streakCount >= 2 &&
+        !DauVietAudioService.isTestEnvironment) {
       _pulseController.repeat();
     }
   }
@@ -58,7 +64,9 @@ class _ComboStreakBadgeWidgetState extends State<ComboStreakBadgeWidget>
   @override
   void didUpdateWidget(covariant ComboStreakBadgeWidget oldWidget) {
     super.didUpdateWidget(oldWidget);
-    if (widget.isActive && widget.streakCount >= 2 && !DauVietAudioService.isTestEnvironment) {
+    if (widget.isActive &&
+        widget.streakCount >= 2 &&
+        !DauVietAudioService.isTestEnvironment) {
       if (!_pulseController.isAnimating) {
         _pulseController.repeat();
       }
@@ -172,7 +180,9 @@ class _ComboStreakBadgeWidgetState extends State<ComboStreakBadgeWidget>
             border: Border.all(
               color: isHighCombo
                   ? const Color(0xFFFF9800)
-                  : (hasFlame ? DauVietColors.imperialGold : DauVietColors.outlineVariant),
+                  : (hasFlame
+                        ? DauVietColors.imperialGold
+                        : DauVietColors.outlineVariant),
               width: isHighCombo ? 1.6 : 1.2,
             ),
             boxShadow: isHighCombo
@@ -224,13 +234,13 @@ class _ComboStreakBadgeWidgetState extends State<ComboStreakBadgeWidget>
               if (widget.multiplier > 1.0) ...[
                 const SizedBox(width: 5),
                 Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 1.5),
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 5,
+                    vertical: 1.5,
+                  ),
                   decoration: BoxDecoration(
                     gradient: const LinearGradient(
-                      colors: [
-                        DauVietColors.imperialGold,
-                        Color(0xFFE65100),
-                      ],
+                      colors: [DauVietColors.imperialGold, Color(0xFFE65100)],
                     ),
                     borderRadius: BorderRadius.circular(10),
                   ),

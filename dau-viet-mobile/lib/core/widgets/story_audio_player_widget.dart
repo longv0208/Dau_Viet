@@ -71,7 +71,9 @@ class _StoryAudioPlayerWidgetState extends State<StoryAudioPlayerWidget>
             decoration: BoxDecoration(
               color: DauVietColors.parchmentContainer,
               borderRadius: BorderRadius.circular(20),
-              border: Border.all(color: DauVietColors.imperialGold.withValues(alpha: 0.6)),
+              border: Border.all(
+                color: DauVietColors.imperialGold.withValues(alpha: 0.6),
+              ),
             ),
             child: Row(
               mainAxisSize: MainAxisSize.min,
@@ -82,7 +84,9 @@ class _StoryAudioPlayerWidgetState extends State<StoryAudioPlayerWidget>
                       audioService.pauseNarration();
                     } else {
                       audioService.playNarration(
-                        assetPath: widget.audioAsset ?? DauVietAudioService.defaultNarrationPath,
+                        assetPath:
+                            widget.audioAsset ??
+                            DauVietAudioService.defaultNarrationPath,
                       );
                     }
                   },
@@ -123,13 +127,18 @@ class _StoryAudioPlayerWidgetState extends State<StoryAudioPlayerWidget>
             color: DauVietColors.parchmentContainer,
             borderRadius: BorderRadius.circular(16),
             border: Border.all(
-              color: isPlaying ? DauVietColors.cinnabarRed : DauVietColors.imperialGold,
+              color: isPlaying
+                  ? DauVietColors.cinnabarRed
+                  : DauVietColors.imperialGold,
               width: 1.5,
             ),
             boxShadow: [
               BoxShadow(
-                color: (isPlaying ? DauVietColors.cinnabarRed : DauVietColors.imperialGold)
-                    .withValues(alpha: 0.12),
+                color:
+                    (isPlaying
+                            ? DauVietColors.cinnabarRed
+                            : DauVietColors.imperialGold)
+                        .withValues(alpha: 0.12),
                 blurRadius: 8,
                 offset: const Offset(0, 3),
               ),
@@ -147,7 +156,9 @@ class _StoryAudioPlayerWidgetState extends State<StoryAudioPlayerWidget>
                         audioService.pauseNarration();
                       } else {
                         audioService.playNarration(
-                          assetPath: widget.audioAsset ?? DauVietAudioService.defaultNarrationPath,
+                          assetPath:
+                              widget.audioAsset ??
+                              DauVietAudioService.defaultNarrationPath,
                         );
                       }
                     },
@@ -160,8 +171,14 @@ class _StoryAudioPlayerWidgetState extends State<StoryAudioPlayerWidget>
                           begin: Alignment.topLeft,
                           end: Alignment.bottomRight,
                           colors: isPlaying
-                              ? [DauVietColors.cinnabarRed, DauVietColors.cinnabarRedDark]
-                              : [DauVietColors.imperialGold, DauVietColors.woodBrown],
+                              ? [
+                                  DauVietColors.cinnabarRed,
+                                  DauVietColors.cinnabarRedDark,
+                                ]
+                              : [
+                                  DauVietColors.imperialGold,
+                                  DauVietColors.woodBrown,
+                                ],
                         ),
                         shape: BoxShape.circle,
                         boxShadow: [
@@ -173,7 +190,9 @@ class _StoryAudioPlayerWidgetState extends State<StoryAudioPlayerWidget>
                         ],
                       ),
                       child: Icon(
-                        isPlaying ? Icons.pause_rounded : Icons.play_arrow_rounded,
+                        isPlaying
+                            ? Icons.pause_rounded
+                            : Icons.play_arrow_rounded,
                         color: Colors.white,
                         size: 26,
                       ),
@@ -215,7 +234,11 @@ class _StoryAudioPlayerWidgetState extends State<StoryAudioPlayerWidget>
                   if (isPlaying)
                     IconButton(
                       tooltip: 'Dừng đọc',
-                      icon: const Icon(Icons.stop_circle_outlined, size: 22, color: DauVietColors.cinnabarRed),
+                      icon: const Icon(
+                        Icons.stop_circle_outlined,
+                        size: 22,
+                        color: DauVietColors.cinnabarRed,
+                      ),
                       onPressed: () => audioService.stopNarration(),
                     ),
                 ],
@@ -231,10 +254,16 @@ class _StoryAudioPlayerWidgetState extends State<StoryAudioPlayerWidget>
                       borderRadius: BorderRadius.circular(4),
                       child: LinearProgressIndicator(
                         value: totalDur.inMilliseconds > 0
-                            ? (currentPos.inMilliseconds / totalDur.inMilliseconds).clamp(0.0, 1.0)
+                            ? (currentPos.inMilliseconds /
+                                      totalDur.inMilliseconds)
+                                  .clamp(0.0, 1.0)
                             : 0.0,
-                        backgroundColor: DauVietColors.imperialGold.withValues(alpha: 0.2),
-                        valueColor: const AlwaysStoppedAnimation<Color>(DauVietColors.cinnabarRed),
+                        backgroundColor: DauVietColors.imperialGold.withValues(
+                          alpha: 0.2,
+                        ),
+                        valueColor: const AlwaysStoppedAnimation<Color>(
+                          DauVietColors.cinnabarRed,
+                        ),
                         minHeight: 6,
                       ),
                     ),
@@ -258,7 +287,11 @@ class _StoryAudioPlayerWidgetState extends State<StoryAudioPlayerWidget>
     );
   }
 
-  Widget _buildWaveformBars(bool isPlaying, {int count = 6, double barMaxHeight = 20}) {
+  Widget _buildWaveformBars(
+    bool isPlaying, {
+    int count = 6,
+    double barMaxHeight = 20,
+  }) {
     return AnimatedBuilder(
       animation: _waveController,
       builder: (context, child) {

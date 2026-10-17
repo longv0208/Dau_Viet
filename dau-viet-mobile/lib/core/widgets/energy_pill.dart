@@ -59,33 +59,33 @@ class EnergyPill extends StatelessWidget {
 
           // Thẻ Điểm Sử Ký
           Container(
-          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
-          decoration: BoxDecoration(
-            color: DauVietColors.parchmentContainer,
-            borderRadius: BorderRadius.circular(20),
-            border: Border.all(color: DauVietColors.outlineVariant, width: 1),
-          ),
-          child: Row(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              const Icon(
-                Icons.stars_rounded,
-                size: 16,
-                color: DauVietColors.cinnabarRed,
-              ),
-              const SizedBox(width: 4),
-              Text(
-                '+$historyPoints',
-                style: DauVietTypography.labelMedium.copyWith(
-                  fontWeight: FontWeight.w700,
+            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+            decoration: BoxDecoration(
+              color: DauVietColors.parchmentContainer,
+              borderRadius: BorderRadius.circular(20),
+              border: Border.all(color: DauVietColors.outlineVariant, width: 1),
+            ),
+            child: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                const Icon(
+                  Icons.stars_rounded,
+                  size: 16,
                   color: DauVietColors.cinnabarRed,
                 ),
-              ),
-            ],
+                const SizedBox(width: 4),
+                Text(
+                  '+$historyPoints',
+                  style: DauVietTypography.labelMedium.copyWith(
+                    fontWeight: FontWeight.w700,
+                    color: DauVietColors.cinnabarRed,
+                  ),
+                ),
+              ],
+            ),
           ),
-        ),
+        ],
       ],
-    ],
-  );
-}
+    );
+  }
 }

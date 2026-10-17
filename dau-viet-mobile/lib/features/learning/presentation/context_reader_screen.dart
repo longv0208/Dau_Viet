@@ -23,10 +23,14 @@ class ContextReaderScreen extends StatefulWidget {
 
 class _ContextReaderScreenState extends State<ContextReaderScreen> {
   final Map<String, String> _glossary = {
-    'Hoằng Tháo': 'Con trai vua Nam Hán Lưu Cung, được phong làm Giao Châu vương thống lĩnh thủy quân xâm lược nước ta.',
-    'bịt sắt': 'Đầu cọc gỗ lim được gia cố kim loại nhọn để tăng sức công phá lườn đáy thuyền giặc khi triều rút.',
-    'cửa biển': 'Cửa biển Nam Triệu thuộc hạ lưu sông Bạch Đằng, vùng ranh giới giữa Hải Phòng và Quảng Ninh ngày nay.',
-    'nước triều lên': 'Hiện tượng nhật triều đặc biệt của vịnh Bắc Bộ: Mỗi ngày chỉ có một lần nước triều dâng cao và một lần nước triều rút cạn.',
+    'Hoằng Tháo':
+        'Con trai vua Nam Hán Lưu Cung, được phong làm Giao Châu vương thống lĩnh thủy quân xâm lược nước ta.',
+    'bịt sắt':
+        'Đầu cọc gỗ lim được gia cố kim loại nhọn để tăng sức công phá lườn đáy thuyền giặc khi triều rút.',
+    'cửa biển':
+        'Cửa biển Nam Triệu thuộc hạ lưu sông Bạch Đằng, vùng ranh giới giữa Hải Phòng và Quảng Ninh ngày nay.',
+    'nước triều lên':
+        'Hiện tượng nhật triều đặc biệt của vịnh Bắc Bộ: Mỗi ngày chỉ có một lần nước triều dâng cao và một lần nước triều rút cạn.',
   };
 
   @override
@@ -48,7 +52,10 @@ class _ContextReaderScreenState extends State<ContextReaderScreen> {
               // 2. Nội dung cuộn chính của bài đọc tư liệu
               Expanded(
                 child: SingleChildScrollView(
-                  padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 14),
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 18,
+                    vertical: 14,
+                  ),
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.stretch,
                     children: [
@@ -59,13 +66,15 @@ class _ContextReaderScreenState extends State<ContextReaderScreen> {
                       // 3.1 Nhân vật đại diện Chibi Sĩ Tử Dấu Việt hướng dẫn
                       const InteractiveHistoricalMascotWidget(
                         state: MascotState.guiding,
-                        message: 'Chào bạn! Hãy đọc kỹ từng câu chữ trong sử liệu và chạm vào các từ màu đỏ để mở khóa chú giải cổ thư nhé!',
+                        message:
+                            'Chào bạn! Hãy đọc kỹ từng câu chữ trong sử liệu và chạm vào các từ màu đỏ để mở khóa chú giải cổ thư nhé!',
                       ),
                       const SizedBox(height: 10),
 
                       // 3.2 Trình đọc âm thanh giọng dẫn sử liệu Duolingo Story Audio
                       const StoryAudioPlayerWidget(
-                        title: 'Giọng đọc sử liệu: Đại Việt Sử Ký Toàn Thư (Năm 938)',
+                        title:
+                            'Giọng đọc sử liệu: Đại Việt Sử Ký Toàn Thư (Năm 938)',
                         audioAsset: 'audio/narration_bach_dang.wav',
                       ),
                       const SizedBox(height: 14),
@@ -148,7 +157,10 @@ class _ContextReaderScreenState extends State<ContextReaderScreen> {
                 Row(
                   children: [
                     Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 6,
+                        vertical: 2,
+                      ),
                       decoration: BoxDecoration(
                         color: DauVietColors.cinnabarRed,
                         borderRadius: BorderRadius.circular(4),
@@ -215,7 +227,11 @@ class _ContextReaderScreenState extends State<ContextReaderScreen> {
               shape: BoxShape.circle,
               color: DauVietColors.cinnabarRed,
             ),
-            child: const Icon(Icons.menu_book_rounded, color: Colors.white, size: 20),
+            child: const Icon(
+              Icons.menu_book_rounded,
+              color: Colors.white,
+              size: 20,
+            ),
           ),
           const SizedBox(width: 12),
           Expanded(
@@ -289,7 +305,8 @@ class _ContextReaderScreenState extends State<ContextReaderScreen> {
                 const TextSpan(text: '“Quyền nghe tin '),
                 _buildGlossarySpan('Hoằng Tháo'),
                 const TextSpan(
-                  text: ' sắp đến, bảo các tướng tá rằng: Hoằng Tháo là đứa trẻ khờ dại, đem quân từ xa đến, quân lính mỏi mệt, lại nghe tin Công Tiễn đã chết, không có người làm nội ứng, khí thế đã mất một nửa rồi.\n\nNếu ta sai người vót nhọn cọc lớn ',
+                  text:
+                      ' sắp đến, bảo các tướng tá rằng: Hoằng Tháo là đứa trẻ khờ dại, đem quân từ xa đến, quân lính mỏi mệt, lại nghe tin Công Tiễn đã chết, không có người làm nội ứng, khí thế đã mất một nửa rồi.\n\nNếu ta sai người vót nhọn cọc lớn ',
                 ),
                 _buildGlossarySpan('bịt sắt'),
                 const TextSpan(text: ' cắm ngầm trước ở '),
@@ -297,7 +314,8 @@ class _ContextReaderScreenState extends State<ContextReaderScreen> {
                 const TextSpan(text: ', thuyền giặc nhân khi '),
                 _buildGlossarySpan('nước triều lên'),
                 const TextSpan(
-                  text: ' tiến vào bên trong bãi cọc, sau đó ta dễ bề chế ngự, không kế gì hơn kế ấy.”',
+                  text:
+                      ' tiến vào bên trong bãi cọc, sau đó ta dễ bề chế ngự, không kế gì hơn kế ấy.”',
                 ),
               ],
             ),
@@ -351,7 +369,11 @@ class _ContextReaderScreenState extends State<ContextReaderScreen> {
         children: [
           Row(
             children: [
-              const Icon(Icons.verified_rounded, size: 18, color: DauVietColors.natureGreen),
+              const Icon(
+                Icons.verified_rounded,
+                size: 18,
+                color: DauVietColors.natureGreen,
+              ),
               const SizedBox(width: 8),
               Expanded(
                 child: Text(
@@ -364,11 +386,31 @@ class _ContextReaderScreenState extends State<ContextReaderScreen> {
               ),
               const Row(
                 children: [
-                  Icon(Icons.star_rounded, size: 14, color: DauVietColors.imperialGold),
-                  Icon(Icons.star_rounded, size: 14, color: DauVietColors.imperialGold),
-                  Icon(Icons.star_rounded, size: 14, color: DauVietColors.imperialGold),
-                  Icon(Icons.star_rounded, size: 14, color: DauVietColors.imperialGold),
-                  Icon(Icons.star_rounded, size: 14, color: DauVietColors.imperialGold),
+                  Icon(
+                    Icons.star_rounded,
+                    size: 14,
+                    color: DauVietColors.imperialGold,
+                  ),
+                  Icon(
+                    Icons.star_rounded,
+                    size: 14,
+                    color: DauVietColors.imperialGold,
+                  ),
+                  Icon(
+                    Icons.star_rounded,
+                    size: 14,
+                    color: DauVietColors.imperialGold,
+                  ),
+                  Icon(
+                    Icons.star_rounded,
+                    size: 14,
+                    color: DauVietColors.imperialGold,
+                  ),
+                  Icon(
+                    Icons.star_rounded,
+                    size: 14,
+                    color: DauVietColors.imperialGold,
+                  ),
                 ],
               ),
             ],
@@ -376,12 +418,17 @@ class _ContextReaderScreenState extends State<ContextReaderScreen> {
           const SizedBox(height: 8),
           Text(
             evidence.title as String,
-            style: DauVietTypography.labelMedium.copyWith(fontWeight: FontWeight.w700),
+            style: DauVietTypography.labelMedium.copyWith(
+              fontWeight: FontWeight.w700,
+            ),
           ),
           const SizedBox(height: 4),
           Text(
             'Phân loại: ${evidence.category} • Niên đại: ${evidence.dating}',
-            style: DauVietTypography.bodySmall.copyWith(color: DauVietColors.inkMuted, fontSize: 11),
+            style: DauVietTypography.bodySmall.copyWith(
+              color: DauVietColors.inkMuted,
+              fontSize: 11,
+            ),
           ),
         ],
       ),
@@ -395,12 +442,19 @@ class _ContextReaderScreenState extends State<ContextReaderScreen> {
       decoration: BoxDecoration(
         color: DauVietColors.imperialGold.withValues(alpha: 0.12),
         borderRadius: BorderRadius.circular(10),
-        border: Border.all(color: DauVietColors.imperialGold.withValues(alpha: 0.6), width: 1.2),
+        border: Border.all(
+          color: DauVietColors.imperialGold.withValues(alpha: 0.6),
+          width: 1.2,
+        ),
       ),
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          const Icon(Icons.lightbulb_outline_rounded, color: DauVietColors.cinnabarRed, size: 22),
+          const Icon(
+            Icons.lightbulb_outline_rounded,
+            color: DauVietColors.cinnabarRed,
+            size: 22,
+          ),
           const SizedBox(width: 10),
           Expanded(
             child: Column(
@@ -445,7 +499,11 @@ class _ContextReaderScreenState extends State<ContextReaderScreen> {
             children: [
               Row(
                 children: [
-                  const Icon(Icons.translate_rounded, color: DauVietColors.cinnabarRed, size: 24),
+                  const Icon(
+                    Icons.translate_rounded,
+                    color: DauVietColors.cinnabarRed,
+                    size: 24,
+                  ),
                   const SizedBox(width: 10),
                   Text(
                     word,

@@ -2,9 +2,9 @@ import 'package:flutter/material.dart';
 import 'tactile_3d_button.dart';
 
 enum DongSonButtonVariant {
-  primaryCinnabar,   // Đỏ chu sa (Hành động chính)
-  secondaryParchment,// Nền giấy dó viền gỗ (Hành động phụ)
-  imperialGold,      // Vàng ngự xưởng (Ăn mừng / Phần thưởng)
+  primaryCinnabar, // Đỏ chu sa (Hành động chính)
+  secondaryParchment, // Nền giấy dó viền gỗ (Hành động phụ)
+  imperialGold, // Vàng ngự xưởng (Ăn mừng / Phần thưởng)
 }
 
 /// Nút bấm hoa văn di sản Dấu Việt v2.0

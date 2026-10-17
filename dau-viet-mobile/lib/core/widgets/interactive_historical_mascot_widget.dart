@@ -4,7 +4,7 @@ import '../theme/dau_viet_colors.dart';
 import '../theme/dau_viet_typography.dart';
 
 enum MascotState {
-  guiding,  // Hướng dẫn / Chú ý chi tiết lịch sử
+  guiding, // Hướng dẫn / Chú ý chi tiết lịch sử
   cheering, // Đắc thắng / Chúc mừng trả lời đúng
   thinking, // Đăm chiêu / Gợi ý khi chọn sai hoặc gặp câu khó
 }
@@ -28,10 +28,12 @@ class InteractiveHistoricalMascotWidget extends StatefulWidget {
   });
 
   @override
-  State<InteractiveHistoricalMascotWidget> createState() => _InteractiveHistoricalMascotWidgetState();
+  State<InteractiveHistoricalMascotWidget> createState() =>
+      _InteractiveHistoricalMascotWidgetState();
 }
 
-class _InteractiveHistoricalMascotWidgetState extends State<InteractiveHistoricalMascotWidget>
+class _InteractiveHistoricalMascotWidgetState
+    extends State<InteractiveHistoricalMascotWidget>
     with SingleTickerProviderStateMixin {
   late AnimationController _bounceController;
   late Animation<double> _scaleAnimation;
@@ -44,15 +46,28 @@ class _InteractiveHistoricalMascotWidgetState extends State<InteractiveHistorica
       duration: const Duration(milliseconds: 320),
     );
     _scaleAnimation = TweenSequence<double>([
-      TweenSequenceItem(tween: Tween(begin: 1.0, end: 1.15).chain(CurveTween(curve: Curves.easeOut)), weight: 50),
-      TweenSequenceItem(tween: Tween(begin: 1.15, end: 1.0).chain(CurveTween(curve: Curves.bounceOut)), weight: 50),
+      TweenSequenceItem(
+        tween: Tween(
+          begin: 1.0,
+          end: 1.15,
+        ).chain(CurveTween(curve: Curves.easeOut)),
+        weight: 50,
+      ),
+      TweenSequenceItem(
+        tween: Tween(
+          begin: 1.15,
+          end: 1.0,
+        ).chain(CurveTween(curve: Curves.bounceOut)),
+        weight: 50,
+      ),
     ]).animate(_bounceController);
   }
 
   @override
   void didUpdateWidget(covariant InteractiveHistoricalMascotWidget oldWidget) {
     super.didUpdateWidget(oldWidget);
-    if (oldWidget.state != widget.state && !DauVietAudioService.isTestEnvironment) {
+    if (oldWidget.state != widget.state &&
+        !DauVietAudioService.isTestEnvironment) {
       _bounceController.forward(from: 0.0);
     }
   }
@@ -153,8 +168,8 @@ class _InteractiveHistoricalMascotWidgetState extends State<InteractiveHistorica
                         widget.state == MascotState.cheering
                             ? Icons.sentiment_very_satisfied_rounded
                             : (widget.state == MascotState.thinking
-                                ? Icons.psychology_rounded
-                                : Icons.school_rounded),
+                                  ? Icons.psychology_rounded
+                                  : Icons.school_rounded),
                         color: statusColor,
                         size: widget.avatarSize * 0.55,
                       ),
@@ -163,68 +178,77 @@ class _InteractiveHistoricalMascotWidgetState extends State<InteractiveHistorica
                 ),
               ),
             ),
-          const SizedBox(width: 12),
+            const SizedBox(width: 12),
 
-          // 2. Hộp thoại lời nói (Speech Bubble) phong vị Giấy Dó & Viền Gỗ
-          Expanded(
-            child: Container(
-              padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
-              decoration: BoxDecoration(
-                color: const Color(0xFFFBF4E4),
-                borderRadius: const BorderRadius.only(
-                  topRight: Radius.circular(14),
-                  bottomLeft: Radius.circular(14),
-                  bottomRight: Radius.circular(14),
+            // 2. Hộp thoại lời nói (Speech Bubble) phong vị Giấy Dó & Viền Gỗ
+            Expanded(
+              child: Container(
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 14,
+                  vertical: 10,
                 ),
-                border: Border.all(color: statusColor.withValues(alpha: 0.8), width: 1.4),
-                boxShadow: [
-                  BoxShadow(
-                    color: Colors.black.withValues(alpha: 0.04),
-                    blurRadius: 6,
-                    offset: const Offset(0, 2),
+                decoration: BoxDecoration(
+                  color: const Color(0xFFFBF4E4),
+                  borderRadius: const BorderRadius.only(
+                    topRight: Radius.circular(14),
+                    bottomLeft: Radius.circular(14),
+                    bottomRight: Radius.circular(14),
                   ),
-                ],
-              ),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  Row(
-                    children: [
-                      Container(
-                        padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
-                        decoration: BoxDecoration(
-                          color: statusColor,
-                          borderRadius: BorderRadius.circular(4),
-                        ),
-                        child: Text(
-                          _getStatusLabel(),
-                          style: const TextStyle(
-                            color: Colors.white,
-                            fontSize: 9,
-                            fontWeight: FontWeight.w800,
-                            letterSpacing: 0.5,
+                  border: Border.all(
+                    color: statusColor.withValues(alpha: 0.8),
+                    width: 1.4,
+                  ),
+                  boxShadow: [
+                    BoxShadow(
+                      color: Colors.black.withValues(alpha: 0.04),
+                      blurRadius: 6,
+                      offset: const Offset(0, 2),
+                    ),
+                  ],
+                ),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Row(
+                      children: [
+                        Container(
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 6,
+                            vertical: 2,
+                          ),
+                          decoration: BoxDecoration(
+                            color: statusColor,
+                            borderRadius: BorderRadius.circular(4),
+                          ),
+                          child: Text(
+                            _getStatusLabel(),
+                            style: const TextStyle(
+                              color: Colors.white,
+                              fontSize: 9,
+                              fontWeight: FontWeight.w800,
+                              letterSpacing: 0.5,
+                            ),
                           ),
                         ),
-                      ),
-                    ],
-                  ),
-                  const SizedBox(height: 5),
-                  Text(
-                    messageText,
-                    style: DauVietTypography.bodySmall.copyWith(
-                      color: DauVietColors.inkText,
-                      height: 1.35,
-                      fontSize: 12,
+                      ],
                     ),
-                  ),
-                ],
+                    const SizedBox(height: 5),
+                    Text(
+                      messageText,
+                      style: DauVietTypography.bodySmall.copyWith(
+                        color: DauVietColors.inkText,
+                        height: 1.35,
+                        fontSize: 12,
+                      ),
+                    ),
+                  ],
+                ),
               ),
             ),
-          ),
-        ],
+          ],
+        ),
       ),
-    ),
-  );
+    );
   }
 }

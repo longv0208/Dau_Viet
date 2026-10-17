@@ -35,16 +35,14 @@ class _TimelineScreenState extends ConsumerState<TimelineScreen> {
   }
 
   List<String> _eras(List<TimelineMilestoneModel> milestones) {
-    return <String>{
-      _allErasLabel,
-      ...milestones.map((m) => m.era),
-    }.toList();
+    return <String>{_allErasLabel, ...milestones.map((m) => m.era)}.toList();
   }
 
   @override
   Widget build(BuildContext context) {
-    final AsyncValue<EventsPageResult> eventsAsync =
-        ref.watch(eventsListProvider);
+    final AsyncValue<EventsPageResult> eventsAsync = ref.watch(
+      eventsListProvider,
+    );
 
     return Scaffold(
       backgroundColor: DauVietColors.parchmentSurface,
@@ -53,10 +51,7 @@ class _TimelineScreenState extends ConsumerState<TimelineScreen> {
           gradient: LinearGradient(
             begin: Alignment.topCenter,
             end: Alignment.bottomCenter,
-            colors: [
-              DauVietColors.parchmentSurface,
-              Color(0xFFFAF2E4),
-            ],
+            colors: [DauVietColors.parchmentSurface, Color(0xFFFAF2E4)],
           ),
         ),
         child: SafeArea(
@@ -102,8 +97,10 @@ class _TimelineScreenState extends ConsumerState<TimelineScreen> {
                   message: 'Không có sự kiện nào trong thời kỳ này.',
                 )
               : ListView.builder(
-                  padding:
-                      const EdgeInsets.symmetric(horizontal: 18, vertical: 12),
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 18,
+                    vertical: 12,
+                  ),
                   itemCount: filtered.length,
                   itemBuilder: (context, index) {
                     final item = filtered[index];
@@ -150,7 +147,10 @@ class _TimelineScreenState extends ConsumerState<TimelineScreen> {
                 Row(
                   children: [
                     Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 6,
+                        vertical: 2,
+                      ),
                       decoration: BoxDecoration(
                         color: DauVietColors.cinnabarRed,
                         borderRadius: BorderRadius.circular(4),
@@ -189,7 +189,10 @@ class _TimelineScreenState extends ConsumerState<TimelineScreen> {
             ),
           ),
           IconButton(
-            icon: const Icon(Icons.map_outlined, color: DauVietColors.cinnabarRed),
+            icon: const Icon(
+              Icons.map_outlined,
+              color: DauVietColors.cinnabarRed,
+            ),
             tooltip: 'Sa bàn chiến thuật',
             onPressed: () {
               context.go('/saban');
@@ -226,10 +229,14 @@ class _TimelineScreenState extends ConsumerState<TimelineScreen> {
             selectedColor: DauVietColors.cinnabarRed,
             backgroundColor: DauVietColors.parchmentContainer,
             side: BorderSide(
-              color: isSelected ? DauVietColors.cinnabarRed : DauVietColors.outlineVariant,
+              color: isSelected
+                  ? DauVietColors.cinnabarRed
+                  : DauVietColors.outlineVariant,
               width: 1,
             ),
-            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(16),
+            ),
             onSelected: (selected) {
               if (selected) {
                 setState(() {
@@ -260,16 +267,26 @@ class _TimelineScreenState extends ConsumerState<TimelineScreen> {
                   height: item.isActive ? 28 : 20,
                   decoration: BoxDecoration(
                     shape: BoxShape.circle,
-                    color: item.isActive ? DauVietColors.cinnabarRed : DauVietColors.parchmentContainer,
+                    color: item.isActive
+                        ? DauVietColors.cinnabarRed
+                        : DauVietColors.parchmentContainer,
                     border: Border.all(
-                      color: item.isActive ? DauVietColors.imperialGold : DauVietColors.cinnabarRed,
+                      color: item.isActive
+                          ? DauVietColors.imperialGold
+                          : DauVietColors.cinnabarRed,
                       width: item.isActive ? 3 : 2,
                     ),
-                    boxShadow: item.isActive ? DauVietColors.heritageShadow : null,
+                    boxShadow: item.isActive
+                        ? DauVietColors.heritageShadow
+                        : null,
                   ),
                   alignment: Alignment.center,
                   child: item.isActive
-                      ? const Icon(Icons.flash_on_rounded, size: 16, color: Colors.white)
+                      ? const Icon(
+                          Icons.flash_on_rounded,
+                          size: 16,
+                          color: Colors.white,
+                        )
                       : Container(
                           width: 6,
                           height: 6,
@@ -300,7 +317,9 @@ class _TimelineScreenState extends ConsumerState<TimelineScreen> {
                 backgroundColor: item.isActive
                     ? DauVietColors.parchmentContainer
                     : Colors.white.withValues(alpha: 0.8),
-                borderColor: item.isActive ? DauVietColors.imperialGold : DauVietColors.outlineVariant,
+                borderColor: item.isActive
+                    ? DauVietColors.imperialGold
+                    : DauVietColors.outlineVariant,
                 borderWidth: item.isActive ? 2.0 : 1.0,
                 padding: const EdgeInsets.all(16),
                 child: Column(
@@ -310,17 +329,24 @@ class _TimelineScreenState extends ConsumerState<TimelineScreen> {
                     Row(
                       children: [
                         Container(
-                          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 8,
+                            vertical: 3,
+                          ),
                           decoration: BoxDecoration(
                             color: item.isActive
                                 ? DauVietColors.cinnabarRed
-                                : DauVietColors.imperialGold.withValues(alpha: 0.2),
+                                : DauVietColors.imperialGold.withValues(
+                                    alpha: 0.2,
+                                  ),
                             borderRadius: BorderRadius.circular(6),
                           ),
                           child: Text(
                             item.yearLabel,
                             style: DauVietTypography.labelSmall.copyWith(
-                              color: item.isActive ? Colors.white : DauVietColors.inkText,
+                              color: item.isActive
+                                  ? Colors.white
+                                  : DauVietColors.inkText,
                               fontWeight: FontWeight.w800,
                               fontSize: 11,
                             ),
@@ -330,17 +356,26 @@ class _TimelineScreenState extends ConsumerState<TimelineScreen> {
                         if (item.badgeText != null)
                           Flexible(
                             child: Container(
-                              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+                              padding: const EdgeInsets.symmetric(
+                                horizontal: 8,
+                                vertical: 2,
+                              ),
                               decoration: BoxDecoration(
                                 color: item.isActive
-                                    ? DauVietColors.imperialGold.withValues(alpha: 0.25)
-                                    : DauVietColors.outlineVariant.withValues(alpha: 0.3),
+                                    ? DauVietColors.imperialGold.withValues(
+                                        alpha: 0.25,
+                                      )
+                                    : DauVietColors.outlineVariant.withValues(
+                                        alpha: 0.3,
+                                      ),
                                 borderRadius: BorderRadius.circular(4),
                               ),
                               child: Text(
                                 item.badgeText!,
                                 style: DauVietTypography.labelSmall.copyWith(
-                                  color: item.isActive ? DauVietColors.cinnabarRed : DauVietColors.inkMuted,
+                                  color: item.isActive
+                                      ? DauVietColors.cinnabarRed
+                                      : DauVietColors.inkMuted,
                                   fontWeight: FontWeight.w700,
                                   fontSize: 10,
                                 ),
@@ -357,7 +392,9 @@ class _TimelineScreenState extends ConsumerState<TimelineScreen> {
                       item.title,
                       style: DauVietTypography.headlineMedium.copyWith(
                         fontSize: 17,
-                        color: item.isActive ? DauVietColors.cinnabarRed : DauVietColors.inkText,
+                        color: item.isActive
+                            ? DauVietColors.cinnabarRed
+                            : DauVietColors.inkText,
                       ),
                     ),
                     const SizedBox(height: 3),
@@ -384,7 +421,10 @@ class _TimelineScreenState extends ConsumerState<TimelineScreen> {
                     // Nếu là mốc Active (Bạch Đằng 938): Hiện các nút CTA khám phá
                     if (item.isActive && item.eventId != null) ...[
                       const SizedBox(height: 16),
-                      const Divider(color: DauVietColors.outlineVariant, height: 1),
+                      const Divider(
+                        color: DauVietColors.outlineVariant,
+                        height: 1,
+                      ),
                       const SizedBox(height: 14),
                       Row(
                         children: [
@@ -442,7 +482,9 @@ class _TimelineScreenState extends ConsumerState<TimelineScreen> {
         type: BottomNavigationBarType.fixed,
         selectedItemColor: DauVietColors.cinnabarRed,
         unselectedItemColor: DauVietColors.inkMuted,
-        selectedLabelStyle: DauVietTypography.labelSmall.copyWith(fontWeight: FontWeight.w800),
+        selectedLabelStyle: DauVietTypography.labelSmall.copyWith(
+          fontWeight: FontWeight.w800,
+        ),
         unselectedLabelStyle: DauVietTypography.labelSmall,
         onTap: (index) {
           if (index == 0) {

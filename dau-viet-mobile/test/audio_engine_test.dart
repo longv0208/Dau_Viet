@@ -82,16 +82,14 @@ void main() {
   });
 
   group('SoundToggleButton Widget Tests', () {
-    testWidgets('Renders toggle button and flips icon state on tap', (tester) async {
+    testWidgets('Renders toggle button and flips icon state on tap', (
+      tester,
+    ) async {
       final service = DauVietAudioService.instance;
       service.setSoundEnabled(true);
 
       await tester.pumpWidget(
-        const MaterialApp(
-          home: Scaffold(
-            body: SoundToggleButton(),
-          ),
-        ),
+        const MaterialApp(home: Scaffold(body: SoundToggleButton())),
       );
 
       // Ban đầu đang bật âm
@@ -120,9 +118,7 @@ void main() {
       await tester.pumpWidget(
         const MaterialApp(
           home: Scaffold(
-            body: StoryAudioPlayerWidget(
-              title: 'Bài đọc: Bối cảnh Bạch Đằng',
-            ),
+            body: StoryAudioPlayerWidget(title: 'Bài đọc: Bối cảnh Bạch Đằng'),
           ),
         ),
       );
@@ -132,14 +128,13 @@ void main() {
       expect(find.byType(LinearProgressIndicator), findsOneWidget);
     });
 
-    testWidgets('Renders compact mode with audio waveform bars', (tester) async {
+    testWidgets('Renders compact mode with audio waveform bars', (
+      tester,
+    ) async {
       await tester.pumpWidget(
         const MaterialApp(
           home: Scaffold(
-            body: StoryAudioPlayerWidget(
-              title: 'Bài đọc ngắn',
-              compact: true,
-            ),
+            body: StoryAudioPlayerWidget(title: 'Bài đọc ngắn', compact: true),
           ),
         ),
       );
@@ -148,13 +143,13 @@ void main() {
       expect(find.text('00:00'), findsOneWidget);
     });
 
-    testWidgets('Play button triggers narration without exception', (tester) async {
+    testWidgets('Play button triggers narration without exception', (
+      tester,
+    ) async {
       await tester.pumpWidget(
         const MaterialApp(
           home: Scaffold(
-            body: StoryAudioPlayerWidget(
-              title: 'Bài đọc: Kiểm thử âm thanh',
-            ),
+            body: StoryAudioPlayerWidget(title: 'Bài đọc: Kiểm thử âm thanh'),
           ),
         ),
       );

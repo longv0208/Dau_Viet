@@ -104,6 +104,64 @@ class PinnedVersionIT extends AbstractPostgresIT {
         assertThat(body.get("evaluation").get("output").get("correct").asBoolean()).isTrue();
     }
 
+    /**
+     * TASK-0018: GET /attempts/{id}/content serves the PINNED v1 projection
+     * after a v2 republish — the mobile player renders the same version its
+     * submissions are graded against (evidence[]/assets[]/stage config).
+     */
+    @org.junit.jupiter.api.Test
+    void attemptContent_servesPinnedVersion_afterV2Republish() throws Exception {
+        String lessonId = AttemptItFixture.publishLesson(mvc, om, adminToken,
+                eventId, tplId, AttemptItFixture.draftTwoStage(evId,
+                        "{\"question\":\"q v1\",\"options\":[{\"id\":\"o1\"},{\"id\":\"o2\"}],"
+                      + "\"correctOptionIds\":[\"o1\"]}"));
+        String attemptId = AttemptItFixture.startAttempt(mvc, om, learnerToken, lessonId);
+        String v1Id = jdbc.queryForObject(
+                "select lesson_version_id::text from learner_attempts where id = ?::uuid",
+                String.class, attemptId);
+
+        // republish v2 — same draft shape, different question text
+        var draftReq = new java.util.LinkedHashMap<String, Object>();
+        draftReq.put("draftJson", AttemptItFixture.draftTwoStage(evId,
+                "{\"question\":\"q v2\",\"options\":[{\"id\":\"o1\"},{\"id\":\"o2\"}],"
+              + "\"correctOptionIds\":[\"o2\"]}"));
+        mvc.perform(org.springframework.test.web.servlet.request
+                        .MockMvcRequestBuilders.put(
+                                "/api/v1/admin/lessons/" + lessonId + "/draft")
+                        .header("Authorization", adminToken)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(om.writeValueAsString(draftReq)))
+                .andExpect(org.springframework.test.web.servlet.result
+                        .MockMvcResultMatchers.status().isOk());
+        mvc.perform(post("/api/v1/admin/lessons/" + lessonId + "/publish")
+                        .header("Authorization", adminToken))
+                .andExpect(org.springframework.test.web.servlet.result
+                        .MockMvcResultMatchers.status().isOk());
+
+        // Pinned content must still be v1: matching versionId + v1 question.
+        MvcResult res = mvc.perform(org.springframework.test.web.servlet.request
+                        .MockMvcRequestBuilders.get(
+                                "/api/v1/attempts/" + attemptId + "/content")
+                        .header("Authorization", learnerToken))
+                .andExpect(org.springframework.test.web.servlet.result
+                        .MockMvcResultMatchers.status().isOk())
+                .andReturn();
+        JsonNode body = AttemptItFixture.body(om, res);
+        assertThat(body.get("lessonVersionId").asText()).isEqualTo(v1Id);
+        assertThat(body.get("versionNo").asInt()).isEqualTo(1);
+        String contentJson = body.get("content").toString();
+        assertThat(contentJson).contains("q v1");
+        assertThat(contentJson).doesNotContain("q v2");
+        // owner-only: another learner's token cannot read the pinned content
+        String otherToken = AttemptItFixture.token(users, jwt, "o@p.vn", UserRole.LEARNER);
+        mvc.perform(org.springframework.test.web.servlet.request
+                        .MockMvcRequestBuilders.get(
+                                "/api/v1/attempts/" + attemptId + "/content")
+                        .header("Authorization", otherToken))
+                .andExpect(org.springframework.test.web.servlet.result
+                        .MockMvcResultMatchers.status().isForbidden());
+    }
+
     private MvcResult submit(String attemptId, String activityId, String answerJson)
             throws Exception {
         return mvc.perform(post("/api/v1/attempts/" + attemptId

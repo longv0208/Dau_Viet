@@ -1,12 +1,12 @@
 /// Định nghĩa các loại hình hoạt động học tập tương tác
 /// Khớp 100% với UI_COMPONENT_SPEC.md v2.0
 enum ActivityType {
-  contextReader,     // M-09 Đọc bối cảnh tư liệu
-  matching,          // M-11 Ghép nối dữ kiện
-  dragOrder,         // M-12 Kéo thả sắp xếp niên đại
-  verification,      // M-13 Kiểm chứng giả thuyết
-  cerConclusion,     // M-14 Kết luận lập luận CER
-  multipleChoice,    // M-16 Trắc nghiệm tư liệu
+  contextReader, // M-09 Đọc bối cảnh tư liệu
+  matching, // M-11 Ghép nối dữ kiện
+  dragOrder, // M-12 Kéo thả sắp xếp niên đại
+  verification, // M-13 Kiểm chứng giả thuyết
+  cerConclusion, // M-14 Kết luận lập luận CER
+  multipleChoice, // M-16 Trắc nghiệm tư liệu
 }
 
 /// Mô hình Sự kiện Lịch sử

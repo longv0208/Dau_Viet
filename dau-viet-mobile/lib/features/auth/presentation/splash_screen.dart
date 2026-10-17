@@ -1,23 +1,28 @@
 import 'dart:async';
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import '../../../core/theme/dau_viet_colors.dart';
 import '../../../core/theme/dau_viet_typography.dart';
+import '../../learning/data/learning_providers.dart';
+import '../data/auth_state.dart';
 
 /// Màn hình M-01: Splash Screen Thương hiệu Dấu Việt
 /// Khớp 100% với thiết kế Stitch b867c4faee4749f99e3caecb0a519eb3
-class SplashScreen extends StatefulWidget {
+class SplashScreen extends ConsumerStatefulWidget {
   const SplashScreen({super.key});
 
   @override
-  State<SplashScreen> createState() => _SplashScreenState();
+  ConsumerState<SplashScreen> createState() => _SplashScreenState();
 }
 
-class _SplashScreenState extends State<SplashScreen> with SingleTickerProviderStateMixin {
+class _SplashScreenState extends ConsumerState<SplashScreen>
+    with SingleTickerProviderStateMixin {
   late AnimationController _animController;
   late Animation<double> _fadeAnim;
   late Animation<double> _scaleAnim;
   Timer? _navTimer;
+  Future<void>? _restore;
 
   @override
   void initState() {
@@ -41,12 +46,28 @@ class _SplashScreenState extends State<SplashScreen> with SingleTickerProviderSt
 
     _animController.forward();
 
-    // Tự động chuyển màn sau 2.5 giây
-    _navTimer = Timer(const Duration(milliseconds: 2500), () {
-      if (mounted) {
+    // Khôi phục phiên đăng nhập song song với animation; chuyển màn sau
+    // tối thiểu 2.5s và khi restore xong (auth → dashboard / guest →
+    // dashboard trong demo / unauthenticated → auth).
+    _navTimer = Timer(const Duration(milliseconds: 2500), _route);
+    _restore = ref.read(authSessionProvider.notifier).restore();
+  }
+
+  Future<void> _route() async {
+    try {
+      await _restore;
+    } catch (_) {
+      // Restore lỗi → router guard sẽ quyết định (thường rơi về /auth).
+    }
+    if (!mounted) return;
+    final status = ref.read(authSessionProvider).status;
+    switch (status) {
+      case AuthStatus.authenticated:
+      case AuthStatus.guest:
+        context.go('/dashboard');
+      default:
         context.go('/auth');
-      }
-    });
+    }
   }
 
   @override
@@ -58,9 +79,7 @@ class _SplashScreenState extends State<SplashScreen> with SingleTickerProviderSt
 
   void _skip() {
     _navTimer?.cancel();
-    if (mounted) {
-      context.go('/auth');
-    }
+    _route();
   }
 
   @override
@@ -111,7 +130,8 @@ class _SplashScreenState extends State<SplashScreen> with SingleTickerProviderSt
                                 ),
                                 boxShadow: [
                                   BoxShadow(
-                                    color: DauVietColors.imperialGold.withValues(alpha: 0.35),
+                                    color: DauVietColors.imperialGold
+                                        .withValues(alpha: 0.35),
                                     blurRadius: 28,
                                     spreadRadius: 4,
                                   ),
@@ -129,7 +149,8 @@ class _SplashScreenState extends State<SplashScreen> with SingleTickerProviderSt
                                   Icon(
                                     Icons.wb_sunny_rounded,
                                     size: 80,
-                                    color: DauVietColors.imperialGold.withValues(alpha: 0.7),
+                                    color: DauVietColors.imperialGold
+                                        .withValues(alpha: 0.7),
                                   ),
                                   // Dấu ấn triện vuông màu son
                                   Container(
@@ -138,7 +159,10 @@ class _SplashScreenState extends State<SplashScreen> with SingleTickerProviderSt
                                     decoration: BoxDecoration(
                                       color: DauVietColors.cinnabarRed,
                                       borderRadius: BorderRadius.circular(8),
-                                      border: Border.all(color: Colors.white, width: 1.5),
+                                      border: Border.all(
+                                        color: Colors.white,
+                                        width: 1.5,
+                                      ),
                                     ),
                                     alignment: Alignment.center,
                                     child: const Text(
@@ -197,7 +221,9 @@ class _SplashScreenState extends State<SplashScreen> with SingleTickerProviderSt
                             height: 28,
                             child: CircularProgressIndicator(
                               strokeWidth: 2.5,
-                              valueColor: AlwaysStoppedAnimation<Color>(DauVietColors.cinnabarRed),
+                              valueColor: AlwaysStoppedAnimation<Color>(
+                                DauVietColors.cinnabarRed,
+                              ),
                             ),
                           ),
                           const SizedBox(height: 14),
@@ -206,7 +232,9 @@ class _SplashScreenState extends State<SplashScreen> with SingleTickerProviderSt
                             style: DauVietTypography.labelSmall.copyWith(
                               fontSize: 10,
                               letterSpacing: 1.2,
-                              color: DauVietColors.inkMuted.withValues(alpha: 0.7),
+                              color: DauVietColors.inkMuted.withValues(
+                                alpha: 0.7,
+                              ),
                             ),
                           ),
                           const SizedBox(height: 16),

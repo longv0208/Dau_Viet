@@ -7,11 +7,7 @@ class SoundToggleButton extends StatelessWidget {
   final double size;
   final Color? color;
 
-  const SoundToggleButton({
-    super.key,
-    this.size = 20,
-    this.color,
-  });
+  const SoundToggleButton({super.key, this.size = 20, this.color});
 
   @override
   Widget build(BuildContext context) {
@@ -28,7 +24,11 @@ class SoundToggleButton extends StatelessWidget {
           icon: Icon(
             isEnabled ? Icons.volume_up_rounded : Icons.volume_off_rounded,
             size: size,
-            color: color ?? (isEnabled ? DauVietColors.cinnabarRed : DauVietColors.inkMuted),
+            color:
+                color ??
+                (isEnabled
+                    ? DauVietColors.cinnabarRed
+                    : DauVietColors.inkMuted),
           ),
           onPressed: () {
             audioService.toggleSound();

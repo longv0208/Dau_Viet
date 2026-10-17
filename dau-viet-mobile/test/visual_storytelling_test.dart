@@ -58,7 +58,9 @@ void main() {
       expect(find.text('Hãy đọc kỹ lời bình sử thi!'), findsOneWidget);
     });
 
-    testWidgets('Renders cheering state with celebration message', (tester) async {
+    testWidgets('Renders cheering state with celebration message', (
+      tester,
+    ) async {
       await tester.pumpWidget(
         const MaterialApp(
           home: Scaffold(
@@ -112,22 +114,20 @@ void main() {
   });
 
   group('Screen Visual Storytelling Integration Tests', () {
-    testWidgets('ContextReaderScreen renders with mascot guide', (tester) async {
-      await tester.pumpWidget(
-        const MaterialApp(
-          home: ContextReaderScreen(),
-        ),
-      );
+    testWidgets('ContextReaderScreen renders with mascot guide', (
+      tester,
+    ) async {
+      await tester.pumpWidget(const MaterialApp(home: ContextReaderScreen()));
 
       expect(find.byType(InteractiveHistoricalMascotWidget), findsOneWidget);
       expect(find.byType(AmbientAtmosphereOverlay), findsOneWidget);
     });
 
-    testWidgets('MultipleChoiceQuizScreen renders with dynamic mascot', (tester) async {
+    testWidgets('MultipleChoiceQuizScreen renders with dynamic mascot', (
+      tester,
+    ) async {
       await tester.pumpWidget(
-        const MaterialApp(
-          home: MultipleChoiceQuizScreen(),
-        ),
+        const MaterialApp(home: MultipleChoiceQuizScreen()),
       );
 
       expect(find.byType(InteractiveHistoricalMascotWidget), findsOneWidget);

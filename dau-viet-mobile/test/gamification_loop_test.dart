@@ -7,15 +7,14 @@ void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
 
   group('ComboStreakBadgeWidget Tests', () {
-    testWidgets('Renders streak count and flame icon', (WidgetTester tester) async {
+    testWidgets('Renders streak count and flame icon', (
+      WidgetTester tester,
+    ) async {
       await tester.pumpWidget(
         const MaterialApp(
           home: Scaffold(
             body: Center(
-              child: ComboStreakBadgeWidget(
-                streakCount: 3,
-                multiplier: 1.0,
-              ),
+              child: ComboStreakBadgeWidget(streakCount: 3, multiplier: 1.0),
             ),
           ),
         ),
@@ -28,15 +27,14 @@ void main() {
       expect(find.text('x1.0'), findsNothing);
     });
 
-    testWidgets('Renders bonus multiplier badge when multiplier > 1.0', (WidgetTester tester) async {
+    testWidgets('Renders bonus multiplier badge when multiplier > 1.0', (
+      WidgetTester tester,
+    ) async {
       await tester.pumpWidget(
         const MaterialApp(
           home: Scaffold(
             body: Center(
-              child: ComboStreakBadgeWidget(
-                streakCount: 5,
-                multiplier: 1.5,
-              ),
+              child: ComboStreakBadgeWidget(streakCount: 5, multiplier: 1.5),
             ),
           ),
         ),
@@ -48,15 +46,14 @@ void main() {
       expect(find.byIcon(Icons.local_fire_department_rounded), findsOneWidget);
     });
 
-    testWidgets('Displays explanation dialog on tap', (WidgetTester tester) async {
+    testWidgets('Displays explanation dialog on tap', (
+      WidgetTester tester,
+    ) async {
       await tester.pumpWidget(
         const MaterialApp(
           home: Scaffold(
             body: Center(
-              child: ComboStreakBadgeWidget(
-                streakCount: 4,
-                multiplier: 1.5,
-              ),
+              child: ComboStreakBadgeWidget(streakCount: 4, multiplier: 1.5),
             ),
           ),
         ),
@@ -69,7 +66,10 @@ void main() {
 
       // Xác nhận dialog xuất hiện
       expect(find.text('Ngọn Lửa Hào Khí'), findsOneWidget);
-      expect(find.textContaining('Chuỗi trả lời đúng liên tiếp: 4 câu'), findsOneWidget);
+      expect(
+        find.textContaining('Chuỗi trả lời đúng liên tiếp: 4 câu'),
+        findsOneWidget,
+      );
       expect(find.text('ĐÃ HIỂU'), findsOneWidget);
 
       // Đóng dialog
@@ -79,7 +79,9 @@ void main() {
       expect(find.text('Ngọn Lửa Hào Khí'), findsNothing);
     });
 
-    testWidgets('Triggers custom onTap callback when provided', (WidgetTester tester) async {
+    testWidgets('Triggers custom onTap callback when provided', (
+      WidgetTester tester,
+    ) async {
       bool tapped = false;
 
       await tester.pumpWidget(
@@ -107,7 +109,9 @@ void main() {
   });
 
   group('BiteSizedCompletionModal Tests', () {
-    testWidgets('Renders all celebratory components and accuracy label', (WidgetTester tester) async {
+    testWidgets('Renders all celebratory components and accuracy label', (
+      WidgetTester tester,
+    ) async {
       bool continued = false;
 
       await tester.pumpWidget(
@@ -146,7 +150,10 @@ void main() {
 
       // Xác nhận các thành phần của modal
       expect(find.text('CHIẾN CÔNG HOÀN TẤT!'), findsOneWidget);
-      expect(find.text('Bạn đã hoàn thành xuất sắc Dấu Vết 1.'), findsOneWidget);
+      expect(
+        find.text('Bạn đã hoàn thành xuất sắc Dấu Vết 1.'),
+        findsOneWidget,
+      );
       expect(find.text('100% Tuyệt Đỉnh'), findsOneWidget);
       expect(find.text('Chuỗi 3 🔥'), findsOneWidget);
       expect(find.text('Điểm Sử Ký (x1.5)'), findsOneWidget);
@@ -162,7 +169,9 @@ void main() {
       expect(find.text('CHIẾN CÔNG HOÀN TẤT!'), findsNothing);
     });
 
-    testWidgets('Renders lower accuracy labels correctly (80% and 50%)', (WidgetTester tester) async {
+    testWidgets('Renders lower accuracy labels correctly (80% and 50%)', (
+      WidgetTester tester,
+    ) async {
       await tester.pumpWidget(
         MaterialApp(
           home: Scaffold(

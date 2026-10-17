@@ -22,7 +22,8 @@ class MultipleChoiceQuizScreen extends StatefulWidget {
   const MultipleChoiceQuizScreen({super.key});
 
   @override
-  State<MultipleChoiceQuizScreen> createState() => _MultipleChoiceQuizScreenState();
+  State<MultipleChoiceQuizScreen> createState() =>
+      _MultipleChoiceQuizScreenState();
 }
 
 class _MultipleChoiceQuizScreenState extends State<MultipleChoiceQuizScreen> {
@@ -34,25 +35,29 @@ class _MultipleChoiceQuizScreenState extends State<MultipleChoiceQuizScreen> {
     {
       'id': 'opt_a',
       'label': 'A',
-      'text': 'Để chuẩn bị bí mật khi giặc chưa tới và con nước triều đang rút cạn lộ bãi, dễ dàng cắm cọc sâu vào lòng sông.',
+      'text':
+          'Để chuẩn bị bí mật khi giặc chưa tới và con nước triều đang rút cạn lộ bãi, dễ dàng cắm cọc sâu vào lòng sông.',
       'isCorrect': true,
     },
     {
       'id': 'opt_b',
       'label': 'B',
-      'text': 'Để ngăn chặn thuyền buôn dân sự không đi vào cửa biển Nam Triệu trong thời kỳ chiến sự.',
+      'text':
+          'Để ngăn chặn thuyền buôn dân sự không đi vào cửa biển Nam Triệu trong thời kỳ chiến sự.',
       'isCorrect': false,
     },
     {
       'id': 'opt_c',
       'label': 'C',
-      'text': 'Vì cọc gỗ lim chỉ đóng được vào ban đêm lúc có trăng sáng để các hào trưởng định vị hướng dòng chảy.',
+      'text':
+          'Vì cọc gỗ lim chỉ đóng được vào ban đêm lúc có trăng sáng để các hào trưởng định vị hướng dòng chảy.',
       'isCorrect': false,
     },
     {
       'id': 'opt_d',
       'label': 'D',
-      'text': 'Được đóng cấp tốc ngay trong lúc hai bên đang giao chiến trực diện giữa dòng nước lớn.',
+      'text':
+          'Được đóng cấp tốc ngay trong lúc hai bên đang giao chiến trực diện giữa dòng nước lớn.',
       'isCorrect': false,
     },
   ];
@@ -93,8 +98,8 @@ class _MultipleChoiceQuizScreenState extends State<MultipleChoiceQuizScreen> {
     final mascotMessage = !_isSubmitted
         ? 'Hãy đọc kỹ câu hỏi và thời điểm tháng 10 năm 938 để suy luận đáp án nhé!'
         : (_isCorrect
-            ? 'Tuyệt đỉnh! Chuẩn bị trước khi giặc tới là chìa khóa then chốt của chiến thắng Bạch Đằng!'
-            : 'Chưa chính xác rồi! Khi giặc đã tiến vào cửa biển thì ta không thể bí mật chuẩn bị được nữa.');
+              ? 'Tuyệt đỉnh! Chuẩn bị trước khi giặc tới là chìa khóa then chốt của chiến thắng Bạch Đằng!'
+              : 'Chưa chính xác rồi! Khi giặc đã tiến vào cửa biển thì ta không thể bí mật chuẩn bị được nữa.');
 
     return Scaffold(
       backgroundColor: DauVietColors.parchmentSurface,
@@ -112,7 +117,10 @@ class _MultipleChoiceQuizScreenState extends State<MultipleChoiceQuizScreen> {
 
                 // 2. Thanh tiến độ lướt sáng hoàng kim Duolingo
                 Padding(
-                  padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 6),
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 16,
+                    vertical: 6,
+                  ),
                   child: ShimmerProgressBar(
                     progress: _isSubmitted && _isCorrect
                         ? 1.0
@@ -127,7 +135,10 @@ class _MultipleChoiceQuizScreenState extends State<MultipleChoiceQuizScreen> {
                 // 3. Nội dung cuộn chính của câu hỏi
                 Expanded(
                   child: SingleChildScrollView(
-                    padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 10),
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 18,
+                      vertical: 10,
+                    ),
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.stretch,
                       children: [
@@ -161,14 +172,18 @@ class _MultipleChoiceQuizScreenState extends State<MultipleChoiceQuizScreen> {
                                 ? DongSonButtonVariant.primaryCinnabar
                                 : DongSonButtonVariant.secondaryParchment,
                             height: 52,
-                            onPressed: _selectedOptionId != null ? _submitAnswer : null,
+                            onPressed: _selectedOptionId != null
+                                ? _submitAnswer
+                                : null,
                           )
                         else
                           DongSonButton(
                             label: _isCorrect
                                 ? 'HOÀN THÀNH DẤU VẾT 1 & TIẾP TỤC ›'
                                 : 'THỬ CHỌN LẠI ĐÁP ÁN',
-                            icon: _isCorrect ? Icons.arrow_forward_rounded : Icons.replay_rounded,
+                            icon: _isCorrect
+                                ? Icons.arrow_forward_rounded
+                                : Icons.replay_rounded,
                             variant: DongSonButtonVariant.primaryCinnabar,
                             height: 52,
                             onPressed: () {
@@ -176,13 +191,15 @@ class _MultipleChoiceQuizScreenState extends State<MultipleChoiceQuizScreen> {
                                 BiteSizedCompletionModal.show(
                                   context: context,
                                   title: 'BẢO VỆ CỬA BIỂN THÀNH CÔNG!',
-                                  subtitle: 'Bạn đã xuất sắc phân tích thời cơ và kế sách đóng cọc ngầm của Ngô Quyền.',
+                                  subtitle:
+                                      'Bạn đã xuất sắc phân tích thời cơ và kế sách đóng cọc ngầm của Ngô Quyền.',
                                   scorePoints: 100,
                                   xpPoints: 50,
                                   accuracy: 1.0,
                                   streakCount: 3,
                                   multiplier: 1.5,
-                                  badgeAsset: 'assets/badges/badge_trace_1_context.png',
+                                  badgeAsset:
+                                      'assets/badges/badge_trace_1_context.png',
                                   onContinue: () {
                                     context.go('/traces/evt_bach_dang_938');
                                   },
@@ -242,7 +259,10 @@ class _MultipleChoiceQuizScreenState extends State<MultipleChoiceQuizScreen> {
                 Row(
                   children: [
                     Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 6,
+                        vertical: 2,
+                      ),
                       decoration: BoxDecoration(
                         color: DauVietColors.cinnabarRed,
                         borderRadius: BorderRadius.circular(4),
@@ -282,10 +302,7 @@ class _MultipleChoiceQuizScreenState extends State<MultipleChoiceQuizScreen> {
           ),
           const SoundToggleButton(),
           const SizedBox(width: 8),
-          const ComboStreakBadgeWidget(
-            streakCount: 3,
-            multiplier: 1.5,
-          ),
+          const ComboStreakBadgeWidget(streakCount: 3, multiplier: 1.5),
         ],
       ),
     );
@@ -303,7 +320,11 @@ class _MultipleChoiceQuizScreenState extends State<MultipleChoiceQuizScreen> {
         children: [
           Row(
             children: [
-              const Icon(Icons.help_outline_rounded, color: DauVietColors.cinnabarRed, size: 20),
+              const Icon(
+                Icons.help_outline_rounded,
+                color: DauVietColors.cinnabarRed,
+                size: 20,
+              ),
               const SizedBox(width: 8),
               Text(
                 'CÂU HỎI TRUNG TÂM SỬ KÝ',
@@ -424,7 +445,9 @@ class _MultipleChoiceQuizScreenState extends State<MultipleChoiceQuizScreen> {
                 Icon(
                   statusIcon,
                   size: 24,
-                  color: isOptionCorrect ? DauVietColors.natureGreen : DauVietColors.cinnabarRed,
+                  color: isOptionCorrect
+                      ? DauVietColors.natureGreen
+                      : DauVietColors.cinnabarRed,
                 ),
               ],
             ],
@@ -442,7 +465,9 @@ class _MultipleChoiceQuizScreenState extends State<MultipleChoiceQuizScreen> {
         color: _isCorrect ? const Color(0xFFEAF5EE) : const Color(0xFFFDEEEC),
         borderRadius: BorderRadius.circular(12),
         border: Border.all(
-          color: _isCorrect ? DauVietColors.natureGreen : DauVietColors.cinnabarRed,
+          color: _isCorrect
+              ? DauVietColors.natureGreen
+              : DauVietColors.cinnabarRed,
           width: 1.5,
         ),
       ),
@@ -453,16 +478,22 @@ class _MultipleChoiceQuizScreenState extends State<MultipleChoiceQuizScreen> {
             children: [
               Icon(
                 _isCorrect ? Icons.stars_rounded : Icons.info_outline_rounded,
-                color: _isCorrect ? DauVietColors.natureGreen : DauVietColors.cinnabarRed,
+                color: _isCorrect
+                    ? DauVietColors.natureGreen
+                    : DauVietColors.cinnabarRed,
                 size: 22,
               ),
               const SizedBox(width: 8),
               Expanded(
                 child: Text(
-                  _isCorrect ? 'XUẤT SẮC! CĂN CỨ SỬ HỌC CHÍNH XÁC' : 'CHƯA CHÍNH XÁC',
+                  _isCorrect
+                      ? 'XUẤT SẮC! CĂN CỨ SỬ HỌC CHÍNH XÁC'
+                      : 'CHƯA CHÍNH XÁC',
                   style: DauVietTypography.labelMedium.copyWith(
                     fontWeight: FontWeight.w800,
-                    color: _isCorrect ? DauVietColors.natureGreen : DauVietColors.cinnabarRed,
+                    color: _isCorrect
+                        ? DauVietColors.natureGreen
+                        : DauVietColors.cinnabarRed,
                   ),
                 ),
               ),

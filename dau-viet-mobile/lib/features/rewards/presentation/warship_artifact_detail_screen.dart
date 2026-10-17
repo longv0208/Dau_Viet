@@ -45,7 +45,10 @@ class WarshipArtifactDetailScreen extends StatelessWidget {
               Expanded(
                 child: SingleChildScrollView(
                   physics: const BouncingScrollPhysics(),
-                  padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 16,
+                    vertical: 12,
+                  ),
                   child: Column(
                     children: [
                       // 3. Khung Trưng Bày Cổ Vật (Museum Display Hero)
@@ -130,7 +133,10 @@ class WarshipArtifactDetailScreen extends StatelessWidget {
                 Row(
                   children: [
                     Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 6,
+                        vertical: 2,
+                      ),
                       decoration: BoxDecoration(
                         color: DauVietColors.cinnabarRed,
                         borderRadius: BorderRadius.circular(4),
@@ -238,11 +244,17 @@ class WarshipArtifactDetailScreen extends StatelessWidget {
                   top: 8,
                   right: 8,
                   child: Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 8,
+                      vertical: 3,
+                    ),
                     decoration: BoxDecoration(
                       color: DauVietColors.cinnabarRed,
                       borderRadius: BorderRadius.circular(4),
-                      border: Border.all(color: DauVietColors.imperialGold, width: 1),
+                      border: Border.all(
+                        color: DauVietColors.imperialGold,
+                        width: 1,
+                      ),
                     ),
                     child: Text(
                       artifact.rarity as String,
@@ -303,7 +315,10 @@ class WarshipArtifactDetailScreen extends StatelessWidget {
       {'label': 'Đặc tính cấu trúc đáy', 'value': 'Đáy nông, lướt nước cạn'},
       {'label': 'Thủy binh biên chế', 'value': '25 – 30 dũng sĩ'},
       {'label': 'Vũ khí trang bị', 'value': 'Cung nỏ, giáo mác, đuốc hỏa công'},
-      {'label': 'Chiến thuật sở trường', 'value': 'Lấy đoản chế trường, nhử địch'},
+      {
+        'label': 'Chiến thuật sở trường',
+        'value': 'Lấy đoản chế trường, nhử địch',
+      },
     ];
 
     return Container(
@@ -318,7 +333,11 @@ class WarshipArtifactDetailScreen extends StatelessWidget {
         children: [
           Row(
             children: [
-              const Icon(Icons.tune_rounded, color: DauVietColors.cinnabarRed, size: 18),
+              const Icon(
+                Icons.tune_rounded,
+                color: DauVietColors.cinnabarRed,
+                size: 18,
+              ),
               const SizedBox(width: 8),
               Text(
                 'THÔNG SỐ QUÂN SỰ CỔ TRUYỀN:',
@@ -384,7 +403,11 @@ class WarshipArtifactDetailScreen extends StatelessWidget {
         children: [
           Row(
             children: [
-              const Icon(Icons.auto_stories_rounded, color: DauVietColors.cinnabarRed, size: 18),
+              const Icon(
+                Icons.auto_stories_rounded,
+                color: DauVietColors.cinnabarRed,
+                size: 18,
+              ),
               const SizedBox(width: 8),
               Expanded(
                 child: Text(
@@ -425,7 +448,11 @@ class WarshipArtifactDetailScreen extends StatelessWidget {
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          const Icon(Icons.museum_rounded, color: DauVietColors.natureGreen, size: 22),
+          const Icon(
+            Icons.museum_rounded,
+            color: DauVietColors.natureGreen,
+            size: 22,
+          ),
           const SizedBox(width: 10),
           Expanded(
             child: Column(

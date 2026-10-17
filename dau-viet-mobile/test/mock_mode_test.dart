@@ -9,8 +9,7 @@ void main() {
         'trả đúng hành trình demo Bạch Đằng', () async {
       final container = ProviderContainer(
         overrides: [
-          eventsRepositoryProvider
-              .overrideWithValue(MockEventsRepository()),
+          eventsRepositoryProvider.overrideWithValue(MockEventsRepository()),
         ],
       );
       addTearDown(container.dispose);
@@ -21,23 +20,30 @@ void main() {
       expect(active.eventId, 'evt_bach_dang_938');
       expect(active.title, contains('Bạch Đằng'));
 
-      final detail = await container
-          .read(eventDetailProvider('evt_bach_dang_938').future);
+      final detail = await container.read(
+        eventDetailProvider('evt_bach_dang_938').future,
+      );
       expect(detail.title, 'Đại Chiến Bạch Đằng 938');
       expect(detail.year, 938);
     });
 
     test('MockEventsRepository trả lỗi EVENT_NOT_FOUND cho id lạ — '
-        'không tự động suy diễn event khác', () {
+        'không tự động suy diễn event khác', () async {
       final container = ProviderContainer(
         overrides: [
-          eventsRepositoryProvider
-              .overrideWithValue(MockEventsRepository()),
+          eventsRepositoryProvider.overrideWithValue(MockEventsRepository()),
         ],
       );
       addTearDown(container.dispose);
-      expect(
-        () => container.read(eventDetailProvider('uuid-la').future),
+      // listen giữ subscription để provider không auto-dispose trước khi
+      // future resolve — .future trên family cần subscription sống.
+      final sub = container.listen(
+        eventDetailProvider('uuid-la'),
+        (prev, next) {},
+      );
+      addTearDown(sub.close);
+      await expectLater(
+        container.read(eventDetailProvider('uuid-la').future),
         throwsA(anything),
       );
     });

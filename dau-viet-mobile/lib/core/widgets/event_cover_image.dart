@@ -19,8 +19,9 @@ class EventCoverImage extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final String? path =
-        (assetPath != null && assetPath!.isNotEmpty) ? assetPath : null;
+    final String? path = (assetPath != null && assetPath!.isNotEmpty)
+        ? assetPath
+        : null;
     if (path == null) {
       return _buildPlaceholder();
     }

@@ -1,0 +1,89 @@
+{
+  "schemaVersion": 1,
+  "id": "TASK-0018",
+  "type": "feature",
+  "risk": "high-risk",
+  "status": "done",
+  "goal": "Dấu Việt Flutter Mobile: real learning experience — login thật, discover event, chọn published lesson, start/resume attempt, lesson player render activities theo server cursor, submit + feedback từ Spring Boot, complete + result. Không hard-code nội dung Bạch Đằng; USE_MOCK=false gọi backend thật.",
+  "owner": "claude",
+  "modules": [
+    "mobile",
+    "backend"
+  ],
+  "scope": [
+    "dau-viet-mobile/",
+    "dau-viet-backend/ (chỉ nếu cần attempt-scoped content endpoint tối thiểu)",
+    "tasks/TASK-0018/",
+    "dau-viet-admin/plans/261017-1844-task0018-flutter-learning/"
+  ],
+  "acceptanceCriteria": [
+    {
+      "id": "AC-1",
+      "text": "Flutter authenticate learner thật qua POST /api/v1/auth/login; secure token storage; Bearer attach; refresh; logout; session restore. Guest mode = mock only, không giả progress server."
+    },
+    {
+      "id": "AC-2",
+      "text": "Event → danh sách published lessons (GET /api/v1/events/{eventId}/lessons); lesson card start/resume; empty state khi chưa có lesson published; không hard-code event/lesson id."
+    },
+    {
+      "id": "AC-3",
+      "text": "Start/resume attempt qua POST /api/v1/lessons/{id}/attempts; giữ attemptId/lessonVersionId/status/resumed/cursor; GET /attempts/{id}/current làm nguồn cursor duy nhất; app restart resume đúng vị trí server."
+    },
+    {
+      "id": "AC-4",
+      "text": "Lesson Player 1 widget render động theo ActivityType qua renderer registry; layout top/content/bottom theo design; tái dùng theme + widgets + màn learning mock hiện có."
+    },
+    {
+      "id": "AC-5",
+      "text": "Renderers hoạt động đầy đủ: READ, VIEW_IMAGE (asset endpoint có auth), MULTIPLE_CHOICE (radio/checkbox theo multiSelect), EVIDENCE_SELECT, MATCHING (leftItems/rightItems, submit pairs, không suy ra đáp án), DRAG_ORDER (submit orderedIds), CER (claim/evidenceIds/reasoning), REFLECTION_PROMPT. Unsupported type → trạng thái rõ ràng, không fake-complete."
+    },
+    {
+      "id": "AC-6",
+      "text": "Submission flow: validate tối thiểu client, disable khi pending, Idempotency-Key reuse khi retry cùng answer, key mới cho answer mới; feedback tiếng Việt + backend feedback; retry khi activity chưa complete; không lộ answer key."
+    },
+    {
+      "id": "AC-7",
+      "text": "Version pinning: player render theo pinned lessonVersionId của attempt; resume sau republish vẫn dùng version cũ; nếu thiếu endpoint thì thêm read-only attempt-scoped endpoint tối thiểu + regression test."
+    },
+    {
+      "id": "AC-8",
+      "text": "Progress & resume UX: GET /me/progress + /me/attempts hiển thị tiến độ thật (completedRequired/totalRequired); rời app giữa chừng không mất submission đã ghi nhận."
+    },
+    {
+      "id": "AC-9",
+      "text": "Completion: POST /attempts/{id}/complete (idempotent) → GET /attempts/{id}/result; màn completion hiển thị dữ liệu backend thật; không fabricate reward/XP."
+    },
+    {
+      "id": "AC-10",
+      "text": "USE_MOCK: demo mode rõ ràng; real mode lỗi API không fallback mock; mock screens/routes cũ vẫn dùng được."
+    },
+    {
+      "id": "AC-11",
+      "text": "Error handling theo error envelope backend: 401/expired token/not published/not found/ownership/invalid answer/idempotency conflict/timeout/server down/already completed/not eligible; giữ unsubmitted answer khi network fail."
+    },
+    {
+      "id": "AC-12",
+      "text": "Tests: Dart unit (DTO parse, answer payloads, idempotency, errors) + widget tests (lesson list, renderers, feedback, completion, resume); gates: pub get, dart format, flutter analyze, flutter test; build nếu toolchain có; không claim real-backend verify khi chỉ stub."
+    }
+  ],
+  "dependencies": [
+    "TASK-0017"
+  ],
+  "planPath": "dau-viet-admin/plans/261017-1844-task0018-flutter-learning/plan.md",
+  "evidenceRefs": [
+    "dau-viet-admin/plans/reports/verification-261017-task0018-flutter-learning.md"
+  ],
+  "reviewRefs": [
+    "dau-viet-admin/plans/reports/verification-261017-task0018-flutter-learning.md"
+  ],
+  "nextAction": "Cho user chay backend that de verify e2e (backend IT CI-only, Docker thieu); manual checklist trong verification report. Khong push/merge.",
+  "baseCommit": "a72bdc3",
+  "inputFingerprint": null,
+  "snapshot": null,
+  "roleReports": [],
+  "blockedReason": null,
+  "resumeFrom": null,
+  "handoffRef": null,
+  "createdAt": "2026-10-17T18:45:00+07:00",
+  "updatedAt": "2026-10-17T12:52:50+07:00"
+}

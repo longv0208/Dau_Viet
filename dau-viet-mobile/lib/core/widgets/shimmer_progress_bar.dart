@@ -110,7 +110,8 @@ class _ShimmerProgressBarState extends State<ShimmerProgressBar>
                         child: AnimatedBuilder(
                           animation: _shimmerController,
                           builder: (context, _) {
-                            final shimmerX = -1.0 + (_shimmerController.value * 3.0);
+                            final shimmerX =
+                                -1.0 + (_shimmerController.value * 3.0);
 
                             return FractionallySizedBox(
                               alignment: Alignment(shimmerX, 0),

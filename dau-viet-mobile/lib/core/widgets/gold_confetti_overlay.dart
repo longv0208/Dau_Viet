@@ -119,10 +119,13 @@ class _Particle {
       const Color(0xFFD4AF37), // Đồng cổ
     ];
 
-    final type = _ParticleType.values[random.nextInt(_ParticleType.values.length)];
+    final type =
+        _ParticleType.values[random.nextInt(_ParticleType.values.length)];
 
     return _Particle(
-      startX: 0.2 + (random.nextDouble() * 0.6), // Tỏa ra từ giữa màn hình (20% - 80%)
+      startX:
+          0.2 +
+          (random.nextDouble() * 0.6), // Tỏa ra từ giữa màn hình (20% - 80%)
       startY: 0.35 + (random.nextDouble() * 0.2), // Tầm cao 35% - 55%
       vx: (random.nextDouble() - 0.5) * 450,
       vy: -220 - (random.nextDouble() * 320), // Bắn lên trên
@@ -138,17 +141,15 @@ class _ConfettiPainter extends CustomPainter {
   final double progress;
   final List<_Particle> particles;
 
-  _ConfettiPainter({
-    required this.progress,
-    required this.particles,
-  });
+  _ConfettiPainter({required this.progress, required this.particles});
 
   @override
   void paint(Canvas canvas, Size size) {
     if (progress == 0.0 || progress == 1.0) return;
 
     final t = progress;
-    final gravity = 700.0 * t * t; // Trọng lực kéo xuống theo thời gian bình phương
+    final gravity =
+        700.0 * t * t; // Trọng lực kéo xuống theo thời gian bình phương
     final opacity = (1.0 - t).clamp(0.0, 1.0);
 
     for (final p in particles) {
@@ -170,7 +171,11 @@ class _ConfettiPainter extends CustomPainter {
           break;
         case _ParticleType.petal:
           canvas.drawOval(
-            Rect.fromCenter(center: Offset.zero, width: p.size * 1.5, height: p.size * 0.7),
+            Rect.fromCenter(
+              center: Offset.zero,
+              width: p.size * 1.5,
+              height: p.size * 0.7,
+            ),
             paint,
           );
           break;

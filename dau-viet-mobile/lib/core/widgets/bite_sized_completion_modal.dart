@@ -71,7 +71,8 @@ class BiteSizedCompletionModal extends StatefulWidget {
   }
 
   @override
-  State<BiteSizedCompletionModal> createState() => _BiteSizedCompletionModalState();
+  State<BiteSizedCompletionModal> createState() =>
+      _BiteSizedCompletionModalState();
 }
 
 class _BiteSizedCompletionModalState extends State<BiteSizedCompletionModal>
@@ -135,10 +136,7 @@ class _BiteSizedCompletionModalState extends State<BiteSizedCompletionModal>
             decoration: BoxDecoration(
               color: DauVietColors.parchmentSurface,
               borderRadius: BorderRadius.circular(24),
-              border: Border.all(
-                color: DauVietColors.imperialGold,
-                width: 2.5,
-              ),
+              border: Border.all(color: DauVietColors.imperialGold, width: 2.5),
               boxShadow: const [
                 BoxShadow(
                   color: Color(0x40613B28),
@@ -175,7 +173,9 @@ class _BiteSizedCompletionModalState extends State<BiteSizedCompletionModal>
                           shape: BoxShape.circle,
                           boxShadow: [
                             BoxShadow(
-                              color: DauVietColors.imperialGold.withValues(alpha: 0.4),
+                              color: DauVietColors.imperialGold.withValues(
+                                alpha: 0.4,
+                              ),
                               blurRadius: 30,
                               spreadRadius: 10,
                             ),
@@ -238,9 +238,14 @@ class _BiteSizedCompletionModalState extends State<BiteSizedCompletionModal>
                   children: [
                     // Tỉ lệ chính xác
                     Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 10,
+                        vertical: 5,
+                      ),
                       decoration: BoxDecoration(
-                        color: DauVietColors.natureGreen.withValues(alpha: 0.15),
+                        color: DauVietColors.natureGreen.withValues(
+                          alpha: 0.15,
+                        ),
                         borderRadius: BorderRadius.circular(20),
                         border: Border.all(
                           color: DauVietColors.natureGreen,
@@ -270,7 +275,10 @@ class _BiteSizedCompletionModalState extends State<BiteSizedCompletionModal>
                     // Chuỗi hào khí
                     if (widget.streakCount > 0)
                       Container(
-                        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 10,
+                          vertical: 5,
+                        ),
                         decoration: BoxDecoration(
                           color: const Color(0xFFFFF3E0),
                           borderRadius: BorderRadius.circular(20),
@@ -304,7 +312,10 @@ class _BiteSizedCompletionModalState extends State<BiteSizedCompletionModal>
 
                 // 5. Thẻ thống kê phần thưởng với hiệu ứng số chạy tăng dần
                 Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 16,
+                    vertical: 14,
+                  ),
                   decoration: BoxDecoration(
                     color: DauVietColors.parchmentContainer,
                     borderRadius: BorderRadius.circular(16),
@@ -329,15 +340,19 @@ class _BiteSizedCompletionModalState extends State<BiteSizedCompletionModal>
                                 ),
                                 const SizedBox(width: 6),
                                 TweenAnimationBuilder<int>(
-                                  tween: IntTween(begin: 0, end: widget.scorePoints),
+                                  tween: IntTween(
+                                    begin: 0,
+                                    end: widget.scorePoints,
+                                  ),
                                   duration: const Duration(milliseconds: 900),
                                   builder: (context, val, child) {
                                     return Text(
                                       '+$val',
-                                      style: DauVietTypography.headlineSmall.copyWith(
-                                        color: DauVietColors.cinnabarRed,
-                                        fontWeight: FontWeight.w900,
-                                      ),
+                                      style: DauVietTypography.headlineSmall
+                                          .copyWith(
+                                            color: DauVietColors.cinnabarRed,
+                                            fontWeight: FontWeight.w900,
+                                          ),
                                     );
                                   },
                                 ),
@@ -378,15 +393,19 @@ class _BiteSizedCompletionModalState extends State<BiteSizedCompletionModal>
                                 ),
                                 const SizedBox(width: 6),
                                 TweenAnimationBuilder<int>(
-                                  tween: IntTween(begin: 0, end: widget.xpPoints),
+                                  tween: IntTween(
+                                    begin: 0,
+                                    end: widget.xpPoints,
+                                  ),
                                   duration: const Duration(milliseconds: 900),
                                   builder: (context, val, child) {
                                     return Text(
                                       '+$val',
-                                      style: DauVietTypography.headlineSmall.copyWith(
-                                        color: const Color(0xFF0D47A1),
-                                        fontWeight: FontWeight.w900,
-                                      ),
+                                      style: DauVietTypography.headlineSmall
+                                          .copyWith(
+                                            color: const Color(0xFF0D47A1),
+                                            fontWeight: FontWeight.w900,
+                                          ),
                                     );
                                   },
                                 ),

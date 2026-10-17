@@ -1,25 +1,40 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import '../../../core/theme/dau_viet_colors.dart';
 import '../../../core/theme/dau_viet_typography.dart';
 import '../../../core/widgets/dong_son_button.dart';
 import '../../../core/widgets/energy_pill.dart';
 import '../../../core/widgets/parchment_card.dart';
+import '../../auth/data/auth_state.dart';
+import '../../learning/data/attempt_dtos.dart';
+import '../../learning/data/learning_providers.dart';
 
 /// Màn hình M-03: Bàn Học Tập Người Học (Learner Dashboard & Resume Card)
-/// Khớp 100% với thiết kế Stitch f478e5da7eb1492ba6be259f9e31d459
-class LearnerDashboardScreen extends StatefulWidget {
+/// Resume card hiển thị attempt IN_PROGRESS thật từ `GET /me/progress`
+/// (hoặc demo repo khi USE_MOCK) — không hard-code tiến độ.
+class LearnerDashboardScreen extends ConsumerStatefulWidget {
   const LearnerDashboardScreen({super.key});
 
   @override
-  State<LearnerDashboardScreen> createState() => _LearnerDashboardScreenState();
+  ConsumerState<LearnerDashboardScreen> createState() =>
+      _LearnerDashboardScreenState();
 }
 
-class _LearnerDashboardScreenState extends State<LearnerDashboardScreen> {
+class _LearnerDashboardScreenState
+    extends ConsumerState<LearnerDashboardScreen> {
   int _currentBottomNavIndex = 0;
+
+  Future<void> _logout() async {
+    await ref.read(authSessionProvider.notifier).logout();
+    if (mounted) context.go('/auth');
+  }
 
   @override
   Widget build(BuildContext context) {
+    final AuthState session = ref.watch(authSessionProvider);
+    final String displayName = _displayName(session);
+
     return Scaffold(
       backgroundColor: DauVietColors.parchmentSurface,
       body: Container(
@@ -27,22 +42,22 @@ class _LearnerDashboardScreenState extends State<LearnerDashboardScreen> {
           gradient: LinearGradient(
             begin: Alignment.topCenter,
             end: Alignment.bottomCenter,
-            colors: [
-              DauVietColors.parchmentSurface,
-              Color(0xFFFAF2E4),
-            ],
+            colors: [DauVietColors.parchmentSurface, Color(0xFFFAF2E4)],
           ),
         ),
         child: SafeArea(
           child: Column(
             children: [
               // 1. Top Bar: Hồ Sơ Sĩ Tử & Chỉ Số Sinh Lực
-              _buildTopHeader(),
+              _buildTopHeader(displayName),
 
               // 2. Nội dung cuộn chính của Bàn Học Tập
               Expanded(
                 child: SingleChildScrollView(
-                  padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 20,
+                    vertical: 16,
+                  ),
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
@@ -55,30 +70,42 @@ class _LearnerDashboardScreenState extends State<LearnerDashboardScreen> {
                               children: [
                                 Text(
                                   'Xin chào Sĩ tử,',
-                                  style: DauVietTypography.bodySmall.copyWith(color: DauVietColors.inkMuted),
+                                  style: DauVietTypography.bodySmall.copyWith(
+                                    color: DauVietColors.inkMuted,
+                                  ),
                                 ),
                                 const SizedBox(height: 2),
                                 Text(
                                   'Bàn Học Tập Sử Ký',
-                                  style: DauVietTypography.headlineMedium.copyWith(
-                                    color: DauVietColors.cinnabarRed,
-                                  ),
+                                  style: DauVietTypography.headlineMedium
+                                      .copyWith(
+                                        color: DauVietColors.cinnabarRed,
+                                      ),
                                 ),
                               ],
                             ),
                           ),
                           // Chuỗi ngày học Streak
                           Container(
-                            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: 12,
+                              vertical: 6,
+                            ),
                             decoration: BoxDecoration(
                               color: DauVietColors.parchmentContainer,
                               borderRadius: BorderRadius.circular(20),
-                              border: Border.all(color: DauVietColors.imperialGold, width: 1.2),
+                              border: Border.all(
+                                color: DauVietColors.imperialGold,
+                                width: 1.2,
+                              ),
                               boxShadow: DauVietColors.heritageShadow,
                             ),
                             child: Row(
                               children: [
-                                const Text('🔥', style: TextStyle(fontSize: 16)),
+                                const Text(
+                                  '🔥',
+                                  style: TextStyle(fontSize: 16),
+                                ),
                                 const SizedBox(width: 4),
                                 Text(
                                   '3 ngày',
@@ -94,7 +121,7 @@ class _LearnerDashboardScreenState extends State<LearnerDashboardScreen> {
                       ),
                       const SizedBox(height: 20),
 
-                      // 3. Hero Resume Card (M-C04): Tiếp tục bài học đang dang dở
+                      // 3. Hero Resume Card: attempt IN_PROGRESS thật
                       _buildResumeCard(),
                       const SizedBox(height: 24),
 
@@ -123,7 +150,7 @@ class _LearnerDashboardScreenState extends State<LearnerDashboardScreen> {
                       _buildFourTracesGrid(),
                       const SizedBox(height: 24),
 
-                      // 5. Khối Lối Tắt Nhanh (Sa bàn, Đảo di sản, Viện Thái Y)
+                      // 5. Khối Lối Tắt Nhanh
                       Text(
                         'LỐI TẮT KHÁM PHÁ',
                         style: DauVietTypography.labelMedium.copyWith(
@@ -146,8 +173,16 @@ class _LearnerDashboardScreenState extends State<LearnerDashboardScreen> {
     );
   }
 
+  String _displayName(AuthState session) {
+    final profile = session.profile;
+    if (profile == null || profile.email.isEmpty) {
+      return session.status == AuthStatus.guest ? 'Sĩ tử Khách' : 'Sĩ tử';
+    }
+    return profile.email.split('@').first;
+  }
+
   // Top Bar với Avatar và EnergyPill
-  Widget _buildTopHeader() {
+  Widget _buildTopHeader(String displayName) {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
       decoration: BoxDecoration(
@@ -171,9 +206,11 @@ class _LearnerDashboardScreenState extends State<LearnerDashboardScreen> {
               border: Border.all(color: DauVietColors.imperialGold, width: 2),
             ),
             alignment: Alignment.center,
-            child: const Text(
-              'KM',
-              style: TextStyle(
+            child: Text(
+              displayName.isNotEmpty
+                  ? displayName.substring(0, 1).toUpperCase()
+                  : 'S',
+              style: const TextStyle(
                 fontFamily: 'Noto Serif',
                 fontWeight: FontWeight.w800,
                 color: DauVietColors.cinnabarRed,
@@ -188,13 +225,17 @@ class _LearnerDashboardScreenState extends State<LearnerDashboardScreen> {
               mainAxisSize: MainAxisSize.min,
               children: [
                 Text(
-                  'Sĩ tử Khang Minh',
-                  style: DauVietTypography.labelMedium.copyWith(fontWeight: FontWeight.w700),
+                  'Sĩ tử $displayName',
+                  style: DauVietTypography.labelMedium.copyWith(
+                    fontWeight: FontWeight.w700,
+                  ),
                   overflow: TextOverflow.ellipsis,
                 ),
                 Text(
                   'Cấp độ 5 • Tập sự Sử ký',
-                  style: DauVietTypography.labelSmall.copyWith(color: DauVietColors.natureGreen),
+                  style: DauVietTypography.labelSmall.copyWith(
+                    color: DauVietColors.natureGreen,
+                  ),
                   overflow: TextOverflow.ellipsis,
                 ),
               ],
@@ -211,13 +252,75 @@ class _LearnerDashboardScreenState extends State<LearnerDashboardScreen> {
               historyPoints: 150,
             ),
           ),
+          const SizedBox(width: 4),
+          IconButton(
+            icon: const Icon(Icons.logout_rounded, size: 20),
+            color: DauVietColors.inkMuted,
+            tooltip: 'Đăng xuất',
+            onPressed: _logout,
+          ),
         ],
       ),
     );
   }
 
-  // Resume Card (M-C04): Bài học đang dang dở
+  // Resume Card: attempt IN_PROGRESS đầu tiên từ /me/progress.
+  // Không có attempt → card mời khám phá sự kiện Bạch Đằng (không fake).
   Widget _buildResumeCard() {
+    final progressAsync = ref.watch(myProgressProvider);
+
+    return progressAsync.when(
+      loading: () => ParchmentCard(
+        padding: const EdgeInsets.all(24),
+        child: const Center(
+          child: SizedBox(
+            width: 24,
+            height: 24,
+            child: CircularProgressIndicator(strokeWidth: 2),
+          ),
+        ),
+      ),
+      error: (e, st) => _resumeShell(
+        title: 'Chiến Dịch Bạch Đằng 938',
+        subtitle: 'Khám phá kế sách cọc ngầm & sa bàn thủy chiến',
+        progressText: null,
+        buttonLabel: 'KHÁM PHÁ NGAY ›',
+        onPressed: () => context.go('/campaign/evt_bach_dang_938'),
+      ),
+      data: (progress) {
+        if (progress.inProgress.isEmpty) {
+          return _resumeShell(
+            title: 'Chiến Dịch Bạch Đằng 938',
+            subtitle: 'Bắt đầu hành trình giải mã trận thủy chiến vĩ đại',
+            progressText: 'Đã hoàn thành ${progress.completedCount} bài học',
+            buttonLabel: 'BẮT ĐẦU HỌC ›',
+            onPressed: () => context.go('/campaign/evt_bach_dang_938'),
+          );
+        }
+        final AttemptSummaryDto attempt = progress.inProgress.first;
+        final double fraction = attempt.progress.fraction;
+        final String pct = (fraction * 100).round().toString();
+        return _resumeShell(
+          title: 'Bài học đang học dở',
+          subtitle: 'Tiếp tục ngay tại hoạt động đã dừng lại',
+          progressText:
+              '$pct% (${attempt.progress.completedRequired}/${attempt.progress.totalRequired} hoạt động)',
+          fraction: fraction,
+          buttonLabel: 'TIẾP TỤC BÀI HỌC ›',
+          onPressed: () => context.go('/learning/attempt/${attempt.attemptId}'),
+        );
+      },
+    );
+  }
+
+  Widget _resumeShell({
+    required String title,
+    required String subtitle,
+    required String? progressText,
+    required String buttonLabel,
+    required VoidCallback onPressed,
+    double fraction = 0,
+  }) {
     return ParchmentCard(
       backgroundColor: DauVietColors.parchmentContainer,
       borderColor: DauVietColors.imperialGold,
@@ -226,35 +329,27 @@ class _LearnerDashboardScreenState extends State<LearnerDashboardScreen> {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Row(
-            children: [
-              Expanded(
-                child: Align(
-                  alignment: Alignment.centerLeft,
-                  child: Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-                    decoration: BoxDecoration(
-                      color: DauVietColors.cinnabarRed,
-                      borderRadius: BorderRadius.circular(6),
-                    ),
-                    child: Text(
-                      'BÀI HỌC ĐANG HỌC',
-                      style: DauVietTypography.labelSmall.copyWith(
-                        color: Colors.white,
-                        fontWeight: FontWeight.w700,
-                        fontSize: 10,
-                      ),
-                    ),
-                  ),
+          Align(
+            alignment: Alignment.centerLeft,
+            child: Container(
+              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+              decoration: BoxDecoration(
+                color: DauVietColors.cinnabarRed,
+                borderRadius: BorderRadius.circular(6),
+              ),
+              child: Text(
+                'BÀI HỌC',
+                style: DauVietTypography.labelSmall.copyWith(
+                  color: Colors.white,
+                  fontWeight: FontWeight.w700,
+                  fontSize: 10,
                 ),
               ),
-              const SizedBox(width: 8),
-              const Text('⚡ -20 Thể lực', style: TextStyle(fontSize: 12, color: DauVietColors.inkMuted)),
-            ],
+            ),
           ),
           const SizedBox(height: 12),
           Text(
-            'Chiến Dịch Bạch Đằng 938',
+            title,
             style: DauVietTypography.headlineMedium.copyWith(
               color: DauVietColors.cinnabarRed,
               fontSize: 19,
@@ -262,47 +357,55 @@ class _LearnerDashboardScreenState extends State<LearnerDashboardScreen> {
           ),
           const SizedBox(height: 4),
           Text(
-            'Hồi 2: Kế sách cọc ngầm & Sa bàn thủy chiến',
-            style: DauVietTypography.bodyMedium.copyWith(fontWeight: FontWeight.w600),
+            subtitle,
+            style: DauVietTypography.bodyMedium.copyWith(
+              fontWeight: FontWeight.w600,
+            ),
           ),
-          const SizedBox(height: 14),
-
-          // Thanh tiến trình học tập 50%
-          Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Row(
-                mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                children: [
-                  Expanded(
-                    child: Text('Tiến độ hoàn thành', style: DauVietTypography.bodySmall),
-                  ),
-                  Text('50% (2/4 Giai đoạn)', style: DauVietTypography.labelSmall.copyWith(color: DauVietColors.cinnabarRed)),
-                ],
-              ),
-              const SizedBox(height: 6),
-              ClipRRect(
-                borderRadius: BorderRadius.circular(6),
-                child: LinearProgressIndicator(
-                  value: 0.5,
-                  minHeight: 8,
-                  backgroundColor: DauVietColors.parchmentHigh,
-                  valueColor: const AlwaysStoppedAnimation<Color>(DauVietColors.cinnabarRed),
+          if (progressText != null) ...[
+            const SizedBox(height: 14),
+            Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  children: [
+                    Expanded(
+                      child: Text(
+                        'Tiến độ hoàn thành',
+                        style: DauVietTypography.bodySmall,
+                      ),
+                    ),
+                    Text(
+                      progressText,
+                      style: DauVietTypography.labelSmall.copyWith(
+                        color: DauVietColors.cinnabarRed,
+                      ),
+                    ),
+                  ],
                 ),
-              ),
-            ],
-          ),
+                const SizedBox(height: 6),
+                ClipRRect(
+                  borderRadius: BorderRadius.circular(6),
+                  child: LinearProgressIndicator(
+                    value: fraction,
+                    minHeight: 8,
+                    backgroundColor: DauVietColors.parchmentHigh,
+                    valueColor: const AlwaysStoppedAnimation<Color>(
+                      DauVietColors.cinnabarRed,
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ],
           const SizedBox(height: 18),
-
-          // Nút tiếp tục
           DongSonButton(
-            label: 'Tiếp tục bài học ngay ->',
+            label: buttonLabel,
             icon: Icons.play_arrow_rounded,
             variant: DongSonButtonVariant.primaryCinnabar,
             height: 48,
-            onPressed: () {
-              context.go('/campaign/evt_bach_dang_938');
-            },
+            onPressed: onPressed,
           ),
         ],
       ),
@@ -312,10 +415,30 @@ class _LearnerDashboardScreenState extends State<LearnerDashboardScreen> {
   // Lưới 4 Dấu Vết Lịch Sử
   Widget _buildFourTracesGrid() {
     final traces = [
-      {'num': '1', 'name': 'Khởi Nguồn', 'desc': 'Quân mưu Ngô Quyền', 'done': true},
-      {'num': '2', 'name': 'Diễn Biến', 'desc': 'Cọc ngầm & Thủy triều', 'done': true},
-      {'num': '3', 'name': 'Bằng Chứng', 'desc': 'Bãi cọc Yên Giang C-14', 'done': false},
-      {'num': '4', 'name': 'Âm Vang', 'desc': 'Độc lập trường tồn', 'done': false},
+      {
+        'num': '1',
+        'name': 'Khởi Nguồn',
+        'desc': 'Quân mưu Ngô Quyền',
+        'done': true,
+      },
+      {
+        'num': '2',
+        'name': 'Diễn Biến',
+        'desc': 'Cọc ngầm & Thủy triều',
+        'done': true,
+      },
+      {
+        'num': '3',
+        'name': 'Bằng Chứng',
+        'desc': 'Bãi cọc Yên Giang C-14',
+        'done': false,
+      },
+      {
+        'num': '4',
+        'name': 'Âm Vang',
+        'desc': 'Độc lập trường tồn',
+        'done': false,
+      },
     ];
 
     return Row(
@@ -326,10 +449,14 @@ class _LearnerDashboardScreenState extends State<LearnerDashboardScreen> {
             margin: const EdgeInsets.symmetric(horizontal: 4),
             padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 6),
             decoration: BoxDecoration(
-              color: isDone ? const Color(0xFFFBF4E6) : DauVietColors.parchmentContainer,
+              color: isDone
+                  ? const Color(0xFFFBF4E6)
+                  : DauVietColors.parchmentContainer,
               borderRadius: BorderRadius.circular(12),
               border: Border.all(
-                color: isDone ? DauVietColors.imperialGold : DauVietColors.outlineVariant,
+                color: isDone
+                    ? DauVietColors.imperialGold
+                    : DauVietColors.outlineVariant,
                 width: isDone ? 1.5 : 1.0,
               ),
             ),
@@ -337,7 +464,9 @@ class _LearnerDashboardScreenState extends State<LearnerDashboardScreen> {
               children: [
                 CircleAvatar(
                   radius: 14,
-                  backgroundColor: isDone ? DauVietColors.cinnabarRed : DauVietColors.parchmentHigh,
+                  backgroundColor: isDone
+                      ? DauVietColors.cinnabarRed
+                      : DauVietColors.parchmentHigh,
                   child: Text(
                     t['num'] as String,
                     style: TextStyle(
@@ -378,11 +507,18 @@ class _LearnerDashboardScreenState extends State<LearnerDashboardScreen> {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                const Icon(Icons.military_tech_rounded, color: DauVietColors.cinnabarRed, size: 28),
+                const Icon(
+                  Icons.military_tech_rounded,
+                  color: DauVietColors.cinnabarRed,
+                  size: 28,
+                ),
                 const SizedBox(height: 8),
                 Text('Sa Bàn Thời Kỳ', style: DauVietTypography.labelMedium),
                 const SizedBox(height: 2),
-                Text('Bạch Đằng 938 & 54 Chiến dịch', style: DauVietTypography.bodySmall.copyWith(fontSize: 11)),
+                Text(
+                  'Bạch Đằng 938 & 54 Chiến dịch',
+                  style: DauVietTypography.bodySmall.copyWith(fontSize: 11),
+                ),
               ],
             ),
           ),
@@ -397,11 +533,18 @@ class _LearnerDashboardScreenState extends State<LearnerDashboardScreen> {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                const Icon(Icons.timeline_rounded, color: DauVietColors.imperialGold, size: 28),
+                const Icon(
+                  Icons.timeline_rounded,
+                  color: DauVietColors.imperialGold,
+                  size: 28,
+                ),
                 const SizedBox(height: 8),
                 Text('Lược Sử Niên Biểu', style: DauVietTypography.labelMedium),
                 const SizedBox(height: 2),
-                Text('Dòng thời gian các triều đại', style: DauVietTypography.bodySmall.copyWith(fontSize: 11)),
+                Text(
+                  'Dòng thời gian các triều đại',
+                  style: DauVietTypography.bodySmall.copyWith(fontSize: 11),
+                ),
               ],
             ),
           ),
@@ -445,7 +588,9 @@ class _LearnerDashboardScreenState extends State<LearnerDashboardScreen> {
         elevation: 0,
         selectedItemColor: DauVietColors.cinnabarRed,
         unselectedItemColor: DauVietColors.inkMuted,
-        selectedLabelStyle: DauVietTypography.labelSmall.copyWith(fontWeight: FontWeight.w800),
+        selectedLabelStyle: DauVietTypography.labelSmall.copyWith(
+          fontWeight: FontWeight.w800,
+        ),
         unselectedLabelStyle: DauVietTypography.labelSmall,
         type: BottomNavigationBarType.fixed,
         items: const [
