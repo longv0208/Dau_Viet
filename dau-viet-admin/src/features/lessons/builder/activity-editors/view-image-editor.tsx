@@ -11,7 +11,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 
-import { assetContentSrc } from "@/features/assets/asset-api";
+import { AssetImage } from "@/features/assets/asset-image";
 import { AssetPickerDialog } from "@/features/assets/asset-picker-dialog";
 
 import { ActivityCommonFields, type EditorProps } from "./shared-fields";
@@ -47,10 +47,8 @@ export function ViewImageEditor(props: EditorProps) {
         {assetId ? (
           <div className="flex items-start gap-3 rounded-md border border-border bg-surface p-2">
             {asset ? (
-              // eslint-disable-next-line @next/next/no-img-element
-              <img
-                src={assetContentSrc(asset.contentUrl)}
-                alt={asset.altText ?? asset.originalFilename ?? "Ảnh đã chọn"}
+              <AssetImage
+                asset={asset}
                 className="size-20 shrink-0 rounded-md border border-border object-cover"
               />
             ) : (

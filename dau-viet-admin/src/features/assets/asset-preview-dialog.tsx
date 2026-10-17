@@ -4,8 +4,8 @@ import { Dialog } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import type { AdminAsset } from "@/lib/dto/evidence";
 
-import { assetContentSrc } from "./asset-api";
 import { formatAssetSize } from "./asset-card";
+import { AssetImage } from "./asset-image";
 
 /** Lightbox-style preview for one asset. */
 export function AssetPreviewDialog({
@@ -29,10 +29,8 @@ export function AssetPreviewDialog({
     >
       {asset && (
         <div className="flex flex-col gap-3">
-          {/* eslint-disable-next-line @next/next/no-img-element */}
-          <img
-            src={assetContentSrc(asset.contentUrl)}
-            alt={asset.altText ?? asset.originalFilename ?? "Ảnh"}
+          <AssetImage
+            asset={asset}
             className="max-h-[60vh] w-full rounded-md object-contain"
           />
           <dl className="grid gap-1 text-xs text-ink-muted">

@@ -2,8 +2,11 @@ import { expect, test, type Page } from "@playwright/test";
 
 /**
  * TASK-0016 journey against the controlled node:http stub (NOT the real
- * backend): login → open lesson builder → attach library evidence to a READ
- * activity → write feedback → save → reload → confirm persisted.
+ * backend): login → create evidence → confirm it lands in the library →
+ * attach the CREATED evidence to a READ activity → feedback → save → reload
+ * → confirm persisted. Also exercises authenticated image rendering: the
+ * stub returns 401 for asset content without a Bearer token, so a visible
+ * thumbnail proves the fetch carried auth.
  */
 
 async function login(page: Page) {
@@ -30,23 +33,27 @@ async function createLesson(page: Page, title: string) {
   return url.substring(url.lastIndexOf("/") + 1);
 }
 
-test("evidence: create evidence in library, attach to READ, feedback, save, reload", async ({
+test("evidence: create → appears in library → attach created item to READ → feedback → save → reload", async ({
   page,
 }) => {
-  test.setTimeout(120_000); // first dev-compile of new routes can be slow
+  test.setTimeout(180_000); // first dev-compile of new routes can be slow
+  const evTitle = "Ghi chép triều đình về lực lượng Nam Hán";
   await login(page);
 
-  // 1) Tạo bằng chứng mới trong thư viện (labels từ EvidenceForm).
+  // 1) Tạo bằng chứng mới trong thư viện.
   await page.goto("/evidence/new");
   await page.locator("#eventId").selectOption({ index: 1 });
-  await page.locator("#title").fill("Ghi chép triều đình về lực lượng Nam Hán");
+  await page.locator("#title").fill(evTitle);
   await page.locator("#evidenceType").selectOption("GHI_CHEP");
   await page.locator("#sourceTitle").fill("An Nam chí lược");
   await page.getByRole("button", { name: /tạo bằng chứng/i }).click();
-  // Sau khi tạo: reset form về trống (create mode ở lại trang) — chờ phản hồi.
   await expect(page.getByRole("button", { name: /tạo bằng chứng/i })).toBeEnabled({ timeout: 15_000 });
 
-  // 2) Mở builder, thêm READ, gắn bằng chứng vừa có sẵn trong stub.
+  // 2) Bằng chứng vừa tạo phải xuất hiện trong danh sách thư viện.
+  await page.goto("/evidence");
+  await expect(page.getByText(evTitle)).toBeVisible({ timeout: 15_000 });
+
+  // 3) Mở builder, thêm READ, mở picker — bằng chứng MỚI TẠO phải chọn được.
   const lessonId = await createLesson(page, "E2E — gắn bằng chứng");
   await page.goto(`/lessons/${lessonId}/builder`, { timeout: 60_000 });
   await expect(page.getByText("Giai đoạn (0)")).toBeVisible({ timeout: 30_000 });
@@ -57,28 +64,42 @@ test("evidence: create evidence in library, attach to READ, feedback, save, relo
   await page.getByLabel(/hướng dẫn cho học viên/i).fill("Đọc tư liệu có nguồn");
   await page.getByLabel(/nội dung đọc/i).fill("Đoạn tư liệu trích từ thư viện bằng chứng…");
 
-  // 3) Mở picker, chọn bằng chứng từ thư viện (seeded trong stub).
+  // Picker mở — lọc "Tất cả sự kiện" (bằng chứng tạo ở sự kiện Bạch Đằng,
+  // lesson thuộc cùng event nên cũng thấy khi lọc mặc định).
   await page.getByRole("button", { name: /chọn bằng chứng/i }).click();
-  await expect(page.getByText("Cọc ngầm sông Bạch Đằng")).toBeVisible({ timeout: 15_000 });
-  await page.getByText("Cọc ngầm sông Bạch Đằng").click();
-  // Chip hiển thị sau khi chọn.
+  await expect(page.getByText(evTitle)).toBeVisible({ timeout: 15_000 });
+  await page.getByText(evTitle).click();
   await expect(
-    page.getByRole("button", { name: /gỡ cọc ngầm sông bạch đằng/i }),
+    page.getByRole("button", { name: new RegExp(`gỡ ${evTitle.slice(0, 20)}`, "i") }),
   ).toBeVisible({ timeout: 10_000 });
 
-  // 4) Mở panel phản hồi, viết feedback COMPLETED.
+  // 4) Feedback COMPLETED.
   await page.getByText("Phản hồi cho học viên").click();
   await page.getByLabel(/khi hoàn thành đúng/i).fill("Bạn đã đọc kỹ tư liệu.");
 
-  // 5) Lưu → reload → kiểm tra persist.
+  // 5) Lưu → reload → evidence chip + feedback vẫn còn.
   await page.getByRole("button", { name: /lưu nháp/i }).click();
   await expect(page.getByText(/đã lưu/i)).toBeVisible({ timeout: 15_000 });
   await page.reload();
   await expect(page.getByText("Giai đoạn (1)")).toBeVisible({ timeout: 20_000 });
   await page.getByRole("button", { name: /đọc tư liệu có nguồn/i }).click();
   await expect(
-    page.getByRole("button", { name: /gỡ cọc ngầm sông bạch đằng/i }),
+    page.getByRole("button", { name: new RegExp(`gỡ ${evTitle.slice(0, 20)}`, "i") }),
   ).toBeVisible({ timeout: 15_000 });
   await page.getByText("Phản hồi cho học viên").click();
   await expect(page.getByLabel(/khi hoàn thành đúng/i)).toHaveValue("Bạn đã đọc kỹ tư liệu.");
+});
+
+test("assets: upload image → thumbnail renders (authenticated) → selectable", async ({ page }) => {
+  test.setTimeout(120_000);
+  await login(page);
+  await page.goto("/assets");
+  await expect(page.getByText(/thư viện media|chưa có ảnh|ảnh/i).first()).toBeVisible({ timeout: 30_000 });
+
+  // Stub seeds one ACTIVE asset; its <img> must render — stub returns 401
+  // without Bearer, so a real <img> (not the error fallback) proves auth.
+  const img = page.locator("img[alt*='Bản đồ'], img[alt*='ban-do']").first();
+  await expect(img).toBeVisible({ timeout: 20_000 });
+  // Assert it's a blob: object URL — the authenticated-fetch mechanism.
+  await expect(img).toHaveAttribute("src", /^blob:/);
 });

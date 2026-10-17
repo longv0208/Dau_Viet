@@ -519,6 +519,10 @@ const server = http.createServer(async (req, res) => {
   if (path === "/api/v1/admin/assets") {
     if (m === "GET") return json(res, 200, pageOf(assets.filter((a) => a.state === "ACTIVE"), url));
     if (m === "POST") {
+      const auth = req.headers.authorization;
+      if (!auth || !auth.startsWith("Bearer ")) {
+        return json(res, 401, { code: "UNAUTHORIZED", message: "missing Bearer token" });
+      }
       // Accept multipart or any body — stub just records a new ACTIVE asset.
       await new Promise((r) => req.on("end", r).resume());
       const id = crypto.randomUUID();
@@ -542,9 +546,14 @@ const server = http.createServer(async (req, res) => {
     if (!a) return json(res, 404, { code: "ASSET_NOT_FOUND", message: "not found" });
     return json(res, 200, a);
   }
-  const assetContent = path.match(/^\/api\/v1\/admin\/assets\/([0-9a-f-]+)\/content$/);
+  const assetContent = path.match(/^\/api\/v1\/(admin\/)?assets\/([0-9a-f-]+)\/content$/);
   if (assetContent && m === "GET") {
-    const a = assets.find((x) => x.id === assetContent[1]);
+    // STRICT: mirror the real backend — protected endpoint demands Bearer.
+    const auth = req.headers.authorization;
+    if (!auth || !auth.startsWith("Bearer ")) {
+      return json(res, 401, { code: "UNAUTHORIZED", message: "missing Bearer token" });
+    }
+    const a = assets.find((x) => x.id === assetContent[2]);
     if (!a) return json(res, 404, { code: "ASSET_NOT_FOUND", message: "not found" });
     res.writeHead(200, {
       "content-type": a.mimeType,

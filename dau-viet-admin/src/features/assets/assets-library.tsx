@@ -16,7 +16,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { ErrorState } from "@/components/error-state";
 import { EmptyState } from "@/components/empty-state";
 
-import { uploadAsset } from "./asset-api";
+import { uploadAsset, validateAssetFile } from "./asset-api";
 import { AssetCard } from "./asset-card";
 import { AssetPreviewDialog } from "./asset-preview-dialog";
 
@@ -45,6 +45,11 @@ export function AssetsLibrary() {
     const file = e.target.files?.[0];
     e.target.value = "";
     if (!file) return;
+    const invalid = validateAssetFile(file);
+    if (invalid) {
+      setUploadError(invalid);
+      return;
+    }
     setUploading(true);
     setUploadError(null);
     try {

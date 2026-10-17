@@ -6,7 +6,7 @@ import { useState } from "react";
 import { Button } from "@/components/ui/button";
 import type { AdminAsset } from "@/lib/dto/evidence";
 
-import { assetContentSrc } from "./asset-api";
+import { AssetImage } from "./asset-image";
 
 export function formatAssetSize(bytes: number): string {
   if (bytes < 1024) return `${bytes} B`;
@@ -42,12 +42,9 @@ export function AssetCard({
         className="relative block aspect-square w-full overflow-hidden bg-surface-alt"
         aria-label={`Xem ${asset.originalFilename ?? asset.id}`}
       >
-        {/* eslint-disable-next-line @next/next/no-img-element */}
-        <img
-          src={assetContentSrc(asset.contentUrl)}
-          alt={asset.altText ?? asset.originalFilename ?? "Ảnh"}
+        <AssetImage
+          asset={asset}
           className="size-full object-cover transition-transform group-hover:scale-105"
-          loading="lazy"
         />
       </button>
       <div className="flex flex-col gap-1 px-2 py-2">

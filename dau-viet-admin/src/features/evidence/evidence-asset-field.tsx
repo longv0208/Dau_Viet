@@ -3,7 +3,7 @@
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
 import type { AdminAsset } from "@/lib/dto/evidence";
-import { assetContentSrc } from "@/features/assets/asset-api";
+import { AssetImage } from "@/features/assets/asset-image";
 
 /** Attached-asset block inside the evidence form. */
 export function EvidenceAssetField({
@@ -20,10 +20,8 @@ export function EvidenceAssetField({
       <Label>Ảnh đính kèm</Label>
       {attached ? (
         <div className="flex items-start gap-3">
-          {/* eslint-disable-next-line @next/next/no-img-element */}
-          <img
-            src={assetContentSrc(attached.contentUrl)}
-            alt={attached.altText ?? attached.originalFilename ?? "Ảnh"}
+          <AssetImage
+            asset={attached}
             className="size-20 rounded-md border border-border object-cover"
           />
           <div className="min-w-0 flex-1">

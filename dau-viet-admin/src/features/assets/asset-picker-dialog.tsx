@@ -15,7 +15,8 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { ErrorState } from "@/components/error-state";
 import { EmptyState } from "@/components/empty-state";
 
-import { assetContentSrc, uploadAsset } from "./asset-api";
+import { uploadAsset, validateAssetFile } from "./asset-api";
+import { AssetImage } from "./asset-image";
 
 const PAGE_SIZE = 24;
 
@@ -49,6 +50,12 @@ export function AssetPickerDialog({
     const file = e.target.files?.[0];
     e.target.value = "";
     if (!file) return;
+    // Client-side guard — avoids a wasted 413 round-trip; backend still authoritative.
+    const invalid = validateAssetFile(file);
+    if (invalid) {
+      setUploadError(invalid);
+      return;
+    }
     setUploading(true);
     setUploadError(null);
     try {
@@ -129,12 +136,9 @@ export function AssetPickerDialog({
                 }}
                 className="group flex flex-col overflow-hidden rounded-md border border-border bg-white text-left transition-colors hover:border-brand hover:bg-brand/5"
               >
-                {/* eslint-disable-next-line @next/next/no-img-element */}
-                <img
-                  src={assetContentSrc(a.contentUrl)}
-                  alt={a.altText ?? a.originalFilename ?? "Ảnh"}
+                <AssetImage
+                  asset={a}
                   className="aspect-square w-full bg-surface-alt object-cover"
-                  loading="lazy"
                 />
                 <span className="truncate px-2 py-1.5 text-xs text-ink group-hover:text-brand">
                   {a.originalFilename ?? a.id}

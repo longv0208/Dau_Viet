@@ -30,12 +30,18 @@
   "planPath": "dau-viet-admin/plans/261017-0720-task0016-evidence-asset-library/plan.md",
   "evidenceRefs": [
     "dau-viet-admin/plans/reports/task0016-261017-0800-evidence-asset-library-report.md",
+    "dau-viet-admin/plans/reports/task0016-261017-1205-media-bugfix-report.md",
     "dau-viet-admin/tests/e2e/evidence-authoring.spec.ts",
     "dau-viet-admin/src/features/lessons/builder/activity-editors/evidence-ref-picker.test.tsx",
-    "dau-viet-admin/src/features/lessons/builder/activity-editors/feedback-panel.test.tsx"
+    "dau-viet-admin/src/features/lessons/builder/activity-editors/feedback-panel.test.tsx",
+    "dau-viet-admin/src/features/assets/asset-api.test.ts",
+    "dau-viet-admin/src/app/api/upload/assets/route.ts",
+    "dau-viet-admin/src/features/assets/use-asset-object-url.ts",
+    "dau-viet-admin/src/features/assets/asset-image.tsx",
+    "dau-viet-backend/src/main/java/com/dauviet/lesson/api/LearnerAssetController.java"
   ],
   "reviewRefs": [],
-  "nextAction": "TASK-0017 (nếu có) — EXPLORE_MAP editor khi backend chốt marker schema; nâng proxy cap >2MiB cho media nếu cần.",
+  "nextAction": "TASK-0017 — learner media contract đã chốt (GET /api/v1/assets/{id}/content, authenticated, ACTIVE-only); EXPLORE_MAP editor khi backend chốt marker schema.",
   "baseCommit": "8bbe157",
   "inputFingerprint": null,
   "snapshot": null,
@@ -44,5 +50,5 @@
   "resumeFrom": null,
   "handoffRef": null,
   "createdAt": "2026-10-17T07:20:00+07:00",
-  "updatedAt": "2026-10-17T08:10:00+07:00"
+  "updatedAt": "2026-10-17T12:30:00+07:00"
 }
