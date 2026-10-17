@@ -1,6 +1,7 @@
 "use client";
 
 import { useQuery } from "@tanstack/react-query";
+import Link from "next/link";
 
 import { apiFetch } from "@/lib/api-client";
 import type { LessonTemplate } from "@/lib/dto/lesson";
@@ -8,7 +9,15 @@ import { qk } from "@/lib/query-keys";
 import { DataTable, type Column } from "@/components/data-table";
 
 const COLUMNS: Column<LessonTemplate>[] = [
-  { key: "name", header: "Tên mẫu", cell: (r) => <span className="font-medium">{r.name}</span> },
+  {
+    key: "name",
+    header: "Tên mẫu",
+    cell: (r) => (
+      <Link href={`/templates/${r.id}`} className="font-medium text-primary hover:underline">
+        {r.name}
+      </Link>
+    ),
+  },
   { key: "code", header: "Mã", cell: (r) => <code className="text-xs">{r.code}</code> },
   {
     key: "description",

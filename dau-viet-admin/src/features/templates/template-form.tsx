@@ -1,7 +1,7 @@
 "use client";
 
 import { zodResolver } from "@hookform/resolvers/zod";
-import { useQueryClient } from "@tanstack/react-query";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useRouter, useSearchParams } from "next/navigation";
 import { useEffect, useState } from "react";
 import { useFieldArray, useForm } from "react-hook-form";
@@ -9,7 +9,11 @@ import { z } from "zod";
 
 import { apiFetch } from "@/lib/api-client";
 import { toUserMessage } from "@/lib/api-error";
-import type { AdminLessonTemplateCreateRequest, LessonTemplate } from "@/lib/dto/lesson";
+import type {
+  AdminLessonTemplateCreateRequest,
+  AdminLessonTemplateUpdateRequest,
+  LessonTemplate,
+} from "@/lib/dto/lesson";
 import { applyServerFieldErrors, toSlug } from "@/lib/form-utils";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -17,11 +21,18 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
+import { Skeleton } from "@/components/ui/skeleton";
+import { ErrorState } from "@/components/error-state";
 import {
   confirmDiscard,
   useUnsavedChangesGuard,
 } from "@/components/unsaved-changes-guard";
-import { STAGE_TYPES, type StageType } from "@/features/lessons/builder/draft-model";
+import {
+  parseDraft,
+  STAGE_TYPES,
+  type Stage,
+  type StageType,
+} from "@/features/lessons/builder/draft-model";
 import { genSlugId } from "@/features/lessons/builder/draft-id";
 
 const CODE_RE = /^[a-z0-9]+(?:-[a-z0-9]+)*$/;
@@ -40,6 +51,7 @@ const templateSchema = z.object({
     .max(64, "Tối đa 64 ký tự")
     .regex(CODE_RE, "Mã chỉ gồm chữ thường, số và dấu gạch ngang"),
   description: z.string().optional().or(z.literal("")),
+  enabled: z.boolean(),
   stages: z.array(stageSchema).min(1, "Cần ít nhất 1 giai đoạn"),
 });
 
@@ -80,15 +92,49 @@ function makeStage(index: number, existingIds: string[]): z.infer<typeof stageSc
   };
 }
 
-/** A-07 — /templates/new: create a lesson template without writing JSON by hand. */
-export function TemplateForm() {
+/** Rehydrate editable rows from a stored presetJson skeleton. */
+function stagesFromPreset(presetJson: string): z.infer<typeof stageSchema>[] {
+  try {
+    const draft = parseDraft(presetJson);
+    const rows = draft.stages.map((s: Stage) => ({
+      id: s.id,
+      type: s.type,
+      title: s.title ?? "",
+    }));
+    return rows.length > 0 ? rows : [makeStage(0, [])];
+  } catch {
+    return [makeStage(0, [])];
+  }
+}
+
+const DEFAULT_STAGES: z.infer<typeof stageSchema>[] = [
+  { id: "context", type: "CONTEXT", title: "Bối cảnh lịch sử" },
+  { id: "evidence", type: "EVIDENCE", title: "Điều tra bằng chứng" },
+  { id: "reconstruction", type: "RECONSTRUCTION", title: "Tái dựng diễn biến" },
+  { id: "conclusion", type: "CONCLUSION", title: "Lập luận và kết luận" },
+];
+
+interface Props {
+  /** When provided the form edits that template (PATCH); code is locked. */
+  templateId?: string;
+}
+
+/** /templates/new + /templates/[id] — author/edit a template without writing JSON. */
+export function TemplateForm({ templateId }: Props) {
   const router = useRouter();
   const qc = useQueryClient();
   const searchParams = useSearchParams();
   const returnTo = searchParams.get("return");
+  const isEdit = Boolean(templateId);
 
   const [serverError, setServerError] = useState<string | null>(null);
   const [codeTouched, setCodeTouched] = useState(false);
+
+  const templateQuery = useQuery({
+    queryKey: ["templates", "detail", templateId],
+    queryFn: () => apiFetch<LessonTemplate>(`/admin/lesson-templates/${templateId}`),
+    enabled: isEdit,
+  });
 
   const {
     register,
@@ -97,6 +143,7 @@ export function TemplateForm() {
     watch,
     setValue,
     setError,
+    reset,
     formState: { errors, isDirty, isSubmitting },
   } = useForm<TemplateFormValues>({
     resolver: zodResolver(templateSchema),
@@ -104,22 +151,33 @@ export function TemplateForm() {
       name: "",
       code: "",
       description: "",
-      stages: [
-        { id: "context", type: "CONTEXT", title: "Bối cảnh lịch sử" },
-        { id: "evidence", type: "EVIDENCE", title: "Điều tra bằng chứng" },
-        { id: "reconstruction", type: "RECONSTRUCTION", title: "Tái dựng diễn biến" },
-        { id: "conclusion", type: "CONCLUSION", title: "Lập luận và kết luận" },
-      ],
+      enabled: true,
+      stages: DEFAULT_STAGES,
     },
   });
 
   const stages = useFieldArray({ control, name: "stages" });
   const nameValue = watch("name");
 
+  // Populate the form once the template loads (edit mode only).
+  useEffect(() => {
+    const t = templateQuery.data;
+    if (!t) return;
+    reset({
+      name: t.name,
+      code: t.code,
+      description: t.description ?? "",
+      enabled: t.enabled,
+      stages: stagesFromPreset(t.presetJson),
+    });
+  }, [templateQuery.data, reset]);
+
   // Suggest a code from the name until the admin edits the field directly.
   useEffect(() => {
-    if (!codeTouched) setValue("code", toSlug(nameValue).slice(0, 64), { shouldDirty: false });
-  }, [nameValue, codeTouched, setValue]);
+    if (!isEdit && !codeTouched) {
+      setValue("code", toSlug(nameValue).slice(0, 64), { shouldDirty: false });
+    }
+  }, [nameValue, codeTouched, setValue, isEdit]);
 
   useUnsavedChangesGuard(isDirty);
 
@@ -130,31 +188,54 @@ export function TemplateForm() {
 
   const onSubmit = handleSubmit(async (v) => {
     setServerError(null);
-    const payload: AdminLessonTemplateCreateRequest = {
-      code: v.code.trim(),
-      name: v.name.trim(),
-      description: v.description?.trim() || undefined,
-      presetJson: buildPresetJson(v.stages),
-    };
+    const presetJson = buildPresetJson(v.stages);
     try {
-      const res = await apiFetch<LessonTemplate>("/admin/lesson-templates", {
-        method: "POST",
-        body: JSON.stringify(payload),
-      });
-      qc.invalidateQueries({ queryKey: ["templates"] });
-      // Returning from the wizard: hand the new template back so it is
-      // auto-selected and the previously chosen event stays in the URL.
-      if (returnTo) {
-        const sep = returnTo.includes("?") ? "&" : "?";
-        router.push(`${returnTo}${sep}template=${res.id}`);
-      } else {
+      if (isEdit && templateId) {
+        const payload: AdminLessonTemplateUpdateRequest = {
+          name: v.name.trim(),
+          description: v.description?.trim() || undefined,
+          enabled: v.enabled,
+          presetJson,
+        };
+        await apiFetch<LessonTemplate>(`/admin/lesson-templates/${templateId}`, {
+          method: "PATCH",
+          body: JSON.stringify(payload),
+        });
+        qc.invalidateQueries({ queryKey: ["templates"] });
         router.push("/templates");
+      } else {
+        const payload: AdminLessonTemplateCreateRequest = {
+          code: v.code.trim(),
+          name: v.name.trim(),
+          description: v.description?.trim() || undefined,
+          presetJson,
+        };
+        const res = await apiFetch<LessonTemplate>("/admin/lesson-templates", {
+          method: "POST",
+          body: JSON.stringify(payload),
+        });
+        qc.invalidateQueries({ queryKey: ["templates"] });
+        // Returning from the wizard: hand the new template back so it is
+        // auto-selected and the previously chosen event stays in the URL.
+        if (returnTo) {
+          const sep = returnTo.includes("?") ? "&" : "?";
+          router.push(`${returnTo}${sep}template=${res.id}`);
+        } else {
+          router.push("/templates");
+        }
       }
     } catch (err) {
       const mapped = applyServerFieldErrors(err, setError, ["name", "code", "description"] as const);
       if (!mapped) setServerError(toUserMessage(err));
     }
   });
+
+  if (isEdit && templateQuery.isPending) {
+    return <Skeleton className="h-96 w-full" />;
+  }
+  if (isEdit && templateQuery.isError) {
+    return <ErrorState error={templateQuery.error} onRetry={() => templateQuery.refetch()} />;
+  }
 
   return (
     <form onSubmit={onSubmit} noValidate className="flex flex-col gap-5">
@@ -185,10 +266,13 @@ export function TemplateForm() {
                 id="code"
                 placeholder="dieu-tra-su-kien-lich-su"
                 aria-invalid={Boolean(errors.code)}
+                disabled={isEdit}
                 {...register("code", { onChange: () => setCodeTouched(true) })}
               />
               <p className="text-xs text-ink-muted">
-                Duy nhất, chữ thường, dùng dấu gạch ngang — không đổi sau khi tạo.
+                {isEdit
+                  ? "Mã là định danh cố định — không thể đổi sau khi tạo."
+                  : "Duy nhất, chữ thường, dùng dấu gạch ngang — không đổi sau khi tạo."}
               </p>
               {errors.code && (
                 <p role="alert" className="text-xs text-error">{errors.code.message}</p>
@@ -207,6 +291,12 @@ export function TemplateForm() {
               <p role="alert" className="text-xs text-error">{errors.description.message}</p>
             )}
           </div>
+          {isEdit && (
+            <label className="flex items-center gap-2 text-sm text-ink">
+              <input type="checkbox" {...register("enabled")} />
+              Khung đang bật (hiển thị trong wizard tạo bài học)
+            </label>
+          )}
         </CardContent>
       </Card>
 
@@ -312,7 +402,7 @@ export function TemplateForm() {
 
       <div className="flex items-center gap-3">
         <Button type="submit" disabled={isSubmitting}>
-          {isSubmitting ? "Đang lưu..." : "Tạo khung bài học"}
+          {isSubmitting ? "Đang lưu..." : isEdit ? "Lưu thay đổi" : "Tạo khung bài học"}
         </Button>
         <Button
           type="button"

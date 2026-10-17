@@ -7,6 +7,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import com.dauviet.lesson.api.dto.AdminLessonTemplateCreateRequest;
+import com.dauviet.lesson.api.dto.AdminLessonTemplateUpdateRequest;
 import com.dauviet.lesson.api.dto.LessonTemplateResponse;
 import com.dauviet.lesson.domain.LessonTemplate;
 import com.dauviet.lesson.domain.TemplateCodeTakenException;
@@ -60,7 +61,37 @@ public class LessonTemplateService {
             throw new TemplateCodeTakenException("Template code already exists: " + code);
         });
 
-        String preset = DraftValidator.requireJsonObject(req.presetJson(), "presetJson");
+        String preset = validatePreset(req.presetJson());
+
+        LessonTemplate t = LessonTemplate.create(
+                UUID.randomUUID(),
+                code,
+                req.name().trim(),
+                req.description() == null ? null : req.description().trim(),
+                DraftSchema.CURRENT_VERSION,
+                preset);
+        return toDto(templates.saveAndFlush(t));
+    }
+
+    /**
+     * Partial update — null fields stay unchanged. presetJson revalidated at
+     * SAVE level when provided so an edit cannot corrupt the skeleton.
+     */
+    @Transactional
+    public LessonTemplateResponse update(UUID id, AdminLessonTemplateUpdateRequest req) {
+        LessonTemplate t = templates.findById(id)
+                .orElseThrow(() -> new TemplateNotFoundException("Template not found: " + id));
+        if (req.name() != null) t.setName(req.name().trim());
+        if (req.description() != null) t.setDescription(req.description().trim());
+        if (req.enabled() != null) t.setEnabled(req.enabled());
+        if (req.presetJson() != null) {
+            t.setPresetJson(validatePreset(req.presetJson()));
+        }
+        return toDto(templates.saveAndFlush(t));
+    }
+
+    private String validatePreset(String presetJson) {
+        String preset = DraftValidator.requireJsonObject(presetJson, "presetJson");
         JsonNode presetNode;
         try {
             presetNode = objectMapper.readTree(preset);
@@ -72,15 +103,7 @@ public class LessonTemplateService {
         if (!errs.isEmpty()) {
             throw new DraftValidationException(errs);
         }
-
-        LessonTemplate t = LessonTemplate.create(
-                UUID.randomUUID(),
-                code,
-                req.name().trim(),
-                req.description() == null ? null : req.description().trim(),
-                DraftSchema.CURRENT_VERSION,
-                preset);
-        return toDto(templates.saveAndFlush(t));
+        return preset;
     }
 
     private LessonTemplateResponse toDto(LessonTemplate t) {

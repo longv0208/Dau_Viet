@@ -11,7 +11,7 @@ import type { PublishIssue, PublishReadiness } from "@/lib/dto/publish";
 import { Button } from "@/components/ui/button";
 
 import type { Draft } from "./draft-model";
-import { resolveErrorPath } from "./validation-panel";
+import { CODE_MESSAGES, describePath, resolveErrorPath } from "./validation-panel";
 
 const SUMMARY_LABELS: Record<string, string> = {
   stageCount: "Số giai đoạn",
@@ -55,12 +55,14 @@ function IssueList({
     <ul className="flex flex-col gap-1">
       {items.map((e, i) => {
         const target = draft ? resolveErrorPath(draft, e.path ?? "") : null;
+        const where = draft ? describePath(draft, e.path ?? "") : null;
         const body = (
           <>
-            <span className="block font-mono text-[10px] text-ink-muted">{e.path ?? ""}</span>
+            {where && (
+              <span className="block text-[10px] font-medium text-ink-muted">{where}</span>
+            )}
             <span className={tone === "error" ? "text-error" : "text-ink"}>
-              {e.code ? `[${e.code}] ` : ""}
-              {e.message}
+              {(e.code && CODE_MESSAGES[e.code]) ?? e.message}
             </span>
           </>
         );

@@ -28,8 +28,10 @@ export function FeedbackPanel({ activity, readOnly, onChange }: EditorProps) {
 
   function set(key: string, value: string) {
     const next = { ...fb };
-    const v = value.trim();
-    if (v) next[key] = v;
+    // Keep the raw value while typing — a trailing space must not be stripped
+    // from the controlled input, otherwise Space "doesn't work" mid-sentence.
+    // Emptiness is judged by the trimmed value: all-whitespace deletes the key.
+    if (value.trim()) next[key] = value;
     else delete next[key];
     // Emit undefined instead of {} so the object stays absent when empty.
     onChange({ feedback: Object.keys(next).length ? next : undefined });

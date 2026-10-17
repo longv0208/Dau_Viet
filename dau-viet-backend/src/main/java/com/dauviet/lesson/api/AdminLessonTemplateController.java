@@ -5,6 +5,7 @@ import java.util.UUID;
 
 import org.springframework.http.HttpStatus;
 import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.PatchMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
@@ -13,6 +14,7 @@ import org.springframework.web.bind.annotation.ResponseStatus;
 import org.springframework.web.bind.annotation.RestController;
 
 import com.dauviet.lesson.api.dto.AdminLessonTemplateCreateRequest;
+import com.dauviet.lesson.api.dto.AdminLessonTemplateUpdateRequest;
 import com.dauviet.lesson.api.dto.LessonTemplateResponse;
 import com.dauviet.lesson.application.LessonTemplateService;
 
@@ -45,5 +47,11 @@ public class AdminLessonTemplateController {
     @ResponseStatus(HttpStatus.CREATED)
     public LessonTemplateResponse create(@Valid @RequestBody AdminLessonTemplateCreateRequest req) {
         return service.create(req);
+    }
+
+    @PatchMapping("/{id}")
+    public LessonTemplateResponse update(@PathVariable UUID id,
+                                         @Valid @RequestBody AdminLessonTemplateUpdateRequest req) {
+        return service.update(id, req);
     }
 }

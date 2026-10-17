@@ -38,8 +38,7 @@ export function VerifyContentCard({ lessonId }: { lessonId: string }) {
         Kiểm tra nội dung học viên
       </h4>
       <p className="text-xs text-ink-muted">
-        Gọi đúng endpoint learner (<code className="font-mono">GET /api/v1/lessons/…/content</code>)
-        để xác nhận phiên bản đã xuất bản đọc được từ phía ứng dụng.
+        Kiểm tra xem học viên đã đọc được nội dung bài học từ ứng dụng chưa.
       </p>
 
       {verify.isSuccess && (
@@ -48,10 +47,13 @@ export function VerifyContentCard({ lessonId }: { lessonId: string }) {
           className="flex flex-col gap-1 rounded bg-success/10 px-3 py-2 text-xs text-success"
         >
           <p className="font-medium">
-            Phiên bản {verify.data.versionNo ?? "?"} đang phát hành — truy cập learner OK.
+            Phiên bản {verify.data.versionNo ?? "?"} đang phát hành — học viên đã đọc được nội dung.
           </p>
           <p className="text-ink-muted">
-            versionId: <span className="font-mono">{verify.data.lessonVersionId}</span>
+            Mã phiên bản:{" "}
+            <span className="font-mono" title={verify.data.lessonVersionId ?? ""}>
+              {(verify.data.lessonVersionId ?? "").slice(0, 8)}
+            </span>
             {stageCount !== null ? ` · ${stageCount} giai đoạn` : ""}
           </p>
         </div>
@@ -69,7 +71,7 @@ export function VerifyContentCard({ lessonId }: { lessonId: string }) {
         disabled={verify.isPending}
         onClick={() => verify.mutate()}
       >
-        {verify.isPending ? "Đang kiểm tra..." : checked ? "Kiểm tra lại" : "Kiểm tra nội dung learner"}
+        {verify.isPending ? "Đang kiểm tra..." : checked ? "Kiểm tra lại" : "Kiểm tra nội dung"}
       </Button>
     </section>
   );

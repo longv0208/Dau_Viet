@@ -69,3 +69,11 @@ export interface AdminLessonTemplateCreateRequest {
   description?: string;
   presetJson: string;
 }
+
+/** AdminLessonTemplateUpdateRequest — PATCH /admin/lesson-templates/{id}. `code` is immutable. */
+export interface AdminLessonTemplateUpdateRequest {
+  name?: string;
+  description?: string;
+  presetJson?: string;
+  enabled?: boolean;
+}

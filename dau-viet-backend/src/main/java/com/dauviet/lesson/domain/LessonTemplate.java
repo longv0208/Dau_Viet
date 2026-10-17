@@ -69,6 +69,11 @@ public class LessonTemplate {
         return t;
     }
 
+    public void setName(String name) { this.name = name; }
+    public void setDescription(String description) { this.description = description; }
+    public void setPresetJson(String presetJson) { this.presetJson = presetJson; }
+    public void setEnabled(Boolean enabled) { this.enabled = enabled; }
+
     public UUID getId() { return id; }
     public String getCode() { return code; }
     public String getName() { return name; }

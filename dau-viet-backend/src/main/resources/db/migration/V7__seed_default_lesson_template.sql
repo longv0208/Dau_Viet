@@ -1,12 +1,20 @@
--- Dấu Việt MVP | V7 | Default lesson template seed.
--- Inserts the "Điều tra sự kiện lịch sử" skeleton so admins always have a
--- working starting point. Idempotent: keyed on the stable template code.
-INSERT INTO lesson_templates (id, code, name, description, schema_version, preset_json, enabled)
-SELECT
-    gen_random_uuid(),
-    'dieu-tra-su-kien-lich-su',
+-- Dấu Việt MVP | V7 | Default reusable lesson template seed.
+-- "Điều tra sự kiện lịch sử" skeleton so admins always have a working
+-- starting point. Idempotent: keyed on the stable template code.
+INSERT INTO lesson_templates (
+    id,
+    code,
+    name,
+    description,
+    schema_version,
+    preset_json,
+    enabled
+)
+VALUES (
+    'd7a00000-0000-4000-8000-000000000001'::uuid,
+    'HISTORY_INVESTIGATION',
     'Điều tra sự kiện lịch sử',
-    'Khung 4 giai đoạn: bối cảnh, điều tra bằng chứng, tái dựng diễn biến, lập luận kết luận.',
+    'Khung bài học gồm bốn giai đoạn: bối cảnh, bằng chứng, tái dựng và kết luận.',
     1,
     '{
       "schemaVersion": 1,
@@ -43,9 +51,11 @@ SELECT
           "activities": [],
           "nextStageIds": []
         }
-      ]
+      ],
+      "completion": {
+        "requireAllRequiredStages": true
+      }
     }'::jsonb,
-    TRUE
-WHERE NOT EXISTS (
-    SELECT 1 FROM lesson_templates WHERE code = 'dieu-tra-su-kien-lich-su'
-);
+    true
+)
+ON CONFLICT (code) DO NOTHING;

@@ -146,7 +146,9 @@ export function PublishPage({ lessonId }: { lessonId: string }) {
           <div className="text-ink-muted">
             Phiên bản đang phát hành:{" "}
             {lesson.currentVersionId ? (
-              <span className="font-mono text-xs">{lesson.currentVersionId}</span>
+              <span className="font-mono text-xs" title={lesson.currentVersionId}>
+                {lesson.currentVersionId.slice(0, 8)}
+              </span>
             ) : (
               "chưa có — bài học chưa từng xuất bản"
             )}
@@ -182,7 +184,10 @@ export function PublishPage({ lessonId }: { lessonId: string }) {
           </p>
           <p className="text-xs text-ink-muted">
             Thời điểm: {new Date(publishedInfo.publishedAt).toLocaleString("vi-VN")} ·
-            versionId: <span className="font-mono">{publishedInfo.lessonVersionId}</span>
+            Mã phiên bản:{" "}
+            <span className="font-mono" title={publishedInfo.lessonVersionId}>
+              {publishedInfo.lessonVersionId.slice(0, 8)}
+            </span>
           </p>
         </div>
       )}
