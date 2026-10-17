@@ -33,6 +33,61 @@ const ADMIN = {
 const NOW = "2026-01-01T00:00:00Z";
 const EMPTY_PAGE = { content: [], page: 0, size: 20, totalElements: 0, totalPages: 0 };
 
+// Mirror of LearnerProjectionService (TASK-0010) — keep in sync.
+// Strips answer-bearing keys from the learner-facing projection so the e2e
+// preview endpoint returns the same shape a real backend would.
+const LEARNER_HIDDEN_KEYS = new Set([
+  "correctOptionIds", "correctPairs", "correctOrder", "expectedOrder",
+  "requiredEvidenceIds", "expectedHypothesis", "answerKey",
+  "answer", "key", "expected",
+]);
+const ACTIVITY_SERVER_ONLY = new Set(["validation"]);
+const STAGE_SERVER_ONLY = new Set(["requiredEvidenceIds"]);
+const ACTIVITY_HIDDEN_TOP = new Set(["evidenceRefs"]);
+
+function stripValue(value) {
+  if (value === null || typeof value !== "object") return;
+  if (Array.isArray(value)) {
+    for (const item of value) stripValue(item);
+    return;
+  }
+  for (const key of Object.keys(value)) {
+    if (LEARNER_HIDDEN_KEYS.has(key)) {
+      delete value[key];
+    } else {
+      stripValue(value[key]);
+    }
+  }
+}
+
+function stripContainer(node) {
+  stripValue(node.config);
+  stripValue(node.feedback);
+  stripValue(node.validation);
+}
+
+function projectSnapshot(snapshot) {
+  if (!snapshot || typeof snapshot !== "object" || Array.isArray(snapshot)) {
+    return snapshot && typeof snapshot === "object" ? snapshot : {};
+  }
+  const copy = JSON.parse(JSON.stringify(snapshot));
+  stripContainer(copy);
+  const stages = Array.isArray(copy.stages) ? copy.stages : [];
+  for (const stage of stages) {
+    if (!stage || typeof stage !== "object") continue;
+    STAGE_SERVER_ONLY.forEach((k) => delete stage[k]);
+    stripContainer(stage);
+    const acts = Array.isArray(stage.activities) ? stage.activities : [];
+    for (const act of acts) {
+      if (!act || typeof act !== "object") continue;
+      ACTIVITY_SERVER_ONLY.forEach((k) => delete act[k]);
+      ACTIVITY_HIDDEN_TOP.forEach((k) => delete act[k]);
+      stripContainer(act);
+    }
+  }
+  return copy;
+}
+
 // In-memory store — reset on each stub start.
 const events = [
   {
@@ -54,6 +109,9 @@ const events = [
   },
 ];
 const lessons = [];
+// Published lesson-version snapshots — mirrors lesson_versions table rows.
+// versionNo increments per lesson on each publish (republish allowed).
+const lessonVersions = [];
 // In-memory evidence + asset stores (TASK-0016): mirror the real admin API
 // so the browser can create/list/pick evidences and assets end-to-end.
 const evidences = [
@@ -281,6 +339,181 @@ const server = http.createServer(async (req, res) => {
     }
   }
 
+  // --- admin/events/{id}/publish + /archive ---
+  const evPub = path.match(/^\/api\/v1\/admin\/events\/([0-9a-f-]+)\/publish$/);
+  if (evPub && m === "POST") {
+    const e = events.find((x) => x.id === evPub[1]);
+    if (!e) return json(res, 404, { code: "EVENT_NOT_FOUND", message: "not found" });
+    if (e.status !== "DRAFT") {
+      return json(res, 409, {
+        code: "INVALID_STATUS_TRANSITION",
+        message: "Chỉ sự kiện DRAFT mới được xuất bản",
+      });
+    }
+    e.status = "PUBLISHED";
+    e.rowVersion += 1;
+    e.updatedAt = NOW;
+    return json(res, 200, e);
+  }
+  const evArch = path.match(/^\/api\/v1\/admin\/events\/([0-9a-f-]+)\/archive$/);
+  if (evArch && m === "POST") {
+    const e = events.find((x) => x.id === evArch[1]);
+    if (!e) return json(res, 404, { code: "EVENT_NOT_FOUND", message: "not found" });
+    const inUse = lessons.some((l) => l.eventId === e.id && l.status !== "ARCHIVED");
+    if (inUse) {
+      return json(res, 409, {
+        code: "EVENT_IN_USE",
+        message: "Sự kiện đang được bài học tham chiếu",
+      });
+    }
+    e.status = "ARCHIVED";
+    e.rowVersion += 1;
+    e.updatedAt = NOW;
+    return json(res, 200, e);
+  }
+
+  // --- admin/lessons/{id} sub-routes (check BEFORE generic lessonMatch) ---
+  const previewMatch = path.match(/^\/api\/v1\/admin\/lessons\/([0-9a-f-]+)\/preview$/);
+  if (previewMatch && m === "POST") {
+    const lesson = lessons.find((l) => l.id === previewMatch[1]);
+    if (!lesson) return json(res, 404, { code: "LESSON_NOT_FOUND", message: "not found" });
+    let draft;
+    try {
+      draft = JSON.parse(lesson.draftJson || "{}");
+    } catch {
+      draft = {};
+    }
+    return json(res, 200, {
+      lessonId: lesson.id,
+      lessonVersionId: null,
+      versionNo: null,
+      content: projectSnapshot(draft),
+    });
+  }
+  const publishMatch = path.match(/^\/api\/v1\/admin\/lessons\/([0-9a-f-]+)\/publish$/);
+  if (publishMatch && m === "POST") {
+    const lesson = lessons.find((l) => l.id === publishMatch[1]);
+    if (!lesson) return json(res, 404, { code: "LESSON_NOT_FOUND", message: "not found" });
+    if (lesson.status === "ARCHIVED") {
+      return json(res, 409, {
+        code: "INVALID_STATUS_TRANSITION",
+        message: "Bài học đã lưu trữ — không thể xuất bản",
+      });
+    }
+    const body = await readBody(req);
+    if (
+      body?.expectedRowVersion !== undefined &&
+      body.expectedRowVersion !== lesson.rowVersion
+    ) {
+      return json(res, 409, {
+        code: "OPTIMISTIC_LOCK_CONFLICT",
+        message: "modified concurrently",
+      });
+    }
+    // Readiness mirror: event must be PUBLISHED + every required stage needs a
+    // required activity (same rule the stub's /validate endpoint enforces).
+    const errors = [];
+    const ev = events.find((e) => e.id === lesson.eventId);
+    if (!ev || ev.status !== "PUBLISHED") {
+      errors.push({
+        path: "eventId",
+        code: "EVENT_NOT_PUBLISHED",
+        message: "Sự kiện lịch sử chưa được xuất bản",
+      });
+    }
+    let draft;
+    try {
+      draft = JSON.parse(lesson.draftJson || "{}");
+    } catch {
+      draft = {};
+    }
+    (draft.stages ?? []).forEach((s, si) => {
+      if (s.required && !(s.activities ?? []).some((a) => a.required)) {
+        errors.push({
+          path: `stages[${si}]`,
+          code: "NO_REQUIRED_ACTIVITY",
+          message: "Giai đoạn bắt buộc cần ít nhất một hoạt động bắt buộc",
+        });
+      }
+    });
+    if (errors.length) {
+      return json(res, 422, {
+        code: "DRAFT_SCHEMA_INVALID",
+        message: "Bài học chưa đủ điều kiện xuất bản",
+        details: { errors },
+      });
+    }
+    const versionNo =
+      lessonVersions.filter((v) => v.lessonId === lesson.id).length + 1;
+    const version = {
+      lessonVersionId: crypto.randomUUID(),
+      lessonId: lesson.id,
+      versionNo,
+      status: "PUBLISHED",
+      publishedAt: NOW,
+      snapshot: projectSnapshot(draft),
+    };
+    lessonVersions.push(version);
+    lesson.status = "PUBLISHED";
+    lesson.currentVersionId = version.lessonVersionId;
+    lesson.rowVersion += 1;
+    lesson.updatedAt = NOW;
+    return json(res, 200, {
+      lessonId: lesson.id,
+      lessonVersionId: version.lessonVersionId,
+      versionNo,
+      status: "PUBLISHED",
+      publishedAt: NOW,
+    });
+  }
+  const lessonArchMatch = path.match(/^\/api\/v1\/admin\/lessons\/([0-9a-f-]+)\/archive$/);
+  if (lessonArchMatch && m === "POST") {
+    const lesson = lessons.find((l) => l.id === lessonArchMatch[1]);
+    if (!lesson) return json(res, 404, { code: "LESSON_NOT_FOUND", message: "not found" });
+    lesson.status = "ARCHIVED";
+    lesson.rowVersion += 1;
+    lesson.updatedAt = NOW;
+    return json(res, 200, lesson);
+  }
+  const versionsMatch = path.match(/^\/api\/v1\/admin\/lessons\/([0-9a-f-]+)\/versions$/);
+  if (versionsMatch && m === "GET") {
+    const rows = lessonVersions
+      .filter((v) => v.lessonId === versionsMatch[1])
+      .map((v) => ({
+        lessonVersionId: v.lessonVersionId,
+        versionNo: v.versionNo,
+        status: v.status,
+        publishedAt: v.publishedAt,
+      }));
+    return json(res, 200, pageOf(rows, url));
+  }
+
+  // --- learner: GET /api/v1/lessons/{id}/content (published snapshot only) ---
+  const learnerContentMatch = path.match(/^\/api\/v1\/lessons\/([0-9a-f-]+)\/content$/);
+  if (learnerContentMatch && m === "GET") {
+    const auth = req.headers.authorization;
+    if (!auth || !auth.startsWith("Bearer ")) {
+      return json(res, 401, { code: "UNAUTHORIZED", message: "missing Bearer token" });
+    }
+    const lesson = lessons.find((l) => l.id === learnerContentMatch[1]);
+    const version =
+      lesson && lesson.currentVersionId
+        ? lessonVersions.find((v) => v.lessonVersionId === lesson.currentVersionId)
+        : null;
+    if (!lesson || lesson.status !== "PUBLISHED" || !version) {
+      return json(res, 404, {
+        code: "LESSON_NOT_PUBLISHED",
+        message: "Bài học chưa được xuất bản",
+      });
+    }
+    return json(res, 200, {
+      lessonId: lesson.id,
+      lessonVersionId: version.lessonVersionId,
+      versionNo: version.versionNo,
+      content: version.snapshot,
+    });
+  }
+
   // --- admin/lessons ---
   if (path === "/api/v1/admin/lessons") {
     if (m === "GET") {
@@ -414,6 +647,14 @@ const server = http.createServer(async (req, res) => {
       draft = {};
     }
     const errors = [];
+    const ev = events.find((e) => e.id === lesson.eventId);
+    if (!ev || ev.status !== "PUBLISHED") {
+      errors.push({
+        path: "eventId",
+        code: "EVENT_NOT_PUBLISHED",
+        message: "Sự kiện lịch sử chưa được xuất bản",
+      });
+    }
     (draft.stages ?? []).forEach((s, si) => {
       if (s.required && !(s.activities ?? []).some((a) => a.required)) {
         errors.push({
@@ -423,14 +664,24 @@ const server = http.createServer(async (req, res) => {
         });
       }
     });
+    // summary mirrors backend Map<String,Object> — NOT a string.
+    const warnings = [];
+    const summary = {
+      stageCount: (draft.stages ?? []).length,
+      activityCount: (draft.stages ?? []).reduce(
+        (n, s) => n + (s.activities?.length ?? 0),
+        0,
+      ),
+      evidenceRefs: 0,
+      schemaVersion: draft.schemaVersion ?? null,
+      errorCount: errors.length,
+      warningCount: warnings.length,
+    };
     return json(res, 200, {
       ready: errors.length === 0,
       errors,
-      warnings: [],
-      summary:
-        errors.length === 0
-          ? "Đủ điều kiện xuất bản"
-          : `Còn ${errors.length} lỗi cần xử lý trước khi xuất bản`,
+      warnings,
+      summary,
     });
   }
 

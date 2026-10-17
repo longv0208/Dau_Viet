@@ -79,7 +79,7 @@ test("evidence: create → appears in library → attach created item to READ �
 
   // 5) Lưu → reload → evidence chip + feedback vẫn còn.
   await page.getByRole("button", { name: /lưu nháp/i }).click();
-  await expect(page.getByText(/đã lưu/i)).toBeVisible({ timeout: 15_000 });
+  await expect(page.getByText(/^đã lưu \d/i)).toBeVisible({ timeout: 15_000 });
   await page.reload();
   await expect(page.getByText("Giai đoạn (1)")).toBeVisible({ timeout: 20_000 });
   await page.getByRole("button", { name: /đọc tư liệu có nguồn/i }).click();
@@ -181,7 +181,7 @@ test("media: upload PNG → preview decodes → attach to VIEW_IMAGE → save �
 
   // 10–12) Save → reload → asset ref + preview vẫn nguyên.
   await page.getByRole("button", { name: /lưu nháp/i }).click();
-  await expect(page.getByText(/đã lưu/i)).toBeVisible({ timeout: 15_000 });
+  await expect(page.getByText(/^đã lưu \d/i)).toBeVisible({ timeout: 15_000 });
   await page.reload();
   await expect(page.getByText("Giai đoạn (1)")).toBeVisible({ timeout: 20_000 });
   // Mở lại activity editor — click vào instruction của VIEW_IMAGE.

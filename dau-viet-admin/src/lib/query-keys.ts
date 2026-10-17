@@ -39,4 +39,7 @@ export const qk = {
       ["assets", "list", params ?? {}] as const,
     detail: (id: string) => ["assets", "detail", id] as const,
   },
+  learner: {
+    content: (id: string) => ["learner", "content", id] as const,
+  },
 };

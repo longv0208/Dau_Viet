@@ -182,7 +182,108 @@ export const handlers = [
         },
       ],
       warnings: [],
-      summary: "Còn 1 lỗi cần xử lý trước khi xuất bản",
+      // Backend contract: summary is Map<String,Object>, not a string.
+      summary: {
+        stageCount: 4,
+        activityCount: 3,
+        evidenceRefs: 0,
+        schemaVersion: 1,
+        errorCount: 1,
+        warningCount: 0,
+      },
+    });
+  }),
+  http.post("*/api/proxy/admin/lessons/:id/preview", ({ params }) => {
+    const l = lessonsPageFixture.content.find((x) => x.id === params.id);
+    if (!l) return HttpResponse.json({ code: "LESSON_NOT_FOUND" }, { status: 404 });
+    // Projection: same draft shape minus hidden keys (already stripped in fixture).
+    const draft = JSON.parse(draftFixture) as Record<string, unknown>;
+    for (const s of (draft.stages as { activities?: Record<string, unknown>[] }[]) ?? []) {
+      for (const a of s.activities ?? []) {
+        delete a.validation;
+        delete a.evidenceRefs;
+        const cfg = a.config as Record<string, unknown> | undefined;
+        if (cfg) {
+          delete cfg.correctOptionIds;
+          delete cfg.expectedOrder;
+          delete cfg.multiCorrect;
+        }
+      }
+      delete (s as Record<string, unknown>).requiredEvidenceIds;
+    }
+    return HttpResponse.json({
+      lessonId: l.id,
+      lessonVersionId: null,
+      versionNo: null,
+      content: draft,
+    });
+  }),
+  http.post("*/api/proxy/admin/lessons/:id/publish", async ({ params, request }) => {
+    const l = lessonsPageFixture.content.find((x) => x.id === params.id);
+    if (!l) return HttpResponse.json({ code: "LESSON_NOT_FOUND" }, { status: 404 });
+    const body = (await request.json().catch(() => ({}))) as Record<string, unknown>;
+    if (
+      body?.expectedRowVersion !== undefined &&
+      body.expectedRowVersion !== l.rowVersion
+    ) {
+      return HttpResponse.json(
+        { code: "OPTIMISTIC_LOCK_CONFLICT", message: "conflict" },
+        { status: 409 },
+      );
+    }
+    return HttpResponse.json({
+      lessonId: l.id,
+      lessonVersionId: "v-" + l.id.slice(0, 8),
+      versionNo: l.status === "PUBLISHED" ? 2 : 1,
+      status: "PUBLISHED",
+      publishedAt: "2026-01-02T00:00:00Z",
+    });
+  }),
+  http.get("*/api/proxy/lessons/:id/content", ({ params }) => {
+    const l = lessonsPageFixture.content.find((x) => x.id === params.id);
+    if (!l || l.status !== "PUBLISHED") {
+      return HttpResponse.json({ code: "LESSON_NOT_PUBLISHED" }, { status: 404 });
+    }
+    const draft = JSON.parse(draftFixture) as Record<string, unknown>;
+    for (const s of (draft.stages as { activities?: Record<string, unknown>[] }[]) ?? []) {
+      for (const a of s.activities ?? []) {
+        delete a.validation;
+        delete a.evidenceRefs;
+        const cfg = a.config as Record<string, unknown> | undefined;
+        if (cfg) {
+          delete cfg.correctOptionIds;
+          delete cfg.expectedOrder;
+          delete cfg.multiCorrect;
+        }
+      }
+    }
+    return HttpResponse.json({
+      lessonId: l.id,
+      lessonVersionId: l.currentVersionId,
+      versionNo: 1,
+      content: draft,
+    });
+  }),
+  http.post("*/api/proxy/admin/events/:id/publish", ({ params }) => {
+    const ev = eventsPageFixture.content.find((e) => e.id === params.id);
+    if (!ev) return HttpResponse.json({ code: "EVENT_NOT_FOUND" }, { status: 404 });
+    if (ev.status !== "DRAFT") {
+      return HttpResponse.json(
+        { code: "INVALID_STATUS_TRANSITION", message: "not draft" },
+        { status: 409 },
+      );
+    }
+    return HttpResponse.json({
+      ...ev,
+      period: null,
+      summary: "Tóm tắt sự kiện",
+      description: null,
+      location: null,
+      coverAssetKey: null,
+      status: "PUBLISHED",
+      rowVersion: 2,
+      createdAt: "2026-01-01T00:00:00Z",
+      updatedAt: "2026-01-02T00:00:00Z",
     });
   }),
   http.get("*/api/proxy/admin/lesson-templates", () =>

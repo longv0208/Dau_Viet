@@ -52,7 +52,9 @@ test("builder: add stage + activity, save, reload persists", async ({ page }) =>
 
   // Lưu — stub accepts và bump rowVersion.
   await page.getByRole("button", { name: /lưu nháp/i }).click();
-  await expect(page.getByText(/đã lưu/i)).toBeVisible({ timeout: 15_000 });
+  // Chip "Đã lưu HH:mm" — anchor ở đầu chuỗi để không match "bản đã lưu" trong
+  // link Xem trước / banner thay đổi chưa lưu.
+  await expect(page.getByText(/^đã lưu \d/i)).toBeVisible({ timeout: 15_000 });
 
   // Reload — dữ liệu vẫn còn; activity editor cần click để mở lại.
   await page.reload();
@@ -102,7 +104,7 @@ test("builder: 422 shows validation panel; validate shows readiness", async ({ p
   await page.getByPlaceholder("Đáp án 1").fill("A");
   await page.getByPlaceholder("Đáp án 2").fill("B");
   await page.getByRole("button", { name: /lưu nháp/i }).click();
-  await expect(page.getByText(/đã lưu/i)).toBeVisible({ timeout: 15_000 });
+  await expect(page.getByText(/^đã lưu \d/i)).toBeVisible({ timeout: 15_000 });
 
   // Kiểm tra xuất bản — chưa ready vì MC chưa tick "bắt buộc" (stub rule).
   await page.getByRole("button", { name: /kiểm tra xuất bản/i }).click();

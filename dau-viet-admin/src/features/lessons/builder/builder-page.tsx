@@ -1,7 +1,8 @@
 "use client";
 
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { Save } from "lucide-react";
+import { Eye, Save, UploadCloud } from "lucide-react";
+import Link from "next/link";
 import { useMemo, useState } from "react";
 
 import { apiFetch } from "@/lib/api-client";
@@ -192,7 +193,30 @@ function BuilderInner({
             {saveMutation.isPending ? "Đang lưu..." : "Lưu nháp"}
           </Button>
         )}
+        <Button
+          asChild
+          variant="secondary"
+          title={state.dirty ? "Có thay đổi chưa lưu — preview sẽ dùng bản đã lưu gần nhất" : undefined}
+        >
+          <Link href={`/lessons/${lesson.id}/preview`}>
+            <Eye className="size-4" />
+            {state.dirty ? "Xem trước (bản đã lưu)" : "Xem trước"}
+          </Link>
+        </Button>
+        <Button asChild variant="secondary">
+          <Link href={`/lessons/${lesson.id}/publish`}>
+            <UploadCloud className="size-4" />
+            Xuất bản
+          </Link>
+        </Button>
       </div>
+
+      {state.dirty && (
+        <p className="rounded-md bg-warning/10 px-3 py-1.5 text-xs text-ink-muted">
+          Có thay đổi chưa lưu — Xem trước và Kiểm tra xuất bản dùng bản đã lưu gần nhất. Lưu
+          nháp trước để xem bản mới nhất.
+        </p>
+      )}
 
       {lesson.status === "PUBLISHED" && (
         <p className="rounded-md bg-warning/15 px-3 py-2 text-sm text-ink">
@@ -280,7 +304,14 @@ function BuilderInner({
               if (aid) actions.selectActivity(aid);
             }}
           />
-          <PublishReadinessCard lessonId={lesson.id} />
+          <PublishReadinessCard
+            lessonId={lesson.id}
+            draft={state.dirty ? null : state.draft}
+            onJump={(sid, aid) => {
+              actions.selectStage(sid);
+              if (aid) actions.selectActivity(aid);
+            }}
+          />
         </aside>
       </div>
     </div>

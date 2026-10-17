@@ -280,9 +280,19 @@ export function LessonBasicEditor({ lessonId }: { lessonId: string }) {
           <p className="text-sm text-ink-muted">
             Xây dựng cấu trúc giai đoạn và hoạt động học tập bằng trình soạn trực quan.
           </p>
-          <Button asChild variant="secondary" className="self-start">
-            <Link href={`/lessons/${lesson.id}/builder`}>Mở trình soạn bài học</Link>
-          </Button>
+          <div className="flex flex-wrap gap-2">
+            <Button asChild variant="secondary">
+              <Link href={`/lessons/${lesson.id}/builder`}>Mở trình soạn bài học</Link>
+            </Button>
+            <Button asChild variant="secondary">
+              <Link href={`/lessons/${lesson.id}/preview`}>Xem trước</Link>
+            </Button>
+            {!archived && (
+              <Button asChild>
+                <Link href={`/lessons/${lesson.id}/publish`}>Xuất bản</Link>
+              </Button>
+            )}
+          </div>
         </CardContent>
       </Card>
     </div>

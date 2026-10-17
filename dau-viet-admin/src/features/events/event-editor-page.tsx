@@ -12,6 +12,7 @@ import { StatusChip } from "@/components/status-chip";
 import { Button } from "@/components/ui/button";
 
 import { EventForm } from "./event-form";
+import { EventPublishButton } from "./event-publish-button";
 
 /** Loads GET /admin/events/{id} and renders the edit form. */
 export function EventEditorPage({ eventId }: { eventId: string }) {
@@ -38,6 +39,7 @@ export function EventEditorPage({ eventId }: { eventId: string }) {
         <span className="text-xs text-ink-muted">
           Cập nhật {new Date(ev.updatedAt).toLocaleString("vi-VN")}
         </span>
+        <EventPublishButton event={ev} />
         <Button asChild variant="secondary" className="ml-auto">
           <Link href={`/lessons/new?event=${ev.id}`}>+ Tạo bài học cho sự kiện này</Link>
         </Button>

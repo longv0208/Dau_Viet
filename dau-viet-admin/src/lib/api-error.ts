@@ -56,6 +56,18 @@ export function toUserMessage(err: unknown): string {
         return "Bạn không có quyền thực hiện thao tác này";
       case "UPSTREAM_UNAVAILABLE":
         return "Không thể kết nối máy chủ backend";
+      case "EVENT_NOT_PUBLISHED":
+        return "Sự kiện lịch sử chưa được xuất bản — bài học chỉ xuất bản khi sự kiện đã ở trạng thái ĐÃ XUẤT BẢN";
+      case "EVENT_IN_USE":
+        return "Sự kiện đang được bài học tham chiếu — không thể lưu trữ";
+      case "INVALID_STATUS_TRANSITION":
+        return "Trạng thái hiện tại không cho phép thao tác này";
+      case "OPTIMISTIC_LOCK_CONFLICT":
+        return "Dữ liệu đã bị sửa đồng thời — tải lại để lấy bản mới nhất";
+      case "DRAFT_SCHEMA_INVALID":
+        return "Bản nháp chưa hợp lệ — xem danh sách lỗi chi tiết";
+      case "LESSON_NOT_PUBLISHED":
+        return "Bài học chưa được xuất bản";
       default:
         return err.message || "Có lỗi xảy ra, vui lòng thử lại";
     }
