@@ -53,9 +53,13 @@ export function AssetsLibrary() {
     setUploading(true);
     setUploadError(null);
     try {
-      await uploadAsset(file, altText || undefined);
+      const created = await uploadAsset(file, altText || undefined);
       setAltText("");
+      // Về trang đầu (assets sort newest-first) rồi mở preview ảnh vừa upload —
+      // tránh trường hợp upload xong đang ở trang 2+ không thấy ảnh đâu.
+      setPage(0);
       await qc.invalidateQueries({ queryKey: ["assets"] });
+      setPreview(created);
     } catch (err) {
       setUploadError(toUserMessage(err));
     } finally {

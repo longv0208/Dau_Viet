@@ -90,7 +90,7 @@ test("evidence: create → appears in library → attach created item to READ �
   await expect(page.getByLabel(/khi hoàn thành đúng/i)).toHaveValue("Bạn đã đọc kỹ tư liệu.");
 });
 
-test("assets: upload image → thumbnail renders (authenticated) → selectable", async ({ page }) => {
+test("assets: seeded thumbnail renders via authenticated blob fetch", async ({ page }) => {
   test.setTimeout(120_000);
   await login(page);
   await page.goto("/assets");
@@ -102,4 +102,100 @@ test("assets: upload image → thumbnail renders (authenticated) → selectable"
   await expect(img).toBeVisible({ timeout: 20_000 });
   // Assert it's a blob: object URL — the authenticated-fetch mechanism.
   await expect(img).toHaveAttribute("src", /^blob:/);
+});
+
+test("media: upload PNG → preview decodes → attach to VIEW_IMAGE → save → reload persists", async ({
+  page,
+}) => {
+  test.setTimeout(180_000);
+  await login(page);
+
+  // 3–4) Upload ảnh PNG hợp lệ qua /assets — phải thành công và preview mở.
+  await page.goto("/assets");
+  await expect(page.getByText(/thư viện media|chưa có ảnh/i).first()).toBeVisible({
+    timeout: 30_000,
+  });
+  // Real 1x1 PNG bytes — verified decodable (same fixture the stub seeds).
+  const png1x1 = Buffer.from(
+    "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNkYPhfDwAChwGA60e6kgAAAABJRU5ErkJggg==",
+    "base64",
+  );
+  const fileName = "e2e-upload-bach-dang.png";
+  await page.locator("input[type=file]").setInputFiles({
+    name: fileName,
+    mimeType: "image/png",
+    buffer: png1x1,
+  });
+
+  // Library tự mở preview asset vừa upload (post-upload UX fix).
+  const previewDialog = page.getByRole("dialog");
+  await expect(previewDialog).toBeVisible({ timeout: 15_000 });
+  await expect(previewDialog.getByText(fileName)).toBeVisible();
+
+  // 7) Ảnh trong preview phải decode thật — blob: URL + naturalWidth > 0.
+  const previewImg = previewDialog.locator("img").first();
+  await expect(previewImg).toHaveAttribute("src", /^blob:/, { timeout: 15_000 });
+  await previewImg.waitFor({ state: "visible", timeout: 15_000 });
+  // Wait for the blob to actually decode before asserting naturalWidth.
+  await expect
+    .poll(
+      async () =>
+        previewImg.evaluate(
+          (el: HTMLImageElement) => el.complete && el.naturalWidth > 0,
+        ),
+      { timeout: 15_000 },
+    )
+    .toBe(true);
+  await previewDialog.getByRole("button", { name: "Đóng", exact: true }).last().click();
+
+  // 5) Asset vừa upload xuất hiện trong lưới thư viện (trang đầu).
+  await expect(page.getByText(fileName)).toBeVisible({ timeout: 15_000 });
+
+  // 8–9) Builder → thêm VIEW_IMAGE activity → gắn ảnh vừa upload.
+  const lessonId = await createLesson(page, "E2E — gắn ảnh VIEW_IMAGE");
+  await page.goto(`/lessons/${lessonId}/builder`, { timeout: 60_000 });
+  await expect(page.getByText("Giai đoạn (0)")).toBeVisible({ timeout: 30_000 });
+
+  await page.getByRole("button", { name: /thêm giai đoạn/i }).click();
+  await page.getByRole("button", { name: /thêm hoạt động/i }).click();
+  await page.getByRole("button", { name: /quan sát hình ảnh/i }).click();
+  await page.getByLabel(/hướng dẫn cho học viên/i).fill("Quan sát bản đồ vừa tải lên");
+
+  // Picker → chọn asset đã upload (auto-close) → editor hiển thị preview.
+  await page.getByRole("button", { name: /chọn ảnh từ thư viện/i }).click();
+  const picker = page.getByRole("dialog");
+  await expect(picker.getByText(fileName)).toBeVisible({ timeout: 15_000 });
+  await picker.getByText(fileName).click();
+
+  // Editor hiển thị preview asset đã chọn.
+  await expect(page.getByText(fileName)).toBeVisible({ timeout: 15_000 });
+  const chipImg = page.locator("img[src^='blob:']").first();
+  await expect(chipImg).toBeVisible({ timeout: 15_000 });
+  await expect
+    .poll(
+      async () =>
+        chipImg.evaluate((el: HTMLImageElement) => el.complete && el.naturalWidth > 0),
+      { timeout: 15_000 },
+    )
+    .toBe(true);
+
+  // 10–12) Save → reload → asset ref + preview vẫn nguyên.
+  await page.getByRole("button", { name: /lưu nháp/i }).click();
+  await expect(page.getByText(/đã lưu/i)).toBeVisible({ timeout: 15_000 });
+  await page.reload();
+  await expect(page.getByText("Giai đoạn (1)")).toBeVisible({ timeout: 20_000 });
+  // Mở lại activity editor — click vào instruction của VIEW_IMAGE.
+  await page.getByRole("button", { name: /quan sát bản đồ vừa tải lên/i }).click();
+  await expect(page.getByText(fileName)).toBeVisible({ timeout: 15_000 });
+  const persistedImg = page.locator("img[src^='blob:']").first();
+  await expect(persistedImg).toBeVisible({ timeout: 15_000 });
+  await expect
+    .poll(
+      async () =>
+        persistedImg.evaluate(
+          (el: HTMLImageElement) => el.complete && el.naturalWidth > 0,
+        ),
+      { timeout: 15_000 },
+    )
+    .toBe(true);
 });

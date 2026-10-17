@@ -59,8 +59,12 @@ export function AssetPickerDialog({
     setUploading(true);
     setUploadError(null);
     try {
-      await uploadAsset(file);
+      const created = await uploadAsset(file);
       await qc.invalidateQueries({ queryKey: ["assets"] });
+      // Ảnh mới nhất sort newest-first nhưng user có thể đang ở trang 2+ —
+      // chọn luôn asset vừa upload và đóng picker thay vì bắt họ tìm lại.
+      onSelect(created);
+      onOpenChange(false);
     } catch (err) {
       setUploadError(toUserMessage(err));
     } finally {

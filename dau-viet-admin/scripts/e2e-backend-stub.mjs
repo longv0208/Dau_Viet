@@ -523,18 +523,39 @@ const server = http.createServer(async (req, res) => {
       if (!auth || !auth.startsWith("Bearer ")) {
         return json(res, 401, { code: "UNAUTHORIZED", message: "missing Bearer token" });
       }
-      // Accept multipart or any body — stub just records a new ACTIVE asset.
-      await new Promise((r) => req.on("end", r).resume());
+      // Parse multipart minimally: extract filename + byte size so the e2e can
+      // assert the uploaded asset's own metadata (not a canned response).
+      const chunks = [];
+      for await (const c of req) chunks.push(c);
+      const raw = Buffer.concat(chunks);
+      const head = raw.toString("latin1", 0, 8192);
+      const fnMatch = /filename="([^"]+)"/.exec(head);
+      const filename = fnMatch ? fnMatch[1] : "upload-e2e.png";
+      // Extract the actual file payload between the multipart headers and the
+      // closing boundary — stub stores only those bytes as `_bytes` so the
+      // content endpoint serves back a decodable image.
+      const boundary = /--[^\r\n]+/.exec(head)?.[0];
+      let payload = PNG_1X1;
+      if (boundary) {
+        const headerEnd = raw.indexOf("\r\n\r\n", 0);
+        const closeIdx = raw.lastIndexOf(`\r\n${boundary}--`);
+        if (headerEnd >= 0 && closeIdx > headerEnd) {
+          payload = raw.subarray(headerEnd + 4, closeIdx);
+        }
+      }
       const id = crypto.randomUUID();
       const a = {
         id,
-        originalFilename: "upload-e2e.png",
+        originalFilename: filename,
         mimeType: "image/png",
-        sizeBytes: PNG_1X1.length,
+        sizeBytes: payload.length,
         state: "ACTIVE",
         altText: null,
         createdAt: NOW,
         contentUrl: `/api/v1/admin/assets/${id}/content`,
+        // Content endpoint serves back the extracted file bytes so <img>
+        // decode assertions hold (no multipart wrapper).
+        _bytes: payload,
       };
       assets.push(a);
       return json(res, 201, a);
@@ -555,12 +576,13 @@ const server = http.createServer(async (req, res) => {
     }
     const a = assets.find((x) => x.id === assetContent[2]);
     if (!a) return json(res, 404, { code: "ASSET_NOT_FOUND", message: "not found" });
+    const bytes = a._bytes ?? PNG_1X1;
     res.writeHead(200, {
       "content-type": a.mimeType,
-      "content-length": PNG_1X1.length,
+      "content-length": bytes.length,
       "content-disposition": `inline; filename="${a.originalFilename}"`,
     });
-    return res.end(PNG_1X1);
+    return res.end(bytes);
   }
 
   json(res, 404, { code: "NOT_FOUND", message: `no stub for ${m} ${path}` });
