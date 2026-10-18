@@ -42,4 +42,10 @@ export const qk = {
   learner: {
     content: (id: string) => ["learner", "content", id] as const,
   },
+  versions: {
+    list: (lessonId: string, params?: { page?: number; size?: number }) =>
+      ["versions", "list", lessonId, params ?? {}] as const,
+    detail: (lessonId: string, versionId: string) =>
+      ["versions", "detail", lessonId, versionId] as const,
+  },
 };

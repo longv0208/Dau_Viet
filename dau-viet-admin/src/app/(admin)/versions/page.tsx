@@ -1,28 +1,29 @@
-import Link from "next/link";
+import { Suspense } from "react";
 
 import { PageHeader } from "@/components/page-header";
-import { EmptyState } from "@/components/empty-state";
-import { Button } from "@/components/ui/button";
+import { Skeleton } from "@/components/ui/skeleton";
+
+import { VersionsBrowser } from "@/features/versions/versions-browser";
 
 export const metadata = { title: "Phiên bản — Dấu Việt CMS" };
 
 /**
- * Honest empty state — backend exposes versions per-lesson only
- * (/admin/lessons/{id}/versions), so there is no global version list to show.
+ * /versions — lịch sử phiên bản theo bài học. Backend exposes versions
+ * per-lesson only (/admin/lessons/{id}/versions) so the page is a
+ * lesson picker + list; `?lesson=<id>` deep-links one lesson's history.
  */
-export default function VersionsPage() {
+export default async function VersionsPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ lesson?: string }>;
+}) {
+  const { lesson } = await searchParams;
   return (
-    <div>
+    <div className="flex flex-col gap-4">
       <PageHeader title="Phiên bản" />
-      <EmptyState
-        title="Chọn một bài học để xem lịch sử phiên bản"
-        description="Mỗi lần xuất bản tạo một phiên bản bất biến. Mở một bài học cụ thể để xem toàn bộ phiên bản của nó."
-        action={
-          <Button asChild variant="secondary">
-            <Link href="/lessons">Đến danh sách bài học</Link>
-          </Button>
-        }
-      />
+      <Suspense fallback={<Skeleton className="h-64 w-full" />}>
+        <VersionsBrowser initialLessonId={lesson} />
+      </Suspense>
     </div>
   );
 }

@@ -86,9 +86,17 @@ export function LessonsTable() {
       key: "actions",
       header: "",
       cell: (r) => (
-        <Link href={`/lessons/${r.id}`} className="text-sm text-primary hover:underline">
-          Mở
-        </Link>
+        <div className="flex items-center gap-3">
+          <Link href={`/lessons/${r.id}`} className="text-sm text-primary hover:underline">
+            Mở
+          </Link>
+          <Link
+            href={`/versions?lesson=${r.id}`}
+            className="text-sm text-ink-muted hover:underline"
+          >
+            Phiên bản
+          </Link>
+        </div>
       ),
     },
   ];
