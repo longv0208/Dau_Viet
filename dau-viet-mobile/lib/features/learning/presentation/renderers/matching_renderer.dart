@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 
 import '../../../../core/theme/dau_viet_colors.dart';
 import '../../../../core/theme/dau_viet_typography.dart';
@@ -6,8 +7,10 @@ import '../../data/attempt_dtos.dart';
 import 'renderer_base.dart';
 
 /// MATCHING — ghép `leftItems[]` với `rightItems[]` (đã derange phía server).
-/// Tap left → tap right để nối; tap lại để hủy. Submit `{pairs:[{leftId,rightId}]}`.
-/// KHÔNG dùng `config.pairs` (đã bị strip khỏi learner projection).
+/// Tap left → tap right để nối; tap lại left-paired để hủy cặp; tap right
+/// đã dùng khi không có left nào đang chọn → hủy cặp chứa nó.
+/// Submit `{pairs:[{leftId,rightId}]}`. KHÔNG dùng `config.pairs` (đã bị
+/// strip khỏi learner projection), không suy đáp án từ thứ tự hàng.
 class MatchingRenderer extends StatefulWidget {
   final ActivityRefDto activity;
   final bool submitting;
@@ -33,11 +36,12 @@ class _MatchingRendererState extends State<MatchingRenderer> {
   void _dirty() => widget.onInputChanged?.call(_pairs.isNotEmpty);
 
   void _tapLeft(String id) {
+    HapticFeedback.selectionClick();
     setState(() {
       if (_pairs.containsKey(id)) {
         _pairs.remove(id); // unmatch
       } else {
-        _activeLeft = id;
+        _activeLeft = _activeLeft == id ? null : id;
       }
       _dirty();
     });
@@ -45,10 +49,18 @@ class _MatchingRendererState extends State<MatchingRenderer> {
 
   void _tapRight(String id) {
     if (_activeLeft == null) return;
+    HapticFeedback.selectionClick();
     setState(() {
       _pairs.removeWhere((_, r) => r == id); // right chỉ thuộc 1 cặp
       _pairs[_activeLeft!] = id;
       _activeLeft = null;
+      _dirty();
+    });
+  }
+
+  void _unpairRight(String rightId) {
+    setState(() {
+      _pairs.removeWhere((_, r) => r == rightId);
       _dirty();
     });
   }
@@ -64,11 +76,23 @@ class _MatchingRendererState extends State<MatchingRenderer> {
       );
     }
     final Set<String> usedRight = _pairs.values.toSet();
+    final bool locked = widget.submitting;
+    final bool reduceMotion =
+        MediaQuery.maybeDisableAnimationsOf(context) ?? false;
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
         const SectionLabel('CHẠM MỤC TRÁI RỒI CHẠM MỤC PHẢI ĐỂ GHÉP'),
+        const SizedBox(height: 4),
+        Text(
+          'Chạm lại mục đã ghép để hủy.',
+          style: DauVietTypography.bodySmall.copyWith(
+            fontSize: 11,
+            fontStyle: FontStyle.italic,
+            color: DauVietColors.inkMuted,
+          ),
+        ),
         const SizedBox(height: 8),
         Row(
           crossAxisAlignment: CrossAxisAlignment.start,
@@ -83,13 +107,28 @@ class _MatchingRendererState extends State<MatchingRenderer> {
                               as String,
                       selected: _activeLeft == item['id'],
                       paired: _pairs.containsKey(item['id']),
-                      enabled: !widget.submitting,
+                      enabled: !locked,
+                      reduceMotion: reduceMotion,
                       onTap: () => _tapLeft(item['id'] as String? ?? ''),
                     ),
                 ],
               ),
             ),
-            const SizedBox(width: 10),
+            // Cột nối: chấm tròn ở giữa — sáng màu khi cặp đã nối, nhấp nháy
+            // mềm khi đang chờ chọn right cho left đang active.
+            SizedBox(
+              width: 26,
+              child: Column(
+                children: [
+                  for (final item in left)
+                    _PairDot(
+                      linked: _pairs.containsKey(item['id']),
+                      seeking: _activeLeft == item['id'],
+                      reduceMotion: reduceMotion,
+                    ),
+                ],
+              ),
+            ),
             Expanded(
               child: Column(
                 children: [
@@ -101,16 +140,17 @@ class _MatchingRendererState extends State<MatchingRenderer> {
                       selected: false,
                       paired: usedRight.contains(item['id']),
                       alignEnd: true,
+                      // Ngoặc bắt buộc: không có chúng, `|| usedRight` vẫn
+                      // cho tap khi đang submitting (bug precedence đã fix).
                       enabled:
-                          !widget.submitting && _activeLeft != null ||
-                          usedRight.contains(item['id']),
+                          !locked &&
+                          (_activeLeft != null ||
+                              usedRight.contains(item['id'])),
+                      reduceMotion: reduceMotion,
                       onTap: () {
                         if (usedRight.contains(item['id']) &&
                             _activeLeft == null) {
-                          setState(() {
-                            _pairs.removeWhere((_, r) => r == item['id']);
-                            _dirty();
-                          });
+                          _unpairRight(item['id'] as String? ?? '');
                         } else {
                           _tapRight(item['id'] as String? ?? '');
                         }
@@ -126,7 +166,12 @@ class _MatchingRendererState extends State<MatchingRenderer> {
           'Đã ghép ${_pairs.length}/${left.length}',
           textAlign: TextAlign.center,
           style: DauVietTypography.bodySmall.copyWith(
-            color: DauVietColors.inkMuted,
+            color: _pairs.length == left.length
+                ? const Color(0xFF4C7C44)
+                : DauVietColors.inkMuted,
+            fontWeight: _pairs.length == left.length
+                ? FontWeight.w700
+                : FontWeight.w400,
           ),
         ),
         const SizedBox(height: 10),
@@ -151,6 +196,7 @@ class _MatchTile extends StatelessWidget {
   final bool paired;
   final bool enabled;
   final bool alignEnd;
+  final bool reduceMotion;
   final VoidCallback onTap;
 
   const _MatchTile({
@@ -158,6 +204,7 @@ class _MatchTile extends StatelessWidget {
     required this.selected,
     required this.paired,
     required this.enabled,
+    required this.reduceMotion,
     required this.onTap,
     this.alignEnd = false,
   });
@@ -171,29 +218,97 @@ class _MatchTile extends StatelessWidget {
         : DauVietColors.outlineVariant;
     return Padding(
       padding: const EdgeInsets.only(bottom: 8),
-      child: InkWell(
-        borderRadius: BorderRadius.circular(10),
-        onTap: enabled ? onTap : null,
-        child: Container(
-          width: double.infinity,
-          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 12),
-          decoration: BoxDecoration(
-            color: selected
-                ? DauVietColors.imperialGold.withValues(alpha: 0.15)
-                : paired
-                ? DauVietColors.cinnabarRed.withValues(alpha: 0.08)
-                : Colors.white.withValues(alpha: 0.85),
-            borderRadius: BorderRadius.circular(10),
-            border: Border.all(color: border, width: selected ? 1.8 : 1.1),
-          ),
-          child: Text(
-            label,
-            textAlign: alignEnd ? TextAlign.end : TextAlign.start,
-            style: DauVietTypography.bodySmall.copyWith(
-              color: DauVietColors.inkText,
-              height: 1.35,
+      child: Material(
+        color: Colors.transparent,
+        child: InkWell(
+          borderRadius: BorderRadius.circular(10),
+          onTap: enabled ? onTap : null,
+          child: AnimatedContainer(
+            duration: reduceMotion
+                ? Duration.zero
+                : const Duration(milliseconds: 150),
+            curve: Curves.easeOut,
+            width: double.infinity,
+            constraints: const BoxConstraints(minHeight: 48),
+            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 11),
+            decoration: BoxDecoration(
+              color: selected
+                  ? DauVietColors.imperialGold.withValues(alpha: 0.16)
+                  : paired
+                  ? DauVietColors.cinnabarRed.withValues(alpha: 0.09)
+                  : Colors.white.withValues(alpha: enabled ? 0.85 : 0.5),
+              borderRadius: BorderRadius.circular(10),
+              border: Border.all(color: border, width: selected ? 1.9 : 1.1),
+              boxShadow: selected
+                  ? [
+                      BoxShadow(
+                        color: DauVietColors.imperialGold.withValues(
+                          alpha: 0.25,
+                        ),
+                        blurRadius: 6,
+                        offset: const Offset(0, 2),
+                      ),
+                    ]
+                  : null,
+            ),
+            child: Text(
+              label,
+              textAlign: alignEnd ? TextAlign.end : TextAlign.start,
+              maxLines: 4,
+              overflow: TextOverflow.ellipsis,
+              style: DauVietTypography.bodySmall.copyWith(
+                color: DauVietColors.inkText,
+                height: 1.35,
+                fontWeight: selected ? FontWeight.w700 : FontWeight.w500,
+              ),
             ),
           ),
+        ),
+      ),
+    );
+  }
+}
+
+/// Chấm nối giữa hai cột — sáng khi cặp đã link, pulse nhẹ khi đang chờ
+/// chọn đầu phải.
+class _PairDot extends StatelessWidget {
+  final bool linked;
+  final bool seeking;
+  final bool reduceMotion;
+
+  const _PairDot({
+    required this.linked,
+    required this.seeking,
+    required this.reduceMotion,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      // Căn giữa theo chiều cao tile (11 top + ~26 text + 11 bottom + 8 margin).
+      padding: const EdgeInsets.symmetric(vertical: 21),
+      child: AnimatedContainer(
+        duration: reduceMotion
+            ? Duration.zero
+            : const Duration(milliseconds: 180),
+        width: linked || seeking ? 12 : 8,
+        height: linked || seeking ? 12 : 8,
+        decoration: BoxDecoration(
+          shape: BoxShape.circle,
+          color: linked
+              ? DauVietColors.cinnabarRed
+              : seeking
+              ? DauVietColors.imperialGold
+              : DauVietColors.outlineVariant.withValues(alpha: 0.7),
+          boxShadow: seeking && !reduceMotion
+              ? [
+                  BoxShadow(
+                    color: DauVietColors.imperialGold.withValues(alpha: 0.5),
+                    blurRadius: 6,
+                    spreadRadius: 1,
+                  ),
+                ]
+              : null,
         ),
       ),
     );

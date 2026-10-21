@@ -1,13 +1,15 @@
 import 'package:flutter/material.dart';
 
+import '../../../../core/theme/dau_viet_colors.dart';
 import '../../../../core/theme/dau_viet_typography.dart';
 import '../../data/attempt_dtos.dart';
 import '../../data/learning_dtos.dart';
 import 'learning_asset_image.dart';
 import 'renderer_base.dart';
 
-/// VIEW_IMAGE — ảnh lịch sử + caption + hướng dẫn quan sát + nút tiếp tục.
-/// Ảnh qua learner asset endpoint có auth; thiếu asset → fallback alt.
+/// VIEW_IMAGE — ảnh lịch sử + caption + attribution + gợi ý quan sát.
+/// Ảnh qua learner asset endpoint có auth; thiếu/lỗi asset → fallback alt.
+/// Tap ảnh → fullscreen pinch-zoom (LearningAssetImage lo phần này).
 class ViewImageRenderer extends StatelessWidget {
   final ActivityRefDto activity;
   final LessonContentDto content;
@@ -36,11 +38,24 @@ class ViewImageRenderer extends StatelessWidget {
       'description',
       'source',
     ]);
+    // Gợi ý quan sát: câu hỏi dẫn learner nhìn kỹ chi tiết ảnh.
+    final String? observePrompt = configText(config, [
+      'observePrompt',
+      'guidingQuestion',
+      'prompt',
+      'question',
+    ]);
     final Map<String, dynamic>? assetMeta = assetId == null
         ? null
         : content.assetById(assetId);
     final String alt =
         (assetMeta?['altText'] as String?) ?? caption ?? 'Hình ảnh tư liệu';
+    // Attribution từ asset metadata (credit/attribution) hoặc config.source —
+    // chỉ hiển thị khi tác giả cung cấp, không tự bịa nguồn.
+    final String? attribution =
+        configText(config, ['attribution', 'credit']) ??
+        (assetMeta?['credit'] as String?) ??
+        (assetMeta?['attribution'] as String?);
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -66,12 +81,51 @@ class ViewImageRenderer extends StatelessWidget {
                     caption,
                     style: DauVietTypography.bodySmall.copyWith(
                       fontStyle: FontStyle.italic,
+                      height: 1.45,
+                    ),
+                  ),
+                ),
+              if (attribution != null && attribution.isNotEmpty)
+                Padding(
+                  padding: const EdgeInsets.only(top: 4),
+                  child: Text(
+                    'Ảnh: $attribution',
+                    style: DauVietTypography.bodySmall.copyWith(
+                      fontSize: 10.5,
+                      color: DauVietColors.inkMuted,
                     ),
                   ),
                 ),
             ],
           ),
         ),
+        if (observePrompt != null) ...[
+          const SizedBox(height: 10),
+          ActivityCard(
+            padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+            child: Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                const Icon(
+                  Icons.travel_explore_rounded,
+                  size: 18,
+                  color: DauVietColors.imperialGold,
+                ),
+                const SizedBox(width: 8),
+                Expanded(
+                  child: Text(
+                    observePrompt,
+                    style: DauVietTypography.bodySmall.copyWith(
+                      color: DauVietColors.inkText,
+                      height: 1.5,
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ],
         const SizedBox(height: 14),
         SubmitBar(
           enabled: true,
@@ -93,7 +147,29 @@ class _NoImage extends StatelessWidget {
     return Container(
       height: 200,
       alignment: Alignment.center,
-      child: Text(altText, style: DauVietTypography.bodySmall),
+      decoration: BoxDecoration(
+        color: DauVietColors.parchmentContainer.withValues(alpha: 0.5),
+        borderRadius: BorderRadius.circular(10),
+        border: Border.all(color: DauVietColors.outlineVariant),
+      ),
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          const Icon(
+            Icons.image_outlined,
+            size: 30,
+            color: DauVietColors.inkMuted,
+          ),
+          const SizedBox(height: 6),
+          Text(
+            altText,
+            textAlign: TextAlign.center,
+            style: DauVietTypography.bodySmall.copyWith(
+              color: DauVietColors.inkMuted,
+            ),
+          ),
+        ],
+      ),
     );
   }
 }

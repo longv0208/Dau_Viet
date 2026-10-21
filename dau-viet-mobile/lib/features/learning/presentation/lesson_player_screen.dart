@@ -402,7 +402,14 @@ class _LessonPlayerScreenState extends ConsumerState<LessonPlayerScreen> {
         else ...[
           Expanded(
             child: SingleChildScrollView(
-              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+              // viewInsets.bottom để bàn phím không che ô đang nhập (CER/
+              // Reflection) — phần còn lại của layout giữ nguyên.
+              padding: EdgeInsets.fromLTRB(
+                16,
+                12,
+                16,
+                12 + MediaQuery.of(context).viewInsets.bottom,
+              ),
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.stretch,
                 children: [

@@ -22,6 +22,9 @@ final _pngBytes = <int>[
 ];
 
 void main() {
+  // Cache bytes là module-level — reset mỗi test để không lẫn kết quả.
+  setUp(clearLearningAssetCacheForTest);
+
   Widget buildApp(FakeAttemptRepository repo, {String? alt}) {
     return ProviderScope(
       overrides: [attemptRepositoryProvider.overrideWithValue(repo)],

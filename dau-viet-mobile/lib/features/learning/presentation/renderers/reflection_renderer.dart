@@ -87,19 +87,40 @@ class _ReflectionRendererState extends State<ReflectionRenderer> {
             maxLines: 4,
             maxLength: 4000,
             enabled: !widget.submitting,
+            textInputAction: TextInputAction.done,
+            onSubmitted: (_) => FocusScope.of(context).unfocus(),
             onChanged: (_) => setState(_reportDirty),
             decoration: InputDecoration(
               hintText: 'Chia sẻ suy nghĩ của bạn...',
+              counterStyle: DauVietTypography.bodySmall.copyWith(
+                fontSize: 10,
+                color: DauVietColors.inkMuted,
+              ),
               filled: true,
-              fillColor: Colors.white.withValues(alpha: 0.9),
+              fillColor: Colors.white.withValues(
+                alpha: widget.submitting ? 0.6 : 0.9,
+              ),
               border: OutlineInputBorder(
                 borderRadius: BorderRadius.circular(10),
                 borderSide: const BorderSide(
                   color: DauVietColors.outlineVariant,
                 ),
               ),
+              enabledBorder: OutlineInputBorder(
+                borderRadius: BorderRadius.circular(10),
+                borderSide: const BorderSide(
+                  color: DauVietColors.outlineVariant,
+                ),
+              ),
+              focusedBorder: OutlineInputBorder(
+                borderRadius: BorderRadius.circular(10),
+                borderSide: const BorderSide(
+                  color: DauVietColors.cinnabarRed,
+                  width: 1.4,
+                ),
+              ),
             ),
-            style: DauVietTypography.bodyMedium,
+            style: DauVietTypography.bodyMedium.copyWith(height: 1.55),
           ),
         const SizedBox(height: 14),
         SubmitBar(

@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 
 import '../../../../core/theme/dau_viet_colors.dart';
 import '../../../../core/theme/dau_viet_typography.dart';
@@ -7,8 +8,9 @@ import 'renderer_base.dart';
 
 /// DRAG_ORDER — sắp xếp `items[]` theo đúng trình tự lịch sử.
 /// Items đến đã được server shuffle deterministic (learner presentation).
-/// ReorderableListView + nút lên/xuống accessibility. Submit `{orderedIds}`.
-/// KHÔNG sort lại theo answer key; không expose expectedOrder/acceptedSequences.
+/// ReorderableListView + nút lên/xuống accessibility + số thứ tự rõ.
+/// Submit `{orderedIds}`. KHÔNG sort lại theo answer key; không expose
+/// expectedOrder/acceptedSequences.
 class DragOrderRenderer extends StatefulWidget {
   final ActivityRefDto activity;
   final bool submitting;
@@ -58,6 +60,7 @@ class _DragOrderRendererState extends State<DragOrderRenderer> {
   void _move(int index, int delta) {
     final int target = index + delta;
     if (target < 0 || target >= _items.length) return;
+    HapticFeedback.selectionClick();
     setState(() {
       final item = _items.removeAt(index);
       _items.insert(target, item);
@@ -83,18 +86,26 @@ class _DragOrderRendererState extends State<DragOrderRenderer> {
           buildDefaultDragHandles: false,
           itemCount: _items.length,
           onReorderItem: (oldIndex, newIndex) {
+            HapticFeedback.mediumImpact();
             setState(() {
               final item = _items.removeAt(oldIndex);
               _items.insert(newIndex, item);
               _reportDirty();
             });
           },
+          proxyDecorator: (child, index, animation) => Material(
+            elevation: 4,
+            borderRadius: BorderRadius.circular(10),
+            color: DauVietColors.parchmentContainer,
+            child: child,
+          ),
           itemBuilder: (context, i) {
             final item = _items[i];
             final String id = item['id'] as String? ?? 'item-$i';
             return _OrderTile(
               key: ValueKey(id),
               index: i,
+              total: _items.length,
               label: (item['label'] ?? item['text'] ?? id) as String,
               enabled: !widget.submitting,
               onUp: () => _move(i, -1),
@@ -117,6 +128,7 @@ class _DragOrderRendererState extends State<DragOrderRenderer> {
 
 class _OrderTile extends StatelessWidget {
   final int index;
+  final int total;
   final String label;
   final bool enabled;
   final VoidCallback onUp;
@@ -125,6 +137,7 @@ class _OrderTile extends StatelessWidget {
   const _OrderTile({
     super.key,
     required this.index,
+    required this.total,
     required this.label,
     required this.enabled,
     required this.onUp,
@@ -135,51 +148,110 @@ class _OrderTile extends StatelessWidget {
   Widget build(BuildContext context) {
     return Container(
       margin: const EdgeInsets.only(bottom: 8),
-      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 6),
       decoration: BoxDecoration(
-        color: Colors.white.withValues(alpha: 0.9),
+        color: Colors.white.withValues(alpha: enabled ? 0.9 : 0.55),
         borderRadius: BorderRadius.circular(10),
         border: Border.all(color: DauVietColors.outlineVariant),
       ),
       child: Row(
+        crossAxisAlignment: CrossAxisAlignment.center,
         children: [
+          // Drag handle — vùng chạm rộng, icon rõ.
           ReorderableDragStartListener(
             index: index,
             enabled: enabled,
-            child: const Padding(
-              padding: EdgeInsets.symmetric(horizontal: 6, vertical: 8),
+            child: Container(
+              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 10),
               child: Icon(
                 Icons.drag_indicator_rounded,
-                color: DauVietColors.inkMuted,
-                size: 20,
+                color: enabled
+                    ? DauVietColors.cinnabarRed
+                    : DauVietColors.inkMuted,
+                size: 22,
               ),
             ),
           ),
+          // Số thứ tự.
+          Container(
+            width: 26,
+            height: 26,
+            alignment: Alignment.center,
+            decoration: BoxDecoration(
+              shape: BoxShape.circle,
+              color: DauVietColors.imperialGold.withValues(alpha: 0.15),
+              border: Border.all(
+                color: DauVietColors.imperialGold.withValues(alpha: 0.6),
+              ),
+            ),
+            child: Text(
+              '${index + 1}',
+              style: DauVietTypography.labelSmall.copyWith(
+                fontWeight: FontWeight.w800,
+                color: DauVietColors.inkText,
+              ),
+            ),
+          ),
+          const SizedBox(width: 8),
           Expanded(
             child: Text(
               label,
+              maxLines: 3,
+              overflow: TextOverflow.ellipsis,
               style: DauVietTypography.bodySmall.copyWith(
                 color: DauVietColors.inkText,
                 height: 1.35,
+                fontSize: 13.5,
               ),
             ),
           ),
-          IconButton(
-            icon: const Icon(Icons.keyboard_arrow_up_rounded, size: 22),
-            color: DauVietColors.cinnabarRed,
-            onPressed: enabled ? onUp : null,
-            visualDensity: VisualDensity.compact,
-            tooltip: 'Đưa lên',
-          ),
-          IconButton(
-            icon: const Icon(Icons.keyboard_arrow_down_rounded, size: 22),
-            color: DauVietColors.cinnabarRed,
-            onPressed: enabled ? onDown : null,
-            visualDensity: VisualDensity.compact,
-            tooltip: 'Đưa xuống',
+          Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              _ArrowBtn(
+                icon: Icons.keyboard_arrow_up_rounded,
+                tooltip: 'Đưa lên',
+                enabled: enabled && index > 0,
+                onPressed: onUp,
+              ),
+              _ArrowBtn(
+                icon: Icons.keyboard_arrow_down_rounded,
+                tooltip: 'Đưa xuống',
+                enabled: enabled && index < total - 1,
+                onPressed: onDown,
+              ),
+            ],
           ),
         ],
       ),
+    );
+  }
+}
+
+class _ArrowBtn extends StatelessWidget {
+  final IconData icon;
+  final String tooltip;
+  final bool enabled;
+  final VoidCallback onPressed;
+
+  const _ArrowBtn({
+    required this.icon,
+    required this.tooltip,
+    required this.enabled,
+    required this.onPressed,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return IconButton(
+      icon: Icon(icon, size: 21),
+      color: DauVietColors.cinnabarRed,
+      disabledColor: DauVietColors.inkMuted.withValues(alpha: 0.4),
+      onPressed: enabled ? onPressed : null,
+      visualDensity: VisualDensity.compact,
+      padding: const EdgeInsets.all(2),
+      constraints: const BoxConstraints(minWidth: 34, minHeight: 34),
+      tooltip: tooltip,
     );
   }
 }

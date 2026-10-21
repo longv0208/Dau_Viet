@@ -6,6 +6,7 @@ import '../../../core/theme/dau_viet_colors.dart';
 import '../../../core/theme/dau_viet_typography.dart';
 import '../../../core/widgets/dong_son_button.dart';
 import '../data/attempt_dtos.dart';
+import '../data/learning_dtos.dart';
 import '../data/learning_providers.dart';
 import 'renderers/renderer_base.dart';
 
@@ -19,9 +20,22 @@ final _resultProvider = FutureProvider.autoDispose
       return repo.getResult(attemptId);
     });
 
+/// Provider lấy pinned-lesson content để dựng recap — gọi lại endpoint
+/// learner đã có (`getAttemptContent`); thất bại → null → view result-only.
+final _recapContentProvider = FutureProvider.autoDispose
+    .family<LessonContentDto?, String>((ref, attemptId) async {
+      try {
+        final repo = ref.watch(attemptRepositoryProvider);
+        return await repo.getAttemptContent(attemptId);
+      } catch (_) {
+        return null; // attempt đã complete / endpoint lỗi → fallback
+      }
+    });
+
 /// Màn hình kết quả bài học — nhận `LessonResultDto` qua `extra` (từ player)
 /// hoặc tự fetch theo `attemptId` khi deep-link. KHÔNG hiển thị answer key;
-/// chỉ status/score/tóm tắt server trả về.
+/// chỉ status/score/tóm tắt + recap nội dung đã published (câu hỏi trung tâm,
+/// mục tiêu, tiêu đề stage, metadata bằng chứng) nếu có.
 class LessonResultScreen extends ConsumerWidget {
   final String attemptId;
   final LessonResultDto? initialResult;
@@ -35,7 +49,10 @@ class LessonResultScreen extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     if (initialResult != null) {
-      return _ResultView(result: initialResult!);
+      return _ResultView(
+        result: initialResult!,
+        recapContent: ref.watch(_recapContentProvider(attemptId)).value,
+      );
     }
     final asyncResult = ref.watch(_resultProvider(attemptId));
     return Scaffold(
@@ -47,7 +64,10 @@ class LessonResultScreen extends ConsumerWidget {
             message: e.toString(),
             onRetry: () => ref.invalidate(_resultProvider(attemptId)),
           ),
-          data: (r) => _ResultView(result: r),
+          data: (r) => _ResultView(
+            result: r,
+            recapContent: ref.watch(_recapContentProvider(attemptId)).value,
+          ),
         ),
       ),
     );
@@ -56,7 +76,12 @@ class LessonResultScreen extends ConsumerWidget {
 
 class _ResultView extends StatelessWidget {
   final LessonResultDto result;
-  const _ResultView({required this.result});
+
+  /// Pinned lesson content (nullable — khi không fetch được thì chỉ hiện
+  /// phần result-only).
+  final LessonContentDto? recapContent;
+
+  const _ResultView({required this.result, this.recapContent});
 
   @override
   Widget build(BuildContext context) {
@@ -119,6 +144,12 @@ class _ResultView extends StatelessWidget {
                     ),
                   ),
                 ],
+                // Recap lịch sử — chỉ render khi pinned content có dữ liệu
+                // đáng kể; thiếu → giữ nguyên result-only view.
+                if (recapContent != null) ...[
+                  const SizedBox(height: 12),
+                  _RecapSection(content: recapContent!),
+                ],
                 const SizedBox(height: 24),
                 DongSonButton(
                   label: 'VỀ TRANG CHỦ',
@@ -133,6 +164,147 @@ class _ResultView extends StatelessWidget {
         ),
       ),
     );
+  }
+}
+
+/// Recap lịch sử gọn — chỉ dùng field có thật trong pinned snapshot:
+/// title/centralQuestion của content, objectives[], stage titles,
+/// evidence titles + source. Không bịa narrative, không hiển thị answer key.
+class _RecapSection extends StatelessWidget {
+  final LessonContentDto content;
+  const _RecapSection({required this.content});
+
+  @override
+  Widget build(BuildContext context) {
+    final Map<String, dynamic> c = content.content;
+    final String? title = _str(c, ['title', 'lessonTitle']);
+    final String? question = _str(c, ['centralQuestion', 'central_question']);
+    final List<String> objectives = [
+      for (final o in (c['objectives'] as List? ?? const []))
+        if (o is String && o.isNotEmpty) o,
+    ];
+    final stages = content.stages;
+    final evidence = content.evidence;
+
+    // Không có gì đáng recap → không render section này.
+    final bool hasContent =
+        title != null ||
+        question != null ||
+        objectives.isNotEmpty ||
+        stages.isNotEmpty ||
+        evidence.isNotEmpty;
+    if (!hasContent) return const SizedBox.shrink();
+
+    return ActivityCard(
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          const SectionLabel('ÔN LẠI BÀI HỌC'),
+          const SizedBox(height: 10),
+          if (title != null)
+            Text(
+              title,
+              style: DauVietTypography.headlineMedium.copyWith(
+                fontSize: 16,
+                fontWeight: FontWeight.w800,
+                color: DauVietColors.inkText,
+              ),
+            ),
+          if (question != null) ...[
+            const SizedBox(height: 8),
+            Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                const Icon(
+                  Icons.help_outline_rounded,
+                  size: 16,
+                  color: DauVietColors.imperialGold,
+                ),
+                const SizedBox(width: 6),
+                Expanded(
+                  child: Text(
+                    question,
+                    style: DauVietTypography.bodyMedium.copyWith(
+                      fontStyle: FontStyle.italic,
+                      height: 1.5,
+                      color: DauVietColors.inkText,
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ],
+          if (objectives.isNotEmpty) ...[
+            const SizedBox(height: 10),
+            const SectionLabel('MỤC TIÊU'),
+            const SizedBox(height: 4),
+            for (final o in objectives)
+              Padding(
+                padding: const EdgeInsets.only(bottom: 3),
+                child: Row(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    const Text('• '),
+                    Expanded(
+                      child: Text(
+                        o,
+                        style: DauVietTypography.bodySmall.copyWith(
+                          height: 1.45,
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+          ],
+          if (stages.isNotEmpty) ...[
+            const SizedBox(height: 10),
+            const SectionLabel('HÀNH TRÌNH'),
+            const SizedBox(height: 4),
+            Text(
+              stages
+                  .map((s) => s['title'] as String? ?? '')
+                  .where((t) => t.isNotEmpty)
+                  .join(' → '),
+              style: DauVietTypography.bodySmall.copyWith(
+                color: DauVietColors.inkMuted,
+                height: 1.5,
+              ),
+            ),
+          ],
+          if (evidence.isNotEmpty) ...[
+            const SizedBox(height: 10),
+            const SectionLabel('BẰNG CHỨNG ĐÃ KHẢO SÁT'),
+            const SizedBox(height: 4),
+            for (final e in evidence.take(4))
+              Padding(
+                padding: const EdgeInsets.only(bottom: 3),
+                child: Text(
+                  '• ${e['title'] ?? e['id'] ?? ''}'
+                  '${_srcSuffix(e)}',
+                  style: DauVietTypography.bodySmall.copyWith(height: 1.45),
+                ),
+              ),
+          ],
+        ],
+      ),
+    );
+  }
+
+  static String? _str(Map<String, dynamic> m, List<String> keys) {
+    for (final k in keys) {
+      final v = m[k];
+      if (v is String && v.isNotEmpty) return v;
+    }
+    return null;
+  }
+
+  static String _srcSuffix(Map<String, dynamic> e) {
+    final Object? s = e['source'];
+    String? t;
+    if (s is Map) t = (s['title'] ?? s['author']) as String?;
+    if (s is String) t = s;
+    return (t != null && t.isNotEmpty) ? ' — $t' : '';
   }
 }
 

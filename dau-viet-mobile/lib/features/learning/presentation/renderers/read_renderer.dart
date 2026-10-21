@@ -7,6 +7,8 @@ import 'renderer_base.dart';
 
 /// READ — nội dung đọc + nút "Đã đọc xong, tiếp tục" (acknowledgment `{}`).
 /// Không chấm điểm phía client; server trả COMPLETED.
+/// Typography theo hướng "sử liệu": title nổi bật, đoạn văn thoáng, dễ đọc
+/// dài trên màn nhỏ. Hỗ trợ `body`/`text`/`content`/`passage` + `paragraphs[]`.
 class ReadRenderer extends StatelessWidget {
   final ActivityRefDto activity;
   final bool submitting;
@@ -27,6 +29,9 @@ class ReadRenderer extends StatelessWidget {
       'heading',
       'passageTitle',
     ]);
+    final String? subtitle = configText(config, ['subtitle', 'lede']);
+    final String? source = configText(config, ['source', 'attribution']);
+
     // Draft schema: body/text/content/paragraphs — render tuần tự.
     final List<Widget> blocks = [];
     final String? body = configText(config, [
@@ -35,11 +40,17 @@ class ReadRenderer extends StatelessWidget {
       'content',
       'passage',
     ]);
-    if (body != null) blocks.add(_Paragraph(body));
+    if (body != null) {
+      for (final para in _splitParagraphs(body)) {
+        blocks.add(_Paragraph(para));
+      }
+    }
     final Object? paragraphs = config['paragraphs'];
     if (paragraphs is List) {
       for (final p in paragraphs.whereType<String>()) {
-        blocks.add(_Paragraph(p));
+        for (final para in _splitParagraphs(p)) {
+          blocks.add(_Paragraph(para));
+        }
       }
     }
     if (blocks.isEmpty) {
@@ -50,21 +61,56 @@ class ReadRenderer extends StatelessWidget {
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
         ActivityCard(
+          padding: const EdgeInsets.fromLTRB(18, 18, 18, 14),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              if (title != null)
+              if (title != null) ...[
+                Text(
+                  title,
+                  style: DauVietTypography.headlineMedium.copyWith(
+                    fontSize: 19,
+                    height: 1.3,
+                    color: DauVietColors.inkText,
+                    fontWeight: FontWeight.w800,
+                  ),
+                ),
+                const SizedBox(height: 6),
+                Container(
+                  width: 44,
+                  height: 3,
+                  decoration: BoxDecoration(
+                    color: DauVietColors.cinnabarRed,
+                    borderRadius: BorderRadius.circular(2),
+                  ),
+                ),
+                const SizedBox(height: 12),
+              ],
+              if (subtitle != null)
                 Padding(
-                  padding: const EdgeInsets.only(bottom: 10),
+                  padding: const EdgeInsets.only(bottom: 12),
                   child: Text(
-                    title,
-                    style: DauVietTypography.headlineMedium.copyWith(
-                      fontSize: 17,
-                      color: DauVietColors.inkText,
+                    subtitle,
+                    style: DauVietTypography.bodyMedium.copyWith(
+                      color: DauVietColors.inkMuted,
+                      fontStyle: FontStyle.italic,
+                      height: 1.5,
                     ),
                   ),
                 ),
               ...blocks,
+              if (source != null)
+                Padding(
+                  padding: const EdgeInsets.only(top: 4),
+                  child: Text(
+                    'Nguồn: $source',
+                    style: DauVietTypography.bodySmall.copyWith(
+                      fontSize: 11,
+                      fontStyle: FontStyle.italic,
+                      color: DauVietColors.inkMuted,
+                    ),
+                  ),
+                ),
             ],
           ),
         ),
@@ -78,6 +124,14 @@ class ReadRenderer extends StatelessWidget {
       ],
     );
   }
+
+  /// Tách đoạn theo dòng trống / \n\n để spacing đều khi tác giả viết
+  /// một block dài.
+  static List<String> _splitParagraphs(String text) => text
+      .split(RegExp(r'\n\s*\n'))
+      .map((p) => p.trim())
+      .where((p) => p.isNotEmpty)
+      .toList();
 }
 
 class _Paragraph extends StatelessWidget {
@@ -87,12 +141,13 @@ class _Paragraph extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Padding(
-      padding: const EdgeInsets.only(bottom: 10),
+      padding: const EdgeInsets.only(bottom: 12),
       child: SelectableText(
         text,
         style: DauVietTypography.bodyMedium.copyWith(
           color: DauVietColors.inkText,
-          height: 1.6,
+          height: 1.7,
+          fontSize: 15,
         ),
       ),
     );
