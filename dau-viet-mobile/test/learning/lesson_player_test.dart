@@ -253,6 +253,89 @@ void main() {
       expect(find.text('Xuất sắc'), findsOneWidget);
     });
 
+    testWidgets('Back khi có input chưa gửi → Ở LẠI giữ nguyên selection', (
+      tester,
+    ) async {
+      final repo = FakeAttemptRepository();
+      repo.onGetCurrent = () => _current(_mcqActivity, done: 1);
+      await _pump(tester, repo);
+      await tester.tap(find.text('Đúng'));
+      await tester.pump();
+
+      // Nút back góc trên — dirty → hiện dialog, không thoát.
+      await tester.tap(find.byIcon(Icons.arrow_back_ios_new_rounded));
+      await tester.pumpAndSettle();
+      expect(find.text('Thoát bài học?'), findsOneWidget);
+
+      await tester.tap(find.text('Ở LẠI'));
+      await tester.pumpAndSettle();
+      // Vẫn ở activity, selection còn nguyên.
+      expect(find.text('Câu hỏi?'), findsOneWidget);
+      expect(find.text('DASHBOARD'), findsNothing);
+    });
+
+    testWidgets('Back khi có input chưa gửi → THOÁT rời màn hình', (
+      tester,
+    ) async {
+      final repo = FakeAttemptRepository();
+      repo.onGetCurrent = () => _current(_mcqActivity, done: 1);
+      await _pump(tester, repo);
+      await tester.tap(find.text('Đúng'));
+      await tester.pump();
+
+      await tester.tap(find.byIcon(Icons.arrow_back_ios_new_rounded));
+      await tester.pumpAndSettle();
+      expect(find.text('Thoát bài học?'), findsOneWidget);
+
+      await tester.tap(find.text('THOÁT'));
+      await tester.pumpAndSettle();
+      // Pop thật → route player rời stack (initial route chỉ có 1 màn →
+      // pop không được → fallback go('/dashboard')).
+      expect(find.text('DASHBOARD'), findsOneWidget);
+      expect(find.text('Câu hỏi?'), findsNothing);
+    });
+
+    testWidgets('Back khi KHÔNG có input chưa gửi → thoát ngay không hỏi', (
+      tester,
+    ) async {
+      final repo = FakeAttemptRepository();
+      repo.onGetCurrent = () => _current(_mcqActivity, done: 1);
+      await _pump(tester, repo);
+
+      await tester.tap(find.byIcon(Icons.arrow_back_ios_new_rounded));
+      await tester.pumpAndSettle();
+      expect(find.text('Thoát bài học?'), findsNothing);
+      expect(find.text('DASHBOARD'), findsOneWidget);
+    });
+
+    testWidgets('Back sau submit đã ghi nhận → thoát ngay không hỏi', (
+      tester,
+    ) async {
+      final repo = FakeAttemptRepository();
+      repo.onGetCurrent = () => _current(_mcqActivity, done: 1);
+      repo.onSubmit = (a) => const SubmitResultDto(
+        status: 'ACCEPTED',
+        evaluation: EvaluationDto(
+          outcome: 'INCORRECT',
+          completed: false,
+          feedbackCode: 'wrong',
+        ),
+        activityCompleted: false,
+        progress: AttemptProgressDto(completedRequired: 1, totalRequired: 2),
+        completion: CompletionVerdictDto(complete: false),
+      );
+      await _pump(tester, repo);
+      await tester.tap(find.text('Sai'));
+      await tester.pump();
+      await tester.tap(find.text('GỬI CÂU TRẢ LỜI'));
+      await tester.pumpAndSettle();
+      // Input đã được server ghi nhận → không còn dirty → không hỏi.
+      await tester.tap(find.byIcon(Icons.arrow_back_ios_new_rounded));
+      await tester.pumpAndSettle();
+      expect(find.text('Thoát bài học?'), findsNothing);
+      expect(find.text('DASHBOARD'), findsOneWidget);
+    });
+
     testWidgets('load error → error view + retry', (tester) async {
       final repo = FakeAttemptRepository()
         ..nextError = Exception('server down');

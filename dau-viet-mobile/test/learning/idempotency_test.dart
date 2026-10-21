@@ -130,6 +130,38 @@ void main() {
     });
 
     testWidgets(
+      'hai lần submit CÙNG answer sai (đã được ghi nhận) → mỗi lần key MỚI',
+      (tester) async {
+        final repo = FakeAttemptRepository();
+        repo.onGetCurrent = _cur;
+        repo.onSubmit = (a) => const SubmitResultDto(
+          status: 'ACCEPTED',
+          evaluation: EvaluationDto(
+            outcome: 'INCORRECT',
+            completed: false,
+            feedbackCode: 'wrong',
+          ),
+          activityCompleted: false,
+          progress: AttemptProgressDto(completedRequired: 0, totalRequired: 1),
+          completion: CompletionVerdictDto(complete: false),
+        );
+        await _pump(tester, repo);
+        await tester.tap(find.text('A'));
+        await tester.pump();
+        await tester.tap(find.text('GỬI CÂU TRẢ LỜI'));
+        await tester.pumpAndSettle();
+        // Server đã trả response authoritative (INCORRECT) → submit lần 2
+        // với cùng payload là attempt MỚI — không được replay key cũ.
+        await tester.tap(find.text('GỬI CÂU TRẢ LỜI'));
+        await tester.pumpAndSettle();
+        expect(repo.submittedKeys.length, 2);
+        expect(repo.submittedKeys[0], isNotNull);
+        expect(repo.submittedKeys[1], isNotNull);
+        expect(repo.submittedKeys[0], isNot(repo.submittedKeys[1]));
+      },
+    );
+
+    testWidgets(
       'IDEMPOTENCY_CONFLICT → KHÔNG auto-resubmit; submit kế dùng key mới',
       (tester) async {
         var call = 0;

@@ -90,18 +90,25 @@ class _LessonPlayerScreenState extends ConsumerState<LessonPlayerScreen> {
   String _pendingKey = '';
   final _uuid = const Uuid();
 
-  /// true sau khi server đã trả response authoritative cho submission trước —
-  /// mọi submit tiếp theo là attempt MỚI và cần key mới dù payload trùng.
+  /// true sau khi server đã trả BẤT KỲ response authoritative nào cho
+  /// submission trước — mọi submit tiếp theo là attempt MỚI và cần key mới
+  /// dù payload trùng (kể cả submit lại cùng answer sai).
   bool _needsFreshKey = false;
 
   /// true khi renderer báo có input chưa gửi (CER text, reflection...).
-  /// Dùng cho exit-confirmation + draft preservation.
+  /// Điều khiển canPop của PopScope + exit-confirmation.
   bool _hasUnsentInput = false;
 
+  /// Chống re-entrant: chỉ 1 dialog thoát tồn tại cùng lúc.
+  bool _exitDialogOpen = false;
+
   /// Renderer báo input thay đổi — chỉ nhận khi còn được phép sửa.
+  /// setState để PopScope rebuild và cập nhật canPop; sau khi server đã
+  /// ghi nhận answer, edit mới sẽ bật dirty trở lại.
   void _onInputChanged(bool hasInput) {
     if (_state?.awaitingContinue == true || _state?.submitting == true) return;
-    _hasUnsentInput = hasInput;
+    if (_hasUnsentInput == hasInput) return;
+    setState(() => _hasUnsentInput = hasInput);
   }
 
   @override
@@ -169,6 +176,9 @@ class _LessonPlayerScreenState extends ConsumerState<LessonPlayerScreen> {
         ),
       );
       if (!mounted) return;
+      // Response authoritative đã về: submission này kết thúc — submit kế
+      // (kể cả cùng payload) là attempt mới, cần key mới.
+      _needsFreshKey = true;
       _applyResult(res);
     } on ApiException catch (e) {
       if (!mounted) return;
@@ -261,6 +271,7 @@ class _LessonPlayerScreenState extends ConsumerState<LessonPlayerScreen> {
           awaitingContinue: false,
           completionReady: true,
         );
+        _hasUnsentInput = false;
       });
       return;
     }
@@ -277,9 +288,11 @@ class _LessonPlayerScreenState extends ConsumerState<LessonPlayerScreen> {
         _hasUnsentInput = false; // input đã được server chấp nhận
       });
     } else {
-      // Chưa complete, không next → giữ cursor, cho retry.
+      // Chưa complete, không next → giữ cursor, cho retry. Input hiện tại
+      // đã được server ghi nhận → không còn "unsent".
       setState(() {
         _state = st.copyWith(submitting: false, feedback: () => fb);
+        _hasUnsentInput = false;
       });
     }
   }
@@ -344,7 +357,8 @@ class _LessonPlayerScreenState extends ConsumerState<LessonPlayerScreen> {
   Widget build(BuildContext context) {
     final st = _state;
     return PopScope(
-      canPop: false,
+      // Dirty → chặn pop để hỏi xác nhận; sạch → pop ngay lập tức.
+      canPop: !_hasUnsentInput,
       onPopInvokedWithResult: (didPop, _) {
         if (didPop) return;
         _confirmExit();
@@ -582,8 +596,16 @@ class _LessonPlayerScreenState extends ConsumerState<LessonPlayerScreen> {
 
   /// Thoát player: submission đã submit xong là an toàn (server-side);
   /// chỉ hỏi xác nhận khi renderer báo còn input chưa gửi (draft sẽ mất).
+  /// Android Back và nút back góc trên đi chung đường này.
   Future<void> _confirmExit() async {
-    if (_hasUnsentInput) {
+    // Không có input chưa gửi → thoát thẳng, không cần hỏi.
+    if (!_hasUnsentInput) {
+      _exitNow();
+      return;
+    }
+    if (_exitDialogOpen) return; // chặn dialog chồng nhau
+    _exitDialogOpen = true;
+    try {
       final bool leave =
           await showDialog<bool>(
             context: context,
@@ -607,9 +629,20 @@ class _LessonPlayerScreenState extends ConsumerState<LessonPlayerScreen> {
           ) ??
           false;
       if (!leave || !mounted) return;
-    } else if (!mounted) {
-      return;
+      // Mở khóa PopScope: sau rebuild canPop=true → pop thật không quay
+      // lại handler này (tránh recursion). Pop phải đợi frame kế vì
+      // PopScope chỉ nhận canPop mới sau khi rebuild.
+      setState(() => _hasUnsentInput = false);
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (mounted) _exitNow();
+      });
+    } finally {
+      _exitDialogOpen = false;
     }
+  }
+
+  void _exitNow() {
+    if (!mounted) return;
     if (context.canPop()) {
       context.pop();
     } else {
