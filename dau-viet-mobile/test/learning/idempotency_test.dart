@@ -129,37 +129,52 @@ void main() {
       });
     });
 
-    testWidgets('IDEMPOTENCY_CONFLICT → mint key mới + retry 1 lần tự động', (
-      tester,
-    ) async {
-      var call = 0;
-      final repo = FakeAttemptRepository();
-      repo.onGetCurrent = _cur;
-      repo.onSubmit = (a) {
-        call++;
-        if (call == 1) {
-          throw const ApiException(
-            ApiError(code: 'IDEMPOTENCY_CONFLICT', message: 'key reused'),
+    testWidgets(
+      'IDEMPOTENCY_CONFLICT → KHÔNG auto-resubmit; submit kế dùng key mới',
+      (tester) async {
+        var call = 0;
+        final repo = FakeAttemptRepository();
+        repo.onGetCurrent = _cur;
+        repo.onSubmit = (a) {
+          call++;
+          if (call == 1) {
+            throw const ApiException(
+              ApiError(code: 'IDEMPOTENCY_CONFLICT', message: 'key reused'),
+            );
+          }
+          return const SubmitResultDto(
+            status: 'ACCEPTED',
+            evaluation: EvaluationDto(outcome: 'COMPLETED', completed: true),
+            activityCompleted: true,
+            progress: AttemptProgressDto(
+              completedRequired: 1,
+              totalRequired: 1,
+            ),
+            completion: CompletionVerdictDto(complete: true),
           );
-        }
-        return const SubmitResultDto(
-          status: 'ACCEPTED',
-          evaluation: EvaluationDto(outcome: 'COMPLETED', completed: true),
-          activityCompleted: true,
-          progress: AttemptProgressDto(completedRequired: 1, totalRequired: 1),
-          completion: CompletionVerdictDto(complete: true),
+        };
+        await _pump(tester, repo);
+        await tester.tap(find.text('A'));
+        await tester.pump();
+        await tester.tap(find.text('GỬI CÂU TRẢ LỜI'));
+        await tester.pumpAndSettle();
+        // Server state authoritative → không auto-resubmit.
+        expect(repo.submittedKeys.length, 1);
+        expect(
+          find.text(
+            'Lượt trả lời trước đã được ghi nhận. Kiểm tra lại rồi gửi lại.',
+          ),
+          findsOneWidget,
         );
-      };
-      await _pump(tester, repo);
-      await tester.tap(find.text('A'));
-      await tester.pump();
-      await tester.tap(find.text('GỬI CÂU TRẢ LỜI'));
-      await tester.pumpAndSettle();
-      // 2 lần gọi submit từ 1 lần bấm; key thứ hai là key mới.
-      expect(repo.submittedKeys.length, 2);
-      expect(repo.submittedKeys[0], isNotNull);
-      expect(repo.submittedKeys[1], isNotNull);
-      expect(repo.submittedKeys[0], isNot(repo.submittedKeys[1]));
-    });
+
+        // Learner tự bấm lại → attempt mới với key mới (dù payload trùng).
+        await tester.tap(find.text('GỬI CÂU TRẢ LỜI'));
+        await tester.pumpAndSettle();
+        expect(repo.submittedKeys.length, 2);
+        expect(repo.submittedKeys[0], isNotNull);
+        expect(repo.submittedKeys[1], isNotNull);
+        expect(repo.submittedKeys[0], isNot(repo.submittedKeys[1]));
+      },
+    );
   });
 }

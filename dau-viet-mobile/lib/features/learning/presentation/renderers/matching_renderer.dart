@@ -12,12 +12,14 @@ class MatchingRenderer extends StatefulWidget {
   final ActivityRefDto activity;
   final bool submitting;
   final Future<void> Function(Map<String, dynamic>) onSubmit;
+  final void Function(bool hasUnsentInput)? onInputChanged;
 
   const MatchingRenderer({
     super.key,
     required this.activity,
     required this.submitting,
     required this.onSubmit,
+    this.onInputChanged,
   });
 
   @override
@@ -28,6 +30,8 @@ class _MatchingRendererState extends State<MatchingRenderer> {
   String? _activeLeft;
   final Map<String, String> _pairs = {}; // leftId -> rightId
 
+  void _dirty() => widget.onInputChanged?.call(_pairs.isNotEmpty);
+
   void _tapLeft(String id) {
     setState(() {
       if (_pairs.containsKey(id)) {
@@ -35,6 +39,7 @@ class _MatchingRendererState extends State<MatchingRenderer> {
       } else {
         _activeLeft = id;
       }
+      _dirty();
     });
   }
 
@@ -44,6 +49,7 @@ class _MatchingRendererState extends State<MatchingRenderer> {
       _pairs.removeWhere((_, r) => r == id); // right chỉ thuộc 1 cặp
       _pairs[_activeLeft!] = id;
       _activeLeft = null;
+      _dirty();
     });
   }
 
@@ -101,9 +107,10 @@ class _MatchingRendererState extends State<MatchingRenderer> {
                       onTap: () {
                         if (usedRight.contains(item['id']) &&
                             _activeLeft == null) {
-                          setState(
-                            () => _pairs.removeWhere((_, r) => r == item['id']),
-                          );
+                          setState(() {
+                            _pairs.removeWhere((_, r) => r == item['id']);
+                            _dirty();
+                          });
                         } else {
                           _tapRight(item['id'] as String? ?? '');
                         }

@@ -295,6 +295,37 @@ class LearnerProjectionServiceTest {
     }
 
     @Test
+    void matching_nonRotationFallbackStillDeranges() throws Exception {
+        // Sweep synthetic id sets wide enough to hit pathological cases where
+        // no rotation offset deranges — the guaranteed swap fallback must
+        // still keep every row non-partnered.
+        for (int run = 0; run < 40; run++) {
+            int n = 2 + (run % 4);
+            var pairs = new StringBuilder("[");
+            var authored = new java.util.HashMap<String, String>();
+            for (int i = 0; i < n; i++) {
+                if (i > 0) pairs.append(',');
+                // Craft ids whose (activityId|itemId) hash collisions are
+                // plausible by varying both sides of the pair.
+                String lid = "L" + run + "-" + i;
+                String rid = "R" + run + "-" + i;
+                authored.put(lid, rid);
+                pairs.append("{\"left\":{\"id\":\"").append(lid)
+                        .append("\"},\"right\":{\"id\":\"").append(rid)
+                        .append("\"}}");
+            }
+            pairs.append(']');
+            JsonNode out = project(String.format("""
+                    {"stages":[{"id":"s","type":"REASONING",
+                                "activities":[{"id":"m-swap-%d","type":"MATCHING",
+                                               "config":{"pairs":%s}}]}]}
+                    """, run, pairs));
+            JsonNode config = out.at("/stages/0/activities/0/config");
+            assertNoCorrectPairSharesRow(config, authored);
+        }
+    }
+
+    @Test
     void matching_derangementStable_acrossRepeatedProjection() throws Exception {
         String draft = """
                 {"stages":[{"id":"s","type":"REASONING",

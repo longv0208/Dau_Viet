@@ -13,6 +13,7 @@ class HypothesisRenderer extends StatefulWidget {
   final LessonContentDto content;
   final bool submitting;
   final Future<void> Function(Map<String, dynamic>) onSubmit;
+  final void Function(bool hasUnsentInput)? onInputChanged;
 
   const HypothesisRenderer({
     super.key,
@@ -20,6 +21,7 @@ class HypothesisRenderer extends StatefulWidget {
     required this.content,
     required this.submitting,
     required this.onSubmit,
+    this.onInputChanged,
   });
 
   @override
@@ -29,6 +31,10 @@ class HypothesisRenderer extends StatefulWidget {
 class _HypothesisRendererState extends State<HypothesisRenderer> {
   String? _hypothesisId;
   final Set<String> _evidenceIds = {};
+
+  void _dirty() => widget.onInputChanged?.call(
+    _hypothesisId != null || _evidenceIds.isNotEmpty,
+  );
 
   @override
   Widget build(BuildContext context) {
@@ -57,7 +63,10 @@ class _HypothesisRendererState extends State<HypothesisRenderer> {
             groupValue: _hypothesisId,
             onChanged: widget.submitting
                 ? (_) {}
-                : (v) => setState(() => _hypothesisId = v),
+                : (v) => setState(() {
+                    _hypothesisId = v;
+                    _dirty();
+                  }),
             child: Column(
               children: [
                 for (final h in hypotheses)
@@ -93,6 +102,7 @@ class _HypothesisRendererState extends State<HypothesisRenderer> {
                       ? null
                       : (v) => setState(() {
                           v ? _evidenceIds.add(id) : _evidenceIds.remove(id);
+                          _dirty();
                         }),
                   selectedColor: DauVietColors.cinnabarRed.withValues(
                     alpha: 0.15,

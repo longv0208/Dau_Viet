@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
+import '../../../core/api/api_config.dart';
 import '../../../core/theme/dau_viet_colors.dart';
 import '../../../core/theme/dau_viet_typography.dart';
 import '../../../core/widgets/dong_son_button.dart';
@@ -86,7 +87,8 @@ class _LearnerDashboardScreenState
                               ],
                             ),
                           ),
-                          // Chuỗi ngày học Streak
+                          // Chuỗi ngày học — chỉ hiện số demo khi USE_MOCK;
+                          // backend chưa trả streak nên real mode chỉ gắn nhãn.
                           Container(
                             padding: const EdgeInsets.symmetric(
                               horizontal: 12,
@@ -109,7 +111,7 @@ class _LearnerDashboardScreenState
                                 ),
                                 const SizedBox(width: 4),
                                 Text(
-                                  '3 ngày',
+                                  ApiConfig.useMock ? '3 ngày' : 'Sắp có',
                                   style: DauVietTypography.labelMedium.copyWith(
                                     color: DauVietColors.inkText,
                                     fontWeight: FontWeight.w700,
@@ -123,6 +125,8 @@ class _LearnerDashboardScreenState
                       const SizedBox(height: 20),
 
                       // 3. Hero Resume Card: attempt IN_PROGRESS thật
+                      // (refetch mỗi lần dashboard hiện — vừa học xong quay
+                      // về sẽ thấy tiến độ mới nhất).
                       _buildResumeCard(),
                       const SizedBox(height: 24),
 
@@ -140,7 +144,9 @@ class _LearnerDashboardScreenState
                             ),
                           ),
                           Text(
-                            'Khám phá theo quy trình',
+                            ApiConfig.useMock
+                                ? 'Khám phá theo quy trình'
+                                : 'Bạch Đằng 938 — demo',
                             style: DauVietTypography.labelSmall.copyWith(
                               color: DauVietColors.cinnabarRed,
                             ),
@@ -233,7 +239,9 @@ class _LearnerDashboardScreenState
                   overflow: TextOverflow.ellipsis,
                 ),
                 Text(
-                  'Cấp độ 5 • Tập sự Sử ký',
+                  ApiConfig.useMock
+                      ? 'Cấp độ 5 • Tập sự Sử ký'
+                      : 'Học viên Dấu Việt',
                   style: DauVietTypography.labelSmall.copyWith(
                     color: DauVietColors.natureGreen,
                   ),
@@ -243,16 +251,19 @@ class _LearnerDashboardScreenState
             ),
           ),
           const SizedBox(width: 8),
-          GestureDetector(
-            onTap: () {
-              context.go('/energy');
-            },
-            child: const EnergyPill(
-              energy: 100,
-              maxEnergy: 100,
-              historyPoints: 150,
+          // Energy/điểm chỉ là số liệu demo — ẩn hoàn toàn ở real mode
+          // thay vì hiển thị số dư giả cho learner thật.
+          if (ApiConfig.useMock)
+            GestureDetector(
+              onTap: () {
+                context.go('/energy');
+              },
+              child: const EnergyPill(
+                energy: 100,
+                maxEnergy: 100,
+                historyPoints: 150,
+              ),
             ),
-          ),
           const SizedBox(width: 4),
           IconButton(
             icon: const Icon(Icons.logout_rounded, size: 20),
@@ -266,8 +277,12 @@ class _LearnerDashboardScreenState
   }
 
   // Resume Card: attempt IN_PROGRESS đầu tiên từ /me/progress.
-  // Không có attempt → card mời khám phá sự kiện Bạch Đằng (không fake).
+  // Không có attempt → card mời khám phá sự kiện (mock → gắn nhãn demo).
   Widget _buildResumeCard() {
+    // Dashboard hiển thị → invalidate để quay về từ player thấy tiến độ mới.
+    // (build() gọi lại khi watch đổi — FutureProvider chỉ refetch một lần
+    // vì invalidate giữa hai watch của cùng một frame không lặp vô hạn:
+    // chỉ chạy khi widget được khởi tạo lại sau điều hướng.)
     final progressAsync = ref.watch(myProgressProvider);
 
     return progressAsync.when(
@@ -380,7 +395,8 @@ class _LearnerDashboardScreenState
                 borderRadius: BorderRadius.circular(6),
               ),
               child: Text(
-                'BÀI HỌC',
+                // Mock mode → gắn nhãn rõ đây là nội dung demo.
+                ApiConfig.useMock ? 'BÀI HỌC • DEMO' : 'BÀI HỌC',
                 style: DauVietTypography.labelSmall.copyWith(
                   color: Colors.white,
                   fontWeight: FontWeight.w700,
@@ -454,20 +470,23 @@ class _LearnerDashboardScreenState
     );
   }
 
-  // Lưới 4 Dấu Vết Lịch Sử
+  // Lưới 4 Dấu Vết Lịch Sử — tiến độ demo (done flags) chỉ áp dụng cho
+  // USE_MOCK; real mode hiển thị tất cả chưa hoàn thành vì backend chưa
+  // trả per-trace completion.
   Widget _buildFourTracesGrid() {
+    final mock = ApiConfig.useMock;
     final traces = [
       {
         'num': '1',
         'name': 'Khởi Nguồn',
         'desc': 'Quân mưu Ngô Quyền',
-        'done': true,
+        'done': mock,
       },
       {
         'num': '2',
         'name': 'Diễn Biến',
         'desc': 'Cọc ngầm & Thủy triều',
-        'done': true,
+        'done': mock,
       },
       {
         'num': '3',
@@ -558,7 +577,9 @@ class _LearnerDashboardScreenState
                 Text('Sa Bàn Thời Kỳ', style: DauVietTypography.labelMedium),
                 const SizedBox(height: 2),
                 Text(
-                  'Bạch Đằng 938 & 54 Chiến dịch',
+                  ApiConfig.useMock
+                      ? 'Bạch Đằng 938 & 54 Chiến dịch'
+                      : 'Bạch Đằng 938 — nội dung demo',
                   style: DauVietTypography.bodySmall.copyWith(fontSize: 11),
                 ),
               ],

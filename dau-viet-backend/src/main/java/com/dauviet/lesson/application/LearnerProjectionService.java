@@ -117,8 +117,9 @@ public class LearnerProjectionService {
      * displayed row i, right[i] must not be the correct partner of left[i].
      * A single sorted order cannot guarantee that (some id sets align by hash),
      * so we pick a deterministic rotation offset among candidates 1..n-1 that
-     * satisfies the derangement invariant; if none exists (pathological id sets)
-     * we fall back to a second hash pass with a fixed salt.
+     * satisfies the derangement invariant; if no rotation works (pathological
+     * id sets) we apply a guaranteed swap-based derangement — never a salted
+     * hash that could silently re-align a correct pair.
      * `correctPairs`/`pairs` are stripped from the learner copy only — the
      * server-side snapshot keeps them for grading.
      */
@@ -166,19 +167,41 @@ public class LearnerProjectionService {
                 }
                 if (ok) chosen = offset;
             }
-            var rotated = new java.util.ArrayList<com.fasterxml.jackson.databind.node.ObjectNode>();
-            if (chosen >= 0) {
+            if (chosen < 0) {
+                // No pure rotation deranges every row (pathological id sets).
+                // Guaranteed constructive fix for one-to-one pairings:
+                // greedily place a non-partner right at each row, then repair
+                // any row still holding its partner by swapping with a row
+                // whose candidate keeps both rows non-partnered. This always
+                // terminates with a derangement when a perfect matching
+                // exists (Hall's condition holds for bijection pairings).
+                var fixed = new java.util.ArrayList<com.fasterxml.jackson.databind.node.ObjectNode>(right);
+                for (int i = 0; i < n; i++) {
+                    String lid = left.get(i).get("id").asText();
+                    if (!fixed.get(i).get("id").asText().equals(partnerByLeft.get(lid))) continue;
+                    for (int j = 0; j < n; j++) {
+                        if (j == i) continue;
+                        String candJ = fixed.get(j).get("id").asText();
+                        String candI = fixed.get(i).get("id").asText();
+                        String lidJ = left.get(j).get("id").asText();
+                        // Swap i<->j only if neither row ends up partnered.
+                        if (!candJ.equals(partnerByLeft.get(lid))
+                                && !candI.equals(partnerByLeft.get(lidJ))) {
+                            var tmp = fixed.get(i);
+                            fixed.set(i, fixed.get(j));
+                            fixed.set(j, tmp);
+                            break;
+                        }
+                    }
+                }
+                right = new java.util.ArrayList<>(fixed);
+            } else {
+                var rotated = new java.util.ArrayList<com.fasterxml.jackson.databind.node.ObjectNode>();
                 for (int i = 0; i < right.size(); i++) {
                     rotated.add(right.get((i + chosen) % right.size()));
                 }
-            } else {
-                // No pure rotation deranges every row — re-sort rights by a
-                // salted hash so the column still differs deterministically.
-                rotated.addAll(right);
-                rotated.sort(java.util.Comparator.comparingInt(
-                        x -> sortKey(activityId + "#r", x.get("id").asText())));
+                right = rotated;
             }
-            right = rotated;
         }
         var f = com.fasterxml.jackson.databind.node.JsonNodeFactory.instance;
         var leftArr = f.arrayNode();

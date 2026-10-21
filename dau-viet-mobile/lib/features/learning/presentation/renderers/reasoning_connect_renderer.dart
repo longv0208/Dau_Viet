@@ -11,12 +11,14 @@ class ReasoningConnectRenderer extends StatefulWidget {
   final ActivityRefDto activity;
   final bool submitting;
   final Future<void> Function(Map<String, dynamic>) onSubmit;
+  final void Function(bool hasUnsentInput)? onInputChanged;
 
   const ReasoningConnectRenderer({
     super.key,
     required this.activity,
     required this.submitting,
     required this.onSubmit,
+    this.onInputChanged,
   });
 
   @override
@@ -30,6 +32,8 @@ class _ReasoningConnectRendererState extends State<ReasoningConnectRenderer> {
   String? _relation;
   final List<Map<String, String>> _relations = [];
 
+  void _dirty() => widget.onInputChanged?.call(_relations.isNotEmpty);
+
   void _add() {
     if (_from == null || _to == null || _relation == null) return;
     setState(() {
@@ -37,6 +41,7 @@ class _ReasoningConnectRendererState extends State<ReasoningConnectRenderer> {
       _from = null;
       _to = null;
       _relation = null;
+      _dirty();
     });
   }
 
@@ -165,7 +170,10 @@ class _ReasoningConnectRendererState extends State<ReasoningConnectRenderer> {
                     visualDensity: VisualDensity.compact,
                     onPressed: widget.submitting
                         ? null
-                        : () => setState(() => _relations.removeAt(i)),
+                        : () => setState(() {
+                            _relations.removeAt(i);
+                            _dirty();
+                          }),
                   ),
                 ],
               ),

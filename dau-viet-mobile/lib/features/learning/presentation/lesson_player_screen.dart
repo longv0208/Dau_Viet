@@ -4,6 +4,7 @@ import 'package:go_router/go_router.dart';
 import 'package:uuid/uuid.dart';
 
 import '../../../core/api/api_config.dart';
+import '../../../core/api/api_error.dart';
 import '../../../core/api/api_exception.dart';
 import '../../../core/theme/dau_viet_colors.dart';
 import '../../../core/theme/dau_viet_typography.dart';
@@ -80,12 +81,28 @@ class _LessonPlayerScreenState extends ConsumerState<LessonPlayerScreen> {
   Object? _loadError;
   bool _completing = false;
 
-  /// Idempotency key cho logical submission hiện tại: mint mới khi answer
-  /// thay đổi; retry network giữ nguyên key + payload.
+  /// Idempotency lifecycle:
+  /// - Retry sau lỗi network mơ hồ → CÙNG key + CÙNG payload.
+  /// - Một submission MỚI (answer đổi, hoặc server đã trả response
+  ///   authoritative trước đó) → key MỚI, kể cả answer giống hệt.
   String _submissionKey = '';
   Map<String, dynamic>? _pendingAnswer;
   String _pendingKey = '';
   final _uuid = const Uuid();
+
+  /// true sau khi server đã trả response authoritative cho submission trước —
+  /// mọi submit tiếp theo là attempt MỚI và cần key mới dù payload trùng.
+  bool _needsFreshKey = false;
+
+  /// true khi renderer báo có input chưa gửi (CER text, reflection...).
+  /// Dùng cho exit-confirmation + draft preservation.
+  bool _hasUnsentInput = false;
+
+  /// Renderer báo input thay đổi — chỉ nhận khi còn được phép sửa.
+  void _onInputChanged(bool hasInput) {
+    if (_state?.awaitingContinue == true || _state?.submitting == true) return;
+    _hasUnsentInput = hasInput;
+  }
 
   @override
   void initState() {
@@ -129,10 +146,14 @@ class _LessonPlayerScreenState extends ConsumerState<LessonPlayerScreen> {
       return;
     }
 
-    // Answer mới → key mới; cùng answer retry → giữ nguyên key.
-    if (_pendingAnswer == null || !_sameAnswer(_pendingAnswer!, answer)) {
+    // Submission MỚI (answer đổi hoặc response trước đã được ghi nhận)
+    // → mint key mới. Retry network cùng payload → giữ nguyên key.
+    if (_needsFreshKey ||
+        _pendingAnswer == null ||
+        !_sameAnswer(_pendingAnswer!, answer)) {
       _pendingAnswer = answer;
       _pendingKey = _uuid.v4();
+      _needsFreshKey = false;
     }
 
     setState(() {
@@ -152,25 +173,20 @@ class _LessonPlayerScreenState extends ConsumerState<LessonPlayerScreen> {
     } on ApiException catch (e) {
       if (!mounted) return;
       if (e.error.code == 'IDEMPOTENCY_CONFLICT') {
-        // Key đã dùng cho payload khác → mint key mới và retry 1 lần.
-        _pendingKey = _uuid.v4();
-        try {
-          final res = await _call(
-            () => _repo.submit(
-              widget.attemptId,
-              st.current.activity!.id,
-              answer,
-              idempotencyKey: _pendingKey,
+        // Key đã gắn với payload khác phía server. Đây KHÔNG phải lỗi
+        // network mơ hồ: không auto-resubmit — server state đã authoritative.
+        // Learner bấm lại sẽ là attempt mới với key mới.
+        _needsFreshKey = true;
+        _showSubmitError(
+          const ApiException(
+            ApiError(
+              code: 'IDEMPOTENCY_CONFLICT',
+              message:
+                  'Lượt trả lời trước đã được ghi nhận. Kiểm tra lại rồi gửi lại.',
             ),
-          );
-          if (!mounted) return;
-          _applyResult(res);
-          return;
-        } on ApiException catch (e2) {
-          if (!mounted) return;
-          _showSubmitError(e2);
-          return;
-        }
+          ),
+        );
+        return;
       }
       _showSubmitError(e);
     }
@@ -181,7 +197,13 @@ class _LessonPlayerScreenState extends ConsumerState<LessonPlayerScreen> {
       _state = _state!.copyWith(
         submitting: false,
         feedback: () => _Feedback(
-          e.isNetworkError ? 'Không kết nối được. Thử lại.' : e.error.message,
+          // IDEMPOTENCY_CONFLICT phải hiện message riêng — nó không có HTTP
+          // status nên isNetworkError=true, không được nhầm là lỗi mạng.
+          e.error.code == 'IDEMPOTENCY_CONFLICT'
+              ? e.error.message
+              : e.isNetworkError
+              ? 'Không kết nối được. Thử lại.'
+              : e.error.message,
           _FeedbackTone.error,
         ),
       );
@@ -194,7 +216,9 @@ class _LessonPlayerScreenState extends ConsumerState<LessonPlayerScreen> {
   /// Map outcome backend → (text, tone). Không tự chấm — chỉ diễn giải
   /// `evaluation.outcome` + `feedbackCode` từ server.
   _Feedback _feedbackFor(SubmitResultDto res, ActivityRefDto? activity) {
-    final String? authored = activity?.feedbackText(res.evaluation.feedbackCode);
+    final String? authored = activity?.feedbackText(
+      res.evaluation.feedbackCode,
+    );
     switch (res.evaluation.outcome) {
       case 'COMPLETED':
       case 'SUPPORTED':
@@ -210,8 +234,14 @@ class _LessonPlayerScreenState extends ConsumerState<LessonPlayerScreen> {
           _FeedbackTone.warning,
         );
       case 'INCORRECT':
+        // Retry đã cạn (output.exhausted) → không hứa "thử lại" — server
+        // sẽ advance cursor; learner chỉ được đi tiếp.
+        final bool exhausted = res.evaluation.output?['exhausted'] == true;
         return _Feedback(
-          authored ?? 'Chưa đúng, hãy thử lại.',
+          authored ??
+              (exhausted
+                  ? 'Chưa chính xác — đã hết lượt thử. Đi tiếp nhé.'
+                  : 'Chưa đúng, hãy thử lại.'),
           _FeedbackTone.error,
         );
       default:
@@ -244,6 +274,7 @@ class _LessonPlayerScreenState extends ConsumerState<LessonPlayerScreen> {
           awaitingContinue: true,
         );
         _pendingAnswer = null;
+        _hasUnsentInput = false; // input đã được server chấp nhận
       });
     } else {
       // Chưa complete, không next → giữ cursor, cho retry.
@@ -265,6 +296,7 @@ class _LessonPlayerScreenState extends ConsumerState<LessonPlayerScreen> {
       if (!mounted) return;
       setState(() {
         _state = _PlayerState(current: cur, content: st.content);
+        _hasUnsentInput = false;
       });
     } catch (_) {
       if (!mounted) return;
@@ -291,6 +323,8 @@ class _LessonPlayerScreenState extends ConsumerState<LessonPlayerScreen> {
         () => _repo.getResult(widget.attemptId),
       );
       if (!mounted) return;
+      // Attempt đã xong → progress cache cũ (IN_PROGRESS) không còn đúng.
+      ref.invalidate(myProgressProvider);
       context.pushReplacement(
         '/learning/result/${widget.attemptId}',
         extra: result,
@@ -309,25 +343,32 @@ class _LessonPlayerScreenState extends ConsumerState<LessonPlayerScreen> {
   @override
   Widget build(BuildContext context) {
     final st = _state;
-    return Scaffold(
-      backgroundColor: DauVietColors.parchmentSurface,
-      body: Container(
-        decoration: const BoxDecoration(
-          gradient: LinearGradient(
-            begin: Alignment.topCenter,
-            end: Alignment.bottomCenter,
-            colors: [DauVietColors.parchmentSurface, Color(0xFFFAF2E4)],
+    return PopScope(
+      canPop: false,
+      onPopInvokedWithResult: (didPop, _) {
+        if (didPop) return;
+        _confirmExit();
+      },
+      child: Scaffold(
+        backgroundColor: DauVietColors.parchmentSurface,
+        body: Container(
+          decoration: const BoxDecoration(
+            gradient: LinearGradient(
+              begin: Alignment.topCenter,
+              end: Alignment.bottomCenter,
+              colors: [DauVietColors.parchmentSurface, Color(0xFFFAF2E4)],
+            ),
           ),
-        ),
-        child: SafeArea(
-          child: Center(
-            child: ConstrainedBox(
-              constraints: const BoxConstraints(maxWidth: 600),
-              child: _loadError != null
-                  ? AsyncStateView.error(error: _loadError!, onRetry: _load)
-                  : st == null
-                  ? AsyncStateView.loading()
-                  : _buildPlayer(st),
+          child: SafeArea(
+            child: Center(
+              child: ConstrainedBox(
+                constraints: const BoxConstraints(maxWidth: 600),
+                child: _loadError != null
+                    ? AsyncStateView.error(error: _loadError!, onRetry: _load)
+                    : st == null
+                    ? AsyncStateView.loading()
+                    : _buildPlayer(st),
+              ),
             ),
           ),
         ),
@@ -367,6 +408,7 @@ class _LessonPlayerScreenState extends ConsumerState<LessonPlayerScreen> {
                     content: st.content,
                     submitting: st.submitting || st.awaitingContinue,
                     onSubmit: _submit,
+                    onInputChanged: _onInputChanged,
                   ),
                 ],
               ),
@@ -538,8 +580,36 @@ class _LessonPlayerScreenState extends ConsumerState<LessonPlayerScreen> {
     );
   }
 
+  /// Thoát player: submission đã submit xong là an toàn (server-side);
+  /// chỉ hỏi xác nhận khi renderer báo còn input chưa gửi (draft sẽ mất).
   Future<void> _confirmExit() async {
-    // Submission đã ghi nhận server-side — thoát không mất tiến độ.
+    if (_hasUnsentInput) {
+      final bool leave =
+          await showDialog<bool>(
+            context: context,
+            builder: (ctx) => AlertDialog(
+              title: const Text('Thoát bài học?'),
+              content: const Text(
+                'Câu trả lời chưa gửi sẽ mất. Tiến độ đã lưu trên máy chủ '
+                'vẫn được giữ.',
+              ),
+              actions: [
+                TextButton(
+                  onPressed: () => Navigator.of(ctx).pop(false),
+                  child: const Text('Ở LẠI'),
+                ),
+                TextButton(
+                  onPressed: () => Navigator.of(ctx).pop(true),
+                  child: const Text('THOÁT'),
+                ),
+              ],
+            ),
+          ) ??
+          false;
+      if (!leave || !mounted) return;
+    } else if (!mounted) {
+      return;
+    }
     if (context.canPop()) {
       context.pop();
     } else {

@@ -14,6 +14,7 @@ class CerRenderer extends StatefulWidget {
   final LessonContentDto content;
   final bool submitting;
   final Future<void> Function(Map<String, dynamic>) onSubmit;
+  final void Function(bool hasUnsentInput)? onInputChanged;
 
   const CerRenderer({
     super.key,
@@ -21,6 +22,7 @@ class CerRenderer extends StatefulWidget {
     required this.content,
     required this.submitting,
     required this.onSubmit,
+    this.onInputChanged,
   });
 
   @override
@@ -31,6 +33,13 @@ class _CerRendererState extends State<CerRenderer> {
   final _claimCtrl = TextEditingController();
   final _reasonCtrl = TextEditingController();
   final Set<String> _evidenceIds = {};
+
+  /// Báo player còn input chưa gửi (text/chips) để chặn thoát vô tình.
+  void _reportDirty() => widget.onInputChanged?.call(
+    _claimCtrl.text.trim().isNotEmpty ||
+        _reasonCtrl.text.trim().isNotEmpty ||
+        _evidenceIds.isNotEmpty,
+  );
 
   @override
   void dispose() {
@@ -80,6 +89,7 @@ class _CerRendererState extends State<CerRenderer> {
                           v
                               ? _evidenceIds.add(e['id'] as String)
                               : _evidenceIds.remove(e['id']);
+                          _reportDirty();
                         }),
                   selectedColor: DauVietColors.cinnabarRed.withValues(
                     alpha: 0.15,
@@ -124,7 +134,7 @@ class _CerRendererState extends State<CerRenderer> {
           controller: controller,
           maxLines: maxLines,
           enabled: !widget.submitting,
-          onChanged: (_) => setState(() {}),
+          onChanged: (_) => setState(_reportDirty),
           decoration: InputDecoration(
             hintText: hint,
             hintStyle: DauVietTypography.bodySmall.copyWith(

@@ -2,11 +2,11 @@ import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:dau_viet_mobile/app/app.dart';
-import 'package:dau_viet_mobile/core/widgets/energy_pill.dart';
 import 'package:dau_viet_mobile/features/auth/data/auth_state.dart';
 import 'package:dau_viet_mobile/features/events/data/events_providers.dart';
 import 'package:dau_viet_mobile/features/events/data/mock_events_repository.dart';
 import 'package:dau_viet_mobile/features/learning/data/learning_providers.dart';
+import 'package:go_router/go_router.dart';
 
 import 'fakes/fake_attempt_repository.dart';
 
@@ -427,9 +427,15 @@ void main() {
       await tester.tap(find.textContaining('VỀ BÀN HỌC TẬP (DASHBOARD)'));
       await tester.pumpAndSettle();
 
-      // 20. Mở M-28 Quản Lý Năng Lượng & Viện Thái Y bằng cách bấm vào EnergyPill
+      // 20. Mở M-28 Quản Lý Năng Lượng & Viện Thái Y.
+      // Test chạy real-mode (USE_MOCK=false mặc định) → EnergyPill bị ẩn
+      // theo đúng hành vi mới (không hiển thị số dư giả). Điều hướng thẳng
+      // để giữ coverage màn M-28.
       expect(find.text('Bàn Học Tập Sử Ký'), findsOneWidget);
-      await tester.tap(find.byType(EnergyPill));
+      final BuildContext dashCtx = tester.element(
+        find.text('Bàn Học Tập Sử Ký'),
+      );
+      dashCtx.go('/energy');
       await tester.pumpAndSettle();
 
       // Xác nhận đã vào M-28 Energy Management Screen

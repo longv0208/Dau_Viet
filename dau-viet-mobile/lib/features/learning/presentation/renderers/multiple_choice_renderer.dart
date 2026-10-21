@@ -11,12 +11,14 @@ class MultipleChoiceRenderer extends StatefulWidget {
   final ActivityRefDto activity;
   final bool submitting;
   final Future<void> Function(Map<String, dynamic>) onSubmit;
+  final void Function(bool hasUnsentInput)? onInputChanged;
 
   const MultipleChoiceRenderer({
     super.key,
     required this.activity,
     required this.submitting,
     required this.onSubmit,
+    this.onInputChanged,
   });
 
   @override
@@ -37,6 +39,7 @@ class _MultipleChoiceRendererState extends State<MultipleChoiceRenderer> {
           ..clear()
           ..add(id);
       }
+      widget.onInputChanged?.call(_selected.isNotEmpty);
     });
   }
 

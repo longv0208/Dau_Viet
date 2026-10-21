@@ -26,12 +26,17 @@ class ActivityRenderer extends StatelessWidget {
   final bool submitting;
   final Future<void> Function(Map<String, dynamic> answer) onSubmit;
 
+  /// Optional — renderer báo learner có input chưa gửi (dirty) để player
+  /// chặn thoát/khôi phục draft. Chỉ renderer nhập liệu tự do mới gọi.
+  final void Function(bool hasUnsentInput)? onInputChanged;
+
   const ActivityRenderer({
     super.key,
     required this.activity,
     required this.content,
     required this.submitting,
     required this.onSubmit,
+    this.onInputChanged,
   });
 
   @override
@@ -56,6 +61,7 @@ class ActivityRenderer extends StatelessWidget {
           activity: activity,
           submitting: submitting,
           onSubmit: onSubmit,
+          onInputChanged: onInputChanged,
         );
       case 'EVIDENCE_SELECT':
         return EvidenceSelectRenderer(
@@ -63,18 +69,21 @@ class ActivityRenderer extends StatelessWidget {
           content: content,
           submitting: submitting,
           onSubmit: onSubmit,
+          onInputChanged: onInputChanged,
         );
       case 'MATCHING':
         return MatchingRenderer(
           activity: activity,
           submitting: submitting,
           onSubmit: onSubmit,
+          onInputChanged: onInputChanged,
         );
       case 'DRAG_ORDER':
         return DragOrderRenderer(
           activity: activity,
           submitting: submitting,
           onSubmit: onSubmit,
+          onInputChanged: onInputChanged,
         );
       case 'HYPOTHESIS_CHOICE':
         return HypothesisRenderer(
@@ -82,6 +91,7 @@ class ActivityRenderer extends StatelessWidget {
           content: content,
           submitting: submitting,
           onSubmit: onSubmit,
+          onInputChanged: onInputChanged,
         );
       case 'VERIFICATION':
         return VerificationRenderer(
@@ -95,6 +105,7 @@ class ActivityRenderer extends StatelessWidget {
           activity: activity,
           submitting: submitting,
           onSubmit: onSubmit,
+          onInputChanged: onInputChanged,
         );
       case 'EXPLORE_MAP':
         return ExploreMapRenderer(
@@ -108,12 +119,14 @@ class ActivityRenderer extends StatelessWidget {
           content: content,
           submitting: submitting,
           onSubmit: onSubmit,
+          onInputChanged: onInputChanged,
         );
       case 'REFLECTION_PROMPT':
         return ReflectionRenderer(
           activity: activity,
           submitting: submitting,
           onSubmit: onSubmit,
+          onInputChanged: onInputChanged,
         );
       default:
         return UnsupportedRenderer(type: activity.type ?? 'UNKNOWN');

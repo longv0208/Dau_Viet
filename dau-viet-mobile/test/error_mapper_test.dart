@@ -126,10 +126,7 @@ void main() {
       () async {
         adapter
           ..statusCode = 502
-          ..body = {
-            'error': 'upstream',
-            'detail': 'không phải envelope chuẩn',
-          };
+          ..body = {'error': 'upstream', 'detail': 'không phải envelope chuẩn'};
         // ApiError.fromJson ném FormatException → _parseErrorBody fallback.
         final e = await catchErr(client.get('/x'));
         expect(e.statusCode, 502);

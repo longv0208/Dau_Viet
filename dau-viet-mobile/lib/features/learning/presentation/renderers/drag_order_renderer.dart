@@ -13,12 +13,14 @@ class DragOrderRenderer extends StatefulWidget {
   final ActivityRefDto activity;
   final bool submitting;
   final Future<void> Function(Map<String, dynamic>) onSubmit;
+  final void Function(bool hasUnsentInput)? onInputChanged;
 
   const DragOrderRenderer({
     super.key,
     required this.activity,
     required this.submitting,
     required this.onSubmit,
+    this.onInputChanged,
   });
 
   @override
@@ -27,12 +29,30 @@ class DragOrderRenderer extends StatefulWidget {
 
 class _DragOrderRendererState extends State<DragOrderRenderer> {
   late List<Map<String, dynamic>> _items;
+  late final List<String> _initialOrder;
+  bool _dirty = false;
 
   @override
   void initState() {
     super.initState();
     // Giữ nguyên thứ tự server gửi — KHÔNG sort lại.
     _items = List.of(configList(widget.activity.config, 'items'));
+    _initialOrder = [for (final it in _items) it['id'] as String? ?? ''];
+  }
+
+  /// Dirty = thứ tự hiện tại khác thứ tự server gửi lúc đầu.
+  void _reportDirty() {
+    final now = [for (final it in _items) it['id'] as String? ?? ''];
+    _dirty = !_listEq(now, _initialOrder);
+    widget.onInputChanged?.call(_dirty);
+  }
+
+  bool _listEq(List<String> a, List<String> b) {
+    if (a.length != b.length) return false;
+    for (int i = 0; i < a.length; i++) {
+      if (a[i] != b[i]) return false;
+    }
+    return true;
   }
 
   void _move(int index, int delta) {
@@ -41,6 +61,7 @@ class _DragOrderRendererState extends State<DragOrderRenderer> {
     setState(() {
       final item = _items.removeAt(index);
       _items.insert(target, item);
+      _reportDirty();
     });
   }
 
@@ -65,6 +86,7 @@ class _DragOrderRendererState extends State<DragOrderRenderer> {
             setState(() {
               final item = _items.removeAt(oldIndex);
               _items.insert(newIndex, item);
+              _reportDirty();
             });
           },
           itemBuilder: (context, i) {

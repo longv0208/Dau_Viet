@@ -11,12 +11,14 @@ class ReflectionRenderer extends StatefulWidget {
   final ActivityRefDto activity;
   final bool submitting;
   final Future<void> Function(Map<String, dynamic>) onSubmit;
+  final void Function(bool hasUnsentInput)? onInputChanged;
 
   const ReflectionRenderer({
     super.key,
     required this.activity,
     required this.submitting,
     required this.onSubmit,
+    this.onInputChanged,
   });
 
   @override
@@ -26,6 +28,10 @@ class ReflectionRenderer extends StatefulWidget {
 class _ReflectionRendererState extends State<ReflectionRenderer> {
   final _textCtrl = TextEditingController();
   String? _optionId;
+
+  void _reportDirty() => widget.onInputChanged?.call(
+    _textCtrl.text.trim().isNotEmpty || _optionId != null,
+  );
 
   @override
   void dispose() {
@@ -55,7 +61,10 @@ class _ReflectionRendererState extends State<ReflectionRenderer> {
             groupValue: _optionId,
             onChanged: widget.submitting
                 ? (_) {}
-                : (v) => setState(() => _optionId = v),
+                : (v) => setState(() {
+                    _optionId = v;
+                    _reportDirty();
+                  }),
             child: Column(
               children: [
                 for (final opt in options)
@@ -78,7 +87,7 @@ class _ReflectionRendererState extends State<ReflectionRenderer> {
             maxLines: 4,
             maxLength: 4000,
             enabled: !widget.submitting,
-            onChanged: (_) => setState(() {}),
+            onChanged: (_) => setState(_reportDirty),
             decoration: InputDecoration(
               hintText: 'Chia sẻ suy nghĩ của bạn...',
               filled: true,

@@ -14,6 +14,7 @@ class EvidenceSelectRenderer extends StatefulWidget {
   final LessonContentDto content;
   final bool submitting;
   final Future<void> Function(Map<String, dynamic>) onSubmit;
+  final void Function(bool hasUnsentInput)? onInputChanged;
 
   const EvidenceSelectRenderer({
     super.key,
@@ -21,6 +22,7 @@ class EvidenceSelectRenderer extends StatefulWidget {
     required this.content,
     required this.submitting,
     required this.onSubmit,
+    this.onInputChanged,
   });
 
   @override
@@ -53,6 +55,7 @@ class _EvidenceSelectRendererState extends State<EvidenceSelectRenderer> {
             enabled: !widget.submitting,
             onTap: () => setState(() {
               _selected.contains(id) ? _selected.remove(id) : _selected.add(id);
+              widget.onInputChanged?.call(_selected.isNotEmpty);
             }),
           ),
         const SizedBox(height: 10),

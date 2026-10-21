@@ -149,6 +149,34 @@ void main() {
       expect(find.text('TIẾP TỤC ›'), findsNothing);
     });
 
+    testWidgets('INCORRECT + exhausted → không hứa thử lại; TIẾP TỤC hiện', (
+      tester,
+    ) async {
+      final repo = FakeAttemptRepository();
+      repo.onGetCurrent = () => _current(_mcqActivity, done: 1);
+      repo.onSubmit = (a) => const SubmitResultDto(
+        status: 'ACCEPTED',
+        evaluation: EvaluationDto(
+          outcome: 'INCORRECT',
+          completed: false,
+          output: {'exhausted': true},
+        ),
+        activityCompleted: true,
+        progress: AttemptProgressDto(completedRequired: 1, totalRequired: 2),
+        completion: CompletionVerdictDto(complete: false),
+      );
+      await _pump(tester, repo);
+      await tester.tap(find.text('Sai'));
+      await tester.pump();
+      await tester.tap(find.text('GỬI CÂU TRẢ LỜI'));
+      await tester.pumpAndSettle();
+      // Feedback phải nói đã hết lượt thử — không "hãy thử lại".
+      expect(find.textContaining('hết lượt thử'), findsOneWidget);
+      expect(find.text('Chưa đúng, hãy thử lại.'), findsNothing);
+      // Server đã advance cursor → nút Tiếp tục phải hiện.
+      expect(find.text('TIẾP TỤC ›'), findsOneWidget);
+    });
+
     testWidgets('feedbackCode resolve text từ activity.feedback', (
       tester,
     ) async {
