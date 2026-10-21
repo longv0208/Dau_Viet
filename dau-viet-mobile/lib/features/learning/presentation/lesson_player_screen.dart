@@ -18,36 +18,48 @@ import '../data/learning_dtos.dart';
 import '../data/learning_providers.dart';
 import 'renderers/activity_renderer.dart';
 
+/// Mức độ feedback sau submit — map đúng outcome backend trả về.
+enum _FeedbackTone { success, info, warning, error }
+
+class _Feedback {
+  final String text;
+  final _FeedbackTone tone;
+  const _Feedback(this.text, this.tone);
+}
+
 /// Trạng thái nội bộ của Lesson Player.
 class _PlayerState {
   final CurrentActivityDto current;
   final LessonContentDto content;
   final bool submitting;
-  final String? feedbackText;
-  final bool? lastCorrect; // null = chưa submit / acknowledgment
+  final _Feedback? feedback;
+
+  /// Đã submit và server báo next/cursor nhảy — đang chờ learner bấm
+  /// "Tiếp tục" trước khi fetch activity kế. Không auto-advance.
+  final bool awaitingContinue;
   final bool completionReady;
 
   const _PlayerState({
     required this.current,
     required this.content,
     this.submitting = false,
-    this.feedbackText,
-    this.lastCorrect,
+    this.feedback,
+    this.awaitingContinue = false,
     this.completionReady = false,
   });
 
   _PlayerState copyWith({
     CurrentActivityDto? current,
     bool? submitting,
-    String? feedbackText,
-    bool? Function()? lastCorrect,
+    _Feedback? Function()? feedback,
+    bool? awaitingContinue,
     bool? completionReady,
   }) => _PlayerState(
     current: current ?? this.current,
     content: content,
     submitting: submitting ?? this.submitting,
-    feedbackText: feedbackText,
-    lastCorrect: lastCorrect == null ? this.lastCorrect : lastCorrect(),
+    feedback: feedback == null ? this.feedback : feedback(),
+    awaitingContinue: awaitingContinue ?? this.awaitingContinue,
     completionReady: completionReady ?? this.completionReady,
   );
 }
@@ -110,7 +122,12 @@ class _LessonPlayerScreenState extends ConsumerState<LessonPlayerScreen> {
   /// Renderer gọi khi learner chốt câu trả lời.
   Future<void> _submit(Map<String, dynamic> answer) async {
     final st = _state;
-    if (st == null || st.submitting || st.current.activity == null) return;
+    if (st == null ||
+        st.submitting ||
+        st.awaitingContinue ||
+        st.current.activity == null) {
+      return;
+    }
 
     // Answer mới → key mới; cùng answer retry → giữ nguyên key.
     if (_pendingAnswer == null || !_sameAnswer(_pendingAnswer!, answer)) {
@@ -119,7 +136,7 @@ class _LessonPlayerScreenState extends ConsumerState<LessonPlayerScreen> {
     }
 
     setState(() {
-      _state = st.copyWith(submitting: true, feedbackText: null);
+      _state = st.copyWith(submitting: true, feedback: () => null);
     });
     try {
       final SubmitResultDto res = await _call(
@@ -131,83 +148,136 @@ class _LessonPlayerScreenState extends ConsumerState<LessonPlayerScreen> {
         ),
       );
       if (!mounted) return;
-      await _applyResult(res);
+      _applyResult(res);
     } on ApiException catch (e) {
       if (!mounted) return;
-      setState(() {
-        _state = _state!.copyWith(
-          submitting: false,
-          feedbackText: e.isNetworkError
-              ? 'Không kết nối được. Thử lại.'
-              : e.error.message,
-          lastCorrect: () => false,
-        );
-      });
+      if (e.error.code == 'IDEMPOTENCY_CONFLICT') {
+        // Key đã dùng cho payload khác → mint key mới và retry 1 lần.
+        _pendingKey = _uuid.v4();
+        try {
+          final res = await _call(
+            () => _repo.submit(
+              widget.attemptId,
+              st.current.activity!.id,
+              answer,
+              idempotencyKey: _pendingKey,
+            ),
+          );
+          if (!mounted) return;
+          _applyResult(res);
+          return;
+        } on ApiException catch (e2) {
+          if (!mounted) return;
+          _showSubmitError(e2);
+          return;
+        }
+      }
+      _showSubmitError(e);
     }
+  }
+
+  void _showSubmitError(ApiException e) {
+    setState(() {
+      _state = _state!.copyWith(
+        submitting: false,
+        feedback: () => _Feedback(
+          e.isNetworkError ? 'Không kết nối được. Thử lại.' : e.error.message,
+          _FeedbackTone.error,
+        ),
+      );
+    });
   }
 
   bool _sameAnswer(Map<String, dynamic> a, Map<String, dynamic> b) =>
       a.toString() == b.toString();
 
-  Future<void> _applyResult(SubmitResultDto res) async {
+  /// Map outcome backend → (text, tone). Không tự chấm — chỉ diễn giải
+  /// `evaluation.outcome` + `feedbackCode` từ server.
+  _Feedback _feedbackFor(SubmitResultDto res, ActivityRefDto? activity) {
+    final String? authored = activity?.feedbackText(res.evaluation.feedbackCode);
+    switch (res.evaluation.outcome) {
+      case 'COMPLETED':
+      case 'SUPPORTED':
+        return _Feedback(authored ?? 'Chính xác!', _FeedbackTone.success);
+      case 'PARTIAL':
+        return _Feedback(
+          authored ?? 'Đúng một phần — xem lại rồi thử tiếp.',
+          _FeedbackTone.warning,
+        );
+      case 'CONTRADICTED':
+        return _Feedback(
+          authored ?? 'Chưa thuyết phục — kiểm tra lại lập luận.',
+          _FeedbackTone.warning,
+        );
+      case 'INCORRECT':
+        return _Feedback(
+          authored ?? 'Chưa đúng, hãy thử lại.',
+          _FeedbackTone.error,
+        );
+      default:
+        return _Feedback(authored ?? 'Đã ghi nhận.', _FeedbackTone.info);
+    }
+  }
+
+  void _applyResult(SubmitResultDto res) {
     final st = _state!;
-    final String text =
-        st.current.activity?.feedbackText(res.evaluation.feedbackCode) ??
-        _defaultFeedback(res);
-    final bool correct = res.evaluation.outcome != 'INCORRECT';
+    final fb = _feedbackFor(res, st.current.activity);
 
     if (res.completion.complete) {
       setState(() {
         _state = st.copyWith(
           submitting: false,
-          feedbackText: text,
-          lastCorrect: () => correct,
+          feedback: () => fb,
+          awaitingContinue: false,
           completionReady: true,
         );
       });
       return;
     }
     if (res.activityCompleted || res.next != null) {
-      // Cursor đã nhảy — fetch lại current từ server (authoritative).
-      try {
-        final cur = await _call(() => _repo.getCurrent(widget.attemptId));
-        if (!mounted) return;
-        setState(() {
-          _state = _PlayerState(
-            current: cur,
-            content: st.content,
-            feedbackText: text,
-            lastCorrect: correct,
-          );
-          _pendingAnswer = null;
-        });
-      } catch (e) {
-        if (!mounted) return;
-        setState(() {
-          _state = st.copyWith(
-            submitting: false,
-            feedbackText: 'Đã ghi nhận câu trả lời.',
-            lastCorrect: () => true,
-          );
-        });
-      }
-    } else {
-      // Chưa complete, không next → giữ cursor, cho retry.
+      // Cursor đã nhảy phía server nhưng giữ activity hiện tại + feedback
+      // trên màn cho tới khi learner bấm "Tiếp tục" (không auto-advance).
       setState(() {
         _state = st.copyWith(
           submitting: false,
-          feedbackText: text,
-          lastCorrect: () => correct,
+          feedback: () => fb,
+          awaitingContinue: true,
         );
+        _pendingAnswer = null;
+      });
+    } else {
+      // Chưa complete, không next → giữ cursor, cho retry.
+      setState(() {
+        _state = st.copyWith(submitting: false, feedback: () => fb);
       });
     }
   }
 
-  String _defaultFeedback(SubmitResultDto res) {
-    if (res.evaluation.outcome == 'INCORRECT') {
-      return 'Chưa đúng, hãy thử lại.';
+  /// Chỉ chạy khi `awaitingContinue` — fetch current activity từ server.
+  Future<void> _onContinue() async {
+    final st = _state;
+    if (st == null || !st.awaitingContinue || st.submitting) return;
+    setState(() {
+      _state = st.copyWith(submitting: true);
+    });
+    try {
+      final cur = await _call(() => _repo.getCurrent(widget.attemptId));
+      if (!mounted) return;
+      setState(() {
+        _state = _PlayerState(current: cur, content: st.content);
+      });
+    } catch (_) {
+      if (!mounted) return;
+      setState(() {
+        _state = st.copyWith(
+          submitting: false,
+          feedback: () => const _Feedback(
+            'Không tải được hoạt động tiếp theo. Thử lại.',
+            _FeedbackTone.error,
+          ),
+        );
+      });
     }
-    return res.activityCompleted ? 'Chính xác!' : 'Đã ghi nhận câu trả lời.';
   }
 
   Future<void> _complete() async {
@@ -229,7 +299,9 @@ class _LessonPlayerScreenState extends ConsumerState<LessonPlayerScreen> {
       if (!mounted) return;
       setState(() {
         _completing = false;
-        _state = _state?.copyWith(feedbackText: e.error.message);
+        _state = _state?.copyWith(
+          feedback: () => _Feedback(e.error.message, _FeedbackTone.error),
+        );
       });
     }
   }
@@ -293,7 +365,7 @@ class _LessonPlayerScreenState extends ConsumerState<LessonPlayerScreen> {
                     key: ValueKey(cur.activity!.id),
                     activity: cur.activity!,
                     content: st.content,
-                    submitting: st.submitting,
+                    submitting: st.submitting || st.awaitingContinue,
                     onSubmit: _submit,
                   ),
                 ],
@@ -370,28 +442,10 @@ class _LessonPlayerScreenState extends ConsumerState<LessonPlayerScreen> {
         mainAxisSize: MainAxisSize.min,
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          if (st.feedbackText != null)
+          if (st.feedback != null)
             Padding(
               padding: const EdgeInsets.only(bottom: 8),
-              child: ParchmentCard(
-                backgroundColor: st.lastCorrect == false
-                    ? DauVietColors.cinnabarRed.withValues(alpha: 0.08)
-                    : const Color(0xFFEAF3E5),
-                borderColor: st.lastCorrect == false
-                    ? DauVietColors.cinnabarRed
-                    : const Color(0xFF4C7C44),
-                borderWidth: 1,
-                padding: const EdgeInsets.all(10),
-                child: Text(
-                  st.feedbackText!,
-                  style: DauVietTypography.bodySmall.copyWith(
-                    color: st.lastCorrect == false
-                        ? DauVietColors.cinnabarRed
-                        : const Color(0xFF2F5A2B),
-                    fontWeight: FontWeight.w600,
-                  ),
-                ),
-              ),
+              child: _feedbackCard(st.feedback!),
             ),
           if (st.submitting)
             Text(
@@ -400,6 +454,14 @@ class _LessonPlayerScreenState extends ConsumerState<LessonPlayerScreen> {
               style: DauVietTypography.bodySmall.copyWith(
                 color: DauVietColors.inkMuted,
               ),
+            ),
+          if (st.awaitingContinue && !st.submitting)
+            DongSonButton(
+              label: 'TIẾP TỤC ›',
+              icon: Icons.arrow_forward_rounded,
+              variant: DongSonButtonVariant.primaryCinnabar,
+              height: 50,
+              onPressed: _onContinue,
             ),
           if (st.completionReady)
             DongSonButton(
@@ -410,6 +472,45 @@ class _LessonPlayerScreenState extends ConsumerState<LessonPlayerScreen> {
               onPressed: _completing ? () {} : _complete,
             ),
         ],
+      ),
+    );
+  }
+
+  /// Thẻ feedback theo `_FeedbackTone` — không dùng xanh lá cho mọi outcome.
+  Widget _feedbackCard(_Feedback fb) {
+    final (bg, border, fg) = switch (fb.tone) {
+      _FeedbackTone.success => (
+        const Color(0xFFEAF3E5),
+        const Color(0xFF4C7C44),
+        const Color(0xFF2F5A2B),
+      ),
+      _FeedbackTone.info => (
+        DauVietColors.parchmentContainer,
+        DauVietColors.outlineVariant,
+        DauVietColors.inkText,
+      ),
+      _FeedbackTone.warning => (
+        const Color(0xFFFDF3E0),
+        DauVietColors.imperialGold,
+        const Color(0xFF7A5B18),
+      ),
+      _FeedbackTone.error => (
+        DauVietColors.cinnabarRed.withValues(alpha: 0.08),
+        DauVietColors.cinnabarRed,
+        DauVietColors.cinnabarRed,
+      ),
+    };
+    return ParchmentCard(
+      backgroundColor: bg,
+      borderColor: border,
+      borderWidth: 1,
+      padding: const EdgeInsets.all(10),
+      child: Text(
+        fb.text,
+        style: DauVietTypography.bodySmall.copyWith(
+          color: fg,
+          fontWeight: FontWeight.w600,
+        ),
       ),
     );
   }

@@ -60,9 +60,13 @@ void main() {
 
       // 3. Xác nhận màn hình M-03 Bàn Học Tập
       expect(find.text('Bàn Học Tập Sử Ký'), findsOneWidget);
-      expect(find.text('Chiến Dịch Bạch Đằng 938'), findsOneWidget);
-      // Chưa có attempt đang học → resume card mời bắt đầu.
-      expect(find.text('BẮT ĐẦU HỌC ›'), findsOneWidget);
+      // Chưa có attempt đang học → card mời khám phá (dynamic, không
+      // hard-code event title). eventsListProvider có delay 200ms —
+      // đợi thêm rồi kiểm tra CTA hiển thị.
+      await tester.pump(const Duration(milliseconds: 300));
+      await tester.pumpAndSettle();
+      expect(find.text('Bắt đầu hành trình'), findsOneWidget);
+      expect(find.text('KHÁM PHÁ NGAY ›'), findsOneWidget);
 
       // 4. Điều hướng sang M-04 Dòng Thời Gian (Lược Sử) qua Bottom Nav Bar
       await tester.tap(find.byIcon(Icons.auto_stories_outlined));

@@ -43,7 +43,7 @@
 | POST | `/auth/refresh` | Rotate refresh token — **đã implement** (TASK-0007) |
 | POST | `/auth/logout` | Revoke refresh session — **đã implement** (TASK-0007) |
 | GET | `/users/me` | Profile hiện tại — **đã implement** (TASK-0007) |
-| GET | `/me` | Profile / level / EXP khi hỗ trợ |
+| GET | `/me` | Profile / level / EXP — **chưa implement** (chỉ có `/users/me` profile); EXP/level chưa baseline |
 | GET | `/events` | Danh sách event/lesson published — **đã implement** (TASK-0005) |
 | GET | `/events/{eventId}` | Metadata event, available lessons — **đã implement** (TASK-0005) |
 | GET | `/events/{eventId}/lessons` | Published lessons của một event PUBLISHED — **implemented TASK-0010**; yêu cầu authenticated |
@@ -52,11 +52,12 @@
 | POST | `/lessons/{lessonId}/attempts` | Start/resume theo policy — **implemented TASK-0011** |
 | GET | `/attempts/{attemptId}` | Attempt progress/cursor — **implemented TASK-0011** |
 | GET | `/attempts/{attemptId}/current` | Current activity (learner-safe payload) — **implemented TASK-0011** |
+| GET | `/attempts/{attemptId}/content` | Learner-safe content của **đúng pinned version** (resume sau republish giữ nguyên evidence/assets/config của version attempt đang chạy) — **implemented TASK-0011**; owner-only |
 | POST | `/attempts/{attemptId}/activities/{activityId}/submissions` | Submit answer, nhận feedback + next state — **implemented TASK-0011**; `Idempotency-Key` persist từ **TASK-0012** |
 | POST | `/attempts/{attemptId}/complete` | Server-authoritative completion: flip `COMPLETED` + ghi `lesson_results` atomically — **implemented TASK-0012** |
 | GET | `/attempts/{attemptId}/result` | Persisted `lesson_results` (score, result_json, completed_at) — **implemented TASK-0012** |
 | GET | `/me/attempts` | Attempt history/resume của chính learner (paged, `?status=&page=&size=`) — **implemented TASK-0012** |
-| GET | `/me/collection` | Evidence đã thu thập (scope phụ thuộc MVP) |
+| GET | `/me/collection` | Evidence đã thu thập — **dự kiến, CHƯA implement**; không gọi từ app như thể đã có (xem `MAP_COLLECTION_REWARDS_ISLAND.md`) |
 | GET | `/me/progress` | Resume surface: IN_PROGRESS attempts + completed count — **implemented TASK-0012** |
 
 ### Start/resume
@@ -188,7 +189,9 @@ Access token: JWT HS256 (sub = user UUID, claim `role`); access TTL mặc địn
 | POST | `/admin/events/{id}/archive` | →ARCHIVED (409 `EVENT_IN_USE` if non-archived lessons) — **implemented TASK-0008** |
 | GET | `/admin/lesson-templates` | List enabled templates — **implemented TASK-0008** |
 | GET | `/admin/lesson-templates/{id}` | Template detail + `preset_json` — **implemented TASK-0008** |
-| GET | `/admin/templates` | Alias kế hoạch cũ — dùng `/admin/lesson-templates` |
+| POST | `/admin/lesson-templates` | Tạo template — **implemented** (xem `AdminLessonTemplateController`) |
+| PATCH | `/admin/lesson-templates/{id}` | Sửa template — **implemented** |
+| GET | `/admin/templates` | Alias kế hoạch cũ — **không có trong code**, dùng `/admin/lesson-templates` |
 | POST | `/admin/lessons` | Tạo lesson/draft từ template — **implemented TASK-0008** |
 | GET | `/admin/lessons` | List lessons (page/size/sort, `eventId`, `status`, `q`) — **implemented TASK-0008** |
 | GET | `/admin/lessons/{lessonId}` | Lấy draft + metadata — **implemented TASK-0008** |
@@ -219,8 +222,13 @@ Access token: JWT HS256 (sub = user UUID, claim `role`); access TTL mặc địn
 | GET | `/admin/lessons/{lessonId}/versions` | List version history (paged, newest-first) — **implemented TASK-0010** |
 | GET | `/admin/lessons/{lessonId}/versions/{versionId}` | Chi tiết một version, full snapshot — **implemented TASK-0010** |
 | GET | `/admin/lessons/{lessonId}/versions/current` | Version mà current_version_id đang trỏ — **implemented TASK-0010** |
-| POST | `/admin/assets/upload-intent` | Tạo upload URL tạm thời (implementation proposal) |
-| POST | `/admin/assets/confirm` | Verify file sau upload |
+| POST | `/admin/assets` | Upload asset (multipart `file` + metadata) — **implemented** (`AdminAssetController`); `dau-viet-admin` BFF `/api/upload/assets` forward tới đây |
+| GET | `/admin/assets` | List assets (page/size) — **implemented** |
+| GET | `/admin/assets/{id}` | Asset metadata — **implemented** |
+| GET | `/admin/assets/{id}/content` | Stream nội dung file — **implemented** |
+| GET | `/assets/{id}/content` | Stream asset cho learner (authenticated) — **implemented** (`LearnerAssetController`) |
+| ~~POST~~ | ~~`/admin/assets/upload-intent`~~ | ~~Upload URL tạm thời~~ — **không implement**; upload đi trực tiếp qua `POST /admin/assets` |
+| ~~POST~~ | ~~`/admin/assets/confirm`~~ | ~~Verify sau upload~~ — **không implement** (không có flow 2-bước) |
 
 ### Notes đã chốt TASK-0008
 
@@ -326,7 +334,7 @@ Publish chạy PUBLISH-level `DraftValidator` trong một transaction: `SELECT F
 
 - `Dau_Viet_BA_MVP_Learning_Framework.docx`: functional requirements LRN/ADM/ENG và use cases.
 - `Functional_Requirements_Dau_Viet_MVP.docx`: FR-01…46 và luồng chức năng.
-- Endpoint names, HTTP errors và payloads ở đây là **đề xuất kỹ thuật**, chưa phải API đã có hoặc được kiểm thử.
+- Các endpoint có ghi `implemented TASK-xxxx` là đã có trong code tại commit `0744ae8`; các endpoint không ghi trạng thái (ví dụ `/me`, `/me/collection`, `/admin/assets/*`) là **đề xuất/dự kiến, chưa implement**. HTTP errors và payloads là **đề xuất kỹ thuật** cho đến khi được kiểm thử E2E.
 
 ## Admin client implementation note
 

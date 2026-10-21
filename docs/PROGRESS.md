@@ -4,6 +4,8 @@ generated: 2026-10-16T04:17:41.6574767+07:00 by scripts/harness/harness.ps1 prog
 
 View-only - derived from `tasks/*/task.json`. Do not edit task status here.
 
+> **CẢNH BÁO:** File này là ảnh chụp `task.json` tại thời điểm generate — **KHÔNG phải nguồn trạng thái release hiện tại**. Trạng thái `done`/`reviewing` ở đây là trạng thái task workflow, không đồng nghĩa tính năng đã PASS nghiệm thu người dùng/backend thật. Để biết hiện trạng feature-level, xem `docs/BA_IMPLEMENTATION_TRACEABILITY.md` và `docs/PROJECT_OVERVIEW.md` §6 "Trạng thái đã code".
+
 | Task | Type | Risk | Status | Next action |
 |---|---|---|---|---|
 | TASK-0001 | docs | tiny | done | Phase 2: implement harness runner (scripts/harness/harness.ps1) and GitNexus adapter; first real module task = bootstrap dau-viet-backend. |

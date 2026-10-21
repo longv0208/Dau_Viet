@@ -92,6 +92,22 @@ Framework stage tham chiếu từ BA:
 
 **Lưu ý scope:** Tài liệu Functional Requirements cũ xem Map là Must và Admin CMS là Phase 2; tài liệu BA framework mới ưu tiên Admin Lesson Builder là Must, Map là Should. Cho implementation baseline này, ưu tiên **framework BA mới**; Product Owner cần xác nhận trước khi khóa backlog.
 
+### Trạng thái đã code (ảnh chụp `main` @ `0744ae8`, 2026-10)
+
+Phân biệt **mục tiêu MVP** ở trên với **đã implement trong source** dưới đây — "đã code" chưa đồng nghĩa "đã nghiệm thu E2E". Chi tiết truy vết: `docs/BA_IMPLEMENTATION_TRACEABILITY.md`.
+
+| Đã code | Chưa code / chưa hoàn thiện |
+|---|---|
+| Auth (register/login/refresh/logout), `/users/me` | `/me` (profile + level/EXP) |
+| Events catalogue + detail (public) | — |
+| Admin: events, lesson-templates, lessons draft CRUD, stages/activities sub-resource, evidences, assets upload/list/stream, validate/preview/publish/versions | `/admin/templates` alias; `upload-intent`/`confirm` 2-step asset flow |
+| Learner: `lessons/{id}` + `/content`, attempts start/resume/current/content, submissions, complete → `lesson_results`, `/me/attempts`, `/me/progress` | `/me/collection` (chưa có endpoint), reward/EXP grant |
+| Snapshot immutable, learner-safe projection, idempotency persist (`SUBMIT_ACTIVITY`, `COMPLETE_ATTEMPT`) | Story tổng quát sau mọi lesson; UX Submit→Feedback→Continue chưa hoàn thiện phía Flutter |
+| — | **Historical Map** (view/lock/unlock/detail theo FR-35–38): chưa có entity/read model; PO chưa chốt Must vs Should |
+| — | **Collection Dấu** (FR-39–41): `user_evidence` chỉ là schema, chưa có API/UI backend-connected |
+| — | **EXP/reward thật** (FR-34): `reward_transactions` chỉ là schema, `complete()` chưa grant |
+| — | **Heritage Island / Shop / Energy** (design M-22–M-28): UI demo hard-coded, chưa có catalog/ownership/placement backend |
+
 ## 7. Hoạt động tương tác dự kiến
 
 | Activity | Mục đích |

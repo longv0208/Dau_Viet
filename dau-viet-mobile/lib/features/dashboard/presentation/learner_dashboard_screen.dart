@@ -7,6 +7,7 @@ import '../../../core/widgets/dong_son_button.dart';
 import '../../../core/widgets/energy_pill.dart';
 import '../../../core/widgets/parchment_card.dart';
 import '../../auth/data/auth_state.dart';
+import '../../events/data/events_providers.dart';
 import '../../learning/data/attempt_dtos.dart';
 import '../../learning/data/learning_providers.dart';
 
@@ -280,21 +281,16 @@ class _LearnerDashboardScreenState
           ),
         ),
       ),
-      error: (e, st) => _resumeShell(
-        title: 'Chiến Dịch Bạch Đằng 938',
-        subtitle: 'Khám phá kế sách cọc ngầm & sa bàn thủy chiến',
-        progressText: null,
-        buttonLabel: 'KHÁM PHÁ NGAY ›',
-        onPressed: () => context.go('/campaign/evt_bach_dang_938'),
+      error: (e, st) => _discoverCard(
+        title: 'Khám phá sự kiện',
+        subtitle: 'Không tải được tiến độ — chọn một sự kiện để học',
       ),
       data: (progress) {
         if (progress.inProgress.isEmpty) {
-          return _resumeShell(
-            title: 'Chiến Dịch Bạch Đằng 938',
-            subtitle: 'Bắt đầu hành trình giải mã trận thủy chiến vĩ đại',
+          return _discoverCard(
+            title: 'Bắt đầu hành trình',
+            subtitle: 'Chọn một sự kiện lịch sử để khám phá',
             progressText: 'Đã hoàn thành ${progress.completedCount} bài học',
-            buttonLabel: 'BẮT ĐẦU HỌC ›',
-            onPressed: () => context.go('/campaign/evt_bach_dang_938'),
           );
         }
         final AttemptSummaryDto attempt = progress.inProgress.first;
@@ -308,6 +304,52 @@ class _LearnerDashboardScreenState
           fraction: fraction,
           buttonLabel: 'TIẾP TỤC BÀI HỌC ›',
           onPressed: () => context.go('/learning/attempt/${attempt.attemptId}'),
+        );
+      },
+    );
+  }
+
+  /// Card mời khám phá khi chưa có attempt IN_PROGRESS (hoặc progress lỗi).
+  /// Không hard-code event — dùng event PUBLISHED đầu tiên, ẩn CTA nếu
+  /// chưa có event nào thay vì điều hướng tới id giả.
+  Widget _discoverCard({
+    required String title,
+    required String subtitle,
+    String? progressText,
+  }) {
+    final eventsAsync = ref.watch(eventsListProvider);
+    return eventsAsync.when(
+      loading: () => _resumeShell(
+        title: title,
+        subtitle: subtitle,
+        progressText: progressText,
+        buttonLabel: 'ĐANG TẢI...',
+        onPressed: () {},
+      ),
+      error: (_, _) => _resumeShell(
+        title: title,
+        subtitle: 'Không tải được danh sách sự kiện. Thử lại sau.',
+        progressText: progressText,
+        buttonLabel: 'THỬ LẠI ›',
+        onPressed: () => ref.invalidate(eventsListProvider),
+      ),
+      data: (page) {
+        if (page.milestones.isEmpty) {
+          return _resumeShell(
+            title: title,
+            subtitle: 'Chưa có sự kiện nào được xuất bản.',
+            progressText: progressText,
+            buttonLabel: 'CHƯA CÓ SỰ KIỆN',
+            onPressed: () {},
+          );
+        }
+        final first = page.milestones.first;
+        return _resumeShell(
+          title: title,
+          subtitle: subtitle,
+          progressText: progressText,
+          buttonLabel: 'KHÁM PHÁ NGAY ›',
+          onPressed: () => context.go('/campaign/${first.id}'),
         );
       },
     );

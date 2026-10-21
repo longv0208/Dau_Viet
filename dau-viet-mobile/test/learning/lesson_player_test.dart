@@ -88,27 +88,65 @@ void main() {
       expect(find.text('ĐÃ ĐỌC XONG, TIẾP TỤC'), findsOneWidget);
     });
 
-    testWidgets('submit đúng → refetch current render activity kế', (
+    testWidgets(
+      'submit đúng → giữ activity + feedback, bấm TIẾP TỤC mới refetch',
+      (tester) async {
+        var submitted = false;
+        final repo = FakeAttemptRepository();
+        repo.onGetCurrent = () => submitted
+            ? _current(_mcqActivity, done: 1)
+            : _current(_readActivity);
+        repo.onSubmit = (a) => const SubmitResultDto(
+          status: 'ACCEPTED',
+          evaluation: EvaluationDto(outcome: 'COMPLETED', completed: true),
+          activityCompleted: true,
+          progress: AttemptProgressDto(completedRequired: 1, totalRequired: 2),
+          completion: CompletionVerdictDto(complete: false),
+        );
+        await _pump(tester, repo);
+        final callsBefore = repo.getCurrentCalls;
+        submitted = true;
+        await tester.tap(find.text('ĐÃ ĐỌC XONG, TIẾP TỤC'));
+        await tester.pumpAndSettle();
+        expect(repo.submittedKeys.single, isNotNull);
+        // Chưa refetch — vẫn ở activity cũ, feedback + nút TIẾP TỤC hiện.
+        expect(repo.getCurrentCalls, callsBefore);
+        expect(find.text('TIẾP TỤC ›'), findsOneWidget);
+        expect(find.text('Câu hỏi?'), findsNothing);
+        // Bấm TIẾP TỤC → refetch → render activity kế.
+        await tester.tap(find.text('TIẾP TỤC ›'));
+        await tester.pumpAndSettle();
+        expect(find.text('Câu hỏi?'), findsOneWidget);
+      },
+    );
+
+    testWidgets('PARTIAL → cảnh báo + giữ nguyên activity, không refetch', (
       tester,
     ) async {
-      var submitted = false;
       final repo = FakeAttemptRepository();
-      repo.onGetCurrent = () =>
-          submitted ? _current(_mcqActivity, done: 1) : _current(_readActivity);
+      repo.onGetCurrent = () => _current(_mcqActivity, done: 1);
       repo.onSubmit = (a) => const SubmitResultDto(
         status: 'ACCEPTED',
-        evaluation: EvaluationDto(outcome: 'CORRECT', completed: true),
-        activityCompleted: true,
+        evaluation: EvaluationDto(
+          outcome: 'PARTIAL',
+          completed: false,
+          feedbackCode: 'wrong',
+        ),
+        activityCompleted: false,
         progress: AttemptProgressDto(completedRequired: 1, totalRequired: 2),
         completion: CompletionVerdictDto(complete: false),
       );
       await _pump(tester, repo);
-      submitted = true;
-      await tester.tap(find.text('ĐÃ ĐỌC XONG, TIẾP TỤC'));
+      final callsBefore = repo.getCurrentCalls;
+      await tester.tap(find.text('Đúng'));
+      await tester.pump();
+      await tester.tap(find.text('GỬI CÂU TRẢ LỜI'));
       await tester.pumpAndSettle();
-      expect(repo.submittedKeys.single, isNotNull);
-      // Sau submit player refetch /current → activity MCQ render.
+      // PARTIAL → vẫn activity cũ, không nút TIẾP TỤC, không refetch.
+      expect(repo.getCurrentCalls, callsBefore);
+      expect(find.text('Chưa đúng.'), findsOneWidget);
       expect(find.text('Câu hỏi?'), findsOneWidget);
+      expect(find.text('TIẾP TỤC ›'), findsNothing);
     });
 
     testWidgets('feedbackCode resolve text từ activity.feedback', (
@@ -119,7 +157,7 @@ void main() {
       repo.onSubmit = (a) => const SubmitResultDto(
         status: 'ACCEPTED',
         evaluation: EvaluationDto(
-          outcome: 'CORRECT',
+          outcome: 'COMPLETED',
           completed: true,
           feedbackCode: 'correct',
         ),

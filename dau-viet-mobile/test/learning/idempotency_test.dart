@@ -128,5 +128,38 @@ void main() {
         'selectedOptionIds': ['o2'],
       });
     });
+
+    testWidgets('IDEMPOTENCY_CONFLICT → mint key mới + retry 1 lần tự động', (
+      tester,
+    ) async {
+      var call = 0;
+      final repo = FakeAttemptRepository();
+      repo.onGetCurrent = _cur;
+      repo.onSubmit = (a) {
+        call++;
+        if (call == 1) {
+          throw const ApiException(
+            ApiError(code: 'IDEMPOTENCY_CONFLICT', message: 'key reused'),
+          );
+        }
+        return const SubmitResultDto(
+          status: 'ACCEPTED',
+          evaluation: EvaluationDto(outcome: 'COMPLETED', completed: true),
+          activityCompleted: true,
+          progress: AttemptProgressDto(completedRequired: 1, totalRequired: 1),
+          completion: CompletionVerdictDto(complete: true),
+        );
+      };
+      await _pump(tester, repo);
+      await tester.tap(find.text('A'));
+      await tester.pump();
+      await tester.tap(find.text('GỬI CÂU TRẢ LỜI'));
+      await tester.pumpAndSettle();
+      // 2 lần gọi submit từ 1 lần bấm; key thứ hai là key mới.
+      expect(repo.submittedKeys.length, 2);
+      expect(repo.submittedKeys[0], isNotNull);
+      expect(repo.submittedKeys[1], isNotNull);
+      expect(repo.submittedKeys[0], isNot(repo.submittedKeys[1]));
+    });
   });
 }

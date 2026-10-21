@@ -52,8 +52,8 @@ erDiagram
 | `activity_attempts` | `id`, `learner_attempt_id`, `activity_id`, `attempt_no`, `submitted_answer_json`, `result_json`, `created_at` | Giữ lịch sử retry/revision, không sửa lesson config |
 | `idempotency_records` | `id`, `user_id`, `idempotency_key`, `operation`, `request_hash`, `response_json`, `http_status`, `created_at`, `expires_at` | Unique `(user_id, operation, idempotency_key)`; key reused với payload khác → 409. TASK-0012: `operation` ∈ `SUBMIT_ACTIVITY`/`COMPLETE_ATTEMPT`; `expires_at` = `created_at` + `app.learning.idempotency-ttl` (default 24h), expired → reclaim |
 | `lesson_results` | `id`, `learner_attempt_id`, `score`, `completed_at`, `result_json` | Unique attempt; kết thúc một lần. TASK-0012: ghi cùng transaction với flip `COMPLETED` |
-| `user_evidence` | `id`, `user_id`, `learner_attempt_id`, `evidence_id`, `collected_at` | Collection; unique `(learner_attempt_id, evidence_id)` |
-| `reward_transactions` | `id`, `user_id`, `learner_attempt_id`, `reward_type`, `amount`, `reason`, `created_at` | Unique event/cause key để không cấp trùng EXP/currency |
+| `user_evidence` | `id`, `user_id`, `learner_attempt_id`, `evidence_id`, `collected_at` | **Chỉ là schema (V4)** — chưa có Collection API/screen nào đọc/ghi bảng này; unique `(learner_attempt_id, evidence_id)` |
+| `reward_transactions` | `id`, `user_id`, `learner_attempt_id`, `reward_type`, `amount`, `reason`, `created_at` | **Chỉ là schema (V4)** — ledger nền cho reward về sau; `complete()` hiện CHƯA ghi row, chưa có grant logic; unique event/cause key để không cấp trùng |
 
 **Đề xuất:** Dùng `UUID` phía Java, `JSONB` cho `draft_json`, `snapshot_json`, `state_json` và các outputs. Dùng `CHECK`/enum mapping thống nhất cho status; index `(user_id, status)`, `(lesson_id, published_at)`, `(learner_attempt_id, activity_id)`.
 
@@ -255,7 +255,8 @@ Bản ghi bất biến được `POST /admin/lessons/{id}/publish` ghi vào `les
 - **Publish:** `SELECT FOR UPDATE` trên `lessons` (pessimistic lock) → PUBLISH-level `DraftValidator` → `version_no = max+1` → insert `lesson_versions` → cập nhật `current_version_id` + `status=PUBLISHED` — tất cả trong một transaction; attempt cũ không đổi version (đã implement TASK-0010).
 - **Start/resume:** ưu tiên resume attempt `IN_PROGRESS` đã có theo chính sách PO; tránh hai attempt active ngoài ý muốn bằng transaction/constraint phù hợp.
 - **Submit:** xác thực owner → check state/version/activity → lock/optimistic concurrency → evaluate server-side → append activity attempt → update cursor/state → commit.
-- **Complete/reward:** ghi result và reward ledger trong cùng transaction; `UNIQUE` guard + idempotency key giúp không trao thưởng trùng.
+- **Complete:** ghi `lesson_results` trong cùng transaction với flip `COMPLETED` (đã implement TASK-0012); `UNIQUE` per attempt + idempotent `alreadyCompleted`.
+- **Reward (mục tiêu bất biến, chưa implement):** khi có grant logic, phải ghi reward ledger trong cùng transaction với complete; `UNIQUE` guard + idempotency key giúp không trao thưởng trùng. Hiện `complete()` **không** ghi `reward_transactions`.
 - **Archive:** ngăn attempt mới trên nội dung archived, giữ bản cũ cho attempt đang học (cần chốt chính sách).
 - **Deletion:** soft delete/retire media còn được publish tham chiếu.
 

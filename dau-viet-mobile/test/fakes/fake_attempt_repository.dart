@@ -22,6 +22,7 @@ class FakeAttemptRepository implements AttemptRepository {
   final List<Map<String, dynamic>> submittedAnswers = [];
   final List<String?> submittedKeys = [];
   int completeCalls = 0;
+  int getCurrentCalls = 0;
 
   @override
   Future<List<LessonListItemDto>> listLessonsForEvent(String eventId) async =>
@@ -45,6 +46,7 @@ class FakeAttemptRepository implements AttemptRepository {
 
   @override
   Future<CurrentActivityDto> getCurrent(String attemptId) async {
+    getCurrentCalls++;
     if (nextError != null) throw nextError!;
     return onGetCurrent?.call() ??
         const CurrentActivityDto(progress: AttemptProgressDto.empty);

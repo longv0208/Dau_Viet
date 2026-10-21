@@ -9,6 +9,7 @@ import '../../../core/widgets/async_state_view.dart';
 import '../../../core/widgets/dong_son_button.dart';
 import '../../../core/widgets/heritage_scaffold.dart';
 import '../../../core/widgets/parchment_card.dart';
+import '../data/attempt_dtos.dart';
 import '../data/attempt_repository.dart';
 import '../data/learning_dtos.dart';
 import '../data/learning_providers.dart';
@@ -79,6 +80,18 @@ class _LessonEntryScreenState extends ConsumerState<LessonEntryScreen> {
     final AsyncValue<LessonMetadataDto> metaAsync = ref.watch(
       _lessonMetadataProvider(widget.lessonId),
     );
+    final AsyncValue<MyProgressDto> progressAsync = ref.watch(
+      myProgressProvider,
+    );
+    final AttemptSummaryDto? resume = progressAsync.maybeWhen(
+      data: (p) {
+        for (final a in p.inProgress) {
+          if (a.lessonId == widget.lessonId) return a;
+        }
+        return null;
+      },
+      orElse: () => null,
+    );
 
     return HeritageScaffold(
       title: 'BÀI HỌC LỊCH SỬ',
@@ -132,6 +145,32 @@ class _LessonEntryScreenState extends ConsumerState<LessonEntryScreen> {
                   ],
                 ),
               ),
+              if (resume != null) ...[
+                const SizedBox(height: 14),
+                Container(
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 12,
+                    vertical: 8,
+                  ),
+                  decoration: BoxDecoration(
+                    color: DauVietColors.parchmentContainer,
+                    borderRadius: BorderRadius.circular(10),
+                    border: Border.all(
+                      color: DauVietColors.imperialGold,
+                      width: 1,
+                    ),
+                  ),
+                  child: Text(
+                    'Đang học dở — đã xong '
+                    '${resume.progress.completedRequired}/'
+                    '${resume.progress.totalRequired} hoạt động',
+                    style: DauVietTypography.bodySmall.copyWith(
+                      color: DauVietColors.inkText,
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
+                ),
+              ],
               const SizedBox(height: 24),
               if (_startError != null) ...[
                 Container(
@@ -154,7 +193,13 @@ class _LessonEntryScreenState extends ConsumerState<LessonEntryScreen> {
                 const SizedBox(height: 12),
               ],
               DongSonButton(
-                label: _starting ? 'ĐANG MỞ BÀI HỌC...' : 'BẮT ĐẦU KHÁM PHÁ',
+                label: _starting
+                    ? 'ĐANG MỞ BÀI HỌC...'
+                    : (resume != null
+                          ? 'TIẾP TỤC BÀI HỌC '
+                                '(${resume.progress.completedRequired}/'
+                                '${resume.progress.totalRequired})'
+                          : 'BẮT ĐẦU KHÁM PHÁ'),
                 icon: Icons.explore_rounded,
                 variant: DongSonButtonVariant.primaryCinnabar,
                 height: 52,

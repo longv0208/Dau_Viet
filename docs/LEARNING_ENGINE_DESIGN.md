@@ -286,7 +286,7 @@ Phần này ghi lại các quyết định semantic cho những điểm BA chưa
 
 **Completion evaluator**: AND-combination của `requireAllRequiredStages`, `requiredStageIds`, `minScore`; vắng config → `DEFAULT_ALL_REQUIRED`. Reason ưu tiên `ALL_REQUIRED_STAGES` → `REQUIRED_STAGE_IDS` → `MIN_SCORE` → `DEFAULT_ALL_REQUIRED`; thất bại → `NOT_COMPLETE`. **Config rỗng/không-clause (đã chốt 2026-10-16 sau P1 review):** object `completion` không chứa clause nào được kích hoạt (`{}`, hoặc chỉ `requireAllRequiredStages:false` + `requiredStageIds:[]` + `minScore:null`) được evaluator coi như **vắng mặt** → `DEFAULT_ALL_REQUIRED`, KHÔNG được trả `complete=true` sớm (trước fix, `completion:{}` complete ngay với 0 activity). Phía authoring: `DraftValidator` reject `completion:{}` ở PUBLISH (`EMPTY_COMPLETION` → 422) để authoring intent tường minh; SAVE vẫn tolerant. Snapshot legacy đã publish trước siết vẫn an toàn nhờ fallback runtime.
 
-**MVP limits đã ghi nhận**: idempotency chỉ chấp nhận + log header (chưa persist); `complete` chỉ trả verdict, không flip `status`/ghi `lesson_results`/reward (TASK-0012); không dashboard/resume đa attempt (một active attempt per user+lesson theo partial unique index `learner_attempts`).
+~~**MVP limits đã ghi nhận**~~ *(lịch sử — ghi trước TASK-0012, KHÔNG còn mô tả hiện trạng)*: lúc đó idempotency chỉ chấp nhận + log header, `complete` chỉ trả verdict. **Hiện trạng (TASK-0012 đã chốt):** idempotency persist trên `idempotency_records` (scope `user+operation+key`, TTL 24h), `complete` flip `COMPLETED` + ghi `lesson_results` atomically trong một transaction với `alreadyCompleted` idempotent. **Vẫn chưa có:** reward/EXP thật (`reward_transactions` chỉ là schema/ledger, chưa có grant logic tích hợp vào `complete`), dashboard/resume đa attempt vẫn giới hạn một IN_PROGRESS attempt per (user, lesson).
 
 ### TASK-0012 — attempt lifecycle, resume, idempotency & completion (đã chốt 2026-10-16)
 
@@ -300,7 +300,7 @@ Phần này ghi lại các quyết định semantic cho những điểm BA chưa
 
 **Progress/history APIs (owner-only).** `GET /attempts/{id}/result` (404 `RESULT_NOT_FOUND` trước khi complete), `GET /me/attempts?status&page&size` (PageResponse, `size≤50`, `AttemptSummaryResponse` với cursor+progress cho resume), `GET /me/progress` (`inProgress[]` + `completedCount` — mobile resume surface). `lessonId` resolve qua `lesson_versions`; snapshot corrupt → progress `0/0` thay vì 500. `JwtSubjectExtractor` chung: malformed `sub` → `AuthenticationFailedException` → `401` trên mọi learner endpoint (không 500, không bypass ownership).
 
-**Vẫn mở**: retention policy 24h là config mặc định (PO xác nhận nếu cần khác); `result_json` shape `{attemptId,lessonVersionId,reason,score,completedRequired,totalRequired,detail}` chưa có field reward/EXP (TASK reward sau).
+**Vẫn mở**: retention policy 24h là config mặc định (PO xác nhận nếu cần khác); `result_json` shape `{attemptId,lessonVersionId,reason,score,completedRequired,totalRequired,detail}` chưa có field reward/EXP; **reward grant thật chưa được code** — `reward_transactions` chỉ là schema (V4), không có service/endpoint nào ghi row (xem `docs/MAP_COLLECTION_REWARDS_ISLAND.md`).
 
 ## 14. Open decisions
 
