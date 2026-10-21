@@ -203,6 +203,42 @@ void main() {
       expect(find.text('HOÀN THÀNH BÀI HỌC'), findsOneWidget);
     });
 
+    testWidgets(
+      'final activity: completionReady khóa renderer, không submit lại được',
+      (tester) async {
+        final repo = FakeAttemptRepository();
+        repo.onGetCurrent = () => _current(_mcqActivity, done: 1);
+        repo.onSubmit = (a) => const SubmitResultDto(
+          status: 'ACCEPTED',
+          evaluation: EvaluationDto(
+            outcome: 'COMPLETED',
+            completed: true,
+            feedbackCode: 'correct',
+          ),
+          activityCompleted: true,
+          progress: AttemptProgressDto(completedRequired: 2, totalRequired: 2),
+          completion: CompletionVerdictDto(complete: true),
+        );
+        await _pump(tester, repo);
+        await tester.tap(find.text('Đúng'));
+        await tester.pump();
+        await tester.tap(find.text('GỬI CÂU TRẢ LỜI'));
+        await tester.pumpAndSettle();
+        // Feedback + nút hoàn thành hiện; nút submit của renderer biến mất
+        // (renderer bị disable) — không thể resubmit activity đã xong.
+        expect(find.text('Chính xác!'), findsOneWidget);
+        expect(find.text('HOÀN THÀNH BÀI HỌC'), findsOneWidget);
+        expect(find.text('GỬI CÂU TRẢ LỜI'), findsNothing);
+        expect(find.text('TIẾP TỤC ›'), findsNothing);
+        // Tap vào option khác cũng không gây submit thêm.
+        final submitsBefore = repo.submittedAnswers.length;
+        await tester.tap(find.text('Sai'));
+        await tester.pumpAndSettle();
+        expect(repo.submittedAnswers.length, submitsBefore);
+        expect(find.text('HOÀN THÀNH BÀI HỌC'), findsOneWidget);
+      },
+    );
+
     testWidgets('INCORRECT → feedback sai + giữ nguyên activity cho retry', (
       tester,
     ) async {

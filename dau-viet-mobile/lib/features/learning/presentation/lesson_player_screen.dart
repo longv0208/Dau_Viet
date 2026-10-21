@@ -149,6 +149,7 @@ class _LessonPlayerScreenState extends ConsumerState<LessonPlayerScreen> {
     if (st == null ||
         st.submitting ||
         st.awaitingContinue ||
+        st.completionReady ||
         st.current.activity == null) {
       return;
     }
@@ -420,7 +421,12 @@ class _LessonPlayerScreenState extends ConsumerState<LessonPlayerScreen> {
                     key: ValueKey(cur.activity!.id),
                     activity: cur.activity!,
                     content: st.content,
-                    submitting: st.submitting || st.awaitingContinue,
+                    // completionReady: khóa tương tác renderer — chỉ còn
+                    // nút hoàn thành; chặn submit trùng activity cuối.
+                    submitting:
+                        st.submitting ||
+                        st.awaitingContinue ||
+                        st.completionReady,
                     onSubmit: _submit,
                     onInputChanged: _onInputChanged,
                   ),
@@ -643,6 +649,10 @@ class _LessonPlayerScreenState extends ConsumerState<LessonPlayerScreen> {
 
   void _exitNow() {
     if (!mounted) return;
+    // Rời lesson dù chỉ mới partial progress → dashboard phải refetch
+    // progress thay vì dùng cache cũ (đã invalidate sẵn ở _complete khi
+    // lesson hoàn thành; đây là nhánh thoát giữa chừng).
+    ref.invalidate(myProgressProvider);
     if (context.canPop()) {
       context.pop();
     } else {
