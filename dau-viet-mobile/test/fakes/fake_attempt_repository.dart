@@ -18,6 +18,7 @@ class FakeAttemptRepository implements AttemptRepository {
   SubmitResultDto Function(Map<String, dynamic> answer)? onSubmit;
   LessonResultDto? result;
   Object? nextError;
+  bool throwOnGetContent = false;
 
   final List<Map<String, dynamic>> submittedAnswers = [];
   final List<String?> submittedKeys = [];
@@ -33,7 +34,12 @@ class FakeAttemptRepository implements AttemptRepository {
       metadata ?? const LessonMetadataDto(id: 'l', title: 'T', eventId: 'e');
 
   @override
-  Future<LessonContentDto> getAttemptContent(String attemptId) async => content;
+  Future<LessonContentDto> getAttemptContent(String attemptId) async {
+    if (throwOnGetContent) {
+      throw Exception('content unavailable');
+    }
+    return content;
+  }
 
   @override
   Future<AttemptStartDto> startOrResume(String lessonId) async =>

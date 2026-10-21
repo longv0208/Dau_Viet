@@ -8,24 +8,69 @@ import '../../../../core/theme/dau_viet_colors.dart';
 import '../../../../core/theme/dau_viet_typography.dart';
 import '../../data/learning_providers.dart';
 
-/// Cache bytes theo assetId — FutureBuilder rebuild sẽ không fetch lại
-/// cùng một asset trong suốt vòng đời app (asset content là immutable
-/// phía server, pinned-version nên idempotent về mặt học liệu).
+/// Cache bytes theo assetId — fetch lỗi/rỗng KHÔNG được giữ lại (để retry
+/// được sau khi có mạng lại); cache có bound nhỏ + chống trùng request bay
+/// song song. Xóa khi đổi phiên auth (logout / đổi tài khoản) để ảnh có
+/// Bearer không lọt sang user khác.
+const int _kMaxCachedAssets = 24;
 final Map<String, Future<List<int>>> _assetByteCache = {};
+String? _cacheOwnerId; // user/session id đang sở hữu cache — đổi → xóa hết
+
+void _evictIfOverflow() {
+  while (_assetByteCache.length > _kMaxCachedAssets) {
+    _assetByteCache.remove(_assetByteCache.keys.first); // FIFO đơn giản
+  }
+}
+
+/// Gọi khi auth-session đổi (logout, đổi tài khoản, guest → user).
+/// `ownerId` = bất kỳ định danh ổn định nào của phiên hiện tại (vd userId,
+/// hoặc 'guest'/'anon' cho phiên chưa auth). Đổi id → drop toàn bộ ảnh đã
+/// tải bằng credential của phiên trước.
+void resetLearningAssetCacheForSession(String? ownerId) {
+  if (_cacheOwnerId == ownerId) return;
+  _cacheOwnerId = ownerId;
+  _assetByteCache.clear();
+}
 
 /// Chỉ cho test: xóa cache giữa các widget test độc lập.
-void clearLearningAssetCacheForTest() => _assetByteCache.clear();
+void clearLearningAssetCacheForTest() {
+  _assetByteCache.clear();
+  _cacheOwnerId = null;
+}
 
 /// Provider lấy asset bytes đi qua cache trên — dùng chung cho mọi
-/// consumer (renderer, zoom dialog, recap).
+/// consumer (renderer, zoom dialog, recap). Fetch lỗi hoặc trả rỗng sẽ bị
+/// evict khỏi cache để lần rebuild sau retry lại thật (tránh kẹt trạng
+/// thái lỗi tạm thời của mạng/auth).
 Future<List<int>> _fetchAssetBytes(WidgetRef ref, String assetId) {
-  return _assetByteCache.putIfAbsent(assetId, () {
-    final repo = ref.read(attemptRepositoryProvider);
-    if (ApiConfig.useMock) return repo.getAssetBytes(assetId);
-    return ref
-        .read(authRepositoryProvider)
-        .withAuth(() => repo.getAssetBytes(assetId));
+  final cached = _assetByteCache[assetId];
+  if (cached != null) return cached;
+
+  final repo = ref.read(attemptRepositoryProvider);
+  final raw = ApiConfig.useMock
+      ? repo.getAssetBytes(assetId)
+      : ref
+            .read(authRepositoryProvider)
+            .withAuth(() => repo.getAssetBytes(assetId));
+
+  // Self-evict khi kết quả lỗi/rỗng; identity-check tránh xóa nhầm entry
+  // mới hơn nếu cùng assetId được fetch lại trong lúc future cũ đang chạy.
+  late final Future<List<int>> guarded;
+  guarded = raw.then((bytes) {
+    if (bytes.isEmpty && identical(_assetByteCache[assetId], guarded)) {
+      _assetByteCache.remove(assetId);
+    }
+    return bytes;
   });
+  _assetByteCache[assetId] = guarded;
+  _evictIfOverflow();
+  guarded.catchError((_) {
+    if (identical(_assetByteCache[assetId], guarded)) {
+      _assetByteCache.remove(assetId);
+    }
+    return <int>[];
+  });
+  return guarded;
 }
 
 /// Ảnh học liệu tải qua `GET /api/v1/assets/{id}/content` có Bearer.
@@ -51,6 +96,13 @@ class LearningAssetImage extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
+    // Đổi phiên auth (logout / đổi tài khoản / guest → user) → drop ảnh
+    // đã tải bằng credential phiên trước. profile.id ổn định theo user;
+    // các phiên chưa auth quy về status name.
+    ref.listen(authSessionProvider, (prev, next) {
+      final String owner = next.profile?.id ?? 'session:${next.status.name}';
+      resetLearningAssetCacheForSession(owner);
+    });
     return FutureBuilder<List<int>>(
       future: _fetchAssetBytes(ref, assetId),
       builder: (context, snapshot) {

@@ -5,6 +5,7 @@ import 'package:go_router/go_router.dart';
 import '../../../core/theme/dau_viet_colors.dart';
 import '../../../core/theme/dau_viet_typography.dart';
 import '../../../core/widgets/dong_son_button.dart';
+import '../../../core/api/api_config.dart';
 import '../data/attempt_dtos.dart';
 import '../data/learning_dtos.dart';
 import '../data/learning_providers.dart';
@@ -17,7 +18,10 @@ Duration? _noRetry(int retryCount, Object error) => null;
 final _resultProvider = FutureProvider.autoDispose
     .family<LessonResultDto, String>(retry: _noRetry, (ref, attemptId) async {
       final repo = ref.watch(attemptRepositoryProvider);
-      return repo.getResult(attemptId);
+      if (ApiConfig.useMock) return repo.getResult(attemptId);
+      return ref
+          .read(authRepositoryProvider)
+          .withAuth(() => repo.getResult(attemptId));
     });
 
 /// Provider lấy pinned-lesson content để dựng recap — gọi lại endpoint
@@ -26,7 +30,13 @@ final _recapContentProvider = FutureProvider.autoDispose
     .family<LessonContentDto?, String>((ref, attemptId) async {
       try {
         final repo = ref.watch(attemptRepositoryProvider);
-        return await repo.getAttemptContent(attemptId);
+        if (ApiConfig.useMock) {
+          return await repo.getAttemptContent(attemptId);
+        }
+        // Cùng pattern auth với player: refresh-on-401 qua withAuth.
+        return await ref
+            .read(authRepositoryProvider)
+            .withAuth(() => repo.getAttemptContent(attemptId));
       } catch (_) {
         return null; // attempt đã complete / endpoint lỗi → fallback
       }
@@ -185,6 +195,9 @@ class _RecapSection extends StatelessWidget {
     ];
     final stages = content.stages;
     final evidence = content.evidence;
+    // Trích ngắn từ nội dung READ đã authored trong stage CONTEXT — chỉ lấy
+    // text thật trong snapshot, không tự sinh narrative.
+    final String? reading = _firstReadingExcerpt(c, stages);
 
     // Không có gì đáng recap → không render section này.
     final bool hasContent =
@@ -192,7 +205,8 @@ class _RecapSection extends StatelessWidget {
         question != null ||
         objectives.isNotEmpty ||
         stages.isNotEmpty ||
-        evidence.isNotEmpty;
+        evidence.isNotEmpty ||
+        reading != null;
     if (!hasContent) return const SizedBox.shrink();
 
     return ActivityCard(
@@ -257,6 +271,27 @@ class _RecapSection extends StatelessWidget {
                 ),
               ),
           ],
+          if (reading != null) ...[
+            const SizedBox(height: 10),
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+              decoration: BoxDecoration(
+                color: DauVietColors.imperialGold.withValues(alpha: 0.08),
+                borderRadius: BorderRadius.circular(8),
+                border: Border(
+                  left: BorderSide(color: DauVietColors.imperialGold, width: 3),
+                ),
+              ),
+              child: Text(
+                reading,
+                style: DauVietTypography.bodySmall.copyWith(
+                  height: 1.55,
+                  fontStyle: FontStyle.italic,
+                  color: DauVietColors.inkText,
+                ),
+              ),
+            ),
+          ],
           if (stages.isNotEmpty) ...[
             const SizedBox(height: 10),
             const SectionLabel('HÀNH TRÌNH'),
@@ -274,7 +309,7 @@ class _RecapSection extends StatelessWidget {
           ],
           if (evidence.isNotEmpty) ...[
             const SizedBox(height: 10),
-            const SectionLabel('BẰNG CHỨNG ĐÃ KHẢO SÁT'),
+            const SectionLabel('TƯ LIỆU TRONG BÀI HỌC'),
             const SizedBox(height: 4),
             for (final e in evidence.take(4))
               Padding(
@@ -289,6 +324,61 @@ class _RecapSection extends StatelessWidget {
         ],
       ),
     );
+  }
+
+  /// Trích ~2 câu đầu của đoạn READ đầu tiên tìm thấy trong snapshot stages
+  /// (config.body/text/content/passage). Trả null nếu snapshot không chứa
+  /// READ content — view rơi về các section metadata còn lại.
+  static String? _firstReadingExcerpt(
+    Map<String, dynamic> c,
+    List<Map<String, dynamic>> stages,
+  ) {
+    String? pickFrom(Map<String, dynamic>? cfg) {
+      if (cfg == null) return null;
+      for (final k in const ['body', 'text', 'content', 'passage']) {
+        final v = cfg[k];
+        if (v is String && v.trim().isNotEmpty) return v.trim();
+      }
+      final Object? paras = cfg['paragraphs'];
+      if (paras is List) {
+        final first = paras.whereType<String>().firstWhere(
+          (p) => p.trim().isNotEmpty,
+          orElse: () => '',
+        );
+        if (first.isNotEmpty) return first.trim();
+      }
+      return null;
+    }
+
+    // activities có thể nằm trong stages[].activities[] hoặc top-level
+    // content['activities'] tùy projection — quét cả hai nguồn.
+    final List<Map<String, dynamic>> acts = [];
+    for (final s in stages) {
+      final Object? sa = s['activities'];
+      if (sa is List) {
+        acts.addAll(sa.whereType<Map>().map((e) => e.cast<String, dynamic>()));
+      }
+    }
+    final Object? top = c['activities'];
+    if (top is List) {
+      acts.addAll(top.whereType<Map>().map((e) => e.cast<String, dynamic>()));
+    }
+    for (final a in acts) {
+      if ((a['type'] as String?)?.toUpperCase() != 'READ') continue;
+      final cfg = (a['config'] as Map?)?.cast<String, dynamic>();
+      final text = pickFrom(cfg);
+      if (text == null) continue;
+      // Cắt ~2 câu đầu / 220 ký tự.
+      final sentences = text
+          .split(RegExp(r'(?<=[.!?])\s+'))
+          .where((s) => s.isNotEmpty)
+          .toList();
+      final excerpt = sentences.take(2).join(' ');
+      return excerpt.length <= 260
+          ? excerpt
+          : '${excerpt.substring(0, 257).trimRight()}…';
+    }
+    return null;
   }
 
   static String? _str(Map<String, dynamic> m, List<String> keys) {
