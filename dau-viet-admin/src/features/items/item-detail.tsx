@@ -1,7 +1,7 @@
 "use client";
 
 import { zodResolver } from "@hookform/resolvers/zod";
-import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import Link from "next/link";
 import { useEffect, useState } from "react";
 import { useForm } from "react-hook-form";
@@ -242,6 +242,22 @@ export function ItemDetail({ itemId }: { itemId: string }) {
               <input type="checkbox" {...itemForm.register("active")} />
               Hiển thị trong catalog của học viên
             </label>
+            {/* assetId + sourceMetadata giữ nguyên khi sửa metadata —
+                hiển thị read-only để admin biết liên kết hiện tại, đổi
+                qua API nếu cần (không CMS media đầy đủ ở MVP). */}
+            {(item.assetId || item.sourceMetadata) && (
+              <div className="rounded-md border border-outline-variant bg-surface-subtle px-3 py-2 text-xs text-ink-muted">
+                {item.assetId && (
+                  <p>Ảnh: <code>{item.assetId}</code></p>
+                )}
+                {item.sourceMetadata && (
+                  <p className="mt-1">
+                    Nguồn tham chiếu:{" "}
+                    <code>{JSON.stringify(item.sourceMetadata)}</code>
+                  </p>
+                )}
+              </div>
+            )}
             {metaError && (
               <p role="alert" className="rounded-md bg-error/10 px-3 py-2 text-sm text-error">
                 {metaError}

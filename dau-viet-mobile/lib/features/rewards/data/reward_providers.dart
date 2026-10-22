@@ -55,43 +55,36 @@ final rewardSummaryProvider = FutureProvider.autoDispose<RewardSummaryDto>(
 /// Catalog vật phẩm đầy đủ: metadata + owned + requirement + progress —
 /// nguồn duy nhất cho màn Túi Đồ (InventoryScreen). Session-aware.
 final inventoryCatalogProvider =
-    FutureProvider.autoDispose<List<CatalogItemDto>>(
-      retry: _noRetry,
-      (ref) {
-        final sessionKey = _rewardSessionKey(ref.watch(authSessionProvider));
-        assert(sessionKey.isNotEmpty);
-        final repo = ref.watch(rewardRepositoryProvider);
-        if (ApiConfig.useMock) return repo.catalog();
-        return ref.read(authRepositoryProvider).withAuth(repo.catalog);
-      },
-    );
+    FutureProvider.autoDispose<List<CatalogItemDto>>(retry: _noRetry, (ref) {
+      final sessionKey = _rewardSessionKey(ref.watch(authSessionProvider));
+      assert(sessionKey.isNotEmpty);
+      final repo = ref.watch(rewardRepositoryProvider);
+      if (ApiConfig.useMock) return repo.catalog();
+      return ref.read(authRepositoryProvider).withAuth(repo.catalog);
+    });
 
 /// Vật phẩm đã sở hữu — dùng cho nơi chỉ cần danh sách owned (không
 /// cần requirement/progress). Session-aware.
 final inventoryItemsProvider =
-    FutureProvider.autoDispose<List<InventoryItemDto>>(
-      retry: _noRetry,
-      (ref) {
-        final sessionKey = _rewardSessionKey(ref.watch(authSessionProvider));
-        assert(sessionKey.isNotEmpty);
-        final repo = ref.watch(rewardRepositoryProvider);
-        if (ApiConfig.useMock) return repo.inventory();
-        return ref.read(authRepositoryProvider).withAuth(repo.inventory);
-      },
-    );
+    FutureProvider.autoDispose<List<InventoryItemDto>>(retry: _noRetry, (ref) {
+      final sessionKey = _rewardSessionKey(ref.watch(authSessionProvider));
+      assert(sessionKey.isNotEmpty);
+      final repo = ref.watch(rewardRepositoryProvider);
+      if (ApiConfig.useMock) return repo.inventory();
+      return ref.read(authRepositoryProvider).withAuth(repo.inventory);
+    });
 
 /// Lịch sử bút toán thưởng — một trang đầu (MVP: chưa cần load-more UI;
 /// trang sau có thể thêm family theo page khi thiết kế yêu cầu).
 final rewardTransactionsProvider =
-    FutureProvider.autoDispose<RewardTransactionPageDto>(
-      retry: _noRetry,
-      (ref) {
-        final sessionKey = _rewardSessionKey(ref.watch(authSessionProvider));
-        assert(sessionKey.isNotEmpty);
-        final repo = ref.watch(rewardRepositoryProvider);
-        if (ApiConfig.useMock) return repo.transactions();
-        return ref
-            .read(authRepositoryProvider)
-            .withAuth(() => repo.transactions());
-      },
-    );
+    FutureProvider.autoDispose<RewardTransactionPageDto>(retry: _noRetry, (
+      ref,
+    ) {
+      final sessionKey = _rewardSessionKey(ref.watch(authSessionProvider));
+      assert(sessionKey.isNotEmpty);
+      final repo = ref.watch(rewardRepositoryProvider);
+      if (ApiConfig.useMock) return repo.transactions();
+      return ref
+          .read(authRepositoryProvider)
+          .withAuth(() => repo.transactions());
+    });

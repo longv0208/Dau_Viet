@@ -185,27 +185,26 @@ class CatalogItemDto {
     this.sourceNote,
   });
 
-  factory CatalogItemDto.fromJson(Map<String, dynamic> json) =>
-      CatalogItemDto(
-        itemId: json['itemId'] as String? ?? '',
-        code: json['code'] as String? ?? '',
-        name: json['name'] as String? ?? '',
-        description: json['description'] as String?,
-        category: json['category'] as String? ?? '',
-        itemType: json['itemType'] as String? ?? '',
-        rarity: json['rarity'] as String? ?? 'COMMON',
-        assetId: json['assetId'] as String?,
-        owned: json['owned'] as bool? ?? false,
-        acquiredAt: json['acquiredAt'] as String?,
-        requirement: json['requirement'] is Map
-            ? ItemRequirementDto.fromJson(
-                (json['requirement'] as Map).cast<String, dynamic>(),
-              )
-            : null,
-        sourceNote: json['sourceMetadata'] is Map
-            ? (json['sourceMetadata'] as Map)['note'] as String?
-            : null,
-      );
+  factory CatalogItemDto.fromJson(Map<String, dynamic> json) => CatalogItemDto(
+    itemId: json['itemId'] as String? ?? '',
+    code: json['code'] as String? ?? '',
+    name: json['name'] as String? ?? '',
+    description: json['description'] as String?,
+    category: json['category'] as String? ?? '',
+    itemType: json['itemType'] as String? ?? '',
+    rarity: json['rarity'] as String? ?? 'COMMON',
+    assetId: json['assetId'] as String?,
+    owned: json['owned'] as bool? ?? false,
+    acquiredAt: json['acquiredAt'] as String?,
+    requirement: json['requirement'] is Map
+        ? ItemRequirementDto.fromJson(
+            (json['requirement'] as Map).cast<String, dynamic>(),
+          )
+        : null,
+    sourceNote: json['sourceMetadata'] is Map
+        ? (json['sourceMetadata'] as Map)['note'] as String?
+        : null,
+  );
 }
 
 /// PageResponse backend envelope cho GET /me/rewards/transactions.
@@ -233,9 +232,8 @@ class RewardTransactionPageDto {
           ? raw
                 .whereType<Map>()
                 .map(
-                  (e) => RewardTransactionDto.fromJson(
-                    e.cast<String, dynamic>(),
-                  ),
+                  (e) =>
+                      RewardTransactionDto.fromJson(e.cast<String, dynamic>()),
                 )
                 .toList()
           : const [],

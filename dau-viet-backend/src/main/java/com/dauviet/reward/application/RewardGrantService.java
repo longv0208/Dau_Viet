@@ -14,6 +14,8 @@ import com.dauviet.learning.infrastructure.persistence.LessonResultRepository;
 import com.dauviet.reward.domain.RewardTransaction;
 import com.dauviet.reward.infrastructure.persistence.RewardTransactionRepository;
 
+
+
 /**
  * Ghi thưởng server-authoritative (TASK-0023). Mọi grant chạy TRONG
  * transaction của complete()/backfill — attempt không được coi là hoàn
@@ -72,18 +74,17 @@ public class RewardGrantService {
 
     /**
      * Backfill idempotent cho các attempt COMPLETED trước khi tính năng ra
-     * mắt: chỉ grant khi attempt đó là lần hoàn thành đầu tiên của bài
-     * (không grant thưởng thừa cho lần học lại). Chạy lại bao nhiêu lần
-     * cũng an toàn — cause_key chặn ghi trùng.
+     * mắt. Attempt COMPLETED sớm nhất mỗi (user, lesson) chiếm slot; các
+     * loại thưởng policy mong đợi được insertIgnore TỪNG LOẠI riêng — EXP
+     * đã có mà HISTORY_POINTS thiếu thì chỉ bổ sung loại thiếu, không
+     * bỏ qua nguyên attempt, không viết lại bút toán cũ. Attempt sau
+     * của cùng bài không bao giờ được bổ sung.
      *
-     * @return số attempt được bổ sung thưởng (chưa có bút toán nào)
+     * @return số attempt được bổ sung ít nhất một bút toán
      */
     @Transactional(propagation = Propagation.REQUIRED)
     public int backfillFirstCompletions() {
         List<Object[]> rows = lessonResults.findCompletedAttemptsForBackfill();
-        // "Lần đầu" của backfill = attempt COMPLETED sớm nhất mỗi (user,
-        // lesson) — chỉ attempt đó nhận thưởng; các attempt sau của cùng
-        // bài không được bổ sung. Sắp xếp theo completed_at ASC từ query.
         java.util.Set<String> claimedKeys = new java.util.HashSet<>();
         int filled = 0;
         for (Object[] row : rows) {
@@ -91,23 +92,24 @@ public class RewardGrantService {
             UUID userId = (UUID) row[1];
             UUID lessonId = (UUID) row[2];
             String key = userId + ":" + lessonId;
-            // Attempt COMPLETED sớm nhất mỗi (user, lesson) chiếm slot ngay
-            // khi gặp — kể cả khi nó đã có bút toán từ lần backfill trước,
-            // để các attempt sau cùng bài không bao giờ được bổ sung.
-            if (!claimedKeys.add(key)
-                    || !rewards.findByLearnerAttemptId(attemptId).isEmpty()) {
-                continue;
+            // Attempt sớm nhất mỗi (user, lesson) chiếm slot ngay khi gặp —
+            // kể cả khi nó đã có đủ bút toán, để attempt sau không lọt vào.
+            if (!claimedKeys.add(key)) continue;
+            // Tập reward_type đã ghi cho attempt này — chỉ insert loại
+            // còn thiếu, không đụng bút toán đã tồn tại.
+            java.util.Set<String> existing = new java.util.HashSet<>();
+            for (RewardTransaction t :
+                    rewards.findByLearnerAttemptId(attemptId)) {
+                existing.add(t.getRewardType());
             }
-            // Ghi thưởng trực tiếp: backfill không đi qua isFirstCompletion
-            // vì check đó dựa vào "không còn attempt COMPLETED khác" — đúng
-            // cho grant realtime nhưng sai khi đã có attempt sau cùng bài
-            // hoàn thành trước khi backfill chạy. cause_key vẫn là backstop.
+            int inserted = 0;
             for (RewardPolicy.Grant g : policy.firstCompletionGrants(
                     userId, lessonId, attemptId)) {
-                rewards.insertIgnore(userId, attemptId, g.rewardType(),
-                        g.amount(), g.reason(), g.causeKey());
+                if (existing.contains(g.rewardType())) continue;
+                inserted += rewards.insertIgnore(userId, attemptId,
+                        g.rewardType(), g.amount(), g.reason(), g.causeKey());
             }
-            filled++;
+            if (inserted > 0) filled++;
         }
         if (filled > 0) {
             log.info("reward backfill completed attempts={}", filled);

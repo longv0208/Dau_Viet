@@ -84,8 +84,7 @@ class _InventoryScreenState extends ConsumerState<InventoryScreen> {
                       const Center(child: CircularProgressIndicator()),
                   error: (e, _) => _ErrorView(
                     message: e.toString(),
-                    onRetry: () =>
-                        ref.invalidate(inventoryCatalogProvider),
+                    onRetry: () => ref.invalidate(inventoryCatalogProvider),
                   ),
                   data: (items) => _buildBody(items),
                 ),
@@ -316,7 +315,8 @@ class _InventoryScreenState extends ConsumerState<InventoryScreen> {
       ),
       itemBuilder: (context, index) {
         final item = items[index];
-        final isSelected = _selectedItemId == item.itemId ||
+        final isSelected =
+            _selectedItemId == item.itemId ||
             (_selectedItemId == null && index == 0);
         final rarityColor =
             _rarityColors[item.rarity] ?? DauVietColors.outlineVariant;
@@ -407,7 +407,9 @@ class _InventoryScreenState extends ConsumerState<InventoryScreen> {
                       child: Icon(
                         _typeIcons[item.itemType] ??
                             Icons.workspace_premium_rounded,
-                        color: item.owned ? rarityColor : DauVietColors.inkLight,
+                        color: item.owned
+                            ? rarityColor
+                            : DauVietColors.inkLight,
                         size: 26,
                       ),
                     ),
@@ -467,8 +469,7 @@ class _InventoryScreenState extends ConsumerState<InventoryScreen> {
                   ],
                 ),
                 child: Icon(
-                  _typeIcons[item.itemType] ??
-                      Icons.workspace_premium_rounded,
+                  _typeIcons[item.itemType] ?? Icons.workspace_premium_rounded,
                   color: item.owned ? rarityColor : DauVietColors.inkLight,
                   size: 24,
                 ),

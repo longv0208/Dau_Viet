@@ -31,6 +31,18 @@ public class RewardPolicy {
             @org.springframework.beans.factory.annotation.Value(
                     "${dauviet.rewards.first-completion.history-points:50}")
             long historyPointsFirstCompletion) {
+        // Fail-fast: giá trị <= 0 sẽ vi phạm CHECK amount>0 của DB khi
+        // grant chạy — tốt hơn là không khởi động được với cấu hình sai.
+        if (expFirstCompletion <= 0) {
+            throw new IllegalStateException(
+                    "dauviet.rewards.first-completion.exp must be > 0, got "
+                            + expFirstCompletion);
+        }
+        if (historyPointsFirstCompletion <= 0) {
+            throw new IllegalStateException(
+                    "dauviet.rewards.first-completion.history-points must be"
+                            + " > 0, got " + historyPointsFirstCompletion);
+        }
         this.expFirstCompletion = expFirstCompletion;
         this.historyPointsFirstCompletion = historyPointsFirstCompletion;
     }

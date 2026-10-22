@@ -39,6 +39,15 @@ const _learningPrefixes = [
   '/collection',
 ];
 
+/// Demo reward screens hardcode (M-18/19/21) — chỉ giữ trong USE_MOCK;
+/// real mode không có attemptId hợp lệ nên các route này sẽ hiển thị
+/// dữ liệu bịa. Redirect về dashboard để không lộ fabricated rewards.
+const _demoOnlyPrefixes = [
+  '/rewards/victory',
+  '/rewards/claim',
+  '/rewards/artifact',
+];
+
 /// Bộ định tuyến toàn cục của Dấu Việt Mobile (go_router)
 final appRouter = GoRouter(
   initialLocation: '/',
@@ -57,6 +66,11 @@ final appRouter = GoRouter(
 
     // Đã login mà vào /auth → về dashboard.
     if (auth.status == AuthStatus.authenticated && loc == '/auth') {
+      return '/dashboard';
+    }
+
+    // Real mode: demo reward routes không có context attempt → dashboard.
+    if (!ApiConfig.useMock && _demoOnlyPrefixes.any((p) => loc.startsWith(p))) {
       return '/dashboard';
     }
 

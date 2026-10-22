@@ -11,6 +11,9 @@ import org.springframework.transaction.annotation.Transactional;
 
 import com.dauviet.common.api.PageResponse;
 import com.dauviet.common.error.ResourceNotFoundException;
+import com.dauviet.lesson.domain.Lesson;
+import com.dauviet.lesson.domain.LessonStatus;
+import com.dauviet.lesson.infrastructure.persistence.LessonRepository;
 import com.dauviet.reward.api.dto.AdminItemRequest;
 import com.dauviet.reward.api.dto.AdminItemResponse;
 import com.dauviet.reward.api.dto.AdminRuleRequest;
@@ -32,13 +35,19 @@ public class AdminItemService {
 
     private final ItemCatalogRepository items;
     private final ItemUnlockRuleRepository rules;
+    private final LessonRepository lessons;
+    private final jakarta.persistence.EntityManager em;
     private final ObjectMapper mapper;
 
     public AdminItemService(ItemCatalogRepository items,
                             ItemUnlockRuleRepository rules,
+                            LessonRepository lessons,
+                            jakarta.persistence.EntityManager em,
                             ObjectMapper mapper) {
         this.items = items;
         this.rules = rules;
+        this.lessons = lessons;
+        this.em = em;
         this.mapper = mapper;
     }
 
@@ -78,15 +87,24 @@ public class AdminItemService {
     }
 
     /**
-     * Gán rule cho item: tắt mọi rule active hiện có rồi tạo rule mới —
-     * đổi điều kiện không ảnh hưởng vật phẩm đã cấp (append-only).
+     * Gán/thay rule cho item. Atomic + serialize theo item:
+     * pessimistic lock trên row item_catalog → deactivate mọi rule
+     * active hiện có (flush trước) → insert rule mới, nên partial unique
+     * index "một active rule mỗi item" không bao giờ bị vi phạm kể cả
+     * khi Hibernate sắp thứ tự flush khác. Vật phẩm đã cấp trong
+     * user_inventory không bị thu hồi — chỉ lịch sử rule mới đổi.
      */
     @Transactional
     public AdminItemResponse setRule(UUID itemId, AdminRuleRequest req) {
-        ItemCatalog item = load(itemId);
+        ItemCatalog item = items.findByIdForUpdate(itemId).orElseThrow(() ->
+                new ResourceNotFoundException("item not found: " + itemId));
         validateRule(req);
-        rules.findByItemIdOrderByCreatedAtAsc(itemId)
-                .forEach(r -> r.setActive(false));
+        // Flush UPDATE active=false trước INSERT rule mới để không đụng
+        // ux_item_unlock_rule_item (chỉ một active rule/item).
+        for (ItemUnlockRule r : rules.findByItemIdOrderByCreatedAtAsc(itemId)) {
+            r.setActive(false);
+        }
+        em.flush();
         ItemUnlockRule rule = switch (req.ruleType()) {
             case ItemUnlockRule.TYPE_LESSON_COMPLETED ->
                     ItemUnlockRule.lessonCompleted(itemId, req.lessonId());
@@ -107,6 +125,15 @@ public class AdminItemService {
                     throw new IllegalArgumentException(
                             "LESSON_COMPLETED requires lessonId");
                 }
+                // Rule phải trỏ tới bài học learner có thể truy cập: đã
+                // PUBLISHED (còn hiệu lực, không archived/draft).
+                Lesson lesson = lessons.findById(req.lessonId())
+                        .orElseThrow(() -> new IllegalArgumentException(
+                                "lesson not found: " + req.lessonId()));
+                if (lesson.getStatus() != LessonStatus.PUBLISHED) {
+                    throw new IllegalArgumentException(
+                            "lesson not published: " + req.lessonId());
+                }
             }
             case ItemUnlockRule.TYPE_COLLECTION_COUNT,
                  ItemUnlockRule.TYPE_LESSON_COUNT -> {
@@ -125,15 +152,27 @@ public class AdminItemService {
                 new ResourceNotFoundException("item not found: " + itemId));
     }
 
+    /**
+     * Partial update: field null trong request = "không thay đổi" — sửa
+     * title/category/rarity không xoá assetId hay sourceMetadata hiện
+     * có. Xoá có chủ đích: assetId gửi chuỗi rỗng "" (clear), sourceMetadata
+     * gửi {} (object rỗng → lưu null). Giữ @Version optimistic lock trên
+     * entity — hai admin sửa cùng item, người sau bị ObjectOptimisticLock
+     * → 409, không ghi đè lặng lẽ.
+     */
     private void apply(ItemCatalog item, AdminItemRequest req) {
-        item.setName(req.name());
-        item.setDescription(req.description() == null ? "" : req.description());
-        item.setCategory(req.category());
-        item.setItemType(req.itemType());
+        if (req.name() != null) item.setName(req.name());
+        if (req.description() != null) item.setDescription(req.description());
+        if (req.category() != null) item.setCategory(req.category());
+        if (req.itemType() != null) item.setItemType(req.itemType());
         if (req.rarity() != null) item.setRarity(req.rarity());
-        item.setAssetId(req.assetId());
-        item.setSourceMetadata(req.sourceMetadata() == null
-                ? null : req.sourceMetadata().toString());
+        if (req.assetId() != null) item.setAssetId(req.assetId());
+        if (req.clearAsset() == Boolean.TRUE) item.setAssetId(null);
+        if (req.sourceMetadata() != null) {
+            // {} = clear có chủ đích; object có nội dung = thay mới.
+            item.setSourceMetadata(req.sourceMetadata().isEmpty()
+                    ? null : req.sourceMetadata().toString());
+        }
         if (req.active() != null) item.setActive(req.active());
     }
 

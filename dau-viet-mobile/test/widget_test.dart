@@ -340,57 +340,16 @@ void main() {
       );
       await tester.pumpAndSettle();
 
-      // Xác nhận và đóng BiteSizedCompletionModal
+      // Xác nhận và đóng BiteSizedCompletionModal — demo flow kết thúc
+      // bằng điều hướng về dashboard (TASK-0023 P1-D: real mode không hiển
+      // thị fabricated M-18/19/21 reward screens; các route đó chỉ sống
+      // trong USE_MOCK).
       expect(find.text('TIẾP TỤC HÀNH TRÌNH ›'), findsOneWidget);
       await tester.tap(find.text('TIẾP TỤC HÀNH TRÌNH ›'));
       await tester.pumpAndSettle();
 
-      // Xác nhận đã vào M-18 Event Victory Screen
-      expect(find.text('ĐẠI THẮNG BẠCH ĐẰNG'), findsOneWidget);
-      expect(find.text('SĨ TỬ THÔNG TUỆ'), findsOneWidget);
-      expect(find.text('4 DẤU VẾT ĐÃ CHINH PHỤC (100%):'), findsOneWidget);
-
-      // 15. Bấm nhận phần thưởng để mở M-19 Reward Claim Screen
-      await tester.scrollUntilVisible(
-        find.textContaining('NHẬN PHẦN THƯỞNG CHIẾN DỊCH (M-19)'),
-        100,
-      );
-      await tester.tap(
-        find.textContaining('NHẬN PHẦN THƯỞNG CHIẾN DỊCH (M-19)'),
-      );
-      await tester.pumpAndSettle();
-
-      // Xác nhận đã vào M-19 Reward Claim Screen
-      expect(find.text('RƯƠNG BẢO VẬT HOÀNG GIA'), findsOneWidget);
-      expect(find.text('+500'), findsOneWidget);
-      expect(find.text('Hào Khí Bạch Đằng: Định Quốc An Dân'), findsOneWidget);
-
-      // 16. Bấm xem chi tiết cổ vật để mở M-21 Warship Artifact Detail Screen
-      await tester.scrollUntilVisible(
-        find.textContaining('CHIÊM NGƯỠNG BẢO VẬT CHIẾN THUYỀN (M-21)'),
-        100,
-      );
-      await tester.tap(
-        find.textContaining('CHIÊM NGƯỠNG BẢO VẬT CHIẾN THUYỀN (M-21)'),
-      );
-      await tester.pumpAndSettle();
-
-      // Xác nhận đã vào M-21 Warship Artifact Detail Screen
-      expect(find.text('Mô hình Chiến thuyền Bạch Đằng'), findsOneWidget);
-      expect(find.text('Bảo vật Quốc gia'), findsOneWidget);
-      expect(find.text('THÔNG SỐ QUÂN SỰ CỔ TRUYỀN:'), findsOneWidget);
-
-      // 17. Bấm cất vào túi đồ và quay về Bàn học tập Dashboard
-      await tester.scrollUntilVisible(
-        find.textContaining('CẤT VÀO TÚI ĐỒ & VỀ BÀN HỌC (M-03)'),
-        100,
-      );
-      await tester.tap(
-        find.textContaining('CẤT VÀO TÚI ĐỒ & VỀ BÀN HỌC (M-03)'),
-      );
-      await tester.pumpAndSettle();
-
-      // Xác nhận đã quay về M-03 Bàn Học Tập
+      // Xác nhận đã quay về M-03 Bàn Học Tập — real mode không đi qua
+      // fabricated victory/claim/artifact screens.
       expect(find.text('Bàn Học Tập Sử Ký'), findsOneWidget);
 
       // 18. Mở M-22 Đảo Di Sản Cá Nhân qua Bottom Nav Bar (Tab Di Sản)
@@ -410,20 +369,12 @@ void main() {
       await tester.tap(find.textContaining('MỞ TÚI ĐỒ & KHO TRANG TRÍ (M-27)'));
       await tester.pumpAndSettle();
 
-      // Xác nhận đã vào M-27 Inventory Screen
+      // Xác nhận đã vào M-27 Inventory Screen — real mode hiển thị
+      // catalog từ /me/inventory/catalog (journey không sở hữu vật phẩm
+      // nào và không có backend → màn hiển thị error/loading, không có
+      // nút quay về trong body; điều hướng thẳng về dashboard).
       expect(find.text('TÚI ĐỒ SĨ TỬ'), findsOneWidget);
-      expect(
-        find.textContaining('Mô hình Chiến thuyền Bạch Đằng'),
-        findsWidgets,
-      );
-
-      // Bấm quay về Bàn học tập từ Túi đồ
-      await tester.scrollUntilVisible(
-        find.textContaining('VỀ BÀN HỌC TẬP (DASHBOARD)'),
-        100,
-        scrollable: find.byType(Scrollable).first,
-      );
-      await tester.tap(find.textContaining('VỀ BÀN HỌC TẬP (DASHBOARD)'));
+      tester.element(find.text('TÚI ĐỒ SĨ TỬ')).go('/dashboard');
       await tester.pumpAndSettle();
 
       // 20. Mở M-28 Quản Lý Năng Lượng & Viện Thái Y.

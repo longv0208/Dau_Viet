@@ -311,6 +311,56 @@ class RewardGrantIT extends AbstractPostgresIT {
         assertThat(rewardCount("user_id = '" + learnerId + "'")).isEqualTo(2);
     }
 
+    /* ---------- P2-A: summary đếm distinct lessons ---------- */
+
+    @Test
+    void summary_countsDistinctLessons_notAttempts() throws Exception {
+        String lessonA = publish();
+        String lessonB = publish();
+        // L1 x3 lần (mỗi lần attempt mới), L2 x1.
+        completeLesson(learnerToken, lessonA);
+        completeLesson(learnerToken, lessonA);
+        completeLesson(learnerToken, lessonA);
+        completeLesson(learnerToken, lessonB);
+
+        mvc.perform(get("/api/v1/me/rewards/summary")
+                        .header("Authorization", learnerToken))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.lessonsCompleted").value(2))
+                .andExpect(jsonPath("$.exp").value(200))           // 2 bài × 100
+                .andExpect(jsonPath("$.historyPoints").value(100)); // 2 × 50
+    }
+
+    /* ---------- P2-B: backfill từng loại reward độc lập ---------- */
+
+    @Test
+    void backfill_repairsOnlyMissingRewardType() throws Exception {
+        String lessonId = publish();
+        String attemptId = completeLesson(learnerToken, lessonId);
+        // Giữ EXP, xoá HISTORY_POINTS — mô phỏng grant lỗi một phần.
+        jdbc.update("delete from reward_transactions "
+                  + "where reward_type = 'HISTORY_POINTS'");
+        assertThat(rewardCount("user_id = '" + learnerId + "'")).isEqualTo(1);
+
+        mvc.perform(post("/api/v1/admin/rewards/backfill")
+                        .header("Authorization", adminToken))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.attemptsGranted").value(1));
+
+        // Chỉ HISTORY_POINTS được bổ sung — EXP gốc giữ nguyên id.
+        assertThat(rewardCount("user_id = '" + learnerId + "'")).isEqualTo(2);
+        assertThat(jdbc.queryForObject(
+                "select learner_attempt_id::text from reward_transactions "
+              + "where reward_type = 'HISTORY_POINTS' limit 1",
+                String.class)).isEqualTo(attemptId);
+        // Backfill lần hai không tạo thêm.
+        mvc.perform(post("/api/v1/admin/rewards/backfill")
+                        .header("Authorization", adminToken))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.attemptsGranted").value(0));
+        assertThat(rewardCount("user_id = '" + learnerId + "'")).isEqualTo(2);
+    }
+
     @Test
     void backfill_requiresAdmin() throws Exception {
         mvc.perform(post("/api/v1/admin/rewards/backfill")

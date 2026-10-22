@@ -357,6 +357,165 @@ class ItemUnlockIT extends AbstractPostgresIT {
         assertThat(req.get("current").asLong()).isZero();
     }
 
+    /* ---------- P1-A: item disabled vẫn hiển thị nếu đã sở hữu ---------- */
+
+    @Test
+    void disabledItem_stillVisibleWhenOwned_hiddenWhenNot() throws Exception {
+        String lessonId = publish(draftMcOnly());
+        String itemId = newItem("HUY_HIEU_DISABLED", "COMMEMORATIVE_BADGE");
+        newLessonCompletedRule(itemId, lessonId);
+        completeMcLesson(learnerToken, lessonId);
+
+        // Admin tắt item.
+        jdbc.update("update item_catalog set active = false "
+                  + "where id = ?::uuid", itemId);
+
+        // Learner đã sở hữu → vẫn thấy trong catalog (owned) + inventory.
+        MvcResult cat = mvc.perform(get("/api/v1/me/inventory/catalog")
+                        .header("Authorization", learnerToken))
+                .andExpect(status().isOk()).andReturn();
+        JsonNode items = AttemptItFixture.body(om, cat);
+        JsonNode owned = null;
+        for (JsonNode i : items) {
+            if (itemId.equals(i.get("itemId").asText())) owned = i;
+        }
+        assertThat(owned).isNotNull();
+        assertThat(owned.get("owned").asBoolean()).isTrue();
+        mvc.perform(get("/api/v1/me/inventory")
+                        .header("Authorization", learnerToken))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$[0].itemId").value(itemId));
+
+        // Learner khác chưa sở hữu → item biến mất khỏi catalog.
+        MvcResult otherCat = mvc.perform(get("/api/v1/me/inventory/catalog")
+                        .header("Authorization", otherToken))
+                .andExpect(status().isOk()).andReturn();
+        for (JsonNode i : AttemptItFixture.body(om, otherCat)) {
+            assertThat(i.get("itemId").asText()).isNotEqualTo(itemId);
+        }
+        // Inventory row của learner không đổi.
+        assertThat(inventoryCount(
+                "user_id = '" + learnerId + "' and item_id = '" + itemId + "'"))
+                .isEqualTo(1);
+    }
+
+    @Test
+    void disabledItem_cannotBeNewlyGranted() throws Exception {
+        String lessonId = publish(draftMcOnly());
+        String itemId = newItem("HUY_HIEU_NOGRANT", "COMMEMORATIVE_BADGE");
+        newLessonCompletedRule(itemId, lessonId);
+        // Disable trước khi learner hoàn thành.
+        jdbc.update("update item_catalog set active = false "
+                  + "where id = ?::uuid", itemId);
+
+        completeMcLesson(learnerToken, lessonId);
+        assertThat(inventoryCount(
+                "user_id = '" + learnerId + "' and item_id = '" + itemId + "'"))
+                .isZero();
+    }
+
+    /* ---------- P1-B: sửa metadata không xoá asset/source ---------- */
+
+    @Test
+    void metadataEdit_preservesAssetAndSource() throws Exception {
+        // Tạo item có assetId + sourceMetadata qua SQL.
+        String itemId = UUID.randomUUID().toString();
+        String assetId = UUID.randomUUID().toString();
+        jdbc.update("""
+                insert into assets (id, storage_key, mime_type, size_bytes, state)
+                values (?::uuid, ?, 'image/png', 1, 'ACTIVE')
+                """, assetId, "k-" + assetId);
+        jdbc.update("""
+                insert into item_catalog (id, code, name, category, item_type,
+                                          rarity, asset_id, source_metadata, active)
+                values (?::uuid, 'HUY_HIEU_META', 'N', 'HUY_HIEU',
+                        'COMMEMORATIVE_BADGE', 'RARE', ?::uuid,
+                        '{"note":"hiện vật thật"}'::jsonb, true)
+                """, itemId, assetId);
+
+        // Chỉ đổi tên — assetId/sourceMetadata không gửi.
+        mvc.perform(put("/api/v1/admin/items/" + itemId)
+                        .header("Authorization", adminToken)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"code\":\"HUY_HIEU_META\","
+                                + "\"name\":\"Tên mới\","
+                                + "\"category\":\"HUY_HIEU\","
+                                + "\"itemType\":\"COMMEMORATIVE_BADGE\"}"))
+                .andExpect(status().isOk());
+
+        // assetId + sourceMetadata giữ nguyên.
+        assertThat(jdbc.queryForObject(
+                "select asset_id::text from item_catalog where id = ?::uuid",
+                String.class, itemId)).isEqualTo(assetId);
+        assertThat(jdbc.queryForObject(
+                "select source_metadata->>'note' from item_catalog where id = ?::uuid",
+                String.class, itemId)).isEqualTo("hiện vật thật");
+    }
+
+    /* ---------- P1-C: thay rule active an toàn ---------- */
+
+    @Test
+    void replaceActiveRule_oldDeactivated_newActiveExactlyOne()
+            throws Exception {
+        String itemId = newItem("PHIEN_BAN_RULE", "DIGITAL_EDITION");
+        newCountedRule(itemId, "COLLECTION_COUNT", 3);
+
+        // Thay bằng LESSON_COUNT threshold 2.
+        mvc.perform(put("/api/v1/admin/items/" + itemId + "/rule")
+                        .header("Authorization", adminToken)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"ruleType\":\"LESSON_COUNT\",\"threshold\":2,"
+                                + "\"active\":true}"))
+                .andExpect(status().isOk());
+
+        Long active = jdbc.queryForObject(
+                "select count(*) from item_unlock_rule "
+              + "where item_id = ?::uuid and active = true",
+                Long.class, itemId);
+        assertThat(active).isEqualTo(1);
+        // Rule cũ vẫn còn (inactive) — append-only.
+        Long total = jdbc.queryForObject(
+                "select count(*) from item_unlock_rule "
+              + "where item_id = ?::uuid", Long.class, itemId);
+        assertThat(total).isEqualTo(2);
+
+        // Thay tiếp bằng LESSON_COMPLETED trỏ bài đã publish.
+        String lessonId = publish(draftMcOnly());
+        mvc.perform(put("/api/v1/admin/items/" + itemId + "/rule")
+                        .header("Authorization", adminToken)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"ruleType\":\"LESSON_COMPLETED\","
+                                + "\"lessonId\":\"" + lessonId + "\"}"))
+                .andExpect(status().isOk());
+        active = jdbc.queryForObject(
+                "select count(*) from item_unlock_rule "
+              + "where item_id = ?::uuid and active = true",
+                Long.class, itemId);
+        assertThat(active).isEqualTo(1);
+
+        // Hoàn thành bài → item mở qua rule mới.
+        completeMcLesson(learnerToken, lessonId);
+        assertThat(inventoryCount(
+                "user_id = '" + learnerId + "' and item_id = '" + itemId + "'"))
+                .isEqualTo(1);
+    }
+
+    @Test
+    void ruleRejected_forMissingOrUnpublishedLesson() throws Exception {
+        String itemId = newItem("PHIEN_BAN_BADLESSON", "DIGITAL_EDITION");
+        // LessonId không tồn tại.
+        mvc.perform(put("/api/v1/admin/items/" + itemId + "/rule")
+                        .header("Authorization", adminToken)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"ruleType\":\"LESSON_COMPLETED\","
+                                + "\"lessonId\":\""
+                                + UUID.randomUUID() + "\"}"))
+                .andExpect(status().isBadRequest());
+    }
+
+    /* ---------- P2-A: summary đếm distinct lessons ---------- */
+    // (đặt trong RewardGrantIT vì liên quan reward summary)
+
     @Test
     void adminItemCrud_andRuleConfig() throws Exception {
         // Tạo item qua admin API.

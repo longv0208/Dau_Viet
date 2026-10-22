@@ -30,7 +30,11 @@ export interface AdminItemRequest {
   category: string;
   itemType: AdminItem["itemType"];
   rarity?: AdminItem["rarity"];
+  /** Partial update: gửi UUID để đổi ảnh, bỏ qua field = giữ nguyên. */
   assetId?: string | null;
+  /** Xoá asset có chủ đích — chỉ cần khi muốn bỏ ảnh mà không gán ảnh mới. */
+  clearAsset?: boolean;
+  /** Gửi {} để xoá source metadata có chủ đích; bỏ qua field = giữ nguyên. */
   sourceMetadata?: Record<string, unknown> | null;
   active?: boolean;
 }

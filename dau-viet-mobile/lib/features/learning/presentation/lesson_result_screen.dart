@@ -226,7 +226,8 @@ class _RewardsSection extends StatelessWidget {
                     _typeIcons[tx.rewardType] ?? Icons.card_giftcard_rounded,
                     size: 20,
                     color:
-                        _typeColors[tx.rewardType] ?? DauVietColors.imperialGold,
+                        _typeColors[tx.rewardType] ??
+                        DauVietColors.imperialGold,
                   ),
                   const SizedBox(width: 8),
                   Expanded(

@@ -14,8 +14,6 @@ import org.springframework.transaction.annotation.Transactional;
 
 import com.dauviet.collection.infrastructure.persistence.UserEvidenceRepository;
 import com.dauviet.common.api.PageResponse;
-import com.dauviet.learning.domain.LearnerAttempt;
-import com.dauviet.learning.domain.LearnerAttemptStatus;
 import com.dauviet.learning.infrastructure.persistence.LearnerAttemptRepository;
 import com.dauviet.lesson.domain.Lesson;
 import com.dauviet.lesson.domain.LessonVersion;
@@ -81,8 +79,7 @@ public class RewardService {
                 rewards.sumAmount(userId, RewardTransaction.TYPE_EXP),
                 rewards.sumAmount(userId,
                         RewardTransaction.TYPE_HISTORY_POINTS),
-                attempts.countByUserIdAndStatus(userId,
-                        LearnerAttemptStatus.COMPLETED),
+                attempts.countDistinctCompletedLessons(userId),
                 inventory.findByUserIdOrderByAcquiredAtDesc(userId).size());
     }
 
@@ -126,17 +123,30 @@ public class RewardService {
     }
 
     /**
-     * Toàn bộ catalog active kèm trạng thái sở hữu + điều kiện mở khóa
-     * và tiến độ hiện tại — một call đủ để render owned/locked sections.
+     * Catalog cho learner = union item đang active + item learner đã sở
+     * hữu (dedupe theo item id, sort theo code). Item admin tắt sau khi
+     * learner đã sở hữu vẫn hiển thị với owned=true — ownership không bao
+     * giờ bị thu hồi; item inactive không sở hữu vẫn ẩn.
      */
     @Transactional(readOnly = true)
     public List<CatalogItemResponse> catalog(UUID userId) {
-        List<ItemCatalog> all = items.findByActiveTrueOrderByCodeAsc();
+        List<ItemCatalog> active = items.findByActiveTrueOrderByCodeAsc();
         List<UserInventoryItem> owned =
                 inventory.findByUserIdOrderByAcquiredAtDesc(userId);
         Map<UUID, UserInventoryItem> ownedByItem = owned.stream()
                 .collect(Collectors.toMap(UserInventoryItem::getItemId,
                         java.util.function.Function.identity()));
+        // Union: active ∪ owned-inactive, dedupe theo itemId.
+        Map<UUID, ItemCatalog> union = new java.util.LinkedHashMap<>();
+        for (ItemCatalog i : active) union.put(i.getId(), i);
+        for (UserInventoryItem o : owned) {
+            union.computeIfAbsent(o.getItemId(),
+                    id -> items.findById(id).orElse(null));
+        }
+        List<ItemCatalog> all = union.values().stream()
+                .filter(java.util.Objects::nonNull)
+                .sorted(java.util.Comparator.comparing(ItemCatalog::getCode))
+                .toList();
         long collected = userEvidence.countDistinctEvidence(userId);
         long lessonsDone = attempts.countDistinctCompletedLessons(userId);
         Map<UUID, String> lessonTitles = lessonTitlesOf(

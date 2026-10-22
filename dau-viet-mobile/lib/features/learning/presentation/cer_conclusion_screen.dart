@@ -157,7 +157,9 @@ class _CerConclusionScreenState extends State<CerConclusionScreen> {
                                 badgeAsset:
                                     'assets/badges/badge_trace_1_context.png',
                                 onContinue: () {
-                                  context.go('/rewards/victory');
+                                  // Demo flow không gắn attempt — về dashboard,
+                                  // không đi qua fabricated victory screen.
+                                  context.go('/dashboard');
                                 },
                               );
                             } else {
