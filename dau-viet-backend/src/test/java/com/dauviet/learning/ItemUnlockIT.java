@@ -516,6 +516,300 @@ class ItemUnlockIT extends AbstractPostgresIT {
     /* ---------- P2-A: summary đếm distinct lessons ---------- */
     // (đặt trong RewardGrantIT vì liên quan reward summary)
 
+    /* ---------- TASK-0023 P1: explicit inventory reconciliation ---------- */
+
+    /** Helper: tạo N bài lesson khác nhau và learner hoàn thành tất cả. */
+    private String[] completeNLessons(String token, int n) throws Exception {
+        String[] ids = new String[n];
+        for (int i = 0; i < n; i++) {
+            ids[i] = publish(draftMcOnly());
+            completeMcLesson(token, ids[i]);
+        }
+        return ids;
+    }
+
+    /** Helper: collect N evidence qua draftEs (mỗi lesson 2 evidence). */
+    private void collectEvidence(String token, String lessonId,
+                                 String... evIds) throws Exception {
+        String attemptId = AttemptItFixture.startAttempt(mvc, om, token,
+                lessonId);
+        StringBuilder sel = new StringBuilder("[");
+        for (int i = 0; i < evIds.length; i++) {
+            if (i > 0) sel.append(",");
+            sel.append("\"").append(evIds[i]).append("\"");
+        }
+        sel.append("]");
+        submit(token, attemptId, "es",
+                "{\"selectedEvidenceIds\":" + sel + "}");
+        complete(token, attemptId);
+    }
+
+    // A. COLLECTION_COUNT — user đạt ngưỡng trước khi rule tồn tại.
+    @Test
+    void reconcile_collectionCount_grantsPreQualifiedUser() throws Exception {
+        // Learner đã collect 2 evidence từ trước.
+        String lessonId = publish(draftEs());
+        collectEvidence(learnerToken, lessonId, ev1, ev2);
+        // Admin tạo item + rule SAU — learner không nhận tự động.
+        String itemId = newItem("PHIEN_BAN_RECON_CC", "DIGITAL_EDITION");
+        newCountedRule(itemId, "COLLECTION_COUNT", 2);
+        assertThat(inventoryCount(
+                "user_id = '" + learnerId + "' and item_id = '" + itemId + "'"))
+                .isZero();
+
+        MvcResult res = mvc.perform(post(
+                        "/api/v1/admin/rewards/reconcile-unlocks")
+                        .header("Authorization", adminToken))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.itemsGranted").value(1))
+                .andReturn();
+
+        assertThat(inventoryCount(
+                "user_id = '" + learnerId + "' and item_id = '" + itemId + "'"))
+                .isEqualTo(1);
+        // source: ADMIN_GRANT, không phải COLLECTION_COUNT do submit.
+        assertThat(jdbc.queryForObject(
+                "select acquisition_source from user_inventory "
+              + "where user_id = ?::uuid and item_id = ?::uuid",
+                String.class, learnerId, itemId))
+                .isEqualTo("ADMIN_GRANT");
+        // Attempt id NULL cho counted rule (không gắn sai vào attempt).
+        assertThat(jdbc.queryForObject(
+                "select source_attempt_id::text from user_inventory "
+              + "where user_id = ?::uuid and item_id = ?::uuid",
+                String.class, learnerId, itemId)).isNull();
+
+        // Learner khác chỉ collect 1 → không được cấp.
+        assertThat(inventoryCount(
+                "user_id = '" + otherId + "' and item_id = '" + itemId + "'"))
+                .isZero();
+    }
+
+    // B. LESSON_COUNT — learner đủ bài trước khi rule tồn tại.
+    @Test
+    void reconcile_lessonCount_grantsExactlyOnce() throws Exception {
+        // Learner hoàn thành 5 bài trước khi rule xuất hiện.
+        completeNLessons(learnerToken, 5);
+        // Other chỉ 3 bài.
+        completeNLessons(otherToken, 3);
+
+        String itemId = newItem("HUY_HIEU_RECON_LC", "COMMEMORATIVE_BADGE");
+        newCountedRule(itemId, "LESSON_COUNT", 5);
+        assertThat(inventoryCount("item_id = '" + itemId + "'")).isZero();
+
+        mvc.perform(post("/api/v1/admin/rewards/reconcile-unlocks")
+                        .header("Authorization", adminToken))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.itemsGranted").value(1));
+
+        assertThat(inventoryCount(
+                "user_id = '" + learnerId + "' and item_id = '" + itemId + "'"))
+                .isEqualTo(1);
+        // Other 3 < 5 → không được cấp.
+        assertThat(inventoryCount(
+                "user_id = '" + otherId + "' and item_id = '" + itemId + "'"))
+                .isZero();
+    }
+
+    // C. LESSON_COMPLETED — bài đã hoàn thành trước khi rule tồn tại;
+    // bài KHÁC không thoả rule.
+    @Test
+    void reconcile_lessonCompleted_grantsOnlyMatchingLesson() throws Exception {
+        String lessonA = publish(draftMcOnly());
+        String lessonB = publish(draftMcOnly());
+        String attemptA = completeMcLesson(learnerToken, lessonA);
+        completeMcLesson(learnerToken, lessonB);
+
+        String itemId = newItem("HUY_HIEU_RECON_LC_LESSON",
+                "COMMEMORATIVE_BADGE");
+        newLessonCompletedRule(itemId, lessonA);
+        assertThat(inventoryCount(
+                "user_id = '" + learnerId + "' and item_id = '" + itemId + "'"))
+                .isZero();
+
+        mvc.perform(post("/api/v1/admin/rewards/reconcile-unlocks")
+                        .header("Authorization", adminToken))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.itemsGranted").value(1));
+
+        // Row được cấp: source_lesson_id = lessonA, source_attempt_id trỏ
+        // một attempt COMPLETED của learner trên lessonA (metadata truy
+        // vết — không phải "attempt vừa kích hoạt").
+        assertThat(jdbc.queryForObject(
+                "select source_lesson_id::text from user_inventory "
+              + "where user_id = ?::uuid and item_id = ?::uuid",
+                String.class, learnerId, itemId))
+                .isEqualTo(lessonA);
+        String sourceAttempt = jdbc.queryForObject(
+                "select source_attempt_id::text from user_inventory "
+              + "where user_id = ?::uuid and item_id = ?::uuid",
+                String.class, learnerId, itemId);
+        assertThat(sourceAttempt).isNotNull();
+        // source_attempt là một attempt COMPLETED của learner trên lessonA.
+        assertThat(jdbc.queryForObject(
+                "select lv.lesson_id::text from learner_attempts a "
+              + "join lesson_versions lv on a.lesson_version_id = lv.id "
+              + "where a.id = ?::uuid and a.user_id = ?::uuid "
+              + "and a.status = 'COMPLETED'",
+                String.class, sourceAttempt, learnerId))
+                .isEqualTo(lessonA);
+
+        // Rule trỏ lessonB cho item khác — reconcile sau KHI learner đã
+        // hoàn thành lessonB mới cấp; nhưng rule trỏ lesson khác chưa
+        // hoàn thành thì không cấp.
+        String lessonC = publish(draftMcOnly());
+        String itemC = newItem("HUY_HIEU_RECON_MISS", "COMMEMORATIVE_BADGE");
+        newLessonCompletedRule(itemC, lessonC);
+        mvc.perform(post("/api/v1/admin/rewards/reconcile-unlocks")
+                        .header("Authorization", adminToken))
+                .andExpect(status().isOk())
+                // Chỉ item mới chưa đạt — itemsGranted = 0.
+                .andExpect(jsonPath("$.itemsGranted").value(0));
+        assertThat(inventoryCount(
+                "user_id = '" + learnerId + "' and item_id = '" + itemC + "'"))
+                .isZero();
+    }
+
+    // D. Republished lesson — complete v1, republish v2, reconcile vẫn
+    // tính learner đã hoàn thành lesson (đếm theo lesson_id, không version).
+    @Test
+    void reconcile_lessonCompleted_republishedLessonStillCounts()
+            throws Exception {
+        String lessonId = publish(draftMcOnly());
+        completeMcLesson(learnerToken, lessonId);
+
+        // Republish → version mới (learner chưa học v2).
+        mvc.perform(post("/api/v1/admin/lessons/" + lessonId + "/publish")
+                        .header("Authorization", adminToken))
+                .andExpect(status().isOk());
+
+        String itemId = newItem("HUY_HIEU_RECON_REPUB",
+                "COMMEMORATIVE_BADGE");
+        newLessonCompletedRule(itemId, lessonId);
+        mvc.perform(post("/api/v1/admin/rewards/reconcile-unlocks")
+                        .header("Authorization", adminToken))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.itemsGranted").value(1));
+        // Chỉ 1 row cho learner — không nhân đôi theo version.
+        assertThat(inventoryCount(
+                "user_id = '" + learnerId + "' and item_id = '" + itemId + "'"))
+                .isEqualTo(1);
+    }
+
+    // E. Idempotent — gọi 2+ lần không nhân đôi, không đếm lại.
+    @Test
+    void reconcile_idempotent_secondRunGrantsZero() throws Exception {
+        completeNLessons(learnerToken, 2);
+        String itemId = newItem("HUY_HIEU_RECON_IDEM",
+                "COMMEMORATIVE_BADGE");
+        newCountedRule(itemId, "LESSON_COUNT", 2);
+
+        mvc.perform(post("/api/v1/admin/rewards/reconcile-unlocks")
+                        .header("Authorization", adminToken))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.itemsGranted").value(1));
+        long afterFirst = inventoryCount("item_id = '" + itemId + "'");
+        assertThat(afterFirst).isEqualTo(1);
+
+        // Chạy lại — không tạo thêm row, count = 0.
+        mvc.perform(post("/api/v1/admin/rewards/reconcile-unlocks")
+                        .header("Authorization", adminToken))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.itemsGranted").value(0));
+        assertThat(inventoryCount("item_id = '" + itemId + "'"))
+                .isEqualTo(afterFirst);
+    }
+
+    // F. Safety — item inactive không được cấp mới; rule inactive không
+    // được đánh giá; ownership đã ghi không bị xoá.
+    @Test
+    void reconcile_safety_inactiveItemAndRuleSkipped() throws Exception {
+        completeNLessons(learnerToken, 3);
+
+        // Item active + rule LESSON_COUNT=3 → grant bình thường.
+        String activeItem = newItem("HUY_HIEU_RECON_ACT",
+                "COMMEMORATIVE_BADGE");
+        newCountedRule(activeItem, "LESSON_COUNT", 3);
+        // Item INACTIVE — rule hợp lệ nhưng item bị tắt.
+        String inactiveItem = newItem("HUY_HIEU_RECON_INACT",
+                "COMMEMORATIVE_BADGE");
+        newCountedRule(inactiveItem, "LESSON_COUNT", 1);
+        jdbc.update("update item_catalog set active = false "
+                  + "where id = ?::uuid", inactiveItem);
+        // Rule INACTIVE trên item active — không được đánh giá.
+        String disabledRuleItem = newItem("HUY_HIEU_RECON_DISRULE",
+                "COMMEMORATIVE_BADGE");
+        newCountedRule(disabledRuleItem, "LESSON_COUNT", 1);
+        jdbc.update("update item_unlock_rule set active = false "
+                  + "where item_id = ?::uuid", disabledRuleItem);
+
+        mvc.perform(post("/api/v1/admin/rewards/reconcile-unlocks")
+                        .header("Authorization", adminToken))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.itemsGranted").value(1));
+
+        assertThat(inventoryCount(
+                "user_id = '" + learnerId + "' and item_id = '"
+                        + activeItem + "'"))
+                .isEqualTo(1);
+        // Item inactive → không được cấp mới.
+        assertThat(inventoryCount(
+                "user_id = '" + learnerId + "' and item_id = '"
+                        + inactiveItem + "'"))
+                .isZero();
+        // Rule inactive → không được đánh giá.
+        assertThat(inventoryCount(
+                "user_id = '" + learnerId + "' and item_id = '"
+                        + disabledRuleItem + "'"))
+                .isZero();
+
+        // Ownership của activeItem vẫn nguyên sau khi tắt rule — không
+        // revoke.
+        jdbc.update("update item_unlock_rule set active = false "
+                  + "where item_id = ?::uuid", activeItem);
+        mvc.perform(post("/api/v1/admin/rewards/reconcile-unlocks")
+                        .header("Authorization", adminToken))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.itemsGranted").value(0));
+        assertThat(inventoryCount(
+                "user_id = '" + learnerId + "' and item_id = '"
+                        + activeItem + "'"))
+                .isEqualTo(1);
+    }
+
+    // F2. Reconcile không ghi EXP/History Points — chỉ bù inventory.
+    @Test
+    void reconcile_doesNotGrantRewards() throws Exception {
+        completeNLessons(learnerToken, 2);
+        // Xoá mọi reward_transactions trước reconcile — không được tái tạo.
+        jdbc.update("delete from reward_transactions");
+        String itemId = newItem("HUY_HIEU_RECON_NOREWARD",
+                "COMMEMORATIVE_BADGE");
+        newCountedRule(itemId, "LESSON_COUNT", 1);
+
+        mvc.perform(post("/api/v1/admin/rewards/reconcile-unlocks")
+                        .header("Authorization", adminToken))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.itemsGranted").value(1));
+
+        Long rewards = jdbc.queryForObject(
+                "select count(*) from reward_transactions "
+              + "where user_id = ?::uuid", Long.class, learnerId);
+        assertThat(rewards).isZero();
+    }
+
+    // G. Unauthorized — learner không gọi được.
+    @Test
+    void reconcile_requiresAdmin() throws Exception {
+        mvc.perform(post("/api/v1/admin/rewards/reconcile-unlocks")
+                        .header("Authorization", learnerToken))
+                .andExpect(status().isForbidden());
+        mvc.perform(post("/api/v1/admin/rewards/reconcile-unlocks"))
+                .andExpect(status().isUnauthorized());
+    }
+
+    /* ---------- admin item CRUD giữ nguyên ---------- */
+
     @Test
     void adminItemCrud_andRuleConfig() throws Exception {
         // Tạo item qua admin API.

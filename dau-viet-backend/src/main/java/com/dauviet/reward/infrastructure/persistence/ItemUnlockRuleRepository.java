@@ -35,4 +35,8 @@ public interface ItemUnlockRuleRepository
             """)
     List<ItemUnlockRule> findActiveLessonCompletedRules(
             @Param("lessonId") UUID lessonId);
+
+    /** Mọi rule active — reconciliation đánh giá toàn bộ cấu hình. */
+    @Query("SELECT r FROM ItemUnlockRule r WHERE r.active = true")
+    List<ItemUnlockRule> findActiveRules();
 }
