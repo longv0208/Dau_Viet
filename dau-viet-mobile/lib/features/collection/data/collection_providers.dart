@@ -46,12 +46,16 @@ class CollectionListState {
   final bool isLoadingMore;
   final int totalElements;
 
+  /// Lỗi load-more lần trước — UI hiện banner retry nhẹ thay vì nuốt lỗi.
+  final Object? loadMoreError;
+
   const CollectionListState({
     this.items = const [],
     this.nextPage = 0,
     this.hasMore = false,
     this.isLoadingMore = false,
     this.totalElements = 0,
+    this.loadMoreError,
   });
 
   CollectionListState copyLoadingMore() => CollectionListState(
@@ -60,6 +64,25 @@ class CollectionListState {
     hasMore: hasMore,
     isLoadingMore: true,
     totalElements: totalElements,
+    loadMoreError: loadMoreError,
+  );
+
+  CollectionListState copyLoadMoreError(Object error) => CollectionListState(
+    items: items,
+    nextPage: nextPage,
+    hasMore: hasMore,
+    isLoadingMore: false,
+    totalElements: totalElements,
+    loadMoreError: error,
+  );
+
+  CollectionListState copyClearError() => CollectionListState(
+    items: items,
+    nextPage: nextPage,
+    hasMore: hasMore,
+    isLoadingMore: false,
+    totalElements: totalElements,
+    loadMoreError: null,
   );
 }
 
@@ -81,9 +104,18 @@ class CollectionListNotifier extends AsyncNotifier<CollectionListState> {
 
   String? get _type => (_typeKey == null || _typeKey.isEmpty) ? null : _typeKey;
 
+  /// Generation đổi mỗi lần session/filter đổi — chặn response trễ của request
+  /// cũ ghi đè state của request mới (P1-B).
+  int _generation = 0;
+
+  /// Session key đã capture lúc `build()` — loadMore đối chiếu khi resolve.
+  String? _sessionAtBuild;
+
   @override
   Future<CollectionListState> build() async {
+    _generation++; // mỗi build (mới / rebuild sau session đổi) = thế hệ mới
     final sessionKey = _collectionSessionKey(ref.watch(authSessionProvider));
+    _sessionAtBuild = sessionKey;
     assert(sessionKey.isNotEmpty);
     final repo = ref.watch(collectionRepositoryProvider);
     final page = ApiConfig.useMock
@@ -99,10 +131,17 @@ class CollectionListNotifier extends AsyncNotifier<CollectionListState> {
     );
   }
 
-  /// Tải trang kế (load-more). Không-op nếu đang tải / hết trang.
+  /// Tải trang kế (load-more). Chặn duplicate concurrent, stale session/
+  /// generation, dispose. Lỗi trả về giữ items cũ + banner retry (P2-B).
   Future<void> loadMore() async {
     final current = state.value;
     if (current == null || current.isLoadingMore || !current.hasMore) return;
+
+    // Chống tap kép: flag trong state đã ngăn awaiter thứ hai vào đây vì
+    // `current.isLoadingMore` đọc trước khi setState — dùng biến local.
+    final int generation = _generation;
+    final String? session = _sessionAtBuild;
+
     state = AsyncData(current.copyLoadingMore());
     try {
       final repo = ref.read(collectionRepositoryProvider);
@@ -121,6 +160,14 @@ class CollectionListNotifier extends AsyncNotifier<CollectionListState> {
                     size: _pageSize,
                   ),
                 );
+
+      // Chặn response trễ: session đổi (đăng xuất / đổi tài khoản) hoặc
+      // provider đã rebuild (filter khác / dispose) → bỏ qua kết quả.
+      if (!identical(_sessionAtBuild, session) ||
+          _generation != generation ||
+          _collectionSessionKey(ref.read(authSessionProvider)) != session) {
+        return;
+      }
       state = AsyncData(
         CollectionListState(
           items: [...current.items, ...page.content],
@@ -129,10 +176,19 @@ class CollectionListNotifier extends AsyncNotifier<CollectionListState> {
           totalElements: page.totalElements,
         ),
       );
-    } catch (_) {
-      state = AsyncData(current); // giữ items cũ — UI hiện snackbar nếu cần
-      rethrow;
+    } catch (e) {
+      // Giữ items + error state cho banner retry — KHÔNG advance nextPage.
+      if (_generation == generation && identical(_sessionAtBuild, session)) {
+        state = AsyncData(current.copyLoadMoreError(e));
+      }
     }
+  }
+
+  /// Chỉ xoá cờ lỗi (banner) — KHÔNG tự retry; retry = người dùng bấm.
+  void clearLoadMoreError() {
+    final current = state.value;
+    if (current == null || current.loadMoreError == null) return;
+    state = AsyncData(current.copyClearError());
   }
 }
 

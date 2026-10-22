@@ -305,6 +305,69 @@ class CollectionIT extends AbstractPostgresIT {
                 .andExpect(jsonPath("$.totalPages").value(2));
     }
 
+    // P2-A — deterministic pagination khi nhiều row trùng collected_at
+    // (Postgres now() gán cùng timestamp trong 1 transaction): secondary
+    // sort evidenceId ASC đảm bảo mỗi item xuất hiện đúng một lần qua các
+    // trang, thứ tự ổn định.
+    @Test
+    void list_deterministicOrder_whenSameCollectedAt() throws Exception {
+        String lessonId = publish();
+        String attemptId = startAttempt(learnerToken, lessonId);
+        // Cần 1 row learner_attempts hợp lệ làm FK.
+        submitEs(learnerToken, attemptId, "[\"" + ev1 + "\"]", "k-seed");
+
+        // Xoá row collect từ submit; seed 25 rows evidence khác nhau
+        // (unique (user_id, evidence_id)) nhưng cùng collected_at.
+        jdbc.update("delete from user_evidence");
+        final int total = 25;
+        List<String> ids = new java.util.ArrayList<>();
+        for (int i = 0; i < total; i++) {
+            String eid = newEvidence(eventId, "E" + i, "ARTIFACT", "S" + i);
+            ids.add(eid);
+            jdbc.update("""
+                    INSERT INTO user_evidence
+                        (id, user_id, learner_attempt_id, evidence_id,
+                         evidence_type, event_id, snapshot_json, collected_at)
+                    VALUES (gen_random_uuid(), ?::uuid, ?::uuid, ?::uuid,
+                            'ARTIFACT', ?::uuid,
+                            '{"evidence":{"title":"T"}}'::jsonb,
+                            '2026-10-22T00:00:00Z'::timestamptz)
+                    """, learnerId, attemptId, eid, eventId);
+        }
+
+        // Fetch page 0..4 size 5 — mỗi item xuất hiện đúng một lần.
+        List<String> seen = new java.util.ArrayList<>();
+        for (int page = 0; page < 5; page++) {
+            MvcResult res = mvc.perform(get(
+                            "/api/v1/me/collection?page=" + page + "&size=5")
+                            .header("Authorization", learnerToken))
+                    .andExpect(status().isOk())
+                    .andReturn();
+            JsonNode items = om.readTree(res.getResponse().getContentAsString())
+                    .get("content");
+            for (JsonNode it : items) {
+                seen.add(it.get("evidenceId").asText());
+            }
+        }
+        assertThat(seen).hasSize(total);
+        assertThat(seen).containsExactlyInAnyOrderElementsOf(ids);
+        // Không trùng lặp qua các trang.
+        assertThat(new java.util.HashSet<>(seen)).hasSize(total);
+
+        // Thứ tự ổn định: fetch lại page 0 phải ra đúng 5 id đầu như lần trước.
+        MvcResult again = mvc.perform(get(
+                        "/api/v1/me/collection?page=0&size=5")
+                        .header("Authorization", learnerToken))
+                .andExpect(status().isOk())
+                .andReturn();
+        JsonNode items = om.readTree(again.getResponse().getContentAsString())
+                .get("content");
+        for (int i = 0; i < 5; i++) {
+            assertThat(items.get(i).get("evidenceId").asText())
+                    .isEqualTo(seen.get(i));
+        }
+    }
+
     @Test
     void detail_survivesEvidenceArchiveAndEdit() throws Exception {
         String lessonId = publish();

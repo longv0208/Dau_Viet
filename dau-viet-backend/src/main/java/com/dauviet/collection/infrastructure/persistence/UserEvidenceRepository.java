@@ -52,7 +52,7 @@ public interface UserEvidenceRepository extends JpaRepository<UserEvidence, UUID
             WHERE ue.userId = :userId
               AND (:type IS NULL OR ue.evidenceType = :type)
               AND (:eventId IS NULL OR ue.eventId = :eventId)
-            ORDER BY ue.collectedAt DESC
+            ORDER BY ue.collectedAt DESC, ue.evidenceId ASC
             """)
     Page<UserEvidence> search(@Param("userId") UUID userId,
                               @Param("type") String type,

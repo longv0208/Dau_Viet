@@ -19,6 +19,8 @@ import com.fasterxml.jackson.databind.node.ObjectNode;
  * Selection activities. EVIDENCE_SELECT: ids must be visible + inside the
  * snapshot evidence[] and meet config.minRequired (default 1); the hidden
  * requiredEvidenceIds answer key is NOT consulted (VERIFICATION grades that).
+ * Duplicate submitted ids dedupe to a LinkedHashSet before minRequired so
+ * [A,A] can't satisfy minRequired=2 and output/collection stay consistent.
  * HYPOTHESIS_CHOICE: records the chosen hypothesis + supporting evidence for
  * downstream VERIFICATION — no correctness per BA.
  */
@@ -37,7 +39,9 @@ public final class SelectionHandlers {
             List<String> selected = readIdList(sub.answer(), "selectedEvidenceIds");
             Set<String> snapshotEvidence = snapshotEvidenceIds(ctx);
             Set<String> visible = stringIds(config.get("visibleEvidenceIds"));
-            for (String id : selected) {
+            // Dedup giữ thứ tự submit — [A,B,A] tính 2 mục, không 3.
+            Set<String> distinct = new LinkedHashSet<>(selected);
+            for (String id : distinct) {
                 if (!snapshotEvidence.contains(id)) {
                     throw new IllegalArgumentException(
                             "evidence '" + id + "' not in published snapshot");
@@ -51,9 +55,9 @@ public final class SelectionHandlers {
             JsonNodeFactory f = JsonNodeFactory.instance;
             ObjectNode out = f.objectNode();
             ArrayNode arr = out.putArray("selectedEvidenceIds");
-            selected.forEach(arr::add);
-            out.put("selectedCount", selected.size());
-            boolean done = selected.size() >= Math.max(minRequired, 1);
+            distinct.forEach(arr::add);
+            out.put("selectedCount", distinct.size());
+            boolean done = distinct.size() >= Math.max(minRequired, 1);
             return result(done ? ActivityResult.COMPLETED : ActivityResult.IN_PROGRESS,
                     done, out, feedbackFor(ctx.activity(),
                             done ? ActivityResult.COMPLETED : ActivityResult.IN_PROGRESS));

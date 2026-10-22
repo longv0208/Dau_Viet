@@ -193,6 +193,46 @@ void main() {
       // pageTwo rỗng → hasMore=false sau khi load.
       expect(find.text('Xem thêm'), findsNothing);
     });
+
+    // P2-B — lỗi load-more: items cũ giữ nguyên, banner lỗi + retry đúng
+    // trang kế, không auto-retry, không mất items đã có.
+    testWidgets('load-more lỗi → banner THỬ LẠI, items giữ, retry đúng trang', (
+      tester,
+    ) async {
+      const item3 = CollectionItemDto(
+        evidenceId: 'e3',
+        evidenceType: 'LOCATION',
+        evidence: EvidenceSnapshotDto(title: 'Đèo Ngang'),
+      );
+      final repo = _FakeCollectionRepository()
+        ..items = const [item1]
+        ..pageTwo = const [item3];
+      await tester.pumpWidget(buildApp(repo));
+      await tester.pumpAndSettle();
+
+      // Inject lỗi cho trang 2.
+      repo.error = const ApiException(
+        ApiError(code: 'NETWORK_ERROR', message: 'down'),
+      );
+      await tester.tap(find.text('Xem thêm'));
+      await tester.pumpAndSettle();
+
+      // Items trang 1 vẫn hiện, banner lỗi xuất hiện.
+      expect(find.text('Bãi cọc Yên Giang'), findsOneWidget);
+      expect(find.text('Đèo Ngang'), findsNothing);
+      expect(
+        find.text('Chưa tải thêm được. Kiểm tra kết nối rồi thử lại.'),
+        findsOneWidget,
+      );
+      expect(find.text('THỬ LẠI'), findsOneWidget);
+      // Không auto-retry: bấm "THỬ LẠI" mới đánh tiếp trang 2.
+      repo.error = null;
+      await tester.tap(find.text('THỬ LẠI'));
+      await tester.pumpAndSettle();
+
+      expect(find.text('Đèo Ngang'), findsOneWidget);
+      expect(find.text('THỬ LẠI'), findsNothing);
+    });
   });
 
   group('collectionListProvider session scoping', () {

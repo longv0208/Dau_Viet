@@ -98,6 +98,48 @@ class CollectionDetailScreen extends ConsumerWidget {
             const SizedBox(height: 14),
             _sourceCard(evidence.source!),
           ],
+          // P2-C — CTA mở sự kiện liên quan khi backend trả eventId.
+          // CampaignDetailScreen tự xử lý event archived/404 (AsyncStateView
+          // lỗi/empty) nên ta chỉ truyền id, không suy diễn trạng thái.
+          if (item.eventId != null) ...[
+            const SizedBox(height: 14),
+            ParchmentCard(
+              padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+              borderColor: DauVietColors.imperialGold,
+              child: Row(
+                children: [
+                  const Icon(
+                    Icons.event_rounded,
+                    size: 16,
+                    color: DauVietColors.imperialGold,
+                  ),
+                  const SizedBox(width: 8),
+                  Expanded(
+                    child: Text(
+                      item.eventTitle != null
+                          ? 'Sự kiện: ${item.eventTitle}'
+                          : 'Mở sự kiện liên quan',
+                      style: DauVietTypography.bodySmall.copyWith(
+                        fontWeight: FontWeight.w600,
+                      ),
+                      maxLines: 2,
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                  ),
+                  TextButton(
+                    onPressed: () => context.push('/campaign/${item.eventId}'),
+                    style: TextButton.styleFrom(
+                      foregroundColor: DauVietColors.cinnabarRed,
+                      textStyle: DauVietTypography.labelSmall.copyWith(
+                        fontWeight: FontWeight.w800,
+                      ),
+                    ),
+                    child: const Text('XEM SỰ KIỆN'),
+                  ),
+                ],
+              ),
+            ),
+          ],
         ],
       ),
     );

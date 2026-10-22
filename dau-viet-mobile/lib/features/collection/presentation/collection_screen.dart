@@ -24,14 +24,7 @@ class _CollectionScreenState extends ConsumerState<CollectionScreen> {
   /// Filter loại đang chọn — '' = Tất cả. Key cho family provider.
   String _typeFilter = '';
 
-  static const List<(String, String)> _typeChips = [
-    ('', 'Tất cả'),
-    ('LOCATION', 'Địa điểm'),
-    ('CHARACTER', 'Nhân vật'),
-    ('ARTIFACT', 'Hiện vật'),
-    ('DOCUMENT', 'Tư liệu'),
-  ];
-
+  /// Nhãn Tiếng Việt cho các loại chuẩn; loại khác dùng raw type (P2-D).
   String _typeLabel(String? type) => switch (type) {
     'LOCATION' => 'Địa điểm',
     'CHARACTER' => 'Nhân vật',
@@ -40,6 +33,16 @@ class _CollectionScreenState extends ConsumerState<CollectionScreen> {
     null => 'Bằng chứng',
     _ => type,
   };
+
+  /// Primary categories luôn hiển thị; authored types mới sẽ xuất hiện
+  /// thêm chip từ `totalElements` của list "Tất cả" — không cần CMS.
+  static const List<(String, String)> _primaryChips = [
+    ('', 'Tất cả'),
+    ('LOCATION', 'Địa điểm'),
+    ('CHARACTER', 'Nhân vật'),
+    ('ARTIFACT', 'Hiện vật'),
+    ('DOCUMENT', 'Tư liệu'),
+  ];
 
   @override
   Widget build(BuildContext context) {
@@ -66,7 +69,7 @@ class _CollectionScreenState extends ConsumerState<CollectionScreen> {
       body: Column(
         children: [
           _buildHeader(async),
-          _buildFilterRow(),
+          _buildFilterRow(async),
           Expanded(child: _buildBody(async)),
         ],
       ),
@@ -99,16 +102,31 @@ class _CollectionScreenState extends ConsumerState<CollectionScreen> {
     );
   }
 
-  Widget _buildFilterRow() {
+  /// Chips: 4 loại chuẩn + loại authored khác từ data (P2-D). Chỉ hiện
+  /// chip cho loại thực sự có trong collection — không hiển thị category
+  /// trống gây nhiễu.
+  Widget _buildFilterRow(AsyncValue<CollectionListState> async) {
+    final chips = List<(String, String)>.from(_primaryChips);
+    // Lấy các loại authored ngoài 4 chuẩn từ list hiện tại.
+    final items = async.value?.items ?? const [];
+    final known = _primaryChips.map((c) => c.$1).toSet();
+    final extra = items
+        .map((i) => i.evidenceType)
+        .whereType<String>()
+        .where((t) => t.isNotEmpty && !known.contains(t))
+        .toSet();
+    for (final t in extra) {
+      chips.add((t, _typeLabel(t)));
+    }
     return SizedBox(
       height: 44,
       child: ListView.separated(
         scrollDirection: Axis.horizontal,
         padding: const EdgeInsets.symmetric(horizontal: 20),
-        itemCount: _typeChips.length,
+        itemCount: chips.length,
         separatorBuilder: (_, _) => const SizedBox(width: 8),
         itemBuilder: (context, i) {
-          final (value, label) = _typeChips[i];
+          final (value, label) = chips[i];
           final selected = _typeFilter == value;
           return ChoiceChip(
             label: Text(label),
@@ -141,23 +159,7 @@ class _CollectionScreenState extends ConsumerState<CollectionScreen> {
       ),
       data: (list) {
         if (list.items.isEmpty) {
-          return RefreshIndicator(
-            onRefresh: _refresh,
-            color: DauVietColors.cinnabarRed,
-            child: ListView(
-              physics: const AlwaysScrollableScrollPhysics(),
-              children: [
-                const SizedBox(height: 120),
-                AsyncStateView(
-                  icon: Icons.auto_stories_outlined,
-                  title: 'Bộ sưu tập còn trống',
-                  message:
-                      'Hoàn thành các hoạt động chọn bằng chứng trong bài học '
-                      'để lưu bằng chứng vào đây.',
-                ),
-              ],
-            ),
-          );
+          return _emptyState();
         }
         return RefreshIndicator(
           onRefresh: _refresh,
@@ -165,16 +167,88 @@ class _CollectionScreenState extends ConsumerState<CollectionScreen> {
           child: ListView.builder(
             physics: const AlwaysScrollableScrollPhysics(),
             padding: const EdgeInsets.fromLTRB(20, 12, 20, 20),
-            itemCount: list.items.length + (list.hasMore ? 1 : 0),
+            itemCount:
+                list.items.length +
+                (list.hasMore || list.loadMoreError != null ? 1 : 0),
             itemBuilder: (context, i) {
               if (i == list.items.length) {
-                return _buildLoadMore(list);
+                return list.loadMoreError != null
+                    ? _buildLoadMoreError(list)
+                    : _buildLoadMore(list);
               }
               return _buildCard(list.items[i]);
             },
           ),
         );
       },
+    );
+  }
+
+  /// Empty state + CTA mở luồng khám phá bài học thật (P2-C). Không
+  /// hard-code Bạch Đằng — dùng trang danh sách sự kiện (campaign list) vì
+  /// backend chưa có endpoint /events/list riêng; /dashboard là điểm vào
+  /// chính xác của discovery flow.
+  Widget _emptyState() {
+    return RefreshIndicator(
+      onRefresh: _refresh,
+      color: DauVietColors.cinnabarRed,
+      child: ListView(
+        physics: const AlwaysScrollableScrollPhysics(),
+        children: [
+          const SizedBox(height: 80),
+          Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 24),
+            child: ParchmentCard(
+              padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 28),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  const Icon(
+                    Icons.auto_stories_outlined,
+                    size: 40,
+                    color: DauVietColors.cinnabarRed,
+                  ),
+                  const SizedBox(height: 14),
+                  Text(
+                    'Bộ sưu tập còn trống',
+                    textAlign: TextAlign.center,
+                    style: DauVietTypography.headlineMedium.copyWith(
+                      fontSize: 16,
+                    ),
+                  ),
+                  const SizedBox(height: 8),
+                  Text(
+                    'Hoàn thành các hoạt động chọn bằng chứng trong bài học '
+                    'để lưu bằng chứng vào đây.',
+                    textAlign: TextAlign.center,
+                    style: DauVietTypography.bodySmall.copyWith(
+                      color: DauVietColors.inkMuted,
+                      height: 1.4,
+                    ),
+                  ),
+                  const SizedBox(height: 18),
+                  TextButton.icon(
+                    onPressed: () => context.go('/dashboard'),
+                    icon: const Icon(Icons.explore_rounded, size: 16),
+                    label: const Text('KHÁM PHÁ BÀI HỌC'),
+                    style: TextButton.styleFrom(
+                      foregroundColor: Colors.white,
+                      backgroundColor: DauVietColors.cinnabarRed,
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 18,
+                        vertical: 10,
+                      ),
+                      textStyle: DauVietTypography.labelMedium.copyWith(
+                        fontWeight: FontWeight.w800,
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
+        ],
+      ),
     );
   }
 
@@ -192,8 +266,7 @@ class _CollectionScreenState extends ConsumerState<CollectionScreen> {
               ? null
               : () => ref
                     .read(collectionListProvider(_typeFilter).notifier)
-                    .loadMore()
-                    .catchError((_) {}),
+                    .loadMore(),
           icon: list.isLoadingMore
               ? const SizedBox(
                   width: 14,
@@ -208,6 +281,48 @@ class _CollectionScreenState extends ConsumerState<CollectionScreen> {
               fontWeight: FontWeight.w700,
             ),
           ),
+        ),
+      ),
+    );
+  }
+
+  /// Banner lỗi load-more: giữ items + vị trí scroll, nút THỬ LẠI chỉ gọi
+  /// loadMore một lần cho đúng trang kế (P2-B).
+  Widget _buildLoadMoreError(CollectionListState list) {
+    return Padding(
+      padding: const EdgeInsets.only(top: 8),
+      child: ParchmentCard(
+        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+        borderColor: DauVietColors.errorRed.withValues(alpha: 0.4),
+        child: Row(
+          children: [
+            const Icon(
+              Icons.cloud_off_rounded,
+              size: 16,
+              color: DauVietColors.errorRed,
+            ),
+            const SizedBox(width: 8),
+            Expanded(
+              child: Text(
+                'Chưa tải thêm được. Kiểm tra kết nối rồi thử lại.',
+                style: DauVietTypography.bodySmall.copyWith(
+                  color: DauVietColors.errorRed,
+                ),
+              ),
+            ),
+            TextButton(
+              onPressed: () => ref
+                  .read(collectionListProvider(_typeFilter).notifier)
+                  .loadMore(),
+              style: TextButton.styleFrom(
+                foregroundColor: DauVietColors.cinnabarRed,
+                textStyle: DauVietTypography.labelSmall.copyWith(
+                  fontWeight: FontWeight.w800,
+                ),
+              ),
+              child: const Text('THỬ LẠI'),
+            ),
+          ],
         ),
       ),
     );
