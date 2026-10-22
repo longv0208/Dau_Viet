@@ -97,19 +97,18 @@ void main() {
       await tester.tap(find.text('Xem Chi Tiết Chiến Dịch'));
       await tester.pumpAndSettle();
 
-      // Xác nhận đã vào M-07 Campaign Detail
+      // Xác nhận đã vào M-07 Campaign Detail — real mode hiển thị
+      // event.title từ backend (không còn headline hard-code).
       expect(find.text('CHI TIẾT CHIẾN DỊCH'), findsOneWidget);
-      expect(
-        find.text('Kế Sách Cọc Ngầm Đè Bẹp Thủy Quân Nam Hán'),
-        findsOneWidget,
-      );
+      expect(find.text('Đại Chiến Bạch Đằng 938'), findsWidgets);
 
-      // 7. Bấm vào Bắt Đầu Khám Phá để mở M-08 Trung Tâm 4 Dấu Vết
-      await tester.scrollUntilVisible(
-        find.text('BẮT ĐẦU KHÁM PHÁ (4 DẤU VẾT) ›'),
-        100,
+      // 7. Vào M-08 Trung Tâm 4 Dấu Vết — nút demo "BẮT ĐẦU KHÁM PHÁ"
+      // chỉ render khi USE_MOCK; test chạy real-mode nên điều hướng thẳng
+      // bằng route để giữ coverage các màn demo phía sau.
+      final BuildContext campaignCtx = tester.element(
+        find.text('CHI TIẾT CHIẾN DỊCH'),
       );
-      await tester.tap(find.text('BẮT ĐẦU KHÁM PHÁ (4 DẤU VẾT) ›'));
+      campaignCtx.go('/traces/evt_bach_dang_938');
       await tester.pumpAndSettle();
 
       // Xác nhận đã vào M-08 Traces Hub

@@ -13,6 +13,7 @@ import org.springframework.transaction.annotation.Transactional;
 import com.dauviet.common.error.ResourceNotFoundException;
 import com.dauviet.historicalevent.infrastructure.persistence.HistoricalEventRepository;
 import com.dauviet.lesson.domain.Lesson;
+import com.dauviet.lesson.domain.LessonStatus;
 import com.dauviet.lesson.infrastructure.persistence.LessonRepository;
 import com.dauviet.map.admin.dto.AdminMapLocationRequest;
 import com.dauviet.map.admin.dto.AdminMapLocationResponse;
@@ -74,8 +75,13 @@ public class AdminMapLocationService {
 
     @Transactional
     public AdminMapLocationResponse setStatus(UUID eventId, UUID locationId,
-                                              MapLocationStatus status) {
+                                              MapLocationStatus status,
+                                              Long expectedRowVersion) {
         MapLocation l = load(eventId, locationId);
+        checkVersion(l, expectedRowVersion);
+        if (status == MapLocationStatus.PUBLISHED) {
+            validatePublishable(l.getUnlockLessonId());
+        }
         l.setStatus(status);
         return toResponse(locations.save(l), Map.of());
     }
@@ -95,7 +101,11 @@ public class AdminMapLocationService {
     }
 
     private void checkVersion(MapLocation l, Long expected) {
-        if (expected != null && !expected.equals(l.getRowVersion())) {
+        if (expected == null) {
+            throw new IllegalArgumentException(
+                    "Thiếu expectedRowVersion — tải lại địa điểm trước khi sửa");
+        }
+        if (!expected.equals(l.getRowVersion())) {
             throw new org.springframework.orm.ObjectOptimisticLockingFailureException(
                     MapLocation.class, l.getId());
         }
@@ -110,6 +120,27 @@ public class AdminMapLocationService {
         if (!eventId.equals(lesson.getEventId())) {
             throw new IllegalArgumentException(
                     "Bài học mở khoá phải thuộc cùng sự kiện với địa điểm");
+        }
+    }
+
+    /**
+     * Publish gate (FR-36): địa điểm PUBLISHED không được trỏ tới bài học mà
+     * learner không mở được — draft (chưa publish) hoặc archived (không còn
+     * bản published nào). Bài học đã publish rồi archive vẫn giữ
+     * currentVersionId nên learner cũ vẫn mở được; draft/archived-lesson
+     * không có version nào thì bị chặn.
+     */
+    private void validatePublishable(UUID lessonId) {
+        if (lessonId == null) return;
+        Lesson lesson = lessons.findById(lessonId)
+                .orElseThrow(() -> new IllegalArgumentException(
+                        "Bài học mở khoá không tồn tại: " + lessonId));
+        boolean learnerAccessible = lesson.getStatus() == LessonStatus.PUBLISHED
+                && lesson.getCurrentVersionId() != null;
+        if (!learnerAccessible) {
+            throw new IllegalArgumentException(
+                    "Bài học mở khoá phải được xuất bản trước khi địa điểm "
+                            + "được xuất bản cho học viên");
         }
     }
 

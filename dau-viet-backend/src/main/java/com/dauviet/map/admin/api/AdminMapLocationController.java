@@ -61,7 +61,8 @@ public class AdminMapLocationController {
     @PostMapping("/{locationId}/status")
     public AdminMapLocationResponse setStatus(@PathVariable UUID eventId,
             @PathVariable UUID locationId,
-            @RequestParam MapLocationStatus status) {
-        return service.setStatus(eventId, locationId, status);
+            @RequestParam MapLocationStatus status,
+            @RequestParam(required = false) Long expectedRowVersion) {
+        return service.setStatus(eventId, locationId, status, expectedRowVersion);
     }
 }

@@ -5,58 +5,67 @@ import 'package:flutter/material.dart';
 import '../../../core/theme/dau_viet_colors.dart';
 import '../data/map_location_dto.dart';
 
-/// Bản đồ giấy dó stylized — KHÔNG dùng tile thật (zero-dep, đúng brief).
-/// Tọa độ lat/lng được chuẩn hoá vào khung nhìn bao quanh các điểm dữ liệu
-/// (+ padding), vẽ lên nền parchment với lưới kinh tuyến/vĩ tuyến mờ và
-/// bờ biển Việt Nam lược hoạ bằng bezier. Vị trí marker tính từ tọa độ
-/// thật — không bịa vị trí.
+/// Khung nhìn bao quanh các điểm dữ liệu (+ padding) và phép chiếu
+/// lat/lng → offset. Screen và painter dùng CHUNG hàm này để marker và
+/// nền khớp nhau tuyệt đối (cùng một projection).
+///
+/// Đây là bản đồ lược hoạ (schematic): không có base map thật, không
+/// bờ biển/địa hình định vị theo tọa độ — vì vậy đường cong trang trí
+/// KHÔNG được gợi hình địa lý thật, tránh hiểu nhầm là georeferenced.
+Rect mapDataBounds(List<MapLocationDto> locations) {
+  // Vùng mặc định quanh đồng bằng Bắc Bộ khi chưa có điểm — chỉ là khung
+  // nhìn trống, KHÔNG sinh marker.
+  if (locations.isEmpty) {
+    return const Rect.fromLTRB(104.5, 20.0, 107.5, 22.5);
+  }
+  double minLng = locations.first.longitude;
+  double maxLng = minLng;
+  double minLat = locations.first.latitude;
+  double maxLat = minLat;
+  for (final l in locations) {
+    minLng = math.min(minLng, l.longitude);
+    maxLng = math.max(maxLng, l.longitude);
+    minLat = math.min(minLat, l.latitude);
+    maxLat = math.max(maxLat, l.latitude);
+  }
+  // Padding 15% mỗi phía; span tối thiểu 0.6° để 1 điểm / cụm điểm sát
+  // nhau vẫn render rõ thay vì zoom vô hạn.
+  const pad = 0.15;
+  final spanLng = math.max(maxLng - minLng, 0.6);
+  final spanLat = math.max(maxLat - minLat, 0.6);
+  return Rect.fromLTRB(
+    minLng - spanLng * pad,
+    minLat - spanLat * pad,
+    maxLng + spanLng * pad,
+    maxLat + spanLat * pad,
+  );
+}
+
+/// Project lat/lng → offset trong một canvas `size` với `bounds` cho
+/// trước. Giá trị nằm ngoài khung vẫn project tuyến tính (marker ngoài
+/// viewport bị InteractiveViewer che — đúng kỳ vọng khi pan/zoom).
+Offset projectLngLat(MapLocationDto loc, Size size, Rect bounds) {
+  final dx = (loc.longitude - bounds.left) / bounds.width;
+  final dy = 1 - (loc.latitude - bounds.top) / bounds.height;
+  return Offset(dx * size.width, dy * size.height);
+}
+
+/// Bản đồ giấy dó lược hoạ — KHÔNG dùng tile/base map thật (zero-dep).
+/// Nền parchment + lưới kinh/vĩ tuyến mờ + la bàn + vài nét sóng trang
+/// trí THUẦN hoạ tiết (không gợi hình địa lý thật). Vị trí marker tính
+/// từ tọa độ thật qua [projectLngLat] — không bịa vị trí.
 class HistoricalMapPainter extends CustomPainter {
   final List<MapLocationDto> locations;
   final int? selectedIndex;
 
   HistoricalMapPainter({required this.locations, this.selectedIndex});
 
-  /// Vùng dữ liệu mặc định quanh đồng bằng Bắc Bộ khi chưa có điểm nào —
-  /// dùng làm khung nhìn trống, KHÔNG sinh marker.
-  static const Rect _fallbackBounds = Rect.fromLTRB(104.5, 20.0, 107.5, 22.5);
-
-  Rect _dataBounds() {
-    if (locations.isEmpty) return _fallbackBounds;
-    double minLng = locations.first.longitude;
-    double maxLng = minLng;
-    double minLat = locations.first.latitude;
-    double maxLat = minLat;
-    for (final l in locations) {
-      minLng = math.min(minLng, l.longitude);
-      maxLng = math.max(maxLng, l.longitude);
-      minLat = math.min(minLat, l.latitude);
-      maxLat = math.max(maxLat, l.latitude);
-    }
-    // Padding 15% mỗi phía, tối thiểu 0.6° để cụm điểm sát nhau vẫn rõ.
-    const pad = 0.15;
-    final spanLng = math.max(maxLng - minLng, 0.6);
-    final spanLat = math.max(maxLat - minLat, 0.6);
-    return Rect.fromLTRB(
-      minLng - spanLng * pad,
-      minLat - spanLat * pad,
-      maxLng + spanLng * pad,
-      maxLat + spanLat * pad,
-    );
-  }
-
-  /// Project lat/lng → offset trong `size`.
-  Offset project(MapLocationDto loc, Size size, Rect bounds) {
-    final dx = (loc.longitude - bounds.left) / bounds.width;
-    final dy = 1 - (loc.latitude - bounds.top) / bounds.height;
-    return Offset(dx * size.width, dy * size.height);
-  }
-
   @override
   void paint(Canvas canvas, Size size) {
-    final bounds = _dataBounds();
+    final bounds = mapDataBounds(locations);
     _paintParchment(canvas, size);
     _paintGrid(canvas, size, bounds);
-    _paintCoastline(canvas, size, bounds);
+    _paintDecorativeWaves(canvas, size);
     _paintCompass(canvas, size);
   }
 
@@ -106,60 +115,21 @@ class HistoricalMapPainter extends CustomPainter {
     );
   }
 
-  /// Bờ biển lược hoạ — vùng biển phía Đông/Nam tô nhạt, đường cong gợi
-  /// hình chữ S. Thuần trang trí; marker vẫn đặt theo tọa độ thật.
-  void _paintCoastline(Canvas canvas, Size size, Rect bounds) {
-    final sea = Paint()
-      ..color = DauVietColors.riverBlue.withValues(alpha: 0.14);
-    final seaPath = Path()
-      ..moveTo(size.width * 0.55, 0)
-      ..quadraticBezierTo(
-        size.width * 0.80,
-        size.height * 0.30,
-        size.width * 0.62,
-        size.height * 0.55,
-      )
-      ..quadraticBezierTo(
-        size.width * 0.50,
-        size.height * 0.75,
-        size.width * 0.70,
-        size.height,
-      )
-      ..lineTo(size.width, size.height)
-      ..lineTo(size.width, 0)
-      ..close();
-    canvas.drawPath(seaPath, sea);
-
-    final coast = Paint()
-      ..color = DauVietColors.riverBlue.withValues(alpha: 0.45)
-      ..style = PaintingStyle.stroke
-      ..strokeWidth = 1.6;
-    final coastPath = Path()
-      ..moveTo(size.width * 0.55, 0)
-      ..quadraticBezierTo(
-        size.width * 0.80,
-        size.height * 0.30,
-        size.width * 0.62,
-        size.height * 0.55,
-      )
-      ..quadraticBezierTo(
-        size.width * 0.50,
-        size.height * 0.75,
-        size.width * 0.70,
-        size.height,
-      );
-    canvas.drawPath(coastPath, coast);
-
-    // Vài nét sóng trang trí trong vùng biển.
+  /// Nét sóng trang trí THUẦN hoạ tiết — đặt theo tỉ lệ canvas, cố tình
+  /// KHÔNG gợi hình bờ biển hay địa danh thật (bản đồ lược hoạ, không
+  /// georeferenced; tránh ngụy trang độ chính xác địa lý).
+  void _paintDecorativeWaves(Canvas canvas, Size size) {
     final wave = Paint()
-      ..color = DauVietColors.riverBlue.withValues(alpha: 0.3)
+      ..color = DauVietColors.riverBlue.withValues(alpha: 0.22)
       ..style = PaintingStyle.stroke
       ..strokeWidth = 1;
     for (final (dx, dy) in const [
-      (0.86, 0.18),
-      (0.90, 0.42),
-      (0.84, 0.66),
-      (0.90, 0.85),
+      (0.14, 0.18),
+      (0.86, 0.20),
+      (0.18, 0.48),
+      (0.84, 0.55),
+      (0.12, 0.80),
+      (0.88, 0.84),
     ]) {
       final cx = size.width * dx;
       final cy = size.height * dy;

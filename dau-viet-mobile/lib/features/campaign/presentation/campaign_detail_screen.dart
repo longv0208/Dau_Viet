@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
+import '../../../core/api/api_config.dart';
 import '../../../core/theme/dau_viet_colors.dart';
 import '../../../core/theme/dau_viet_typography.dart';
 import '../../../core/widgets/async_state_view.dart';
@@ -62,7 +63,11 @@ class CampaignDetailScreen extends ConsumerWidget {
   }
 
   Widget _buildBody(BuildContext context, HistoricalEventModel event) {
-    final lesson = MockBachDangData.lessonEpisode2;
+    // Nội dung demo Bạch Đằng (câu hỏi trung tâm, 4 dấu vết, sa bàn, nút
+    // demo) CHỈ render khi USE_MOCK — real mode chỉ dùng metadata thật
+    // của event + LessonListSection (không bịa nội dung sử liệu).
+    final isMock = ApiConfig.useMock;
+    final lesson = isMock ? MockBachDangData.lessonEpisode2 : null;
 
     // 2. Nội dung chi tiết chiến dịch cuộn dọc
     return Expanded(
@@ -79,40 +84,48 @@ class CampaignDetailScreen extends ConsumerWidget {
             _buildCampaignMetadata(event),
             const SizedBox(height: 16),
 
-            // 5. Câu Hỏi Sử Học Trung Tâm (Inquiry Question)
-            _buildInquiryQuestionCard(lesson.historicalQuestion),
-            const SizedBox(height: 18),
+            // 5. Câu Hỏi Sử Học Trung Tâm (demo only — câu hỏi sống trong
+            // bài học, không phải trường event)
+            if (lesson != null) ...[
+              _buildInquiryQuestionCard(lesson.historicalQuestion),
+              const SizedBox(height: 18),
+            ],
 
-            // 6. Lộ Trình 4 Dấu Vết Cốt Lõi
-            _buildFourTracesOverview(),
-            const SizedBox(height: 24),
+            // 6. Lộ Trình 4 Dấu Vết Cốt Lõi (demo only)
+            if (isMock) ...[
+              _buildFourTracesOverview(),
+              const SizedBox(height: 24),
+            ],
 
             // 6b. Bài học published của sự kiện (real backend / demo repo)
             LessonListSection(eventId: eventId),
             const SizedBox(height: 24),
 
-            // 7. Cặp Nút Hành Động Chính
-            DongSonButton(
-              label: 'BẮT ĐẦU KHÁM PHÁ (4 DẤU VẾT) ›',
-              icon: Icons.explore_rounded,
-              variant: DongSonButtonVariant.primaryCinnabar,
-              height: 52,
-              onPressed: () {
-                // Điều hướng sang M-08 (Trung tâm 4 Dấu Vết)
-                context.go('/traces/$eventId');
-              },
-            ),
-            const SizedBox(height: 10),
-            DongSonButton(
-              label: 'XEM SA BÀN THỦY CHIẾN (M-06)',
-              icon: Icons.military_tech_outlined,
-              variant: DongSonButtonVariant.secondaryParchment,
-              height: 48,
-              onPressed: () {
-                context.go('/saban');
-              },
-            ),
-            const SizedBox(height: 20),
+            // 7. Cặp Nút Hành Động Chính — route /traces và /saban chỉ
+            // tồn tại trong demo Bạch Đằng.
+            if (isMock) ...[
+              DongSonButton(
+                label: 'BẮT ĐẦU KHÁM PHÁ (4 DẤU VẾT) ›',
+                icon: Icons.explore_rounded,
+                variant: DongSonButtonVariant.primaryCinnabar,
+                height: 52,
+                onPressed: () {
+                  // Điều hướng sang M-08 (Trung tâm 4 Dấu Vết)
+                  context.go('/traces/$eventId');
+                },
+              ),
+              const SizedBox(height: 10),
+              DongSonButton(
+                label: 'XEM SA BÀN THỦY CHIẾN (M-06)',
+                icon: Icons.military_tech_outlined,
+                variant: DongSonButtonVariant.secondaryParchment,
+                height: 48,
+                onPressed: () {
+                  context.go('/saban');
+                },
+              ),
+              const SizedBox(height: 20),
+            ],
           ],
         ),
       ),
@@ -167,7 +180,9 @@ class CampaignDetailScreen extends ConsumerWidget {
               ],
             ),
           ),
-          const EnergyPill(energy: 100, maxEnergy: 100, historyPoints: 150),
+          // Energy/điểm sử ký là cơ chế demo — chưa có backend thật.
+          if (ApiConfig.useMock)
+            const EnergyPill(energy: 100, maxEnergy: 100, historyPoints: 150),
         ],
       ),
     );
@@ -223,7 +238,9 @@ class CampaignDetailScreen extends ConsumerWidget {
                       borderRadius: BorderRadius.circular(4),
                     ),
                     child: Text(
-                      'CHIẾN DỊCH BẠCH ĐẰNG 938',
+                      // Badge/headline dùng metadata event thật — demo
+                      // Bạch Đằng có copy riêng trong mock payload.
+                      'SỰ KIỆN • NĂM ${event.year}',
                       style: DauVietTypography.labelSmall.copyWith(
                         color: Colors.white,
                         fontWeight: FontWeight.w800,
@@ -233,7 +250,7 @@ class CampaignDetailScreen extends ConsumerWidget {
                   ),
                   const SizedBox(height: 6),
                   Text(
-                    'Kế Sách Cọc Ngầm Đè Bẹp Thủy Quân Nam Hán',
+                    event.title,
                     style: DauVietTypography.headlineMedium.copyWith(
                       color: DauVietColors.imperialGold,
                       fontSize: 18,
@@ -289,29 +306,33 @@ class CampaignDetailScreen extends ConsumerWidget {
             'Năm ${event.year} • ${event.era}',
           ),
           const SizedBox(height: 8),
-          _buildMetaRow(
-            Icons.location_on_rounded,
-            'Địa bàn:',
-            'Cửa sông Bạch Đằng (Quảng Ninh & Hải Phòng)',
-          ),
-          const SizedBox(height: 8),
-          _buildMetaRow(
-            Icons.shield_rounded,
-            'Chỉ huy Ta:',
-            'Tiền Ngô Vương Ngô Quyền (Ái Châu)',
-          ),
-          const SizedBox(height: 8),
-          _buildMetaRow(
-            Icons.dangerous_rounded,
-            'Đối thủ:',
-            'Vạn sứ quân Nam Hán dưới trướng Lưu Hoằng Tháo',
-          ),
-          const SizedBox(height: 8),
-          _buildMetaRow(
-            Icons.bolt_rounded,
-            'Chi phí:',
-            '⚡ 20 Thể lực  •  Nhận 150 Điểm Sử Ký + 50 XP',
-          ),
+          // Địa bàn/Chỉ huy/Đối thủ/Chi phí là copy demo Bạch Đằng — chưa
+          // có trường backend, chỉ render trong USE_MOCK.
+          if (ApiConfig.useMock) ...[
+            _buildMetaRow(
+              Icons.location_on_rounded,
+              'Địa bàn:',
+              'Cửa sông Bạch Đằng (Quảng Ninh & Hải Phòng)',
+            ),
+            const SizedBox(height: 8),
+            _buildMetaRow(
+              Icons.shield_rounded,
+              'Chỉ huy Ta:',
+              'Tiền Ngô Vương Ngô Quyền (Ái Châu)',
+            ),
+            const SizedBox(height: 8),
+            _buildMetaRow(
+              Icons.dangerous_rounded,
+              'Đối thủ:',
+              'Vạn sứ quân Nam Hán dưới trướng Lưu Hoằng Tháo',
+            ),
+            const SizedBox(height: 8),
+            _buildMetaRow(
+              Icons.bolt_rounded,
+              'Chi phí:',
+              '⚡ 20 Thể lực  •  Nhận 150 Điểm Sử Ký + 50 XP',
+            ),
+          ],
         ],
       ),
     );

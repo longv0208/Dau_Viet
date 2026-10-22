@@ -20,16 +20,25 @@ enum MapUnlockState {
 }
 
 /// Tham chiếu bài học cần hoàn thành để mở khoá địa điểm.
+/// `accessible=false` = bài học liên kết không còn mở được cho learner
+/// (draft/archived sau khi địa điểm publish) → UI ẩn CTA bài học; trạng
+/// thái UNLOCKED đã đạt được KHÔNG bị thu hồi.
 class RequiredLessonRef {
   final String lessonId;
   final String title;
+  final bool accessible;
 
-  const RequiredLessonRef({required this.lessonId, required this.title});
+  const RequiredLessonRef({
+    required this.lessonId,
+    required this.title,
+    this.accessible = true,
+  });
 
   factory RequiredLessonRef.fromJson(Map<String, dynamic> json) {
     return RequiredLessonRef(
       lessonId: json['lessonId'] as String,
       title: json['title'] as String? ?? '',
+      accessible: json['accessible'] as bool? ?? true,
     );
   }
 }
@@ -38,6 +47,7 @@ class RequiredLessonRef {
 class MapLocationDto {
   final String id;
   final String eventId;
+  final String? eventTitle;
   final String title;
   final String? description;
   final double latitude;
@@ -48,6 +58,7 @@ class MapLocationDto {
   const MapLocationDto({
     required this.id,
     required this.eventId,
+    this.eventTitle,
     required this.title,
     this.description,
     required this.latitude,
@@ -61,6 +72,7 @@ class MapLocationDto {
     return MapLocationDto(
       id: json['id'] as String,
       eventId: json['eventId'] as String,
+      eventTitle: json['eventTitle'] as String?,
       title: json['title'] as String,
       description: json['description'] as String?,
       latitude: (json['latitude'] as num).toDouble(),

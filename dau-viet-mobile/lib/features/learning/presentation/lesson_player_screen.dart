@@ -13,6 +13,7 @@ import '../../../core/widgets/dong_son_button.dart';
 import '../../../core/widgets/parchment_card.dart';
 import '../../../core/widgets/shimmer_progress_bar.dart';
 import '../../../core/widgets/sound_toggle_button.dart';
+import '../../map/data/map_providers.dart';
 import '../data/attempt_dtos.dart';
 import '../data/attempt_repository.dart';
 import '../data/learning_dtos.dart';
@@ -339,6 +340,10 @@ class _LessonPlayerScreenState extends ConsumerState<LessonPlayerScreen> {
       if (!mounted) return;
       // Attempt đã xong → progress cache cũ (IN_PROGRESS) không còn đúng.
       ref.invalidate(myProgressProvider);
+      // Server đã ghi COMPLETED → trạng thái mở khoá bản đồ có thể đổi.
+      // Invalidate ở đây (không đợi remount /map) vì route Map thường đã
+      // unmount sau pushReplacement/context.go.
+      ref.invalidate(mapLocationsProvider);
       context.pushReplacement(
         '/learning/result/${widget.attemptId}',
         extra: result,

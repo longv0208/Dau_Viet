@@ -338,12 +338,30 @@ Publish chạy PUBLISH-level `DraftValidator` trong một transaction: `SELECT F
 
 ### Notes đã chốt TASK-0021 (Bản đồ lịch sử & mở khoá địa điểm — FR-35..38)
 
-- `GET /api/v1/map/locations` — learner authenticated (mọi role; anonymous → `401`). Trả array top-level các `MapLocationDto` **PUBLISHED** của event **PUBLISHED**, sắp theo `displayOrder,title`. Mỗi item `{id, eventId, title, description, latitude, longitude, unlockState, requiredLesson?{lessonId,title}}` — chỉ field an toàn, không lộ cấu hình admin.
+- `GET /api/v1/map/locations` — learner authenticated (mọi role; anonymous → `401`). Trả array top-level các `MapLocationDto` **PUBLISHED** của event **PUBLISHED**, sắp theo `displayOrder,title`. Mỗi item `{id, eventId, eventTitle, title, description, latitude, longitude, unlockState, requiredLesson?{lessonId,title,accessible}}` — chỉ field an toàn, không lộ cấu hình admin. `eventTitle` cho phép detail hiển thị event cha không cần request phụ (FR-38).
 - `GET /api/v1/map/locations/{id}` — cùng shape; `404` khi không tồn tại/chưa PUBLISHED/event chưa PUBLISHED.
+- `requiredLesson.accessible` = `false` khi bài học liên kết không còn learner-accessible (status khác PUBLISHED hoặc `current_version_id` null — vd. bị archive sau khi địa điểm publish). Client **không hiển thị CTA bài học** khi `false`; trạng thái `UNLOCKED` đã đạt được **không bao giờ** bị thu hồi.
 - `unlockState` do **server tính theo `sub` JWT** — client không gửi userId/cờ completed: `AVAILABLE` = không link bài học; `UNLOCKED` = learner có ≥1 attempt `COMPLETED` trên **bất kỳ version nào** của `unlockLessonId` (republish không reset); `LOCKED` = ngược lại. Một truy vấn IN-list cho toàn trang (không N+1).
-- Admin nested dưới event: `GET|POST /api/v1/admin/events/{eventId}/map-locations`, `PATCH .../{locationId}?expectedRowVersion=`, `POST .../{locationId}/status?status=DRAFT|PUBLISHED|ARCHIVED` — `CONTENT_ADMIN`, `@Version` optimistic lock (409 khi lệch version).
+- Admin nested dưới event: `GET|POST /api/v1/admin/events/{eventId}/map-locations`, `PATCH .../{locationId}?expectedRowVersion=`, `POST .../{locationId}/status?status=DRAFT|PUBLISHED|ARCHIVED&expectedRowVersion=` — `CONTENT_ADMIN`, `@Version` optimistic lock (409 khi lệch version). **`expectedRowVersion` bắt buộc** trên cả PATCH và status transitions — thiếu → `400 VALIDATION_ERROR` "Thiếu expectedRowVersion".
+- Publish gate: `status=PUBLISHED` yêu cầu `unlockLessonId` null hoặc trỏ tới lesson **PUBLISHED có `current_version_id`** — draft/archived lesson → `400 VALIDATION_ERROR` ("Bài học mở khoá phải được xuất bản trước khi địa điểm được xuất bản cho học viên").
 - Validate: `title` bắt buộc ≤255; `latitude ∈ [-90,90]`, `longitude ∈ [-180,180]` → `400`; `unlockLessonId` phải thuộc **cùng event** — kiểm tra service (`400`, thông báo tiếng Việt) **và** composite FK `(event_id, unlock_lesson_id) → lessons(event_id,id)` ở DB.
-- Mobile: route `/map` (auth-gated); unlock state refetch khi quay lại từ lesson qua invalidate — không auto-navigate khỏi LessonResultScreen.
+- Mobile: route `/map` (auth-gated); `mapLocationsProvider` watch `authSessionProvider` nên đổi user/logout/restore tự refetch — không lộ unlock state giữa các tài khoản; lesson completion (`POST /attempts/{id}/complete` thành công) invalidate map state ngay cả khi `/map` đã unmount. Bản đồ là **lược hoạ** (schematic) — không georeferenced base map; markers project từ toạ độ thật, pan/zoom qua InteractiveViewer.
+- Giới hạn FR-38: people/evidence per-location hiện **không có quan hệ rõ ràng an toàn** trong schema (evidences link tới event, không tới map_locations) — detail chỉ hiển thị `eventTitle` + mô tả; mở rộng quan hệ evidence/person để sau (TASK-0022 phạm vi).
+
+### Verification results TASK-0021 (2026-10-22)
+
+| Module | Check | Command | Result |
+|---|---|---|---|
+| Backend | Unit + IT | `.\mvnw.cmd test` | **PASS** — 184/184 (MapLocationIT: 14/14), Flyway V8 clean PostgreSQL 16 |
+| Admin | Lint | `npm run lint` | **PASS** — 0 warnings |
+| Admin | Typecheck | `npx tsc --noEmit` | **PASS** |
+| Admin | Unit tests | `npm test` | **PASS** — 109/109 |
+| Admin | Build | `npm run build` | **PASS** — 22 routes |
+| Admin | Playwright e2e | `npm run test:e2e` | **BLOCKED** — port 3100 nằm trong dải reserved của Windows (3080-3179). Chạy được trên CI (Linux) hoặc sau khi đổi port. |
+| Mobile | Format | `dart format` | **PASS** |
+| Mobile | Analyze | `flutter analyze` | **PASS** — 0 issues |
+| Mobile | Unit + widget tests | `flutter test` | **PASS** — 149/149 |
+| Mobile | Debug APK | `flutter build apk --debug` | **PASS** — `app-debug.apk` built |
 
 ## Admin client implementation note
 

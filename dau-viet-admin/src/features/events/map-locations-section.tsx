@@ -82,13 +82,29 @@ export function MapLocationsSection({ eventId }: { eventId: string }) {
   });
 
   const lessonsQuery = useQuery({
-    queryKey: qk.lessons.list({ eventId, size: 100 }),
-    queryFn: () =>
-      apiFetch<PageResponse<AdminLessonSummary>>(
-        `/admin/lessons${toQuery({ eventId, size: 100 })}`,
-      ),
+    queryKey: ["lessons", "list", "for-map-locations", eventId],
+    queryFn: async () => {
+      // Fetch EVERY page — a same-event lesson may sit beyond the first
+      // 100 rows; publishing would fail server-side if it were invisible
+      // here.
+      const pageSize = 100;
+      const first = await apiFetch<PageResponse<AdminLessonSummary>>(
+        `/admin/lessons${toQuery({ eventId, size: pageSize, page: 0 })}`,
+      );
+      const rest = await Promise.all(
+        Array.from({ length: Math.max(0, first.totalPages - 1) }, (_, i) =>
+          apiFetch<PageResponse<AdminLessonSummary>>(
+            `/admin/lessons${toQuery({ eventId, size: pageSize, page: i + 1 })}`,
+          ),
+        ),
+      );
+      return rest.reduce<AdminLessonSummary[]>(
+        (acc, p) => acc.concat(p.content),
+        [...first.content],
+      );
+    },
   });
-  const lessons = lessonsQuery.data?.content ?? [];
+  const lessons = lessonsQuery.data ?? [];
 
   const {
     register,
@@ -130,13 +146,29 @@ export function MapLocationsSection({ eventId }: { eventId: string }) {
   });
 
   const setStatus = useMutation({
-    mutationFn: (p: { id: string; status: MapLocationStatus }) =>
+    mutationFn: (p: { loc: AdminMapLocation; status: MapLocationStatus }) =>
       apiFetch<AdminMapLocation>(
-        `${base(eventId)}/${p.id}/status${toQuery({ status: p.status })}`,
+        `${base(eventId)}/${p.loc.id}/status${toQuery({
+          status: p.status,
+          expectedRowVersion: p.loc.rowVersion,
+        })}`,
         { method: "POST" },
       ),
-    onSuccess: () => invalidate(),
-    onError: (err) => setServerError(toUserMessage(err)),
+    onSuccess: () => {
+      invalidate();
+      setServerError(null);
+    },
+    onError: (err) => {
+      // 409 = bản trong list cũ — refetch để lấy rowVersion mới nhất.
+      if (err instanceof ApiClientError && err.isConflict) {
+        invalidate();
+        setServerError(
+          "Địa điểm đã bị sửa đồng thời — đã tải lại danh sách, thử lại nhé.",
+        );
+        return;
+      }
+      setServerError(toUserMessage(err));
+    },
   });
 
   const startEdit = (loc: AdminMapLocation) => {
@@ -220,7 +252,7 @@ export function MapLocationsSection({ eventId }: { eventId: string }) {
                   <Button
                     type="button"
                     variant="secondary"
-                    onClick={() => setStatus.mutate({ id: loc.id, status: "PUBLISHED" })}
+                    onClick={() => setStatus.mutate({ loc, status: "PUBLISHED" })}
                   >
                     Xuất bản
                   </Button>
@@ -229,7 +261,7 @@ export function MapLocationsSection({ eventId }: { eventId: string }) {
                   <Button
                     type="button"
                     variant="secondary"
-                    onClick={() => setStatus.mutate({ id: loc.id, status: "ARCHIVED" })}
+                    onClick={() => setStatus.mutate({ loc, status: "ARCHIVED" })}
                   >
                     Lưu trữ
                   </Button>
@@ -238,7 +270,7 @@ export function MapLocationsSection({ eventId }: { eventId: string }) {
                   <Button
                     type="button"
                     variant="secondary"
-                    onClick={() => setStatus.mutate({ id: loc.id, status: "PUBLISHED" })}
+                    onClick={() => setStatus.mutate({ loc, status: "PUBLISHED" })}
                   >
                     Xuất bản lại
                   </Button>
@@ -324,16 +356,29 @@ export function MapLocationsSection({ eventId }: { eventId: string }) {
 
           <div className="flex flex-col gap-1.5">
             <Label htmlFor="ml-lesson">Bài học mở khoá</Label>
-            <Select id="ml-lesson" {...register("unlockLessonId")}>
-              <option value="">— Luôn mở (không yêu cầu bài học) —</option>
-              {lessons.map((l) => (
-                <option key={l.id} value={l.id}>
-                  {l.title}
-                </option>
-              ))}
-            </Select>
+            {lessonsQuery.isPending ? (
+              <Skeleton className="h-9 w-full" />
+            ) : lessonsQuery.isError ? (
+              <ErrorState
+                error={lessonsQuery.error}
+                onRetry={() => lessonsQuery.refetch()}
+              />
+            ) : (
+              <Select id="ml-lesson" {...register("unlockLessonId")}>
+                <option value="">— Luôn mở (không yêu cầu bài học) —</option>
+                {lessons.map((l) => (
+                  <option key={l.id} value={l.id}>
+                    {l.title}
+                    {l.status === "PUBLISHED" && l.currentVersionId
+                      ? ""
+                      : " (chưa xuất bản — chưa thể dùng mở khoá địa điểm published)"}
+                  </option>
+                ))}
+              </Select>
+            )}
             <p className="text-xs text-ink-muted">
               Học viên phải hoàn thành bài học này để mở khoá địa điểm. Chỉ chọn được bài học của sự kiện này.
+              Địa điểm chỉ xuất bản được nếu bài học liên kết đã PUBLISHED.
             </p>
           </div>
 

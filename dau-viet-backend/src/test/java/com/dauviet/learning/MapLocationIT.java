@@ -2,7 +2,9 @@ package com.dauviet.learning;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.patch;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.put;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
@@ -28,10 +30,10 @@ import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 
 /**
- * FR-35..38 learner surface + admin config: visibility gates, cross-event
- * lesson rejection, coordinate validation, and the server-authoritative
- * unlock rule (>=1 COMPLETED attempt on any version of the linked lesson).
- * Requires Docker.
+ * FR-35..38 learner surface + admin config: visibility gates, publish gate,
+ * optimistic locking, cross-event lesson rejection, coordinate validation,
+ * and the server-authoritative unlock rule (>=1 COMPLETED attempt on any
+ * version of the linked lesson). Requires Docker.
  */
 @SpringBootTest
 @AutoConfigureMockMvc
@@ -75,24 +77,54 @@ class MapLocationIT extends AbstractPostgresIT {
                 AttemptItFixture.draftTwoStage(evId, MC_CONFIG));
     }
 
-    private String createPublished(String event, String lessonId) throws Exception {
+    private Map<String, Object> locationRequest(String title, double lat, double lng,
+                                                String lessonId) {
         Map<String, Object> req = new LinkedHashMap<>();
-        req.put("title", "Ben Bach Dang");
-        req.put("description", "Bai coc ngam");
-        req.put("latitude", 20.9);
-        req.put("longitude", 106.8);
+        req.put("title", title);
+        req.put("description", "Mo ta");
+        req.put("latitude", lat);
+        req.put("longitude", lng);
         if (lessonId != null) req.put("unlockLessonId", lessonId);
+        return req;
+    }
+
+    private String createDraft(String event, String lessonId) throws Exception {
         MvcResult res = mvc.perform(post("/api/v1/admin/events/" + event + "/map-locations")
                         .header("Authorization", adminToken)
                         .contentType(MediaType.APPLICATION_JSON)
-                        .content(om.writeValueAsString(req)))
+                        .content(om.writeValueAsString(
+                                locationRequest("Dia diem", 20.9, 106.8, lessonId))))
                 .andExpect(status().isCreated()).andReturn();
-        String id = om.readTree(res.getResponse().getContentAsString())
+        return om.readTree(res.getResponse().getContentAsString())
                 .get("id").asText();
+    }
+
+    private long rowVersion(String event, String locId) throws Exception {
+        MvcResult res = mvc.perform(get("/api/v1/admin/events/" + event
+                        + "/map-locations")
+                        .header("Authorization", adminToken))
+                .andExpect(status().isOk()).andReturn();
+        JsonNode rows = om.readTree(res.getResponse().getContentAsString());
+        for (JsonNode row : rows) {
+            if (locId.equals(row.get("id").asText())) {
+                return row.get("rowVersion").asLong();
+            }
+        }
+        throw new AssertionError("location not in admin list: " + locId);
+    }
+
+    private void setStatus(String event, String locId, String status,
+                           long expectedRowVersion) throws Exception {
         mvc.perform(post("/api/v1/admin/events/" + event
-                        + "/map-locations/" + id + "/status?status=PUBLISHED")
+                        + "/map-locations/" + locId + "/status?status=" + status
+                        + "&expectedRowVersion=" + expectedRowVersion)
                         .header("Authorization", adminToken))
                 .andExpect(status().isOk());
+    }
+
+    private String createPublished(String event, String lessonId) throws Exception {
+        String id = createDraft(event, lessonId);
+        setStatus(event, id, "PUBLISHED", rowVersion(event, id));
         return id;
     }
 
@@ -100,8 +132,9 @@ class MapLocationIT extends AbstractPostgresIT {
      * Finish whatever required activities remain. startAttempt may RESUME an
      * in-progress attempt (partial progress earlier in the test), so submit
      * only the activities still pending per currentStageId/currentActivityId.
+     * Returns the attempt id used.
      */
-    private void driveToCompletion(String token, String lessonId) throws Exception {
+    private String driveToCompletion(String token, String lessonId) throws Exception {
         MvcResult started = mvc.perform(post("/api/v1/lessons/" + lessonId + "/attempts")
                         .header("Authorization", token))
                 .andExpect(status().isOk()).andReturn();
@@ -120,6 +153,7 @@ class MapLocationIT extends AbstractPostgresIT {
         mvc.perform(post("/api/v1/attempts/" + attemptId + "/complete")
                         .header("Authorization", token))
                 .andExpect(status().isOk());
+        return attemptId;
     }
 
     private void submit(String token, String attemptId, String activityId,
@@ -132,6 +166,8 @@ class MapLocationIT extends AbstractPostgresIT {
                 .andExpect(status().isOk());
     }
 
+    /* ================= learner surface ================= */
+
     @Test
     void publishedLocation_noLessonLink_isAvailable() throws Exception {
         createPublished(eventId, null);
@@ -140,20 +176,13 @@ class MapLocationIT extends AbstractPostgresIT {
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$[0].unlockState").value("AVAILABLE"))
                 .andExpect(jsonPath("$[0].latitude").value(20.9))
+                .andExpect(jsonPath("$[0].eventTitle").exists())
                 .andExpect(jsonPath("$[0].requiredLesson").doesNotExist());
     }
 
     @Test
     void draftAndInactiveLocations_hiddenFromLearner() throws Exception {
-        Map<String, Object> req = new LinkedHashMap<>();
-        req.put("title", "Nhap");
-        req.put("latitude", 10.0);
-        req.put("longitude", 106.0);
-        mvc.perform(post("/api/v1/admin/events/" + eventId + "/map-locations")
-                        .header("Authorization", adminToken)
-                        .contentType(MediaType.APPLICATION_JSON)
-                        .content(om.writeValueAsString(req)))
-                .andExpect(status().isCreated());
+        createDraft(eventId, null);
         String draftEvent = UUID.randomUUID().toString();
         jdbc.update("insert into historical_events (id, slug, title, summary, status) "
                   + "values (?::uuid, 'draft-ev', 'D', 's', 'DRAFT')", draftEvent);
@@ -166,15 +195,35 @@ class MapLocationIT extends AbstractPostgresIT {
     }
 
     @Test
+    void archivedLocation_hiddenFromLearner() throws Exception {
+        String locId = createPublished(eventId, null);
+        setStatus(eventId, locId, "ARCHIVED", rowVersion(eventId, locId));
+        mvc.perform(get("/api/v1/map/locations")
+                        .header("Authorization", learnerToken))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.length()").value(0));
+    }
+
+    /* ================= admin validation ================= */
+
+    @Test
     void invalidCoordinates_rejected() throws Exception {
-        Map<String, Object> bad = new LinkedHashMap<>();
-        bad.put("title", "Sai toa do");
-        bad.put("latitude", 95.0);
-        bad.put("longitude", 106.0);
         mvc.perform(post("/api/v1/admin/events/" + eventId + "/map-locations")
                         .header("Authorization", adminToken)
                         .contentType(MediaType.APPLICATION_JSON)
-                        .content(om.writeValueAsString(bad)))
+                        .content(om.writeValueAsString(
+                                locationRequest("Sai toa do", 95.0, 106.0, null))))
+                .andExpect(status().isBadRequest());
+    }
+
+    @Test
+    void nonExistentLessonLink_rejected() throws Exception {
+        mvc.perform(post("/api/v1/admin/events/" + eventId + "/map-locations")
+                        .header("Authorization", adminToken)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(om.writeValueAsString(locationRequest(
+                                "Link ao", 20.0, 105.0,
+                                UUID.randomUUID().toString()))))
                 .andExpect(status().isBadRequest());
     }
 
@@ -185,19 +234,111 @@ class MapLocationIT extends AbstractPostgresIT {
                 mvc, om, adminToken, otherEvent, tplId,
                 AttemptItFixture.draftTwoStage(
                         AttemptItFixture.newEvidence(jdbc, otherEvent), MC_CONFIG));
-        Map<String, Object> req = new LinkedHashMap<>();
-        req.put("title", "Link sai event");
-        req.put("latitude", 20.0);
-        req.put("longitude", 105.0);
-        req.put("unlockLessonId", lessonOnOther);
         MvcResult res = mvc.perform(post("/api/v1/admin/events/" + eventId + "/map-locations")
                         .header("Authorization", adminToken)
                         .contentType(MediaType.APPLICATION_JSON)
-                        .content(om.writeValueAsString(req)))
+                        .content(om.writeValueAsString(locationRequest(
+                                "Link sai event", 20.0, 105.0, lessonOnOther))))
                 .andExpect(status().isBadRequest()).andReturn();
-        JsonNode parsed = om.readTree(res.getResponse().getContentAsString());
-        assertThat(parsed.toString()).contains("sự kiện");
+        assertThat(om.readTree(res.getResponse().getContentAsString()).toString())
+                .contains("sự kiện");
     }
+
+    /* ================= publish gate (FR-36) ================= */
+
+    @Test
+    void publishBlocked_whenLinkedLessonNotPublished() throws Exception {
+        String draftLesson = createDraftLesson();
+        String locId = createDraft(eventId, draftLesson);
+        long version = rowVersion(eventId, locId);
+        mvc.perform(post("/api/v1/admin/events/" + eventId
+                        + "/map-locations/" + locId + "/status?status=PUBLISHED"
+                        + "&expectedRowVersion=" + version)
+                        .header("Authorization", adminToken))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.details.reason").value(
+                        org.hamcrest.Matchers.containsString("xuất bản")));
+    }
+
+    @Test
+    void publishBlocked_whenLinkedLessonArchived() throws Exception {
+        String lessonId = publishLesson();
+        mvc.perform(post("/api/v1/admin/lessons/" + lessonId + "/archive")
+                        .header("Authorization", adminToken))
+                .andExpect(status().isOk());
+        String locId = createDraft(eventId, lessonId);
+        long version = rowVersion(eventId, locId);
+        mvc.perform(post("/api/v1/admin/events/" + eventId
+                        + "/map-locations/" + locId + "/status?status=PUBLISHED"
+                        + "&expectedRowVersion=" + version)
+                        .header("Authorization", adminToken))
+                .andExpect(status().isBadRequest());
+    }
+
+    @Test
+    void archivedLinkedLesson_keepsUnlockAndMarksCtaInaccessible() throws Exception {
+        String lessonId = publishLesson();
+        String locId = createPublished(eventId, lessonId);
+        String otherLocId = createPublished(eventId, lessonId);
+        driveToCompletion(learnerToken, lessonId);
+
+        mvc.perform(post("/api/v1/admin/lessons/" + lessonId + "/archive")
+                        .header("Authorization", adminToken))
+                .andExpect(status().isOk());
+
+        // Earned UNLOCKED survives; CTA hidden via accessible=false.
+        mvc.perform(get("/api/v1/map/locations/" + locId)
+                        .header("Authorization", learnerToken))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.unlockState").value("UNLOCKED"))
+                .andExpect(jsonPath("$.requiredLesson.accessible").value(false));
+        // Other learner stays LOCKED, also sees accessible=false.
+        mvc.perform(get("/api/v1/map/locations/" + otherLocId)
+                        .header("Authorization", otherToken))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.unlockState").value("LOCKED"))
+                .andExpect(jsonPath("$.requiredLesson.accessible").value(false));
+    }
+
+    /* ================= optimistic locking ================= */
+
+    @Test
+    void missingExpectedRowVersion_rejectedOnUpdateAndStatus() throws Exception {
+        String locId = createDraft(eventId, null);
+        mvc.perform(patch("/api/v1/admin/events/" + eventId
+                        + "/map-locations/" + locId)
+                        .header("Authorization", adminToken)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(om.writeValueAsString(
+                                locationRequest("Sua", 10.0, 106.0, null))))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.details.reason").value(
+                        org.hamcrest.Matchers.containsString("expectedRowVersion")));
+
+        mvc.perform(post("/api/v1/admin/events/" + eventId
+                        + "/map-locations/" + locId + "/status?status=ARCHIVED")
+                        .header("Authorization", adminToken))
+                .andExpect(status().isBadRequest());
+    }
+
+    @Test
+    void staleExpectedRowVersion_conflicts() throws Exception {
+        String locId = createDraft(eventId, null);
+        long fresh = rowVersion(eventId, locId);
+        mvc.perform(post("/api/v1/admin/events/" + eventId
+                        + "/map-locations/" + locId + "/status?status=PUBLISHED"
+                        + "&expectedRowVersion=" + fresh)
+                        .header("Authorization", adminToken))
+                .andExpect(status().isOk());
+        // Replaying the same (now stale) version must 409.
+        mvc.perform(post("/api/v1/admin/events/" + eventId
+                        + "/map-locations/" + locId + "/status?status=ARCHIVED"
+                        + "&expectedRowVersion=" + fresh)
+                        .header("Authorization", adminToken))
+                .andExpect(status().isConflict());
+    }
+
+    /* ================= unlock semantics ================= */
 
     @Test
     void locked_thenUnlocked_onlyAfterCompletedAttempt() throws Exception {
@@ -213,7 +354,8 @@ class MapLocationIT extends AbstractPostgresIT {
         mvc.perform(get("/api/v1/map/locations/" + locId)
                         .header("Authorization", learnerToken))
                 .andExpect(jsonPath("$.unlockState").value("LOCKED"))
-                .andExpect(jsonPath("$.requiredLesson.lessonId").value(lessonId));
+                .andExpect(jsonPath("$.requiredLesson.lessonId").value(lessonId))
+                .andExpect(jsonPath("$.requiredLesson.accessible").value(true));
 
         driveToCompletion(learnerToken, lessonId);
         mvc.perform(get("/api/v1/map/locations/" + locId)
@@ -225,19 +367,99 @@ class MapLocationIT extends AbstractPostgresIT {
                 .andExpect(jsonPath("$.unlockState").value("LOCKED"));
     }
 
+    /**
+     * Republish must rotate the SAME lesson to a new version — the earlier
+     * version of this test called publishLesson() which CREATES a different
+     * lesson, proving nothing about republish. Complete on V1 → republish
+     * same lesson as V2 → unlock survives (completed on ANY pinned version),
+     * other learner stays LOCKED, attempt stays pinned to its own version.
+     */
     @Test
     void unlockSurvivesLessonRepublish_andRequiresAuth() throws Exception {
         String lessonId = publishLesson();
         String locId = createPublished(eventId, lessonId);
-        driveToCompletion(learnerToken, lessonId);
+        String attemptId = driveToCompletion(learnerToken, lessonId);
 
-        AttemptItFixture.publishLesson(mvc, om, adminToken, eventId, tplId,
-                AttemptItFixture.draftTwoStage(evId, MC_CONFIG));
+        String pinnedVersion = jdbc.queryForObject(
+                "select lesson_version_id::text from learner_attempts where id = ?::uuid",
+                String.class, attemptId);
+        String v1 = jdbc.queryForObject(
+                "select current_version_id::text from lessons where id = ?::uuid",
+                String.class, lessonId);
+        assertThat(pinnedVersion).isEqualTo(v1);
+
+        republishSameLesson(lessonId);
+        String v2 = jdbc.queryForObject(
+                "select current_version_id::text from lessons where id = ?::uuid",
+                String.class, lessonId);
+        assertThat(v2).isNotEqualTo(v1);
+
         mvc.perform(get("/api/v1/map/locations/" + locId)
                         .header("Authorization", learnerToken))
-                .andExpect(jsonPath("$.unlockState").value("UNLOCKED"));
+                .andExpect(jsonPath("$.unlockState").value("UNLOCKED"))
+                .andExpect(jsonPath("$.requiredLesson.lessonId").value(lessonId));
+        mvc.perform(get("/api/v1/map/locations/" + locId)
+                        .header("Authorization", otherToken))
+                .andExpect(jsonPath("$.unlockState").value("LOCKED"));
+
+        String stillPinned = jdbc.queryForObject(
+                "select lesson_version_id::text from learner_attempts where id = ?::uuid",
+                String.class, attemptId);
+        assertThat(stillPinned).isEqualTo(v1);
 
         mvc.perform(get("/api/v1/map/locations"))
                 .andExpect(status().isUnauthorized());
+    }
+
+    /** Completing a lesson that also unlocks another location unlocks all of them. */
+    @Test
+    void sharedUnlockLesson_unlocksAllLinkedLocations() throws Exception {
+        String lessonId = publishLesson();
+        String locA = createPublished(eventId, lessonId);
+        String locB = createPublished(eventId, lessonId);
+
+        driveToCompletion(learnerToken, lessonId);
+
+        mvc.perform(get("/api/v1/map/locations")
+                        .header("Authorization", learnerToken))
+                .andExpect(jsonPath("$.length()").value(2));
+        for (String id : new String[]{locA, locB}) {
+            mvc.perform(get("/api/v1/map/locations/" + id)
+                            .header("Authorization", learnerToken))
+                    .andExpect(jsonPath("$.unlockState").value("UNLOCKED"));
+            mvc.perform(get("/api/v1/map/locations/" + id)
+                            .header("Authorization", otherToken))
+                    .andExpect(jsonPath("$.unlockState").value("LOCKED"));
+        }
+    }
+
+    /** DRAFT lesson (no publish) — valid for draft link, rejected at publish. */
+    private String createDraftLesson() throws Exception {
+        Map<String, Object> req = new LinkedHashMap<>();
+        req.put("eventId", eventId);
+        req.put("templateId", tplId);
+        req.put("title", "Draft L");
+        req.put("centralQuestion", "Q?");
+        req.put("draftJson", AttemptItFixture.draftTwoStage(evId, MC_CONFIG));
+        MvcResult created = mvc.perform(post("/api/v1/admin/lessons")
+                        .header("Authorization", adminToken)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(om.writeValueAsString(req)))
+                .andExpect(status().isCreated()).andReturn();
+        return om.readTree(created.getResponse().getContentAsString())
+                .get("id").asText();
+    }
+
+    /** PUT a (trivially changed) draft on the same lesson then publish again → V2. */
+    private void republishSameLesson(String lessonId) throws Exception {
+        mvc.perform(put("/api/v1/admin/lessons/" + lessonId + "/draft")
+                        .header("Authorization", adminToken)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(om.writeValueAsString(Map.of("draftJson",
+                                AttemptItFixture.draftTwoStage(evId, MC_CONFIG)))))
+                .andExpect(status().isOk());
+        mvc.perform(post("/api/v1/admin/lessons/" + lessonId + "/publish")
+                        .header("Authorization", adminToken))
+                .andExpect(status().isOk());
     }
 }
