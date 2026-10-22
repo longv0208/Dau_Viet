@@ -20,19 +20,24 @@ class RiverSceneState extends SceneTransition {
   });
 
   @override
-  void apply(HistoricalScenePainter painter, double t) {
+  void applyFrom(
+    HistoricalScenePainter painter,
+    SceneTransition from,
+    double t,
+  ) {
     if (painter is! RiverScenePainter) return;
-    if (t >= 1) {
-      painter.waterLevel = waterLevel;
-      painter.boatProgress = boatProgress;
-    } else {
-      // from = snapshot lúc bắt đầu bước — lerp về target.
-      final from = painter;
-      painter.waterLevel = _lerp(from.waterLevel, waterLevel, t);
-      painter.boatProgress = _lerp(from.boatProgress, boatProgress, t);
-    }
-    painter.boatsObstructed = boatsObstructed;
-    painter.highlightStakes = highlightStakes;
+    // Lerp từ snapshot ĐÓNG BĂNG — không phải painter hiện tại, nên kết
+    // quả tại t độc lập với số frame đã render trước đó.
+    final f = from is RiverSceneState ? from : null;
+    painter
+      ..waterLevel = _lerp(f?.waterLevel ?? painter.waterLevel, waterLevel, t)
+      ..boatProgress = _lerp(
+        f?.boatProgress ?? painter.boatProgress,
+        boatProgress,
+        t,
+      )
+      ..boatsObstructed = boatsObstructed
+      ..highlightStakes = highlightStakes;
   }
 
   @override

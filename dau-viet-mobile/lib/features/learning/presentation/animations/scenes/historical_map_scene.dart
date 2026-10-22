@@ -79,25 +79,26 @@ class MapSceneState extends SceneTransition {
   });
 
   @override
-  void apply(HistoricalScenePainter painter, double t) {
+  void applyFrom(
+    HistoricalScenePainter painter,
+    SceneTransition from,
+    double t,
+  ) {
     if (painter is! MapScenePainter) return;
-    if (t >= 1) {
-      painter
-        ..markerVisibility = Map.of(markerVisibility)
-        ..routeProgress = Map.of(routeProgress)
-        ..highlightedIds = Set.of(highlighted)
-        ..focusedId = focusedId;
-      return;
-    }
-    // Lerp map-by-map về target; key vắng ở target → lerp về giá trị
-    // mặc định (0 cho visibility/progress).
-    painter.markerVisibility = _lerpIdMap(
-      painter.markerVisibility,
-      markerVisibility,
-      t,
-    );
-    painter.routeProgress = _lerpIdMap(painter.routeProgress, routeProgress, t);
+    // Lerp từ snapshot ĐÓNG BĂNG [from]; key vắng ở from mặc định 0,
+    // key vắng ở target lerp về 0 (fade-out có chủ đích).
+    final f = from is MapSceneState ? from : null;
     painter
+      ..markerVisibility = _lerpIdMap(
+        f?.markerVisibility ?? const {},
+        markerVisibility,
+        t,
+      )
+      ..routeProgress = _lerpIdMap(
+        f?.routeProgress ?? const {},
+        routeProgress,
+        t,
+      )
       ..highlightedIds = Set.of(highlighted)
       ..focusedId = focusedId;
   }

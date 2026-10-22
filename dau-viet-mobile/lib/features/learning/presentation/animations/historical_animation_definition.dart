@@ -62,9 +62,14 @@ class AnimationPrediction {
 abstract class SceneTransition {
   const SceneTransition();
 
-  /// Áp trạng thái lên painter theo tiến độ [t] (0..1, đã eased).
-  /// Gọi mỗi frame khi tween + một lần khi apply tĩnh (t = 1).
-  void apply(HistoricalScenePainter painter, double t);
+  /// Áp trạng thái NỘI SUY giữa snapshot [from] (đóng băng MỘT lần lúc
+  /// bắt đầu bước) và trạng thái đích này, ở tiến độ [t] 0..1 đã eased.
+  /// Kết quả chỉ phụ thuộc (from, t) — độc lập số frame đã render trước.
+  void applyFrom(
+    HistoricalScenePainter painter,
+    SceneTransition from,
+    double t,
+  );
 
   /// Snapshot trạng thái hiển thị hiện tại của painter thành một
   /// SceneTransition tương đương — làm `from` cho bước kế tiếp.

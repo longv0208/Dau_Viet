@@ -7,6 +7,7 @@ import 'package:dau_viet_mobile/features/learning/presentation/animations/histor
 import 'package:dau_viet_mobile/features/learning/presentation/animations/historical_animation_registry.dart';
 import 'package:dau_viet_mobile/features/learning/presentation/animations/scenes/historical_map_scene.dart';
 import 'package:dau_viet_mobile/features/learning/presentation/animations/scenes/river_scene.dart';
+import 'package:dau_viet_mobile/features/learning/presentation/animations/widgets/map_marker_overlay.dart';
 import 'package:dau_viet_mobile/features/learning/presentation/renderers/read_renderer.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -75,6 +76,14 @@ Future<void> _tap(WidgetTester tester, Finder finder) async {
   await tester.tap(finder.first);
   await tester.pump();
 }
+
+/// Finder vùng chạm của một địa điểm trên map theo id — overlay là vùng
+/// chạm ≥44px chồng lên canvas. Node semantics của overlay nằm dưới node
+/// `image` của khung cảnh nên `bySemanticsLabel` không ổn định trong
+/// widget test; tap trực tiếp overlay kiểm đúng hành vi chạm-thật.
+Finder _marker(String locationId) => find.byWidgetPredicate(
+  (w) => w is MapMarkerOverlay && w.location.id == locationId,
+);
 
 void main() {
   group('HistoricalAnimationRegistry', () {
@@ -261,6 +270,95 @@ void main() {
       final yLow = RiverScenePainter.waterSurfaceYFor(500, 0.28);
       final yHigh = RiverScenePainter.waterSurfaceYFor(500, 0.90);
       expect(yLow, greaterThan(yHigh)); // y tăng xuống: nước rút thấp hơn
+    });
+  });
+
+  group('SceneTransition — frozen-snapshot interpolation', () {
+    // Hợp đồng: applyFrom(painter, from, t) luôn lerp từ snapshot ĐÓNG
+    // BĂNG `from` — kết quả tại t chỉ phụ thuộc (from, t), không phụ
+    // thuộc số frame đã render. Bug cũ lerp từ painter hiện tại mỗi
+    // frame → sai số tích lũy, hai chuỗi frame khác nhau cho kết quả
+    // khác nhau.
+
+    test('river midpoint is deterministic regardless of frames', () {
+      // waterLevel 0.30 → 0.90: hai chuỗi khác nhau cùng kết quả 0.60.
+      const target = RiverSceneState(waterLevel: 0.90, boatProgress: 0.85);
+
+      final seqA = RiverScenePainter();
+      const from = RiverSceneState(waterLevel: 0.30, boatProgress: 0.0);
+      target.applyFrom(seqA, from, 0.2);
+      target.applyFrom(seqA, from, 0.4);
+      target.applyFrom(seqA, from, 0.5);
+
+      final seqB = RiverScenePainter();
+      target.applyFrom(seqB, from, 0.5);
+
+      expect(seqA.waterLevel, closeTo(0.60, 0.001));
+      expect(seqA.boatProgress, closeTo(0.425, 0.001));
+      expect(seqA.waterLevel, seqB.waterLevel);
+      expect(seqA.boatProgress, seqB.boatProgress);
+    });
+
+    test('river reverse transition lerps toward the low target', () {
+      // 0.90 → 0.28, t=0.5 phải là 0.59.
+      const from = RiverSceneState(waterLevel: 0.90, boatProgress: 0.85);
+      const target = RiverSceneState(waterLevel: 0.28, boatProgress: 0.85);
+      final p = RiverScenePainter();
+      target.applyFrom(p, from, 0.5);
+      expect(p.waterLevel, closeTo(0.59, 0.001));
+      target.applyFrom(p, from, 1);
+      expect(p.waterLevel, closeTo(0.28, 0.001));
+      expect(p.boatProgress, closeTo(0.85, 0.001));
+    });
+
+    test('captured() snapshots painter mid-tween for next transition', () {
+      // Tween bị gián đoạn giữa chừng — captured() phải chụp đúng giá
+      // trị ĐANG HIỂN THỊ để bước kế lerp từ đó (không nhảy).
+      const from = RiverSceneState(waterLevel: 0.30, boatProgress: 0.0);
+      const target = RiverSceneState(waterLevel: 0.90, boatProgress: 0.85);
+      final p = RiverScenePainter();
+      target.applyFrom(p, from, 0.5); // gián đoạn ở giữa tween
+
+      final snap = target.captured(p) as RiverSceneState;
+      expect(snap.waterLevel, closeTo(0.60, 0.001));
+      expect(snap.boatProgress, closeTo(0.425, 0.001));
+
+      // Bước kế tiếp từ snapshot đó: t=0.5 của 0.60→0.28 phải là 0.44.
+      const next = RiverSceneState(waterLevel: 0.28, boatProgress: 0.85);
+      next.applyFrom(p, snap, 0.5);
+      expect(p.waterLevel, closeTo(0.44, 0.001));
+    });
+
+    test('map captured() snapshots visibility maps as copies', () {
+      final p = MapScenePainter(locations: const [], routes: const []);
+      const target = MapSceneState(
+        markerVisibility: {'a': 1},
+        routeProgress: {'r': 1},
+      );
+      const from = MapSceneState();
+      target.applyFrom(p, from, 0.5);
+
+      final snap = target.captured(p) as MapSceneState;
+      expect(snap.markerVisibility['a'], closeTo(0.5, 0.001));
+      expect(snap.routeProgress['r'], closeTo(0.5, 0.001));
+      // Snapshot phải là bản SAO — sửa painter sau đó không đổi snapshot.
+      target.applyFrom(p, from, 1);
+      expect(snap.markerVisibility['a'], closeTo(0.5, 0.001));
+    });
+
+    test('flags apply immediately, continuous fields lerp', () {
+      const from = RiverSceneState(waterLevel: 0.30, boatProgress: 0.0);
+      const target = RiverSceneState(
+        waterLevel: 0.28,
+        boatProgress: 0.85,
+        boatsObstructed: true,
+        highlightStakes: true,
+      );
+      final p = RiverScenePainter();
+      target.applyFrom(p, from, 0.5);
+      expect(p.boatsObstructed, isTrue);
+      expect(p.highlightStakes, isTrue);
+      expect(p.waterLevel, closeTo(0.29, 0.001));
     });
   });
 
@@ -734,21 +832,54 @@ void main() {
       }
     });
 
-    test('route progress lerps monotonically toward the target', () {
+    test('route progress lerps monotonically from frozen origin', () {
       final p = painterOf(haiBaTrung40UprisingV1);
+      const from = MapSceneState();
       const target = MapSceneState(
         markerVisibility: {'hat_mon': 1, 'me_linh': 1},
         routeProgress: {'gather': 1},
       );
       var prev = -1.0;
       for (var t = 0.0; t <= 1.001; t += 0.1) {
-        target.apply(p, t);
+        target.applyFrom(p, from, t);
         final v = p.routeProgress['gather']!;
         expect(v, greaterThanOrEqualTo(prev - 0.001));
         prev = v;
       }
       expect(p.routeProgress['gather'], closeTo(1, 0.001));
       expect(p.markerVisibility['me_linh'], closeTo(1, 0.001));
+    });
+
+    test('interpolation is frame-count independent (frozen snapshot)', () {
+      // t=0.5 phải cho đúng midpoint DÙ frame 0.25 đã render hay chưa —
+      // from là snapshot cố định, không phải painter hiện tại.
+      const from = MapSceneState();
+      const target = MapSceneState(
+        markerVisibility: {'me_linh': 1},
+        routeProgress: {'gather': 1},
+      );
+      // Seq A: 0 → 0.25 → 0.5
+      final a = painterOf(haiBaTrung40UprisingV1);
+      target.applyFrom(a, from, 0.25);
+      target.applyFrom(a, from, 0.5);
+      // Seq B: 0 → 0.5
+      final b = painterOf(haiBaTrung40UprisingV1);
+      target.applyFrom(b, from, 0.5);
+      expect(a.markerVisibility['me_linh'], closeTo(0.5, 0.001));
+      expect(a.routeProgress['gather'], closeTo(0.5, 0.001));
+      expect(a.markerVisibility['me_linh'], b.markerVisibility['me_linh']);
+      expect(a.routeProgress['gather'], b.routeProgress['gather']);
+    });
+
+    test('reverse transition fades marker out to zero', () {
+      // 1 → 0, midpoint phải là 0.5.
+      const from = MapSceneState(markerVisibility: {'me_linh': 1});
+      const target = MapSceneState(); // vắng = về 0
+      final p = painterOf(haiBaTrung40UprisingV1);
+      target.applyFrom(p, from, 0.5);
+      expect(p.markerVisibility['me_linh'], closeTo(0.5, 0.001));
+      target.applyFrom(p, from, 1);
+      expect(p.markerVisibility['me_linh'], closeTo(0, 0.001));
     });
 
     test('route point interpolation is stable at both ends', () {
@@ -972,6 +1103,141 @@ void main() {
       );
       await tester.pump();
       await _tap(tester, find.bySemanticsLabel('Bước tiếp'));
+      expect(find.textContaining('Bước 2/6'), findsOneWidget);
+      expect(tester.takeException(), isNull);
+    });
+
+    // --- P2: chạm marker = TẠM DỪNG khám phá (không chỉ hủy timer) ---
+
+    testWidgets('tapping a marker during playback pauses and shows PLAY', (
+      tester,
+    ) async {
+      await _pumpPlayer(tester, definition: haiBaTrung40UprisingV1);
+      await tester.pump();
+      // Bật PHÁT → TẠM DỪNG hiện; chờ qua tween bước 2 (overlay Hát Môn
+      // mount theo target của bước — không phụ thuộc fade-in).
+      await _tap(tester, find.text('PHÁT'));
+      expect(find.text('TẠM DỪNG'), findsOneWidget);
+      await tester.pump(const Duration(seconds: 5));
+      await tester.pump();
+      expect(find.textContaining('Bước 2/6'), findsOneWidget);
+
+      // Chạm marker GIỮA playback: panel mở (contextLabel chỉ có trong
+      // panel, không trùng narration) + player về PHÁT.
+      await _tap(tester, _marker('hat_mon'));
+      expect(find.text('Nơi phát khởi'), findsOneWidget);
+      expect(find.text('PHÁT'), findsOneWidget);
+      expect(find.text('TẠM DỪNG'), findsNothing);
+
+      // Không auto-advance sau khi chuyển sang chế độ khám phá.
+      await tester.pump(const Duration(seconds: 6));
+      expect(find.textContaining('Bước 2/6'), findsOneWidget);
+      // Panel vẫn mở — learner đang đọc.
+      expect(find.text('Nơi phát khởi'), findsOneWidget);
+      expect(tester.takeException(), isNull);
+    });
+
+    testWidgets('marker tap settles the current step deterministically', (
+      tester,
+    ) async {
+      await _pumpPlayer(tester, definition: haiBaTrung40UprisingV1);
+      await tester.pump();
+      // Vào bước 2 — overlay mount ngay theo target dù tween còn chạy.
+      await _tap(tester, find.bySemanticsLabel('Bước tiếp'));
+      await tester.pump(const Duration(milliseconds: 250)); // tween dở
+
+      // Tap marker giữa tween: step phải settle về đích, panel mở,
+      // không auto-advance, không tween lửng lơ.
+      await _tap(tester, _marker('hat_mon'));
+      expect(find.text('Nơi phát khởi'), findsOneWidget);
+      expect(find.text('PHÁT'), findsOneWidget);
+      await tester.pump(const Duration(seconds: 4));
+      // Vẫn bước 2 — tween đã chốt, timer đã hủy.
+      expect(find.textContaining('Bước 2/6'), findsOneWidget);
+      expect(tester.takeException(), isNull);
+    });
+
+    testWidgets('navigating steps clears the stale location panel', (
+      tester,
+    ) async {
+      await _pumpPlayer(tester, definition: haiBaTrung40UprisingV1);
+      await tester.pump();
+      // Bước 2 — chỉ Hát Môn hiện. Dùng contextLabel 'Nơi phát khởi'
+      // làm dấu hiệu panel (không trùng narration/prediction).
+      await _tap(tester, find.bySemanticsLabel('Bước tiếp'));
+      await tester.pump(const Duration(milliseconds: 1200));
+      await _tap(tester, _marker('hat_mon'));
+      expect(find.text('Nơi phát khởi'), findsOneWidget);
+
+      // Chuyển bước → panel của marker cũ phải đóng (không sống qua
+      // bước mới dù marker đó vẫn hiển thị).
+      await _tap(tester, find.bySemanticsLabel('Bước tiếp'));
+      expect(find.textContaining('Bước 3/6'), findsOneWidget);
+      expect(find.text('Nơi phát khởi'), findsNothing);
+
+      // Mở panel khác rồi lùi bước — cũng phải đóng.
+      await tester.pump(const Duration(milliseconds: 1200));
+      await _tap(tester, _marker('me_linh'));
+      expect(find.text('Nơi quy tụ'), findsOneWidget);
+      await _tap(tester, find.bySemanticsLabel('Bước trước'));
+      expect(find.textContaining('Bước 2/6'), findsOneWidget);
+      expect(find.text('Nơi quy tụ'), findsNothing);
+    });
+
+    testWidgets('replay clears selection and revealed prediction together', (
+      tester,
+    ) async {
+      await _pumpPlayer(tester, definition: haiBaTrung40UprisingV1);
+      await tester.pump();
+      for (var i = 0; i < 3; i++) {
+        await _tap(tester, find.bySemanticsLabel('Bước tiếp'));
+      }
+      await tester.pump(const Duration(milliseconds: 1200));
+      await _tap(tester, _marker('luy_lau'));
+      expect(find.text('Trung tâm Hán'), findsOneWidget); // panel mở
+      // Reveal prediction trong lúc panel đang mở.
+      await _tap(
+        tester,
+        find.textContaining('trung tâm hành chính của nhà Hán'),
+      );
+      await _tap(tester, find.text('XEM KẾT QUẢ VÀ GIẢI THÍCH'));
+      expect(
+        find.textContaining('thách thức trực tiếp đến bộ máy cai trị'),
+        findsOneWidget,
+      );
+
+      await _tap(tester, find.bySemanticsLabel('Tua lại hoạt họa'));
+      expect(find.textContaining('Bước 1/6'), findsOneWidget);
+      // Cả panel marker lẫn trạng thái reveal đều bị xóa.
+      expect(find.text('Trung tâm Hán'), findsNothing);
+      expect(find.text('XEM KẾT QUẢ VÀ GIẢI THÍCH'), findsOneWidget);
+      expect(
+        find.textContaining('thách thức trực tiếp đến bộ máy cai trị'),
+        findsNothing,
+      );
+    });
+
+    testWidgets('reveal during a map tween stays stable afterwards', (
+      tester,
+    ) async {
+      await _pumpPlayer(tester, definition: haiBaTrung40UprisingV1);
+      await tester.pump();
+      // Vào bước 2, đợi tween một nhịp rồi reveal — tween step đang dở
+      // khi reveal chạy, trạng thái reveal không được bị ghi đè.
+      await _tap(tester, find.bySemanticsLabel('Bước tiếp'));
+      await tester.pump(const Duration(milliseconds: 400));
+      await _tap(
+        tester,
+        find.textContaining('trung tâm hành chính của nhà Hán'),
+      );
+      await _tap(tester, find.text('XEM KẾT QUẢ VÀ GIẢI THÍCH'));
+      expect(
+        find.textContaining('thách thức trực tiếp đến bộ máy cai trị'),
+        findsOneWidget,
+      );
+      // Tween cũ không ghi đè trạng thái reveal; không crash, không
+      // auto-advance (reveal đã hủy timer + dừng controller).
+      await tester.pump(const Duration(seconds: 4));
       expect(find.textContaining('Bước 2/6'), findsOneWidget);
       expect(tester.takeException(), isNull);
     });

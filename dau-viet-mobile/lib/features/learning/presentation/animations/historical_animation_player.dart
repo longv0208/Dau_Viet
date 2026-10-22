@@ -35,9 +35,13 @@ class _HistoricalAnimationPlayerState extends State<HistoricalAnimationPlayer>
   late final AnimationController _controller;
   late final HistoricalScenePainter _painter;
 
-  // Transition đang hiển thị — snapshot/lerp qua apply(), không phải
-  // biến riêng theo scene. `null` = scene mặc định của painter.
+  // Transition đang hiển thị — target typed của bước hiện tại.
   SceneTransition? _current;
+
+  // Snapshot ĐÓNG BĂNG của trạng thái painter lúc transition bắt đầu —
+  // lerp luôn tính từ đây, KHÔNG từ painter hiện tại, nên kết quả tại
+  // tiến độ t độc lập với số frame đã render.
+  SceneTransition? _tweenFrom;
 
   int _stepIndex = 0;
   bool _playing = false;
@@ -90,11 +94,17 @@ class _HistoricalAnimationPlayerState extends State<HistoricalAnimationPlayer>
     setState(() => _applyCurrent(t));
   }
 
-  /// Áp transition đích hiện tại ở tiến độ t. Mỗi SceneTransition tự
-  /// đọc painter làm `from` và lerp/apply theo t — painter giữ giá trị
-  /// frame trước nên lerp liên tục qua các frame.
+  /// Áp transition đích ở tiến độ t — lerp từ snapshot đóng băng
+  /// [_tweenFrom]. from == null nghĩa là t = 1 áp thẳng.
   void _applyCurrent(double t) {
-    _current?.apply(_painter, t);
+    final target = _current;
+    if (target == null) return;
+    if (t >= 1 || _tweenFrom == null) {
+      _tweenFrom = null;
+      target.applyFrom(_painter, target, 1);
+    } else {
+      target.applyFrom(_painter, _tweenFrom!, t);
+    }
   }
 
   /// Áp trạng thái đích của bước: tween mượt nếu motion bật, nhảy tĩnh
@@ -102,8 +112,13 @@ class _HistoricalAnimationPlayerState extends State<HistoricalAnimationPlayer>
   /// Bước có `target == null` giữ nguyên trạng thái hiện tại.
   void _applyStep(int index, {bool animate = true}) {
     final step = widget.definition.steps[index];
-    _current = step.target ?? _current;
-    if (animate && !_reduceMotion) {
+    if (step.target != null) {
+      _current = step.target;
+      // Chụp trạng thái ĐANG HIỂN THỊ (kể cả tween cũ đang dở) làm gốc —
+      // chuyển bước giữa chừng không nhảy, mượt từ vị trí hiện tại.
+      _tweenFrom = _current!.captured(_painter);
+    }
+    if (animate && !_reduceMotion && step.target != null) {
       _controller
         ..stop()
         ..reset()
@@ -175,6 +190,7 @@ class _HistoricalAnimationPlayerState extends State<HistoricalAnimationPlayer>
       _stepIndex = index;
       _skipped = false;
       _tweenPaused = false; // tween mới, không phải pause
+      _selectedLocationId = null; // panel cũ không sống qua bước mới
       _applyStep(index);
     });
     _scheduleAdvance();
@@ -216,16 +232,22 @@ class _HistoricalAnimationPlayerState extends State<HistoricalAnimationPlayer>
       _tweenPaused = false; // HỦY tween, không phải pause
       _controller.stop(); // thao tác tay thắng tween đang chạy
       _painter.waterLevel = v.clamp(0.0, 1.0);
-      // Cập nhật snapshot hiện tại để tween kế tiếp lerp từ giá trị tay.
-      _current = _current?.captured(_painter);
+      // Snapshot lại gốc để transition kế tiếp lerp từ giá trị tay.
+      _tweenFrom = _current?.captured(_painter);
     });
   }
 
   void _selectLocation(String? id) {
     _advanceTimer?.cancel();
     setState(() {
+      // Chạm marker = TẠM DỪNG khám phá: settle scene về trạng thái đích
+      // của bước hiện tại (deterministic), UI về PHÁT, không timer mới.
+      // Tween bị hủy KHÔNG được resume — không phải pause-để-tiếp-tục.
+      _playing = false;
       _tweenPaused = false;
+      _controller.stop();
       _selectedLocationId = id == _selectedLocationId ? null : id;
+      _applyCurrent(1); // chốt bước hiện tại về trạng thái ổn định
     });
   }
 
@@ -248,14 +270,15 @@ class _HistoricalAnimationPlayerState extends State<HistoricalAnimationPlayer>
       final effect = widget.definition.prediction?.revealSceneEffect;
       if (effect != null) {
         _current = effect;
-        _applyCurrent(1);
+        _tweenFrom = null;
+        _applyCurrent(1); // áp thẳng — tween cũ không ghi đè được
       } else {
-        // River scene: đưa về nước rút + đánh dấu cọc.
+        // River scene fallback: đưa về nước rút + đánh dấu cọc.
         _painter
           ..waterLevel = 0.22
           ..boatsObstructed = _painter.boatProgress > 0
           ..highlightStakes = true;
-        _current = _current?.captured(_painter);
+        _tweenFrom = _current?.captured(_painter);
       }
     });
   }
@@ -379,6 +402,19 @@ class _HistoricalAnimationPlayerState extends State<HistoricalAnimationPlayer>
     );
   }
 
+  /// Marker được coi là "active" khi bước hiện tại (hoặc hiệu ứng
+  /// reveal) muốn nó hiện — dựa trên target transition, KHÔNG dựa trên
+  /// giá trị đang nội suy của painter, nên overlay mount ổn định ngay
+  /// cả khi tween mới bắt đầu.
+  bool _locationActive(MapScenePainter mp, String id) {
+    final t = _current;
+    if (t is MapSceneState && (t.markerVisibility[id] ?? 0) > 0.02) {
+      return true;
+    }
+    // Fallback: tween đã hủy/settle — giữ overlay nếu marker đang hiện.
+    return (mp.markerVisibility[id] ?? 0) > 0.02;
+  }
+
   Widget _buildSceneCanvas(HistoricalAnimationDefinition def) {
     final paint = CustomPaint(painter: _painter);
     // Map scene: overlay marker TẤP được trên canvas — touch target ≥
@@ -393,8 +429,11 @@ class _HistoricalAnimationPlayerState extends State<HistoricalAnimationPlayer>
             fit: StackFit.expand,
             children: [
               paint,
+              // Mount overlay theo TARGET của bước (deterministic), không
+              // theo visibility đang tween — tránh phụ thuộc frame kết
+              // cuối và marker vẫn tấp được khi đang fade-in.
               for (final loc in mp.locations)
-                if ((mp.markerVisibility[loc.id] ?? 0) > 0.02)
+                if (_locationActive(mp, loc.id))
                   MapMarkerOverlay(
                     location: loc,
                     canvasSize: size,
