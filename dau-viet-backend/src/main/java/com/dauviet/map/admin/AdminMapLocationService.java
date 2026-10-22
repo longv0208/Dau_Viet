@@ -69,6 +69,20 @@ public class AdminMapLocationService {
         MapLocation l = load(eventId, locationId);
         checkVersion(l, expectedRowVersion);
         validateLessonLink(eventId, req.unlockLessonId());
+        if (l.getStatus() == MapLocationStatus.PUBLISHED) {
+            // Publication invariant: PUBLISHED location không được đổi
+            // unlockLessonId (đổi → archive về DRAFT, sửa, publish lại).
+            // Metadata (title/desc/tọa độ/displayOrder) vẫn sửa tự do.
+            if (!java.util.Objects.equals(req.unlockLessonId(),
+                                          l.getUnlockLessonId())) {
+                throw new IllegalArgumentException(
+                        "Địa điểm đã xuất bản không thể đổi bài học mở khoá — "
+                        + "chuyển về bản nháp trước khi đổi liên kết");
+            }
+            // Defence-in-depth: nếu DB đã lưu link không accessible (dữ liệu
+            // cũ trước publish gate), mọi update vẫn bị chặn đến khi sửa link.
+            validatePublishable(l.getUnlockLessonId());
+        }
         apply(l, req);
         return toResponse(locations.save(l), Map.of());
     }

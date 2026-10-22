@@ -364,7 +364,9 @@ export function MapLocationsSection({ eventId }: { eventId: string }) {
                 onRetry={() => lessonsQuery.refetch()}
               />
             ) : (
-              <Select id="ml-lesson" {...register("unlockLessonId")}>
+              <Select id="ml-lesson" {...register("unlockLessonId")}
+              disabled={editing?.status === "PUBLISHED"}
+            >
                 <option value="">— Luôn mở (không yêu cầu bài học) —</option>
                 {lessons.map((l) => (
                   <option key={l.id} value={l.id}>
@@ -376,10 +378,16 @@ export function MapLocationsSection({ eventId }: { eventId: string }) {
                 ))}
               </Select>
             )}
-            <p className="text-xs text-ink-muted">
-              Học viên phải hoàn thành bài học này để mở khoá địa điểm. Chỉ chọn được bài học của sự kiện này.
-              Địa điểm chỉ xuất bản được nếu bài học liên kết đã PUBLISHED.
-            </p>
+            {editing?.status === "PUBLISHED" ? (
+              <p className="text-xs text-error">
+                Địa điểm đã xuất bản — không thể đổi bài học mở khoá. Chuyển về bản nháp trước khi đổi liên kết.
+              </p>
+            ) : (
+              <p className="text-xs text-ink-muted">
+                Học viên phải hoàn thành bài học này để mở khoá địa điểm. Chỉ chọn được bài học của sự kiện này.
+                Địa điểm chỉ xuất bản được nếu bài học liên kết đã PUBLISHED.
+              </p>
+            )}
           </div>
 
           {serverError && (

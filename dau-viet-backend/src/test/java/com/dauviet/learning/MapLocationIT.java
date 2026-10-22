@@ -338,6 +338,150 @@ class MapLocationIT extends AbstractPostgresIT {
                 .andExpect(status().isConflict());
     }
 
+    /* ======= published-location update invariant (P1-A bugfix) ======= */
+
+    /**
+     * Case A: PUBLISHED location PATCHed to point at a DRAFT lesson → 400,
+     * location stays PUBLISHED and still references L1.
+     */
+    @Test
+    void publishedLocation_cannotRelinkToDraftLesson() throws Exception {
+        String l1 = publishLesson();
+        String locId = createPublished(eventId, l1);
+        String l2Draft = createDraftLesson();
+
+        mvc.perform(patch("/api/v1/admin/events/" + eventId
+                        + "/map-locations/" + locId
+                        + "?expectedRowVersion=" + rowVersion(eventId, locId))
+                        .header("Authorization", adminToken)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(om.writeValueAsString(locationRequest(
+                                "Relink cheat", 20.9, 106.8, l2Draft))))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.details.reason").value(
+                        org.hamcrest.Matchers.containsString("xuất bản")));
+
+        MvcResult res = mvc.perform(get("/api/v1/admin/events/" + eventId
+                        + "/map-locations")
+                        .header("Authorization", adminToken))
+                .andExpect(status().isOk()).andReturn();
+        JsonNode row = om.readTree(res.getResponse().getContentAsString()).get(0);
+        assertThat(row.get("status").asText()).isEqualTo("PUBLISHED");
+        assertThat(row.get("unlockLessonId").asText()).isEqualTo(l1);
+    }
+
+    /**
+     * Case B: PUBLISHED location metadata update (same lesson) → 200.
+     */
+    @Test
+    void publishedLocation_allowsMetadataUpdate() throws Exception {
+        String l1 = publishLesson();
+        String locId = createPublished(eventId, l1);
+        long v = rowVersion(eventId, locId);
+
+        mvc.perform(patch("/api/v1/admin/events/" + eventId
+                        + "/map-locations/" + locId
+                        + "?expectedRowVersion=" + v)
+                        .header("Authorization", adminToken)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(om.writeValueAsString(locationRequest(
+                                "Tên mới", 21.5, 105.5, l1))))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.title").value("Tên mới"))
+                .andExpect(jsonPath("$.latitude").value(21.5))
+                .andExpect(jsonPath("$.status").value("PUBLISHED"))
+                .andExpect(jsonPath("$.unlockLessonId").value(l1));
+    }
+
+    /**
+     * Case C: stale expectedRowVersion on PATCH → 409, no data changed.
+     */
+    @Test
+    void publishedLocation_staleRowVersion_conflicts() throws Exception {
+        String l1 = publishLesson();
+        String locId = createPublished(eventId, l1);
+        long stale = rowVersion(eventId, locId);
+        // Bump rowVersion by a legitimate update.
+        mvc.perform(patch("/api/v1/admin/events/" + eventId
+                        + "/map-locations/" + locId
+                        + "?expectedRowVersion=" + stale)
+                        .header("Authorization", adminToken)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(om.writeValueAsString(locationRequest(
+                                "Bump", 20.9, 106.8, l1))))
+                .andExpect(status().isOk());
+
+        mvc.perform(patch("/api/v1/admin/events/" + eventId
+                        + "/map-locations/" + locId
+                        + "?expectedRowVersion=" + stale)
+                        .header("Authorization", adminToken)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(om.writeValueAsString(locationRequest(
+                                "Stale write", 21.0, 106.0, l1))))
+                .andExpect(status().isConflict());
+    }
+
+    /**
+     * Case D: DRAFT location links to DRAFT lesson — publish blocked until
+     * lesson becomes learner-accessible; after publishing the lesson the
+     * location publishes successfully.
+     */
+    @Test
+    void draftWorkflow_publishAfterLessonPublished() throws Exception {
+        String draftLesson = createDraftLesson();
+        String locId = createDraft(eventId, draftLesson);
+
+        // Publish location while lesson is still DRAFT → 400.
+        mvc.perform(post("/api/v1/admin/events/" + eventId
+                        + "/map-locations/" + locId + "/status?status=PUBLISHED"
+                        + "&expectedRowVersion=" + rowVersion(eventId, locId))
+                        .header("Authorization", adminToken))
+                .andExpect(status().isBadRequest());
+
+        // Publish the linked lesson, then the location.
+        republishSameLesson(draftLesson);
+        mvc.perform(post("/api/v1/admin/events/" + eventId
+                        + "/map-locations/" + locId + "/status?status=PUBLISHED"
+                        + "&expectedRowVersion=" + rowVersion(eventId, locId))
+                        .header("Authorization", adminToken))
+                .andExpect(status().isOk());
+
+        mvc.perform(get("/api/v1/map/locations/" + locId)
+                        .header("Authorization", learnerToken))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.unlockState").value("LOCKED"))
+                .andExpect(jsonPath("$.requiredLesson.lessonId").value(draftLesson));
+    }
+
+    /**
+     * Case E: invalid admin update must not change learner unlock states —
+     * A stays UNLOCKED, B stays LOCKED after a rejected PATCH.
+     */
+    @Test
+    void rejectedPublishedUpdate_preservesLearnerUnlockStates() throws Exception {
+        String l1 = publishLesson();
+        String locId = createPublished(eventId, l1);
+        driveToCompletion(learnerToken, l1);
+        String l2Draft = createDraftLesson();
+
+        mvc.perform(patch("/api/v1/admin/events/" + eventId
+                        + "/map-locations/" + locId
+                        + "?expectedRowVersion=" + rowVersion(eventId, locId))
+                        .header("Authorization", adminToken)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(om.writeValueAsString(locationRequest(
+                                "Cheat", 20.9, 106.8, l2Draft))))
+                .andExpect(status().isBadRequest());
+
+        mvc.perform(get("/api/v1/map/locations/" + locId)
+                        .header("Authorization", learnerToken))
+                .andExpect(jsonPath("$.unlockState").value("UNLOCKED"))
+                .andExpect(jsonPath("$.requiredLesson.lessonId").value(l1));
+        mvc.perform(get("/api/v1/map/locations/" + locId)
+                        .header("Authorization", otherToken))
+                .andExpect(jsonPath("$.unlockState").value("LOCKED"));
+    }
+
     /* ================= unlock semantics ================= */
 
     @Test

@@ -103,6 +103,14 @@ class _LessonPlayerScreenState extends ConsumerState<LessonPlayerScreen> {
   /// Chống re-entrant: chỉ 1 dialog thoát tồn tại cùng lúc.
   bool _exitDialogOpen = false;
 
+  /// Phase-1 gate: server đã xác nhận POST /complete → đánh dấu để không
+  /// gọi lại completion POST khi learner retry fetch result. Không reset
+  /// vì attempt đã COMPLETED trên backend.
+  bool _completionAcknowledged = false;
+
+  /// Phase-2 gate: đang fetch GET /result — chặn retry trùng lặp.
+  bool _fetchingResult = false;
+
   /// Renderer báo input thay đổi — chỉ nhận khi còn được phép sửa.
   /// setState để PopScope rebuild và cập nhật canPop; sau khi server đã
   /// ghi nhận answer, edit mới sẽ bật dirty trở lại.
@@ -327,33 +335,67 @@ class _LessonPlayerScreenState extends ConsumerState<LessonPlayerScreen> {
     }
   }
 
+  /// Phase 1 — POST /complete. Chỉ chạy 1 lần; sau khi server xác nhận
+  /// (_completionAcknowledged) mọi retry chỉ đi qua Phase 2.
   Future<void> _complete() async {
-    if (_completing) return;
+    if (_completing || _fetchingResult) return;
+    if (_completionAcknowledged) {
+      // Đã hoàn thành server-side — learner chỉ cần lấy kết quả.
+      await _fetchResult();
+      return;
+    }
     setState(() => _completing = true);
     try {
       await _call(
         () => _repo.complete(widget.attemptId, idempotencyKey: _submissionKey),
       );
-      final LessonResultDto result = await _call(
-        () => _repo.getResult(widget.attemptId),
-      );
       if (!mounted) return;
+      // Server đã ghi COMPLETED — backend là authoritative, không được
+      // re-POST complete dù learner bấm lại.
+      _completionAcknowledged = true;
       // Attempt đã xong → progress cache cũ (IN_PROGRESS) không còn đúng.
       ref.invalidate(myProgressProvider);
-      // Server đã ghi COMPLETED → trạng thái mở khoá bản đồ có thể đổi.
+      // Trạng thái mở khoá bản đồ có thể đổi ngay sau completion.
       // Invalidate ở đây (không đợi remount /map) vì route Map thường đã
       // unmount sau pushReplacement/context.go.
       ref.invalidate(mapLocationsProvider);
-      context.pushReplacement(
-        '/learning/result/${widget.attemptId}',
-        extra: result,
-      );
+      await _fetchResult();
     } on ApiException catch (e) {
       if (!mounted) return;
       setState(() {
         _completing = false;
         _state = _state?.copyWith(
           feedback: () => _Feedback(e.error.message, _FeedbackTone.error),
+        );
+      });
+    }
+  }
+
+  /// Phase 2 — GET /result. Thất bại KHÔNG reset _completionAcknowledged
+  /// và KHÔNG bao giờ re-POST complete — chỉ retry GET khi learner bấm
+  /// "THỬ TẢI KẾT QUẢ".
+  Future<void> _fetchResult() async {
+    if (_fetchingResult) return;
+    setState(() => _fetchingResult = true);
+    try {
+      final LessonResultDto result = await _call(
+        () => _repo.getResult(widget.attemptId),
+      );
+      if (!mounted) return;
+      context.pushReplacement(
+        '/learning/result/${widget.attemptId}',
+        extra: result,
+      );
+    } on ApiException {
+      if (!mounted) return;
+      setState(() {
+        _fetchingResult = false;
+        _completing = false;
+        _state = _state?.copyWith(
+          feedback: () => const _Feedback(
+            'Bài học đã hoàn thành. Chưa tải được kết quả.',
+            _FeedbackTone.error,
+          ),
         );
       });
     }
@@ -539,11 +581,15 @@ class _LessonPlayerScreenState extends ConsumerState<LessonPlayerScreen> {
             ),
           if (st.completionReady)
             DongSonButton(
-              label: _completing ? 'ĐANG TỔNG KẾT...' : 'HOÀN THÀNH BÀI HỌC',
+              label: _completing || _fetchingResult
+                  ? 'ĐANG TỔNG KẾT...'
+                  : _completionAcknowledged
+                  ? 'THỬ TẢI KẾT QUẢ'
+                  : 'HOÀN THÀNH BÀI HỌC',
               icon: Icons.emoji_events_rounded,
               variant: DongSonButtonVariant.primaryCinnabar,
               height: 50,
-              onPressed: _completing ? () {} : _complete,
+              onPressed: _completing || _fetchingResult ? () {} : _complete,
             ),
         ],
       ),
@@ -600,12 +646,21 @@ class _LessonPlayerScreenState extends ConsumerState<LessonPlayerScreen> {
             style: DauVietTypography.bodyMedium,
           ),
           const SizedBox(height: 16),
+          if (st.feedback != null)
+            Padding(
+              padding: const EdgeInsets.only(bottom: 12),
+              child: _feedbackCard(st.feedback!),
+            ),
           DongSonButton(
-            label: _completing ? 'ĐANG TỔNG KẾT...' : 'HOÀN THÀNH BÀI HỌC',
+            label: _completing || _fetchingResult
+                ? 'ĐANG TỔNG KẾT...'
+                : _completionAcknowledged
+                ? 'THỬ TẢI KẾT QUẢ'
+                : 'HOÀN THÀNH BÀI HỌC',
             icon: Icons.emoji_events_rounded,
             variant: DongSonButtonVariant.primaryCinnabar,
             height: 50,
-            onPressed: _completing ? () {} : _complete,
+            onPressed: _completing || _fetchingResult ? () {} : _complete,
           ),
         ],
       ),

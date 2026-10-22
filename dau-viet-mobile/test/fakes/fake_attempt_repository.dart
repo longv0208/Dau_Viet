@@ -24,6 +24,9 @@ class FakeAttemptRepository implements AttemptRepository {
   final List<String?> submittedKeys = [];
   int completeCalls = 0;
   int getCurrentCalls = 0;
+  int getResultCalls = 0;
+  Object? resultError;
+  Object? completeError;
 
   @override
   Future<List<LessonListItemDto>> listLessonsForEvent(String eventId) async =>
@@ -84,6 +87,7 @@ class FakeAttemptRepository implements AttemptRepository {
     String? idempotencyKey,
   }) async {
     completeCalls++;
+    if (completeError != null) throw completeError!;
     return const CompleteResultDto(
       attemptId: 'a-1',
       status: 'COMPLETED',
@@ -94,15 +98,18 @@ class FakeAttemptRepository implements AttemptRepository {
   }
 
   @override
-  Future<LessonResultDto> getResult(String attemptId) async =>
-      result ??
-      const LessonResultDto(
-        attemptId: 'a-1',
-        lessonVersionId: 'v',
-        status: 'COMPLETED',
-        score: 80,
-        result: {},
-      );
+  Future<LessonResultDto> getResult(String attemptId) async {
+    getResultCalls++;
+    if (resultError != null) throw resultError!;
+    return result ??
+        const LessonResultDto(
+          attemptId: 'a-1',
+          lessonVersionId: 'v',
+          status: 'COMPLETED',
+          score: 80,
+          result: {},
+        );
+  }
 
   @override
   Future<MyProgressDto> myProgress() async =>

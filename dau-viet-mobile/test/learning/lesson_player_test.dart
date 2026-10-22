@@ -1,3 +1,5 @@
+import 'package:dau_viet_mobile/core/api/api_error.dart';
+import 'package:dau_viet_mobile/core/api/api_exception.dart';
 import 'package:dau_viet_mobile/features/learning/data/attempt_dtos.dart';
 import 'package:dau_viet_mobile/features/learning/data/learning_providers.dart';
 import 'package:dau_viet_mobile/features/learning/presentation/lesson_player_screen.dart';
@@ -288,6 +290,91 @@ void main() {
       expect(find.text('100'), findsOneWidget);
       expect(find.text('Xuất sắc'), findsOneWidget);
     });
+
+    /* ================= P1-B: result fetch after completion ================= */
+
+    testWidgets(
+      'complete OK + result fail → acknowledged state, không re-POST complete',
+      (tester) async {
+        final repo = FakeAttemptRepository();
+        repo.onGetCurrent = () => const CurrentActivityDto(
+          progress: AttemptProgressDto(completedRequired: 2, totalRequired: 2),
+        );
+        repo.resultError = const ApiException(
+          ApiError(code: 'NETWORK_ERROR', message: 'timeout'),
+        );
+        await _pump(tester, repo);
+        await tester.tap(find.text('HOÀN THÀNH BÀI HỌC'));
+        await tester.pumpAndSettle();
+
+        // Phase 1 đã xong — chỉ 1 POST complete.
+        expect(repo.completeCalls, 1);
+        expect(repo.getResultCalls, 1);
+        // Trạng thái acknowledged: không nút HOÀN THÀNH, có nút retry result.
+        expect(find.text('HOÀN THÀNH BÀI HỌC'), findsNothing);
+        expect(
+          find.text('Bài học đã hoàn thành. Chưa tải được kết quả.'),
+          findsOneWidget,
+        );
+        expect(find.text('THỬ TẢI KẾT QUẢ'), findsOneWidget);
+      },
+    );
+
+    testWidgets(
+      'retry result sau lỗi → chỉ gọi GET result, không re-POST complete',
+      (tester) async {
+        final repo = FakeAttemptRepository();
+        repo.onGetCurrent = () => const CurrentActivityDto(
+          progress: AttemptProgressDto(completedRequired: 2, totalRequired: 2),
+        );
+        repo.resultError = const ApiException(
+          ApiError(code: 'NETWORK_ERROR', message: 'timeout'),
+        );
+        await _pump(tester, repo);
+        await tester.tap(find.text('HOÀN THÀNH BÀI HỌC'));
+        await tester.pumpAndSettle();
+        expect(repo.completeCalls, 1);
+        expect(repo.getResultCalls, 1);
+
+        // Sửa lỗi → retry chỉ gọi GET result.
+        repo.resultError = null;
+        repo.result = const LessonResultDto(
+          attemptId: 'a-1',
+          lessonVersionId: 'v',
+          status: 'COMPLETED',
+          score: 90,
+          result: {'note': 'ok'},
+        );
+        await tester.tap(find.text('THỬ TẢI KẾT QUẢ'));
+        await tester.pumpAndSettle();
+        expect(repo.completeCalls, 1); // vẫn chỉ 1 POST
+        expect(repo.getResultCalls, 2);
+        expect(find.text('90'), findsOneWidget);
+      },
+    );
+
+    testWidgets(
+      'complete POST fail → không acknowledged, không unlock, giữ retry',
+      (tester) async {
+        final repo = FakeAttemptRepository();
+        repo.onGetCurrent = () => const CurrentActivityDto(
+          progress: AttemptProgressDto(completedRequired: 2, totalRequired: 2),
+        );
+        repo.completeError = const ApiException(
+          ApiError(code: 'NETWORK_ERROR', message: 'down'),
+        );
+        await _pump(tester, repo);
+        await tester.tap(find.text('HOÀN THÀNH BÀI HỌC'));
+        await tester.pumpAndSettle();
+
+        // Không acknowledged → không invalidate map, không result call.
+        expect(repo.completeCalls, 1);
+        expect(repo.getResultCalls, 0);
+        // Nút vẫn "HOÀN THÀNH BÀI HỌC" — chưa acknowledged.
+        expect(find.text('HOÀN THÀNH BÀI HỌC'), findsOneWidget);
+        expect(find.text('THỬ TẢI KẾT QUẢ'), findsNothing);
+      },
+    );
 
     testWidgets('Back khi có input chưa gửi → Ở LẠI giữ nguyên selection', (
       tester,
