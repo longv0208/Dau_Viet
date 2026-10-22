@@ -47,6 +47,7 @@ public abstract class AbstractPostgresIT {
     protected static void clearAuthoringTables(
             org.springframework.jdbc.core.JdbcTemplate jdbc) {
         jdbc.update("set session_replication_role = replica");
+        jdbc.update("delete from map_locations");
         jdbc.update("delete from activity_attempts");
         jdbc.update("delete from lesson_results");
         jdbc.update("delete from idempotency_records");
