@@ -3,6 +3,7 @@ import 'package:go_router/go_router.dart';
 import '../../../core/theme/dau_viet_colors.dart';
 import '../../../core/theme/dau_viet_typography.dart';
 import '../../../core/widgets/dong_son_button.dart';
+import '../../../core/widgets/main-bottom-nav.dart';
 import '../../../core/widgets/parchment_card.dart';
 import '../../../mock/data/mock_saban_data.dart';
 import '../../../mock/models/saban_models.dart';
@@ -101,7 +102,7 @@ class _BattleSabanScreenState extends State<BattleSabanScreen> {
           ),
         ),
       ),
-      bottomNavigationBar: _buildBottomNav(context),
+      bottomNavigationBar: const MainBottomNav(),
     );
   }
 
@@ -728,71 +729,5 @@ class _BattleSabanScreenState extends State<BattleSabanScreen> {
       default:
         return Icons.sailing_rounded;
     }
-  }
-
-  // Thanh điều hướng Bottom Bar
-  Widget _buildBottomNav(BuildContext context) {
-    return Container(
-      decoration: BoxDecoration(
-        color: DauVietColors.parchmentSurface,
-        border: Border(
-          top: BorderSide(
-            color: DauVietColors.outlineVariant.withValues(alpha: 0.7),
-            width: 1,
-          ),
-        ),
-        boxShadow: DauVietColors.heritageShadow,
-      ),
-      child: BottomNavigationBar(
-        currentIndex: 2, // Tab Sa Bàn đang chọn
-        backgroundColor: Colors.transparent,
-        elevation: 0,
-        type: BottomNavigationBarType.fixed,
-        selectedItemColor: DauVietColors.cinnabarRed,
-        unselectedItemColor: DauVietColors.inkMuted,
-        selectedLabelStyle: DauVietTypography.labelSmall.copyWith(
-          fontWeight: FontWeight.w800,
-        ),
-        unselectedLabelStyle: DauVietTypography.labelSmall,
-        onTap: (index) {
-          if (index == 0) {
-            context.go('/dashboard');
-          } else if (index == 1) {
-            context.go('/timeline');
-          } else if (index == 2) {
-            // Đang ở Sa Bàn
-          } else {
-            context.go('/dashboard');
-          }
-        },
-        items: const [
-          BottomNavigationBarItem(
-            icon: Icon(Icons.school_outlined),
-            activeIcon: Icon(Icons.school_rounded),
-            label: 'Bàn Học',
-          ),
-          BottomNavigationBarItem(
-            icon: Icon(Icons.auto_stories_outlined),
-            activeIcon: Icon(Icons.auto_stories_rounded),
-            label: 'Lược Sử',
-          ),
-          BottomNavigationBarItem(
-            icon: Icon(Icons.military_tech_outlined),
-            activeIcon: Icon(Icons.military_tech_rounded),
-            label: 'Sa Bàn',
-          ),
-          BottomNavigationBarItem(
-            icon: Icon(Icons.landscape_outlined),
-            activeIcon: Icon(Icons.landscape_rounded),
-            label: 'Di Sản',
-          ),
-          BottomNavigationBarItem(
-            icon: Icon(Icons.person_outline_rounded),
-            activeIcon: Icon(Icons.person_rounded),
-            label: 'Sĩ Tử',
-          ),
-        ],
-      ),
-    );
   }
 }

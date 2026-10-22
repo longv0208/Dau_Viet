@@ -55,9 +55,27 @@ class MainBottomNav extends StatelessWidget {
     ('/profile', Icons.person_outline_rounded, Icons.person_rounded, 'Cá nhân'),
   ];
 
+  /// Route hiện tại — thử GoRouterState (khi dưới RouteBase.builder); nếu
+  /// không có (widget test bọc trực tiếp) thì đọc từ GoRouter nếu có, cuối
+  /// cùng fallback chuỗi rỗng → không chọn tab nào.
+  static String _locationOf(BuildContext context) {
+    try {
+      return GoRouterState.of(context).uri.toString();
+    } catch (_) {
+      // Không nằm dưới route builder (vd: widget test). Bỏ qua — tab -1.
+      try {
+        return GoRouter.of(
+          context,
+        ).routeInformationProvider.value.uri.toString();
+      } catch (_) {
+        return '';
+      }
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
-    final String location = GoRouterState.of(context).uri.toString();
+    final String location = _locationOf(context);
     final int current = tabForLocation(location);
 
     return Container(
@@ -84,10 +102,14 @@ class MainBottomNav extends StatelessWidget {
         unselectedLabelStyle: DauVietTypography.labelSmall,
         onTap: (index) {
           if (index == current) return; // đang ở tab này
-          context.go(_destinations[index].$1);
+          try {
+            context.go(_destinations[index].$1);
+          } catch (_) {
+            // Không có GoRouter (widget test) — bỏ qua điều hướng.
+          }
         },
         items: [
-          for (final (route, icon, activeIcon, label) in _destinations)
+          for (final (_, icon, activeIcon, label) in _destinations)
             BottomNavigationBarItem(
               icon: Icon(icon),
               activeIcon: Icon(activeIcon),

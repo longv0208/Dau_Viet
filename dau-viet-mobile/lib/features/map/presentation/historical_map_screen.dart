@@ -6,6 +6,7 @@ import '../../../core/theme/dau_viet_colors.dart';
 import '../../../core/theme/dau_viet_typography.dart';
 import '../../../core/widgets/async_state_view.dart';
 import '../../../core/widgets/dong_son_button.dart';
+import '../../../core/widgets/main-bottom-nav.dart';
 import '../../../core/widgets/parchment_card.dart';
 import '../data/map_location_dto.dart';
 import '../data/map_providers.dart';
@@ -104,7 +105,7 @@ class _HistoricalMapScreenState extends ConsumerState<HistoricalMapScreen> {
         elevation: 0,
         iconTheme: const IconThemeData(color: DauVietColors.inkText),
         leading: IconButton(
-          tooltip: 'Về Bàn Học',
+          tooltip: 'Về Học tập',
           icon: const Icon(Icons.arrow_back_rounded),
           onPressed: () => context.go('/dashboard'),
         ),
@@ -165,6 +166,7 @@ class _HistoricalMapScreenState extends ConsumerState<HistoricalMapScreen> {
           },
         ),
       ),
+      bottomNavigationBar: const MainBottomNav(),
     );
   }
 

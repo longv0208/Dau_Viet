@@ -124,7 +124,9 @@ class _ProfileHeader extends StatelessWidget {
   String get _name {
     final UserProfileDto? p = session.profile;
     if (p == null) {
-      return session.status == AuthStatus.guest ? 'Khách tham quan' : 'Học viên';
+      return session.status == AuthStatus.guest
+          ? 'Khách tham quan'
+          : 'Học viên';
     }
     if (p.displayName != null && p.displayName!.isNotEmpty) {
       return p.displayName!;

@@ -6,6 +6,7 @@ import '../../../core/theme/dau_viet_colors.dart';
 import '../../../core/theme/dau_viet_typography.dart';
 import '../../../core/widgets/dong_son_button.dart';
 import '../../../core/widgets/energy_pill.dart';
+import '../../../core/widgets/main-bottom-nav.dart';
 import '../../../core/widgets/parchment_card.dart';
 import '../../auth/data/auth_state.dart';
 import '../../events/data/events_providers.dart';
@@ -25,13 +26,6 @@ class LearnerDashboardScreen extends ConsumerStatefulWidget {
 
 class _LearnerDashboardScreenState
     extends ConsumerState<LearnerDashboardScreen> {
-  int _currentBottomNavIndex = 0;
-
-  Future<void> _logout() async {
-    await ref.read(authSessionProvider.notifier).logout();
-    if (mounted) context.go('/auth');
-  }
-
   @override
   Widget build(BuildContext context) {
     final AuthState session = ref.watch(authSessionProvider);
@@ -71,14 +65,14 @@ class _LearnerDashboardScreenState
                               crossAxisAlignment: CrossAxisAlignment.start,
                               children: [
                                 Text(
-                                  'Xin chào Sĩ tử,',
+                                  'Xin chào $displayName,',
                                   style: DauVietTypography.bodySmall.copyWith(
                                     color: DauVietColors.inkMuted,
                                   ),
                                 ),
                                 const SizedBox(height: 2),
                                 Text(
-                                  'Bàn Học Tập Sử Ký',
+                                  'Học tập',
                                   style: DauVietTypography.headlineMedium
                                       .copyWith(
                                         color: DauVietColors.cinnabarRed,
@@ -130,36 +124,23 @@ class _LearnerDashboardScreenState
                       _buildResumeCard(),
                       const SizedBox(height: 24),
 
-                      // 4. Khối 4 Dấu Vết Lịch Sử Trung Tâm
-                      Row(
-                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                        children: [
-                          Expanded(
-                            child: Text(
-                              '4 DẤU VẾT LỊCH SỬ',
-                              style: DauVietTypography.labelMedium.copyWith(
-                                color: DauVietColors.inkMuted,
-                                letterSpacing: 0.8,
-                              ),
-                            ),
-                          ),
-                          Text(
-                            ApiConfig.useMock
-                                ? 'Khám phá theo quy trình'
-                                : 'Bạch Đằng 938 — demo',
-                            style: DauVietTypography.labelSmall.copyWith(
-                              color: DauVietColors.cinnabarRed,
-                            ),
-                          ),
-                        ],
+                      // 4. Bắt đầu từ đây — card sự kiện PUBLISHED đầu tiên
+                      // cho người mới hiểu ngay ứng dụng học gì (P1-01).
+                      Text(
+                        'BẮT ĐẦU TỪ ĐÂY',
+                        style: DauVietTypography.labelMedium.copyWith(
+                          color: DauVietColors.inkMuted,
+                          letterSpacing: 0.8,
+                        ),
                       ),
                       const SizedBox(height: 12),
-                      _buildFourTracesGrid(),
+                      _buildFirstEventCard(),
                       const SizedBox(height: 24),
 
-                      // 5. Khối Lối Tắt Nhanh
+                      // 5. Khối Lối Tắt Nhanh — chỉ đích đến nội dung thật;
+                      // màn demo (Sa Bàn/Timeline) ẩn ở real mode (P1-06).
                       Text(
-                        'LỐI TẮT KHÁM PHÁ',
+                        'KHÁM PHÁ THÊM',
                         style: DauVietTypography.labelMedium.copyWith(
                           color: DauVietColors.inkMuted,
                           letterSpacing: 0.8,
@@ -176,7 +157,7 @@ class _LearnerDashboardScreenState
           ),
         ),
       ),
-      bottomNavigationBar: _buildBottomNav(),
+      bottomNavigationBar: const MainBottomNav(),
     );
   }
 
@@ -264,13 +245,6 @@ class _LearnerDashboardScreenState
                 historyPoints: 150,
               ),
             ),
-          const SizedBox(width: 4),
-          IconButton(
-            icon: const Icon(Icons.logout_rounded, size: 20),
-            color: DauVietColors.inkMuted,
-            tooltip: 'Đăng xuất',
-            onPressed: _logout,
-          ),
         ],
       ),
     );
@@ -470,92 +444,96 @@ class _LearnerDashboardScreenState
     );
   }
 
-  // Lưới 4 Dấu Vết Lịch Sử — tiến độ demo (done flags) chỉ áp dụng cho
-  // USE_MOCK; real mode hiển thị tất cả chưa hoàn thành vì backend chưa
-  // trả per-trace completion.
-  Widget _buildFourTracesGrid() {
-    final mock = ApiConfig.useMock;
-    final traces = [
-      {
-        'num': '1',
-        'name': 'Khởi Nguồn',
-        'desc': 'Quân mưu Ngô Quyền',
-        'done': mock,
-      },
-      {
-        'num': '2',
-        'name': 'Diễn Biến',
-        'desc': 'Cọc ngầm & Thủy triều',
-        'done': mock,
-      },
-      {
-        'num': '3',
-        'name': 'Bằng Chứng',
-        'desc': 'Bãi cọc Yên Giang C-14',
-        'done': false,
-      },
-      {
-        'num': '4',
-        'name': 'Âm Vang',
-        'desc': 'Độc lập trường tồn',
-        'done': false,
-      },
-    ];
-
-    return Row(
-      children: traces.map((t) {
-        final isDone = t['done'] as bool;
-        return Expanded(
-          child: Container(
-            margin: const EdgeInsets.symmetric(horizontal: 4),
-            padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 6),
-            decoration: BoxDecoration(
-              color: isDone
-                  ? const Color(0xFFFBF4E6)
-                  : DauVietColors.parchmentContainer,
-              borderRadius: BorderRadius.circular(12),
-              border: Border.all(
-                color: isDone
-                    ? DauVietColors.imperialGold
-                    : DauVietColors.outlineVariant,
-                width: isDone ? 1.5 : 1.0,
-              ),
-            ),
-            child: Column(
-              children: [
-                CircleAvatar(
-                  radius: 14,
-                  backgroundColor: isDone
-                      ? DauVietColors.cinnabarRed
-                      : DauVietColors.parchmentHigh,
-                  child: Text(
-                    t['num'] as String,
-                    style: TextStyle(
-                      color: isDone ? Colors.white : DauVietColors.inkMuted,
-                      fontWeight: FontWeight.w700,
-                      fontSize: 12,
-                    ),
-                  ),
-                ),
-                const SizedBox(height: 8),
-                Text(
-                  t['name'] as String,
-                  textAlign: TextAlign.center,
-                  style: DauVietTypography.labelSmall.copyWith(
-                    fontSize: 11,
-                    fontWeight: FontWeight.w700,
-                    color: DauVietColors.inkText,
-                  ),
-                ),
-              ],
+  /// Card "Bắt đầu từ đây": sự kiện PUBLISHED đầu tiên từ `GET /api/v1/events`
+  /// (hoặc demo repo khi USE_MOCK) — người mới thấy ngay nội dung học thật.
+  /// Không hard-code eventId; không có event → hướng sang tab Khám phá.
+  Widget _buildFirstEventCard() {
+    final eventsAsync = ref.watch(eventsListProvider);
+    return eventsAsync.when(
+      loading: () => const ParchmentCard(
+        padding: EdgeInsets.all(18),
+        child: SizedBox(
+          height: 72,
+          child: Center(
+            child: SizedBox(
+              width: 22,
+              height: 22,
+              child: CircularProgressIndicator(strokeWidth: 2),
             ),
           ),
+        ),
+      ),
+      error: (_, _) => _shortcutCard(
+        icon: Icons.explore_rounded,
+        color: DauVietColors.riverBlue,
+        title: 'Khám phá bản đồ dấu ấn',
+        subtitle: 'Mở các chặng đường lịch sử đã mở khoá',
+        onTap: () => context.go('/map'),
+      ),
+      data: (page) {
+        if (page.milestones.isEmpty) {
+          return _shortcutCard(
+            icon: Icons.explore_rounded,
+            color: DauVietColors.riverBlue,
+            title: 'Khám phá bản đồ dấu ấn',
+            subtitle: 'Chưa có sự kiện nào được xuất bản',
+            onTap: () => context.go('/map'),
+          );
+        }
+        final first = page.milestones.first;
+        return ParchmentCard(
+          padding: const EdgeInsets.all(16),
+          onTap: () => context.go('/campaign/${first.id}'),
+          child: Row(
+            children: [
+              Container(
+                width: 44,
+                height: 44,
+                decoration: BoxDecoration(
+                  color: DauVietColors.parchmentContainer,
+                  borderRadius: BorderRadius.circular(10),
+                  border: Border.all(color: DauVietColors.imperialGold),
+                ),
+                child: const Icon(
+                  Icons.flag_rounded,
+                  color: DauVietColors.cinnabarRed,
+                ),
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      first.title,
+                      style: DauVietTypography.labelMedium.copyWith(
+                        fontWeight: FontWeight.w800,
+                      ),
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                    const SizedBox(height: 2),
+                    Text(
+                      'Vào chiến dịch đầu tiên của bạn',
+                      style: DauVietTypography.bodySmall.copyWith(
+                        color: DauVietColors.inkMuted,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              const Icon(
+                Icons.chevron_right_rounded,
+                color: DauVietColors.inkMuted,
+              ),
+            ],
+          ),
         );
-      }).toList(),
+      },
     );
   }
 
-  // Khối lối tắt khám phá — 4 card lưới 2×2.
+  // Khối lối tắt khám phá — chỉ điểm đến nội dung thật; các màn demo
+  // (Sa Bàn, Timeline tường thuật) chỉ hiển thị khi USE_MOCK (P1-06).
   Widget _buildQuickShortcuts() {
     return Column(
       children: [
@@ -565,8 +543,8 @@ class _LearnerDashboardScreenState
               child: _shortcutCard(
                 icon: Icons.map_rounded,
                 color: DauVietColors.riverBlue,
-                title: 'Bản Đồ Dấu Ấn',
-                subtitle: 'Địa điểm lịch sử mở khoá',
+                title: 'Khám phá',
+                subtitle: 'Bản đồ hành trình đã mở khoá',
                 onTap: () => context.go('/map'),
               ),
             ),
@@ -575,39 +553,39 @@ class _LearnerDashboardScreenState
               child: _shortcutCard(
                 icon: Icons.auto_stories_rounded,
                 color: DauVietColors.natureGreen,
-                title: 'Bộ Sưu Tập',
-                subtitle: 'Bằng chứng đã sưu tầm',
+                title: 'Sưu tập',
+                subtitle: 'Bằng chứng đã thu thập',
                 onTap: () => context.go('/collection'),
               ),
             ),
           ],
         ),
-        const SizedBox(height: 12),
-        Row(
-          children: [
-            Expanded(
-              child: _shortcutCard(
-                icon: Icons.military_tech_rounded,
-                color: DauVietColors.cinnabarRed,
-                title: 'Sa Bàn Thời Kỳ',
-                subtitle: ApiConfig.useMock
-                    ? 'Bạch Đằng 938 & 54 Chiến dịch'
-                    : 'Bạch Đằng 938 — nội dung demo',
-                onTap: () => context.go('/saban'),
+        if (ApiConfig.useMock) ...[
+          const SizedBox(height: 12),
+          Row(
+            children: [
+              Expanded(
+                child: _shortcutCard(
+                  icon: Icons.military_tech_rounded,
+                  color: DauVietColors.cinnabarRed,
+                  title: 'Sa Bàn (demo)',
+                  subtitle: 'Diễn biến Bạch Đằng 938',
+                  onTap: () => context.go('/saban'),
+                ),
               ),
-            ),
-            const SizedBox(width: 12),
-            Expanded(
-              child: _shortcutCard(
-                icon: Icons.timeline_rounded,
-                color: DauVietColors.imperialGold,
-                title: 'Lược Sử Niên Biểu',
-                subtitle: 'Dòng thời gian các triều đại',
-                onTap: () => context.go('/timeline'),
+              const SizedBox(width: 12),
+              Expanded(
+                child: _shortcutCard(
+                  icon: Icons.timeline_rounded,
+                  color: DauVietColors.imperialGold,
+                  title: 'Niên biểu (demo)',
+                  subtitle: 'Dòng thời gian các triều đại',
+                  onTap: () => context.go('/timeline'),
+                ),
               ),
-            ),
-          ],
-        ),
+            ],
+          ),
+        ],
       ],
     );
   }
@@ -632,77 +610,6 @@ class _LearnerDashboardScreenState
           Text(
             subtitle,
             style: DauVietTypography.bodySmall.copyWith(fontSize: 11),
-          ),
-        ],
-      ),
-    );
-  }
-
-  // Bottom Navigation Bar di sản
-  Widget _buildBottomNav() {
-    return Container(
-      decoration: BoxDecoration(
-        color: DauVietColors.parchmentSurface,
-        border: Border(
-          top: BorderSide(
-            color: DauVietColors.outlineVariant.withValues(alpha: 0.7),
-            width: 1,
-          ),
-        ),
-        boxShadow: DauVietColors.heritageShadow,
-      ),
-      child: BottomNavigationBar(
-        currentIndex: _currentBottomNavIndex,
-        onTap: (index) {
-          setState(() {
-            _currentBottomNavIndex = index;
-          });
-          if (index == 0) {
-            // Đang ở Bàn học
-          } else if (index == 1) {
-            context.go('/timeline');
-          } else if (index == 2) {
-            context.go('/saban');
-          } else if (index == 3) {
-            context.go('/island');
-          } else if (index == 4) {
-            context.go('/inventory');
-          }
-        },
-        backgroundColor: Colors.transparent,
-        elevation: 0,
-        selectedItemColor: DauVietColors.cinnabarRed,
-        unselectedItemColor: DauVietColors.inkMuted,
-        selectedLabelStyle: DauVietTypography.labelSmall.copyWith(
-          fontWeight: FontWeight.w800,
-        ),
-        unselectedLabelStyle: DauVietTypography.labelSmall,
-        type: BottomNavigationBarType.fixed,
-        items: const [
-          BottomNavigationBarItem(
-            icon: Icon(Icons.school_outlined),
-            activeIcon: Icon(Icons.school_rounded),
-            label: 'Bàn Học',
-          ),
-          BottomNavigationBarItem(
-            icon: Icon(Icons.auto_stories_outlined),
-            activeIcon: Icon(Icons.auto_stories_rounded),
-            label: 'Lược Sử',
-          ),
-          BottomNavigationBarItem(
-            icon: Icon(Icons.military_tech_outlined),
-            activeIcon: Icon(Icons.military_tech_rounded),
-            label: 'Sa Bàn',
-          ),
-          BottomNavigationBarItem(
-            icon: Icon(Icons.landscape_outlined),
-            activeIcon: Icon(Icons.landscape_rounded),
-            label: 'Di Sản',
-          ),
-          BottomNavigationBarItem(
-            icon: Icon(Icons.person_outline_rounded),
-            activeIcon: Icon(Icons.person_rounded),
-            label: 'Sĩ Tử',
           ),
         ],
       ),

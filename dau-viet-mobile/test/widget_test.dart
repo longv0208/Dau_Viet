@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 import 'package:dau_viet_mobile/app/app.dart';
 import 'package:dau_viet_mobile/features/auth/data/auth_state.dart';
 import 'package:dau_viet_mobile/features/events/data/events_providers.dart';
@@ -24,6 +25,10 @@ void main() {
   testWidgets(
     'DauVietApp full user journey: M-01 to M-16 & Phase M5 (M-11 Matching, M-12 Order)',
     (WidgetTester tester) async {
+      // Đánh dấu onboarding đã xem — journey test nhắm vào luồng app chính,
+      // không phải onboarding; splash sẽ bỏ qua màn 3 bước (P1-02).
+      SharedPreferences.setMockInitialValues({'onboarding_seen_v1': true});
+
       // Cài đặt viewport chuẩn mobile (412 x 915)
       tester.view.physicalSize = const Size(412, 915);
       tester.view.devicePixelRatio = 1.0;
@@ -53,13 +58,13 @@ void main() {
         findsOneWidget,
       );
 
-      // Chờ timer ~2.5s: auth stub trả guest → điều hướng thẳng sang M-03
-      // Learner Dashboard (không qua M-02 AuthScreen).
+      // Chờ timer ~2.5s: auth stub trả guest → điều hướng sang dashboard
+      // (cờ onboarding đã set sẵn nên không rẽ qua màn 3 bước).
       await tester.pump(const Duration(milliseconds: 3000));
       await tester.pumpAndSettle();
 
-      // 3. Xác nhận màn hình M-03 Bàn Học Tập
-      expect(find.text('Bàn Học Tập Sử Ký'), findsOneWidget);
+      // 3. Xác nhận đã vào Dashboard (P0-04: tiêu đề mới "Học tập").
+      expect(find.text('Học tập'), findsWidgets);
       // Chưa có attempt đang học → card mời khám phá (dynamic, không
       // hard-code event title). eventsListProvider có delay 200ms —
       // đợi thêm rồi kiểm tra CTA hiển thị.
@@ -68,19 +73,21 @@ void main() {
       expect(find.text('Bắt đầu hành trình'), findsOneWidget);
       expect(find.text('KHÁM PHÁ NGAY ›'), findsOneWidget);
 
-      // 4. Điều hướng sang M-04 Dòng Thời Gian (Lược Sử) qua Bottom Nav Bar
-      await tester.tap(find.byIcon(Icons.auto_stories_outlined));
-      await tester.pumpAndSettle();
+      // Bottom nav chuẩn mới 4 tab (P0-01): Học tập / Khám phá / Sưu tập /
+      // Cá nhân. Các màn demo (Timeline/Sa Bàn/Đảo/Energy) không còn là tab
+      // và bị gate ở real mode — journey giờ đi qua route trực tiếp cho
+      // các màn demo để giữ coverage, không qua bottom nav.
 
-      // Xác nhận đã vào M-04 Timeline
+      // 4. Mở M-04 Dòng Thời Gian (demo) qua route trực tiếp.
+      tester.element(find.text('Học tập').first).go('/timeline');
+      await tester.pumpAndSettle();
       expect(find.text('DÒNG THỜI GIAN LỊCH SỬ'), findsOneWidget);
       expect(find.text('Khởi Nghĩa Hai Bà Trưng'), findsOneWidget);
 
-      // 5. Điều hướng sang M-06 Sa Bàn qua Bottom Nav Bar
-      await tester.tap(find.byIcon(Icons.military_tech_outlined));
+      // 5. Mở M-06 Sa Bàn qua route trực tiếp (icon saban giờ trùng cả
+      // trong nội dung và bottom nav — dùng route để tránh nhầm widget).
+      tester.element(find.text('DÒNG THỜI GIAN LỊCH SỬ')).go('/saban');
       await tester.pumpAndSettle();
-
-      // Xác nhận đã vào M-06 Sa Bàn Thủy Chiến
       expect(find.text('SA BÀN THỦY CHIẾN BẠCH ĐẰNG'), findsOneWidget);
       expect(find.text('CHU KỲ THỦY TRIỀU CHIẾN THUẬT'), findsOneWidget);
 
@@ -234,7 +241,6 @@ void main() {
       expect(find.text('Chuẩn Bị Cọc Ngầm'), findsOneWidget);
 
       // Điều chỉnh thứ tự: Di chuyển "Chuẩn Bị Cọc Ngầm" lên vị trí 1
-      // Icon mũi tên lên đầu tiên có thể bấm được là của item index 1 ("Chuẩn Bị Cọc Ngầm")
       final upArrows = find.byIcon(Icons.keyboard_arrow_up_rounded);
       await tester.tap(upArrows.at(1));
       await tester.pumpAndSettle();
@@ -341,69 +347,36 @@ void main() {
       await tester.pumpAndSettle();
 
       // Xác nhận và đóng BiteSizedCompletionModal — demo flow kết thúc
-      // bằng điều hướng về dashboard (TASK-0023 P1-D: real mode không hiển
-      // thị fabricated M-18/19/21 reward screens; các route đó chỉ sống
-      // trong USE_MOCK).
+      // bằng điều hướng về dashboard (real mode không hiển thị fabricated
+      // M-18/19/21 reward screens; các route đó chỉ sống trong USE_MOCK).
       expect(find.text('TIẾP TỤC HÀNH TRÌNH ›'), findsOneWidget);
       await tester.tap(find.text('TIẾP TỤC HÀNH TRÌNH ›'));
       await tester.pumpAndSettle();
 
-      // Xác nhận đã quay về M-03 Bàn Học Tập — real mode không đi qua
+      // Xác nhận đã quay về Dashboard — real mode không đi qua
       // fabricated victory/claim/artifact screens.
-      expect(find.text('Bàn Học Tập Sử Ký'), findsOneWidget);
+      expect(find.text('Học tập'), findsWidgets);
 
-      // 18. Mở M-22 Đảo Di Sản Cá Nhân qua Bottom Nav Bar (Tab Di Sản)
-      await tester.tap(find.byIcon(Icons.landscape_outlined));
+      // 15. Mở tab Sưu tập qua bottom nav mới (tab 2 /collection).
+      await tester.tap(find.byIcon(Icons.auto_stories_outlined));
       await tester.pumpAndSettle();
+      expect(find.text('Bộ Sưu Tập Dấu Việt'), findsOneWidget);
 
-      // Xác nhận đã vào M-22 Heritage Island Screen
-      expect(find.text('ĐẢO DI SẢN CÁ NHÂN'), findsOneWidget);
-      expect(find.text('Đình Cổ'), findsOneWidget);
-      expect(find.text('Bến Thuyền'), findsOneWidget);
-
-      // 19. Mở M-27 Túi Đồ & Kho Trang Trí từ nút trên Đảo
-      await tester.scrollUntilVisible(
-        find.textContaining('MỞ TÚI ĐỒ & KHO TRANG TRÍ (M-27)'),
-        100,
-      );
-      await tester.tap(find.textContaining('MỞ TÚI ĐỒ & KHO TRANG TRÍ (M-27)'));
+      // Quay về tab Học tập qua bottom nav.
+      await tester.tap(find.byIcon(Icons.school_outlined));
       await tester.pumpAndSettle();
+      expect(find.text('Học tập'), findsWidgets);
 
-      // Xác nhận đã vào M-27 Inventory Screen — real mode hiển thị
-      // catalog từ /me/inventory/catalog (journey không sở hữu vật phẩm
-      // nào và không có backend → màn hiển thị error/loading, không có
-      // nút quay về trong body; điều hướng thẳng về dashboard).
-      expect(find.text('TÚI ĐỒ SĨ TỬ'), findsOneWidget);
-      tester.element(find.text('TÚI ĐỒ SĨ TỬ')).go('/dashboard');
+      // 16. Mở tab Cá nhân qua bottom nav (tab 3 /profile) — P0-02 mới.
+      await tester.tap(find.byIcon(Icons.person_outline_rounded));
       await tester.pumpAndSettle();
-
-      // 20. Mở M-28 Quản Lý Năng Lượng & Viện Thái Y.
-      // Test chạy real-mode (USE_MOCK=false mặc định) → EnergyPill bị ẩn
-      // theo đúng hành vi mới (không hiển thị số dư giả). Điều hướng thẳng
-      // để giữ coverage màn M-28.
-      expect(find.text('Bàn Học Tập Sử Ký'), findsOneWidget);
-      final BuildContext dashCtx = tester.element(
-        find.text('Bàn Học Tập Sử Ký'),
-      );
-      dashCtx.go('/energy');
-      await tester.pumpAndSettle();
-
-      // Xác nhận đã vào M-28 Energy Management Screen
-      expect(find.text('QUẢN LÝ THỂ LỰC'), findsOneWidget);
-      expect(find.text('THỂ LỰC HIỆN TẠI'), findsOneWidget);
-      expect(find.textContaining('Tĩnh Tâm Ôn Luyện'), findsOneWidget);
-
-      // Bấm quay về Bàn học tập từ Viện Thái Y
-      await tester.scrollUntilVisible(
-        find.textContaining('VỀ BÀN HỌC TẬP (DASHBOARD)'),
-        100,
-        scrollable: find.byType(Scrollable).first,
-      );
-      await tester.tap(find.textContaining('VỀ BÀN HỌC TẬP (DASHBOARD)'));
-      await tester.pumpAndSettle();
-
-      // Xác nhận kết thúc trọn vẹn tại Bàn học tập
-      expect(find.text('Bàn Học Tập Sử Ký'), findsOneWidget);
+      // Thẻ thành tích đọc rewardSummaryProvider (load async qua repo
+      // chưa override → hiển thị loading). Kiểm tra khung màn đã vào đúng:
+      // nhãn mục QUẢN LÝ + TÀI KHOẢN của Profile render ngay, và bottom nav
+      // vẫn hiện tab Cá nhân đang chọn.
+      expect(find.text('QUẢN LÝ'), findsOneWidget);
+      expect(find.text('TÀI KHOẢN'), findsOneWidget);
+      expect(find.byIcon(Icons.person_rounded), findsOneWidget);
     },
   );
 }

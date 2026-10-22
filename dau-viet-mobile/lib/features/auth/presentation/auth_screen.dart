@@ -239,7 +239,20 @@ class _AuthScreenState extends ConsumerState<AuthScreen> {
                         ),
                       ),
                     ),
-                    const SizedBox(height: 24),
+                    const SizedBox(height: 12),
+                    TextButton(
+                      onPressed: _loading
+                          ? null
+                          : () => context.go('/register'),
+                      child: Text(
+                        'Chưa có tài khoản? Đăng ký ngay',
+                        style: DauVietTypography.labelMedium.copyWith(
+                          color: DauVietColors.cinnabarRed,
+                          fontWeight: FontWeight.w700,
+                        ),
+                      ),
+                    ),
+                    const SizedBox(height: 12),
 
                     // Guest chỉ khi demo USE_MOCK
                     if (allowGuest) ...[

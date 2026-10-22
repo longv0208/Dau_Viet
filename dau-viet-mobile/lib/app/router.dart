@@ -2,6 +2,7 @@ import 'package:go_router/go_router.dart';
 import '../core/api/api_config.dart';
 import '../features/auth/data/auth_state.dart';
 import '../features/auth/presentation/auth_screen.dart';
+import '../features/auth/presentation/register-screen.dart';
 import '../features/auth/presentation/splash_screen.dart';
 import '../features/campaign/presentation/campaign_detail_screen.dart';
 import '../features/collection/presentation/collection_detail_screen.dart';
@@ -21,6 +22,8 @@ import '../features/learning/presentation/matching_board_screen.dart';
 import '../features/learning/presentation/multiple_choice_quiz_screen.dart';
 import '../features/map/presentation/historical_map_screen.dart';
 import '../features/meta/presentation/energy_management_screen.dart';
+import '../features/onboarding/presentation/onboarding-screen.dart';
+import '../features/profile/presentation/profile-screen.dart';
 import '../features/meta/presentation/heritage_island_screen.dart';
 import '../features/meta/presentation/inventory_screen.dart';
 import '../features/rewards/presentation/event_victory_screen.dart';
@@ -39,13 +42,18 @@ const _learningPrefixes = [
   '/collection',
 ];
 
-/// Demo reward screens hardcode (M-18/19/21) — chỉ giữ trong USE_MOCK;
-/// real mode không có attemptId hợp lệ nên các route này sẽ hiển thị
-/// dữ liệu bịa. Redirect về dashboard để không lộ fabricated rewards.
+/// Màn demo-only (nội dung hard-code, không có backend thật): giữ trong
+/// USE_MOCK; real mode redirect về dashboard để không lộ dữ liệu bịa.
+/// Reward screens M-18/19/21 cần attemptId hợp lệ — real mode không có.
+/// Timeline/Sa Bàn/Đảo/Năng lượng là nội dung tường thuật demo (P1-06).
 const _demoOnlyPrefixes = [
   '/rewards/victory',
   '/rewards/claim',
   '/rewards/artifact',
+  '/timeline',
+  '/saban',
+  '/island',
+  '/energy',
 ];
 
 /// Bộ định tuyến toàn cục của Dấu Việt Mobile (go_router)
@@ -64,12 +72,13 @@ final appRouter = GoRouter(
     // Đang restore phiên (splash) → giữ nguyên; splash tự điều hướng.
     if (auth.status == AuthStatus.unknown) return null;
 
-    // Đã login mà vào /auth → về dashboard.
-    if (auth.status == AuthStatus.authenticated && loc == '/auth') {
+    // Đã login mà vào /auth hoặc /register → về dashboard.
+    if (auth.status == AuthStatus.authenticated &&
+        (loc == '/auth' || loc == '/register')) {
       return '/dashboard';
     }
 
-    // Real mode: demo reward routes không có context attempt → dashboard.
+    // Real mode: màn nội dung demo-only không có dữ liệu thật → dashboard.
     if (!ApiConfig.useMock && _demoOnlyPrefixes.any((p) => loc.startsWith(p))) {
       return '/dashboard';
     }
@@ -94,6 +103,29 @@ final appRouter = GoRouter(
       path: '/auth',
       name: 'auth',
       builder: (context, state) => const AuthScreen(),
+    ),
+
+    // P0-03: Đăng ký tài khoản learner mới
+    GoRoute(
+      path: '/register',
+      name: 'register',
+      builder: (context, state) => const RegisterScreen(),
+    ),
+
+    // P1-02: Onboarding 3 bước — chỉ hiện lần đầu (splash điều hướng).
+    GoRoute(
+      path: '/onboarding',
+      name: 'onboarding',
+      builder: (context, state) => OnboardingScreen(
+        destination: state.uri.queryParameters['next'] ?? '/auth',
+      ),
+    ),
+
+    // P0-02: Hồ sơ cá nhân — tab 3 của bottom nav chuẩn
+    GoRoute(
+      path: '/profile',
+      name: 'profile',
+      builder: (context, state) => const ProfileScreen(),
     ),
 
     // M-03: Bàn Học Tập Người Học (Dashboard)

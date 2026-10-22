@@ -114,7 +114,7 @@ void main() {
   }
 
   group('HistoricalMapScreen — journey', () {
-    testWidgets('hiển thị back "Về Bàn Học" + tiêu đề + legend + progress', (
+    testWidgets('hiển thị back "Về Học tập" + tiêu đề + legend + progress', (
       tester,
     ) async {
       final repo = _FakeMapRepository()
@@ -122,7 +122,7 @@ void main() {
       await tester.pumpWidget(buildApp(repo));
       await tester.pumpAndSettle();
 
-      expect(find.byTooltip('Về Bàn Học'), findsOneWidget);
+      expect(find.byTooltip('Về Học tập'), findsOneWidget);
       expect(find.text('Bản Đồ Dấu Ấn'), findsOneWidget);
       expect(find.text('Đã mở khoá'), findsOneWidget);
       expect(find.text('Sẵn sàng'), findsOneWidget);
@@ -142,13 +142,13 @@ void main() {
     });
 
     testWidgets(
-      'back "Về Bàn Học" điều hướng /dashboard khi không có route trước',
+      'back "Về Học tập" điều hướng /dashboard khi không có route trước',
       (tester) async {
         final repo = _FakeMapRepository()..locations = const [available];
         await tester.pumpWidget(buildRoutedApp(repo, initial: '/map'));
         await tester.pumpAndSettle();
 
-        await tester.tap(find.byTooltip('Về Bàn Học'));
+        await tester.tap(find.byTooltip('Về Học tập'));
         await tester.pumpAndSettle();
 
         expect(find.text('DASHBOARD'), findsOneWidget);
@@ -156,14 +156,14 @@ void main() {
       },
     );
 
-    testWidgets('back "Về Bàn Học" hiện cả khi loading + error + empty', (
+    testWidgets('back "Về Học tập" hiện cả khi loading + error + empty', (
       tester,
     ) async {
       // Loading: repo chưa resolve — dùng completer thủ công thay vì delay.
       final slowRepo = _FakeMapRepository();
       // Đẩy pumpWidget trước khi repo trả data — loading state.
       await tester.pumpWidget(buildApp(slowRepo));
-      expect(find.byTooltip('Về Bàn Học'), findsOneWidget);
+      expect(find.byTooltip('Về Học tập'), findsOneWidget);
       await tester.pumpAndSettle();
 
       // Error state.
@@ -173,14 +173,14 @@ void main() {
         );
       await tester.pumpWidget(buildApp(errRepo));
       await tester.pumpAndSettle();
-      expect(find.byTooltip('Về Bàn Học'), findsOneWidget);
+      expect(find.byTooltip('Về Học tập'), findsOneWidget);
       expect(find.text('Chưa tải được sử liệu'), findsOneWidget);
 
       // Empty state.
       final emptyRepo = _FakeMapRepository()..locations = const [];
       await tester.pumpWidget(buildApp(emptyRepo));
       await tester.pumpAndSettle();
-      expect(find.byTooltip('Về Bàn Học'), findsOneWidget);
+      expect(find.byTooltip('Về Học tập'), findsOneWidget);
       expect(find.text('Chưa có sự kiện nào'), findsOneWidget);
     });
 

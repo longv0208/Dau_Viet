@@ -5,6 +5,7 @@ import 'package:go_router/go_router.dart';
 import '../../../core/theme/dau_viet_colors.dart';
 import '../../../core/theme/dau_viet_typography.dart';
 import '../../../core/widgets/async_state_view.dart';
+import '../../../core/widgets/main-bottom-nav.dart';
 import '../../../core/widgets/parchment_card.dart';
 import '../../learning/presentation/renderers/learning_asset_image.dart';
 import '../data/collection_dto.dart';
@@ -73,6 +74,7 @@ class _CollectionScreenState extends ConsumerState<CollectionScreen> {
           Expanded(child: _buildBody(async)),
         ],
       ),
+      bottomNavigationBar: const MainBottomNav(),
     );
   }
 

@@ -2,6 +2,7 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
+import '../../../core/prefs/onboarding_flag.dart';
 import '../../../core/theme/dau_viet_colors.dart';
 import '../../../core/theme/dau_viet_typography.dart';
 import '../../learning/data/learning_providers.dart';
@@ -61,13 +62,23 @@ class _SplashScreenState extends ConsumerState<SplashScreen>
     }
     if (!mounted) return;
     final status = ref.read(authSessionProvider).status;
-    switch (status) {
-      case AuthStatus.authenticated:
-      case AuthStatus.guest:
-        context.go('/dashboard');
-      default:
-        context.go('/auth');
+    final String dest = switch (status) {
+      AuthStatus.authenticated || AuthStatus.guest => '/dashboard',
+      _ => '/auth',
+    };
+    // Lần đầu mở app → đưa qua onboarding 3 bước trước khi vào đích (P1-02).
+    try {
+      final seen = await OnboardingFlag.isSeen();
+      if (!mounted) return;
+      if (!seen) {
+        context.go('/onboarding?next=${Uri.encodeComponent(dest)}');
+        return;
+      }
+    } catch (_) {
+      // Lỗi đọc cờ → vào thẳng đích, không chặn luồng.
     }
+    if (!mounted) return;
+    context.go(dest);
   }
 
   @override

@@ -21,6 +21,7 @@ import '../data/attempt_repository.dart';
 import '../data/learning_dtos.dart';
 import '../data/learning_providers.dart';
 import 'renderers/activity_renderer.dart';
+import 'stage-guidance.dart';
 
 /// Mức độ feedback sau submit — map đúng outcome backend trả về.
 enum _FeedbackTone { success, info, warning, error }
@@ -297,7 +298,8 @@ class _LessonPlayerScreenState extends ConsumerState<LessonPlayerScreen> {
     // INCORRECT retry path: server giữ cursor ở activity hiện tại — next
     // đến cùng activity đó, không phải sang activity mới. Không chuyển
     // awaitingContinue (renderer bị lock khi đó) để learner sửa ngay.
-    final bool retryInPlace = !res.evaluation.completed &&
+    final bool retryInPlace =
+        !res.evaluation.completed &&
         res.next != null &&
         res.next!.activityId == st.current.activity?.id;
     if ((res.activityCompleted || res.next != null) && !retryInPlace) {
@@ -486,6 +488,11 @@ class _LessonPlayerScreenState extends ConsumerState<LessonPlayerScreen> {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.stretch,
                 children: [
+                  // Giai đoạn điều tra hiện tại + gợi ý cách làm (P1-04).
+                  if (cur.stage?.type != null) ...[
+                    StageGuidanceChip(stageType: cur.stage!.type),
+                    const SizedBox(height: 10),
+                  ],
                   if (cur.activity!.instruction != null)
                     Padding(
                       padding: const EdgeInsets.only(bottom: 10),
