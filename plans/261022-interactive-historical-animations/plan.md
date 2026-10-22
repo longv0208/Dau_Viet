@@ -18,8 +18,12 @@ external game/animation engines.
 | Backend validation (ReadValidator.animationKey) | Done |
 | Admin editor field + honest preview line | Done |
 | Visual geometry + playback bugfix (stakes/boats/pause/replay/reveal) | Done |
-| Tests: 37 Flutter + 6 backend + 6 admin | Done |
-| Attach scene to a live Bạch Đằng READ lesson | Manual step via Admin |
+| Resume-after-interaction fix (`_tweenPaused`) | Done |
+| **ANIM-02**: `SceneTransition` contract + MapScene (marker/route/highlight) | Done |
+| ANIM-02 scenes: `hai_ba_trung_40_uprising_v1` + `ly_thai_to_1010_relocation_v1` | Done |
+| Marker tap → info panel (`LocationInfoPanel` + `MapMarkerOverlay`) | Done |
+| Tests: 57 Flutter + 6 backend + 6 admin | Done |
+| Attach scenes to live READ lessons | Manual step via Admin |
 
 ## Contract
 
@@ -67,12 +71,12 @@ for learners, never affecting grading, EXP, rewards or progression.
   (definition/registry/player/controls/prediction), RiverScene painter,
   `config.animationKey` contract end-to-end (backend validation → admin
   editor → learner projection → Flutter resolve).
-- **ANIM-02 — Map scenes**: second scene type for spatial/temporal
-  stories — Hai Bà Trưng uprising map + Thăng Long capital relocation.
-  Reuse the same player/controls/prediction; add a `MapScenePainter`
-  against the same `HistoricalScenePainter` base. Smallest extension
-  point: a new painter + a new typed `HistoricalAnimationDefinition`
-  registered under a new versioned animationKey — no engine changes.
+- **ANIM-02 — Map scenes** (done): `SceneTransition` typed contract —
+  each step carries a scene-specific target (`RiverSceneState` /
+  `MapSceneState`), player only lerps. `MapScenePainter` + interactive
+  marker overlay (≥44px, semantics) + `LocationInfoPanel`. Two scenes:
+  `hai_ba_trung_40_uprising_v1` (6 steps), `ly_thai_to_1010_relocation_v1`
+  (5 steps). No river-property misuse — map state is its own typed class.
 - **ANIM-03 — Object exploration + timeline + more lessons**: rotate/zoom
   artifact exploration, timeline scrubbing scenes, attach animations to
   more READ lessons.

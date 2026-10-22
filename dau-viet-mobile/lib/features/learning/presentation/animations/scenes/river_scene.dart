@@ -3,6 +3,52 @@ import 'package:flutter/material.dart';
 import '../../../../../core/theme/dau_viet_colors.dart';
 import '../historical_animation_definition.dart';
 
+/// ANIM-01 — Trạng thái đích typed của river scene: mực nước + tiến độ
+/// thuyền + cờ mắc cọc. Scene khác (map) KHÔNG tái dùng class này làm
+/// biến tiến độ — đúng nguyên tắc mở rộng của ANIM-02.
+class RiverSceneState extends SceneTransition {
+  final double waterLevel; // 0 = rút (đáy), 1 = dâng
+  final double boatProgress; // 0..1 dọc đường đi
+  final bool boatsObstructed;
+  final bool highlightStakes;
+
+  const RiverSceneState({
+    required this.waterLevel,
+    required this.boatProgress,
+    this.boatsObstructed = false,
+    this.highlightStakes = false,
+  });
+
+  @override
+  void apply(HistoricalScenePainter painter, double t) {
+    if (painter is! RiverScenePainter) return;
+    if (t >= 1) {
+      painter.waterLevel = waterLevel;
+      painter.boatProgress = boatProgress;
+    } else {
+      // from = snapshot lúc bắt đầu bước — lerp về target.
+      final from = painter;
+      painter.waterLevel = _lerp(from.waterLevel, waterLevel, t);
+      painter.boatProgress = _lerp(from.boatProgress, boatProgress, t);
+    }
+    painter.boatsObstructed = boatsObstructed;
+    painter.highlightStakes = highlightStakes;
+  }
+
+  @override
+  SceneTransition captured(HistoricalScenePainter painter) {
+    if (painter is! RiverScenePainter) return this;
+    return RiverSceneState(
+      waterLevel: painter.waterLevel,
+      boatProgress: painter.boatProgress,
+      boatsObstructed: painter.boatsObstructed,
+      highlightStakes: painter.highlightStakes,
+    );
+  }
+
+  static double _lerp(double a, double b, double t) => a + (b - a) * t;
+}
+
 /// ANIM-01 — Painter sông + bãi cọc schematic dùng chung cho scene dạng
 /// "thủy triều / vật cản ngầm" (Bạch Đằng 938 là scene đầu tiên). Vẽ
 /// vector bằng CustomPainter, tọa độ chuẩn hóa 0..1 — không phụ thuộc
@@ -19,6 +65,49 @@ import '../historical_animation_definition.dart';
 class RiverScenePainter extends HistoricalScenePainter {
   /// Cao độ đáy sông (chuẩn hóa theo chiều cao canvas).
   static const double bedTopRatio = 0.80;
+
+  // --- Trạng thái tương tác — override setter của base class để
+  // notifyListeners; map scene không dùng các trường này. ---
+  double _waterLevel = 0.3;
+  double _boatProgress = 0.0;
+  bool _boatsObstructed = false;
+  bool _highlightStakes = false;
+
+  @override
+  double get waterLevel => _waterLevel;
+  @override
+  set waterLevel(double value) {
+    if (value == _waterLevel) return;
+    _waterLevel = value;
+    notifyListeners();
+  }
+
+  @override
+  double get boatProgress => _boatProgress;
+  @override
+  set boatProgress(double value) {
+    if (value == _boatProgress) return;
+    _boatProgress = value;
+    notifyListeners();
+  }
+
+  @override
+  bool get boatsObstructed => _boatsObstructed;
+  @override
+  set boatsObstructed(bool value) {
+    if (value == _boatsObstructed) return;
+    _boatsObstructed = value;
+    notifyListeners();
+  }
+
+  @override
+  bool get highlightStakes => _highlightStakes;
+  @override
+  set highlightStakes(bool value) {
+    if (value == _highlightStakes) return;
+    _highlightStakes = value;
+    notifyListeners();
+  }
 
   /// Nhóm cọc schematic — KHÔNG phải bố trí khảo cổ thật. Mỗi phần tử:
   /// (x, chiều dài cọc tính theo h). Base luôn neo ở đáy sông; ngọn cao
@@ -319,9 +408,7 @@ class RiverScenePainter extends HistoricalScenePainter {
   }
 
   @override
-  bool shouldRepaint(RiverScenePainter old) =>
-      old.waterLevel != waterLevel ||
-      old.boatProgress != boatProgress ||
-      old.boatsObstructed != boatsObstructed ||
-      old.highlightStakes != highlightStakes;
+  bool shouldRepaint(RiverScenePainter old) => false; // ChangeNotifier
+  // điều khiển repaint — shouldRepaint luôn false vì player giữ cùng
+  // instance và setters đã notifyListeners.
 }

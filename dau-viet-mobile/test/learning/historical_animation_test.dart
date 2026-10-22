@@ -1,8 +1,11 @@
 import 'package:dau_viet_mobile/features/learning/data/attempt_dtos.dart';
 import 'package:dau_viet_mobile/features/learning/presentation/animations/content/bach_dang_938_tide_v1.dart';
+import 'package:dau_viet_mobile/features/learning/presentation/animations/content/hai_ba_trung_40_uprising_v1.dart';
+import 'package:dau_viet_mobile/features/learning/presentation/animations/content/ly_thai_to_1010_relocation_v1.dart';
 import 'package:dau_viet_mobile/features/learning/presentation/animations/historical_animation_definition.dart';
 import 'package:dau_viet_mobile/features/learning/presentation/animations/historical_animation_player.dart';
 import 'package:dau_viet_mobile/features/learning/presentation/animations/historical_animation_registry.dart';
+import 'package:dau_viet_mobile/features/learning/presentation/animations/scenes/historical_map_scene.dart';
 import 'package:dau_viet_mobile/features/learning/presentation/animations/scenes/river_scene.dart';
 import 'package:dau_viet_mobile/features/learning/presentation/renderers/read_renderer.dart';
 import 'package:flutter/material.dart';
@@ -81,6 +84,24 @@ void main() {
       expect(def!.key, 'bach_dang_938_tide_v1');
       expect(def.steps, hasLength(6));
       expect(def.createPainter(), isA<RiverScenePainter>());
+    });
+
+    test('resolves both ANIM-02 map scenes', () {
+      final hbt = HistoricalAnimationRegistry.resolve(
+        'hai_ba_trung_40_uprising_v1',
+      );
+      final ltt = HistoricalAnimationRegistry.resolve(
+        'ly_thai_to_1010_relocation_v1',
+      );
+      expect(hbt, isNotNull);
+      expect(ltt, isNotNull);
+      expect(hbt!.createPainter(), isA<MapScenePainter>());
+      expect(ltt!.createPainter(), isA<MapScenePainter>());
+      expect(hbt.hasLocationExplorer, isTrue);
+      expect(ltt.hasLocationExplorer, isTrue);
+      // Không tái dùng water control của river.
+      expect(hbt.hasWaterControl, isFalse);
+      expect(ltt.hasWaterControl, isFalse);
     });
 
     test('unknown, null and empty keys resolve to null', () {
@@ -661,6 +682,298 @@ void main() {
       await _tap(tester, find.bySemanticsLabel('Bước tiếp'));
       expect(find.textContaining('Bước 2/6'), findsOneWidget);
       expect(find.textContaining('Bước 1/6'), findsOneWidget);
+    });
+  });
+
+  group('MapScenePainter — model & geometry', () {
+    MapScenePainter painterOf(HistoricalAnimationDefinition def) =>
+        def.createPainter() as MapScenePainter;
+
+    test('both scenes have valid internal model references', () {
+      for (final def in [haiBaTrung40UprisingV1, lyThaiTo1010RelocationV1]) {
+        final p = painterOf(def);
+        expect(
+          MapScenePainter.validateModel(p.locations, p.routes),
+          isEmpty,
+          reason: '${def.key} has invalid model',
+        );
+        // Mọi location id được step tham chiếu phải tồn tại.
+        final ids = p.locations.map((l) => l.id).toSet();
+        for (final step in def.steps) {
+          final t = step.target;
+          if (t is MapSceneState) {
+            for (final id in t.markerVisibility.keys) {
+              expect(ids, contains(id), reason: '${def.key} step "$id"');
+            }
+            for (final id in t.highlighted) {
+              expect(ids, contains(id));
+            }
+            if (t.focusedId != null) {
+              expect(ids, contains(t.focusedId));
+            }
+          }
+        }
+      }
+    });
+
+    test('marker positions stay inside normalized bounds', () {
+      for (final def in [haiBaTrung40UprisingV1, lyThaiTo1010RelocationV1]) {
+        final p = painterOf(def);
+        for (final loc in p.locations) {
+          expect(loc.position.dx, inInclusiveRange(0, 1));
+          expect(loc.position.dy, inInclusiveRange(0, 1));
+          final px = MapScenePainter.positionOf(
+            p.locations,
+            loc.id,
+            const Size(640, 400),
+          );
+          expect(px, isNotNull);
+          expect(px!.dx, inInclusiveRange(0, 640));
+          expect(px.dy, inInclusiveRange(0, 400));
+        }
+      }
+    });
+
+    test('route progress lerps monotonically toward the target', () {
+      final p = painterOf(haiBaTrung40UprisingV1);
+      const target = MapSceneState(
+        markerVisibility: {'hat_mon': 1, 'me_linh': 1},
+        routeProgress: {'gather': 1},
+      );
+      var prev = -1.0;
+      for (var t = 0.0; t <= 1.001; t += 0.1) {
+        target.apply(p, t);
+        final v = p.routeProgress['gather']!;
+        expect(v, greaterThanOrEqualTo(prev - 0.001));
+        prev = v;
+      }
+      expect(p.routeProgress['gather'], closeTo(1, 0.001));
+      expect(p.markerVisibility['me_linh'], closeTo(1, 0.001));
+    });
+
+    test('route point interpolation is stable at both ends', () {
+      final p = painterOf(lyThaiTo1010RelocationV1);
+      final route = p.routes.first;
+      final start = MapScenePainter.routePointAt(route, p.locations, 0);
+      final end = MapScenePainter.routePointAt(route, p.locations, 1);
+      final hoaLu = p.locations.firstWhere((l) => l.id == 'hoa_lu');
+      final daiLa = p.locations.firstWhere((l) => l.id == 'dai_la');
+      expect(start.dx, closeTo(hoaLu.position.dx, 0.001));
+      expect(start.dy, closeTo(hoaLu.position.dy, 0.001));
+      expect(end.dx, closeTo(daiLa.position.dx, 0.001));
+      expect(end.dy, closeTo(daiLa.position.dy, 0.001));
+    });
+
+    test('MapScene does not misuse river state fields', () {
+      // Map painter KHÔNG override setter river — ghi vào đó không đổi
+      // trạng thái map, chứng minh không lạm dụng biến của scene khác.
+      final p = painterOf(haiBaTrung40UprisingV1);
+      p.waterLevel = 0.9;
+      p.boatProgress = 0.9;
+      p.boatsObstructed = true;
+      expect(p.markerVisibility, isEmpty);
+      expect(p.routeProgress, isEmpty);
+      expect(p.highlightedIds, isEmpty);
+    });
+  });
+
+  group('HistoricalAnimationPlayer — Map scenes (ANIM-02)', () {
+    testWidgets('Hai Ba Trung renders narration, disclaimer and source', (
+      tester,
+    ) async {
+      await _pumpPlayer(tester, definition: haiBaTrung40UprisingV1);
+      await tester.pump();
+      expect(find.textContaining('Bước 1/6'), findsOneWidget);
+      expect(find.textContaining('Bản đồ minh họa schematic'), findsOneWidget);
+      expect(find.textContaining('Bảo tàng Lịch sử Quốc gia'), findsOneWidget);
+      // Không có slider nước của river scene.
+      expect(find.byType(Slider), findsNothing);
+    });
+
+    testWidgets('Lý Thái Tổ renders 5 steps and disclaimer', (tester) async {
+      await _pumpPlayer(tester, definition: lyThaiTo1010RelocationV1);
+      await tester.pump();
+      expect(find.textContaining('Bước 1/5'), findsOneWidget);
+      expect(find.textContaining('Hoa Lư'), findsWidgets);
+      expect(find.textContaining('schematic'), findsOneWidget);
+    });
+
+    testWidgets('next/prev updates map steps', (tester) async {
+      await _pumpPlayer(tester, definition: haiBaTrung40UprisingV1);
+      await tester.pump();
+      await _tap(tester, find.bySemanticsLabel('Bước tiếp'));
+      expect(find.textContaining('Bước 2/6'), findsOneWidget);
+      expect(
+        find.textContaining('Khởi nghĩa bùng lên'.toUpperCase()),
+        findsOneWidget,
+      );
+      await _tap(tester, find.bySemanticsLabel('Bước trước'));
+      expect(find.textContaining('Bước 1/6'), findsOneWidget);
+    });
+
+    testWidgets('tapping a marker shows its historical explanation', (
+      tester,
+    ) async {
+      await _pumpPlayer(tester, definition: haiBaTrung40UprisingV1);
+      await tester.pump();
+      // Vào bước 5 (Khám phá) — mọi marker đã hiện.
+      for (var i = 0; i < 4; i++) {
+        await _tap(tester, find.bySemanticsLabel('Bước tiếp'));
+      }
+      await tester.pump(const Duration(milliseconds: 1200));
+      expect(find.textContaining('Bước 5/6'), findsOneWidget);
+
+      await _tap(tester, find.bySemanticsLabel('Địa điểm Hát Môn'));
+      expect(find.textContaining('sông Hát / Hát Môn'), findsOneWidget);
+      expect(find.textContaining('Nơi phát khởi'), findsOneWidget);
+
+      await _tap(tester, find.bySemanticsLabel('Địa điểm Mê Linh'));
+      expect(find.textContaining('quê hương và nơi quy tụ'), findsOneWidget);
+
+      await _tap(tester, find.bySemanticsLabel('Địa điểm Luy Lâu'));
+      expect(find.textContaining('nhà Đông Hán ở Giao Chỉ'), findsOneWidget);
+      expect(find.textContaining('Trung tâm Hán'), findsOneWidget);
+    });
+
+    testWidgets('tapping Hoa Lư and Đại La shows their roles', (tester) async {
+      await _pumpPlayer(tester, definition: lyThaiTo1010RelocationV1);
+      await tester.pump();
+      // Step cuối — cả 2 marker hiện.
+      for (var i = 0; i < 4; i++) {
+        await _tap(tester, find.bySemanticsLabel('Bước tiếp'));
+      }
+      await tester.pump(const Duration(milliseconds: 1200));
+
+      await _tap(tester, find.bySemanticsLabel('Địa điểm Hoa Lư'));
+      expect(find.textContaining('kinh đô của các triều Đinh'), findsOneWidget);
+      expect(find.textContaining('Kinh đô cũ'), findsOneWidget);
+
+      await _tap(tester, find.bySemanticsLabel('Địa điểm Đại La — Thăng Long'));
+      expect(find.textContaining('CÙNG một địa điểm'), findsOneWidget);
+    });
+
+    testWidgets('replay clears marker selection and resets scene', (
+      tester,
+    ) async {
+      await _pumpPlayer(tester, definition: haiBaTrung40UprisingV1);
+      await tester.pump();
+      for (var i = 0; i < 4; i++) {
+        await _tap(tester, find.bySemanticsLabel('Bước tiếp'));
+      }
+      await tester.pump(const Duration(milliseconds: 1200));
+      await _tap(tester, find.bySemanticsLabel('Địa điểm Luy Lâu'));
+      // Panel giải thích của Luy Lâu đang mở.
+      expect(find.textContaining('nhà Đông Hán ở Giao Chỉ'), findsOneWidget);
+
+      await _tap(tester, find.bySemanticsLabel('Tua lại hoạt họa'));
+      expect(find.textContaining('Bước 1/6'), findsOneWidget);
+      // Panel đã đóng — không giữ selection cũ.
+      expect(find.textContaining('nhà Đông Hán ở Giao Chỉ'), findsNothing);
+    });
+
+    testWidgets('prediction reveal highlights Luy Lâu on the map', (
+      tester,
+    ) async {
+      await _pumpPlayer(tester, definition: haiBaTrung40UprisingV1);
+      await tester.pump();
+      await _tap(
+        tester,
+        find.textContaining('trung tâm hành chính của nhà Hán'),
+      );
+      await _tap(tester, find.text('XEM KẾT QUẢ VÀ GIẢI THÍCH'));
+      expect(
+        find.textContaining('thách thức trực tiếp đến bộ máy cai trị'),
+        findsOneWidget,
+      );
+    });
+
+    testWidgets('pause freezes a map transition; resume continues', (
+      tester,
+    ) async {
+      await _pumpPlayer(tester, definition: lyThaiTo1010RelocationV1);
+      await tester.pump();
+      await _tap(tester, find.bySemanticsLabel('Bước tiếp'));
+      await tester.pump(const Duration(milliseconds: 300));
+      // Tween đang chạy: PHÁT → TẠM DỪNG ngay.
+      await _tap(tester, find.text('PHÁT'));
+      await _tap(tester, find.text('TẠM DỪNG'));
+      await tester.pump(const Duration(milliseconds: 800));
+      // Không auto-advance khi pause.
+      expect(find.textContaining('Bước 2/5'), findsOneWidget);
+      // Resume — không nhảy step, không crash.
+      await _tap(tester, find.text('PHÁT'));
+      await tester.pump(const Duration(milliseconds: 500));
+      expect(tester.takeException(), isNull);
+      await _tap(tester, find.text('TẠM DỪNG'));
+    });
+
+    testWidgets('skip hides map controls and never submits', (tester) async {
+      Map<String, dynamic>? sent;
+      await _pumpRead(tester, const {
+        'text': 'x',
+        'animationKey': 'hai_ba_trung_40_uprising_v1',
+      }, onSubmit: (payload) async => sent = payload);
+      await tester.pump();
+      await _tap(tester, find.text('Bỏ qua'));
+      expect(
+        find.textContaining('Đã bỏ qua phần minh họa tương tác'),
+        findsOneWidget,
+      );
+      expect(sent, isNull);
+      // READ ack vẫn submit {} như thường.
+      await _tap(tester, find.text('ĐÃ ĐỌC XONG, TIẾP TỤC'));
+      expect(sent, isEmpty);
+    });
+
+    testWidgets('prediction is local — never calls submit', (tester) async {
+      Map<String, dynamic>? sent;
+      await _pumpRead(tester, const {
+        'text': 'x',
+        'animationKey': 'ly_thai_to_1010_relocation_v1',
+      }, onSubmit: (payload) async => sent = payload);
+      await tester.pump();
+      await _tap(tester, find.textContaining('Đại La — sau này mang tên'));
+      await _tap(tester, find.text('XEM KẾT QUẢ VÀ GIẢI THÍCH'));
+      expect(find.textContaining('Thăng Long'), findsWidgets);
+      expect(sent, isNull);
+    });
+
+    testWidgets('map scene fits 320/360/390 without overflow', (tester) async {
+      for (final logicalWidth in <double>[320, 360, 390]) {
+        const dpr = 3.0;
+        tester.view.devicePixelRatio = dpr;
+        tester.view.physicalSize = Size(logicalWidth * dpr, 800 * dpr);
+        await tester.pumpWidget(
+          MaterialApp(
+            home: Scaffold(
+              body: SingleChildScrollView(
+                child: HistoricalAnimationPlayer(
+                  definition: haiBaTrung40UprisingV1,
+                ),
+              ),
+            ),
+          ),
+        );
+        await tester.pump();
+        expect(find.byType(HistoricalAnimationPlayer), findsOneWidget);
+        expect(tester.takeException(), isNull);
+        tester.view.resetPhysicalSize();
+        tester.view.resetDevicePixelRatio();
+      }
+    });
+
+    testWidgets('reduced-motion renders map end states immediately', (
+      tester,
+    ) async {
+      await _pumpPlayer(
+        tester,
+        definition: haiBaTrung40UprisingV1,
+        disableAnimations: true,
+      );
+      await tester.pump();
+      await _tap(tester, find.bySemanticsLabel('Bước tiếp'));
+      expect(find.textContaining('Bước 2/6'), findsOneWidget);
+      expect(tester.takeException(), isNull);
     });
   });
 }

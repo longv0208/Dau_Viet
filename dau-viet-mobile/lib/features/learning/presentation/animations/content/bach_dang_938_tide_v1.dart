@@ -30,9 +30,11 @@ final HistoricalAnimationDefinition bachDang938TideV1 =
               'dưới lòng sông. Sơ đồ chỉ vẽ cọc mang tính minh họa — '
               'sử liệu không ghi bố trí chính xác từng cọc.',
           hint: 'Quan sát vị trí các cọc nhô lên từ đáy sông.',
-          targetWaterLevel: 0.30,
-          targetBoatProgress: 0.0,
-          boatsObstructed: false,
+          target: RiverSceneState(
+            waterLevel: 0.30,
+            boatProgress: 0.0,
+            boatsObstructed: false,
+          ),
         ),
         HistoricalAnimationStep(
           label: 'Nước dâng',
@@ -41,9 +43,11 @@ final HistoricalAnimationDefinition bachDang938TideV1 =
               'cọc. Từ trên thuyền nhìn xuống, khó nhận ra chướng ngại '
               'vật đang ẩn phía dưới.',
           hint: 'Kéo thanh mực nước để tự thấy cọc bị che đi.',
-          targetWaterLevel: 0.90,
-          targetBoatProgress: 0.0,
-          boatsObstructed: false,
+          target: RiverSceneState(
+            waterLevel: 0.90,
+            boatProgress: 0.0,
+            boatsObstructed: false,
+          ),
         ),
         HistoricalAnimationStep(
           label: 'Thuyền địch vào sông',
@@ -52,9 +56,11 @@ final HistoricalAnimationDefinition bachDang938TideV1 =
               'mà không gặp trở ngại. Sơ đồ chỉ mô tả hướng di chuyển — '
               'không khẳng định đội hình hay số lượng thuyền thật.',
           hint: 'Mực nước cao → cọc vẫn chìm, thuyền đi qua được.',
-          targetWaterLevel: 0.90,
-          targetBoatProgress: 0.85,
-          boatsObstructed: false,
+          target: RiverSceneState(
+            waterLevel: 0.90,
+            boatProgress: 0.85,
+            boatsObstructed: false,
+          ),
         ),
         HistoricalAnimationStep(
           label: 'Nước rút',
@@ -62,9 +68,11 @@ final HistoricalAnimationDefinition bachDang938TideV1 =
               'Khi triều rút, mực nước hạ dần và những đỉnh cọc lộ ra. '
               'Đường đi của thuyền bỗng trở nên nguy hiểm.',
           hint: 'Thử kéo mực nước xuống thấp để thấy cọc lộ rõ.',
-          targetWaterLevel: 0.28,
-          targetBoatProgress: 0.85,
-          boatsObstructed: false,
+          target: RiverSceneState(
+            waterLevel: 0.28,
+            boatProgress: 0.85,
+            boatsObstructed: false,
+          ),
         ),
         HistoricalAnimationStep(
           label: 'Thuyền mắc cọc',
@@ -74,9 +82,11 @@ final HistoricalAnimationDefinition bachDang938TideV1 =
               'đúng thời điểm triều hạ để đánh úp, chứ không phải chỉ '
               'nhờ triều tự nhiên quyết định trận thắng.',
           hint: 'Cọc lộ + thuyền đã vào sâu → không thể quay đầu dễ dàng.',
-          targetWaterLevel: 0.28,
-          targetBoatProgress: 0.85,
-          boatsObstructed: true,
+          target: RiverSceneState(
+            waterLevel: 0.28,
+            boatProgress: 0.85,
+            boatsObstructed: true,
+          ),
         ),
         HistoricalAnimationStep(
           label: 'Chiến thuật',
@@ -88,9 +98,11 @@ final HistoricalAnimationDefinition bachDang938TideV1 =
           hint:
               'Có thể tua lại các bước hoặc tự kéo mực nước để kiểm '
               'chứng lại cơ chế.',
-          targetWaterLevel: 0.28,
-          targetBoatProgress: 0.85,
-          boatsObstructed: true,
+          target: RiverSceneState(
+            waterLevel: 0.28,
+            boatProgress: 0.85,
+            boatsObstructed: true,
+          ),
         ),
       ],
       prediction: const AnimationPrediction(
@@ -111,5 +123,11 @@ final HistoricalAnimationDefinition bachDang938TideV1 =
             'Thử kéo mực nước xuống thấp rồi quan sát: phần cọc nào '
             'còn chìm, phần nào đã lộ? Thuyền nổi trên mặt nước sẽ '
             'chạm vào đâu?',
+        revealSceneEffect: RiverSceneState(
+          waterLevel: 0.22,
+          boatProgress: 0.85,
+          boatsObstructed: true,
+          highlightStakes: true,
+        ),
       ),
     );

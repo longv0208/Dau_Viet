@@ -1,8 +1,8 @@
 import 'package:flutter/material.dart';
 
-/// ANIM-01 — Định nghĩa typed, immutable cho một cảnh hoạt họa lịch sử
-/// tương tác. Engine chung KHÔNG chứa logic riêng của Bạch Đằng — mọi
-/// dữ liệu scene-specific nằm trong subclass [HistoricalScene].
+/// ANIM-01/02 — Định nghĩa typed, immutable cho một cảnh hoạt họa lịch sử
+/// tương tác. Engine chung KHÔNG chứa logic riêng của từng sự kiện — mọi
+/// dữ liệu scene-specific nằm trong [SceneTransition] của từng bước.
 class HistoricalAnimationStep {
   /// Nhãn ngắn của bước (hiển thị trong progress).
   final String label;
@@ -13,23 +13,16 @@ class HistoricalAnimationStep {
   /// Gợi ý ngữ cảnh tuỳ chọn (hint nhỏ, có thể ẩn).
   final String? hint;
 
-  /// Mức nước schematic (0..1) mà scene hướng tới cuối bước — scene
-  /// river dùng để animate water level theo bước; scene khác bỏ qua.
-  final double? targetWaterLevel;
-
-  /// Thuyền tiến vào (0..1 progress dọc bãi cọc) cuối bước — null = giữ.
-  final double? targetBoatProgress;
-
-  /// Thuyền bị cản (tilt) cuối bước.
-  final bool? boatsObstructed;
+  /// Trạng thái đích typed của scene cuối bước — null = giữ nguyên trạng
+  /// thái hiện tại. Mỗi scene tự định nghĩa subclass (RiverSceneState,
+  /// MapSceneState); player chỉ biết [SceneTransition.lerp].
+  final SceneTransition? target;
 
   const HistoricalAnimationStep({
     required this.label,
     required this.narration,
     this.hint,
-    this.targetWaterLevel,
-    this.targetBoatProgress,
-    this.boatsObstructed,
+    this.target,
   });
 }
 
@@ -46,57 +39,64 @@ class AnimationPrediction {
   /// Hint hiển thị khi learner chọn phương án chưa khớp cơ chế.
   final String retryHint;
 
+  /// Hiệu ứng scene khi reveal — ví dụ MapScene hiển thị marker liên
+  /// quan; river scene tự xử qua nước rút. null = không đổi trạng thái.
+  final SceneTransition? revealSceneEffect;
+
   const AnimationPrediction({
     required this.question,
     required this.options,
     required this.explainedOptionIndex,
     required this.explanation,
     required this.retryHint,
+    this.revealSceneEffect,
   });
 }
 
+/// Trạng thái đích typed của một bước — "điểm mở rộng nhỏ nhất" cho
+/// ANIM-02: mỗi scene khai báo state riêng (nước/thuyền cho river,
+/// marker/route cho map) thay vì tái dùng trường của scene khác.
+///
+/// `t` = tiến độ transition 0..1 (đã qua easing). `from` là snapshot
+/// `captured()` lúc bắt đầu bước; scene tự quyết lerp hay apply-tức-thì.
+abstract class SceneTransition {
+  const SceneTransition();
+
+  /// Áp trạng thái lên painter theo tiến độ [t] (0..1, đã eased).
+  /// Gọi mỗi frame khi tween + một lần khi apply tĩnh (t = 1).
+  void apply(HistoricalScenePainter painter, double t);
+
+  /// Snapshot trạng thái hiển thị hiện tại của painter thành một
+  /// SceneTransition tương đương — làm `from` cho bước kế tiếp.
+  SceneTransition captured(HistoricalScenePainter painter);
+}
+
 /// Scene painter trừu tượng — mỗi cảnh lịch sử tự vẽ bằng CustomPainter.
-/// Nhận progress + state tương tác (waterLevel cho river scene).
 ///
 /// Player giữ MỘT painter instance suốt vòng đời widget, nên setters phải
 /// [notifyListeners] — nếu không, RenderCustomPaint thấy cùng instance và
 /// bỏ qua repaint (scene "đứng hình" dù state đã đổi).
+///
+/// Các setter waterLevel/boatProgress/boatsObstructed/highlightStakes là
+/// no-op ở base class để giữ tương thích RiverScene — scene mới (map)
+/// KHÔNG tái dùng chúng làm biến tiến độ bản đồ.
 abstract class HistoricalScenePainter extends CustomPainter
     with ChangeNotifier {
-  /// Trạng thái tương tác hiện tại — player cập nhật trước mỗi repaint.
-  double _waterLevel = 0.5;
-  double _boatProgress = 0.0;
-  bool _boatsObstructed = false;
-  bool _highlightStakes = false;
+  // --- Trạng thái riêng của river scene (no-op ở base, override ở
+  // RiverScenePainter). Map scene dùng setter typed riêng của nó. ---
+  double get waterLevel => 0.5;
+  set waterLevel(double value) {}
 
-  double get waterLevel => _waterLevel;
-  set waterLevel(double value) {
-    if (value == _waterLevel) return;
-    _waterLevel = value;
-    notifyListeners();
-  }
+  double get boatProgress => 0.0;
+  set boatProgress(double value) {}
 
-  double get boatProgress => _boatProgress;
-  set boatProgress(double value) {
-    if (value == _boatProgress) return;
-    _boatProgress = value;
-    notifyListeners();
-  }
+  bool get boatsObstructed => false;
+  set boatsObstructed(bool value) {}
 
-  bool get boatsObstructed => _boatsObstructed;
-  set boatsObstructed(bool value) {
-    if (value == _boatsObstructed) return;
-    _boatsObstructed = value;
-    notifyListeners();
-  }
-
-  /// Tô sáng bãi cọc (sau khi reveal đáp án dự đoán).
-  bool get highlightStakes => _highlightStakes;
-  set highlightStakes(bool value) {
-    if (value == _highlightStakes) return;
-    _highlightStakes = value;
-    notifyListeners();
-  }
+  /// Tô sáng điểm nhấn scene (bãi cọc / marker liên quan) sau khi
+  /// reveal đáp án dự đoán.
+  bool get highlightStakes => false;
+  set highlightStakes(bool value) {}
 }
 
 /// Định nghĩa một hoạt họa lịch sử tương tác.
@@ -118,9 +118,15 @@ class HistoricalAnimationDefinition {
   /// Factory tạo painter riêng của scene.
   final HistoricalScenePainter Function() createPainter;
 
-  /// Scene có slider mức nước không.
+  /// Scene có slider mức nước không (chỉ river scene).
   final bool hasWaterControl;
 
+  /// Cho phép chạm vào marker/địa điểm để mở panel giải thích (map
+  /// scene). Player render overlay tương tác thay vì canvas thuần.
+  final bool hasLocationExplorer;
+
+  /// Cờ "đang chơi" ngầm định ban đầu — map scene thường bắt đầu với
+  /// một transition rỗng; river scene giữ hành vi cũ.
   const HistoricalAnimationDefinition({
     required this.key,
     required this.title,
@@ -132,5 +138,6 @@ class HistoricalAnimationDefinition {
     this.prediction,
     this.transitionDuration = const Duration(milliseconds: 900),
     this.hasWaterControl = false,
+    this.hasLocationExplorer = false,
   });
 }
