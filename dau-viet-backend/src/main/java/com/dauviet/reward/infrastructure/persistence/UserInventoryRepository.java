@@ -40,8 +40,16 @@ public interface UserInventoryRepository
     /** Inventory của learner — mới nhất trước. */
     List<UserInventoryItem> findByUserIdOrderByAcquiredAtDesc(UUID userId);
 
-    /** Vật phẩm một attempt đã kích hoạt — enrich result screen. */
-    List<UserInventoryItem> findBySourceAttemptId(UUID attemptId);
+    /**
+     * Vật phẩm một attempt đã kích hoạt — enrich result screen. Loại
+     * ADMIN_GRANT: reconciliation ghi source_attempt_id của attempt đã
+     * hoàn thành TRƯỚC đó (metadata truy vết), nhưng đó không phải
+     * "vừa mở khóa trong lượt học" — không được hiển thị tại đây.
+     */
+    @Query("SELECT i FROM UserInventoryItem i WHERE i.sourceAttemptId = :attemptId "
+         + "AND i.acquisitionSource <> 'ADMIN_GRANT'")
+    List<UserInventoryItem> findRealtimeUnlocksByAttempt(
+            @Param("attemptId") UUID attemptId);
 
     /** Kiểm tra sở hữu — unlock evaluator bỏ qua item đã cấp. */
     boolean existsByUserIdAndItemId(UUID userId, UUID itemId);

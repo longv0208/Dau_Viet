@@ -808,6 +808,65 @@ class ItemUnlockIT extends AbstractPostgresIT {
                 .andExpect(status().isUnauthorized());
     }
 
+    // H. Reconciled item KHÔNG xuất hiện trong itemsUnlocked của result
+    // cũ — row ADMIN_GRANT với source_attempt_id trỏ attempt lịch sử
+    // không phải "vừa mở khóa trong lượt học đó".
+    @Test
+    void reconcile_resultDoesNotMisattributeAdminGrant() throws Exception {
+        // Learner hoàn thành L1 TRƯỚC khi item+rule tồn tại.
+        String lessonA = publish(draftMcOnly());
+        String attemptA = completeMcLesson(learnerToken, lessonA);
+
+        // Admin tạo item + rule LESSON_COMPLETED=L1 SAU, rồi reconcile.
+        String reconItem = newItem("HUY_HIEU_RECON_NO_RESULT",
+                "COMMEMORATIVE_BADGE");
+        newLessonCompletedRule(reconItem, lessonA);
+        mvc.perform(post("/api/v1/admin/rewards/reconcile-unlocks")
+                        .header("Authorization", adminToken))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.itemsGranted").value(1));
+
+        // Inventory: item đã sở hữu qua reconcile.
+        mvc.perform(get("/api/v1/me/inventory")
+                        .header("Authorization", learnerToken))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$[0].itemId").value(reconItem))
+                .andExpect(jsonPath("$[0].acquisitionSource")
+                        .value("ADMIN_GRANT"));
+
+        // Result của attempt cũ KHÔNG được liệt kê item này trong
+        // itemsUnlocked — nó không được mở trong lượt học đó.
+        mvc.perform(get("/api/v1/attempts/" + attemptA + "/result")
+                        .header("Authorization", learnerToken))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.itemsUnlocked").isEmpty());
+
+        // Realtime unlock vẫn hiển thị đúng: rule LESSON_COMPLETED=L2
+        // → hoàn thành L2 trả itemsUnlocked chứa item mới.
+        String lessonB = publish(draftMcOnly());
+        String realtimeItem = newItem("HUY_HIEU_REALTIME_RESULT",
+                "COMMEMORATIVE_BADGE");
+        newLessonCompletedRule(realtimeItem, lessonB);
+        String attemptB = completeMcLesson(learnerToken, lessonB);
+
+        mvc.perform(get("/api/v1/attempts/" + attemptB + "/result")
+                        .header("Authorization", learnerToken))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.itemsUnlocked.length()").value(1))
+                .andExpect(jsonPath("$.itemsUnlocked[0].itemId")
+                        .value(realtimeItem));
+
+        // Reconcile lần hai: không đổi gì, không duplicate.
+        mvc.perform(post("/api/v1/admin/rewards/reconcile-unlocks")
+                        .header("Authorization", adminToken))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.itemsGranted").value(0));
+        assertThat(inventoryCount(
+                "user_id = '" + learnerId + "' and item_id = '"
+                        + reconItem + "'"))
+                .isEqualTo(1);
+    }
+
     /* ---------- admin item CRUD giữ nguyên ---------- */
 
     @Test

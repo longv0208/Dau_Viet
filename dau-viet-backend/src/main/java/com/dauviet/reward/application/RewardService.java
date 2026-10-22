@@ -173,7 +173,11 @@ public class RewardService {
      */
     @Transactional(readOnly = true)
     public List<InventoryItemResponse> itemsUnlockedByAttempt(UUID attemptId) {
-        List<UserInventoryItem> rows = inventory.findBySourceAttemptId(attemptId);
+        // Chỉ tính unlock THỜI GIAN THỰC: row ADMIN_GRANT ghi bởi reconcile
+        // sau này trỏ source_attempt_id về một attempt đã hoàn thành trước
+        // — không được coi là "vừa mở khóa trong lượt học đó".
+        List<UserInventoryItem> rows =
+                inventory.findRealtimeUnlocksByAttempt(attemptId);
         Map<UUID, ItemCatalog> catalog = catalogOf(
                 rows.stream().map(UserInventoryItem::getItemId).toList());
         return rows.stream().map(o -> {
