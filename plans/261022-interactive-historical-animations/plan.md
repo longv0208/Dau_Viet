@@ -17,7 +17,8 @@ external game/animation engines.
 | ReadRenderer integration (`config.animationKey`) | Done |
 | Backend validation (ReadValidator.animationKey) | Done |
 | Admin editor field + honest preview line | Done |
-| Tests: 20 Flutter + 6 backend + 6 admin | Done |
+| Visual geometry + playback bugfix (stakes/boats/pause/replay/reveal) | Done |
+| Tests: 37 Flutter + 6 backend + 6 admin | Done |
 | Attach scene to a live Bạch Đằng READ lesson | Manual step via Admin |
 
 ## Contract
@@ -56,7 +57,33 @@ external game/animation engines.
 - `dau-viet-admin/.../read-editor.tsx` — "Mã hoạt họa (Flutter)" input
 - `dau-viet-admin/.../text-renderers.tsx` — preview notice (no Flutter playback)
 
-## Next (ANIM-02+)
+## Roadmap (source of truth for subsequent prompts)
 
-- New scenes register a second `HistoricalAnimationDefinition` keyed by a new
-  versioned animationKey; MapScene reuse path intentionally left open.
+Learning rhythm for every scene: **Observe → Predict → Explore → Feedback
+→ Understand**. Animation is a presentation layer inside READ — optional
+for learners, never affecting grading, EXP, rewards or progression.
+
+- **ANIM-01 — Core + Bạch Đằng 938** (done): generic engine
+  (definition/registry/player/controls/prediction), RiverScene painter,
+  `config.animationKey` contract end-to-end (backend validation → admin
+  editor → learner projection → Flutter resolve).
+- **ANIM-02 — Map scenes**: second scene type for spatial/temporal
+  stories — Hai Bà Trưng uprising map + Thăng Long capital relocation.
+  Reuse the same player/controls/prediction; add a `MapScenePainter`
+  against the same `HistoricalScenePainter` base. Smallest extension
+  point: a new painter + a new typed `HistoricalAnimationDefinition`
+  registered under a new versioned animationKey — no engine changes.
+- **ANIM-03 — Object exploration + timeline + more lessons**: rotate/zoom
+  artifact exploration, timeline scrubbing scenes, attach animations to
+  more READ lessons.
+- **ANIM-04 — Polish**: turtle mascot reactions, UX polish, accessibility
+  pass (reduced-motion, semantics, contrast), performance budget review.
+
+## Extension point (smallest, for ANIM-02)
+
+`HistoricalAnimationRegistry.resolve(key)` returns any
+`HistoricalAnimationDefinition`; the player only talks to
+`HistoricalScenePainter` setters (waterLevel / boatProgress /
+boatsObstructed / highlightStakes). A map scene adds its own painter +
+definition + registry entry — river-specific logic stays inside
+`scenes/river_scene.dart` and `content/bach_dang_938_tide_v1.dart`.

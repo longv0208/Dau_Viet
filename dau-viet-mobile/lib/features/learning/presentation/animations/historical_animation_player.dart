@@ -139,10 +139,22 @@ class _HistoricalAnimationPlayerState extends State<HistoricalAnimationPlayer>
   }
 
   void _togglePlay() {
-    if (_playing || _stepIndex < widget.definition.steps.length - 1) {
+    if (_playing) {
+      // PAUSE: đóng băng ngay cả tween đang chạy — không chỉ hủy timer.
+      _advanceTimer?.cancel();
       setState(() {
-        _playing = !_playing;
+        _playing = false;
+        _controller.stop();
+      });
+    } else if (_stepIndex < widget.definition.steps.length - 1) {
+      // RESUME: chỉ nối tiếp tween thực sự đang dở (value nằm giữa 0..1).
+      // forward() vô điều kiện sẽ khởi động lại một tween đã xong —
+      // kéo _waterLevel/_boatProgress trôi về target cũ lần nữa.
+      final resumeTween = _controller.value > 0 && _controller.value < 1;
+      setState(() {
+        _playing = true;
         _skipped = false;
+        if (resumeTween) _controller.forward();
       });
       _scheduleAdvance();
     } else {
@@ -171,9 +183,15 @@ class _HistoricalAnimationPlayerState extends State<HistoricalAnimationPlayer>
     setState(() {
       _stepIndex = 0;
       _skipped = false;
-      _highlightStakes = _predictionRevealed;
+      // Reset scene về schematic ban đầu VÀ xóa mọi state dự đoán —
+      // replay là "xem lại từ đầu", không giữ lựa chọn/reveal cũ.
+      _chosenOption = null;
+      _predictionRevealed = false;
+      _highlightStakes = false;
       _waterLevel = 0.3;
+      _waterFrom = 0.3;
       _boatProgress = 0;
+      _boatFrom = 0;
       _boatsObstructed = false;
       _applyStep(0, animate: false);
     });
@@ -212,6 +230,9 @@ class _HistoricalAnimationPlayerState extends State<HistoricalAnimationPlayer>
       _playing = false;
       _predictionRevealed = true;
       _highlightStakes = true;
+      // Dừng tween đang chạy NGAY — nếu không nó sẽ ghi đè trạng thái
+      // reveal bằng target của step hiện tại.
+      _controller.stop();
       // Đưa scene về trạng thái nước rút để minh họa cơ chế.
       _waterFrom = _waterLevel;
       _waterLevel = 0.22;
