@@ -3,6 +3,8 @@ import 'package:flutter/material.dart';
 import '../../../../core/theme/dau_viet_colors.dart';
 import '../../../../core/theme/dau_viet_typography.dart';
 import '../../data/attempt_dtos.dart';
+import '../animations/historical_animation_player.dart';
+import '../animations/historical_animation_registry.dart';
 import 'renderer_base.dart';
 
 /// READ — nội dung đọc + nút "Đã đọc xong, tiếp tục" (acknowledgment `{}`).
@@ -57,9 +59,25 @@ class ReadRenderer extends StatelessWidget {
       blocks.add(const _Paragraph('(Không có nội dung đọc.)'));
     }
 
+    // ANIM-01: READ có thể đính kèm hoạt họa tương tác qua
+    // `config.animationKey`. Key lạ/thiếu → chỉ render text bình
+    // thường; player chỉ là presentation, không đụng submit/progress.
+    final animation = HistoricalAnimationRegistry.resolve(
+      configText(config, ['animationKey']),
+    );
+
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
+        if (animation != null) ...[
+          // Keyed theo animationKey + activity id: đổi activity → dispose
+          // controller cũ, không rò state giữa các bài.
+          HistoricalAnimationPlayer(
+            key: ValueKey('anim_${animation.key}_${activity.id}'),
+            definition: animation,
+          ),
+          const SizedBox(height: 14),
+        ],
         ActivityCard(
           padding: const EdgeInsets.fromLTRB(18, 18, 18, 14),
           child: Column(

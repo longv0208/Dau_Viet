@@ -27,6 +27,16 @@ public final class SimpleActivityValidators {
     public static class ReadValidator extends AbstractActivityValidator {
         private static final int MAX_TEXT = 20_000;
 
+        /**
+         * ANIM-01: `config.animationKey` tuỳ chọn — identifier an toàn,
+         * versioned (khuyến nghị hậu tố `_vN`), resolve phía Flutter.
+         * Bounded: không URL/path/ký tự thực thi; backend không biết
+         * registry Flutter nên không kiểm tra key có scene tương ứng.
+         */
+        private static final java.util.regex.Pattern ANIMATION_KEY_PATTERN =
+                java.util.regex.Pattern.compile("[a-z0-9]+(_[a-z0-9]+){0,7}");
+        private static final int MAX_ANIMATION_KEY = 80;
+
         @Override public ActivityType supports() { return ActivityType.READ; }
 
         @Override
@@ -38,6 +48,22 @@ public final class SimpleActivityValidators {
             if (text != null && text.isTextual() && text.asText().length() > MAX_TEXT) {
                 errors.add(new FieldError(path + ".config.text", "TOO_LONG",
                         "text exceeds " + MAX_TEXT + " chars"));
+            }
+            JsonNode anim = config.get("animationKey");
+            if (anim == null || anim.isNull()) return; // optional field
+            if (!anim.isTextual()) {
+                errors.add(new FieldError(path + ".config.animationKey",
+                        "INVALID_TYPE", "animationKey must be a string"));
+                return;
+            }
+            String key = anim.asText();
+            if (key.isBlank() || key.length() > MAX_ANIMATION_KEY
+                    || !ANIMATION_KEY_PATTERN.matcher(key).matches()) {
+                errors.add(new FieldError(path + ".config.animationKey",
+                        "INVALID_ID",
+                        "animationKey must be a safe lowercase identifier "
+                                + "(e.g. 'bach_dang_938_tide_v1'), max "
+                                + MAX_ANIMATION_KEY + " chars"));
             }
         }
     }

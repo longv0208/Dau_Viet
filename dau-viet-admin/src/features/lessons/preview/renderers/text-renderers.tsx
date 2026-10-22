@@ -14,9 +14,19 @@ import type { PreviewActivityProps } from "./types";
 /** READ — instruction + paragraphs from config.text. */
 export function ReadActivityView({ activity }: PreviewActivityProps) {
   const text = typeof activity.config?.text === "string" ? activity.config.text : "";
+  const animationKey =
+    typeof activity.config?.animationKey === "string"
+      ? activity.config.animationKey
+      : null;
   const paragraphs = text.split(/\n{2,}/).filter(Boolean);
   return (
     <div className="flex flex-col gap-3">
+      {animationKey && (
+        <p className="rounded-md border border-dashed border-border bg-surface-alt px-3 py-2 text-xs italic text-ink-muted">
+          Hoạt họa Flutter: <code className="font-mono">{animationKey}</code> — mở
+          trên ứng dụng để chạy tương tác (bản web chỉ xem trước nội dung đọc).
+        </p>
+      )}
       {paragraphs.length > 0 ? (
         paragraphs.map((p, i) => (
           <p key={i} className="whitespace-pre-line text-sm leading-relaxed text-ink">

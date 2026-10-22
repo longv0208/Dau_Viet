@@ -421,6 +421,69 @@ class DraftValidatorTest {
         assertThat(validator.validate(draft, EVENT, ValidationLevel.PUBLISH)).isEmpty();
     }
 
+    /* ---------- ANIM-01: READ config.animationKey ---------- */
+
+    private JsonNode readDraft(String config) throws Exception {
+        return tree("""
+                {"stages":[{"id":"s1","type":"CONTEXT",
+                            "activities":[{"id":"r1","type":"READ","config":%s}],
+                            "nextStageIds":[]}]}
+                """.formatted(config));
+    }
+
+    @Test
+    void read_validAnimationKey_accepted() throws Exception {
+        JsonNode draft = readDraft(
+                "{\"text\":\"x\",\"animationKey\":\"bach_dang_938_tide_v1\"}");
+        assertThat(validator.validate(draft, EVENT, ValidationLevel.SAVE)).isEmpty();
+        // PUBLISH-level: no error may point at animationKey (other draft-level
+        // rules like schemaVersion/NO_REQUIRED_ACTIVITY are out of scope here).
+        assertThat(validator.validate(draft, EVENT, ValidationLevel.PUBLISH))
+                .noneMatch(e -> e.path().endsWith("config.animationKey"));
+    }
+
+    @Test
+    void read_missingAnimationKey_accepted() throws Exception {
+        // animationKey is optional — plain READ stays untouched.
+        JsonNode draft = readDraft("{\"text\":\"x\"}");
+        assertThat(validator.validate(draft, EVENT, ValidationLevel.SAVE)).isEmpty();
+        assertThat(validator.validate(draft, EVENT, ValidationLevel.PUBLISH))
+                .noneMatch(e -> e.path().endsWith("config.animationKey"));
+    }
+
+    @Test
+    void read_nonTextualAnimationKey_rejected() throws Exception {
+        JsonNode draft = readDraft("{\"text\":\"x\",\"animationKey\":42}");
+        List<FieldError> errors = validator.validate(draft, EVENT, ValidationLevel.SAVE);
+        assertThat(errors).anyMatch(e -> e.code().equals("INVALID_TYPE")
+                && e.path().endsWith("config.animationKey"));
+    }
+
+    @Test
+    void read_blankOrUnsafeAnimationKey_rejected() throws Exception {
+        for (String bad : new String[] {"", "   ", "Bach_Dang", "bach dang",
+                "bach-dang", "bach_dang.js", "../etc", "bach__dang"}) {
+            JsonNode draft = readDraft(
+                    "{\"text\":\"x\",\"animationKey\":\"%s\"}".formatted(bad));
+            List<FieldError> errors = validator.validate(draft, EVENT, ValidationLevel.SAVE);
+            assertThat(errors)
+                    .as("animationKey '%s' should be rejected", bad)
+                    .anyMatch(e -> e.code().equals("INVALID_ID")
+                            && e.path().endsWith("config.animationKey"));
+        }
+    }
+
+    @Test
+    void read_oversizedAnimationKey_rejected() throws Exception {
+        // 90 chars of valid characters but beyond the 80-char bound.
+        String longKey = "a".repeat(89) + "_b";
+        JsonNode draft = readDraft(
+                "{\"text\":\"x\",\"animationKey\":\"%s\"}".formatted(longKey));
+        List<FieldError> errors = validator.validate(draft, EVENT, ValidationLevel.SAVE);
+        assertThat(errors).anyMatch(e -> e.code().equals("INVALID_ID")
+                && e.path().endsWith("config.animationKey"));
+    }
+
     @Test
     void activityIds_uniqueAcrossStages_notJustPerStage() throws Exception {
         // Same activity id in two different stages — the runtime indexes

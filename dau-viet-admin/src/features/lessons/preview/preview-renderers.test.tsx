@@ -28,6 +28,25 @@ describe("preview activity renderers", () => {
     expect(screen.getByText("Đoạn hai.")).toBeInTheDocument();
   });
 
+  it("READ with animationKey shows an honest Flutter-animation notice", () => {
+    renderActivity({
+      id: "a-anim",
+      type: "READ",
+      config: { text: "Nội dung.", animationKey: "bach_dang_938_tide_v1" },
+    });
+    expect(screen.getByText("bach_dang_938_tide_v1")).toBeInTheDocument();
+    expect(screen.getByText(/Hoạt họa Flutter/)).toBeInTheDocument();
+    expect(screen.getByText(/mở\s*trên ứng dụng để chạy tương tác/i)).toBeInTheDocument();
+    // Reading content still renders normally.
+    expect(screen.getByText("Nội dung.")).toBeInTheDocument();
+  });
+
+  it("READ without animationKey shows no animation notice", () => {
+    renderActivity({ id: "a-noanim", type: "READ", config: { text: "Chỉ đọc." } });
+    expect(screen.queryByText(/Hoạt họa Flutter/)).not.toBeInTheDocument();
+    expect(screen.getByText("Chỉ đọc.")).toBeInTheDocument();
+  });
+
   it("MULTIPLE_CHOICE renders options without marking the correct one", () => {
     const { container } = renderActivity({
       id: "a2",

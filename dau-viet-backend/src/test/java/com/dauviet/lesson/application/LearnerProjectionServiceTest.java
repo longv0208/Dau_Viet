@@ -113,6 +113,24 @@ class LearnerProjectionServiceTest {
     }
 
     @Test
+    void read_animationKey_survivesProjection() throws Exception {
+        // ANIM-01: animationKey is a learner-facing pointer to a Flutter
+        // registry scene — it must travel draft → snapshot → projection
+        // untouched. It is NOT in LEARNER_HIDDEN_KEYS (exact leaf names only,
+        // so "key" never matches "animationKey").
+        JsonNode out = project("""
+                {"stages":[{"id":"s","type":"CONTEXT",
+                            "activities":[{"id":"a","type":"READ",
+                                           "config":{"text":"body",
+                                                     "animationKey":"bach_dang_938_tide_v1"}}]}]}
+                """);
+        JsonNode config = out.at("/stages/0/activities/0/config");
+        assertThat(config.get("animationKey").asText())
+                .isEqualTo("bach_dang_938_tide_v1");
+        assertThat(config.get("text").asText()).isEqualTo("body");
+    }
+
+    @Test
     void stripsHiddenKeysInDeepArraysAndValidationDescendants() throws Exception {
         JsonNode out = project("""
                 {"stages":[{"id":"s","type":"EVIDENCE",
