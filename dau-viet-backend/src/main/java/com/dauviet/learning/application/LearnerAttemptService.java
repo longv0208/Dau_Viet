@@ -86,6 +86,9 @@ public class LearnerAttemptService {
     private final LearnerProjectionService projection;
     private final IdempotencyService idempotency;
     private final com.dauviet.collection.application.EvidenceCollectionRecorder collectionRecorder;
+    private final com.dauviet.reward.application.RewardGrantService rewardGrants;
+    private final com.dauviet.reward.application.ItemUnlockService itemUnlocks;
+    private final com.dauviet.reward.application.RewardService rewardService;
     private final ObjectMapper mapper;
     private final TransactionTemplate txTemplate;
     private final EntityManager entityManager;
@@ -102,6 +105,12 @@ public class LearnerAttemptService {
                                  IdempotencyService idempotency,
                                  com.dauviet.collection.application
                                          .EvidenceCollectionRecorder collectionRecorder,
+                                 com.dauviet.reward.application
+                                         .RewardGrantService rewardGrants,
+                                 com.dauviet.reward.application
+                                         .ItemUnlockService itemUnlocks,
+                                 com.dauviet.reward.application
+                                         .RewardService rewardService,
                                  ObjectMapper mapper,
                                  org.springframework.transaction
                                          .PlatformTransactionManager txManager,
@@ -117,6 +126,9 @@ public class LearnerAttemptService {
         this.projection = projection;
         this.idempotency = idempotency;
         this.collectionRecorder = collectionRecorder;
+        this.rewardGrants = rewardGrants;
+        this.itemUnlocks = itemUnlocks;
+        this.rewardService = rewardService;
         this.mapper = mapper;
         this.txTemplate = new TransactionTemplate(txManager);
         this.entityManager = entityManager;
@@ -323,6 +335,10 @@ public class LearnerAttemptService {
             collectionRecorder.record(userId, a.getId(),
                     result.output().get("selectedEvidenceIds"), model,
                     pinned == null ? null : pinned.getLessonId());
+            // TASK-0023: COLLECTION_COUNT rules đánh giá ngay trong tx của
+            // submit — vật phẩm mở khóa commit cùng evidence vừa collect.
+            itemUnlocks.evaluateAfterEvidenceCollected(userId,
+                    pinned == null ? null : pinned.getLessonId(), a.getId());
         }
         int attemptNo = activityAttempts
                 .countByLearnerAttemptIdAndActivityId(a.getId(), activityId) + 1;
@@ -398,6 +414,19 @@ public class LearnerAttemptService {
         String resultJson = resultJsonOf(a, verdict, progress, score);
         lessonResults.save(LessonResult.of(a.getId(), score, resultJson,
                 a.getCompletedAt()));
+        // TASK-0023: thưởng + vật phẩm mở khóa ghi TRONG cùng transaction —
+        // attempt chưa coi là hoàn thành nếu phần thưởng chưa ghi được,
+        // và rollback của bất kỳ phần nào trả cả về trạng thái chưa hoàn
+        // thành. Idempotent: repeat complete vào nhánh alreadyCompleted ở
+        // trên, không chạm tới đây; cause_key/UNIQUE(user,item) chặn race.
+        LessonVersion completedVersion = versions.findById(a.getLessonVersionId())
+                .orElse(null);
+        if (completedVersion != null) {
+            UUID lessonId = completedVersion.getLessonId();
+            rewardGrants.grantFirstCompletion(userId, lessonId, a.getId());
+            itemUnlocks.evaluateAfterLessonCompletion(userId, lessonId,
+                    a.getId());
+        }
         return new CompleteAttemptResponse(a.getId(), a.getStatus().name(),
                 false, a.getCompletedAt(), verdict, progress);
     }
@@ -426,9 +455,13 @@ public class LearnerAttemptService {
         LessonResult r = lessonResults.findByLearnerAttemptId(a.getId())
                 .orElseThrow(() -> new ResultNotFoundException(
                         "no result for attempt: " + attemptId));
+        // TASK-0023 additive: thưởng + vật phẩm attempt này đã kích hoạt —
+        // đọc từ ledger/inventory thật, rỗng nếu attempt chưa cấp gì.
         return new LessonResultResponse(a.getId(), a.getLessonVersionId(),
                 a.getStatus().name(), r.getScore(), parse(r.getResultJson()),
-                r.getCompletedAt(), a.getStartedAt());
+                r.getCompletedAt(), a.getStartedAt(),
+                rewardService.rewardsOfAttempt(a.getId()),
+                rewardService.itemsUnlockedByAttempt(a.getId()));
     }
 
     /**

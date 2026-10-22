@@ -365,6 +365,28 @@ Publish chạy PUBLISH-level `DraftValidator` trong một transaction: `SELECT F
 | Mobile | Unit + widget tests | `flutter test` | **PASS** — 149/149 |
 | Mobile | Debug APK | `flutter build apk --debug` | **PASS** — `app-debug.apk` built |
 
+### Notes đã chốt TASK-0023 (Rewards, Inventory & Item Unlock — FR-39..44)
+
+- **Grant realtime**: `POST /attempts/{id}/complete` thành công (first completion của logical lesson, tính theo `lesson_id` — republish không đếm lại) ghi 2 `reward_transactions` trong cùng transaction: `EXP` +100 và `HISTORY_POINTS` +50 (mặc định, config `dauviet.rewards.exp-first-completion` / `dauviet.rewards.history-points-first-completion`). `cause_key` = `LESSON_FIRST_COMPLETE:{userId}:{lessonId}:{rewardType}` — unique + `INSERT ON CONFLICT DO NOTHING` → retry/replay/concurrent/second-attempt/republish không duplicate. Không cấp thưởng từ cờ client; `score` ≠ mastery.
+- `GET /api/v1/me/rewards/summary` — `{exp, historyPoints, lessonsCompleted, itemsOwned}` của riêng learner (JWT).
+- `GET /api/v1/me/rewards/transactions?page=&size=` — PageResponse, `size` tối đa 50 (`PAGE_SIZE_EXCEEDED` → 400); mỗi row `{id, rewardType, amount, reason, lessonId, createdAt}`.
+- `GET /api/v1/me/inventory` — array `InventoryItemDto` đã sở hữu, mới nhất trước: `{itemId, code, name, description, category, itemType, rarity, assetId, acquiredAt, acquisitionSource, sourceLessonId}`.
+- `GET /api/v1/me/inventory/catalog` — toàn bộ catalog active; mỗi item thêm `owned`, `acquiredAt` (nếu owned), `requirement {type, lessonId?, lessonTitle?, threshold?, current}` (progress hiện tại của learner), `sourceNote` (từ `source_metadata.note` — disclaimer "không phải hiện vật thật").
+- `GET /attempts/{id}/result` trả thêm `rewards` (danh sách bút toán của attempt — thường 2) và `itemsUnlocked` (items có `source_attempt_id` = attempt đó) — additive, không đổi field cũ.
+- **Item unlock rules** (`item_unlock_rule`, một active rule mỗi item): `LESSON_COMPLETED` (lesson cụ thể — đánh giá trong `complete()`), `COLLECTION_COUNT` (N evidence khác nhau trong collection — đánh giá trong transaction submit được chấp nhận **và** trong `complete()`), `LESSON_COUNT` (N lesson khác nhau completed — đánh giá trong `complete()`). Grant qua `user_inventory` `ON CONFLICT (user_id, item_id) DO NOTHING` — không stack, không revoke khi rule đổi/deactivate.
+- **Backfill**: `POST /api/v1/admin/rewards/backfill` (CONTENT_ADMIN) → `{attemptsGranted}`; chỉ attempt COMPLETED **sớm nhất** mỗi `(user, lesson)` được bổ sung (sắp `completed_at ASC`, claim slot ngay khi gặp để các attempt sau cùng bài không lọt), grant trực tiếp qua `insertIgnore` — gọi lại n lần vẫn an toàn.
+- **Admin items**: `GET /api/v1/admin/items` (list + rule hiện hành, page/size clamp ≤100), `GET /api/v1/admin/items/{itemId}`, `POST /api/v1/admin/items` → 201, `PUT /api/v1/admin/items/{itemId}` (metadata; `@Version row_version` optimistic lock tầng entity), `PUT /api/v1/admin/items/{itemId}/rule` (`{ruleType, lessonId?, threshold?, active}` — shape theo `chk_unlock_rule_shape`), `DELETE` = soft (`active=false`). Tất cả `CONTENT_ADMIN`.
+- Không thêm error code mới: item không tồn tại → `404` (ResourceNotFoundException chung); rule sai shape / `size` là tham số page (clamp về max, không 400); trùng `code` / lệch `expectedRowVersion` → `409` qua DataIntegrityViolation / optimistic-lock handler hiện có.
+- Mobile: `LessonResultDto` thêm `rewards`/`itemsUnlocked` — màn kết quả chỉ **hiển thị** dữ liệu server trả (không POST hoàn thành lần hai). `InventoryScreen` dùng `GET /me/inventory/catalog` thật (owned/locked + progress `current/threshold`), providers session-scoped invalidate sau submit (COLLECTION_COUNT có thể grant mid-attempt) và complete.
+
+### Verification results TASK-0023 (2026-10-22)
+
+| Module | Check | Command | Result |
+|---|---|---|---|
+| Backend | Unit + IT | `.\mvnw.cmd test -Dtest='*IT'` | **PASS** — 211/211 (RewardGrantIT 11/11, ItemUnlockIT 8/8), Flyway V12 clean |
+| Admin | Typecheck | `npx tsc --noEmit` | **PASS** |
+| Mobile | Analyze | `flutter analyze` | **PASS** — 0 issues |
+
 ## Admin client implementation note
 
 `dau-viet-admin` (TASK-0013) consumes this contract through a same-origin BFF layer: the browser only talks to `/api/auth/*` and `/api/proxy/*` inside the Next.js app, which forwards to `/api/v1/*` on `BACKEND_URL`. The refresh token is held in an HttpOnly `dv_refresh` cookie; access tokens live in browser memory only. See `docs/admin-runbook.md` for the full flow.

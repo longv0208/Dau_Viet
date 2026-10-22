@@ -154,6 +154,14 @@ class _ResultView extends StatelessWidget {
                     ),
                   ),
                 ],
+                // TASK-0023: thưởng + vật phẩm attempt này ĐÃ được server
+                // cấp trong transaction complete() — chỉ hiển thị thật,
+                // không phát thêm request "nhận thưởng" nào.
+                if (result.rewards.isNotEmpty ||
+                    result.itemsUnlocked.isNotEmpty) ...[
+                  const SizedBox(height: 12),
+                  _RewardsSection(result: result),
+                ],
                 // Recap lịch sử — chỉ render khi pinned content có dữ liệu
                 // đáng kể; thiếu → giữ nguyên result-only view.
                 if (recapContent != null) ...[
@@ -172,6 +180,126 @@ class _ResultView extends StatelessWidget {
             ),
           ),
         ),
+      ),
+    );
+  }
+}
+
+/// Section thưởng + vật phẩm mới mở khóa của chính attempt (TASK-0023).
+/// Dữ liệu đã được server ghi trong transaction complete(); đọc lại màn
+/// này (deep-link) vẫn hiện đúng những gì attempt kích hoạt — KHÔNG
+/// hiện lại như "thưởng mới" lần hai vì nguồn là ledger/inventory,
+/// không phải client flag.
+class _RewardsSection extends StatelessWidget {
+  final LessonResultDto result;
+  const _RewardsSection({required this.result});
+
+  static const _typeLabels = {
+    'EXP': 'Kinh nghiệm Sĩ Tử',
+    'HISTORY_POINTS': 'Điểm Sử Ký',
+  };
+
+  static const _typeIcons = {
+    'EXP': Icons.auto_awesome_rounded,
+    'HISTORY_POINTS': Icons.history_edu_rounded,
+  };
+
+  static const _typeColors = {
+    'EXP': DauVietColors.riverBlue,
+    'HISTORY_POINTS': DauVietColors.imperialGold,
+  };
+
+  @override
+  Widget build(BuildContext context) {
+    return ActivityCard(
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          const SectionLabel('PHẦN THƯỞNG ĐÃ NHẬN'),
+          const SizedBox(height: 10),
+          for (final tx in result.rewards)
+            Padding(
+              padding: const EdgeInsets.only(bottom: 8),
+              child: Row(
+                children: [
+                  Icon(
+                    _typeIcons[tx.rewardType] ?? Icons.card_giftcard_rounded,
+                    size: 20,
+                    color:
+                        _typeColors[tx.rewardType] ?? DauVietColors.imperialGold,
+                  ),
+                  const SizedBox(width: 8),
+                  Expanded(
+                    child: Text(
+                      _typeLabels[tx.rewardType] ?? tx.rewardType,
+                      style: DauVietTypography.bodySmall.copyWith(
+                        color: DauVietColors.inkText,
+                        fontWeight: FontWeight.w600,
+                      ),
+                    ),
+                  ),
+                  Text(
+                    '+${tx.amount}',
+                    style: DauVietTypography.labelMedium.copyWith(
+                      color:
+                          _typeColors[tx.rewardType] ??
+                          DauVietColors.imperialGold,
+                      fontWeight: FontWeight.w800,
+                      fontSize: 14,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          if (result.itemsUnlocked.isNotEmpty) ...[
+            const SizedBox(height: 4),
+            const SectionLabel('VẬT PHẨM VỪA MỞ KHÓA'),
+            const SizedBox(height: 8),
+            for (final item in result.itemsUnlocked)
+              Padding(
+                padding: const EdgeInsets.only(bottom: 8),
+                child: Row(
+                  children: [
+                    Container(
+                      width: 32,
+                      height: 32,
+                      decoration: BoxDecoration(
+                        color: DauVietColors.cinnabarRed,
+                        borderRadius: BorderRadius.circular(8),
+                        border: Border.all(
+                          color: DauVietColors.imperialGold,
+                          width: 1.2,
+                        ),
+                      ),
+                      child: const Icon(
+                        Icons.workspace_premium_rounded,
+                        color: Colors.white,
+                        size: 18,
+                      ),
+                    ),
+                    const SizedBox(width: 8),
+                    Expanded(
+                      child: Text(
+                        item.name,
+                        style: DauVietTypography.bodySmall.copyWith(
+                          color: DauVietColors.inkText,
+                          fontWeight: FontWeight.w700,
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            Text(
+              'Vật phẩm học tập — xem trong Túi Đồ Sĩ Tử.',
+              style: DauVietTypography.bodySmall.copyWith(
+                color: DauVietColors.inkMuted,
+                fontSize: 10.5,
+                fontStyle: FontStyle.italic,
+              ),
+            ),
+          ],
+        ],
       ),
     );
   }

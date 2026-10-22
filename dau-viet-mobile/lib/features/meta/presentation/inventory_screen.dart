@@ -1,127 +1,64 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import '../../../core/theme/dau_viet_colors.dart';
 import '../../../core/theme/dau_viet_typography.dart';
 import '../../../core/widgets/dong_son_button.dart';
 import '../../../core/widgets/energy_pill.dart';
 import '../../../core/widgets/parchment_card.dart';
+import '../../rewards/data/reward_dtos.dart';
+import '../../rewards/data/reward_providers.dart';
 
-/// Màn hình M-27: Túi Đồ & Quản Lý Cổ Vật Sở Hữu (Backpack / Inventory Screen)
-/// Khớp 100% với đặc tả trong MOBILE_SCREEN_DESIGN.md & UI_COMPONENT_SPEC.md
-class InventoryScreen extends StatefulWidget {
+/// Màn hình M-27: Túi Đồ & Kho Vật Phẩm Học Tập (Inventory Screen)
+/// TASK-0023: dữ liệu thật từ GET /api/v1/me/inventory/catalog — catalog
+/// đầy đủ kèm owned + requirement + progress. Vật phẩm luôn là mô hình /
+/// phiên bản số / huy hiệu kỷ niệm — KHÔNG phải cổ vật thật.
+class InventoryScreen extends ConsumerStatefulWidget {
   const InventoryScreen({super.key});
 
   @override
-  State<InventoryScreen> createState() => _InventoryScreenState();
+  ConsumerState<InventoryScreen> createState() => _InventoryScreenState();
 }
 
-class _InventoryScreenState extends State<InventoryScreen> {
+class _InventoryScreenState extends ConsumerState<InventoryScreen> {
+  /// 'all' | category code (MO_HINH / PHIEN_BAN_SO / HUY_HIEU / ...).
   String _selectedCategory = 'all';
-  String _selectedItemId = 'art_thuyen_chien';
+  String? _selectedItemId;
 
-  final List<Map<String, dynamic>> _items = [
-    {
-      'id': 'art_thuyen_chien',
-      'name': 'Mô hình Chiến thuyền Bạch Đằng',
-      'category': 'artifacts',
-      'categoryLabel': 'Cổ Vật',
-      'rarity': 'Bảo vật Quốc gia',
-      'rarityColor': DauVietColors.imperialGold,
-      'assetImage': 'assets/items/decor_cau_kieu.png',
-      'icon': Icons.directions_boat_filled_rounded,
-      'color': DauVietColors.cinnabarRed,
-      'desc':
-          'Thuyền chiến đáy nông cơ động thế kỷ X, báu vật mở khóa sau đại thắng Bạch Đằng 938.',
-      'actionRoute': '/rewards/artifact/art_thuyen_chien_938',
-      'actionLabel': 'XEM CHI TIẾT CỔ VẬT (M-21) ›',
-    },
-    {
-      'id': 'art_coc_yen_giang',
-      'name': 'Cọc Gỗ Lim Yên Giang',
-      'category': 'artifacts',
-      'categoryLabel': 'Cổ Vật',
-      'rarity': 'Cổ vật Hiếm',
-      'rarityColor': DauVietColors.riverBlue,
-      'assetImage': 'assets/badges/badge_trace_4_archaeology.png',
-      'icon': Icons.architecture_rounded,
-      'color': DauVietColors.riverBlue,
-      'desc':
-          'Hiện vật cọc gỗ lim vót nhọn bịt sắt, định tuổi Carbon C-14 trùng khớp năm 938.',
-      'actionRoute': null,
-      'actionLabel': 'CỔ VẬT ĐANG TRƯNG BÀY',
-    },
-    {
-      'id': 'bld_thuy_ta_sen',
-      'name': 'Thủy Tạ Sen Cổ Truyền',
-      'category': 'island',
-      'categoryLabel': 'Công Trình',
-      'rarity': 'Kiến trúc Di sản',
-      'rarityColor': DauVietColors.natureGreen,
-      'assetImage': 'assets/items/decor_ho_sen.png',
-      'icon': Icons.park_rounded,
-      'color': DauVietColors.natureGreen,
-      'desc':
-          'Công trình thủy tạ hoa sen thanh tịnh, dùng đặt lên ô cảnh quan của Đảo Di Sản.',
-      'actionRoute': '/island',
-      'actionLabel': 'ĐẶT LÊN ĐẢO DI SẢN (M-22) ›',
-    },
-    {
-      'id': 'bld_dinh_lang',
-      'name': 'Đình Làng Cổ Ngô Quyền',
-      'category': 'island',
-      'categoryLabel': 'Công Trình',
-      'rarity': 'Kiến trúc Cổ',
-      'rarityColor': DauVietColors.cinnabarRed,
-      'assetImage': 'assets/items/decor_nha_tranh.png',
-      'icon': Icons.account_balance_rounded,
-      'color': DauVietColors.cinnabarRed,
-      'desc':
-          'Công trình đình làng kiến trúc thời Ngô trang nghiêm, lưu dấu truyền thống ngàn năm.',
-      'actionRoute': '/island',
-      'actionLabel': 'ĐẶT LÊN ĐẢO DI SẢN (M-22) ›',
-    },
-    {
-      'id': 'tkn_lenh_bai_ngo_vuong',
-      'name': 'Lệnh Bài Tiền Ngô Vương',
-      'category': 'tokens',
-      'categoryLabel': 'Lệnh Bài',
-      'rarity': 'Hoàng Gia',
-      'rarityColor': DauVietColors.cinnabarRed,
-      'assetImage': 'assets/badges/badge_trace_3_tactics.png',
-      'icon': Icons.shield_moon_rounded,
-      'color': DauVietColors.cinnabarRed,
-      'desc':
-          'Lệnh bài xuất quân Tiền Ngô Vương trao tặng Sĩ Tử thấu triệt binh lược.',
-      'actionRoute': null,
-      'actionLabel': 'LỆNH BÀI DANH DỰ',
-    },
-    {
-      'id': 'it_tra_sen',
-      'name': 'Trà Sen Tây Hồ Cổ Truyền',
-      'category': 'tokens',
-      'categoryLabel': 'Dược Phẩm',
-      'rarity': 'Thảo Dược',
-      'rarityColor': DauVietColors.natureGreen,
-      'assetImage': 'assets/items/energy_tra_sen.png',
-      'icon': Icons.local_cafe_rounded,
-      'color': DauVietColors.imperialGold,
-      'desc':
-          'Trà sen ướp hương thơm ngát của Viện Thái Y giúp tăng tốc hồi phục thể lực.',
-      'actionRoute': '/energy',
-      'actionLabel': 'ĐẾN VIỆN THÁI Y (M-28) ›',
-    },
-  ];
+  static const _categoryLabels = {
+    'MO_HINH': 'Mô hình',
+    'PHIEN_BAN_SO': 'Phiên bản số',
+    'HUY_HIEU': 'Huy hiệu',
+  };
+
+  static const _rarityLabels = {
+    'COMMON': 'Thường',
+    'UNCOMMON': 'Không phổ biến',
+    'RARE': 'Hiếm',
+    'EPIC': 'Sử thi',
+  };
+
+  static const _rarityColors = {
+    'COMMON': DauVietColors.natureGreen,
+    'UNCOMMON': DauVietColors.riverBlue,
+    'RARE': DauVietColors.imperialGold,
+    'EPIC': DauVietColors.cinnabarRed,
+  };
+
+  static const _typeIcons = {
+    'HISTORICAL_REPLICA': Icons.account_balance_rounded,
+    'DIGITAL_EDITION': Icons.photo_library_rounded,
+    'COMMEMORATIVE_BADGE': Icons.workspace_premium_rounded,
+  };
+
+  List<CatalogItemDto> _filter(List<CatalogItemDto> items) {
+    if (_selectedCategory == 'all') return items;
+    return items.where((i) => i.category == _selectedCategory).toList();
+  }
 
   @override
   Widget build(BuildContext context) {
-    final filteredItems = _selectedCategory == 'all'
-        ? _items
-        : _items.where((i) => i['category'] == _selectedCategory).toList();
-
-    final selectedItem = _items.firstWhere(
-      (i) => i['id'] == _selectedItemId,
-      orElse: () => _items.first,
-    );
+    final catalog = ref.watch(inventoryCatalogProvider);
 
     return Scaffold(
       backgroundColor: DauVietColors.parchmentSurface,
@@ -140,55 +77,17 @@ class _InventoryScreenState extends State<InventoryScreen> {
         child: SafeArea(
           child: Column(
             children: [
-              // 1. Thanh tiêu đề trên cùng
-              _buildTopBar(context),
-
-              // 2. Nội dung cuộn chính
+              _buildTopBar(context, catalog.value),
               Expanded(
-                child: SingleChildScrollView(
-                  physics: const BouncingScrollPhysics(),
-                  padding: const EdgeInsets.symmetric(
-                    horizontal: 16,
-                    vertical: 12,
+                child: catalog.when(
+                  loading: () =>
+                      const Center(child: CircularProgressIndicator()),
+                  error: (e, _) => _ErrorView(
+                    message: e.toString(),
+                    onRetry: () =>
+                        ref.invalidate(inventoryCatalogProvider),
                   ),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      // 3. Thanh Bộ Lọc Danh Mục (Category Tabs)
-                      _buildCategoryFilters(),
-                      const SizedBox(height: 14),
-
-                      // 4. Lưới Vật Phẩm Sở Hữu (Inventory Grid)
-                      _buildInventoryGrid(filteredItems),
-                      const SizedBox(height: 16),
-
-                      // 5. Thẻ Soi Chi Tiết Vật Phẩm Đang Chọn
-                      _buildItemInspectorCard(selectedItem, context),
-                      const SizedBox(height: 20),
-
-                      // 6. Cặp Nút Hành Động
-                      DongSonButton(
-                        label: 'QUAY LẠI ĐẢO DI SẢN (M-22) ›',
-                        icon: Icons.landscape_rounded,
-                        variant: DongSonButtonVariant.primaryCinnabar,
-                        height: 52,
-                        onPressed: () {
-                          context.go('/island');
-                        },
-                      ),
-                      const SizedBox(height: 10),
-                      DongSonButton(
-                        label: 'VỀ BÀN HỌC TẬP (DASHBOARD)',
-                        icon: Icons.home_rounded,
-                        variant: DongSonButtonVariant.secondaryParchment,
-                        height: 48,
-                        onPressed: () {
-                          context.go('/dashboard');
-                        },
-                      ),
-                      const SizedBox(height: 16),
-                    ],
-                  ),
+                  data: (items) => _buildBody(items),
                 ),
               ),
             ],
@@ -198,8 +97,67 @@ class _InventoryScreenState extends State<InventoryScreen> {
     );
   }
 
+  Widget _buildBody(List<CatalogItemDto> items) {
+    final filtered = _filter(items);
+    final ownedCount = items.where((i) => i.owned).length;
+
+    // Giữ selection hợp lệ khi filter đổi / dữ liệu reload.
+    final CatalogItemDto? selected =
+        filtered.where((i) => i.itemId == _selectedItemId).firstOrNull ??
+        (filtered.isNotEmpty ? filtered.first : null);
+
+    return SingleChildScrollView(
+      physics: const BouncingScrollPhysics(),
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            '$ownedCount/${items.length} vật phẩm đã sở hữu',
+            style: DauVietTypography.bodySmall.copyWith(
+              color: DauVietColors.inkMuted,
+              fontSize: 11,
+            ),
+          ),
+          const SizedBox(height: 10),
+          _buildCategoryFilters(items),
+          const SizedBox(height: 14),
+          if (filtered.isEmpty)
+            Padding(
+              padding: const EdgeInsets.symmetric(vertical: 24),
+              child: Center(
+                child: Text(
+                  'Chưa có vật phẩm nào trong nhóm này.',
+                  style: DauVietTypography.bodySmall.copyWith(
+                    color: DauVietColors.inkMuted,
+                  ),
+                ),
+              ),
+            )
+          else
+            _buildInventoryGrid(filtered),
+          if (selected != null) ...[
+            const SizedBox(height: 16),
+            _buildItemInspectorCard(selected),
+          ],
+          const SizedBox(height: 20),
+          DongSonButton(
+            label: 'VỀ BÀN HỌC TẬP (DASHBOARD)',
+            icon: Icons.home_rounded,
+            variant: DongSonButtonVariant.primaryCinnabar,
+            height: 52,
+            onPressed: () {
+              context.go('/dashboard');
+            },
+          ),
+          const SizedBox(height: 16),
+        ],
+      ),
+    );
+  }
+
   // Header đỉnh trang
-  Widget _buildTopBar(BuildContext context) {
+  Widget _buildTopBar(BuildContext context, List<CatalogItemDto>? items) {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
       decoration: BoxDecoration(
@@ -220,7 +178,7 @@ class _InventoryScreenState extends State<InventoryScreen> {
               if (context.canPop()) {
                 context.pop();
               } else {
-                context.go('/island');
+                context.go('/dashboard');
               }
             },
           ),
@@ -241,7 +199,7 @@ class _InventoryScreenState extends State<InventoryScreen> {
                         borderRadius: BorderRadius.circular(4),
                       ),
                       child: Text(
-                        'KHO DI SẢN',
+                        'KHO VẬT PHẨM',
                         style: DauVietTypography.labelSmall.copyWith(
                           color: Colors.white,
                           fontSize: 9,
@@ -264,7 +222,7 @@ class _InventoryScreenState extends State<InventoryScreen> {
                 ),
                 const SizedBox(height: 2),
                 Text(
-                  '${_items.length}/50 Cổ vật & Vật phẩm sở hữu',
+                  'Mô hình & huy hiệu học tập — không phải cổ vật thật',
                   style: DauVietTypography.bodySmall.copyWith(
                     color: DauVietColors.inkMuted,
                     fontSize: 11,
@@ -283,25 +241,17 @@ class _InventoryScreenState extends State<InventoryScreen> {
     );
   }
 
-  // Bộ lọc danh mục
-  Widget _buildCategoryFilters() {
+  // Bộ lọc danh mục — dựng động từ category thực tế trong catalog.
+  Widget _buildCategoryFilters(List<CatalogItemDto> items) {
+    final cats = items.map((i) => i.category).toSet().toList()..sort();
     final categories = [
-      {'key': 'all', 'label': 'Tất Cả (${_items.length})'},
-      {
-        'key': 'artifacts',
-        'label':
-            'Cổ Vật (${_items.where((i) => i['category'] == 'artifacts').length})',
-      },
-      {
-        'key': 'island',
-        'label':
-            'Công Trình (${_items.where((i) => i['category'] == 'island').length})',
-      },
-      {
-        'key': 'tokens',
-        'label':
-            'Vật Phẩm (${_items.where((i) => i['category'] == 'tokens').length})',
-      },
+      {'key': 'all', 'label': 'Tất Cả (${items.length})'},
+      for (final c in cats)
+        {
+          'key': c,
+          'label':
+              '${_categoryLabels[c] ?? c} (${items.where((i) => i.category == c).length})',
+        },
     ];
 
     return SingleChildScrollView(
@@ -352,8 +302,8 @@ class _InventoryScreenState extends State<InventoryScreen> {
     );
   }
 
-  // Lưới vật phẩm
-  Widget _buildInventoryGrid(List<Map<String, dynamic>> items) {
+  // Lưới vật phẩm — owned hiện đầy màu, chưa mở khóa mờ + icon khoá.
+  Widget _buildInventoryGrid(List<CatalogItemDto> items) {
     return GridView.builder(
       shrinkWrap: true,
       physics: const NeverScrollableScrollPhysics(),
@@ -366,12 +316,15 @@ class _InventoryScreenState extends State<InventoryScreen> {
       ),
       itemBuilder: (context, index) {
         final item = items[index];
-        final isSelected = _selectedItemId == item['id'];
+        final isSelected = _selectedItemId == item.itemId ||
+            (_selectedItemId == null && index == 0);
+        final rarityColor =
+            _rarityColors[item.rarity] ?? DauVietColors.outlineVariant;
 
         return GestureDetector(
           onTap: () {
             setState(() {
-              _selectedItemId = item['id'] as String;
+              _selectedItemId = item.itemId;
             });
           },
           child: AnimatedContainer(
@@ -385,100 +338,93 @@ class _InventoryScreenState extends State<InventoryScreen> {
               border: Border.all(
                 color: isSelected
                     ? DauVietColors.cinnabarRed
-                    : (item['rarityColor'] as Color).withValues(alpha: 0.5),
+                    : rarityColor.withValues(alpha: 0.5),
                 width: isSelected ? 2.0 : 1.2,
               ),
               boxShadow: isSelected ? DauVietColors.heritageShadow : null,
             ),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Row(
-                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                  children: [
-                    Container(
-                      padding: const EdgeInsets.symmetric(
-                        horizontal: 5,
-                        vertical: 2,
+            child: Opacity(
+              opacity: item.owned ? 1.0 : 0.55,
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    children: [
+                      Container(
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 5,
+                          vertical: 2,
+                        ),
+                        decoration: BoxDecoration(
+                          color: rarityColor.withValues(alpha: 0.15),
+                          borderRadius: BorderRadius.circular(4),
+                        ),
+                        child: Text(
+                          _categoryLabels[item.category] ?? item.category,
+                          style: TextStyle(
+                            color: rarityColor,
+                            fontWeight: FontWeight.w800,
+                            fontSize: 9.5,
+                          ),
+                        ),
                       ),
+                      if (item.owned && isSelected)
+                        const Icon(
+                          Icons.check_circle_rounded,
+                          color: DauVietColors.cinnabarRed,
+                          size: 16,
+                        )
+                      else if (!item.owned)
+                        const Icon(
+                          Icons.lock_outline_rounded,
+                          color: DauVietColors.inkMuted,
+                          size: 14,
+                        ),
+                    ],
+                  ),
+                  const Spacer(),
+                  Center(
+                    child: Container(
+                      width: 52,
+                      height: 52,
+                      padding: const EdgeInsets.all(4),
                       decoration: BoxDecoration(
-                        color: (item['rarityColor'] as Color).withValues(
-                          alpha: 0.15,
+                        color: Colors.white,
+                        shape: BoxShape.circle,
+                        border: Border.all(
+                          color: rarityColor.withValues(alpha: 0.4),
+                          width: 1.2,
                         ),
-                        borderRadius: BorderRadius.circular(4),
+                        boxShadow: const [
+                          BoxShadow(
+                            color: Color(0x14000000),
+                            blurRadius: 4,
+                            offset: Offset(0, 1),
+                          ),
+                        ],
                       ),
-                      child: Text(
-                        item['categoryLabel'] as String,
-                        style: TextStyle(
-                          color: item['rarityColor'] as Color,
-                          fontWeight: FontWeight.w800,
-                          fontSize: 9.5,
-                        ),
+                      child: Icon(
+                        _typeIcons[item.itemType] ??
+                            Icons.workspace_premium_rounded,
+                        color: item.owned ? rarityColor : DauVietColors.inkLight,
+                        size: 26,
                       ),
-                    ),
-                    if (isSelected)
-                      const Icon(
-                        Icons.check_circle_rounded,
-                        color: DauVietColors.cinnabarRed,
-                        size: 16,
-                      ),
-                  ],
-                ),
-                const Spacer(),
-                Center(
-                  child: Container(
-                    width: 52,
-                    height: 52,
-                    padding: const EdgeInsets.all(4),
-                    decoration: BoxDecoration(
-                      color: Colors.white,
-                      shape: BoxShape.circle,
-                      border: Border.all(
-                        color: (item['rarityColor'] as Color).withValues(
-                          alpha: 0.4,
-                        ),
-                        width: 1.2,
-                      ),
-                      boxShadow: const [
-                        BoxShadow(
-                          color: Color(0x14000000),
-                          blurRadius: 4,
-                          offset: Offset(0, 1),
-                        ),
-                      ],
-                    ),
-                    child: ClipOval(
-                      child: item['assetImage'] != null
-                          ? Image.asset(
-                              item['assetImage'] as String,
-                              fit: BoxFit.contain,
-                              errorBuilder: (context, error, stackTrace) =>
-                                  Icon(
-                                    item['icon'] as IconData,
-                                    color: item['color'] as Color,
-                                    size: 26,
-                                  ),
-                            )
-                          : Icon(
-                              item['icon'] as IconData,
-                              color: item['color'] as Color,
-                              size: 26,
-                            ),
                     ),
                   ),
-                ),
-                const Spacer(),
-                Text(
-                  item['name'] as String,
-                  style: DauVietTypography.labelSmall.copyWith(
-                    fontWeight: FontWeight.w800,
-                    color: DauVietColors.inkText,
-                    fontSize: 11,
+                  const Spacer(),
+                  Text(
+                    item.name,
+                    style: DauVietTypography.labelSmall.copyWith(
+                      fontWeight: FontWeight.w800,
+                      color: DauVietColors.inkText,
+                      fontSize: 11,
+                    ),
+                    maxLines: 2,
+                    overflow: TextOverflow.ellipsis,
                   ),
-                  maxLines: 2,
-                  overflow: TextOverflow.ellipsis,
-                ),
-              ],
+                ],
+              ),
             ),
           ),
         );
@@ -486,11 +432,14 @@ class _InventoryScreenState extends State<InventoryScreen> {
     );
   }
 
-  // Thẻ soi chi tiết vật phẩm đang chọn
-  Widget _buildItemInspectorCard(
-    Map<String, dynamic> item,
-    BuildContext context,
-  ) {
+  // Thẻ soi chi tiết vật phẩm đang chọn — kèm điều kiện + tiến độ khi
+  // chưa mở khóa (dữ liệu `requirement` server đã tính sẵn).
+  Widget _buildItemInspectorCard(CatalogItemDto item) {
+    final rarityColor =
+        _rarityColors[item.rarity] ?? DauVietColors.outlineVariant;
+    final req = item.requirement;
+    final progress = req?.progressFraction;
+
     return ParchmentCard(
       backgroundColor: const Color(0xFFFBF4E4),
       borderColor: DauVietColors.imperialGold,
@@ -508,10 +457,7 @@ class _InventoryScreenState extends State<InventoryScreen> {
                 decoration: BoxDecoration(
                   color: Colors.white,
                   borderRadius: BorderRadius.circular(10),
-                  border: Border.all(
-                    color: item['rarityColor'] as Color,
-                    width: 1.5,
-                  ),
+                  border: Border.all(color: rarityColor, width: 1.5),
                   boxShadow: const [
                     BoxShadow(
                       color: Color(0x18000000),
@@ -520,64 +466,39 @@ class _InventoryScreenState extends State<InventoryScreen> {
                     ),
                   ],
                 ),
-                child: item['assetImage'] != null
-                    ? Image.asset(
-                        item['assetImage'] as String,
-                        fit: BoxFit.contain,
-                        errorBuilder: (context, error, stackTrace) => Container(
-                          decoration: BoxDecoration(
-                            color: item['color'] as Color,
-                            borderRadius: BorderRadius.circular(6),
-                          ),
-                          child: Icon(
-                            item['icon'] as IconData,
-                            color: Colors.white,
-                            size: 24,
-                          ),
-                        ),
-                      )
-                    : Container(
-                        decoration: BoxDecoration(
-                          color: item['color'] as Color,
-                          borderRadius: BorderRadius.circular(6),
-                        ),
-                        child: Icon(
-                          item['icon'] as IconData,
-                          color: Colors.white,
-                          size: 24,
-                        ),
-                      ),
+                child: Icon(
+                  _typeIcons[item.itemType] ??
+                      Icons.workspace_premium_rounded,
+                  color: item.owned ? rarityColor : DauVietColors.inkLight,
+                  size: 24,
+                ),
               ),
               const SizedBox(width: 12),
               Expanded(
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Row(
-                      children: [
-                        Container(
-                          padding: const EdgeInsets.symmetric(
-                            horizontal: 6,
-                            vertical: 2,
-                          ),
-                          decoration: BoxDecoration(
-                            color: DauVietColors.cinnabarRed,
-                            borderRadius: BorderRadius.circular(4),
-                          ),
-                          child: Text(
-                            item['rarity'] as String,
-                            style: const TextStyle(
-                              color: Colors.white,
-                              fontSize: 9.5,
-                              fontWeight: FontWeight.bold,
-                            ),
-                          ),
+                    Container(
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 6,
+                        vertical: 2,
+                      ),
+                      decoration: BoxDecoration(
+                        color: rarityColor,
+                        borderRadius: BorderRadius.circular(4),
+                      ),
+                      child: Text(
+                        _rarityLabels[item.rarity] ?? item.rarity,
+                        style: const TextStyle(
+                          color: Colors.white,
+                          fontSize: 9.5,
+                          fontWeight: FontWeight.bold,
                         ),
-                      ],
+                      ),
                     ),
                     const SizedBox(height: 3),
                     Text(
-                      item['name'] as String,
+                      item.name,
                       style: DauVietTypography.headlineMedium.copyWith(
                         fontSize: 14.5,
                         color: DauVietColors.inkText,
@@ -591,26 +512,138 @@ class _InventoryScreenState extends State<InventoryScreen> {
           ),
           const SizedBox(height: 10),
           Text(
-            item['desc'] as String,
+            item.description ?? '',
             style: DauVietTypography.bodySmall.copyWith(
               color: DauVietColors.inkText,
               height: 1.4,
               fontSize: 11.5,
             ),
           ),
-          if (item['actionRoute'] != null) ...[
-            const SizedBox(height: 12),
-            DongSonButton(
-              label: item['actionLabel'] as String,
-              icon: Icons.visibility_rounded,
-              variant: DongSonButtonVariant.primaryCinnabar,
-              height: 44,
-              onPressed: () {
-                context.go(item['actionRoute'] as String);
-              },
+          if (item.sourceNote != null && item.sourceNote!.isNotEmpty) ...[
+            const SizedBox(height: 6),
+            Text(
+              item.sourceNote!,
+              style: DauVietTypography.bodySmall.copyWith(
+                color: DauVietColors.inkMuted,
+                fontSize: 10.5,
+                fontStyle: FontStyle.italic,
+                height: 1.35,
+              ),
             ),
           ],
+          const SizedBox(height: 10),
+          if (item.owned)
+            Row(
+              children: [
+                const Icon(
+                  Icons.check_circle_rounded,
+                  color: DauVietColors.natureGreen,
+                  size: 16,
+                ),
+                const SizedBox(width: 6),
+                Text(
+                  'Đã sở hữu',
+                  style: DauVietTypography.bodySmall.copyWith(
+                    color: DauVietColors.natureGreen,
+                    fontWeight: FontWeight.w700,
+                    fontSize: 11.5,
+                  ),
+                ),
+              ],
+            )
+          else if (req != null) ...[
+            Row(
+              children: [
+                const Icon(
+                  Icons.lock_outline_rounded,
+                  color: DauVietColors.inkMuted,
+                  size: 15,
+                ),
+                const SizedBox(width: 6),
+                Expanded(
+                  child: Text(
+                    req.describe(),
+                    style: DauVietTypography.bodySmall.copyWith(
+                      color: DauVietColors.inkMuted,
+                      fontSize: 11,
+                      height: 1.35,
+                    ),
+                  ),
+                ),
+              ],
+            ),
+            if (progress != null) ...[
+              const SizedBox(height: 8),
+              ClipRRect(
+                borderRadius: BorderRadius.circular(4),
+                child: LinearProgressIndicator(
+                  value: progress,
+                  minHeight: 6,
+                  backgroundColor: DauVietColors.parchmentHigh,
+                  valueColor: const AlwaysStoppedAnimation<Color>(
+                    DauVietColors.imperialGold,
+                  ),
+                ),
+              ),
+              const SizedBox(height: 4),
+              Text(
+                '${req.current ?? 0}/${req.threshold}',
+                style: DauVietTypography.bodySmall.copyWith(
+                  color: DauVietColors.inkMuted,
+                  fontSize: 10.5,
+                ),
+              ),
+            ],
+          ],
         ],
+      ),
+    );
+  }
+}
+
+class _ErrorView extends StatelessWidget {
+  final String message;
+  final VoidCallback onRetry;
+  const _ErrorView({required this.message, required this.onRetry});
+
+  @override
+  Widget build(BuildContext context) {
+    return Center(
+      child: Padding(
+        padding: const EdgeInsets.all(24),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            const Icon(
+              Icons.cloud_off_outlined,
+              size: 48,
+              color: DauVietColors.inkMuted,
+            ),
+            const SizedBox(height: 12),
+            Text(
+              'Không tải được kho vật phẩm.',
+              style: DauVietTypography.bodyMedium.copyWith(
+                color: DauVietColors.inkText,
+              ),
+            ),
+            const SizedBox(height: 8),
+            Text(
+              message,
+              textAlign: TextAlign.center,
+              style: DauVietTypography.bodySmall.copyWith(
+                color: DauVietColors.inkMuted,
+              ),
+            ),
+            const SizedBox(height: 16),
+            DongSonButton(
+              label: 'THỬ LẠI',
+              icon: Icons.refresh_rounded,
+              variant: DongSonButtonVariant.primaryCinnabar,
+              height: 44,
+              onPressed: onRetry,
+            ),
+          ],
+        ),
       ),
     );
   }

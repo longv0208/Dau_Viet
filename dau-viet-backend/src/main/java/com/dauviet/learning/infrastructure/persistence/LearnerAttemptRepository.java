@@ -59,6 +59,30 @@ public interface LearnerAttemptRepository extends JpaRepository<LearnerAttempt, 
     long countByUserIdAndStatus(UUID userId,
             com.dauviet.learning.domain.LearnerAttemptStatus status);
 
+    /**
+     * TASK-0023: số attempt COMPLETED KHÁC attemptId của cùng (user,
+     * lesson) — "lần hoàn thành đầu tiên" khi count = 0. Đếm trên
+     * lesson_id (không version): republish tạo version mới nhưng vẫn
+     * cùng một bài học.
+     */
+    @Query("select count(a) from LearnerAttempt a, LessonVersion v "
+         + "where a.lessonVersionId = v.id and v.lessonId = :lessonId "
+         + "and a.userId = :userId and a.status = 'COMPLETED' "
+         + "and a.id <> :attemptId")
+    long countCompletedOthersForLesson(@Param("userId") UUID userId,
+                                       @Param("lessonId") UUID lessonId,
+                                       @Param("attemptId") UUID attemptId);
+
+    /**
+     * TASK-0023 LESSON_COUNT rule: số bài KHÁC NHAU learner đã hoàn
+     * thành (một bài học lại nhiều lần vẫn tính một).
+     */
+    @Query("select count(distinct v.lessonId) "
+         + "from LearnerAttempt a, LessonVersion v "
+         + "where a.lessonVersionId = v.id "
+         + "and a.userId = :userId and a.status = 'COMPLETED'")
+    long countDistinctCompletedLessons(@Param("userId") UUID userId);
+
     /** Pessimistic write lock — serializes concurrent submits on one attempt. */
     @Lock(LockModeType.PESSIMISTIC_WRITE)
     @Query("select a from LearnerAttempt a where a.id = :id")

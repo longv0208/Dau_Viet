@@ -2,6 +2,8 @@
 /// Mọi trường free-form JSON (config/feedback/result/detail) giữ Map thô.
 library;
 
+import '../../rewards/data/reward_dtos.dart';
+
 class AttemptProgressDto {
   final int completedRequired;
   final int totalRequired;
@@ -274,6 +276,14 @@ class LessonResultDto {
   final String? completedAt;
   final String? startedAt;
 
+  /// TASK-0023 (additive): bút toán thưởng CHÍNH attempt này đã kích hoạt
+  /// — server đã ghi ledger trong transaction complete(), client chỉ
+  /// hiển thị, tuyệt đối không POST lần hai để "nhận" thưởng.
+  final List<RewardTransactionDto> rewards;
+
+  /// Vật phẩm mở khóa được ghi nhận bởi attempt này (source_attempt_id).
+  final List<InventoryItemDto> itemsUnlocked;
+
   const LessonResultDto({
     required this.attemptId,
     required this.lessonVersionId,
@@ -282,6 +292,8 @@ class LessonResultDto {
     required this.result,
     this.completedAt,
     this.startedAt,
+    this.rewards = const [],
+    this.itemsUnlocked = const [],
   });
 
   factory LessonResultDto.fromJson(Map<String, dynamic> json) =>
@@ -293,6 +305,16 @@ class LessonResultDto {
         result: (json['result'] as Map?)?.cast<String, dynamic>() ?? const {},
         completedAt: json['completedAt'] as String?,
         startedAt: json['startedAt'] as String?,
+        rewards: (json['rewards'] as List? ?? const [])
+            .whereType<Map>()
+            .map(
+              (e) => RewardTransactionDto.fromJson(e.cast<String, dynamic>()),
+            )
+            .toList(),
+        itemsUnlocked: (json['itemsUnlocked'] as List? ?? const [])
+            .whereType<Map>()
+            .map((e) => InventoryItemDto.fromJson(e.cast<String, dynamic>()))
+            .toList(),
       );
 }
 

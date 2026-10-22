@@ -15,6 +15,7 @@ import '../../../core/widgets/shimmer_progress_bar.dart';
 import '../../../core/widgets/sound_toggle_button.dart';
 import '../../collection/data/collection_providers.dart';
 import '../../map/data/map_providers.dart';
+import '../../rewards/data/reward_providers.dart';
 import '../data/attempt_dtos.dart';
 import '../data/attempt_repository.dart';
 import '../data/learning_dtos.dart';
@@ -190,6 +191,13 @@ class _LessonPlayerScreenState extends ConsumerState<LessonPlayerScreen> {
       // Response authoritative đã về: submission này kết thúc — submit kế
       // (kể cả cùng payload) là attempt mới, cần key mới.
       _needsFreshKey = true;
+      // TASK-0023: submit EVIDENCE_SELECT cập nhật collection trong cùng
+      // transaction và evaluator có thể đã mở vật phẩm COLLECTION_COUNT —
+      // invalidate catalog/summary để Túi Đồ phản ánh unlock mới nhất.
+      ref.invalidate(collectionListProvider);
+      ref.invalidate(rewardSummaryProvider);
+      ref.invalidate(inventoryCatalogProvider);
+      ref.invalidate(inventoryItemsProvider);
       _applyResult(res);
     } on ApiException catch (e) {
       if (!mounted) return;
@@ -364,6 +372,13 @@ class _LessonPlayerScreenState extends ConsumerState<LessonPlayerScreen> {
       // submissions vừa hoàn thành trong bài này) — invalidate mọi
       // family instance để lần mở /collection sau refetch.
       ref.invalidate(collectionListProvider);
+      // TASK-0023: thưởng + vật phẩm có thể vừa được cấp trong cùng
+      // transaction complete — invalidate để Túi Đồ/summary refetch lần
+      // mở sau (không fetch lại ngay để không chậm điều hướng).
+      ref.invalidate(rewardSummaryProvider);
+      ref.invalidate(inventoryCatalogProvider);
+      ref.invalidate(inventoryItemsProvider);
+      ref.invalidate(rewardTransactionsProvider);
       await _fetchResult();
     } on ApiException catch (e) {
       if (!mounted) return;

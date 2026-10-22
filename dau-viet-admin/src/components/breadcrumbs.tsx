@@ -14,6 +14,7 @@ const CRUMB_LABELS: Record<string, string> = {
   templates: "Mẫu bài học",
   assets: "Thư viện media",
   versions: "Phiên bản",
+  items: "Vật phẩm thưởng",
   builder: "Trình soạn",
   preview: "Xem trước",
   publish: "Xuất bản",

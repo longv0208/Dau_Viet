@@ -64,6 +64,15 @@ public interface UserEvidenceRepository extends JpaRepository<UserEvidence, UUID
                                                      UUID evidenceId);
 
     /**
+     * TASK-0023 COLLECTION_COUNT rule: số evidence KHÁC NHAU learner đã
+     * sưu tầm — (user_id, evidence_id) đã dedup nên COUNT(*) đủ, nhưng
+     * đếm DISTINCT để an toàn với row pre-V10 chưa migrate.
+     */
+    @Query("SELECT COUNT(DISTINCT ue.evidenceId) FROM UserEvidence ue "
+         + "WHERE ue.userId = :userId")
+    long countDistinctEvidence(@Param("userId") UUID userId);
+
+    /**
      * Toàn bộ evidence_type learner đã collect (P2-D — filter chips lấy
      * đủ loại trên mọi trang, không cần tải hết items). DISTINCT + sort
      * để response ổn định; bỏ null/blank phòng row cũ thiếu cột V10.
