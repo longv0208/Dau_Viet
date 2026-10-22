@@ -66,15 +66,15 @@ function toPayload(v: FormValues): AdminMapLocationRequest {
 }
 
 /**
- * Location đã từng PUBLISHED (PUBLISHED/ARCHIVED) → unlockLessonId immutable
- * — gửi giá trị gốc từ record, không tin form value (disabled select có thể
+ * Đã từng publish (everPublished=true) → unlockLessonId immutable — gửi giá
+ * trị gốc từ record, không tin form value (readonly/disabled select có thể
  * bị drop bởi RHF).
  */
 function resolveUnlockLessonId(
   editing: AdminMapLocation | null,
   formValue: string | undefined,
 ): string | null {
-  if (editing && editing.status !== "DRAFT") {
+  if (editing?.everPublished) {
     return editing.unlockLessonId;
   }
   return formValue?.trim() || null;
@@ -382,7 +382,7 @@ export function MapLocationsSection({ eventId }: { eventId: string }) {
                 error={lessonsQuery.error}
                 onRetry={() => lessonsQuery.refetch()}
               />
-            ) : editing && editing.status !== "DRAFT" ? (
+            ) : editing?.everPublished ? (
               // Đã từng publish → immutable, chỉ hiển thị read-only.
               <p className="rounded-md border border-border bg-muted/30 px-3 py-2 text-sm">
                 {editing.unlockLessonId
@@ -404,7 +404,7 @@ export function MapLocationsSection({ eventId }: { eventId: string }) {
                 ))}
               </Select>
             )}
-            {editing && editing.status !== "DRAFT" ? (
+            {editing?.everPublished ? (
               <p className="text-xs text-ink-muted">
                 Địa điểm đã từng xuất bản — không thể đổi bài học mở khoá.
               </p>

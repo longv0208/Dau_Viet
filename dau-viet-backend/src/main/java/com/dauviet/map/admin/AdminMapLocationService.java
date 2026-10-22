@@ -185,7 +185,8 @@ public class AdminMapLocationService {
                 l.getId(), l.getEventId(), l.getTitle(), l.getDescription(),
                 l.getLatitude(), l.getLongitude(), lessonId,
                 linked == null ? null : linked.getTitle(),
-                l.getDisplayOrder(), l.getStatus().name(), l.getRowVersion(),
-                l.getCreatedAt(), l.getUpdatedAt());
+                l.getDisplayOrder(), l.getStatus().name(),
+                l.getPublishedAt() != null,
+                l.getRowVersion(), l.getCreatedAt(), l.getUpdatedAt());
     }
 }

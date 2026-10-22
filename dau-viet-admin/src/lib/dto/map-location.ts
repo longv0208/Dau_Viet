@@ -14,6 +14,8 @@ export interface AdminMapLocation {
   unlockLessonTitle: string | null;
   displayOrder: number;
   status: MapLocationStatus;
+  /** Đã từng publish ≥1 lần → unlockLessonId immutable (backend enforced). */
+  everPublished: boolean;
   rowVersion: number;
   createdAt: string;
   updatedAt: string;

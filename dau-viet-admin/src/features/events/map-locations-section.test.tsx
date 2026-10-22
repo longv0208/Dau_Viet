@@ -2,7 +2,7 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { HttpResponse, http } from "msw";
-import { describe, expect, it, vi } from "vitest";
+import { describe, expect, it } from "vitest";
 
 import { server } from "@/test/msw/server";
 import { authStore } from "@/features/auth/auth-store";
@@ -25,6 +25,7 @@ const publishedLoc: AdminMapLocation = {
   unlockLessonTitle: "Trận Bạch Đằng",
   displayOrder: 0,
   status: "PUBLISHED",
+  everPublished: true,
   rowVersion: 1,
   createdAt: "2026-01-01T00:00:00Z",
   updatedAt: "2026-01-01T00:00:00Z",
@@ -35,6 +36,38 @@ const availableLoc: AdminMapLocation = {
   id: "loc-2",
   unlockLessonId: null,
   unlockLessonTitle: null,
+};
+
+/** Đã publish → demote về DRAFT: unlockLessonId vẫn immutable. */
+const demotedDraftLoc: AdminMapLocation = {
+  ...publishedLoc,
+  id: "loc-3",
+  status: "DRAFT",
+  everPublished: true,
+};
+
+/** Chưa từng publish — DRAFT, prerequisite vẫn editable. */
+const freshDraftLoc: AdminMapLocation = {
+  ...publishedLoc,
+  id: "loc-4",
+  status: "DRAFT",
+  everPublished: false,
+};
+
+/** Đã từng publish → ARCHIVED: immutable. */
+const archivedLoc: AdminMapLocation = {
+  ...publishedLoc,
+  id: "loc-5",
+  status: "ARCHIVED",
+  everPublished: true,
+};
+
+/** ARCHIVED nhưng chưa từng publish (edge case) — vẫn editable. */
+const archivedNeverPublishedLoc: AdminMapLocation = {
+  ...publishedLoc,
+  id: "loc-6",
+  status: "ARCHIVED",
+  everPublished: false,
 };
 
 function renderSection() {
@@ -124,5 +157,43 @@ describe("MapLocationsSection", () => {
     // Read-only text hiển thị lesson title; không có select.
     expect(screen.getByText("Trận Bạch Đằng")).toBeInTheDocument();
     expect(screen.queryByRole("combobox")).not.toBeInTheDocument();
+  });
+
+  it("DRAFT + everPublished=true → read-only prerequisite", async () => {
+    authStore.setAccessToken("t", 900);
+    mockList([demotedDraftLoc]);
+    renderSection();
+    await waitFor(() => expect(screen.getByText("Bến Bạch Đằng")).toBeInTheDocument());
+    await userEvent.click(screen.getByRole("button", { name: /sửa/i }));
+    expect(screen.queryByRole("combobox")).not.toBeInTheDocument();
+    expect(screen.getByText("Trận Bạch Đằng")).toBeInTheDocument();
+  });
+
+  it("ARCHIVED + everPublished=true → read-only prerequisite", async () => {
+    authStore.setAccessToken("t", 900);
+    mockList([archivedLoc]);
+    renderSection();
+    await waitFor(() => expect(screen.getByText("Bến Bạch Đằng")).toBeInTheDocument());
+    await userEvent.click(screen.getByRole("button", { name: /sửa/i }));
+    expect(screen.queryByRole("combobox")).not.toBeInTheDocument();
+    expect(screen.getByText("Trận Bạch Đằng")).toBeInTheDocument();
+  });
+
+  it("DRAFT + everPublished=false → editable select", async () => {
+    authStore.setAccessToken("t", 900);
+    mockList([freshDraftLoc]);
+    renderSection();
+    await waitFor(() => expect(screen.getByText("Bến Bạch Đằng")).toBeInTheDocument());
+    await userEvent.click(screen.getByRole("button", { name: /sửa/i }));
+    expect(screen.getByRole("combobox")).toBeInTheDocument();
+  });
+
+  it("ARCHIVED + everPublished=false → editable select", async () => {
+    authStore.setAccessToken("t", 900);
+    mockList([archivedNeverPublishedLoc]);
+    renderSection();
+    await waitFor(() => expect(screen.getByText("Bến Bạch Đằng")).toBeInTheDocument());
+    await userEvent.click(screen.getByRole("button", { name: /sửa/i }));
+    expect(screen.getByRole("combobox")).toBeInTheDocument();
   });
 });

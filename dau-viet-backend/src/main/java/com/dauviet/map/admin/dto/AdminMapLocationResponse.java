@@ -14,6 +14,7 @@ public record AdminMapLocationResponse(
         String unlockLessonTitle,
         int displayOrder,
         String status,
+        boolean everPublished,
         long rowVersion,
         Instant createdAt,
         Instant updatedAt
