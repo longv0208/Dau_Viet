@@ -17,6 +17,7 @@ import { useUnsavedChangesGuard } from "@/components/unsaved-changes-guard";
 
 import { CompletionEditor } from "./completion-editor";
 import { parseDraft, serializeDraft, allIds } from "./draft-model";
+import { LessonArchiveButton } from "../publish/lesson-archive-button";
 import { PublishReadinessCard } from "./publish-readiness-card";
 import { StageEditor } from "./stage-editor";
 import { StageNavigator } from "./stage-navigator";
@@ -209,6 +210,7 @@ function BuilderInner({
             Xuất bản
           </Link>
         </Button>
+        <LessonArchiveButton lesson={lesson} />
       </div>
 
       {state.dirty && (
