@@ -17,6 +17,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { StatusChip } from "@/components/status-chip";
 
 import { PublishReadinessCard } from "../builder/publish-readiness-card";
+import { LessonArchiveButton } from "./lesson-archive-button";
 import { PublishButton } from "./publish-button";
 import { VerifyContentCard } from "./verify-content-card";
 
@@ -189,6 +190,8 @@ export function PublishPage({ lessonId }: { lessonId: string }) {
         }}
         onConflict={() => setConflict(true)}
       />
+
+      <LessonArchiveButton lesson={lesson} />
 
       {(lesson.currentVersionId || publishedInfo) && <VerifyContentCard lessonId={lesson.id} />}
     </div>

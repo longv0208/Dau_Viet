@@ -37,7 +37,7 @@ export const emptyPageFixture = {
 /** PageResponse<AdminEventSummaryResponse>. */
 export const eventsPageFixture = {
   ...emptyPageFixture,
-  totalElements: 2,
+  totalElements: 3,
   totalPages: 1,
   content: [
     {
@@ -55,6 +55,15 @@ export const eventsPageFixture = {
       title: "Chiến thắng Điện Biên Phủ",
       era: "Hiện đại",
       startYear: 1954,
+      status: "DRAFT",
+      tags: [],
+    },
+    {
+      id: "99999999-9999-9999-9999-999999999999",
+      slug: "su-kien-khong-bai-hoc",
+      title: "Sự kiện chưa có bài học",
+      era: "Hiện đại",
+      startYear: 1975,
       status: "DRAFT",
       tags: [],
     },

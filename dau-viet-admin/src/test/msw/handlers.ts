@@ -441,6 +441,17 @@ export const handlers = [
       content: projectDraft(draftFixture),
     });
   }),
+  http.post("*/api/proxy/admin/lessons/:id/archive", ({ params }) => {
+    const l = lessonsPageFixture.content.find((x) => x.id === params.id);
+    if (!l) return HttpResponse.json({ code: "LESSON_NOT_FOUND" }, { status: 404 });
+    if (l.status === "ARCHIVED") {
+      return HttpResponse.json(
+        { code: "INVALID_STATUS_TRANSITION", message: "already archived" },
+        { status: 409 },
+      );
+    }
+    return HttpResponse.json({ ...l, status: "ARCHIVED", rowVersion: l.rowVersion + 1 });
+  }),
   http.post("*/api/proxy/admin/events/:id/publish", ({ params }) => {
     const ev = eventsPageFixture.content.find((e) => e.id === params.id);
     if (!ev) return HttpResponse.json({ code: "EVENT_NOT_FOUND" }, { status: 404 });
@@ -462,6 +473,30 @@ export const handlers = [
       createdAt: "2026-01-01T00:00:00Z",
       updatedAt: "2026-01-02T00:00:00Z",
     });
+  }),
+  http.post("*/api/proxy/admin/events/:id/archive", ({ params }) => {
+    const ev = eventsPageFixture.content.find((e) => e.id === params.id);
+    if (!ev) return HttpResponse.json({ code: "EVENT_NOT_FOUND" }, { status: 404 });
+    if (ev.status === "ARCHIVED") {
+      return HttpResponse.json(
+        { code: "INVALID_STATUS_TRANSITION", message: "already archived" },
+        { status: 409 },
+      );
+    }
+    // Backend contract: block khi còn bài học chưa lưu trữ (EventInUseException).
+    const hasActiveLessons = lessonsPageFixture.content.some(
+      (l) => l.eventId === ev.id && l.status !== "ARCHIVED",
+    );
+    if (hasActiveLessons) {
+      return HttpResponse.json(
+        {
+          code: "EVENT_IN_USE",
+          message: "event still has non-archived lessons; archive them first",
+        },
+        { status: 409 },
+      );
+    }
+    return HttpResponse.json({ ...ev, status: "ARCHIVED", rowVersion: 2 });
   }),
   http.get("*/api/proxy/admin/lesson-templates", () =>
     HttpResponse.json(templatesFixture),

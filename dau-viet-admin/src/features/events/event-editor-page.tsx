@@ -12,6 +12,7 @@ import { StatusChip } from "@/components/status-chip";
 import { Button } from "@/components/ui/button";
 
 import { EventForm } from "./event-form";
+import { EventArchiveButton } from "./event-archive-button";
 import { EventPublishButton } from "./event-publish-button";
 import { MapLocationsSection } from "./map-locations-section";
 
@@ -41,6 +42,7 @@ export function EventEditorPage({ eventId }: { eventId: string }) {
           Cập nhật {new Date(ev.updatedAt).toLocaleString("vi-VN")}
         </span>
         <EventPublishButton event={ev} />
+        <EventArchiveButton event={ev} />
         <Button asChild variant="secondary" className="ml-auto">
           <Link href={`/lessons/new?event=${ev.id}`}>+ Tạo bài học cho sự kiện này</Link>
         </Button>
