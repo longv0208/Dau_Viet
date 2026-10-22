@@ -22,7 +22,9 @@ external game/animation engines.
 | **ANIM-02**: `SceneTransition` contract + MapScene (marker/route/highlight) | Done |
 | ANIM-02 scenes: `hai_ba_trung_40_uprising_v1` + `ly_thai_to_1010_relocation_v1` | Done |
 | Marker tap → info panel (`LocationInfoPanel` + `MapMarkerOverlay`) | Done |
-| Tests: 57 Flutter + 6 backend + 6 admin | Done |
+| Shared transition fix: frozen-snapshot `applyFrom` + marker pause/settle | Done |
+| **POLISH-BD-01**: `bach_dang_938_tide_v1` production — decoy/counterattack/sequence-summary | Done |
+| Tests: 77 Flutter + 6 backend + 6 admin | Done |
 | Attach scenes to live READ lessons | Manual step via Admin |
 
 ## Contract
@@ -77,11 +79,21 @@ for learners, never affecting grading, EXP, rewards or progression.
   marker overlay (≥44px, semantics) + `LocationInfoPanel`. Two scenes:
   `hai_ba_trung_40_uprising_v1` (6 steps), `ly_thai_to_1010_relocation_v1`
   (5 steps). No river-property misuse — map state is its own typed class.
-- **ANIM-03 — Object exploration + timeline + more lessons**: rotate/zoom
-  artifact exploration, timeline scrubbing scenes, attach animations to
-  more READ lessons.
-- **ANIM-04 — Polish**: turtle mascot reactions, UX polish, accessibility
-  pass (reduced-motion, semantics, contrast), performance budget review.
+- **ANIM-FOCUS-01 — Stabilization (done)**: frozen-snapshot
+  interpolation (`state(t) = lerp(frozenStart, target, t)` — frame-count
+  independent), marker tap = pause + settle step, navigation/replay
+  clears stale selection, reveal không bị tween cũ ghi đè.
+- **ANIM-POLISH — Scene polish + lesson attach (in progress)**:
+  `bach_dang_938_tide_v1` đạt production (POLISH-BD-01: dụ địch,
+  phản công phối hợp, sơ đồ chuỗi tổng kết bước 6). Tiếp theo:
+  polish `hai_ba_trung_40_uprising_v1` tương tự, gắn vào READ thật
+  qua Admin. `ly_thai_to_1010_relocation_v1` giữ nguyên — không
+  mở rộng.
+- **ANIM-03 — Object exploration + timeline + more lessons** (deferred):
+  rotate/zoom artifact, timeline scrubbing. Hoãn tới khi 2 scene ưu
+  tiên đạt production quality.
+- **ANIM-04 — Polish** (deferred): turtle mascot reactions, UX polish,
+  accessibility pass, performance budget review.
 
 ## Extension point (smallest, for ANIM-02)
 

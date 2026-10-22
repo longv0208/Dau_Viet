@@ -1,18 +1,21 @@
 import '../historical_animation_definition.dart';
 import '../scenes/river_scene.dart';
 
-/// ANIM-01 — Scene "Trận Bạch Đằng 938": cơ chế bãi cọc ngầm + thủy
-/// triều. Nội dung lịch sử tham chiếu bài viết của Bảo tàng Lịch sử
-/// Quốc gia "Ngô Quyền và chiến thắng Bạch Đằng năm 938" (hỗ trợ khung
-/// sự kiện rộng — KHÔNG khẳng định mực nước, bố trí cọc, vị trí hay
-/// thời điểm cụ thể). Sơ đồ minh họa chiến thuật, không theo tỉ lệ.
+/// ANIM-01 + POLISH-BD-01 — Scene "Trận Bạch Đằng 938": cơ chế bãi cọc
+/// ngầm + thủy triều + dụ địch + phản công phối hợp. Nội dung lịch sử
+/// tham chiếu bài viết của Bảo tàng Lịch sử Quốc gia "Ngô Quyền và
+/// chiến thắng Bạch Đằng năm 938" (hỗ trợ khung sự kiện rộng — KHÔNG
+/// khẳng định mực nước, bố trí cọc, vị trí, số lượng thuyền hay lộ
+/// trình cụ thể). Thuyền dụ địch và hướng phản công là SƠ ĐỒ CHIẾN
+/// THUẬT minh họa ý tưởng, không phải phục dựng đường đi.
 final HistoricalAnimationDefinition bachDang938TideV1 =
     HistoricalAnimationDefinition(
       key: 'bach_dang_938_tide_v1',
       title: 'Trận Bạch Đằng năm 938',
       learningObjective:
-          'Hiểu mối liên hệ giữa bãi cọc được chuẩn bị trước, thủy triều '
-          'và thời điểm phản công trong chiến thắng Bạch Đằng.',
+          'Hiểu mối liên hệ giữa bãi cọc được chuẩn bị trước, thủy triều, '
+          'việc dụ thuyền địch và thời điểm phản công phối hợp trong '
+          'chiến thắng Bạch Đằng.',
       disclaimer:
           'Sơ đồ minh họa chiến thuật, không theo tỉ lệ và không phải '
           'phục dựng chính xác trận đánh.',
@@ -50,16 +53,21 @@ final HistoricalAnimationDefinition bachDang938TideV1 =
           ),
         ),
         HistoricalAnimationStep(
-          label: 'Thuyền địch vào sông',
+          label: 'Dụ địch vào bãi',
           narration:
-              'Lợi dụng lúc nước lớn, thuyền địch tiến vào khu vực bãi cọc '
-              'mà không gặp trở ngại. Sơ đồ chỉ mô tả hướng di chuyển — '
-              'không khẳng định đội hình hay số lượng thuyền thật.',
-          hint: 'Mực nước cao → cọc vẫn chìm, thuyền đi qua được.',
+              'Sử liệu ghi nhận quân ta đã lợi dụng lúc nước lớn dụ hoặc '
+              'dẫn thuyền địch vào vùng bãi cọc. Trên sơ đồ, thuyền xanh '
+              'lục (phòng thủ) đi trước dẫn hướng đoàn địch tiến vào — '
+              'đây là chỉ báo sơ đồ chiến thuật, không phải lộ trình cụ '
+              'thể được ghi lại.',
+          hint:
+              'Thuyền dụ địch (buồm xanh lục) và vệt đường dẫn nét đứt '
+              'đi trước đoàn địch về phía bãi cọc.',
           target: RiverSceneState(
             waterLevel: 0.90,
-            boatProgress: 0.85,
+            boatProgress: 0.72,
             boatsObstructed: false,
+            decoyProgress: 1,
           ),
         ),
         HistoricalAnimationStep(
@@ -72,36 +80,46 @@ final HistoricalAnimationDefinition bachDang938TideV1 =
             waterLevel: 0.28,
             boatProgress: 0.85,
             boatsObstructed: false,
+            decoyProgress: 1,
           ),
         ),
         HistoricalAnimationStep(
-          label: 'Thuyền mắc cọc',
+          label: 'Phản công phối hợp',
           narration:
-              'Thuyền địch vướng vào bãi cọc, khó di chuyển — đây chỉ là '
-              'khoảnh khắc then chốt của cơ mưu: quân phòng thủ đã chọn '
-              'đúng thời điểm triều hạ để đánh úp, chứ không phải chỉ '
-              'nhờ triều tự nhiên quyết định trận thắng.',
-          hint: 'Cọc lộ + thuyền đã vào sâu → không thể quay đầu dễ dàng.',
-          target: RiverSceneState(
-            waterLevel: 0.28,
-            boatProgress: 0.85,
-            boatsObstructed: true,
-          ),
-        ),
-        HistoricalAnimationStep(
-          label: 'Chiến thuật',
-          narration:
-              'Chiến thắng đến từ sự kết hợp: bãi cọc chuẩn bị trước + '
-              'tính toán nhịp thủy triều + dụ thuyền địch vào đúng lúc '
-              'nước lớn + phản công phối hợp khi triều rút. Cơ chế vật '
-              'lý chỉ là một phần của mưu lược.',
+              'Thuyền địch vướng vào bãi cọc, khó di chuyển. Sử liệu ghi '
+              'nhận quân ta đã đánh úp, phối hợp phản công đúng lúc triều '
+              'hạ. Trên sơ đồ, thuyền phòng thủ (buồm xanh lục) tiến vào '
+              'từ phía sau cùng mũi tên phối hợp hướng về bãi — minh họa '
+              'hướng tác chiến, không phải đội hình hay vị trí thật.',
           hint:
-              'Có thể tua lại các bước hoặc tự kéo mực nước để kiểm '
-              'chứng lại cơ chế.',
+              'Thuyền địch mắc cọc + thuyền xanh lục tiến vào từ mép '
+              'trái + mũi tên phối hợp cùng hướng.',
           target: RiverSceneState(
             waterLevel: 0.28,
             boatProgress: 0.85,
             boatsObstructed: true,
+            decoyProgress: 1,
+            counterattackProgress: 1,
+          ),
+        ),
+        HistoricalAnimationStep(
+          label: 'Tổng kết',
+          narration:
+              'Chiến thắng đến từ một chuỗi chủ động: chuẩn bị bãi cọc → '
+              'tính toán nhịp thủy triều → dụ thuyền địch vào đúng lúc '
+              'nước lớn → vật cản khống chế → phản công phối hợp khi '
+              'triều rút. Cơ chế vật lý chỉ là một phần của mưu lược — '
+              'sơ đồ bên trên tóm tắt lại trình tự đó.',
+          hint:
+              'Sơ đồ chuỗi 5 giai đoạn: đây là kết luận, không phải '
+              'một cảnh hành động mới.',
+          target: RiverSceneState(
+            waterLevel: 0.28,
+            boatProgress: 0.85,
+            boatsObstructed: true,
+            decoyProgress: 1,
+            counterattackProgress: 1,
+            showSequenceSummary: true,
           ),
         ),
       ],

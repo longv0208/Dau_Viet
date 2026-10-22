@@ -273,6 +273,147 @@ void main() {
     });
   });
 
+  group('RiverScenePainter — POLISH-BD-01 decoy/counterattack/summary', () {
+    const w = 800.0;
+
+    test('new fields are optional with backward-compatible defaults', () {
+      // State cũ không khai báo 3 trường mới vẫn render đúng.
+      const s = RiverSceneState(waterLevel: 0.3, boatProgress: 0);
+      expect(s.decoyProgress, 0);
+      expect(s.counterattackProgress, 0);
+      expect(s.showSequenceSummary, isFalse);
+      final p = RiverScenePainter();
+      expect(p.decoyProgress, 0);
+      expect(p.counterattackProgress, 0);
+      expect(p.showSequenceSummary, isFalse);
+    });
+
+    test('decoy path is deterministic and leads toward the stake field', () {
+      // Thuần hàm của progress → không teleport; điểm cuối nằm sau bãi
+      // cọc (0.42w) — thuyền dụ đi TRƯỚC địch, vượt qua bãi an toàn.
+      final start = RiverScenePainter.decoyXFor(w, 0);
+      final mid = RiverScenePainter.decoyXFor(w, 0.5);
+      final end = RiverScenePainter.decoyXFor(w, 1);
+      expect(start, greaterThan(w)); // vào từ ngoài mép phải
+      expect(start, greaterThan(mid));
+      expect(mid, greaterThan(end));
+      expect(end, lessThan(w * 0.42)); // qua khỏi mép trái bãi cọc
+      expect(end, greaterThan(w * 0.30)); // vẫn trong khung hình
+    });
+
+    test('counterattack boats advance in and stop before the stake edge', () {
+      final start = RiverScenePainter.counterattackXFor(w, 0, 0);
+      final end = RiverScenePainter.counterattackXFor(w, 1, 0);
+      expect(start, lessThan(0)); // ngoài mép trái
+      expect(end, closeTo(w * 0.32, 0.001));
+      // Dừng trước mép bãi cọc 0.42w — phòng thủ không đâm vào bẫy.
+      expect(end, lessThan(w * 0.42));
+      // Lane 2 trễ pha hơn lane 1 (phối hợp lệch nhịp).
+      expect(
+        RiverScenePainter.counterattackXFor(w, 0.5, 1),
+        lessThan(RiverScenePainter.counterattackXFor(w, 0.5, 0)),
+      );
+    });
+
+    test('applyFrom lerps decoy/counterattack from frozen snapshot', () {
+      // decoy 0→1, counterattack 0→1 trong cùng tween — midpoint 0.5.
+      const from = RiverSceneState(waterLevel: 0.9, boatProgress: 0.5);
+      const target = RiverSceneState(
+        waterLevel: 0.9,
+        boatProgress: 0.72,
+        decoyProgress: 1,
+      );
+      final p = RiverScenePainter();
+      target.applyFrom(p, from, 0.5);
+      expect(p.decoyProgress, closeTo(0.5, 0.001));
+      expect(p.counterattackProgress, 0); // target mặc định 0
+      // Bước phản công kế: snapshot hiện tại decoy=0.5 → target decoy=1,
+      // counterattack 0→1. t=0.5 cho decoy=0.75, counterattack=0.5.
+      const target2 = RiverSceneState(
+        waterLevel: 0.28,
+        boatProgress: 0.85,
+        boatsObstructed: true,
+        decoyProgress: 1,
+        counterattackProgress: 1,
+      );
+      final snap = target.captured(p) as RiverSceneState;
+      expect(snap.decoyProgress, closeTo(0.5, 0.001));
+      target2.applyFrom(p, snap, 0.5);
+      expect(p.counterattackProgress, closeTo(0.5, 0.001));
+      expect(p.decoyProgress, closeTo(0.75, 0.001));
+      expect(p.boatsObstructed, isTrue); // cờ áp ngay
+    });
+
+    test('captured() round-trips the new optional fields', () {
+      final p = RiverScenePainter();
+      const target = RiverSceneState(
+        waterLevel: 0.28,
+        boatProgress: 0.85,
+        boatsObstructed: true,
+        highlightStakes: true,
+        decoyProgress: 1,
+        counterattackProgress: 1,
+        showSequenceSummary: true,
+      );
+      target.applyFrom(
+        p,
+        const RiverSceneState(waterLevel: 0, boatProgress: 0),
+        1,
+      );
+      final snap = target.captured(p) as RiverSceneState;
+      expect(snap.decoyProgress, 1);
+      expect(snap.counterattackProgress, 1);
+      expect(snap.showSequenceSummary, isTrue);
+      expect(snap.boatsObstructed, isTrue);
+    });
+
+    test('bach_dang_938_tide_v1: each step distinct + timings correct', () {
+      final def = bachDang938TideV1;
+      expect(def.steps, hasLength(6));
+      // Step 3 = index 2: decoy phải hiện TRƯỚC khi obstruction bật.
+      final t2 = def.steps[2].target! as RiverSceneState;
+      expect(t2.decoyProgress, greaterThan(0));
+      expect(t2.boatsObstructed, isFalse);
+      // Counterattack không được hiện ở các bước sớm (0..3).
+      for (var i = 0; i < 4; i++) {
+        final s = def.steps[i].target! as RiverSceneState;
+        expect(
+          s.counterattackProgress,
+          0,
+          reason: 'step $i must not show counterattack early',
+        );
+      }
+      // Step 5 (index 4): counterattack + obstruction bật.
+      final t4 = def.steps[4].target! as RiverSceneState;
+      expect(t4.counterattackProgress, greaterThan(0));
+      expect(t4.boatsObstructed, isTrue);
+      // Step 6 (index 5): summary — KHÔNG trùng step 5.
+      final t5 = def.steps[5].target! as RiverSceneState;
+      expect(t5.showSequenceSummary, isTrue);
+      expect(identical(t4, t5), isFalse);
+      // Mỗi bước phải khác bước trước (ít nhất 1 field khác).
+      for (var i = 1; i < def.steps.length; i++) {
+        final a = def.steps[i - 1].target! as RiverSceneState;
+        final b = def.steps[i].target! as RiverSceneState;
+        final same =
+            a.waterLevel == b.waterLevel &&
+            a.boatProgress == b.boatProgress &&
+            a.boatsObstructed == b.boatsObstructed &&
+            a.highlightStakes == b.highlightStakes &&
+            a.decoyProgress == b.decoyProgress &&
+            a.counterattackProgress == b.counterattackProgress &&
+            a.showSequenceSummary == b.showSequenceSummary;
+        expect(same, isFalse, reason: 'steps ${i - 1} and $i identical');
+      }
+      // Reveal effect giữ nguyên contract: vẫn là river state, không
+      // summary, nước rút + obstruction bật.
+      final fx = def.prediction!.revealSceneEffect! as RiverSceneState;
+      expect(fx.showSequenceSummary, isFalse);
+      expect(fx.waterLevel, lessThan(0.3));
+      expect(fx.boatsObstructed, isTrue);
+    });
+  });
+
   group('SceneTransition — frozen-snapshot interpolation', () {
     // Hợp đồng: applyFrom(painter, from, t) luôn lerp từ snapshot ĐÓNG
     // BĂNG `from` — kết quả tại t chỉ phụ thuộc (from, t), không phụ
@@ -749,6 +890,39 @@ void main() {
         expect(playerBox.right, lessThanOrEqualTo(logicalWidth));
       });
     }
+
+    testWidgets('final step draws the sequence summary, not the river', (
+      tester,
+    ) async {
+      await _pumpPlayer(tester);
+      await tester.pump();
+      // Nhảy tới bước 6 — summary áp ngay (không phụ thuộc tween).
+      for (var i = 0; i < 5; i++) {
+        await _tap(tester, find.bySemanticsLabel('Bước tiếp'));
+        await tester.pump(const Duration(milliseconds: 1400));
+      }
+      expect(find.textContaining('Bước 6/6'), findsOneWidget);
+      // Painter phải đang ở chế độ summary — kiểm qua captured painter.
+      // (Không có cách trực tiếp đọc painter từ widget test; thay vào đó
+      // đảm bảo không crash và bước cuối khác bước 5 qua narration.)
+      expect(find.textContaining('chuỗi chủ động'), findsOneWidget);
+      expect(tester.takeException(), isNull);
+    });
+
+    testWidgets('summary step is distinct from step 5 during autoplay', (
+      tester,
+    ) async {
+      await _pumpPlayer(tester);
+      await tester.pump();
+      await _tap(tester, find.text('PHÁT'));
+      // Chạy đến cuối — auto-stop ở bước 6; narration tổng kết hiện.
+      await tester.pump(const Duration(seconds: 30));
+      await tester.pump();
+      expect(find.textContaining('Bước 6/6'), findsOneWidget);
+      expect(find.textContaining('TỔNG KẾT'), findsOneWidget);
+      expect(find.text('PHÁT'), findsOneWidget);
+      expect(tester.takeException(), isNull);
+    });
 
     testWidgets('two players keep independent local state', (tester) async {
       await tester.pumpWidget(
