@@ -7,11 +7,15 @@ import 'package:dau_viet_mobile/features/learning/data/learning_providers.dart';
 import 'package:dau_viet_mobile/features/map/data/map_location_dto.dart';
 import 'package:dau_viet_mobile/features/map/data/map_providers.dart';
 import 'package:dau_viet_mobile/features/map/data/map_repository.dart';
-import 'package:dau_viet_mobile/core/widgets/parchment_card.dart';
 import 'package:dau_viet_mobile/features/map/presentation/historical_map_screen.dart';
+import 'package:dau_viet_mobile/features/map/presentation/journey_chapter.dart';
+import 'package:dau_viet_mobile/features/map/presentation/journey_layout.dart';
+import 'package:dau_viet_mobile/features/map/presentation/journey_map_node.dart';
+import 'package:dau_viet_mobile/features/map/presentation/journey_path_painter.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:go_router/go_router.dart';
 
 class _FakeMapRepository implements MapRepository {
   List<MapLocationDto> locations = const [];
@@ -79,6 +83,7 @@ void main() {
     role: 'LEARNER',
   );
 
+  /// MaterialApp không GoRouter — dùng cho các test không cần nav.
   Widget buildApp(_FakeMapRepository repo) {
     return ProviderScope(
       overrides: [mapRepositoryProvider.overrideWithValue(repo)],
@@ -86,8 +91,30 @@ void main() {
     );
   }
 
-  group('HistoricalMapScreen', () {
-    testWidgets('hiển thị cả 3 trạng thái địa điểm trong danh sách', (
+  /// GoRouter nhỏ chỉ có /dashboard + /map — đủ kiểm back-to-home.
+  Widget buildRoutedApp(_FakeMapRepository repo, {String initial = '/map'}) {
+    final router = GoRouter(
+      initialLocation: initial,
+      routes: [
+        GoRoute(
+          path: '/dashboard',
+          builder: (context, state) =>
+              const Scaffold(body: Center(child: Text('DASHBOARD'))),
+        ),
+        GoRoute(
+          path: '/map',
+          builder: (context, state) => const HistoricalMapScreen(),
+        ),
+      ],
+    );
+    return ProviderScope(
+      overrides: [mapRepositoryProvider.overrideWithValue(repo)],
+      child: MaterialApp.router(routerConfig: router),
+    );
+  }
+
+  group('HistoricalMapScreen — journey', () {
+    testWidgets('hiển thị back "Về Bàn Học" + tiêu đề + legend + progress', (
       tester,
     ) async {
       final repo = _FakeMapRepository()
@@ -95,16 +122,69 @@ void main() {
       await tester.pumpWidget(buildApp(repo));
       await tester.pumpAndSettle();
 
-      expect(find.text('Bến Bạch Đằng'), findsWidgets);
-      expect(find.text('Cửa Lạch Trường'), findsWidgets);
-      expect(find.text('Đồng bằng Bắc Bộ'), findsWidgets);
-      // Phụ đề trạng thái
-      expect(find.text('Mở khoá bằng: Trận Bạch Đằng 938'), findsOneWidget);
-      expect(find.text('Đã mở khoá — nhấn để xem chi tiết'), findsOneWidget);
-      expect(find.text('Sẵn sàng khám phá'), findsOneWidget);
+      expect(find.byTooltip('Về Bàn Học'), findsOneWidget);
+      expect(find.text('Bản Đồ Dấu Ấn'), findsOneWidget);
+      expect(find.text('Đã mở khoá'), findsOneWidget);
+      expect(find.text('Sẵn sàng'), findsOneWidget);
+      expect(find.text('Chưa mở'), findsOneWidget);
+      // Progress chỉ đếm UNLOCKED (1/3).
+      expect(find.textContaining('Đã khám phá 1 / 3 địa điểm'), findsOneWidget);
+      // Disclaimer hành trình minh họa.
+      expect(
+        find.textContaining('không thể hiện tuyến đường thực tế'),
+        findsOneWidget,
+      );
+      // Chapter header với tên sự kiện.
+      expect(find.text('Trận Bạch Đằng 938'), findsOneWidget);
+      expect(find.textContaining('Chặng 1 / 1'), findsOneWidget);
+      // Tất cả 3 node render trên canvas.
+      expect(find.byType(JourneyMapNode), findsNWidgets(3));
     });
 
-    testWidgets('chạm địa điểm LOCKED → sheet hiện CTA "HỌC ĐỂ MỞ"', (
+    testWidgets(
+      'back "Về Bàn Học" điều hướng /dashboard khi không có route trước',
+      (tester) async {
+        final repo = _FakeMapRepository()..locations = const [available];
+        await tester.pumpWidget(buildRoutedApp(repo, initial: '/map'));
+        await tester.pumpAndSettle();
+
+        await tester.tap(find.byTooltip('Về Bàn Học'));
+        await tester.pumpAndSettle();
+
+        expect(find.text('DASHBOARD'), findsOneWidget);
+        expect(find.byType(HistoricalMapScreen), findsNothing);
+      },
+    );
+
+    testWidgets('back "Về Bàn Học" hiện cả khi loading + error + empty', (
+      tester,
+    ) async {
+      // Loading: repo chưa resolve — dùng completer thủ công thay vì delay.
+      final slowRepo = _FakeMapRepository();
+      // Đẩy pumpWidget trước khi repo trả data — loading state.
+      await tester.pumpWidget(buildApp(slowRepo));
+      expect(find.byTooltip('Về Bàn Học'), findsOneWidget);
+      await tester.pumpAndSettle();
+
+      // Error state.
+      final errRepo = _FakeMapRepository()
+        ..error = const ApiException(
+          ApiError(code: 'NETWORK_ERROR', message: 'down'),
+        );
+      await tester.pumpWidget(buildApp(errRepo));
+      await tester.pumpAndSettle();
+      expect(find.byTooltip('Về Bàn Học'), findsOneWidget);
+      expect(find.text('Chưa tải được sử liệu'), findsOneWidget);
+
+      // Empty state.
+      final emptyRepo = _FakeMapRepository()..locations = const [];
+      await tester.pumpWidget(buildApp(emptyRepo));
+      await tester.pumpAndSettle();
+      expect(find.byTooltip('Về Bàn Học'), findsOneWidget);
+      expect(find.text('Chưa có sự kiện nào'), findsOneWidget);
+    });
+
+    testWidgets('chạm node → sheet chi tiết với CTA "HỌC ĐỂ MỞ"', (
       tester,
     ) async {
       final repo = _FakeMapRepository()..locations = const [locked];
@@ -116,7 +196,6 @@ void main() {
 
       expect(find.text('HỌC ĐỂ MỞ'), findsOneWidget);
       expect(find.textContaining('Trận Bạch Đằng 938'), findsWidgets);
-      // FR-38: event title hiển thị trong sheet.
       expect(find.textContaining('Thuộc sự kiện'), findsOneWidget);
     });
 
@@ -143,7 +222,6 @@ void main() {
       await tester.tap(find.text('Điểm bị ẩn CTA').first);
       await tester.pumpAndSettle();
 
-      // Không có CTA "HỌC ĐỂ MỞ" giả — chỉ có giải thích.
       expect(find.text('HỌC ĐỂ MỞ'), findsNothing);
       expect(find.text('ÔN BÀI HỌC'), findsNothing);
       expect(find.textContaining('đang được cập nhật'), findsOneWidget);
@@ -161,58 +239,62 @@ void main() {
       await tester.pumpAndSettle();
 
       expect(find.text('XEM SỰ KIỆN'), findsOneWidget);
-      // Không có nút "ÔN BÀI HỌC" mờ/vô nghĩa cho AVAILABLE không lesson.
       expect(find.text('ÔN BÀI HỌC'), findsNothing);
       expect(find.text('HỌC ĐỂ MỞ'), findsNothing);
     });
 
-    testWidgets('bản đồ pan/zoom được (InteractiveViewer) + nút reset', (
+    testWidgets('nhiều eventId → nhiều chặng, điều hướng prev/next đúng', (
       tester,
     ) async {
-      final repo = _FakeMapRepository()
-        ..locations = const [locked, unlocked, available];
+      const evt2Loc = MapLocationDto(
+        id: 'loc-9',
+        eventId: 'evt-2',
+        eventTitle: 'Hai Bà Trưng 40',
+        title: 'Mê Linh',
+        latitude: 21.18,
+        longitude: 105.72,
+        unlockState: MapUnlockState.available,
+      );
+      final repo = _FakeMapRepository()..locations = const [locked, evt2Loc];
       await tester.pumpWidget(buildApp(repo));
       await tester.pumpAndSettle();
 
-      expect(find.byType(InteractiveViewer), findsOneWidget);
-      expect(find.byTooltip('Về khung nhìn ban đầu'), findsOneWidget);
-
-      // Pan canvas — không lỗi, marker vẫn render sau transform.
-      await tester.drag(find.byType(InteractiveViewer), const Offset(60, 40));
-      await tester.pump();
+      // Chặng 1: evt-1 (Trận Bạch Đằng) — chỉ thấy Bến Bạch Đằng.
+      expect(find.text('Chặng 1 / 2 • 1 địa điểm'), findsOneWidget);
       expect(find.text('Bến Bạch Đằng'), findsWidgets);
+      expect(find.text('Mê Linh'), findsNothing);
 
-      await tester.tap(find.byTooltip('Về khung nhìn ban đầu'));
+      // Next → chặng 2.
+      await tester.tap(find.byTooltip('Chặng sau'));
       await tester.pumpAndSettle();
+      expect(find.text('Chặng 2 / 2 • 1 địa điểm'), findsOneWidget);
+      expect(find.text('Hai Bà Trưng 40'), findsOneWidget);
+      expect(find.text('Mê Linh'), findsWidgets);
+      expect(find.text('Bến Bạch Đằng'), findsNothing);
+
+      // Prev → lại chặng 1.
+      await tester.tap(find.byTooltip('Chặng trước'));
+      await tester.pumpAndSettle();
+      expect(find.text('Bến Bạch Đằng'), findsWidgets);
     });
 
-    testWidgets('sheet scroll được với mô tả dài (không overflow)', (
+    testWidgets('chapter không có eventTitle → fallback "Chặng N"', (
       tester,
     ) async {
-      final longDesc = MapLocationDto(
-        id: 'loc-long',
-        eventId: 'evt-1',
-        title: 'Địa điểm mô tả rất dài',
-        description: 'Nội dung dài. ' * 400,
-        latitude: 20.9,
-        longitude: 106.8,
-        unlockState: MapUnlockState.unlocked,
+      const noTitle = MapLocationDto(
+        id: 'loc-no-title',
+        eventId: 'evt-x',
+        title: 'Điểm không tên',
+        latitude: 21.0,
+        longitude: 106.0,
+        unlockState: MapUnlockState.available,
       );
-      tester.view.physicalSize = const Size(400, 740);
-      tester.view.devicePixelRatio = 1.0;
-      addTearDown(tester.view.reset);
-
-      final repo = _FakeMapRepository()..locations = [longDesc];
+      final repo = _FakeMapRepository()..locations = const [noTitle];
       await tester.pumpWidget(buildApp(repo));
       await tester.pumpAndSettle();
 
-      // Chạm item trong danh sách fallback (marker có thể nằm ngoài
-      // viewport của InteractiveViewer).
-      await tester.tap(find.byType(ParchmentCard).first);
-      await tester.pumpAndSettle();
-
-      expect(tester.takeException(), isNull);
-      expect(find.byType(SingleChildScrollView), findsWidgets);
+      expect(find.text('Chặng 1'), findsOneWidget);
+      expect(find.text('Chặng 1 / 1 • 1 địa điểm'), findsOneWidget);
     });
 
     testWidgets('lỗi API → trạng thái lỗi + nút Thử lại, không fallback', (
@@ -243,6 +325,129 @@ void main() {
 
       expect(find.text('Chưa có sự kiện nào'), findsOneWidget);
     });
+
+    testWidgets('sheet scroll được với mô tả dài (không overflow)', (
+      tester,
+    ) async {
+      final longDesc = MapLocationDto(
+        id: 'loc-long',
+        eventId: 'evt-1',
+        title: 'Địa điểm mô tả rất dài',
+        description: 'Nội dung dài. ' * 400,
+        latitude: 20.9,
+        longitude: 106.8,
+        unlockState: MapUnlockState.unlocked,
+      );
+      tester.view.physicalSize = const Size(400, 740);
+      tester.view.devicePixelRatio = 1.0;
+      addTearDown(tester.view.reset);
+
+      final repo = _FakeMapRepository()..locations = [longDesc];
+      await tester.pumpWidget(buildApp(repo));
+      await tester.pumpAndSettle();
+
+      await tester.tap(find.byType(JourneyMapNode).first);
+      await tester.pumpAndSettle();
+
+      expect(tester.takeException(), isNull);
+      expect(find.byType(SingleChildScrollView), findsWidgets);
+    });
+
+    testWidgets('320px width không overflow', (tester) async {
+      tester.view.physicalSize = const Size(320, 700);
+      tester.view.devicePixelRatio = 1.0;
+      addTearDown(tester.view.reset);
+
+      final repo = _FakeMapRepository()
+        ..locations = const [locked, unlocked, available];
+      await tester.pumpWidget(buildApp(repo));
+      await tester.pumpAndSettle();
+
+      expect(tester.takeException(), isNull);
+      expect(find.byType(JourneyMapNode), findsNWidgets(3));
+    });
+  });
+
+  group('groupChapters', () {
+    test('nhóm theo eventId, giữ input order, fallback title', () {
+      const a = MapLocationDto(
+        id: 'a',
+        eventId: 'e1',
+        eventTitle: 'Sự kiện 1',
+        title: 'A',
+        latitude: 0,
+        longitude: 0,
+        unlockState: MapUnlockState.available,
+      );
+      const b = MapLocationDto(
+        id: 'b',
+        eventId: 'e2',
+        title: 'B',
+        latitude: 0,
+        longitude: 0,
+        unlockState: MapUnlockState.available,
+      );
+      const c = MapLocationDto(
+        id: 'c',
+        eventId: 'e1',
+        title: 'C',
+        latitude: 0,
+        longitude: 0,
+        unlockState: MapUnlockState.locked,
+      );
+      final chapters = groupChapters(const [a, b, c]);
+      expect(chapters.length, 2);
+      expect(chapters[0].eventId, 'e1');
+      expect(chapters[0].title, 'Sự kiện 1');
+      expect(chapters[0].locations.map((l) => l.id), ['a', 'c']);
+      expect(chapters[1].eventId, 'e2');
+      // Fallback khi không có eventTitle.
+      expect(chapters[1].title, 'Chặng 2');
+      expect(chapters[1].locations.map((l) => l.id), ['b']);
+    });
+
+    test('dataset rỗng → không chapter', () {
+      expect(groupChapters(const []), isEmpty);
+    });
+  });
+
+  group('JourneyLayout', () {
+    test('node xen kẽ trái/phải, trong bounds, không trùng', () {
+      const w = 360.0;
+      final centers = JourneyLayout.centers(4, w);
+      expect(centers.length, 4);
+      // Lane 0.28 / 0.72 xen kẽ.
+      expect(centers[0].dx, closeTo(w * 0.28, 0.1));
+      expect(centers[1].dx, closeTo(w * 0.72, 0.1));
+      expect(centers[2].dx, closeTo(w * 0.28, 0.1));
+      expect(centers[3].dx, closeTo(w * 0.72, 0.1));
+      // Không 2 tâm nào trùng.
+      final set = centers.map((o) => '${o.dx},${o.dy}').toSet();
+      expect(set.length, 4);
+      // Y tăng dần, trong canvas.
+      for (int i = 0; i < 3; i++) {
+        expect(centers[i].dy, lessThan(centers[i + 1].dy));
+      }
+      expect(centers.last.dy, lessThan(JourneyLayout.canvasHeight(4)));
+    });
+
+    test('canvasHeight tăng theo số node', () {
+      expect(
+        JourneyLayout.canvasHeight(1),
+        lessThan(JourneyLayout.canvasHeight(5)),
+      );
+    });
+  });
+
+  group('JourneyPathPainter', () {
+    test('không crash khi < 2 node', () {
+      final p = JourneyPathPainter(
+        centers: const [Offset(100, 100)],
+        states: const [MapUnlockState.available],
+      );
+      // Không ném — repaint logic.
+      expect(p.shouldRepaint(p), isFalse);
+    });
   });
 
   group('mapLocationsProvider session scoping (P1)', () {
@@ -264,7 +469,6 @@ void main() {
         expect(listA.single.unlockState, MapUnlockState.unlocked);
         expect(repoA.calls, 1);
 
-        // User B với repo riêng — KHÔNG thấy cache UNLOCKED của A.
         final repoB = _FakeMapRepository()..locations = const [locked];
         final containerB = ProviderContainer(
           overrides: [
@@ -291,25 +495,21 @@ void main() {
         );
         addTearDown(container.dispose);
 
-        // Phiên restoring → key 'restoring'.
         container.read(authSessionProvider.notifier).state =
             const AuthState.unknown();
         await container.read(mapLocationsProvider.future);
         expect(repo.calls, 1);
 
-        // Login user-a → phiên đổi → refetch (không dùng cache phiên trước).
         container.read(authSessionProvider.notifier).state =
             AuthState.authenticated(profile('user-a'));
         await container.read(mapLocationsProvider.future);
         expect(repo.calls, greaterThanOrEqualTo(2));
 
-        // Switch sang user-b → refetch lần nữa — state mới fetch riêng.
         container.read(authSessionProvider.notifier).state =
             AuthState.authenticated(profile('user-b'));
         await container.read(mapLocationsProvider.future);
         expect(repo.calls, greaterThanOrEqualTo(3));
 
-        // Logout → phiên 'anon' đổi lại → refetch, không giữ cache user.
         container.read(authSessionProvider.notifier).state =
             const AuthState.unauthenticated();
         await container.read(mapLocationsProvider.future);
