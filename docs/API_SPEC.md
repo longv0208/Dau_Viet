@@ -336,6 +336,15 @@ Publish chạy PUBLISH-level `DraftValidator` trong một transaction: `SELECT F
 - `Functional_Requirements_Dau_Viet_MVP.docx`: FR-01…46 và luồng chức năng.
 - Các endpoint có ghi `implemented TASK-xxxx` là đã có trong code tại commit `0744ae8`; các endpoint không ghi trạng thái (ví dụ `/me`, `/me/collection`, `/admin/assets/*`) là **đề xuất/dự kiến, chưa implement**. HTTP errors và payloads là **đề xuất kỹ thuật** cho đến khi được kiểm thử E2E.
 
+### Notes đã chốt TASK-0021 (Bản đồ lịch sử & mở khoá địa điểm — FR-35..38)
+
+- `GET /api/v1/map/locations` — learner authenticated (mọi role; anonymous → `401`). Trả array top-level các `MapLocationDto` **PUBLISHED** của event **PUBLISHED**, sắp theo `displayOrder,title`. Mỗi item `{id, eventId, title, description, latitude, longitude, unlockState, requiredLesson?{lessonId,title}}` — chỉ field an toàn, không lộ cấu hình admin.
+- `GET /api/v1/map/locations/{id}` — cùng shape; `404` khi không tồn tại/chưa PUBLISHED/event chưa PUBLISHED.
+- `unlockState` do **server tính theo `sub` JWT** — client không gửi userId/cờ completed: `AVAILABLE` = không link bài học; `UNLOCKED` = learner có ≥1 attempt `COMPLETED` trên **bất kỳ version nào** của `unlockLessonId` (republish không reset); `LOCKED` = ngược lại. Một truy vấn IN-list cho toàn trang (không N+1).
+- Admin nested dưới event: `GET|POST /api/v1/admin/events/{eventId}/map-locations`, `PATCH .../{locationId}?expectedRowVersion=`, `POST .../{locationId}/status?status=DRAFT|PUBLISHED|ARCHIVED` — `CONTENT_ADMIN`, `@Version` optimistic lock (409 khi lệch version).
+- Validate: `title` bắt buộc ≤255; `latitude ∈ [-90,90]`, `longitude ∈ [-180,180]` → `400`; `unlockLessonId` phải thuộc **cùng event** — kiểm tra service (`400`, thông báo tiếng Việt) **và** composite FK `(event_id, unlock_lesson_id) → lessons(event_id,id)` ở DB.
+- Mobile: route `/map` (auth-gated); unlock state refetch khi quay lại từ lesson qua invalidate — không auto-navigate khỏi LessonResultScreen.
+
 ## Admin client implementation note
 
 `dau-viet-admin` (TASK-0013) consumes this contract through a same-origin BFF layer: the browser only talks to `/api/auth/*` and `/api/proxy/*` inside the Next.js app, which forwards to `/api/v1/*` on `BACKEND_URL`. The refresh token is held in an HttpOnly `dv_refresh` cookie; access tokens live in browser memory only. See `docs/admin-runbook.md` for the full flow.

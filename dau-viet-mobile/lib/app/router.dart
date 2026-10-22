@@ -17,6 +17,7 @@ import '../features/learning/presentation/lesson_player_screen.dart';
 import '../features/learning/presentation/lesson_result_screen.dart';
 import '../features/learning/presentation/matching_board_screen.dart';
 import '../features/learning/presentation/multiple_choice_quiz_screen.dart';
+import '../features/map/presentation/historical_map_screen.dart';
 import '../features/meta/presentation/energy_management_screen.dart';
 import '../features/meta/presentation/heritage_island_screen.dart';
 import '../features/meta/presentation/inventory_screen.dart';
@@ -32,6 +33,7 @@ const _learningPrefixes = [
   '/learning/lesson/',
   '/learning/attempt/',
   '/learning/result/',
+  '/map',
 ];
 
 /// Bộ định tuyến toàn cục của Dấu Việt Mobile (go_router)
@@ -89,6 +91,13 @@ final appRouter = GoRouter(
       path: '/timeline',
       name: 'timeline',
       builder: (context, state) => const TimelineScreen(),
+    ),
+
+    // TASK-0021: Bản Đồ Dấu Ấn Lịch Sử (unlock theo learner)
+    GoRoute(
+      path: '/map',
+      name: 'historical_map',
+      builder: (context, state) => const HistoricalMapScreen(),
     ),
 
     // M-06: Sa Bàn Chiến Thuật & Bản Đồ Sông Bạch Đằng

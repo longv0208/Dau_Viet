@@ -563,6 +563,32 @@ class _LearnerDashboardScreenState
           child: ParchmentCard(
             padding: const EdgeInsets.all(14),
             onTap: () {
+              context.go('/map');
+            },
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                const Icon(
+                  Icons.map_rounded,
+                  color: DauVietColors.riverBlue,
+                  size: 28,
+                ),
+                const SizedBox(height: 8),
+                Text('Bản Đồ Dấu Ấn', style: DauVietTypography.labelMedium),
+                const SizedBox(height: 2),
+                Text(
+                  'Địa điểm lịch sử mở khoá',
+                  style: DauVietTypography.bodySmall.copyWith(fontSize: 11),
+                ),
+              ],
+            ),
+          ),
+        ),
+        const SizedBox(width: 12),
+        Expanded(
+          child: ParchmentCard(
+            padding: const EdgeInsets.all(14),
+            onTap: () {
               context.go('/saban');
             },
             child: Column(

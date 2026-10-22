@@ -13,6 +13,7 @@ import { Button } from "@/components/ui/button";
 
 import { EventForm } from "./event-form";
 import { EventPublishButton } from "./event-publish-button";
+import { MapLocationsSection } from "./map-locations-section";
 
 /** Loads GET /admin/events/{id} and renders the edit form. */
 export function EventEditorPage({ eventId }: { eventId: string }) {
@@ -45,6 +46,8 @@ export function EventEditorPage({ eventId }: { eventId: string }) {
         </Button>
       </div>
       <EventForm initial={ev} />
+      <hr className="border-border" />
+      <MapLocationsSection eventId={ev.id} />
     </div>
   );
 }

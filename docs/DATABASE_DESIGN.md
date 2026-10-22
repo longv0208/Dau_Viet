@@ -54,8 +54,16 @@ erDiagram
 | `lesson_results` | `id`, `learner_attempt_id`, `score`, `completed_at`, `result_json` | Unique attempt; kết thúc một lần. TASK-0012: ghi cùng transaction với flip `COMPLETED` |
 | `user_evidence` | `id`, `user_id`, `learner_attempt_id`, `evidence_id`, `collected_at` | **Chỉ là schema (V4)** — chưa có Collection API/screen nào đọc/ghi bảng này; unique `(learner_attempt_id, evidence_id)` |
 | `reward_transactions` | `id`, `user_id`, `learner_attempt_id`, `reward_type`, `amount`, `reason`, `created_at` | **Chỉ là schema (V4)** — ledger nền cho reward về sau; `complete()` hiện CHƯA ghi row, chưa có grant logic; unique event/cause key để không cấp trùng |
+| `map_locations` | `id`, `event_id`, `title`, `description`, `latitude`, `longitude`, `unlock_lesson_id`, `display_order`, `status`, `created_at`, `updated_at`, `row_version` | **TASK-0021 (V8)** — địa điểm trên bản đồ learner. `CHECK` lat `[-90,90]`, lng `[-180,180]`; `status` ∈ `DRAFT/PUBLISHED/ARCHIVED`; `row_version` optimistic lock. `unlock_lesson_id` nullable — null = luôn AVAILABLE |
 
 **Đề xuất:** Dùng `UUID` phía Java, `JSONB` cho `draft_json`, `snapshot_json`, `state_json` và các outputs. Dùng `CHECK`/enum mapping thống nhất cho status; index `(user_id, status)`, `(lesson_id, published_at)`, `(learner_attempt_id, activity_id)`.
+
+### Bổ sung V8 — `map_locations` (TASK-0021)
+
+- `unlock_lesson_id` ràng buộc **cùng event** bằng composite FK `(event_id, unlock_lesson_id) REFERENCES lessons(event_id, id)` — cần `ux_lessons_event_id UNIQUE (event_id, id)` trên `lessons`; cross-event link không thể tồn tại ở DB level.
+- Unlock rule (server-side, không lưu cột trạng thái): `EXISTS learner_attempts a JOIN lesson_versions v ON v.id = a.lesson_version_id WHERE a.user_id = :uid AND a.status='COMPLETED' AND v.lesson_id = unlock_lesson_id` — đếm trên **mọi** pinned version nên republish không reset.
+- Learner chỉ thấy `map_locations.status='PUBLISHED'` của `historical_events.status='PUBLISHED'` (join qua `event_id`).
+- Index: `(event_id, status, display_order)` cho admin list; `(unlock_lesson_id)` cho FK lookup.
 
 ## 4. Contract snapshot bài học
 

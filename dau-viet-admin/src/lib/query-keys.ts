@@ -39,6 +39,9 @@ export const qk = {
       ["assets", "list", params ?? {}] as const,
     detail: (id: string) => ["assets", "detail", id] as const,
   },
+  mapLocations: {
+    list: (eventId: string) => ["map-locations", "list", eventId] as const,
+  },
   learner: {
     content: (id: string) => ["learner", "content", id] as const,
   },
