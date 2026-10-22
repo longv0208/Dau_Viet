@@ -85,6 +85,7 @@ public class LearnerAttemptService {
     private final LessonCompletionEvaluator completionEvaluator;
     private final LearnerProjectionService projection;
     private final IdempotencyService idempotency;
+    private final com.dauviet.collection.application.EvidenceCollectionRecorder collectionRecorder;
     private final ObjectMapper mapper;
     private final TransactionTemplate txTemplate;
     private final EntityManager entityManager;
@@ -99,6 +100,8 @@ public class LearnerAttemptService {
                                  LessonCompletionEvaluator completionEvaluator,
                                  LearnerProjectionService projection,
                                  IdempotencyService idempotency,
+                                 com.dauviet.collection.application
+                                         .EvidenceCollectionRecorder collectionRecorder,
                                  ObjectMapper mapper,
                                  org.springframework.transaction
                                          .PlatformTransactionManager txManager,
@@ -113,6 +116,7 @@ public class LearnerAttemptService {
         this.completionEvaluator = completionEvaluator;
         this.projection = projection;
         this.idempotency = idempotency;
+        this.collectionRecorder = collectionRecorder;
         this.mapper = mapper;
         this.txTemplate = new TransactionTemplate(txManager);
         this.entityManager = entityManager;
@@ -307,6 +311,18 @@ public class LearnerAttemptService {
         state.recordOutput(activityId, result.output());
         if (result.completed()) {
             state.markCompleted(activityId);
+        }
+        // TASK-0022: collect evidence đã chọn & validate sau khi submission
+        // được chấp nhận — cùng transaction, upsert idempotent. Chỉ
+        // EVIDENCE_SELECT (EXPLORE_MAP/clue chưa có evidence reference tường
+        // minh trong contract → không suy diễn markerId).
+        if (result.completed() && type == ActivityType.EVIDENCE_SELECT
+                && result.output() != null) {
+            LessonVersion pinned = versions.findById(a.getLessonVersionId())
+                    .orElse(null);
+            collectionRecorder.record(userId, a.getId(),
+                    result.output().get("selectedEvidenceIds"), model,
+                    pinned == null ? null : pinned.getLessonId());
         }
         int attemptNo = activityAttempts
                 .countByLearnerAttemptIdAndActivityId(a.getId(), activityId) + 1;

@@ -301,6 +301,13 @@ public class GlobalExceptionHandler {
                 ex.getMessage(), Map.of());
     }
 
+    @ExceptionHandler(com.dauviet.collection.domain.CollectedEvidenceNotFoundException.class)
+    public ResponseEntity<ApiError> handleCollectedEvidenceNotFound(
+            com.dauviet.collection.domain.CollectedEvidenceNotFoundException ex) {
+        return build(HttpStatus.NOT_FOUND, ErrorCode.COLLECTION_ITEM_NOT_FOUND,
+                ex.getMessage(), Map.of());
+    }
+
     @ExceptionHandler(org.springframework.orm.ObjectOptimisticLockingFailureException.class)
     public ResponseEntity<ApiError> handleOptimisticLock(
             org.springframework.orm.ObjectOptimisticLockingFailureException ex) {

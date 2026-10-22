@@ -57,7 +57,8 @@
 | POST | `/attempts/{attemptId}/complete` | Server-authoritative completion: flip `COMPLETED` + ghi `lesson_results` atomically — **implemented TASK-0012** |
 | GET | `/attempts/{attemptId}/result` | Persisted `lesson_results` (score, result_json, completed_at) — **implemented TASK-0012** |
 | GET | `/me/attempts` | Attempt history/resume của chính learner (paged, `?status=&page=&size=`) — **implemented TASK-0012** |
-| GET | `/me/collection` | Evidence đã thu thập — **dự kiến, CHƯA implement**; không gọi từ app như thể đã có (xem `MAP_COLLECTION_REWARDS_ISLAND.md`) |
+| GET | `/me/collection` | Bộ sưu tập bằng chứng của learner hiện tại — **implemented TASK-0022**; `?type=&eventId=&page=&size=` (size ≤ 50, newest first); owner-only qua JWT |
+| GET | `/me/collection/{evidenceId}` | Chi tiết một bằng chứng đã collect + snapshot immutable + nguồn trích dẫn — **implemented TASK-0022**; 404 nếu không thuộc learner |
 | GET | `/me/progress` | Resume surface: IN_PROGRESS attempts + completed count — **implemented TASK-0012** |
 
 ### Start/resume

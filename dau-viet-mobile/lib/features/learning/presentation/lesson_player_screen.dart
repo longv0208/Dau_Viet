@@ -13,6 +13,7 @@ import '../../../core/widgets/dong_son_button.dart';
 import '../../../core/widgets/parchment_card.dart';
 import '../../../core/widgets/shimmer_progress_bar.dart';
 import '../../../core/widgets/sound_toggle_button.dart';
+import '../../collection/data/collection_providers.dart';
 import '../../map/data/map_providers.dart';
 import '../data/attempt_dtos.dart';
 import '../data/attempt_repository.dart';
@@ -359,6 +360,10 @@ class _LessonPlayerScreenState extends ConsumerState<LessonPlayerScreen> {
       // Invalidate ở đây (không đợi remount /map) vì route Map thường đã
       // unmount sau pushReplacement/context.go.
       ref.invalidate(mapLocationsProvider);
+      // Bộ sưu tập có thể vừa nhận bằng chứng mới (EVIDENCE_SELECT
+      // submissions vừa hoàn thành trong bài này) — invalidate mọi
+      // family instance để lần mở /collection sau refetch.
+      ref.invalidate(collectionListProvider);
       await _fetchResult();
     } on ApiException catch (e) {
       if (!mounted) return;

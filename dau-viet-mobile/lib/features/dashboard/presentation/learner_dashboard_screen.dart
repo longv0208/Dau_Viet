@@ -555,90 +555,86 @@ class _LearnerDashboardScreenState
     );
   }
 
-  // Khối lối tắt khám phá
+  // Khối lối tắt khám phá — 4 card lưới 2×2.
   Widget _buildQuickShortcuts() {
-    return Row(
+    return Column(
       children: [
-        Expanded(
-          child: ParchmentCard(
-            padding: const EdgeInsets.all(14),
-            onTap: () {
-              context.go('/map');
-            },
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                const Icon(
-                  Icons.map_rounded,
-                  color: DauVietColors.riverBlue,
-                  size: 28,
-                ),
-                const SizedBox(height: 8),
-                Text('Bản Đồ Dấu Ấn', style: DauVietTypography.labelMedium),
-                const SizedBox(height: 2),
-                Text(
-                  'Địa điểm lịch sử mở khoá',
-                  style: DauVietTypography.bodySmall.copyWith(fontSize: 11),
-                ),
-              ],
+        Row(
+          children: [
+            Expanded(
+              child: _shortcutCard(
+                icon: Icons.map_rounded,
+                color: DauVietColors.riverBlue,
+                title: 'Bản Đồ Dấu Ấn',
+                subtitle: 'Địa điểm lịch sử mở khoá',
+                onTap: () => context.go('/map'),
+              ),
             ),
-          ),
+            const SizedBox(width: 12),
+            Expanded(
+              child: _shortcutCard(
+                icon: Icons.auto_stories_rounded,
+                color: DauVietColors.natureGreen,
+                title: 'Bộ Sưu Tập',
+                subtitle: 'Bằng chứng đã sưu tầm',
+                onTap: () => context.go('/collection'),
+              ),
+            ),
+          ],
         ),
-        const SizedBox(width: 12),
-        Expanded(
-          child: ParchmentCard(
-            padding: const EdgeInsets.all(14),
-            onTap: () {
-              context.go('/saban');
-            },
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                const Icon(
-                  Icons.military_tech_rounded,
-                  color: DauVietColors.cinnabarRed,
-                  size: 28,
-                ),
-                const SizedBox(height: 8),
-                Text('Sa Bàn Thời Kỳ', style: DauVietTypography.labelMedium),
-                const SizedBox(height: 2),
-                Text(
-                  ApiConfig.useMock
-                      ? 'Bạch Đằng 938 & 54 Chiến dịch'
-                      : 'Bạch Đằng 938 — nội dung demo',
-                  style: DauVietTypography.bodySmall.copyWith(fontSize: 11),
-                ),
-              ],
+        const SizedBox(height: 12),
+        Row(
+          children: [
+            Expanded(
+              child: _shortcutCard(
+                icon: Icons.military_tech_rounded,
+                color: DauVietColors.cinnabarRed,
+                title: 'Sa Bàn Thời Kỳ',
+                subtitle: ApiConfig.useMock
+                    ? 'Bạch Đằng 938 & 54 Chiến dịch'
+                    : 'Bạch Đằng 938 — nội dung demo',
+                onTap: () => context.go('/saban'),
+              ),
             ),
-          ),
-        ),
-        const SizedBox(width: 12),
-        Expanded(
-          child: ParchmentCard(
-            padding: const EdgeInsets.all(14),
-            onTap: () {
-              context.go('/timeline');
-            },
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                const Icon(
-                  Icons.timeline_rounded,
-                  color: DauVietColors.imperialGold,
-                  size: 28,
-                ),
-                const SizedBox(height: 8),
-                Text('Lược Sử Niên Biểu', style: DauVietTypography.labelMedium),
-                const SizedBox(height: 2),
-                Text(
-                  'Dòng thời gian các triều đại',
-                  style: DauVietTypography.bodySmall.copyWith(fontSize: 11),
-                ),
-              ],
+            const SizedBox(width: 12),
+            Expanded(
+              child: _shortcutCard(
+                icon: Icons.timeline_rounded,
+                color: DauVietColors.imperialGold,
+                title: 'Lược Sử Niên Biểu',
+                subtitle: 'Dòng thời gian các triều đại',
+                onTap: () => context.go('/timeline'),
+              ),
             ),
-          ),
+          ],
         ),
       ],
+    );
+  }
+
+  Widget _shortcutCard({
+    required IconData icon,
+    required Color color,
+    required String title,
+    required String subtitle,
+    required VoidCallback onTap,
+  }) {
+    return ParchmentCard(
+      padding: const EdgeInsets.all(14),
+      onTap: onTap,
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Icon(icon, color: color, size: 28),
+          const SizedBox(height: 8),
+          Text(title, style: DauVietTypography.labelMedium),
+          const SizedBox(height: 2),
+          Text(
+            subtitle,
+            style: DauVietTypography.bodySmall.copyWith(fontSize: 11),
+          ),
+        ],
+      ),
     );
   }
 

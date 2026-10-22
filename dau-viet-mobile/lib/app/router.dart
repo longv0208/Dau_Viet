@@ -4,6 +4,8 @@ import '../features/auth/data/auth_state.dart';
 import '../features/auth/presentation/auth_screen.dart';
 import '../features/auth/presentation/splash_screen.dart';
 import '../features/campaign/presentation/campaign_detail_screen.dart';
+import '../features/collection/presentation/collection_detail_screen.dart';
+import '../features/collection/presentation/collection_screen.dart';
 import '../features/dashboard/presentation/learner_dashboard_screen.dart';
 import '../features/demo/presentation/theme_showcase_screen.dart';
 import '../features/learning/data/attempt_dtos.dart';
@@ -34,6 +36,7 @@ const _learningPrefixes = [
   '/learning/attempt/',
   '/learning/result/',
   '/map',
+  '/collection',
 ];
 
 /// Bộ định tuyến toàn cục của Dấu Việt Mobile (go_router)
@@ -220,6 +223,20 @@ final appRouter = GoRouter(
             state.pathParameters['artifactId'] ?? 'art_thuyen_chien_938';
         return WarshipArtifactDetailScreen(artifactId: artifactId);
       },
+    ),
+
+    // TASK-0022: Bộ Sưu Tập bằng chứng lịch sử đã thu thập
+    GoRoute(
+      path: '/collection',
+      name: 'collection',
+      builder: (context, state) => const CollectionScreen(),
+    ),
+    GoRoute(
+      path: '/collection/:evidenceId',
+      name: 'collection_detail',
+      builder: (context, state) => CollectionDetailScreen(
+        evidenceId: state.pathParameters['evidenceId']!,
+      ),
     ),
 
     // M-22: Bản Đồ Đảo Di Sản Cá Nhân 2.5D (Heritage Island)
