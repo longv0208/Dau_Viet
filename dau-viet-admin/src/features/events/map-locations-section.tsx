@@ -66,6 +66,21 @@ function toPayload(v: FormValues): AdminMapLocationRequest {
 }
 
 /**
+ * Location đã từng PUBLISHED (PUBLISHED/ARCHIVED) → unlockLessonId immutable
+ * — gửi giá trị gốc từ record, không tin form value (disabled select có thể
+ * bị drop bởi RHF).
+ */
+function resolveUnlockLessonId(
+  editing: AdminMapLocation | null,
+  formValue: string | undefined,
+): string | null {
+  if (editing && editing.status !== "DRAFT") {
+    return editing.unlockLessonId;
+  }
+  return formValue?.trim() || null;
+}
+
+/**
  * FR-36 — map-location config nested inside the event editor. Same-event
  * lesson link rule is enforced server-side (composite FK); the dropdown only
  * lists lessons of this event so admins can't pick a wrong one by accident.
@@ -118,15 +133,19 @@ export function MapLocationsSection({ eventId }: { eventId: string }) {
 
   const save = useMutation({
     mutationFn: async (v: FormValues) => {
+      const payload = {
+        ...toPayload(v),
+        unlockLessonId: resolveUnlockLessonId(editing, v.unlockLessonId),
+      };
       if (editing) {
         return apiFetch<AdminMapLocation>(
           `${base(eventId)}/${editing.id}${toQuery({ expectedRowVersion: editing.rowVersion })}`,
-          { method: "PATCH", body: JSON.stringify(toPayload(v)) },
+          { method: "PATCH", body: JSON.stringify(payload) },
         );
       }
       return apiFetch<AdminMapLocation>(base(eventId), {
         method: "POST",
-        body: JSON.stringify(toPayload(v)),
+        body: JSON.stringify(payload),
       });
     },
     onSuccess: () => {
@@ -363,10 +382,17 @@ export function MapLocationsSection({ eventId }: { eventId: string }) {
                 error={lessonsQuery.error}
                 onRetry={() => lessonsQuery.refetch()}
               />
+            ) : editing && editing.status !== "DRAFT" ? (
+              // Đã từng publish → immutable, chỉ hiển thị read-only.
+              <p className="rounded-md border border-border bg-muted/30 px-3 py-2 text-sm">
+                {editing.unlockLessonId
+                  ? (lessons.find((l) => l.id === editing.unlockLessonId)?.title
+                      ?? editing.unlockLessonTitle
+                      ?? editing.unlockLessonId)
+                  : "— Luôn mở (không yêu cầu bài học) —"}
+              </p>
             ) : (
-              <Select id="ml-lesson" {...register("unlockLessonId")}
-              disabled={editing?.status === "PUBLISHED"}
-            >
+              <Select id="ml-lesson" {...register("unlockLessonId")}>
                 <option value="">— Luôn mở (không yêu cầu bài học) —</option>
                 {lessons.map((l) => (
                   <option key={l.id} value={l.id}>
@@ -378,9 +404,9 @@ export function MapLocationsSection({ eventId }: { eventId: string }) {
                 ))}
               </Select>
             )}
-            {editing?.status === "PUBLISHED" ? (
-              <p className="text-xs text-error">
-                Địa điểm đã xuất bản — không thể đổi bài học mở khoá. Chuyển về bản nháp trước khi đổi liên kết.
+            {editing && editing.status !== "DRAFT" ? (
+              <p className="text-xs text-ink-muted">
+                Địa điểm đã từng xuất bản — không thể đổi bài học mở khoá.
               </p>
             ) : (
               <p className="text-xs text-ink-muted">

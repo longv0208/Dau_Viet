@@ -454,6 +454,123 @@ class MapLocationIT extends AbstractPostgresIT {
     }
 
     /**
+     * BUG 2 Case C: published→archived→relink attempt must NOT bypass
+     * immutability — unlockLessonId stays L1 even while ARCHIVED.
+     */
+    @Test
+    void publishedThenArchived_cannotRelinkLesson() throws Exception {
+        String l1 = publishLesson();
+        String locId = createPublished(eventId, l1);
+        setStatus(eventId, locId, "ARCHIVED", rowVersion(eventId, locId));
+        String l2 = publishLesson();
+
+        mvc.perform(patch("/api/v1/admin/events/" + eventId
+                        + "/map-locations/" + locId
+                        + "?expectedRowVersion=" + rowVersion(eventId, locId))
+                        .header("Authorization", adminToken)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(om.writeValueAsString(locationRequest(
+                                "Archived cheat", 20.9, 106.8, l2))))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.details.reason").value(
+                        org.hamcrest.Matchers.containsString(
+                                "đã từng xuất bản")));
+    }
+
+    /**
+     * BUG 2 Case D: PUBLISHED→DRAFT transition + relink must not bypass.
+     */
+    @Test
+    void publishedToDraft_cannotRelinkLesson() throws Exception {
+        String l1 = publishLesson();
+        String locId = createPublished(eventId, l1);
+        setStatus(eventId, locId, "DRAFT", rowVersion(eventId, locId));
+        String l2 = publishLesson();
+
+        mvc.perform(patch("/api/v1/admin/events/" + eventId
+                        + "/map-locations/" + locId
+                        + "?expectedRowVersion=" + rowVersion(eventId, locId))
+                        .header("Authorization", adminToken)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(om.writeValueAsString(locationRequest(
+                                "Draft bypass", 20.9, 106.8, l2))))
+                .andExpect(status().isBadRequest());
+    }
+
+    /**
+     * BUG 2 Case E+F: earned UNLOCKED survives archive→republish cycle;
+     * other learner stays LOCKED.
+     */
+    @Test
+    void earnedUnlock_survivesArchiveRepublishCycle() throws Exception {
+        String l1 = publishLesson();
+        String locId = createPublished(eventId, l1);
+        driveToCompletion(learnerToken, l1);
+
+        setStatus(eventId, locId, "ARCHIVED", rowVersion(eventId, locId));
+        setStatus(eventId, locId, "PUBLISHED", rowVersion(eventId, locId));
+
+        mvc.perform(get("/api/v1/map/locations/" + locId)
+                        .header("Authorization", learnerToken))
+                .andExpect(jsonPath("$.unlockState").value("UNLOCKED"));
+        mvc.perform(get("/api/v1/map/locations/" + locId)
+                        .header("Authorization", otherToken))
+                .andExpect(jsonPath("$.unlockState").value("LOCKED"));
+    }
+
+    /**
+     * BUG 2 Case G: rejected PATCH must not change persisted data —
+     * unlockLessonId and rowVersion stay consistent.
+     */
+    @Test
+    void rejectedRelink_preservesPersistedState() throws Exception {
+        String l1 = publishLesson();
+        String locId = createPublished(eventId, l1);
+        long vBefore = rowVersion(eventId, locId);
+        String l2 = publishLesson();
+
+        mvc.perform(patch("/api/v1/admin/events/" + eventId
+                        + "/map-locations/" + locId
+                        + "?expectedRowVersion=" + vBefore)
+                        .header("Authorization", adminToken)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(om.writeValueAsString(locationRequest(
+                                "Cheat", 20.9, 106.8, l2))))
+                .andExpect(status().isBadRequest());
+
+        long vAfter = rowVersion(eventId, locId);
+        assertThat(vAfter).isEqualTo(vBefore);
+        String persisted = jdbc.queryForObject(
+                "select unlock_lesson_id::text from map_locations where id = ?::uuid",
+                String.class, locId);
+        assertThat(persisted).isEqualTo(l1);
+    }
+
+    /**
+     * BUG 3: metadata-only PATCH on published location whose linked lesson
+     * was archived → allowed (learner already sees accessible=false, no
+     * need to block harmless edits).
+     */
+    @Test
+    void archivedLinkedLesson_metadataUpdateStillAllowed() throws Exception {
+        String l1 = publishLesson();
+        String locId = createPublished(eventId, l1);
+        mvc.perform(post("/api/v1/admin/lessons/" + l1 + "/archive")
+                        .header("Authorization", adminToken))
+                .andExpect(status().isOk());
+
+        mvc.perform(patch("/api/v1/admin/events/" + eventId
+                        + "/map-locations/" + locId
+                        + "?expectedRowVersion=" + rowVersion(eventId, locId))
+                        .header("Authorization", adminToken)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(om.writeValueAsString(locationRequest(
+                                "Tên mới", 21.0, 106.0, l1))))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.title").value("Tên mới"));
+    }
+
+    /**
      * Case E: invalid admin update must not change learner unlock states —
      * A stays UNLOCKED, B stays LOCKED after a rejected PATCH.
      */

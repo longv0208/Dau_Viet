@@ -63,6 +63,13 @@ public class MapLocation {
     @Column(name = "updated_at", nullable = false)
     private Instant updatedAt;
 
+    /**
+     * Lần publish đầu tiên — bất biến sau khi set. unlockLessonId immutable
+     * khi non-null; null = location chưa từng publish (relink tự do).
+     */
+    @Column(name = "published_at")
+    private Instant publishedAt;
+
     @Version
     @Column(name = "row_version", nullable = false)
     private Long rowVersion;
@@ -100,4 +107,6 @@ public class MapLocation {
     public Instant getCreatedAt() { return createdAt; }
     public Instant getUpdatedAt() { return updatedAt; }
     public Long getRowVersion() { return rowVersion; }
+    public Instant getPublishedAt() { return publishedAt; }
+    public void setPublishedAt(Instant publishedAt) { this.publishedAt = publishedAt; }
 }

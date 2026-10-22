@@ -69,19 +69,15 @@ public class AdminMapLocationService {
         MapLocation l = load(eventId, locationId);
         checkVersion(l, expectedRowVersion);
         validateLessonLink(eventId, req.unlockLessonId());
-        if (l.getStatus() == MapLocationStatus.PUBLISHED) {
-            // Publication invariant: PUBLISHED location không được đổi
-            // unlockLessonId (đổi → archive về DRAFT, sửa, publish lại).
-            // Metadata (title/desc/tọa độ/displayOrder) vẫn sửa tự do.
-            if (!java.util.Objects.equals(req.unlockLessonId(),
-                                          l.getUnlockLessonId())) {
-                throw new IllegalArgumentException(
-                        "Địa điểm đã xuất bản không thể đổi bài học mở khoá — "
-                        + "chuyển về bản nháp trước khi đổi liên kết");
-            }
-            // Defence-in-depth: nếu DB đã lưu link không accessible (dữ liệu
-            // cũ trước publish gate), mọi update vẫn bị chặn đến khi sửa link.
-            validatePublishable(l.getUnlockLessonId());
+        // unlockLessonId immutable sau lần publish đầu (publishedAt non-null)
+        // — archive→relink→republish không bypass được. Metadata vẫn sửa tự
+        // do kể cả khi lesson liên kết sau đó bị archive (learner đã được
+        // accessible=false che CTA — không chặn metadata vô hại).
+        if (l.getPublishedAt() != null
+                && !java.util.Objects.equals(req.unlockLessonId(),
+                                             l.getUnlockLessonId())) {
+            throw new IllegalArgumentException(
+                    "Địa điểm đã từng xuất bản không thể đổi bài học mở khoá");
         }
         apply(l, req);
         return toResponse(locations.save(l), Map.of());
@@ -95,6 +91,11 @@ public class AdminMapLocationService {
         checkVersion(l, expectedRowVersion);
         if (status == MapLocationStatus.PUBLISHED) {
             validatePublishable(l.getUnlockLessonId());
+            // Lần publish đầu → khóa unlockLessonId vĩnh viễn. Republish giữ
+            // nguyên published_at — unlock đã đạt không bị reset.
+            if (l.getPublishedAt() == null) {
+                l.setPublishedAt(java.time.Instant.now());
+            }
         }
         l.setStatus(status);
         return toResponse(locations.save(l), Map.of());
