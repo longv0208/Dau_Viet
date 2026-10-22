@@ -69,6 +69,15 @@ public class CollectionService {
         return PageResponse.from(page.map(r -> toResponse(r, titles)));
     }
 
+    /**
+     * Danh sách evidence_type learner đã collect trên TOÀN bộ collection
+     * — nguồn cho filter chips phía client (không phụ thuộc trang đã tải).
+     */
+    @Transactional(readOnly = true)
+    public List<String> availableTypes(UUID userId) {
+        return userEvidence.distinctEvidenceTypes(userId);
+    }
+
     /** Chi tiết một mục đã collect — 404 nếu không thuộc learner này. */
     @Transactional(readOnly = true)
     public CollectionItemResponse detail(UUID userId, UUID evidenceId) {

@@ -1,5 +1,6 @@
 package com.dauviet.collection.api;
 
+import java.util.List;
 import java.util.UUID;
 
 import org.springframework.data.domain.PageRequest;
@@ -48,6 +49,16 @@ public class CollectionController {
         Pageable pageable = PageRequest.of(Math.max(0, page),
                 Math.min(Math.max(1, size), MAX_PAGE_SIZE));
         return service.list(subjects.userId(jwt), type, eventId, pageable);
+    }
+
+    /**
+     * Các evidence_type learner đã collect trên toàn bộ collection —
+     * client dùng để render filter chips đủ loại, kể cả loại chỉ xuất
+     * hiện ở trang sau (P2-D). Trả list string thuần, sort ASC.
+     */
+    @GetMapping("/types")
+    public List<String> availableTypes(@AuthenticationPrincipal Jwt jwt) {
+        return service.availableTypes(subjects.userId(jwt));
     }
 
     /** Chi tiết một mục đã collect (owner only — 404 nếu không phải của mình). */

@@ -59,6 +59,7 @@
 | GET | `/me/attempts` | Attempt history/resume của chính learner (paged, `?status=&page=&size=`) — **implemented TASK-0012** |
 | GET | `/me/collection` | Bộ sưu tập bằng chứng của learner hiện tại — **implemented TASK-0022**; `?type=&eventId=&page=&size=` (size ≤ 50, newest first); owner-only qua JWT |
 | GET | `/me/collection/{evidenceId}` | Chi tiết một bằng chứng đã collect + snapshot immutable + nguồn trích dẫn — **implemented TASK-0022**; 404 nếu không thuộc learner |
+| GET | `/me/collection/types` | Các `evidence_type` learner đã collect trên toàn collection (distinct, ASC) — **implemented TASK-0022**; nguồn filter chips phía client |
 | GET | `/me/progress` | Resume surface: IN_PROGRESS attempts + completed count — **implemented TASK-0012** |
 
 ### Start/resume

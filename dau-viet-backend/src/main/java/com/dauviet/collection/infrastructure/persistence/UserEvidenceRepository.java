@@ -1,5 +1,6 @@
 package com.dauviet.collection.infrastructure.persistence;
 
+import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
 
@@ -61,4 +62,17 @@ public interface UserEvidenceRepository extends JpaRepository<UserEvidence, UUID
 
     Optional<UserEvidence> findByUserIdAndEvidenceId(UUID userId,
                                                      UUID evidenceId);
+
+    /**
+     * Toàn bộ evidence_type learner đã collect (P2-D — filter chips lấy
+     * đủ loại trên mọi trang, không cần tải hết items). DISTINCT + sort
+     * để response ổn định; bỏ null/blank phòng row cũ thiếu cột V10.
+     */
+    @Query("""
+            SELECT DISTINCT ue.evidenceType FROM UserEvidence ue
+            WHERE ue.userId = :userId
+              AND ue.evidenceType IS NOT NULL
+            ORDER BY ue.evidenceType ASC
+            """)
+    List<String> distinctEvidenceTypes(@Param("userId") UUID userId);
 }

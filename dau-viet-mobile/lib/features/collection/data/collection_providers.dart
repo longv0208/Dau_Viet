@@ -161,9 +161,13 @@ class CollectionListNotifier extends AsyncNotifier<CollectionListState> {
                   ),
                 );
 
-      // Chặn response trễ: session đổi (đăng xuất / đổi tài khoản) hoặc
-      // provider đã rebuild (filter khác / dispose) → bỏ qua kết quả.
-      if (!identical(_sessionAtBuild, session) ||
+      // Chặn response trễ: notifier đã dispose (autoDispose khi rời
+      // màn), session đổi (đăng xuất / đổi tài khoản) hoặc provider đã
+      // rebuild (filter khác) → bỏ qua kết quả. ref.mounted phải check
+      // TRƯỚC mọi ref.read/set state sau await — đọc provider khi đã
+      // unmounted ném StateError.
+      if (!ref.mounted ||
+          !identical(_sessionAtBuild, session) ||
           _generation != generation ||
           _collectionSessionKey(ref.read(authSessionProvider)) != session) {
         return;
@@ -178,7 +182,10 @@ class CollectionListNotifier extends AsyncNotifier<CollectionListState> {
       );
     } catch (e) {
       // Giữ items + error state cho banner retry — KHÔNG advance nextPage.
-      if (_generation == generation && identical(_sessionAtBuild, session)) {
+      // Lỗi trễ sau dispose/session đổi cũng không được ghi vào state mới.
+      if (ref.mounted &&
+          _generation == generation &&
+          identical(_sessionAtBuild, session)) {
         state = AsyncData(current.copyLoadMoreError(e));
       }
     }
@@ -191,6 +198,20 @@ class CollectionListNotifier extends AsyncNotifier<CollectionListState> {
     state = AsyncData(current.copyClearError());
   }
 }
+
+/// Các evidence_type learner đã collect trên TOÀN collection — nguồn
+/// filter chips đủ loại kể cả loại chỉ ở trang sau (P2-D). Session-aware:
+/// rebuild khi đổi tài khoản; một call nhẹ, không tải toàn bộ items.
+final collectionTypesProvider = FutureProvider.autoDispose<List<String>>(
+  retry: _noRetry,
+  (ref) {
+    final sessionKey = _collectionSessionKey(ref.watch(authSessionProvider));
+    assert(sessionKey.isNotEmpty);
+    final repo = ref.watch(collectionRepositoryProvider);
+    if (ApiConfig.useMock) return repo.availableTypes();
+    return ref.read(authRepositoryProvider).withAuth(repo.availableTypes);
+  },
+);
 
 /// Chi tiết một mục — family theo evidenceId, session-aware.
 final collectionDetailProvider = FutureProvider.autoDispose

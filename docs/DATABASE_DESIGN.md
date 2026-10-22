@@ -181,6 +181,8 @@ CREATE TABLE activity_attempts (
 
 **Trạng thái áp dụng (2026-10-15):** schema thực tế trong `dau-viet-backend/src/main/resources/db/migration/` hiện gồm V1 (`historical_events`), V2 (`users`, `auth_refresh_tokens`), V3 (`assets`, `evidences`, `lesson_templates`, `lessons`, `lesson_versions` + trigger immutable), V4 (`learner_attempts`, `activity_attempts`, `idempotency_records`, `lesson_results`, `user_evidence`, `reward_transactions`), V5 (`historical_events.row_version`), V6 (`evidences.row_version` cho optimistic locking phía admin). Nguồn đề xuất: `dau-viet-db/` (xem README của nó cho các quyết định mô hình và giới hạn validation phía service).
 
+**Legacy upgrade path cho V10 (TASK-0022):** `db/migration/beforeEachMigrate.sql` là SQL callback chạy trước mọi versioned migration. Khi `ux_user_evidence_user_evidence` chưa tồn tại (DB legacy từ V4–V9 có duplicate `(user_id, evidence_id)`), callback archive toàn bộ non-canonical rows vào `user_evidence_legacy_archive` (bảng bền vững, PK `id`, giữ `canonical_id` trỏ row được giữ lại = `MIN(collected_at, id)`), rồi xoá duplicates khỏi bảng active để `CREATE UNIQUE INDEX` của V10 pass. DB sạch/đã upgrade → guard `to_regclass` thoát sớm, no-op. Archive **không bao giờ** bị drop — lịch sử collect gốc truy vấn được. V11 giữ nguyên như safety net (chỉ chạy khi còn duplicates sót — thực tế không xảy ra sau callback).
+
 ### Contract `draft_json` v1 (TASK-0009)
 
 ```json

@@ -24,4 +24,11 @@ class CollectionApiClient {
     final json = await _client.get('/api/v1/me/collection/$evidenceId');
     return CollectionItemDto.fromJson(json);
   }
+
+  /// Các evidence_type learner đã collect trên TOÀN collection — nguồn
+  /// filter chips đủ loại, không phụ thuộc trang đã tải (P2-D).
+  Future<List<String>> availableTypes() async {
+    final json = await _client.get('/api/v1/me/collection/types');
+    return (json as List).map((e) => e.toString()).toList();
+  }
 }

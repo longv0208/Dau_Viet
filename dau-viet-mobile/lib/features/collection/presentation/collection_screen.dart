@@ -78,6 +78,9 @@ class _CollectionScreenState extends ConsumerState<CollectionScreen> {
 
   Widget _buildHeader(AsyncValue<CollectionListState> async) {
     final total = async.value?.totalElements;
+    // totalElements là số item của FILTER hiện tại — nói rõ để không bị
+    // hiểu nhầm là tổng collection khi đang lọc (§3).
+    final filtered = _typeFilter.isNotEmpty;
     return Padding(
       padding: const EdgeInsets.fromLTRB(20, 4, 20, 8),
       child: Row(
@@ -86,6 +89,8 @@ class _CollectionScreenState extends ConsumerState<CollectionScreen> {
             child: Text(
               total == null
                   ? 'Bằng chứng thu thập qua các bài học'
+                  : filtered
+                  ? '$total bằng chứng thuộc loại này'
                   : '$total bằng chứng đã sưu tầm',
               style: DauVietTypography.bodySmall.copyWith(
                 color: DauVietColors.inkMuted,
@@ -102,19 +107,26 @@ class _CollectionScreenState extends ConsumerState<CollectionScreen> {
     );
   }
 
-  /// Chips: 4 loại chuẩn + loại authored khác từ data (P2-D). Chỉ hiện
-  /// chip cho loại thực sự có trong collection — không hiển thị category
-  /// trống gây nhiễu.
+  /// Chips: 4 loại chuẩn + loại authored khác lấy từ TOÀN collection qua
+  /// `collectionTypesProvider` (§3 — loại chỉ ở trang sau vẫn xuất hiện
+  /// chip ngay). Endpoint lỗi → fallback suy ra từ items đã tải.
   Widget _buildFilterRow(AsyncValue<CollectionListState> async) {
     final chips = List<(String, String)>.from(_primaryChips);
-    // Lấy các loại authored ngoài 4 chuẩn từ list hiện tại.
-    final items = async.value?.items ?? const [];
     final known = _primaryChips.map((c) => c.$1).toSet();
-    final extra = items
+
+    final serverTypes = ref.watch(collectionTypesProvider).value;
+    final fallbackTypes = (async.value?.items ?? const [])
         .map((i) => i.evidenceType)
         .whereType<String>()
+        .toSet();
+    final extra = (serverTypes ?? fallbackTypes.toList())
         .where((t) => t.isNotEmpty && !known.contains(t))
         .toSet();
+    // Giữ chip của filter đang chọn hiển thị kể cả lúc types chưa tải
+    // xong/lỗi — chip mất giữa chừng làm UI giật và mất context (§3).
+    if (_typeFilter.isNotEmpty && !known.contains(_typeFilter)) {
+      extra.add(_typeFilter);
+    }
     for (final t in extra) {
       chips.add((t, _typeLabel(t)));
     }

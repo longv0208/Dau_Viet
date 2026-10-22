@@ -368,6 +368,29 @@ class CollectionIT extends AbstractPostgresIT {
         }
     }
 
+    // §3 — GET /me/collection/types: distinct evidence_type trên TOÀN
+    // collection (kể cả loại chỉ ở trang sau), scoped theo JWT.
+    @Test
+    void types_returnsAllDistinctTypes_scopedToLearner() throws Exception {
+        String lessonId = publish();
+        String attemptId = startAttempt(learnerToken, lessonId);
+        submitEs(learnerToken, attemptId,
+                "[\"" + ev1 + "\",\"" + ev2 + "\"]", "k-ty");
+
+        mvc.perform(get("/api/v1/me/collection/types")
+                        .header("Authorization", learnerToken))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.length()").value(2))
+                .andExpect(jsonPath("$[0]").value("ARTIFACT"))
+                .andExpect(jsonPath("$[1]").value("CHARACTER"));
+
+        // Learner khác → rỗng.
+        mvc.perform(get("/api/v1/me/collection/types")
+                        .header("Authorization", otherToken))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$").isEmpty());
+    }
+
     @Test
     void detail_survivesEvidenceArchiveAndEdit() throws Exception {
         String lessonId = publish();

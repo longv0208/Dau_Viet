@@ -77,6 +77,17 @@ class MockCollectionRepository implements CollectionRepository {
   }
 
   @override
+  Future<List<String>> availableTypes() async {
+    await Future<void>.delayed(const Duration(milliseconds: 100));
+    return _items
+        .map((i) => i.evidenceType)
+        .whereType<String>()
+        .toSet()
+        .toList()
+      ..sort();
+  }
+
+  @override
   Future<CollectionItemDto> detail(String evidenceId) async {
     await Future<void>.delayed(const Duration(milliseconds: 150));
     for (final item in _items) {

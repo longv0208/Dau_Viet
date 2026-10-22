@@ -14,4 +14,8 @@ abstract class CollectionRepository {
 
   /// Chi tiết một mục đã collect — lỗi nếu không thuộc learner hiện tại.
   Future<CollectionItemDto> detail(String evidenceId);
+
+  /// Các evidence_type learner đã collect trên TOÀN collection — nguồn
+  /// filter chips; không phụ thuộc trang đã tải (P2-D).
+  Future<List<String>> availableTypes();
 }

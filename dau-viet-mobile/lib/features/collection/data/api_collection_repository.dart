@@ -20,4 +20,7 @@ class ApiCollectionRepository implements CollectionRepository {
   @override
   Future<CollectionItemDto> detail(String evidenceId) =>
       _client.detail(evidenceId);
+
+  @override
+  Future<List<String>> availableTypes() => _client.availableTypes();
 }

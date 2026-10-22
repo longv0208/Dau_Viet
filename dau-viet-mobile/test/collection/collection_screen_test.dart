@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:dau_viet_mobile/core/api/api_error.dart';
 import 'package:dau_viet_mobile/core/api/api_exception.dart';
 import 'package:dau_viet_mobile/features/auth/data/auth_api_client.dart';
@@ -52,6 +54,20 @@ class _FakeCollectionRepository implements CollectionRepository {
     );
   }
 
+  /// Types tự suy ra từ items (giả lập endpoint /types). Test nào cần
+  /// loại ở trang sau set `extraTypes`.
+  List<String>? extraTypes;
+
+  @override
+  Future<List<String>> availableTypes() async {
+    if (extraTypes != null) return extraTypes!;
+    return items
+        .map((i) => i.evidenceType)
+        .whereType<String>()
+        .toSet()
+        .toList();
+  }
+
   @override
   Future<CollectionItemDto> detail(String evidenceId) async {
     detailCalls++;
@@ -65,6 +81,24 @@ class _FakeCollectionRepository implements CollectionRepository {
       ),
       statusCode: 404,
     );
+  }
+}
+
+/// Repo cho phép delay response trang kế bằng Completer — test dispose/
+/// switch-session giữa chừng request (§2).
+class _DelayedCollectionRepository extends _FakeCollectionRepository {
+  /// Khi non-null, request `list` trang ≥1 chờ Completer này resolve.
+  Completer<CollectionPageDto>? pendingPage;
+
+  @override
+  Future<CollectionPageDto> list({
+    String? type,
+    String? eventId,
+    int page = 0,
+    int size = 20,
+  }) async {
+    if (page >= 1 && pendingPage != null) return pendingPage!.future;
+    return super.list(type: type, eventId: eventId, page: page, size: size);
   }
 }
 
@@ -139,6 +173,34 @@ void main() {
 
       expect(find.text('Đại Việt sử ký toàn thư'), findsOneWidget);
       expect(find.text('Bãi cọc Yên Giang'), findsNothing);
+    });
+
+    // §3 — chip cho loại chỉ có ở trang sau: server /types trả đủ loại
+    // nên chip hiện ngay dù trang 1 không chứa item đó.
+    testWidgets('loại chỉ ở trang sau vẫn có chip nhờ endpoint types', (
+      tester,
+    ) async {
+      final repo = _FakeCollectionRepository()
+        ..items = const [item1]
+        ..extraTypes = const ['ARTIFACT', 'FOLKLORE'];
+      await tester.pumpWidget(buildApp(repo));
+      await tester.pumpAndSettle();
+
+      // FOLKLORE không có trong trang 1 nhưng chip vẫn render.
+      expect(find.text('FOLKLORE'), findsOneWidget);
+    });
+
+    // §3 — label count khi đang filter phải nói rõ là số của loại,
+    // không hiển thị như tổng collection.
+    testWidgets('count label khi filter ghi rõ là của loại đó', (tester) async {
+      final repo = _FakeCollectionRepository()..items = const [item1, item2];
+      await tester.pumpWidget(buildApp(repo));
+      await tester.pumpAndSettle();
+      expect(find.text('2 bằng chứng đã sưu tầm'), findsOneWidget);
+
+      await tester.tap(find.text('Tư liệu'));
+      await tester.pumpAndSettle();
+      expect(find.text('1 bằng chứng thuộc loại này'), findsOneWidget);
     });
 
     testWidgets('empty state khi chưa collect gì', (tester) async {
@@ -267,6 +329,108 @@ void main() {
       expect(listB.items.single.evidenceId, 'e2');
       expect(repoB.listCalls, 1);
     });
+
+    // §2 — loadMore await xong SAU KHI provider dispose: không setState,
+    // không ném lỗi (ref.mounted guard).
+    test(
+      'dispose giữa loadMore → response trễ bị bỏ qua, không crash',
+      () async {
+        const item3 = CollectionItemDto(
+          evidenceId: 'e3',
+          evidenceType: 'LOCATION',
+          evidence: EvidenceSnapshotDto(title: 'Đèo Ngang'),
+        );
+        final completer = Completer<CollectionPageDto>();
+        final repo = _DelayedCollectionRepository()
+          ..items = const [item1]
+          ..pageTwo = const [item3]
+          ..pendingPage = completer;
+        final container = ProviderContainer(
+          overrides: [
+            collectionRepositoryProvider.overrideWithValue(repo),
+            authRepositoryProvider.overrideWithValue(
+              _FakeAuthRepository(AuthState.authenticated(profile('u-a'))),
+            ),
+          ],
+        );
+
+        await container.read(collectionListProvider('').future);
+        // Giữ sub để loadMore chạy được, rồi gọi loadMore và dispose giữa chừng.
+        final sub = container.listen(collectionListProvider(''), (_, _) {});
+        final pending = container
+            .read(collectionListProvider('').notifier)
+            .loadMore();
+
+        // Dispose provider (huỷ listen → autoDispose unmount).
+        sub.close();
+        completer.complete(
+          const CollectionPageDto(
+            content: [item3],
+            page: 1,
+            size: 20,
+            totalElements: 2,
+            totalPages: 2,
+          ),
+        );
+        await pending; // không ném — ref.mounted=false → bỏ qua kết quả.
+        container.dispose();
+      },
+    );
+
+    // §2 — switch A→B giữa request trang 2: B không nhận items của A.
+    test(
+      'đổi user giữa loadMore → phiên mới không lẫn items phiên cũ',
+      () async {
+        const itemB = CollectionItemDto(
+          evidenceId: 'eB',
+          evidenceType: 'DOCUMENT',
+          evidence: EvidenceSnapshotDto(title: 'Của B'),
+        );
+        final completer = Completer<CollectionPageDto>();
+        final repoA = _DelayedCollectionRepository()
+          ..items = const [item1]
+          ..pageTwo = const [item1]
+          ..pendingPage = completer;
+        final auth = _FakeAuthRepository(
+          AuthState.authenticated(profile('u-a')),
+        );
+        final container = ProviderContainer(
+          overrides: [
+            collectionRepositoryProvider.overrideWithValue(repoA),
+            authRepositoryProvider.overrideWithValue(auth),
+          ],
+        );
+        addTearDown(container.dispose);
+
+        final listA = await container.read(collectionListProvider('').future);
+        expect(listA.items.single.evidenceId, 'e1');
+
+        // Bắt đầu loadMore của phiên A (pending).
+        final pending = container
+            .read(collectionListProvider('').notifier)
+            .loadMore();
+
+        // Đổi sang user B TRƯỚC KHI response về.
+        container.read(authSessionProvider.notifier).state =
+            AuthState.authenticated(profile('u-b'));
+        // Repo giờ trả data B cho page 0 của phiên mới.
+        repoA.items = const [itemB];
+        completer.complete(
+          const CollectionPageDto(
+            content: [item1], // response trễ của A
+            page: 1,
+            size: 20,
+            totalElements: 2,
+            totalPages: 2,
+          ),
+        );
+        await pending;
+
+        final listB = await container.read(collectionListProvider('').future);
+        // B chỉ thấy items của B — page-2 response của A không lẫn vào.
+        expect(listB.items.map((i) => i.evidenceId), ['eB']);
+      },
+    );
 
     test(
       'auth status change trong cùng container → refetch đúng phiên',
