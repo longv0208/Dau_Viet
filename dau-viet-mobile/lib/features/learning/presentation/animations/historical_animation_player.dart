@@ -45,6 +45,12 @@ class _HistoricalAnimationPlayerState extends State<HistoricalAnimationPlayer>
   bool _skipped = false;
   Timer? _advanceTimer;
 
+  // true chỉ khi learner bấm TẠM DỪNG giữa một tween đang chạy — nghĩa là
+  // controller.value dở dang VÀ learner muốn nối tiếp nó khi bấm PHÁT.
+  // _setWater/_revealPrediction cũng stop() tween nhưng đó là HỦY bỏ,
+  // không phải pause — các hàm đó phải xóa cờ này.
+  bool _tweenPaused = false;
+
   // Dự đoán khám phá — state cục bộ, không gửi server.
   int? _chosenOption;
   bool _predictionRevealed = false;
@@ -141,19 +147,23 @@ class _HistoricalAnimationPlayerState extends State<HistoricalAnimationPlayer>
   void _togglePlay() {
     if (_playing) {
       // PAUSE: đóng băng ngay cả tween đang chạy — không chỉ hủy timer.
+      // Đánh dấu đây là PAUSE chủ động để resume nối tiếp đúng tween này.
       _advanceTimer?.cancel();
       setState(() {
         _playing = false;
+        _tweenPaused = _controller.value > 0 && _controller.value < 1;
         _controller.stop();
       });
     } else if (_stepIndex < widget.definition.steps.length - 1) {
-      // RESUME: chỉ nối tiếp tween thực sự đang dở (value nằm giữa 0..1).
-      // forward() vô điều kiện sẽ khởi động lại một tween đã xong —
-      // kéo _waterLevel/_boatProgress trôi về target cũ lần nữa.
-      final resumeTween = _controller.value > 0 && _controller.value < 1;
+      // RESUME: chỉ nối tiếp tween khi learner đã PAUSE nó chủ động.
+      // Tween bị _setWater/_revealPrediction hủy giữa chừng cũng để lại
+      // value dở dang — KHÔNG được forward, nếu không nó ghi đè lựa chọn
+      // thủ công / trạng thái reveal của learner.
+      final resumeTween = _tweenPaused;
       setState(() {
         _playing = true;
         _skipped = false;
+        _tweenPaused = false;
         if (resumeTween) _controller.forward();
       });
       _scheduleAdvance();
@@ -173,6 +183,7 @@ class _HistoricalAnimationPlayerState extends State<HistoricalAnimationPlayer>
     setState(() {
       _stepIndex = index;
       _skipped = false;
+      _tweenPaused = false; // tween mới, không phải pause
       _applyStep(index);
     });
     _scheduleAdvance();
@@ -183,6 +194,7 @@ class _HistoricalAnimationPlayerState extends State<HistoricalAnimationPlayer>
     setState(() {
       _stepIndex = 0;
       _skipped = false;
+      _tweenPaused = false;
       // Reset scene về schematic ban đầu VÀ xóa mọi state dự đoán —
       // replay là "xem lại từ đầu", không giữ lựa chọn/reveal cũ.
       _chosenOption = null;
@@ -203,6 +215,7 @@ class _HistoricalAnimationPlayerState extends State<HistoricalAnimationPlayer>
     setState(() {
       _playing = false;
       _skipped = true;
+      _tweenPaused = false;
       _stepIndex = widget.definition.steps.length - 1;
       _applyStep(_stepIndex, animate: false);
     });
@@ -212,6 +225,8 @@ class _HistoricalAnimationPlayerState extends State<HistoricalAnimationPlayer>
     _advanceTimer?.cancel();
     setState(() {
       _playing = false; // thao tác tay → không auto-advance
+      _tweenPaused = false; // HỦY tween, không phải pause — Play sau đó
+      // không được nối tiếp nó và ghi đè lựa chọn của learner.
       _controller.stop(); // thao tác tay thắng tween đang chạy
       _waterLevel = v.clamp(0.0, 1.0);
       _waterFrom = _waterLevel;
@@ -230,6 +245,7 @@ class _HistoricalAnimationPlayerState extends State<HistoricalAnimationPlayer>
       _playing = false;
       _predictionRevealed = true;
       _highlightStakes = true;
+      _tweenPaused = false; // HỦY tween, không phải pause
       // Dừng tween đang chạy NGAY — nếu không nó sẽ ghi đè trạng thái
       // reveal bằng target của step hiện tại.
       _controller.stop();

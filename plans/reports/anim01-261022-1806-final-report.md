@@ -63,6 +63,26 @@ highlight stakes. Disclaimer + museum source rendered every step.
 - L6: admin input no longer trims per keystroke; blank-only deletes key.
 - L2/L3/L5/L7: accepted as cosmetic/intentional (documented in code).
 
+## Follow-up fix passes (after the review)
+
+- Geometry + playback bugfix (`plans/reports/anim01-261022-2300-geometry-playback-fix-report.md`):
+  stake lengths retuned 0.16–0.24h (exposure condition `length > 0.60·wl`),
+  bases anchored to bedTop 0.80h, submerged stakes dimmer; boat clamp
+  removed — `boatsObstructed` is presentation-only (`boatDisplayXFor` =
+  path X), `_boatEndX` 0.15→0.50 lands the lead boat inside the field;
+  pause stops the controller, reveal stops in-flight tween, manual slider
+  wins. Tests 21 → 37.
+- Resume-after-interaction fix: `_tweenPaused` flag distinguishes an
+  explicitly paused tween from one cancelled by `_setWater` /
+  `_revealPrediction` — Play no longer resumes an abandoned tween over
+  the learner's manual water level or revealed scene. Tests 37 → 39.
+
+## Verification (latest HEAD)
+
+- `dart format` clean; `flutter analyze` — no issues
+- `flutter test test/learning/historical_animation_test.dart` — 39/39
+- `flutter test test/learning` — 98/98 (earlier full run); `git diff --check` clean
+
 ## Self-found fix
 
 `HistoricalScenePainter` was re-instantiated per build AND fields were plain

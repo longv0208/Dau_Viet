@@ -398,6 +398,57 @@ void main() {
       expect(resumed, greaterThanOrEqualTo(frozen));
     });
 
+    testWidgets('play after a manual water change does not resume the '
+        'abandoned tween', (tester) async {
+      await _pumpPlayer(tester);
+      await tester.pump();
+      // Step 2: tween nước 0.30 → 0.90 đang chạy; learner kéo slider tay
+      // giữa chừng → tween bị HỦY (controller.value dở dang 0..1).
+      await _tap(tester, find.bySemanticsLabel('Bước tiếp'));
+      await tester.pump(const Duration(milliseconds: 300));
+      await tester.ensureVisible(find.byType(Slider));
+      await tester.drag(find.byType(Slider), const Offset(-150, 0));
+      await tester.pump();
+      final manual = tester.widget<Slider>(find.byType(Slider)).value;
+      expect(manual, lessThan(0.9));
+
+      // Bấm PHÁT: KHÔNG được nối tiếp tween đã hủy — mực nước giữ giá trị
+      // learner chọn, không trôi về 0.90.
+      await _tap(tester, find.text('PHÁT'));
+      await tester.pump(const Duration(seconds: 2));
+      expect(
+        tester.widget<Slider>(find.byType(Slider)).value,
+        closeTo(manual, 0.01),
+      );
+      // TẠM DỪNG lại để dọn timer cho teardown.
+      await _tap(tester, find.text('TẠM DỪNG'));
+    });
+
+    testWidgets('play after prediction reveal keeps the revealed scene', (
+      tester,
+    ) async {
+      await _pumpPlayer(tester);
+      await tester.pump();
+      // Tween step 2 đang chạy; reveal hủy tween + ép nước rút 0.22.
+      await _tap(tester, find.bySemanticsLabel('Bước tiếp'));
+      await tester.pump(const Duration(milliseconds: 300));
+      await _tap(tester, find.textContaining('Các cọc dần lộ ra'));
+      await _tap(tester, find.text('XEM KẾT QUẢ VÀ GIẢI THÍCH'));
+      expect(
+        tester.widget<Slider>(find.byType(Slider)).value,
+        closeTo(0.22, 0.01),
+      );
+
+      // Bấm PHÁT: không được resume tween cũ kéo nước lên 0.90 lần nữa.
+      await _tap(tester, find.text('PHÁT'));
+      await tester.pump(const Duration(seconds: 2));
+      expect(
+        tester.widget<Slider>(find.byType(Slider)).value,
+        closeTo(0.22, 0.01),
+      );
+      await _tap(tester, find.text('TẠM DỪNG'));
+    });
+
     testWidgets('replay clears prediction selection and revealed state', (
       tester,
     ) async {
