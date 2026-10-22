@@ -294,7 +294,13 @@ class _LessonPlayerScreenState extends ConsumerState<LessonPlayerScreen> {
       });
       return;
     }
-    if (res.activityCompleted || res.next != null) {
+    // INCORRECT retry path: server giữ cursor ở activity hiện tại — next
+    // đến cùng activity đó, không phải sang activity mới. Không chuyển
+    // awaitingContinue (renderer bị lock khi đó) để learner sửa ngay.
+    final bool retryInPlace = !res.evaluation.completed &&
+        res.next != null &&
+        res.next!.activityId == st.current.activity?.id;
+    if ((res.activityCompleted || res.next != null) && !retryInPlace) {
       // Cursor đã nhảy phía server nhưng giữ activity hiện tại + feedback
       // trên màn cho tới khi learner bấm "Tiếp tục" (không auto-advance).
       setState(() {

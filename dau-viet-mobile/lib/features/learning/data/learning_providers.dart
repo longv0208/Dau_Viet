@@ -54,6 +54,18 @@ class AuthSessionController extends Notifier<AuthState> {
     state = await ref.read(authRepositoryProvider).login(email, password);
   }
 
+  /// Đăng ký → đăng nhập luôn (repo lo cả hai bước). ApiException
+  /// (EMAIL_TAKEN/VALIDATION_ERROR/mạng) ném ra cho màn hình map message.
+  Future<void> register({
+    required String email,
+    required String password,
+    String? displayName,
+  }) async {
+    state = await ref
+        .read(authRepositoryProvider)
+        .register(email: email, password: password, displayName: displayName);
+  }
+
   /// Demo mode chỉ hợp lệ khi USE_MOCK=true (theo quyết định brief).
   void enterGuest() {
     if (ApiConfig.useMock) {

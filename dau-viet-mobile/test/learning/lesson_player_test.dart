@@ -266,6 +266,49 @@ void main() {
       expect(find.text('Câu hỏi?'), findsOneWidget); // vẫn ở activity cũ
     });
 
+    // Regression: server giữ cursor ở activity hiện tại khi sai (MATCHING/
+    // MCQ chưa hết lượt, EVIDENCE_SELECT/EXPLORE_MAP chưa đủ ngưỡng) →
+    // response có `next` trỏ lại CÙNG activity. Flutter từng nhầm là
+    // awaitingContinue → renderer bị lock, learner không sửa được (đơ màn
+    // hình, phải back ra hoặc bấm Tiếp tục mới retry được).
+    testWidgets(
+      'INCORRECT + next trỏ cùng activity → giữ UI cho retry, không lock',
+      (tester) async {
+        final repo = FakeAttemptRepository();
+        repo.onGetCurrent = () => _current(_mcqActivity, done: 1);
+        repo.onSubmit = (a) => const SubmitResultDto(
+          status: 'ACCEPTED',
+          evaluation: EvaluationDto(
+            outcome: 'INCORRECT',
+            completed: false,
+            feedbackCode: 'wrong',
+          ),
+          activityCompleted: false,
+          progress: AttemptProgressDto(completedRequired: 1, totalRequired: 2),
+          next: NextRefDto(
+            stageId: 's1',
+            activityId: 'act-2', // cùng activity — retry in place
+            activityType: 'MULTIPLE_CHOICE',
+          ),
+          completion: CompletionVerdictDto(complete: false),
+        );
+        await _pump(tester, repo);
+        await tester.tap(find.text('Sai'));
+        await tester.pump();
+        await tester.tap(find.text('GỬI CÂU TRẢ LỜI'));
+        await tester.pumpAndSettle();
+        // Feedback sai hiện — không chuyển sang awaitingContinue.
+        expect(find.text('Chưa đúng.'), findsOneWidget);
+        expect(find.text('TIẾP TỤC ›'), findsNothing);
+        // Renderer mở lại — learner chọn được đáp án khác ngay.
+        await tester.tap(find.text('Đúng'));
+        await tester.pump();
+        await tester.tap(find.text('GỬI CÂU TRẢ LỜI'));
+        await tester.pumpAndSettle();
+        expect(repo.submittedAnswers, hasLength(2));
+      },
+    );
+
     testWidgets('hoàn thành: complete → getResult → điều hướng result', (
       tester,
     ) async {

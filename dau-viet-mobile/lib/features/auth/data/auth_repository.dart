@@ -38,6 +38,22 @@ class AuthRepository {
     }
   }
 
+  /// Đăng ký tài khoản learner mới (POST /auth/register → 201 profile),
+  /// sau đó đăng nhập luôn để có token + session. Lỗi 409 EMAIL_TAKEN /
+  /// 400 VALIDATION_ERROR truyền nguyên ApiException cho UI map message.
+  Future<AuthState> register({
+    required String email,
+    required String password,
+    String? displayName,
+  }) async {
+    await _api.register(
+      email: email,
+      password: password,
+      displayName: displayName,
+    );
+    return login(email, password);
+  }
+
   Future<AuthState> login(String email, String password) async {
     final AuthTokenDto dto = await _api.login(email, password);
     _storeTokens(dto);

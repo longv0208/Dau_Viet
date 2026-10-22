@@ -31,12 +31,16 @@ class UserProfileDto {
   final String email;
   final String? displayName;
   final String role;
+  final String? status;
+  final String? createdAt;
 
   const UserProfileDto({
     required this.id,
     required this.email,
     this.displayName,
     required this.role,
+    this.status,
+    this.createdAt,
   });
 
   factory UserProfileDto.fromJson(Map<String, dynamic> json) => UserProfileDto(
@@ -44,6 +48,8 @@ class UserProfileDto {
     email: json['email'] as String? ?? '',
     displayName: json['displayName'] as String?,
     role: json['role'] as String? ?? 'LEARNER',
+    status: json['status'] as String?,
+    createdAt: json['createdAt'] as String?,
   );
 }
 
