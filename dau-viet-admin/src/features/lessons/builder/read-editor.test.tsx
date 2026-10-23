@@ -1,7 +1,7 @@
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import { describe, expect, it, vi } from "vitest";
+import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import type { Activity, Stage } from "./draft-model";
 import { ReadEditor } from "./activity-editors/read-editor";
@@ -17,61 +17,65 @@ function renderEditor(ui: React.ReactElement) {
   return render(<QueryClientProvider client={client}>{ui}</QueryClientProvider>);
 }
 
-describe("ReadEditor — animationKey", () => {
-  it("shows the current animationKey and emits it preserving other config", async () => {
+// Danh sách scene trống → picker render Select với option trống.
+beforeEach(() => {
+  vi.restoreAllMocks();
+  vi.stubGlobal(
+    "fetch",
+    vi.fn(async () =>
+      new Response(JSON.stringify({ content: [], totalElements: 0 }), {
+        status: 200,
+        headers: { "Content-Type": "application/json" },
+      }),
+    ),
+  );
+});
+
+describe("ReadEditor — animation picker", () => {
+  it("renders the scene picker with the empty option selected by default", async () => {
     const onChange = vi.fn();
-    const act = makeRead({
-      text: "Nội dung đọc",
-      animationKey: "bach_dang_938_tide_v1",
-      customFlag: true,
-    });
+    const act = makeRead({ text: "Nội dung đọc" });
     renderEditor(<ReadEditor stage={stage} activity={act} onChange={onChange} />);
 
-    const input = screen.getByLabelText(/mã hoạt họa/i);
-    expect(input).toHaveValue("bach_dang_938_tide_v1");
-
-    // Controlled input without a stateful parent: each keystroke starts from
-    // the same prop value — a single char is enough to prove emission.
-    await userEvent.type(input, "x");
-    const patch = onChange.mock.calls.at(-1)![0] as {
-      config: Record<string, unknown>;
-    };
-    expect(patch.config.animationKey).toBe("bach_dang_938_tide_v1x");
-    // text + any other config keys are preserved by the spread.
-    expect(patch.config.text).toBe("Nội dung đọc");
-    expect(patch.config.customFlag).toBe(true);
+    const select = await screen.findByLabelText(/cảnh hoạt họa/i);
+    expect(select).toHaveValue("");
+    // Chọn lại option rỗng không bắn onChange — config giữ nguyên.
+    await userEvent.selectOptions(select, "");
+    expect(onChange).not.toHaveBeenCalled();
   });
 
-  it("clearing the field removes animationKey instead of storing ''", async () => {
+  it("keeps other config keys untouched while the picker mounts", async () => {
     const onChange = vi.fn();
-    const act = makeRead({ text: "x", animationKey: "bach_dang_938_tide_v1" });
-    renderEditor(<ReadEditor stage={stage} activity={act} onChange={onChange} />);
-
-    await userEvent.clear(screen.getByLabelText(/mã hoạt họa/i));
-    const patch = onChange.mock.calls.at(-1)![0] as {
-      config: Record<string, unknown>;
-    };
-    expect("animationKey" in patch.config).toBe(false);
-    expect(patch.config.text).toBe("x");
-  });
-
-  it("renders an empty field when animationKey is absent", () => {
-    const onChange = vi.fn();
-    renderEditor(
-      <ReadEditor stage={stage} activity={makeRead({ text: "x" })} onChange={onChange} />,
-    );
-    expect(screen.getByLabelText(/mã hoạt họa/i)).toHaveValue("");
-  });
-
-  it("disables the field in readOnly mode", () => {
     renderEditor(
       <ReadEditor
         stage={stage}
-        activity={makeRead({ animationKey: "k_v1" })}
-        readOnly
-        onChange={vi.fn()}
+        activity={makeRead({ text: "Nội dung đọc", customFlag: true })}
+        onChange={onChange}
       />,
     );
-    expect(screen.getByLabelText(/mã hoạt họa/i)).toBeDisabled();
+    await screen.findByLabelText(/cảnh hoạt họa/i);
+    expect(onChange).not.toHaveBeenCalled();
+  });
+
+  it("disables the picker in readOnly mode", async () => {
+    renderEditor(
+      <ReadEditor stage={stage} activity={makeRead({})} readOnly onChange={vi.fn()} />,
+    );
+    expect(await screen.findByLabelText(/cảnh hoạt họa/i)).toBeDisabled();
+  });
+
+  it("exposes legacy animationKey field behind the collapsible and edits it", async () => {
+    const onChange = vi.fn();
+    renderEditor(
+      <ReadEditor
+        stage={stage}
+        activity={makeRead({ text: "x", animationKey: "bach_dang_938_tide_v1" })}
+        onChange={onChange}
+      />,
+    );
+    const input = await screen.findByDisplayValue("bach_dang_938_tide_v1");
+    await userEvent.type(input, "z");
+    const patch = onChange.mock.calls.at(-1)![0] as { config: Record<string, unknown> };
+    expect(patch.config.animationKey).toBe("bach_dang_938_tide_v1z");
   });
 });

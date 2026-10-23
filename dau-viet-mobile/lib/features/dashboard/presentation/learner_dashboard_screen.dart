@@ -560,6 +560,30 @@ class _LearnerDashboardScreenState
             ),
           ],
         ),
+        const SizedBox(height: 12),
+        Row(
+          children: [
+            Expanded(
+              child: _shortcutCard(
+                icon: Icons.landscape_rounded,
+                color: DauVietColors.woodBrown,
+                title: 'Đảo di sản',
+                subtitle: 'Trưng vật phẩm đã sở hữu',
+                onTap: () => context.go('/island'),
+              ),
+            ),
+            const SizedBox(width: 12),
+            Expanded(
+              child: _shortcutCard(
+                icon: Icons.backpack_rounded,
+                color: DauVietColors.cinnabarRed,
+                title: 'Túi đồ',
+                subtitle: 'Vật phẩm & trang trí',
+                onTap: () => context.go('/inventory'),
+              ),
+            ),
+          ],
+        ),
         if (ApiConfig.useMock) ...[
           const SizedBox(height: 12),
           Row(

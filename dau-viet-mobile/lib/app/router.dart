@@ -45,14 +45,15 @@ const _learningPrefixes = [
 /// Màn demo-only (nội dung hard-code, không có backend thật): giữ trong
 /// USE_MOCK; real mode redirect về dashboard để không lộ dữ liệu bịa.
 /// Reward screens M-18/19/21 cần attemptId hợp lệ — real mode không có.
-/// Timeline/Sa Bàn/Đảo/Năng lượng là nội dung tường thuật demo (P1-06).
+/// Timeline/Sa Bàn tường thuật + Năng lượng (EnergyPill giả) là demo.
+/// Đảo Di Sản (/island) và Túi Đồ (/inventory) là sở hữu/trang trí THẬT
+/// (nguồn /me/inventory) — KHÔNG gate ở đây, để learner mở được mọi lúc.
 const _demoOnlyPrefixes = [
   '/rewards/victory',
   '/rewards/claim',
   '/rewards/artifact',
   '/timeline',
   '/saban',
-  '/island',
   '/energy',
 ];
 

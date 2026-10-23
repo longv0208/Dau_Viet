@@ -49,21 +49,104 @@ public final class SimpleActivityValidators {
                 errors.add(new FieldError(path + ".config.text", "TOO_LONG",
                         "text exceeds " + MAX_TEXT + " chars"));
             }
+            validateAnimationRef(config, path, ctx, errors);
+        }
+
+        /**
+         * ANIM-02: scene reference variant — config.animationSceneVersionId
+         * pins a published immutable manifest (animationSceneId alone selects
+         * the scene's current version at publish). playbackMode is whitelisted.
+         * Mutually exclusive with the legacy animationKey.
+         */
+        private void validateAnimationRef(JsonNode config, String path,
+                                          ValidationContext ctx,
+                                          List<FieldError> errors) {
             JsonNode anim = config.get("animationKey");
-            if (anim == null || anim.isNull()) return; // optional field
-            if (!anim.isTextual()) {
-                errors.add(new FieldError(path + ".config.animationKey",
-                        "INVALID_TYPE", "animationKey must be a string"));
-                return;
+            if (anim != null && !anim.isNull()) {
+                if (!anim.isTextual()) {
+                    errors.add(new FieldError(path + ".config.animationKey",
+                            "INVALID_TYPE", "animationKey must be a string"));
+                } else {
+                    String key = anim.asText();
+                    if (key.isBlank() || key.length() > MAX_ANIMATION_KEY
+                            || !ANIMATION_KEY_PATTERN.matcher(key).matches()) {
+                        errors.add(new FieldError(path + ".config.animationKey",
+                                "INVALID_ID",
+                                "animationKey must be a safe lowercase identifier "
+                                        + "(e.g. 'bach_dang_938_tide_v1'), max "
+                                        + MAX_ANIMATION_KEY + " chars"));
+                    }
+                }
             }
-            String key = anim.asText();
-            if (key.isBlank() || key.length() > MAX_ANIMATION_KEY
-                    || !ANIMATION_KEY_PATTERN.matcher(key).matches()) {
-                errors.add(new FieldError(path + ".config.animationKey",
-                        "INVALID_ID",
-                        "animationKey must be a safe lowercase identifier "
-                                + "(e.g. 'bach_dang_938_tide_v1'), max "
-                                + MAX_ANIMATION_KEY + " chars"));
+            JsonNode sceneId = config.get("animationSceneId");
+            JsonNode versionId = config.get("animationSceneVersionId");
+            if (sceneId != null && !sceneId.isNull() && !isUuid(sceneId)) {
+                errors.add(new FieldError(path + ".config.animationSceneId",
+                        "INVALID_ID", "animationSceneId must be a UUID string"));
+            }
+            if (versionId != null && !versionId.isNull()) {
+                if (!isUuid(versionId)) {
+                    errors.add(new FieldError(path + ".config.animationSceneVersionId",
+                            "INVALID_ID",
+                            "animationSceneVersionId must be a UUID string"));
+                } else if (ctx.isPublish()) {
+                    if (!ctx.sceneVersionUsable(versionId.asText())) {
+                        errors.add(new FieldError(path + ".config.animationSceneVersionId",
+                                "ANIMATION_SCENE_VERSION_NOT_FOUND",
+                                "animation scene version '" + versionId.asText()
+                                        + "' is not published"));
+                    } else if (sceneId != null && !sceneId.isNull() && isUuid(sceneId)) {
+                        // The pin must be self-consistent: a version of scene B
+                        // pinned under animationSceneId=A would embed B's
+                        // manifest under A's id in the published snapshot.
+                        java.util.UUID owner = ctx.sceneOfVersion(versionId.asText());
+                        if (owner != null
+                                && !owner.toString().equalsIgnoreCase(sceneId.asText())) {
+                            errors.add(new FieldError(path + ".config.animationSceneVersionId",
+                                    "ANIMATION_SCENE_VERSION_MISMATCH",
+                                    "animationSceneVersionId belongs to scene " + owner
+                                            + ", not " + sceneId.asText()));
+                        }
+                    }
+                }
+            }
+            if (anim != null && !anim.isNull()
+                    && ((versionId != null && !versionId.isNull())
+                        || (sceneId != null && !sceneId.isNull()))) {
+                errors.add(new FieldError(path + ".config",
+                        "INVALID_CONFIG",
+                        "animationKey and animationSceneId/VersionId are mutually exclusive"));
+            }
+            // animationSceneId without version: the scene must have a published
+            // current version at PUBLISH time (resolved into the snapshot).
+            if (ctx.isPublish() && (versionId == null || versionId.isNull())
+                    && sceneId != null && !sceneId.isNull() && isUuid(sceneId)
+                    && !ctx.sceneHasPublishedVersion(sceneId.asText())) {
+                errors.add(new FieldError(path + ".config.animationSceneId",
+                        "ANIMATION_SCENE_NOT_PUBLISHED",
+                        "animation scene '" + sceneId.asText()
+                                + "' has no published version"));
+            }
+            JsonNode mode = config.get("playbackMode");
+            if (mode != null && !mode.isNull()) {
+                if (!mode.isTextual() || !PLAYBACK_MODES.contains(mode.asText())) {
+                    errors.add(new FieldError(path + ".config.playbackMode",
+                            "INVALID_VALUE",
+                            "playbackMode must be one of " + PLAYBACK_MODES));
+                }
+            }
+        }
+
+        private static final Set<String> PLAYBACK_MODES = Set.of(
+                "AUTO", "STEPPED", "INTERACTIVE");
+
+        private static boolean isUuid(JsonNode node) {
+            if (!node.isTextual()) return false;
+            try {
+                java.util.UUID.fromString(node.asText());
+                return true;
+            } catch (RuntimeException e) {
+                return false;
             }
         }
     }

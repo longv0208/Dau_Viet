@@ -29,6 +29,8 @@ class DraftValidatorTest {
 
     private EvidenceRepository evidences;
     private AssetRepository assets;
+    private com.dauviet.animation.infrastructure.persistence
+            .AnimationSceneVersionRepository sceneVersions;
     private DraftValidator validator;
 
     @BeforeEach
@@ -48,7 +50,9 @@ class DraftValidatorTest {
                 new SimpleActivityValidators.ReasoningConnectValidator(),
                 new SimpleActivityValidators.MatchingValidator(),
                 new SimpleActivityValidators.DragOrderValidator());
-        validator = new DraftValidator(impls, evidences, assets);
+        sceneVersions = mock(com.dauviet.animation.infrastructure.persistence
+                .AnimationSceneVersionRepository.class);
+        validator = new DraftValidator(impls, evidences, assets, sceneVersions);
     }
 
     private JsonNode tree(String json) throws Exception {
@@ -482,6 +486,129 @@ class DraftValidatorTest {
         List<FieldError> errors = validator.validate(draft, EVENT, ValidationLevel.SAVE);
         assertThat(errors).anyMatch(e -> e.code().equals("INVALID_ID")
                 && e.path().endsWith("config.animationKey"));
+    }
+
+    /* ---------- ANIM-02: READ config.animationSceneId/VersionId ---------- */
+
+    private JsonNode readPublishableDraft(String config) throws Exception {
+        // A PUBLISH-clean draft: required stage with a required non-READ
+        // activity, plus the READ carrying the animation config under test.
+        return tree("""
+                {"schemaVersion":1,
+                 "stages":[{"id":"s1","type":"CONTEXT","required":true,
+                            "activities":[{"id":"r1","type":"READ","config":%s},
+                                          {"id":"mc","type":"MULTIPLE_CHOICE","required":true,
+                                           "config":{"question":"q",
+                                                     "options":[{"id":"o1"},{"id":"o2"}],
+                                                     "correctOptionIds":["o1"]}}],
+                            "nextStageIds":[]}]}
+                """.formatted(config));
+    }
+
+    @Test
+    void read_sceneVersionIdNotUsable_flaggedAtPublish() throws Exception {
+        UUID missingVersion = UUID.randomUUID();
+        when(sceneVersions.findIdAndSceneId()).thenReturn(List.of());
+        when(sceneVersions.findDistinctSceneIds()).thenReturn(List.of());
+        JsonNode draft = readPublishableDraft(
+                "{\"text\":\"x\",\"animationSceneVersionId\":\"%s\"}"
+                        .formatted(missingVersion));
+        List<FieldError> errors = validator.validate(draft, EVENT, ValidationLevel.PUBLISH);
+        assertThat(errors).anyMatch(e ->
+                e.code().equals("ANIMATION_SCENE_VERSION_NOT_FOUND")
+                        && e.path().endsWith("config.animationSceneVersionId"));
+    }
+
+    @Test
+    void read_sceneVersionPinnedToOtherScene_mismatch() throws Exception {
+        UUID sceneA = UUID.randomUUID();
+        UUID sceneB = UUID.randomUUID();
+        UUID versionOfB = UUID.randomUUID();
+        when(sceneVersions.findIdAndSceneId())
+                .thenReturn(List.<Object[]>of(new Object[]{versionOfB, sceneB}));
+        when(sceneVersions.findDistinctSceneIds()).thenReturn(List.of(sceneA, sceneB));
+        JsonNode draft = readPublishableDraft(
+                ("{\"text\":\"x\",\"animationSceneId\":\"%s\","
+                        + "\"animationSceneVersionId\":\"%s\"}")
+                        .formatted(sceneA, versionOfB));
+        List<FieldError> errors = validator.validate(draft, EVENT, ValidationLevel.PUBLISH);
+        assertThat(errors).anyMatch(e ->
+                e.code().equals("ANIMATION_SCENE_VERSION_MISMATCH")
+                        && e.path().endsWith("config.animationSceneVersionId"));
+    }
+
+    @Test
+    void read_sceneVersionPinnedToSameScene_accepted() throws Exception {
+        UUID sceneA = UUID.randomUUID();
+        UUID versionOfA = UUID.randomUUID();
+        when(sceneVersions.findIdAndSceneId())
+                .thenReturn(List.<Object[]>of(new Object[]{versionOfA, sceneA}));
+        when(sceneVersions.findDistinctSceneIds()).thenReturn(List.of(sceneA));
+        JsonNode draft = readPublishableDraft(
+                ("{\"text\":\"x\",\"animationSceneId\":\"%s\","
+                        + "\"animationSceneVersionId\":\"%s\"}")
+                        .formatted(sceneA, versionOfA));
+        List<FieldError> errors = validator.validate(draft, EVENT, ValidationLevel.PUBLISH);
+        assertThat(errors).noneMatch(e -> e.path().contains("animationScene"));
+    }
+
+    @Test
+    void read_sceneIdWithoutVersion_requiresPublishedScene() throws Exception {
+        UUID sceneA = UUID.randomUUID();
+        // sceneA has no published version -> ANIMATION_SCENE_NOT_PUBLISHED.
+        when(sceneVersions.findIdAndSceneId()).thenReturn(List.of());
+        when(sceneVersions.findDistinctSceneIds()).thenReturn(List.of());
+        JsonNode draft = readPublishableDraft(
+                "{\"text\":\"x\",\"animationSceneId\":\"%s\"}".formatted(sceneA));
+        List<FieldError> errors = validator.validate(draft, EVENT, ValidationLevel.PUBLISH);
+        assertThat(errors).anyMatch(e ->
+                e.code().equals("ANIMATION_SCENE_NOT_PUBLISHED")
+                        && e.path().endsWith("config.animationSceneId"));
+
+        // With a published version the scene ref alone is fine.
+        when(sceneVersions.findDistinctSceneIds()).thenReturn(List.of(sceneA));
+        List<FieldError> ok = validator.validate(draft, EVENT, ValidationLevel.PUBLISH);
+        assertThat(ok).noneMatch(e -> e.path().contains("animationScene"));
+    }
+
+    @Test
+    void read_animationKeyPlusSceneRef_mutuallyExclusive() throws Exception {
+        UUID sceneA = UUID.randomUUID();
+        when(sceneVersions.findIdAndSceneId()).thenReturn(List.of());
+        when(sceneVersions.findDistinctSceneIds()).thenReturn(List.of(sceneA));
+        JsonNode draft = readPublishableDraft(
+                ("{\"text\":\"x\",\"animationKey\":\"bach_dang_938_tide_v1\","
+                        + "\"animationSceneId\":\"%s\"}").formatted(sceneA));
+        List<FieldError> errors = validator.validate(draft, EVENT, ValidationLevel.PUBLISH);
+        assertThat(errors).anyMatch(e -> e.code().equals("INVALID_CONFIG")
+                && e.path().endsWith("config"));
+    }
+
+    @Test
+    void read_playbackModeWhitelist() throws Exception {
+        JsonNode draft = readDraft(
+                "{\"text\":\"x\",\"playbackMode\":\"SMOOTH\"}");
+        List<FieldError> errors = validator.validate(draft, EVENT, ValidationLevel.SAVE);
+        assertThat(errors).anyMatch(e -> e.code().equals("INVALID_VALUE")
+                && e.path().endsWith("config.playbackMode"));
+        for (String mode : new String[]{"AUTO", "STEPPED", "INTERACTIVE"}) {
+            JsonNode ok = readDraft(
+                    "{\"text\":\"x\",\"playbackMode\":\"%s\"}".formatted(mode));
+            assertThat(validator.validate(ok, EVENT, ValidationLevel.SAVE))
+                    .noneMatch(e -> e.path().endsWith("config.playbackMode"));
+        }
+    }
+
+    @Test
+    void read_sceneRefIdsNotUuid_rejected() throws Exception {
+        JsonNode draft = readDraft(
+                "{\"text\":\"x\",\"animationSceneId\":\"not-a-uuid\","
+                        + "\"animationSceneVersionId\":42}");
+        List<FieldError> errors = validator.validate(draft, EVENT, ValidationLevel.SAVE);
+        assertThat(errors).anyMatch(e -> e.code().equals("INVALID_ID")
+                && e.path().endsWith("config.animationSceneId"));
+        assertThat(errors).anyMatch(e -> e.code().equals("INVALID_ID")
+                && e.path().endsWith("config.animationSceneVersionId"));
     }
 
     @Test

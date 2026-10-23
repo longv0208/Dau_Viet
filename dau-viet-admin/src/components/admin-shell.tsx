@@ -4,6 +4,7 @@ import {
   BookOpen,
   Calendar,
   FileText,
+  Film,
   Gift,
   History,
   Image as ImageIcon,
@@ -32,6 +33,7 @@ const NAV_ITEMS = [
   { href: "/evidence", label: "Bằng chứng", icon: FileText },
   { href: "/templates", label: "Mẫu bài học", icon: LayoutTemplate },
   { href: "/assets", label: "Thư viện media", icon: ImageIcon },
+  { href: "/animations", label: "Hoạt họa lịch sử", icon: Film },
   { href: "/versions", label: "Phiên bản", icon: History },
   { href: "/items", label: "Vật phẩm thưởng", icon: Gift },
 ];

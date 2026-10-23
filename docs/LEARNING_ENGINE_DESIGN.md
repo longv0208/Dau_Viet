@@ -156,6 +156,15 @@ Domain exceptions custom phải định nghĩa khi code. Registry đảm bảo a
 
 **UX:** Drag & drop cần fallback tap/reorder; kiểm chứng không chỉ pass/fail mà có feedback và đường sửa giả thuyết.
 
+### Animation Engine (V14+, TASK 2026-10-23)
+
+`READ` activity có thể mang cảnh hoạt họa data-driven thay vì animation hard-code:
+
+- `activity.config.animationSceneId` + `animationSceneVersionId` + `playbackMode ∈ {AUTO,STEPPED,INTERACTIVE}` — ghim tới `animation_scene_versions` bất biến; loại trừ lẫn nhau với legacy `animationKey` (`DraftValidator` → 422 khi cả hai cùng tồn tại).
+- `SnapshotBuilder.embedAnimationScenes` đọc `animationSceneVersionId` từ draft, nạp `animation_scene_versions.snapshot_json` và ghi `config.animationManifest = {manifest, sceneVersionId, versionNo, rendererCode, rendererVersion}` vào `lesson_versions.snapshot_json` — learner chỉ nhận bản snapshot bất biến, không bao giờ thấy `draftJson` của scene.
+- Mobile `AnimationRuntimeRegistry` map `rendererCode → AnimationSceneRenderer` (RIVER_TIDE/JOURNEY_MAP); rendererCode lạ → `_UnsupportedAnimationNotice` (fallback, không crash); manifest lỗi → plain READ; `animationKey` cũ vẫn qua `HistoricalAnimationRegistry` (back-compat).
+- `READ` hoạt họa KHÔNG tạo attempt state riêng — submit vẫn `acknowledgment` như READ thường; prediction/interaction là local UI state (client-side), không ghi `activity_attempts` trừ khi author thêm activity khác (MULTIPLE_CHOICE...) cho đánh giá.
+
 **Authoring allow-map (đã chốt TASK-0009):** bảng §2 là "hoạt động tiêu biểu" theo tư duy; phía authoring (`DraftSchema.STAGE_ALLOWED_ACTIVITIES`) cho phép `READ` ở mọi stage và `MULTIPLE_CHOICE` cũng được dùng trong `EVIDENCE`, `REASONING`, `VERIFICATION` (kiểm tra nhận diện/đối chứng nhanh), ngoài các ánh xạ tự nhiên theo bảng trên. Vi phạm → `STAGE_ACTIVITY_MISMATCH` (422) khi save draft.
 
 ## 7. Attempt state machine

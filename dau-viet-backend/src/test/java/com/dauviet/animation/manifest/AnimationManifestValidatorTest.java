@@ -1,0 +1,239 @@
+package com.dauviet.animation.manifest;
+
+import java.util.List;
+import java.util.UUID;
+
+import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.Test;
+import org.mockito.Mockito;
+
+import com.dauviet.animation.domain.AnimationExceptions.ManifestFieldError;
+import com.dauviet.animation.domain.AnimationTemplate;
+import com.dauviet.lesson.infrastructure.persistence.AssetRepository;
+import com.fasterxml.jackson.databind.ObjectMapper;
+
+import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertTrue;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.Mockito.when;
+
+/** Unit tests for the ~15-point manifest validation. */
+class AnimationManifestValidatorTest {
+
+    private final ObjectMapper mapper = new ObjectMapper();
+    private AssetRepository assets;
+    private AnimationManifestValidator validator;
+    private AnimationTemplate riverTemplate;
+    private AnimationTemplate mapTemplate;
+
+    @BeforeEach
+    void setUp() {
+        assets = Mockito.mock(AssetRepository.class);
+        when(assets.existsByIdAndState(any(UUID.class), eq("ACTIVE"))).thenReturn(true);
+        validator = new AnimationManifestValidator(assets);
+        riverTemplate = template("RIVER_TIDE");
+        mapTemplate = template("JOURNEY_MAP");
+    }
+
+    private AnimationTemplate template(String renderer) {
+        AnimationTemplate t = new AnimationTemplate();
+        t.setId(UUID.randomUUID());
+        t.setCode("T_" + renderer);
+        t.setRendererCode(renderer);
+        t.setRendererVersion(1);
+        t.setSchemaVersion(1);
+        return t;
+    }
+
+    private String riverManifest() {
+        return """
+            {
+              "schemaVersion": 1, "rendererCode": "RIVER_TIDE", "rendererVersion": 1,
+              "title": "Trận Bạch Đằng 938",
+              "canvas": {"aspectRatio": 1.6},
+              "river": {
+                "stakes": [
+                  {"id": "stake-a", "x": 0.5, "length": 0.7},
+                  {"id": "stake-b", "x": 0.6, "length": 0.65}
+                ]
+              },
+              "initialState": {"waterLevel": 0.3, "boatProgress": 0.0},
+              "steps": [
+                {"id": "s1", "title": "Chuẩn bị", "durationMs": 1200,
+                 "targetState": {"waterLevel": 0.3},
+                 "easing": "easeInOut", "effects": ["FADE_IN"]},
+                {"id": "s2", "title": "Nước dâng", "durationMs": 1500,
+                 "targetState": {"waterLevel": 0.9},
+                 "allowedInteractions": ["WATER_LEVEL_CONTROL"]}
+              ],
+              "prediction": {
+                "question": "Con nước sẽ thế nào?",
+                "options": [{"text": "Dâng"}, {"text": "Rút"}],
+                "explainedOptionIndex": 1
+              },
+              "sourceReferences": [{"title": "Bảo tàng LSQG"}],
+              "disclaimer": "Minh họa mô phỏng"
+            }
+            """;
+    }
+
+    private String mapManifest() {
+        return """
+            {
+              "schemaVersion": 1, "rendererCode": "JOURNEY_MAP", "rendererVersion": 1,
+              "title": "Hành trình Hai Bà Trưng",
+              "map": {
+                "locations": [
+                  {"id": "hat-mon", "name": "Hát Môn", "x": 0.30, "y": 0.62},
+                  {"id": "me-linh", "name": "Mê Linh", "x": 0.48, "y": 0.42},
+                  {"id": "luy-lau", "name": "Luy Lâu", "x": 0.72, "y": 0.34}
+                ],
+                "routes": [
+                  {"id": "gather", "from": "hat-mon", "to": "me-linh",
+                   "via": [{"x": 0.40, "y": 0.55}]},
+                  {"id": "advance", "from": "me-linh", "to": "luy-lau"}
+                ]
+              },
+              "initialState": {"markerVisibility": {"hat-mon": true}},
+              "steps": [{"id": "s1", "title": "Khởi đầu",
+                         "targetState": {"focusedLocationId": "hat-mon"}}],
+              "interactions": ["TAP_TO_EXPLORE"]
+            }
+            """;
+    }
+
+    private List<ManifestFieldError> run(String json, AnimationTemplate t) {
+        try {
+            return validator.validate(mapper.readTree(json), t);
+        } catch (Exception e) {
+            throw new AssertionError("unparseable test json", e);
+        }
+    }
+
+    private static boolean has(List<ManifestFieldError> errs, String path, String code) {
+        return errs.stream().anyMatch(e -> e.path().equals(path) && e.code().equals(code));
+    }
+
+    @Test
+    void validRiverManifestPasses() {
+        assertTrue(run(riverManifest(), riverTemplate).isEmpty());
+    }
+
+    @Test
+    void validMapManifestPasses() {
+        assertTrue(run(mapManifest(), mapTemplate).isEmpty());
+    }
+
+    @Test
+    void rejectsNonObject() throws Exception {
+        var errs = validator.validate(mapper.readTree("[]"), riverTemplate);
+        assertTrue(has(errs, "manifest", "INVALID_TYPE"));
+    }
+
+    @Test
+    void rejectsUnknownTopLevelField() {
+        String json = riverManifest().replace("\"title\":", "\"hackField\": 1, \"title\":");
+        assertTrue(run(json, riverTemplate).stream()
+                .anyMatch(e -> e.code().equals("UNKNOWN_FIELD")));
+    }
+
+    @Test
+    void rejectsRendererMismatch() {
+        var errs = run(riverManifest(), mapTemplate);
+        assertTrue(has(errs, "manifest.rendererCode", "RENDERER_MISMATCH"));
+    }
+
+    @Test
+    void rejectsUnsupportedRenderer() {
+        String json = riverManifest().replace("RIVER_TIDE", "BATTLEFIELD_3D");
+        assertTrue(run(json, riverTemplate).stream()
+                .anyMatch(e -> e.code().equals("UNSUPPORTED_RENDERER")));
+    }
+
+    @Test
+    void rejectsMissingSteps() {
+        String json = riverManifest().replace(
+                "\"steps\": [", "\"stepsX\": [").replace(
+                "],\n              \"prediction\"", "],\n              \"prediction2\": 1, \"prediction\"");
+        var errs = run(json, riverTemplate);
+        assertTrue(has(errs, "manifest.steps", "MISSING_FIELD"));
+    }
+
+    @Test
+    void rejectsDuplicateStepIds() {
+        String json = riverManifest().replace("\"id\": \"s2\"", "\"id\": \"s1\"");
+        assertTrue(run(json, riverTemplate).stream()
+                .anyMatch(e -> e.code().equals("DUPLICATE_ID")));
+    }
+
+    @Test
+    void rejectsBadEasingAndEffect() {
+        String json = riverManifest()
+                .replace("easeInOut", "bounce")
+                .replace("FADE_IN", "EXPLODE");
+        var errs = run(json, riverTemplate);
+        assertTrue(errs.stream().anyMatch(e -> e.code().equals("INVALID_VALUE")
+                && e.path().contains("easing")));
+        assertTrue(errs.stream().anyMatch(e -> e.code().equals("INVALID_VALUE")
+                && e.path().contains("effects")));
+    }
+
+    @Test
+    void rejectsUnknownStateKey() {
+        String json = riverManifest()
+                .replace("\"waterLevel\": 0.3, \"boatProgress\": 0.0",
+                        "\"waterLevel\": 0.3, \"hackState\": true, \"boatProgress\": 0.0");
+        assertTrue(run(json, riverTemplate).stream()
+                .anyMatch(e -> e.code().equals("UNKNOWN_STATE_KEY")));
+    }
+
+    @Test
+    void rejectsOutOfRangeStakeX() {
+        String json = riverManifest().replace("\"x\": 0.5", "\"x\": 1.5");
+        assertTrue(run(json, riverTemplate).stream()
+                .anyMatch(e -> e.code().equals("OUT_OF_RANGE")));
+    }
+
+    @Test
+    void rejectsRouteToUnknownLocation() {
+        String json = mapManifest().replace("\"to\": \"luy-lau\"", "\"to\": \"nowhere\"");
+        assertTrue(run(json, mapTemplate).stream()
+                .anyMatch(e -> e.code().equals("UNKNOWN_REF")));
+    }
+
+    @Test
+    void rejectsBadPredictionIndex() {
+        String json = riverManifest().replace(
+                "\"explainedOptionIndex\": 1", "\"explainedOptionIndex\": 9");
+        assertTrue(run(json, riverTemplate).stream()
+                .anyMatch(e -> e.path().contains("explainedOptionIndex")));
+    }
+
+    @Test
+    void rejectsInactiveAssetRef() {
+        when(assets.existsByIdAndState(any(UUID.class), eq("ACTIVE"))).thenReturn(false);
+        String json = riverManifest().replace("\"canvas\": {\"aspectRatio\": 1.6},",
+                "\"canvas\": {\"aspectRatio\": 1.6},"
+                + "\"assets\": [{\"id\": \"bg\", \"assetId\": \""
+                + UUID.randomUUID() + "\", \"role\": \"BACKGROUND\"}],");
+        assertTrue(run(json, riverTemplate).stream()
+                .anyMatch(e -> e.code().equals("ASSET_NOT_FOUND")));
+    }
+
+    @Test
+    void rejectsMissingRiverSection() {
+        String json = riverManifest().replace("\"river\": {", "\"riverX\": {");
+        assertTrue(run(json, riverTemplate).stream()
+                .anyMatch(e -> e.code().equals("MISSING_FIELD")
+                        && e.path().equals("manifest.river")));
+    }
+
+    @Test
+    void rejectsMissingMapLocations() {
+        String json = mapManifest().replace("\"locations\": [", "\"locationsX\": [");
+        assertTrue(run(json, mapTemplate).stream()
+                .anyMatch(e -> e.code().equals("MISSING_FIELD")
+                        && e.path().equals("manifest.map.locations")));
+    }
+}

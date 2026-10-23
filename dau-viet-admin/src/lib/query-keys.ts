@@ -56,4 +56,19 @@ export const qk = {
     detail: (lessonId: string, versionId: string) =>
       ["versions", "detail", lessonId, versionId] as const,
   },
+  animationTemplates: {
+    list: (params?: { rendererCode?: string; enabled?: boolean }) =>
+      ["animation-templates", "list", params ?? {}] as const,
+  },
+  animationScenes: {
+    list: (params?: {
+      page?: number;
+      size?: number;
+      status?: string;
+      q?: string;
+      templateId?: string;
+    }) => ["animation-scenes", "list", params ?? {}] as const,
+    detail: (id: string) => ["animation-scenes", "detail", id] as const,
+    versions: (id: string) => ["animation-scenes", "versions", id] as const,
+  },
 };

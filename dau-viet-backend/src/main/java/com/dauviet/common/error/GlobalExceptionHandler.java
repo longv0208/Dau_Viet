@@ -308,6 +308,68 @@ public class GlobalExceptionHandler {
                 ex.getMessage(), Map.of());
     }
 
+    /* ---------- animation engine ---------- */
+
+    @ExceptionHandler(com.dauviet.animation.domain.AnimationExceptions.TemplateNotFoundException.class)
+    public ResponseEntity<ApiError> handleAnimationTemplateNotFound(
+            com.dauviet.animation.domain.AnimationExceptions.TemplateNotFoundException ex) {
+        return build(HttpStatus.NOT_FOUND, ErrorCode.ANIMATION_TEMPLATE_NOT_FOUND,
+                ex.getMessage(), Map.of());
+    }
+
+    @ExceptionHandler(com.dauviet.animation.domain.AnimationExceptions.SceneNotFoundException.class)
+    public ResponseEntity<ApiError> handleAnimationSceneNotFound(
+            com.dauviet.animation.domain.AnimationExceptions.SceneNotFoundException ex) {
+        return build(HttpStatus.NOT_FOUND, ErrorCode.ANIMATION_SCENE_NOT_FOUND,
+                ex.getMessage(), Map.of());
+    }
+
+    @ExceptionHandler(com.dauviet.animation.domain.AnimationExceptions.SceneVersionNotFoundException.class)
+    public ResponseEntity<ApiError> handleAnimationSceneVersionNotFound(
+            com.dauviet.animation.domain.AnimationExceptions.SceneVersionNotFoundException ex) {
+        return build(HttpStatus.NOT_FOUND, ErrorCode.ANIMATION_SCENE_VERSION_NOT_FOUND,
+                ex.getMessage(), Map.of());
+    }
+
+    @ExceptionHandler(com.dauviet.animation.domain.AnimationExceptions.TemplateCodeTakenException.class)
+    public ResponseEntity<ApiError> handleAnimationTemplateCodeTaken(
+            com.dauviet.animation.domain.AnimationExceptions.TemplateCodeTakenException ex) {
+        return build(HttpStatus.CONFLICT, ErrorCode.TEMPLATE_CODE_TAKEN, ex.getMessage(), Map.of());
+    }
+
+    @ExceptionHandler(com.dauviet.animation.domain.AnimationExceptions.TemplateDisabledException.class)
+    public ResponseEntity<ApiError> handleAnimationTemplateDisabled(
+            com.dauviet.animation.domain.AnimationExceptions.TemplateDisabledException ex) {
+        return build(HttpStatus.UNPROCESSABLE_ENTITY, ErrorCode.TEMPLATE_DISABLED,
+                ex.getMessage(), Map.of());
+    }
+
+    @ExceptionHandler(com.dauviet.animation.domain.AnimationExceptions.InvalidStatusTransitionException.class)
+    public ResponseEntity<ApiError> handleAnimationInvalidTransition(
+            com.dauviet.animation.domain.AnimationExceptions.InvalidStatusTransitionException ex) {
+        return build(HttpStatus.CONFLICT, ErrorCode.INVALID_STATUS_TRANSITION,
+                ex.getMessage(), Map.of());
+    }
+
+    @ExceptionHandler(com.dauviet.animation.domain.AnimationExceptions.ManifestValidationException.class)
+    public ResponseEntity<ApiError> handleManifestValidation(
+            com.dauviet.animation.domain.AnimationExceptions.ManifestValidationException ex) {
+        Map<String, Object> details = Map.of("errors", ex.getErrors().stream()
+                .map(e -> Map.of("path", e.path(), "code", e.code(), "message", e.message()))
+                .toList());
+        return build(HttpStatus.UNPROCESSABLE_ENTITY, ErrorCode.ANIMATION_MANIFEST_INVALID,
+                "Animation manifest validation failed", details);
+    }
+
+    @ExceptionHandler(com.dauviet.animation.domain.AnimationExceptions.AssetInUseException.class)
+    public ResponseEntity<ApiError> handleAnimationAssetInUse(
+            com.dauviet.animation.domain.AnimationExceptions.AssetInUseException ex) {
+        Map<String, Object> details = ex.getSceneVersionIds().isEmpty()
+                ? Map.of()
+                : Map.of("sceneVersionIds", ex.getSceneVersionIds());
+        return build(HttpStatus.CONFLICT, ErrorCode.ASSET_IN_USE, ex.getMessage(), details);
+    }
+
     @ExceptionHandler(org.springframework.orm.ObjectOptimisticLockingFailureException.class)
     public ResponseEntity<ApiError> handleOptimisticLock(
             org.springframework.orm.ObjectOptimisticLockingFailureException ex) {

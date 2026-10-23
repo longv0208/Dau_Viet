@@ -4,6 +4,8 @@ import java.util.LinkedHashSet;
 import java.util.Set;
 import java.util.UUID;
 
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Component;
 
 import com.dauviet.lesson.domain.Asset;
@@ -28,6 +30,8 @@ import com.fasterxml.jackson.databind.node.ObjectNode;
 @Component
 public class SnapshotBuilder {
 
+    private static final Logger log = LoggerFactory.getLogger(SnapshotBuilder.class);
+
     /** config field names that hold evidence-id references inside activities. */
     private static final Set<String> EVIDENCE_REF_FIELDS =
             Set.of("visibleEvidenceIds", "requiredEvidenceIds", "visibleSourceIds");
@@ -35,12 +39,17 @@ public class SnapshotBuilder {
     private final EvidenceRepository evidences;
     private final AssetRepository assets;
     private final ObjectMapper mapper;
+    private final com.dauviet.animation.infrastructure.persistence
+            .AnimationSceneVersionRepository sceneVersions;
 
     public SnapshotBuilder(EvidenceRepository evidences, AssetRepository assets,
-                           ObjectMapper mapper) {
+                           ObjectMapper mapper,
+                           com.dauviet.animation.infrastructure.persistence
+                                   .AnimationSceneVersionRepository sceneVersions) {
         this.evidences = evidences;
         this.assets = assets;
         this.mapper = mapper;
+        this.sceneVersions = sceneVersions;
     }
 
     /**
@@ -55,13 +64,66 @@ public class SnapshotBuilder {
         snapshot.put("centralQuestion", lesson.getCentralQuestion());
         snapshot.set("objectives", parse(lesson.getObjectivesJson()));
         snapshot.put("templateCode", template.getCode());
-        snapshot.set("stages", draft.path("stages"));
+        ObjectNode stagesCopy = draft.path("stages").deepCopy();
+        embedAnimationScenes(stagesCopy);
+        snapshot.set("stages", stagesCopy);
         if (draft.has("completion")) {
             snapshot.set("completion", draft.get("completion"));
         }
         snapshot.set("evidence", embedEvidence(collectEvidenceIds(draft)));
         snapshot.set("assets", embedAssets(collectAssetIds(draft, snapshot)));
         return snapshot;
+    }
+
+    /**
+     * Resolve each activity's animationSceneVersionId → embed the immutable
+     * published manifest into the activity config as `animationManifest`
+     * (manifest + renderer + version metadata). The lesson snapshot then
+     * carries everything the runtime needs — no unpinned references.
+     */
+    private void embedAnimationScenes(JsonNode stages) {
+        if (stages == null || !stages.isArray()) return;
+        for (JsonNode stage : stages) {
+            JsonNode acts = stage.get("activities");
+            if (acts == null || !acts.isArray()) continue;
+            for (JsonNode act : acts) {
+                JsonNode config = act.get("config");
+                if (config == null || !config.isObject()) continue;
+                JsonNode ref = config.get("animationSceneVersionId");
+                UUID versionId = ref != null && ref.isTextual()
+                        ? parseUuid(ref.asText()) : null;
+                if (versionId == null) {
+                    // animationSceneId without explicit version: resolve the
+                    // scene's CURRENT published version at publish time and
+                    // pin it — the snapshot must never follow a moving pointer.
+                    JsonNode sceneRef = config.get("animationSceneId");
+                    UUID sceneId = sceneRef != null && sceneRef.isTextual()
+                            ? parseUuid(sceneRef.asText()) : null;
+                    if (sceneId == null) continue;
+                    var latest = sceneVersions
+                            .findTopBySceneIdOrderByVersionNoDesc(sceneId);
+                    if (latest.isEmpty()) continue;
+                    versionId = latest.get().getId();
+                }
+                sceneVersions.findById(versionId).ifPresent(v -> {
+                    try {
+                        JsonNode manifest = mapper.readTree(v.getSnapshotJson());
+                        ObjectNode anim = ((ObjectNode) config).putObject("animationManifest");
+                        anim.set("manifest", manifest);
+                        anim.put("sceneVersionId", v.getId().toString());
+                        anim.put("versionNo", v.getVersionNo());
+                        anim.put("rendererCode", v.getRendererCode());
+                        anim.put("rendererVersion", v.getRendererVersion());
+                    } catch (Exception e) {
+                        // Publish-level validation guarantees parseable JSON;
+                        // a corrupt stored row must not pass silently — the
+                        // lesson would publish without its animation.
+                        log.warn("animation scene embed skipped: version={} err={}",
+                                v.getId(), e.toString());
+                    }
+                });
+            }
+        }
     }
 
     /* ---------- reference collection ---------- */
@@ -106,13 +168,42 @@ public class SnapshotBuilder {
             if (acts == null || !acts.isArray()) continue;
             for (JsonNode act : acts) {
                 JsonNode config = act.get("config");
-                if (config != null && config.hasNonNull("imageAssetId")) {
+                if (config == null || !config.isObject()) continue;
+                if (config.hasNonNull("imageAssetId")) {
                     UUID id = parseUuid(config.get("imageAssetId").asText());
                     if (id != null) ids.add(id);
                 }
+                // Animation manifest assets — pinned into the snapshot so a
+                // published lesson keeps working even if the asset is later
+                // renamed (and ASSET_IN_USE LIKE-scan still sees the ids).
+                collectManifestAssetIds(config.get("animationManifest"), ids);
             }
         }
         return ids;
+    }
+
+    /** Asset ids declared inside an embedded animation manifest. */
+    private void collectManifestAssetIds(JsonNode animNode, Set<UUID> ids) {
+        if (animNode == null || !animNode.isObject()) return;
+        JsonNode manifest = animNode.get("manifest");
+        if (manifest == null || !manifest.isObject()) return;
+        JsonNode arr = manifest.get("assets");
+        if (arr != null && arr.isArray()) {
+            for (JsonNode a : arr) {
+                // Post-publish the manifest's assets[] is replaced with
+                // embedded asset metadata whose "id" is the assets.id itself.
+                // Draft manifests may carry {id:<key>, assetId:<uuid>} —
+                // accept both shapes.
+                UUID id = parseUuid(a.path("id").asText(null));
+                if (id == null) id = parseUuid(a.path("assetId").asText(null));
+                if (id != null) ids.add(id);
+            }
+        }
+        JsonNode map = manifest.get("map");
+        if (map != null) {
+            UUID bg = parseUuid(map.path("backgroundAssetId").asText(null));
+            if (bg != null) ids.add(bg);
+        }
     }
 
     /* ---------- embedding ---------- */

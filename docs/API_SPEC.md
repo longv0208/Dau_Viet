@@ -231,6 +231,29 @@ Access token: JWT HS256 (sub = user UUID, claim `role`); access TTL mặc địn
 | GET | `/assets/{id}/content` | Stream asset cho learner (authenticated) — **implemented** (`LearnerAssetController`) |
 | ~~POST~~ | ~~`/admin/assets/upload-intent`~~ | ~~Upload URL tạm thời~~ — **không implement**; upload đi trực tiếp qua `POST /admin/assets` |
 | ~~POST~~ | ~~`/admin/assets/confirm`~~ | ~~Verify sau upload~~ — **không implement** (không có flow 2-bước) |
+| GET | `/admin/animation-templates` | List animation templates (page/size, `rendererCode`, `enabled`, `q`) — **implemented** |
+| GET | `/admin/animation-templates/{id}` | Template detail — **implemented** |
+| GET | `/admin/animation-scenes` | List scenes (page/size/sort, `status`, `q`, `templateId`) — **implemented** |
+| POST | `/admin/animation-scenes` | Tạo scene `{templateId,title,eventId?,draftJson?}` — **implemented** |
+| GET | `/admin/animation-scenes/{id}` | Scene detail + `draftJson` (string) — **implemented** |
+| PATCH | `/admin/animation-scenes/{id}` | Sửa `title`/`eventId`/`clearEvent`/`draftJson` + `expectedRowVersion` — **implemented** |
+| POST | `/admin/animation-scenes/{id}/duplicate` | Nhân bản scene sang DRAFT mới — **implemented** |
+| POST | `/admin/animation-scenes/{id}/validate` | Manifest probe → `{ready,errors:[{path,code,message}]}` luôn 200 — **implemented** |
+| POST | `/admin/animation-scenes/{id}/publish` | Transactional publish → `{sceneId,versionId,versionNo}` — **implemented** |
+| POST | `/admin/animation-scenes/{id}/archive` | →ARCHIVED (giữ version cũ, không republish) — **implemented** |
+| GET | `/admin/animation-scenes/{id}/versions` | List `SceneVersionSummary[]` non-paginated — **implemented** |
+| GET | `/admin/animation-scenes/{id}/versions/{versionId}` | Version detail + `snapshotJson` — **implemented** |
+
+### Notes đã chốt — Animation Engine (TASK mới 2026-10-23)
+
+- Manifest là dữ liệu whitelist (`AnimationManifestSchema`): `rendererCode ∈ {RIVER_TIDE,JOURNEY_MAP}`, `rendererVersion`, `schemaVersion`, `title`, `learningObjective`, `canvas`, `assets[]`, `objects[]`, `initialState`, `steps[]`, `interactions[]`, `narration`, `prediction`, `sourceReferences[]`, `disclaimer`, `river`, `map`. Key lạ → `UNKNOWN_FIELD`.
+- Per-renderer state keys: RIVER_TIDE = `waterLevel,boatProgress,boatCount,boatLane,decoyProgress,counterattackProgress,obstructed,showSequenceSummary,hasWaterControl,highlightStakes,stakeVisibility,stakeHighlight`; JOURNEY_MAP = `markerVisibility,markerHighlight,focusedLocationId,routeProgress,locationInfoId,tapToExplore,schematicDisclaimer`. State key lạ → `UNKNOWN_STATE_KEY`.
+- Bounds: manifest ≤256KB, depth ≤24, ≤60 steps, ≤200 objects/stakes, ≤100 locations, ≤60 routes, ≤60 assets, text ≤2000, title ≤255, durationMs ≤120000, prediction ≤6 options.
+- Scene draft (`draftJson`) KHÔNG bao giờ trả cho learner; learner nhận `activity.config.animationManifest = {manifest, sceneVersionId, versionNo, rendererCode, rendererVersion}` nhúng trong `lesson_versions.snapshot_json`.
+- `animation_scene_versions` bất biến (trigger `prevent_animation_scene_version_mutation`); publish ghi `manifest_checksum = sha256(snapshotJsonText)` — checksum trên canonical `snapshot_json` text (manifest + asset metadata nhúng), khớp recipe V15 `encode(digest(snapshot_json::text,'sha256'),'hex')` — + embed asset refs vào `animation_scene_asset_refs`.
+- `READ.config`: `animationSceneId` + `animationSceneVersionId` + `playbackMode ∈ {AUTO,STEPPED,INTERACTIVE}` — loại trừ lẫn nhau với legacy `animationKey` (`INVALID_TYPE` khi cả hai cùng tồn tại); `animationSceneId`/`animationSceneVersionId` phải là UUID (`INVALID_ID`), `animationSceneVersionId` phải tồn tại và thuộc cùng scene (`ANIMATION_SCENE_VERSION_MISMATCH`), `animationSceneId` phải trỏ scene `PUBLISHED` (`ANIMATION_SCENE_NOT_PUBLISHED`).
+- `POST /{id}/validate` luôn 200 `{ready,errors:[{path,code,message}]}`; `POST /{id}/publish` validate rồi ghi version mới (pessimistic lock trên scene + `UNIQUE(scene_id,version_no)` backstop); `PATCH` cần `expectedRowVersion` khớp → 409 `OPTIMISTIC_LOCK_CONFLICT`.
+- Scene ARCHIVED → publish/update bị chặn `INVALID_STATUS_TRANSITION`; version cũ vẫn đọc được qua `/{id}/versions/{versionId}`.
 
 ### Notes đã chốt TASK-0008
 

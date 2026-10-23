@@ -35,10 +35,14 @@ public class DraftValidator {
     private final Map<ActivityType, ActivityConfigValidator> registry;
     private final EvidenceRepository evidences;
     private final AssetRepository assets;
+    private final com.dauviet.animation.infrastructure.persistence
+            .AnimationSceneVersionRepository sceneVersions;
 
     public DraftValidator(List<ActivityConfigValidator> impls,
                           EvidenceRepository evidences,
-                          AssetRepository assets) {
+                          AssetRepository assets,
+                          com.dauviet.animation.infrastructure.persistence
+                                  .AnimationSceneVersionRepository sceneVersions) {
         Map<ActivityType, ActivityConfigValidator> map = new EnumMap<>(ActivityType.class);
         for (ActivityConfigValidator v : impls) {
             ActivityConfigValidator prev = map.put(v.supports(), v);
@@ -51,6 +55,7 @@ public class DraftValidator {
         this.registry = map;
         this.evidences = evidences;
         this.assets = assets;
+        this.sceneVersions = sceneVersions;
     }
 
     /**
@@ -475,14 +480,24 @@ public class DraftValidator {
     private ValidationContext buildContext(UUID eventId, ValidationLevel level) {
         Set<String> valid = Set.of();
         Set<String> activeAssets = Set.of();
+        Map<String, UUID> versionToScene = Map.of();
+        Set<UUID> publishedSceneIds = Set.of();
         if (level == ValidationLevel.PUBLISH && eventId != null) {
             valid = evidences.findIdsByEventIdAndStatusIn(eventId,
                             List.of(EvidenceStatus.DRAFT, EvidenceStatus.APPROVED))
                     .stream().map(UUID::toString).collect(Collectors.toSet());
             activeAssets = assets.findActiveIds().stream()
                     .map(UUID::toString).collect(Collectors.toSet());
+            // versionId -> owning sceneId so validators can also check the pin
+            // (animationSceneId must equal version.sceneId), not just existence.
+            versionToScene = sceneVersions.findIdAndSceneId().stream()
+                    .collect(Collectors.toMap(
+                            r -> ((UUID) r[0]).toString(), r -> (UUID) r[1]));
+            publishedSceneIds = new java.util.HashSet<>(
+                    sceneVersions.findDistinctSceneIds());
         }
-        return new ValidationContext(eventId, level, valid, activeAssets);
+        return new ValidationContext(eventId, level, valid, activeAssets,
+                versionToScene, publishedSceneIds);
     }
 
     /* ---------- preserved helpers used by existing code ---------- */

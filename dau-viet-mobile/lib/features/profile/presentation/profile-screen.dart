@@ -69,18 +69,20 @@ class ProfileScreen extends ConsumerWidget {
                             label: 'Bộ sưu tập bằng chứng',
                             onTap: () => context.go('/collection'),
                           ),
-                          if (ApiConfig.useMock) ...[
-                            _MenuTile(
-                              icon: Icons.landscape_outlined,
-                              label: 'Đảo di sản (demo)',
-                              onTap: () => context.go('/island'),
-                            ),
+                          // Đảo di sản là sở hữu/trang trí thật — mở cho
+                          // mọi learner, không gating demo.
+                          _MenuTile(
+                            icon: Icons.landscape_outlined,
+                            label: 'Đảo di sản',
+                            onTap: () => context.go('/island'),
+                          ),
+                          // Năng lượng (EnergyPill) vẫn hard-code → chỉ demo.
+                          if (ApiConfig.useMock)
                             _MenuTile(
                               icon: Icons.bolt_outlined,
                               label: 'Năng lượng (demo)',
                               onTap: () => context.go('/energy'),
                             ),
-                          ],
                           const SizedBox(height: 16),
                           const _SectionLabel('TÀI KHOẢN'),
                           const SizedBox(height: 8),

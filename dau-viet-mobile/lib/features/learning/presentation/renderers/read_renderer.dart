@@ -5,6 +5,7 @@ import '../../../../core/theme/dau_viet_typography.dart';
 import '../../data/attempt_dtos.dart';
 import '../animations/historical_animation_player.dart';
 import '../animations/historical_animation_registry.dart';
+import '../animations/runtime/animation_runtime_registry.dart';
 import 'renderer_base.dart';
 
 /// READ — nội dung đọc + nút "Đã đọc xong, tiếp tục" (acknowledgment `{}`).
@@ -59,12 +60,26 @@ class ReadRenderer extends StatelessWidget {
       blocks.add(const _Paragraph('(Không có nội dung đọc.)'));
     }
 
-    // ANIM-01: READ có thể đính kèm hoạt họa tương tác qua
-    // `config.animationKey`. Key lạ/thiếu → chỉ render text bình
-    // thường; player chỉ là presentation, không đụng submit/progress.
-    final animation = HistoricalAnimationRegistry.resolve(
-      configText(config, ['animationKey']),
+    // ANIM-03: ưu tiên manifest data-driven embed trong snapshot
+    // (`config.animationManifest`) — published scene pin sẵn manifest +
+    // renderer code. Legacy `config.animationKey` (snapshot cũ) vẫn
+    // resolve qua registry hard-code. Cả hai đều null → render text
+    // thường; rendererCode lạ (app cũ gặp renderer mới) → fallback
+    // placeholder an toàn, KHÔNG crash.
+    final manifestDto = AnimationRuntimeRegistry.parseManifest(
+      config['animationManifest'],
     );
+    final manifestRenderer = manifestDto == null
+        ? null
+        : AnimationRuntimeRegistry.resolve(manifestDto.rendererCode);
+    final animation = manifestRenderer != null &&
+            manifestRenderer.canRender(manifestDto!)
+        ? manifestRenderer.build(manifestDto)
+        : HistoricalAnimationRegistry.resolve(
+            configText(config, ['animationKey']),
+          );
+    final bool unsupportedManifest =
+        manifestDto != null && manifestRenderer == null;
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -76,6 +91,11 @@ class ReadRenderer extends StatelessWidget {
             key: ValueKey('anim_${animation.key}_${activity.id}'),
             definition: animation,
           ),
+          const SizedBox(height: 14),
+        ] else if (unsupportedManifest) ...[
+          // ANIM-03: app cũ gặp manifest của renderer chưa hỗ trợ —
+          // fallback rõ ràng thay vì crash hay im lặng trắng.
+          _UnsupportedAnimationNotice(title: manifestDto.title),
           const SizedBox(height: 14),
         ],
         ActivityCard(
@@ -150,6 +170,46 @@ class ReadRenderer extends StatelessWidget {
       .map((p) => p.trim())
       .where((p) => p.isNotEmpty)
       .toList();
+}
+
+/// ANIM-03 — Fallback khi snapshot embed manifest của renderer mà app
+/// hiện tại chưa hỗ trợ (versioning case 4). Hiển thị nội dung đọc
+/// bình thường + thông báo nhẹ — không crash, không chặn học.
+class _UnsupportedAnimationNotice extends StatelessWidget {
+  final String title;
+  const _UnsupportedAnimationNotice({required this.title});
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.all(12),
+      decoration: BoxDecoration(
+        color: DauVietColors.parchmentContainer.withValues(alpha: 0.6),
+        borderRadius: BorderRadius.circular(10),
+        border: Border.all(color: DauVietColors.outlineVariant),
+      ),
+      child: Row(
+        children: [
+          const Icon(
+            Icons.movie_outlined,
+            color: DauVietColors.inkMuted,
+            size: 20,
+          ),
+          const SizedBox(width: 10),
+          Expanded(
+            child: Text(
+              'Hoạt họa${title.isEmpty ? '' : ' "$title"'} cần phiên bản '
+              'ứng dụng mới hơn. Nội dung đọc vẫn đầy đủ bên dưới.',
+              style: DauVietTypography.bodySmall.copyWith(
+                color: DauVietColors.inkMuted,
+                fontSize: 12,
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
 }
 
 class _Paragraph extends StatelessWidget {

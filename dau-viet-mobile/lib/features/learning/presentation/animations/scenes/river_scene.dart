@@ -108,6 +108,16 @@ class RiverScenePainter extends HistoricalScenePainter {
   /// Cao độ đáy sông (chuẩn hóa theo chiều cao canvas).
   static const double bedTopRatio = 0.80;
 
+  /// Bãi cọc schematic override theo manifest (ANIM-03) — mỗi phần tử là
+  /// (x, chiều dài theo h). null → dùng [_stakeField] mặc định, giữ
+  /// nguyên hành vi scene hard-code cũ. KHÔNG phải bố trí khảo cổ thật.
+  final List<Offset>? stakes;
+  final List<bool>? stakeVisibility;
+
+  RiverScenePainter({this.stakes, this.stakeVisibility});
+
+  List<Offset> get _field => stakes ?? _stakeField;
+
   // --- Trạng thái tương tác — override setter của base class để
   // notifyListeners; map scene không dùng các trường này. ---
   double _waterLevel = 0.3;
@@ -217,27 +227,28 @@ class RiverScenePainter extends HistoricalScenePainter {
   /// Y đáy sông (px).
   static double bedTopFor(double height) => height * bedTopRatio;
 
-  /// Ngọn cọc i (px, x/y).
-  static Offset stakeTipFor(Size size, int index) {
-    final s = _stakeField[index];
+  /// Ngọn cọc i (px, x/y). `field` override từ manifest — null = mặc định.
+  static Offset stakeTipFor(Size size, int index, [List<Offset>? field]) {
+    final s = (field ?? _stakeField)[index];
     final baseY = bedTopFor(size.height);
     return Offset(s.dx * size.width, baseY - s.dy * size.height);
   }
 
   /// Base cọc i — luôn nằm trên đáy sông.
-  static Offset stakeBaseFor(Size size, int index) =>
-      Offset(_stakeField[index].dx * size.width, bedTopFor(size.height));
+  static Offset stakeBaseFor(Size size, int index, [List<Offset>? field]) =>
+      Offset((field ?? _stakeField)[index].dx * size.width, bedTopFor(size.height));
 
   /// Ngọn cọc có NHÔ khỏi mặt nước không. Canvas y tăng xuống → ngọn
   /// nằm TRÊN mặt nước khi tipY < surfaceY.
   static bool stakeTipExposed(double tipY, double surfaceY) => tipY < surfaceY;
 
   /// Đếm số ngọn cọc lộ trên mặt nước ở mức nước cho trước.
-  static int exposedTipCount(Size size, double waterLevel) {
+  static int exposedTipCount(Size size, double waterLevel, [List<Offset>? field]) {
+    final f = field ?? _stakeField;
     final surfaceY = waterSurfaceYFor(size.height, waterLevel);
     var count = 0;
-    for (var i = 0; i < _stakeField.length; i++) {
-      if (stakeTipExposed(stakeTipFor(size, i).dy, surfaceY)) count++;
+    for (var i = 0; i < f.length; i++) {
+      if (stakeTipExposed(stakeTipFor(size, i, f).dy, surfaceY)) count++;
     }
     return count;
   }
@@ -389,9 +400,14 @@ class RiverScenePainter extends HistoricalScenePainter {
       ..style = PaintingStyle.fill;
     final stakeW = w * 0.016;
 
-    for (var i = 0; i < _stakeField.length; i++) {
-      final base = stakeBaseFor(size, i);
-      final top = stakeTipFor(size, i);
+    for (var i = 0; i < _field.length; i++) {
+      if (stakeVisibility != null &&
+          i < stakeVisibility!.length &&
+          !stakeVisibility![i]) {
+        continue; // manifest ẩn cọc này
+      }
+      final base = stakeBaseFor(size, i, _field);
+      final top = stakeTipFor(size, i, _field);
       final exposed = stakeTipExposed(top.dy, surfaceY);
       final p = exposed
           ? (highlightStakes ? highlightPaint : basePaint)
