@@ -250,10 +250,16 @@ class MapScenePainter extends HistoricalScenePainter {
     final h = size.height;
 
     // --- Nền giấy dó + đất liền schematic ---
-    canvas.drawRect(
-      Rect.fromLTWH(0, 0, w, h),
-      Paint()..color = DauVietColors.parchmentDim,
-    );
+    // P0 §3: manifest có background asset → player set
+    // suppressBaseBackground → bỏ nền opaque để ảnh lộ ra; các lớp
+    // trên (đất liền/sông/routes/markers) vẫn vẽ bình thường vì đều
+    // translucent, không che ảnh.
+    if (!suppressBaseBackground) {
+      canvas.drawRect(
+        Rect.fromLTWH(0, 0, w, h),
+        Paint()..color = DauVietColors.parchmentDim,
+      );
+    }
     _paintLand(canvas, size);
     _paintRivers(canvas, size);
     _paintRoutes(canvas, size);

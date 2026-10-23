@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { Pause, Play, SkipBack, SkipForward } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
@@ -9,10 +9,8 @@ import { useAssetObjectUrl } from "@/features/assets/use-asset-object-url";
 import type { AnimationManifest, ManifestStep } from "../animation-types";
 import {
   CAMERA_INITIAL,
-  cameraAt,
-  effectsAt,
-  globalTMs,
-  objectsAt,
+  easeValue,
+  frameAt,
   type EvaluatorSpec,
   type SceneEffectSpec,
 } from "../preview/cinematic-eval";
@@ -32,11 +30,18 @@ function ManifestImage({ assetId, alt, className }: { assetId: string; alt: stri
  * durationMs + tương tác WATER_LEVEL_CONTROL / TAP_TO_EXPLORE.
  */
 export function ScenePreview({ manifest }: { manifest: AnimationManifest }) {
-  const steps = manifest.steps ?? [];
+  const steps = useMemo(() => manifest.steps ?? [], [manifest.steps]);
   const [index, setIndex] = useState(0);
   const [playing, setPlaying] = useState(false);
   const [waterOverride, setWaterOverride] = useState<number | null>(null);
   const [tappedId, setTappedId] = useState<string | null>(null);
+
+  // P1 §6 — real-time playback: progress 0..1 trong step, tăng theo rAF.
+  // Trước đây preview tĩnh (progress=1 mỗi bước) — giờ camera/tracks/
+  // effects chạy đúng thời gian giống Flutter `AnimationController`.
+  const [progress, setProgress] = useState(1);
+  const rafRef = useRef<number | null>(null);
+  const stepStartRef = useRef<number>(0);
 
   const step: ManifestStep | undefined = steps[Math.min(index, steps.length - 1)];
 
@@ -56,19 +61,42 @@ export function ScenePreview({ manifest }: { manifest: AnimationManifest }) {
     return merged;
   }, [manifest.initialState, step, waterOverride]);
 
-  // Phát tự động: hết durationMs → bước kế; hết danh sách → dừng.
+  // Phát tự động theo rAF: progress chạy 0→1 trong durationMs rồi nhảy
+  // bước kế; hết danh sách → dừng. Tween liên tục (không snap cuối bước).
   useEffect(() => {
     if (!playing || steps.length === 0) return;
-    const ms = Math.max(500, step?.durationMs ?? 4000);
-    const t = setTimeout(() => {
-      if (index < steps.length - 1) setIndex(index + 1);
-      else setPlaying(false);
-    }, ms);
-    return () => clearTimeout(t);
+    const duration = Math.max(200, step?.durationMs ?? 4000);
+    stepStartRef.current = performance.now() - progress * duration;
+    const tick = (now: number) => {
+      const p = Math.min(1, (now - stepStartRef.current) / duration);
+      setProgress(p);
+      if (p >= 1) {
+        if (index < steps.length - 1) {
+          setIndex(index + 1);
+          setProgress(0);
+          stepStartRef.current = now;
+          rafRef.current = requestAnimationFrame(tick);
+        } else {
+          setPlaying(false);
+          rafRef.current = null;
+        }
+        return;
+      }
+      rafRef.current = requestAnimationFrame(tick);
+    };
+    rafRef.current = requestAnimationFrame(tick);
+    return () => {
+      if (rafRef.current != null) cancelAnimationFrame(rafRef.current);
+      rafRef.current = null;
+    };
+    // progress không phải dep — loop tự chạy theo index.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [playing, index, steps.length, step?.durationMs]);
 
   const go = (i: number) => {
     setIndex(Math.max(0, Math.min(i, steps.length - 1)));
+    setProgress(playing ? 0 : 1); // đang phát → tween mới từ đầu
+    stepStartRef.current = performance.now();
     setWaterOverride(null);
   };
 
@@ -76,20 +104,34 @@ export function ScenePreview({ manifest }: { manifest: AnimationManifest }) {
   const allowTap = step?.allowedInteractions?.includes("TAP_TO_EXPLORE");
 
   const aspect = manifest.canvas?.aspectRatio ?? 1.6;
-  const assets = manifest.assets ?? [];
-  const objects = manifest.objects ?? [];
+  const assets = useMemo(() => manifest.assets ?? [], [manifest.assets]);
+  const objects = useMemo(() => manifest.objects ?? [], [manifest.objects]);
 
   // Ảnh nền: map.backgroundAssetId → assets[] role BACKGROUND đầu tiên.
   const bgAssetId = manifest.map?.backgroundAssetId ??
     assets.find((a) => a.role === "BACKGROUND")?.assetId;
-  // Vật thể ảnh: objects[] có assetRef → assets[] entry role OBJECT.
+  // Vật thể: objects[] resolve assetRef → assets[] role OBJECT, HOẶC
+  // type whitelisted render procedural glyph (P0 §3/§4 — không assetRef
+  // vẫn phải hiện hình: BOAT/DECOY/STAKE/MARKER/LABEL/LOCATION/WATER).
+  const PROCEDURAL_TYPES = useMemo(() => new Set([
+    "STAKE", "BOAT", "DECOY", "MARKER", "LABEL", "ROUTE", "LOCATION",
+    "WATER", "TEXT",
+  ]), []);
   const objectLayers = useMemo(() => {
     const byKey = new Map(assets.map((a) => [a.id, a]));
     return objects
-      .filter((o) => o.visible !== false && o.assetRef && byKey.get(o.assetRef)?.role === "OBJECT")
-      .map((o) => ({ object: o, ref: byKey.get(o.assetRef!)! }))
+      .filter((o) => {
+        if (o.visible === false) return false;
+        const ref = o.assetRef ? byKey.get(o.assetRef) : null;
+        if (ref == null) return PROCEDURAL_TYPES.has(o.type ?? "");
+        return ref.role === "OBJECT";
+      })
+      .map((o) => ({
+        object: o,
+        ref: o.assetRef ? byKey.get(o.assetRef) : undefined,
+      }))
       .sort((a, b) => (a.object.layer ?? 0) - (b.object.layer ?? 0));
-  }, [assets, objects]);
+  }, [assets, objects, PROCEDURAL_TYPES]);
 
   /* ---------- v2 cinematic — camera + tracks + effects tại bước hiện tại.
      Đánh giá ở trạng thái CUỐI bước (progress = 1) — preview tĩnh theo
@@ -109,6 +151,9 @@ export function ScenePreview({ manifest }: { manifest: AnimationManifest }) {
         center: { x: s.target.x, y: s.target.y },
         zoom: s.target.zoom,
       })),
+      // P1 §5 — camera.steps[].easing (whitelist) override step.easing
+      // cho camera tween, khớp Dart `cameraEasings`.
+      cameraEasings: (cam?.steps ?? []).map((s) => s.easing ?? null),
       tracks: tracks.map((t) => ({
         objectId: t.objectId,
         property: t.property,
@@ -146,25 +191,34 @@ export function ScenePreview({ manifest }: { manifest: AnimationManifest }) {
     };
   }, [manifest.camera, manifest.tracks, manifest.effects, objects, steps]);
 
-  // Frame cuối bước hiện tại (preview tĩnh theo bước).
+  // Frame cinematic hiện tại — progress liên tục khi playing (rAF), else
+  // nhảy cuối bước. easedT = step.easing áp lên progress (parity Dart
+  // `_stepCurve.transform(rawProgress)` → frameAt(easedT, rawProgress)).
   const cinematicFrame = useMemo(() => {
     if (!cinematicSpec) return null;
-    const tMs = globalTMs(cinematicSpec, index, 1);
-    return {
-      camera: cameraAt(cinematicSpec.cameraInitial, cinematicSpec.cameraSteps, index, 1),
-      objects: objectsAt(cinematicSpec, tMs),
-      effects: effectsAt(cinematicSpec, index, 1),
-    };
-  }, [cinematicSpec, index]);
+    const raw = playing ? progress : 1;
+    // easedT cho camera nằm TRONG frameAt → cameraAt tự transform thêm
+    // cameraEasings[idx] nếu khai báo; ở đây truyền raw progress ×
+    // step.easing (parity Dart `_stepCurve.transform(rawProgress)`).
+    const easedT = easeValue(step?.easing, raw);
+    return frameAt(cinematicSpec, index, easedT, raw);
+  }, [cinematicSpec, index, progress, playing, step?.easing]);
 
-  // CSS transform cho camera: scale quanh center. (Flutter dùng Matrix4 —
-  // cùng công thức: translate(viewport center) → scale → -camera center.)
+  // CSS transform cho camera — parity với Flutter Matrix4:
+  //   Flutter: translate(O)·scale(z)·translate(-C) = O + z·(p−C).
+  //   CSS viết phải-đọc-trái: `scale(z) translate(O−C)` — translate chạy
+  //   TRƯỚC (ở không gian unscaled) rồi scale về origin O mặc định 50%:
+  //   p' = O + z·(p + (O−C) − O) = O + z·(p−C). Khớp Flutter.
+  //   (Ngược lại `translate(d) scale(z)` = O + z·(p−O) + d → lệch d·(1−z).)
   const cameraStyle = useMemo(() => {
     const cam = cinematicFrame?.camera;
-    if (!cam || cam.zoom === 1) return undefined;
+    if (!cam) return undefined;
+    const dx = (0.5 - cam.center.x) * 100;
+    const dy = (0.5 - cam.center.y) * 100;
     return {
-      transform: `scale(${cam.zoom})`,
-      transformOrigin: `${cam.center.x * 100}% ${cam.center.y * 100}%`,
+      transform:
+        `scale(${cam.zoom}) ` +
+        `translate(${dx.toFixed(3)}%, ${dy.toFixed(3)}%)`,
     } as const;
   }, [cinematicFrame]);
 
@@ -234,7 +288,7 @@ export function ScenePreview({ manifest }: { manifest: AnimationManifest }) {
             return (
               <div
                 key={object.id}
-                className="absolute -translate-x-1/2 -translate-y-1/2 overflow-hidden rounded-md border border-border bg-surface-alt"
+                className="absolute -translate-x-1/2 -translate-y-1/2 overflow-hidden rounded-md"
                 style={{
                   left: `${pos.x * 100}%`,
                   top: `${pos.y * 100}%`,
@@ -244,11 +298,17 @@ export function ScenePreview({ manifest }: { manifest: AnimationManifest }) {
                   transform: `translate(-50%, -50%) rotate(${rotation}deg)`,
                 }}
               >
-                <ManifestImage
-                  assetId={ref.assetId}
-                  alt={object.id}
-                  className="h-full w-full object-cover"
-                />
+                {ref != null && ref.role === "OBJECT" ? (
+                  <ManifestImage
+                    assetId={ref.assetId}
+                    alt={object.id}
+                    className="h-full w-full object-cover border border-border bg-surface-alt"
+                  />
+                ) : (
+                  // P0 §3/§4 — object không assetRef → glyph procedural
+                  // theo type, khớp _ProceduralObjectPainter của Flutter.
+                  <ProceduralGlyph type={object.type ?? ""} id={object.id} />
+                )}
               </div>
             );
           })}
@@ -359,6 +419,79 @@ export function ScenePreview({ manifest }: { manifest: AnimationManifest }) {
         )}
       </div>
     </div>
+  );
+}
+
+/** Glyph procedural SVG — parity với _ProceduralObjectPainter Flutter.
+ * BOAT/DECOY = thuyền stylized (DECOY buồm xanh lục, BOAT buồm đỏ),
+ * STAKE = cọc nhọn, MARKER/LOCATION = chấm+vòng, LABEL/TEXT = ô nhãn,
+ * WATER = gợn sóng. Không phải "ảnh cinematic" — chỉ để track có cái
+ * để animate khi không có assetRef. */
+function ProceduralGlyph({ type, id }: { type: string; id: string }) {
+  const w = 64;
+  const h = 64;
+  const boat = type === "BOAT" || type === "DECOY";
+  const sail = type === "DECOY" ? "#2f5d3a" : "#b3402f";
+  return (
+    <svg viewBox={`0 0 ${w} ${h}`} className="h-full w-full" aria-label={id}>
+      {boat && (
+        <>
+          <path
+            d={`M${w * 0.18} ${h * 0.62} L${w * 0.82} ${h * 0.62} L${w * 0.70} ${h * 0.78} L${w * 0.30} ${h * 0.78} Z`}
+            fill="#4a3226"
+          />
+          <path
+            d={`M${w * 0.5} ${h * 0.56} L${w * 0.5} ${h * 0.18} L${w * 0.72} ${h * 0.56} Z`}
+            fill={sail}
+            opacity={0.9}
+          />
+        </>
+      )}
+      {type === "STAKE" && (
+        <>
+          <path
+            d={`M${w * 0.46} ${h * 0.22} L${w * 0.54} ${h * 0.22} L${w * 0.58} ${h * 0.85} L${w * 0.42} ${h * 0.85} Z`}
+            fill="#3a2c22"
+          />
+          <path
+            d={`M${w * 0.5} ${h * 0.08} L${w * 0.56} ${h * 0.24} L${w * 0.44} ${h * 0.24} Z`}
+            fill="#b3402f"
+          />
+        </>
+      )}
+      {(type === "MARKER" || type === "LOCATION") && (
+        <>
+          <circle cx={w / 2} cy={h / 2} r={w * 0.34} fill="none" stroke="#b3402f" strokeWidth={w * 0.06} opacity={0.9} />
+          <circle cx={w / 2} cy={h / 2} r={w * 0.16} fill="#3a2c22" />
+        </>
+      )}
+      {(type === "LABEL" || type === "TEXT") && (
+        <>
+          <rect x={w * 0.06} y={h * 0.3} width={w * 0.88} height={h * 0.4} rx={4} fill="#f3ead3" stroke="#c9b58a" />
+          <text x={w / 2} y={h * 0.55} textAnchor="middle" fontSize={h * 0.22} fontWeight={700} fill="#3a2c22">?</text>
+        </>
+      )}
+      {type === "WATER" && (
+        <>
+          <path
+            d={`M${w * 0.12} ${h * 0.42} Q${w * 0.32} ${h * 0.30} ${w * 0.5} ${h * 0.42} Q${w * 0.68} ${h * 0.54} ${w * 0.88} ${h * 0.42}`}
+            fill="none"
+            stroke="#2f5d3a"
+            strokeWidth={w * 0.05}
+            strokeLinecap="round"
+            opacity={0.6}
+          />
+          <path
+            d={`M${w * 0.12} ${h * 0.62} Q${w * 0.32} ${h * 0.50} ${w * 0.5} ${h * 0.62} Q${w * 0.68} ${h * 0.74} ${w * 0.88} ${h * 0.62}`}
+            fill="none"
+            stroke="#2f5d3a"
+            strokeWidth={w * 0.05}
+            strokeLinecap="round"
+            opacity={0.6}
+          />
+        </>
+      )}
+    </svg>
   );
 }
 

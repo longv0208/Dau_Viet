@@ -9,7 +9,6 @@ import '../animations/historical_animation_registry.dart';
 import '../animations/runtime/animation_manifest_dto.dart';
 import '../animations/runtime/animation_runtime_registry.dart';
 import '../animations/runtime/cinematic_state.dart';
-import '../animations/widgets/manifest_asset_layers.dart';
 import 'renderer_base.dart';
 
 /// READ — nội dung đọc + nút "Đã đọc xong, tiếp tục" (acknowledgment `{}`).
@@ -77,14 +76,24 @@ class ReadRenderer extends StatelessWidget {
         ? null
         : AnimationRuntimeRegistry.resolve(manifestDto.rendererCode);
     final playbackMode = configText(config, ['playbackMode']) ?? 'AUTO';
-    final animation = manifestRenderer != null &&
-            manifestRenderer.canRender(manifestDto!)
-        ? manifestRenderer.build(manifestDto, playbackMode: playbackMode)
+    // Khi có manifestDto: render theo manifest NẾU renderer hỗ trợ +
+    // manifest đủ cấu trúc; nếu không → null (không silent fallback
+    // sang animationKey — đó là scene khác, sai ngữ cảnh). Chỉ khi KHÔNG
+    // có manifestDto mới resolve legacy animationKey (snapshot cũ).
+    final animation = manifestDto != null
+        ? (manifestRenderer != null && manifestRenderer.canRender(manifestDto)
+            ? manifestRenderer.build(manifestDto, playbackMode: playbackMode)
+            : null)
         : HistoricalAnimationRegistry.resolve(
             configText(config, ['animationKey']),
           );
-    final bool unsupportedManifest =
-        manifestDto != null && manifestRenderer == null;
+    // P1 §9 — "unsupported" gồm: rendererCode lạ (resolve=null) HOẶC
+    // renderer khớp nhưng manifest không đủ cấu trúc/version
+    // (canRender=false — vd map thiếu locations, rendererVersion mới hơn
+    // app). Cả hai đều hiện notice thay vì im lặng rơi về animationKey
+    // fallback (có thể mount animation CŨ sai ngữ cảnh).
+    final bool unsupportedManifest = manifestDto != null &&
+        (manifestRenderer == null || !manifestRenderer.canRender(manifestDto));
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -183,9 +192,14 @@ class ReadRenderer extends StatelessWidget {
 }
 
 /// v2 — Player bọc trong binding cinematic: giữ [ValueNotifier] frame
-/// dùng chung giữa [ManifestAssetLayers] (camera transform + object
-/// states) và [HistoricalAnimationPlayer] (phát frame mỗi tick). Scene
-/// v1 (manifest rỗng/không cinematic) → render đúng như trước.
+/// dùng chung giữa scene canvas (camera transform trong
+/// `ManifestAssetLayers` BÊN TRONG player — xem `_buildSceneCanvas`)
+/// và player (phát frame mỗi tick). Scene v1 (manifest rỗng/không
+/// cinematic) → render đúng như trước.
+///
+/// P0 layout §2: ManifestAssetLayers KHÔNG còn bọc toàn bộ player —
+/// camera chỉ transform vùng scene canvas bounded bởi AspectRatio,
+/// UI controls/narration/prediction nằm ngoài camera transform.
 class _CinematicBoundPlayer extends StatefulWidget {
   final AnimationManifestDto manifest;
   final HistoricalAnimationDefinition definition;
@@ -220,15 +234,10 @@ class _CinematicBoundPlayerState extends State<_CinematicBoundPlayer> {
 
   @override
   Widget build(BuildContext context) {
-    return ManifestAssetLayers(
+    return HistoricalAnimationPlayer(
+      definition: widget.definition,
       manifest: widget.manifest,
-      aspectRatio: widget.definition.aspectRatio,
-      frameListenable: _frame,
-      child: HistoricalAnimationPlayer(
-        definition: widget.definition,
-        manifest: widget.manifest,
-        cinematicFrame: _frame,
-      ),
+      cinematicFrame: _frame,
     );
   }
 }

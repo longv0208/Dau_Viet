@@ -138,13 +138,13 @@ class AnimationManifestDto {
       rendererVersion: _int(json['rendererVersion'], 1),
       title: json['title'] as String? ?? '',
       learningObjective: json['learningObjective'] as String? ?? '',
-      canvasAspectRatio:
-          _double((json['canvas'] as Map?)?['aspectRatio'], 16 / 10),
+      canvasAspectRatio: _double(
+        (json['canvas'] as Map?)?['aspectRatio'],
+        16 / 10,
+      ),
       steps: steps,
       prediction: _prediction(json['prediction']),
-      interactions: {
-        for (final i in _list(json['interactions'])) '$i',
-      },
+      interactions: {for (final i in _list(json['interactions'])) '$i'},
       disclaimer: json['disclaimer'] as String? ?? '',
       sourceReferences: [
         for (final r in _list(json['sourceReferences']))
@@ -201,6 +201,12 @@ class AnimationManifestDto {
       cinematic: CinematicEvaluator(
         cameraInitial: camera.initial,
         cameraSteps: camera.steps,
+        // §5 — camera.steps[].easing (whitelist) override step.easing
+        // khi camera tween — camera pan/zoom độc lập với lerp painter.
+        cameraEasings: [
+          for (final e in camera.easings)
+            e == null ? null : ObjectTrackDto._curve(e),
+        ],
         tracks: [
           for (final t in tracks)
             ObjectTrackSpec(
@@ -245,14 +251,22 @@ class AnimationManifestDto {
     );
   }
 
-  bool get hasWaterControl =>
-      interactions.contains('WATER_LEVEL_CONTROL');
+  bool get hasWaterControl => interactions.contains('WATER_LEVEL_CONTROL');
   bool get hasLocationExplorer => interactions.contains('TAP_TO_EXPLORE');
 
+  /// P0 §3 — manifest khai báo ảnh nền (map.backgroundAssetId hoặc
+  /// assets[] role BACKGROUND). Khi `true` painter skip base opaque
+  /// background để ảnh hiển thị (không phá scene v1 không có ảnh).
+  bool get hasBackgroundAsset {
+    final bg = backgroundAssetId;
+    if (bg != null && bg.isNotEmpty) return true;
+    return assetRefs.any((a) => a.role == 'BACKGROUND');
+  }
+
   static List<AnimationStepDto> _steps(Object? raw) => [
-        for (final s in _list(raw))
-          if (s is Map) AnimationStepDto.fromJson(s),
-      ];
+    for (final s in _list(raw))
+      if (s is Map) AnimationStepDto.fromJson(s),
+  ];
 
   static AnimationPredictionDto? _prediction(Object? raw) =>
       raw is Map ? AnimationPredictionDto.fromJson(raw) : null;
@@ -261,33 +275,33 @@ class AnimationManifestDto {
   /// role}`; bỏ entry thiếu assetId (validator backend đã chặn, đây là
   /// lớp phòng thủ thứ hai cho payload thủ công).
   static List<AnimationAssetRefDto> _assetRefs(Object? raw) => [
-        for (final a in _list(raw))
-          if (a is Map && a['assetId'] != null)
-            AnimationAssetRefDto(
-              id: '${a['id'] ?? ''}',
-              assetId: '${a['assetId']}',
-              role: '${a['role'] ?? 'OBJECT'}',
-            ),
-      ];
+    for (final a in _list(raw))
+      if (a is Map && a['assetId'] != null)
+        AnimationAssetRefDto(
+          id: '${a['id'] ?? ''}',
+          assetId: '${a['assetId']}',
+          role: '${a['role'] ?? 'OBJECT'}',
+        ),
+  ];
 
   static MapLocation _location(Map l) => MapLocation(
-        id: '${l['id'] ?? ''}',
-        name: '${l['name'] ?? ''}',
-        position: Offset(_double(l['x'], 0.5), _double(l['y'], 0.5)),
-        description: '${l['description'] ?? ''}',
-        contextLabel: l['contextLabel'] as String?,
-      );
+    id: '${l['id'] ?? ''}',
+    name: '${l['name'] ?? ''}',
+    position: Offset(_double(l['x'], 0.5), _double(l['y'], 0.5)),
+    description: '${l['description'] ?? ''}',
+    contextLabel: l['contextLabel'] as String?,
+  );
 
   static MapRoute _route(Map r) => MapRoute(
-        id: '${r['id'] ?? ''}',
-        fromId: '${r['from'] ?? ''}',
-        toId: '${r['to'] ?? ''}',
-        via: [
-          for (final v in _list(r['via']))
-            if (v is Map) Offset(_double(v['x'], 0.5), _double(v['y'], 0.5)),
-        ],
-        explanation: '${r['explanation'] ?? ''}',
-      );
+    id: '${r['id'] ?? ''}',
+    fromId: '${r['from'] ?? ''}',
+    toId: '${r['to'] ?? ''}',
+    via: [
+      for (final v in _list(r['via']))
+        if (v is Map) Offset(_double(v['x'], 0.5), _double(v['y'], 0.5)),
+    ],
+    explanation: '${r['explanation'] ?? ''}',
+  );
 }
 
 /// Một bước narration + target state typed-free (decoder build riêng
@@ -316,20 +330,20 @@ class AnimationStepDto {
   });
 
   factory AnimationStepDto.fromJson(Map json) => AnimationStepDto(
-        id: '${json['id'] ?? ''}',
-        title: '${json['title'] ?? ''}',
-        narration: '${json['narration'] ?? ''}',
-        hint: json['hint'] as String?,
-        durationMs: _int(json['durationMs'], 1100),
-        targetState: json['targetState'] is Map
-            ? Map<String, dynamic>.from(json['targetState'] as Map)
-            : const {},
-        easing: json['easing'] as String? ?? 'easeInOut',
-        effects: {for (final e in _list(json['effects'])) '$e'},
-        allowedInteractions: {
-          for (final i in _list(json['allowedInteractions'])) '$i',
-        },
-      );
+    id: '${json['id'] ?? ''}',
+    title: '${json['title'] ?? ''}',
+    narration: '${json['narration'] ?? ''}',
+    hint: json['hint'] as String?,
+    durationMs: _int(json['durationMs'], 1100),
+    targetState: json['targetState'] is Map
+        ? Map<String, dynamic>.from(json['targetState'] as Map)
+        : const {},
+    easing: json['easing'] as String? ?? 'easeInOut',
+    effects: {for (final e in _list(json['effects'])) '$e'},
+    allowedInteractions: {
+      for (final i in _list(json['allowedInteractions'])) '$i',
+    },
+  );
 }
 
 /// Câu hỏi dự đoán — manifest mang options là object {text} hoặc string.
@@ -351,18 +365,18 @@ class AnimationPredictionDto {
   });
 
   factory AnimationPredictionDto.fromJson(Map json) => AnimationPredictionDto(
-        question: '${json['question'] ?? ''}',
-        options: [
-          for (final o in _list(json['options']))
-            o is Map ? '${o['text'] ?? ''}' : '$o',
-        ],
-        explainedOptionIndex: _int(json['explainedOptionIndex'], 0),
-        explanation: '${json['explanation'] ?? ''}',
-        retryHint: '${json['retryHint'] ?? ''}',
-        revealTargetState: json['revealTargetState'] is Map
-            ? Map<String, dynamic>.from(json['revealTargetState'] as Map)
-            : const {},
-      );
+    question: '${json['question'] ?? ''}',
+    options: [
+      for (final o in _list(json['options']))
+        o is Map ? '${o['text'] ?? ''}' : '$o',
+    ],
+    explainedOptionIndex: _int(json['explainedOptionIndex'], 0),
+    explanation: '${json['explanation'] ?? ''}',
+    retryHint: '${json['retryHint'] ?? ''}',
+    revealTargetState: json['revealTargetState'] is Map
+        ? Map<String, dynamic>.from(json['revealTargetState'] as Map)
+        : const {},
+  );
 }
 
 /// Một cọc trong bãi — RIVER_TIDE.
@@ -380,11 +394,11 @@ class RiverStakeDto {
   });
 
   factory RiverStakeDto.fromJson(Map json) => RiverStakeDto(
-        id: '${json['id'] ?? ''}',
-        x: _double(json['x'], 0.5),
-        length: _double(json['length'], 0.2),
-        visible: json['visible'] != false,
-      );
+    id: '${json['id'] ?? ''}',
+    x: _double(json['x'], 0.5),
+    length: _double(json['length'], 0.2),
+    visible: json['visible'] != false,
+  );
 }
 
 /// Một asset reference trong manifest — resolver map sang snapshot assets[].
@@ -445,21 +459,21 @@ class AnimationObjectDto {
   });
 
   factory AnimationObjectDto.fromJson(Map json) => AnimationObjectDto(
-        id: '${json['id'] ?? ''}',
-        type: '${json['type'] ?? ''}',
-        position: Offset(
-          _double((json['position'] as Map?)?['x'], 0.5),
-          _double((json['position'] as Map?)?['y'], 0.5),
-        ),
-        scale: _double(json['scale'], 0.12),
-        layer: _int(json['layer'], 0),
-        visible: json['visible'] != false,
-        shape: json['shape'] as String? ?? 'rect',
-        rotation: _double(json['rotation'], 0),
-        opacity: _double(json['opacity'], 1),
-        parallax: _double(json['parallax'], 1),
-        assetRef: json['assetRef'] as String?,
-      );
+    id: '${json['id'] ?? ''}',
+    type: '${json['type'] ?? ''}',
+    position: Offset(
+      _double((json['position'] as Map?)?['x'], 0.5),
+      _double((json['position'] as Map?)?['y'], 0.5),
+    ),
+    scale: _double(json['scale'], 0.12),
+    layer: _int(json['layer'], 0),
+    visible: json['visible'] != false,
+    shape: json['shape'] as String? ?? 'rect',
+    rotation: _double(json['rotation'], 0),
+    opacity: _double(json['opacity'], 1),
+    parallax: _double(json['parallax'], 1),
+    assetRef: json['assetRef'] as String?,
+  );
 }
 
 /// v2 — camera track: pose khởi đầu + pose đích per step (theo index).
@@ -469,19 +483,28 @@ class CameraTrackDto {
   /// steps[i] = pose đích camera trong bước i; thiếu → giữ pose trước.
   final List<CameraState> steps;
 
+  /// P1 §5 — easing riêng của camera.steps[i] (validator whitelist).
+  /// Khi khai báo, cameraAt dùng curve này thay vì step.easing chung —
+  /// camera pan/zoom có thể mượt khác với lerp trạng thái painter.
+  final List<String?> easings;
+
   const CameraTrackDto({
     this.initial = CameraState.initial,
     this.steps = const [],
+    this.easings = const [],
   });
 
   factory CameraTrackDto.fromJson(Object? raw) {
     if (raw is! Map) return const CameraTrackDto();
+    final rawSteps = _list(raw['steps']);
     return CameraTrackDto(
       initial: _cameraState(raw['initial']) ?? CameraState.initial,
       steps: [
-        for (final s in _list(raw['steps']))
-          if (s is Map)
-            _cameraState(s['target']) ?? CameraState.initial,
+        for (final s in rawSteps)
+          if (s is Map) _cameraState(s['target']) ?? CameraState.initial,
+      ],
+      easings: [
+        for (final s in rawSteps) s is Map ? s['easing'] as String? : null,
       ],
     );
   }
@@ -510,37 +533,37 @@ class ObjectTrackDto {
   });
 
   factory ObjectTrackDto.fromJson(Map json) => ObjectTrackDto(
-        objectId: '${json['objectId'] ?? ''}',
-        property: '${json['property'] ?? ''}',
-        keyframes: [
-          for (final k in _list(json['keyframes']))
-            if (k is Map)
-              KeyframeSpec(
-                tMs: _int(k['tMs'], 0),
-                value: _decodeValue(json['property'], k['value']),
-                curve: _curve(k['easing']),
-              ),
-        ],
-      );
+    objectId: '${json['objectId'] ?? ''}',
+    property: '${json['property'] ?? ''}',
+    keyframes: [
+      for (final k in _list(json['keyframes']))
+        if (k is Map)
+          KeyframeSpec(
+            tMs: _int(k['tMs'], 0),
+            value: _decodeValue(json['property'], k['value']),
+            curve: _curve(k['easing']),
+          ),
+    ],
+  );
 
   static Object _decodeValue(Object? property, Object? raw) {
     return switch ('$property') {
       'position' when raw is Map => Offset(
-          _double(raw['x'], 0.5),
-          _double(raw['y'], 0.5),
-        ),
+        _double(raw['x'], 0.5),
+        _double(raw['y'], 0.5),
+      ),
       'visible' => raw == true,
       _ => _double(raw, 0),
     };
   }
 
   static Curve _curve(Object? easing) => switch ('$easing') {
-        'linear' => Curves.linear,
-        'easeIn' => Curves.easeIn,
-        'easeOut' => Curves.easeOut,
-        'easeInOutCubic' => Curves.easeInOutCubic,
-        _ => Curves.easeInOut,
-      };
+    'linear' => Curves.linear,
+    'easeIn' => Curves.easeIn,
+    'easeOut' => Curves.easeOut,
+    'easeInOutCubic' => Curves.easeInOutCubic,
+    _ => Curves.easeInOut,
+  };
 }
 
 /// v2 — typed overlay effect khai báo ở scene level. `stepId` gắn
@@ -562,19 +585,17 @@ class SceneEffectDto {
   });
 
   factory SceneEffectDto.fromJson(Map json) => SceneEffectDto(
-        type: '${json['type'] ?? ''}',
-        stepId: json['stepId'] as String?,
-        durationMs: _int(json['durationMs'], 0),
-        params: json['params'] is Map
-            ? Map<String, dynamic>.from(json['params'] as Map)
-            : const {},
-      );
+    type: '${json['type'] ?? ''}',
+    stepId: json['stepId'] as String?,
+    durationMs: _int(json['durationMs'], 0),
+    params: json['params'] is Map
+        ? Map<String, dynamic>.from(json['params'] as Map)
+        : const {},
+  );
 
   /// Tọa độ chuẩn hóa trung tâm (WATER_RIPPLE/GLOW) — default giữa.
-  Offset get center => Offset(
-        _double(params['x'], 0.5),
-        _double(params['y'], 0.5),
-      );
+  Offset get center =>
+      Offset(_double(params['x'], 0.5), _double(params['y'], 0.5));
 
   /// Cường độ 0..1 (MIST/GLOW) — default 0.5 để không che scene.
   double get intensity => _double(params['intensity'], 0.5).clamp(0.0, 1.0);
@@ -602,12 +623,12 @@ class AudioCueDto {
   });
 
   factory AudioCueDto.fromJson(Map json) => AudioCueDto(
-        stepId: '${json['stepId'] ?? ''}',
-        assetRef: '${json['assetRef'] ?? ''}',
-        cue: '${json['cue'] ?? 'ENTER'}',
-        volume: _double(json['volume'], 1).clamp(0.0, 1.0),
-        fadeMs: _int(json['fadeMs'], 0),
-      );
+    stepId: '${json['stepId'] ?? ''}',
+    assetRef: '${json['assetRef'] ?? ''}',
+    cue: '${json['cue'] ?? 'ENTER'}',
+    volume: _double(json['volume'], 1).clamp(0.0, 1.0),
+    fadeMs: _int(json['fadeMs'], 0),
+  );
 }
 
 /// v2 — ambient environment (RIVER_TIDE): mist/glow/waterLevel nền.
@@ -671,16 +692,18 @@ extension AnimationManifestToDefinition on AnimationManifestDto {
       aspectRatio: canvasAspectRatio,
       playbackMode: playbackMode,
       createPainter: rendererCode == 'RIVER_TIDE'
-          ? () => _seedRiver(RiverScenePainter(
+          ? () => _seedRiver(
+              RiverScenePainter(
                 stakes: stakes.isEmpty
                     ? null
                     : [for (final s in stakes) Offset(s.x, s.length)],
                 stakeVisibility: stakes.isEmpty
                     ? null
                     : [for (final s in stakes) s.visible],
-              ))
-          : () => _seedMap(
-              MapScenePainter(locations: locations, routes: routes)),
+              ),
+            )
+          : () =>
+                _seedMap(MapScenePainter(locations: locations, routes: routes)),
     );
   }
 
@@ -704,8 +727,7 @@ extension AnimationManifestToDefinition on AnimationManifestDto {
       p.decoyProgress = (s['decoyProgress'] as num).toDouble();
     }
     if (s['counterattackProgress'] is num) {
-      p.counterattackProgress =
-          (s['counterattackProgress'] as num).toDouble();
+      p.counterattackProgress = (s['counterattackProgress'] as num).toDouble();
     }
     if (s['obstructed'] == true) p.boatsObstructed = true;
     if (s['highlightStakes'] == true) p.highlightStakes = true;
@@ -719,8 +741,7 @@ extension AnimationManifestToDefinition on AnimationManifestDto {
     p.markerVisibility = _numMap(s['markerVisibility']);
     p.routeProgress = _numMap(s['routeProgress']);
     p.highlightedIds = {
-      for (final h in _list(s['markerHighlight'] ?? s['highlighted']))
-        '$h',
+      for (final h in _list(s['markerHighlight'] ?? s['highlighted'])) '$h',
     };
     if (s['focusedLocationId'] is String) {
       p.focusedId = s['focusedLocationId'] as String;
@@ -747,8 +768,7 @@ extension AnimationManifestToDefinition on AnimationManifestDto {
         markerVisibility: _numMap(s['markerVisibility']),
         routeProgress: _numMap(s['routeProgress']),
         highlighted: {
-          for (final h in _list(s['markerHighlight'] ?? s['highlighted']))
-            '$h',
+          for (final h in _list(s['markerHighlight'] ?? s['highlighted'])) '$h',
         },
         focusedId: s['focusedLocationId'] as String?,
       );
@@ -758,9 +778,9 @@ extension AnimationManifestToDefinition on AnimationManifestDto {
 }
 
 Map<String, double> _numMap(Object? raw) => {
-      if (raw is Map)
-        for (final e in raw.entries) '${e.key}': _double(e.value, 0),
-    };
+  if (raw is Map)
+    for (final e in raw.entries) '${e.key}': _double(e.value, 0),
+};
 
 List<dynamic> _list(Object? raw) => raw is List ? raw : const [];
 int _int(Object? v, int d) =>

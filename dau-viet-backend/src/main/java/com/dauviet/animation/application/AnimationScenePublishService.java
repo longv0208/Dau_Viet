@@ -28,7 +28,6 @@ import com.dauviet.animation.infrastructure.persistence.AnimationSceneAssetRefRe
 import com.dauviet.animation.infrastructure.persistence.AnimationSceneRepository;
 import com.dauviet.animation.infrastructure.persistence.AnimationSceneVersionRepository;
 import com.dauviet.animation.infrastructure.persistence.AnimationTemplateRepository;
-import com.dauviet.animation.manifest.AnimationManifestSchema;
 import com.dauviet.animation.manifest.AnimationManifestValidator;
 import com.dauviet.lesson.domain.Asset;
 import com.dauviet.lesson.infrastructure.persistence.AssetRepository;
@@ -112,7 +111,11 @@ public class AnimationScenePublishService {
         version.setId(UUID.randomUUID());
         version.setSceneId(sceneId);
         version.setVersionNo(versionNo);
-        version.setSchemaVersion(AnimationManifestSchema.CURRENT_SCHEMA_VERSION);
+        // P1 §8 — ghi đúng schemaVersion THỰC của manifest, không phải
+        // CURRENT_SCHEMA_VERSION: publish manifest v1 → schema_version=1,
+        // v2 → 2. Không tự "upgrade" nhãn version khi payload vẫn v1.
+        // Validator đảm bảo schemaVersion có mặt và >= 1 — không default.
+        version.setSchemaVersion(manifest.path("schemaVersion").asInt());
         version.setRendererCode(template.getRendererCode());
         version.setRendererVersion(template.getRendererVersion());
         version.setSnapshotJson(snapshotText);

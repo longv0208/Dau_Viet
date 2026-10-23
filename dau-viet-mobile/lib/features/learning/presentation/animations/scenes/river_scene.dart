@@ -236,14 +236,21 @@ class RiverScenePainter extends HistoricalScenePainter {
 
   /// Base cọc i — luôn nằm trên đáy sông.
   static Offset stakeBaseFor(Size size, int index, [List<Offset>? field]) =>
-      Offset((field ?? _stakeField)[index].dx * size.width, bedTopFor(size.height));
+      Offset(
+        (field ?? _stakeField)[index].dx * size.width,
+        bedTopFor(size.height),
+      );
 
   /// Ngọn cọc có NHÔ khỏi mặt nước không. Canvas y tăng xuống → ngọn
   /// nằm TRÊN mặt nước khi tipY < surfaceY.
   static bool stakeTipExposed(double tipY, double surfaceY) => tipY < surfaceY;
 
   /// Đếm số ngọn cọc lộ trên mặt nước ở mức nước cho trước.
-  static int exposedTipCount(Size size, double waterLevel, [List<Offset>? field]) {
+  static int exposedTipCount(
+    Size size,
+    double waterLevel, [
+    List<Offset>? field,
+  ]) {
     final f = field ?? _stakeField;
     final surfaceY = waterSurfaceYFor(size.height, waterLevel);
     var count = 0;

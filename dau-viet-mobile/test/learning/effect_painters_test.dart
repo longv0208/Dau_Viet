@@ -48,40 +48,43 @@ void main() {
     // MaterialApp scaffold tự render một CustomPaint (theme/ripple) —
     // đếm CustomPaint BÊN TRONG EnvironmentOverlay thay vì toàn cây.
     Finder paintsInOverlay() => find.descendant(
-          of: find.byType(EnvironmentOverlay),
-          matching: find.byType(CustomPaint),
-        );
+      of: find.byType(EnvironmentOverlay),
+      matching: find.byType(CustomPaint),
+    );
 
     testWidgets('returns child unchanged when no mist/glow', (t) async {
       const child = Text('scene');
-      await t.pumpWidget(const MaterialApp(
-        home: EnvironmentOverlay(
-          environment: EnvironmentDto(),
-          child: child,
+      await t.pumpWidget(
+        const MaterialApp(
+          home: EnvironmentOverlay(environment: EnvironmentDto(), child: child),
         ),
-      ));
+      );
       expect(find.text('scene'), findsOneWidget);
       expect(paintsInOverlay(), findsNothing);
     });
 
     testWidgets('adds glow + mist painters when configured', (t) async {
-      await t.pumpWidget(const MaterialApp(
-        home: EnvironmentOverlay(
-          environment: EnvironmentDto(mist: 0.5, glow: 0.4),
-          child: Text('scene'),
+      await t.pumpWidget(
+        const MaterialApp(
+          home: EnvironmentOverlay(
+            environment: EnvironmentDto(mist: 0.5, glow: 0.4),
+            child: Text('scene'),
+          ),
         ),
-      ));
+      );
       // 2 painter: glow + mist.
       expect(paintsInOverlay(), findsNWidgets(2));
     });
 
     testWidgets('only mist when glow is 0', (t) async {
-      await t.pumpWidget(const MaterialApp(
-        home: EnvironmentOverlay(
-          environment: EnvironmentDto(mist: 0.5),
-          child: Text('scene'),
+      await t.pumpWidget(
+        const MaterialApp(
+          home: EnvironmentOverlay(
+            environment: EnvironmentDto(mist: 0.5),
+            child: Text('scene'),
+          ),
         ),
-      ));
+      );
       expect(paintsInOverlay(), findsOneWidget);
     });
   });

@@ -37,6 +37,22 @@ describe("camera", () => {
     const s1 = cameraAt(CAMERA_INITIAL, steps, 1, 0);
     expect(s1.zoom).toBeCloseTo(1.5); // bắt đầu từ pose cuối step 0
   });
+
+  it("cameraAt with cameraEasings override applies per-step curve", () => {
+    const steps = [
+      { center: { x: 1.0, y: 0.5 }, zoom: 1.0 }, // đích step 0
+      { center: { x: 0.0, y: 0.5 }, zoom: 2.0 }, // đích step 1
+    ];
+    // Step 0 easing = "linear" → camT = raw (0.5 → 0.5).
+    const eased = cameraAt(CAMERA_INITIAL, steps, 0, 0.5, ["linear"]);
+    expect(eased.center.x).toBeCloseTo(0.75);
+    // Step 0 easing = "easeIn" (x²) → camT = 0.25 → chậm hơn linear.
+    const easeIn = cameraAt(CAMERA_INITIAL, steps, 0, 0.5, ["easeIn"]);
+    expect(easeIn.center.x).toBeCloseTo(0.625);
+    // Không khai báo → giữ nguyên easedT caller truyền (step.easing).
+    const fallback = cameraAt(CAMERA_INITIAL, steps, 0, 0.5);
+    expect(fallback.center.x).toBeCloseTo(0.75);
+  });
 });
 
 describe("trackValueAt", () => {

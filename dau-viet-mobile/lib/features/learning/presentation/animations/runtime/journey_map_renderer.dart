@@ -17,6 +17,7 @@ class JourneyMapRenderer extends AnimationSceneRenderer {
   @override
   bool canRender(AnimationManifestDto manifest) =>
       manifest.rendererCode == rendererCode &&
+      manifest.rendererVersion <= supportedRendererVersion &&
       manifest.steps.isNotEmpty &&
       manifest.locations.isNotEmpty;
 
@@ -24,6 +25,5 @@ class JourneyMapRenderer extends AnimationSceneRenderer {
   HistoricalAnimationDefinition build(
     AnimationManifestDto manifest, {
     String playbackMode = 'AUTO',
-  }) =>
-      manifest.toDefinition(playbackMode: playbackMode);
+  }) => manifest.toDefinition(playbackMode: playbackMode);
 }

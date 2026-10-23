@@ -37,13 +37,11 @@ void main() {
     );
 
     test('before first keyframe returns first value', () {
-      expect(track.valueAt(-5, const Offset(0, 0)),
-          const Offset(0.9, 0.4));
+      expect(track.valueAt(-5, const Offset(0, 0)), const Offset(0.9, 0.4));
     });
 
     test('after last keyframe returns last value', () {
-      expect(track.valueAt(5000, const Offset(0, 0)),
-          const Offset(0.5, 0.4));
+      expect(track.valueAt(5000, const Offset(0, 0)), const Offset(0.5, 0.4));
     });
 
     test('midpoint lerps linearly', () {
@@ -75,10 +73,7 @@ void main() {
       ],
       stepDurationsMs: const [1000, 2000],
       baseObjects: const {
-        'boat': ObjectVisualState(
-          position: Offset(0.9, 0.4),
-          scale: 0.12,
-        ),
+        'boat': ObjectVisualState(position: Offset(0.9, 0.4), scale: 0.12),
       },
       tracks: const [
         ObjectTrackSpec(
@@ -86,7 +81,11 @@ void main() {
           property: 'position',
           keyframes: [
             KeyframeSpec(tMs: 0, value: Offset(0.9, 0.4), curve: Curves.linear),
-            KeyframeSpec(tMs: 3000, value: Offset(0.3, 0.4), curve: Curves.linear),
+            KeyframeSpec(
+              tMs: 3000,
+              value: Offset(0.3, 0.4),
+              curve: Curves.linear,
+            ),
           ],
         ),
       ],
@@ -137,11 +136,7 @@ void main() {
           intensity: 0.7,
         ),
         // Timed — durationMs 500 trong step 2000ms.
-        SceneEffectSpec(
-          type: 'WATER_RIPPLE',
-          stepId: 's2',
-          durationMs: 500,
-        ),
+        SceneEffectSpec(type: 'WATER_RIPPLE', stepId: 's2', durationMs: 500),
         // Effect gắn step không tồn tại — không bao giờ emit.
         SceneEffectSpec(type: 'FADE_IN', stepId: 'nope'),
       ],
@@ -178,10 +173,7 @@ void main() {
 
     test('unknown stepId never emits', () {
       for (var i = 0; i < 2; i++) {
-        expect(
-          ev.effectsAt(i, 0.5).any((e) => e.type == 'FADE_IN'),
-          isFalse,
-        );
+        expect(ev.effectsAt(i, 0.5).any((e) => e.type == 'FADE_IN'), isFalse);
       }
     });
   });

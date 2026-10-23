@@ -611,8 +611,10 @@ void main() {
       await _tap(tester, find.text('PHÁT'));
       expect(find.text('TẠM DỪNG'), findsOneWidget);
 
-      // Nhảy qua toàn bộ chuỗi: mỗi bước ~1.1s transition + 2.2s đọc.
-      await tester.pump(const Duration(seconds: 20));
+      // Nhảy qua toàn bộ chuỗi: mỗi bước ~1.1s transition + hold tối
+      // thiểu theo độ dài narration (~14ms/ký tự, clamp 2.5..12s) —
+      // v1 dài ~150-200 ký tự/bước → ~3.5s/bước → tổng ~25-35s.
+      await tester.pump(const Duration(seconds: 60));
       await tester.pump();
       expect(find.textContaining('Bước 6/6'), findsOneWidget);
       expect(find.text('PHÁT'), findsOneWidget); // auto-stop ở cuối

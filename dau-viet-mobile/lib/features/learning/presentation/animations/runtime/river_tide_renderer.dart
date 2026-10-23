@@ -16,12 +16,13 @@ class RiverTideRenderer extends AnimationSceneRenderer {
 
   @override
   bool canRender(AnimationManifestDto manifest) =>
-      manifest.rendererCode == rendererCode && manifest.steps.isNotEmpty;
+      manifest.rendererCode == rendererCode &&
+      manifest.rendererVersion <= supportedRendererVersion &&
+      manifest.steps.isNotEmpty;
 
   @override
   HistoricalAnimationDefinition build(
     AnimationManifestDto manifest, {
     String playbackMode = 'AUTO',
-  }) =>
-      manifest.toDefinition(playbackMode: playbackMode);
+  }) => manifest.toDefinition(playbackMode: playbackMode);
 }

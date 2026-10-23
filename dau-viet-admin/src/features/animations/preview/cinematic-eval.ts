@@ -122,18 +122,23 @@ export function lerpCamera(from: CameraState, to: CameraState, t: number): Camer
 /**
  * Camera pose tại (stepIndex, easedT) — steps[i] tween từ pose trước
  * (initial khi i==0) tới pose i. Giữ pose cuối khi bước không khai báo.
+ * Khi `cameraEasings[idx]` có → transform `t` bằng curve đó trước khi
+ * lerp (override step.easing cho riêng camera — parity với Dart).
  */
 export function cameraAt(
   initial: CameraState,
   steps: CameraState[],
   stepIndex: number,
   t: number,
+  easings?: (string | null)[],
 ): CameraState {
   const idx = Math.min(Math.max(0, stepIndex), steps.length - 1);
   const to = steps[idx];
   if (!to) return initial;
   const from = idx === 0 ? initial : (steps[idx - 1] ?? initial);
-  return lerpCamera(from, to, t);
+  const override = easings?.[idx];
+  const camT = override ? easeValue(override, t) : t;
+  return lerpCamera(from, to, camT);
 }
 
 /* ---------- object tracks ---------- */
@@ -198,6 +203,10 @@ export function trackValueAt(track: ObjectTrackSpec, tMs: number, base: unknown)
 export interface EvaluatorSpec {
   cameraInitial: CameraState;
   cameraSteps: CameraState[];
+  /** P1 §5 — camera.steps[].easing (whitelist) override step.easing
+   * cho camera tween — parity Dart `cameraEasings`. Index-aligned với
+   * cameraSteps; null/missing = dùng easedT của caller. */
+  cameraEasings?: (string | null)[];
   tracks: ObjectTrackSpec[];
   baseObjects: Record<string, ObjectVisualState>;
   stepDurationsMs: number[];
@@ -263,7 +272,10 @@ export function frameAt(
 ): CinematicFrame {
   const tMs = globalTMs(spec, stepIndex, rawProgress);
   return {
-    camera: cameraAt(spec.cameraInitial, spec.cameraSteps, stepIndex, easedT),
+    camera: cameraAt(
+      spec.cameraInitial, spec.cameraSteps, stepIndex, easedT,
+      spec.cameraEasings,
+    ),
     objects: objectsAt(spec, tMs),
     effects: effectsAt(spec, stepIndex, rawProgress),
   };

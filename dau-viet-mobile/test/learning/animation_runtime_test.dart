@@ -13,119 +13,119 @@ import 'package:flutter_test/flutter_test.dart';
 /// ANIM-03 — manifest tối thiểu hợp lệ cho từng renderer (giống shape
 /// mà AnimationManifestValidator backend chấp nhận).
 Map<String, dynamic> _riverManifest() => {
-      'schemaVersion': 1,
-      'rendererCode': 'RIVER_TIDE',
-      'rendererVersion': 1,
-      'title': 'Bãi cọc sông (test)',
-      'learningObjective': 'Hiểu cơ chế cọc ngầm + thủy triều.',
-      'canvas': {'aspectRatio': 1.6},
-      'river': {
-        'stakes': [
-          {'id': 's1', 'x': 0.45, 'length': 0.20},
-          {'id': 's2', 'x': 0.55, 'length': 0.23},
-        ],
-      },
-      'initialState': {'waterLevel': 0.30, 'boatProgress': 0},
-      'steps': [
-        {
-          'id': 'st1',
-          'title': 'Chuẩn bị',
-          'narration': 'Bãi cọc được đóng sẵn dưới lòng sông.',
-          'durationMs': 900,
-          'targetState': {'waterLevel': 0.30, 'boatProgress': 0},
-          'easing': 'easeInOut',
-        },
-        {
-          'id': 'st2',
-          'title': 'Nước dâng',
-          'narration': 'Triều dâng che khuất đỉnh cọc.',
-          'durationMs': 900,
-          'targetState': {'waterLevel': 0.90, 'boatProgress': 0.4},
-          'effects': ['FADE_IN'],
-          'allowedInteractions': ['WATER_LEVEL_CONTROL'],
-        },
-      ],
-      'interactions': ['WATER_LEVEL_CONTROL'],
-      'prediction': {
-        'question': 'Nước rút thì sao?',
-        'options': [
-          {'text': 'Cọc vẫn chìm'},
-          {'text': 'Cọc lộ ra'},
-        ],
-        'explainedOptionIndex': 1,
-        'explanation': 'Mực nước hạ làm đỉnh cọc nhô lên.',
-        'retryHint': 'Kéo mực nước xuống thấp rồi xem lại.',
-        'revealTargetState': {'waterLevel': 0.22, 'highlightStakes': true},
-      },
-      'sourceReferences': [
-        {'title': 'Bảo tàng Lịch sử Quốc gia'},
-      ],
-      'disclaimer': 'Sơ đồ minh họa, không theo tỉ lệ.',
-    };
+  'schemaVersion': 1,
+  'rendererCode': 'RIVER_TIDE',
+  'rendererVersion': 1,
+  'title': 'Bãi cọc sông (test)',
+  'learningObjective': 'Hiểu cơ chế cọc ngầm + thủy triều.',
+  'canvas': {'aspectRatio': 1.6},
+  'river': {
+    'stakes': [
+      {'id': 's1', 'x': 0.45, 'length': 0.20},
+      {'id': 's2', 'x': 0.55, 'length': 0.23},
+    ],
+  },
+  'initialState': {'waterLevel': 0.30, 'boatProgress': 0},
+  'steps': [
+    {
+      'id': 'st1',
+      'title': 'Chuẩn bị',
+      'narration': 'Bãi cọc được đóng sẵn dưới lòng sông.',
+      'durationMs': 900,
+      'targetState': {'waterLevel': 0.30, 'boatProgress': 0},
+      'easing': 'easeInOut',
+    },
+    {
+      'id': 'st2',
+      'title': 'Nước dâng',
+      'narration': 'Triều dâng che khuất đỉnh cọc.',
+      'durationMs': 900,
+      'targetState': {'waterLevel': 0.90, 'boatProgress': 0.4},
+      'effects': ['FADE_IN'],
+      'allowedInteractions': ['WATER_LEVEL_CONTROL'],
+    },
+  ],
+  'interactions': ['WATER_LEVEL_CONTROL'],
+  'prediction': {
+    'question': 'Nước rút thì sao?',
+    'options': [
+      {'text': 'Cọc vẫn chìm'},
+      {'text': 'Cọc lộ ra'},
+    ],
+    'explainedOptionIndex': 1,
+    'explanation': 'Mực nước hạ làm đỉnh cọc nhô lên.',
+    'retryHint': 'Kéo mực nước xuống thấp rồi xem lại.',
+    'revealTargetState': {'waterLevel': 0.22, 'highlightStakes': true},
+  },
+  'sourceReferences': [
+    {'title': 'Bảo tàng Lịch sử Quốc gia'},
+  ],
+  'disclaimer': 'Sơ đồ minh họa, không theo tỉ lệ.',
+};
 
 Map<String, dynamic> _mapManifest() => {
-      'schemaVersion': 1,
-      'rendererCode': 'JOURNEY_MAP',
-      'rendererVersion': 1,
-      'title': 'Hành trình (test)',
-      'learningObjective': 'Nhận ra hành trình trên bản đồ schematic.',
-      'map': {
-        'locations': [
-          {
-            'id': 'a',
-            'name': 'Điểm A',
-            'x': 0.30,
-            'y': 0.60,
-            'description': 'Nơi bắt đầu.',
-            'contextLabel': 'Xuất phát',
-          },
-          {'id': 'b', 'name': 'Điểm B', 'x': 0.70, 'y': 0.35},
-        ],
-        'routes': [
-          {
-            'id': 'r1',
-            'from': 'a',
-            'to': 'b',
-            'via': [
-              {'x': 0.5, 'y': 0.5},
-            ],
-            'explanation': 'Hướng di chuyển chính.',
-          },
-        ],
+  'schemaVersion': 1,
+  'rendererCode': 'JOURNEY_MAP',
+  'rendererVersion': 1,
+  'title': 'Hành trình (test)',
+  'learningObjective': 'Nhận ra hành trình trên bản đồ schematic.',
+  'map': {
+    'locations': [
+      {
+        'id': 'a',
+        'name': 'Điểm A',
+        'x': 0.30,
+        'y': 0.60,
+        'description': 'Nơi bắt đầu.',
+        'contextLabel': 'Xuất phát',
       },
-      'initialState': {},
-      'steps': [
-        {
-          'id': 'st1',
-          'title': 'Xuất phát',
-          'narration': 'Điểm A hiện lên.',
-          'targetState': {
-            'markerVisibility': {'a': 1.0},
-            'focusedLocationId': 'a',
-          },
-        },
-        {
-          'id': 'st2',
-          'title': 'Di chuyển',
-          'narration': 'Tuyến r1 vẽ dần tới Điểm B.',
-          'targetState': {
-            'markerVisibility': {'a': 1.0, 'b': 1.0},
-            'routeProgress': {'r1': 1.0},
-            'markerHighlight': ['b'],
-          },
-        },
-      ],
-      'interactions': ['TAP_TO_EXPLORE'],
-      'disclaimer': 'Bản đồ schematic.',
-    };
+      {'id': 'b', 'name': 'Điểm B', 'x': 0.70, 'y': 0.35},
+    ],
+    'routes': [
+      {
+        'id': 'r1',
+        'from': 'a',
+        'to': 'b',
+        'via': [
+          {'x': 0.5, 'y': 0.5},
+        ],
+        'explanation': 'Hướng di chuyển chính.',
+      },
+    ],
+  },
+  'initialState': {},
+  'steps': [
+    {
+      'id': 'st1',
+      'title': 'Xuất phát',
+      'narration': 'Điểm A hiện lên.',
+      'targetState': {
+        'markerVisibility': {'a': 1.0},
+        'focusedLocationId': 'a',
+      },
+    },
+    {
+      'id': 'st2',
+      'title': 'Di chuyển',
+      'narration': 'Tuyến r1 vẽ dần tới Điểm B.',
+      'targetState': {
+        'markerVisibility': {'a': 1.0, 'b': 1.0},
+        'routeProgress': {'r1': 1.0},
+        'markerHighlight': ['b'],
+      },
+    },
+  ],
+  'interactions': ['TAP_TO_EXPLORE'],
+  'disclaimer': 'Bản đồ schematic.',
+};
 
 Map<String, dynamic> _embedded(Map<String, dynamic> manifest) => {
-      'manifest': manifest,
-      'sceneVersionId': '00000000-0000-4000-8000-000000000099',
-      'versionNo': 3,
-      'rendererCode': manifest['rendererCode'],
-      'rendererVersion': 1,
-    };
+  'manifest': manifest,
+  'sceneVersionId': '00000000-0000-4000-8000-000000000099',
+  'versionNo': 3,
+  'rendererCode': manifest['rendererCode'],
+  'rendererVersion': 1,
+};
 
 ActivityRefDto _readActivity(Map<String, dynamic> config) =>
     ActivityRefDto.fromJson({
@@ -135,10 +135,7 @@ ActivityRefDto _readActivity(Map<String, dynamic> config) =>
       'feedback': const <String, dynamic>{},
     });
 
-Future<void> _pumpRead(
-  WidgetTester tester,
-  Map<String, dynamic> config,
-) {
+Future<void> _pumpRead(WidgetTester tester, Map<String, dynamic> config) {
   return tester.pumpWidget(
     MaterialApp(
       home: MediaQuery(
@@ -212,14 +209,8 @@ void main() {
 
   group('AnimationRuntimeRegistry', () {
     test('resolves both supported renderer codes', () {
-      expect(
-        AnimationRuntimeRegistry.resolve('RIVER_TIDE'),
-        isNotNull,
-      );
-      expect(
-        AnimationRuntimeRegistry.resolve('JOURNEY_MAP'),
-        isNotNull,
-      );
+      expect(AnimationRuntimeRegistry.resolve('RIVER_TIDE'), isNotNull);
+      expect(AnimationRuntimeRegistry.resolve('JOURNEY_MAP'), isNotNull);
       expect(
         AnimationRuntimeRegistry.supportedCodes,
         containsAll(['RIVER_TIDE', 'JOURNEY_MAP']),
@@ -302,8 +293,9 @@ void main() {
       // vừa tạo phải bắt đầu ở 0.85 (bước 0 tween TỪ initialState).
       final m = _riverManifest();
       m['initialState'] = {'waterLevel': 0.85, 'highlightStakes': true};
-      final def = AnimationRuntimeRegistry.resolve('RIVER_TIDE')!
-          .build(AnimationManifestDto.fromJson(m));
+      final def = AnimationRuntimeRegistry.resolve(
+        'RIVER_TIDE',
+      )!.build(AnimationManifestDto.fromJson(m));
       final painter = def.createPainter() as RiverScenePainter;
       expect(painter.waterLevel, closeTo(0.85, 0.001));
       expect(painter.highlightStakes, isTrue);
@@ -315,24 +307,29 @@ void main() {
         'routeProgress': {'r1': 0.25},
         'focusedLocationId': 'a',
       };
-      final mapDef = AnimationRuntimeRegistry.resolve('JOURNEY_MAP')!
-          .build(AnimationManifestDto.fromJson(mm));
+      final mapDef = AnimationRuntimeRegistry.resolve(
+        'JOURNEY_MAP',
+      )!.build(AnimationManifestDto.fromJson(mm));
       final mp = mapDef.createPainter() as MapScenePainter;
       expect(mp.markerVisibility['a'], closeTo(0.5, 0.001));
       expect(mp.routeProgress['r1'], closeTo(0.25, 0.001));
       expect(mp.focusedId, 'a');
     });
 
-    test('definition carries manifest canvas aspectRatio + per-step timing', () {
-      final m = _riverManifest();
-      (m['canvas'] as Map)['aspectRatio'] = 2.0;
-      final def = AnimationRuntimeRegistry.resolve('RIVER_TIDE')!
-          .build(AnimationManifestDto.fromJson(m));
-      expect(def.aspectRatio, closeTo(2.0, 0.001));
-      expect(def.steps[0].durationMs, 900);
-      expect(def.steps[0].easing, 'easeInOut');
-      expect(def.steps[1].easing, 'easeInOut'); // default khi thiếu
-    });
+    test(
+      'definition carries manifest canvas aspectRatio + per-step timing',
+      () {
+        final m = _riverManifest();
+        (m['canvas'] as Map)['aspectRatio'] = 2.0;
+        final def = AnimationRuntimeRegistry.resolve(
+          'RIVER_TIDE',
+        )!.build(AnimationManifestDto.fromJson(m));
+        expect(def.aspectRatio, closeTo(2.0, 0.001));
+        expect(def.steps[0].durationMs, 900);
+        expect(def.steps[0].easing, 'easeInOut');
+        expect(def.steps[1].easing, 'easeInOut'); // default khi thiếu
+      },
+    );
 
     test('build honours the requested playbackMode', () {
       final manifest = AnimationManifestDto.fromJson(_mapManifest());
@@ -355,8 +352,9 @@ void main() {
         ...(steps[1] as Map).cast<String, Object>(),
         'easing': 'springyCustom',
       };
-      final def = AnimationRuntimeRegistry.resolve('RIVER_TIDE')!
-          .build(AnimationManifestDto.fromJson(m));
+      final def = AnimationRuntimeRegistry.resolve(
+        'RIVER_TIDE',
+      )!.build(AnimationManifestDto.fromJson(m));
       // Player maps unknown keys to Curves.easeInOut — step field is
       // preserved verbatim and resolved at play time.
       expect(def.steps[1].easing, 'springyCustom');
@@ -364,15 +362,17 @@ void main() {
 
     test('manifest state decodes into typed scene transitions', () {
       final manifest = AnimationManifestDto.fromJson(_mapManifest());
-      final def = AnimationRuntimeRegistry.resolve('JOURNEY_MAP')!
-          .build(manifest);
+      final def = AnimationRuntimeRegistry.resolve(
+        'JOURNEY_MAP',
+      )!.build(manifest);
       final t2 = def.steps[1].target as MapSceneState;
       expect(t2.markerVisibility['b'], 1.0);
       expect(t2.routeProgress['r1'], 1.0);
       expect(t2.highlighted, contains('b'));
 
-      final riverDef = AnimationRuntimeRegistry.resolve('RIVER_TIDE')!
-          .build(AnimationManifestDto.fromJson(_riverManifest()));
+      final riverDef = AnimationRuntimeRegistry.resolve(
+        'RIVER_TIDE',
+      )!.build(AnimationManifestDto.fromJson(_riverManifest()));
       final rt = riverDef.steps[1].target as RiverSceneState;
       expect(rt.waterLevel, closeTo(0.90, 0.001));
       expect(rt.boatProgress, closeTo(0.4, 0.001));

@@ -11,20 +11,21 @@ void main() {
     Map<String, String>? audioAssetIds,
     List<AudioCueDto>? cues,
     Future<List<int>?> Function(String)? fetchBytes,
-  }) =>
-      AnimationAudioController(
-        fetchBytes: fetchBytes ?? (_) async => [1, 2, 3],
-        audioAssetIds: audioAssetIds ?? const {},
-        cues: cues ?? const [],
-      );
+  }) => AnimationAudioController(
+    fetchBytes: fetchBytes ?? (_) async => [1, 2, 3],
+    audioAssetIds: audioAssetIds ?? const {},
+    cues: cues ?? const [],
+  );
 
   group('cue grouping', () {
     test('groups cues by stepId', () {
-      final c = make(cues: const [
-        AudioCueDto(stepId: 's1', assetRef: 'a1', cue: 'ENTER'),
-        AudioCueDto(stepId: 's1', assetRef: 'a2', cue: 'LOOP'),
-        AudioCueDto(stepId: 's2', assetRef: 'a1', cue: 'EXIT'),
-      ]);
+      final c = make(
+        cues: const [
+          AudioCueDto(stepId: 's1', assetRef: 'a1', cue: 'ENTER'),
+          AudioCueDto(stepId: 's1', assetRef: 'a2', cue: 'LOOP'),
+          AudioCueDto(stepId: 's2', assetRef: 'a1', cue: 'EXIT'),
+        ],
+      );
       expect(c.cuesByStep['s1']!.length, 2);
       expect(c.cuesByStep['s2']!.length, 1);
       expect(c.cuesByStep['s3'], isNull);
@@ -70,9 +71,9 @@ void main() {
 
   group('lifecycle safety', () {
     test('dispose is idempotent and does not throw', () async {
-      final c = make(cues: const [
-        AudioCueDto(stepId: 's1', assetRef: 'a1', cue: 'LOOP'),
-      ]);
+      final c = make(
+        cues: const [AudioCueDto(stepId: 's1', assetRef: 'a1', cue: 'LOOP')],
+      );
       await c.dispose();
       await c.dispose(); // double dispose an toàn
       // Post-dispose calls are no-ops, không crash.
@@ -84,9 +85,7 @@ void main() {
     test('missing assetRef resolution → no crash', () {
       final c = make(
         audioAssetIds: const {}, // a1 không resolve được
-        cues: const [
-          AudioCueDto(stepId: 's1', assetRef: 'a1', cue: 'ENTER'),
-        ],
+        cues: const [AudioCueDto(stepId: 's1', assetRef: 'a1', cue: 'ENTER')],
       );
       expect(() => c.onStepEnter('s1'), returnsNormally);
     });

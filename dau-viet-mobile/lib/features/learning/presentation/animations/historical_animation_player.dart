@@ -13,6 +13,7 @@ import 'runtime/animation_manifest_dto.dart';
 import 'runtime/cinematic_state.dart';
 import 'scenes/historical_map_scene.dart';
 import 'widgets/location_info_panel.dart';
+import 'widgets/manifest_asset_layers.dart';
 import 'widgets/map_marker_overlay.dart';
 import 'widgets/prediction_block.dart';
 import 'widgets/skipped_scene.dart';
@@ -90,7 +91,9 @@ class _HistoricalAnimationPlayerState
 
   bool get _hasCinematic =>
       _cinematic != null &&
-      (_cinematic!.cameraSteps.isNotEmpty || _cinematic!.tracks.isNotEmpty);
+      (_cinematic!.cameraSteps.isNotEmpty ||
+          _cinematic!.tracks.isNotEmpty ||
+          _cinematic!.effects.isNotEmpty);
 
   /// v2 — audio cues controller, lazy-init khi manifest có audio[] và
   /// auth session sẵn sàng. null → không cue nào chạy (v1/muted).
@@ -113,6 +116,14 @@ class _HistoricalAnimationPlayerState
       duration: widget.definition.transitionDuration,
     )..addListener(_onTick);
     _painter = widget.definition.createPainter();
+    // P0 §3 — manifest có background asset → painter không phủ opaque
+    // nền, để layer ảnh nền (dưới painter trong ManifestAssetLayers)
+    // thực sự hiển thị. Painter vẫn vẽ terrain/water/markers bình
+    // thường (chúng không opaque full-canvas).
+    final m = widget.manifest;
+    if (m != null && m.hasBackgroundAsset) {
+      _painter.suppressBaseBackground = true;
+    }
     _applyStep(0, animate: false);
   }
 
@@ -212,14 +223,29 @@ class _HistoricalAnimationPlayerState
       // Chụp trạng thái ĐANG HIỂN THỊ (kể cả tween cũ đang dở) làm gốc —
       // chuyển bước giữa chừng không nhảy, mượt từ vị trí hiện tại.
       _tweenFrom = _current!.captured(_painter);
+    } else {
+      // Bước cinematic-only (không targetState): xoá _tweenFrom để
+      // _applyCurrent không lerp giữa snapshot cũ và target cũ —
+      // tránh "rewind" khi learner chen giữa tween trước.
+      _tweenFrom = null;
     }
     // Easing của tween tới bước này — whitelist manifest, bước thiếu
     // giữ curve mặc định. Map: manifest key → Flutter curve.
     _stepCurve = _curveOf(step.easing);
-    // Bước có tween khi có targetState HOẶC có camera/tracks v2 — bước
-    // chỉ-camera vẫn cần controller chạy để camera pan/zoom mượt.
-    final hasTween = step.target != null ||
-        (_hasCinematic && index < (_cinematic!.cameraSteps.length));
+    // Bước có tween khi có targetState HOẶC payload cinematic bất kỳ —
+    // bước chỉ-camera/tracks/effects vẫn cần controller chạy để
+    // _onTick/_emitFrame phát frame (tracks theo globalTMs, effects
+    // theo progress). Không chỉ gioi hạn cameraSteps: step thiếu
+    // camera.steps[i] nhưng có tracks/effects cũng phải tween.
+    final hasTween = step.target != null || _hasCinematic;
+    // P1 §5 — controller duration khớp step.durationMs khi cinematic:
+    // tracks/effects dùng `globalTMs` tính theo stepDurationsMs; nếu
+    // controller chạy 900ms nhưng step 1100ms → object chạy hết quỹ đạo
+    // rồi đứng. Gán duration theo step (fallback transitionDuration).
+    final stepDur = step.durationMs != null && step.durationMs! > 0
+        ? Duration(milliseconds: step.durationMs!)
+        : widget.definition.transitionDuration;
+    _controller.duration = stepDur;
     if (animate && !_reduceMotion && hasTween) {
       _controller
         ..stop()
@@ -255,16 +281,30 @@ class _HistoricalAnimationPlayerState
     final total = step.durationMs != null
         ? Duration(milliseconds: step.durationMs!)
         : widget.definition.transitionDuration +
-            const Duration(milliseconds: 2200);
+              const Duration(milliseconds: 2200);
+    // P1 §10 — AUTO không được chuyển sớm hơn narration đọc xong:
+    // floor = transitionDuration + hold tối thiểu theo độ dài chữ
+    // (~14ms/ký tự, clamp 2.5s..12s). Manifest durationMs lớn hơn vẫn
+    // thắng — floor chỉ là đáy an toàn.
+    final narration = step.narration;
+    final holdMs = narration.isEmpty
+        ? 2500
+        : (narration.length * 14).clamp(2500, 12000);
+    final floor =
+        widget.definition.transitionDuration + Duration(milliseconds: holdMs);
     final delay = _reduceMotion
         ? const Duration(seconds: 4) // cho đọc khi không có motion
-        : total;
+        : (total < floor ? floor : total);
     _advanceTimer = Timer(delay, () {
       if (!mounted || !_playing) return;
       if (_stepIndex < widget.definition.steps.length - 1) {
         setState(() {
+          final prev = _stepIndex;
           _stepIndex++;
-          _applyStep(_stepIndex);
+          // P1 §7 — AUTO advance cũng phải fire EXIT cue của step trước
+          // (fade LOOP, one-shot EXIT). Trước đây thiếu previousIndex →
+          // LOOP của step N kéo dài sang N+1.
+          _applyStep(_stepIndex, previousIndex: prev);
         });
         _scheduleAdvance();
       } else {
@@ -551,9 +591,10 @@ class _HistoricalAnimationPlayerState
     // Map scene: overlay marker TẤP được trên canvas — touch target ≥
     // 44px, semantics tiếng Việt, không dùng raw canvas hit-testing.
     final painter = _painter;
+    Widget canvas = paint;
     if (def.hasLocationExplorer && painter is MapScenePainter) {
       final mp = painter;
-      return LayoutBuilder(
+      canvas = LayoutBuilder(
         builder: (context, constraints) {
           final size = Size(constraints.maxWidth, constraints.maxHeight);
           return Stack(
@@ -576,6 +617,16 @@ class _HistoricalAnimationPlayerState
         },
       );
     }
-    return paint;
+    // v2 — bọc scene canvas trong ManifestAssetLayers: camera transform
+    // chỉ áp lên vùng bounded (AspectRatio parent), UI điều khiển bên
+    // dưới KHÔNG bị transform. Đây là fix P0 layout §2.
+    final manifest = widget.manifest;
+    if (manifest == null) return canvas;
+    return ManifestAssetLayers(
+      manifest: manifest,
+      aspectRatio: def.aspectRatio,
+      frameListenable: widget.cinematicFrame,
+      child: canvas,
+    );
   }
 }

@@ -97,6 +97,13 @@ abstract class SceneTransition {
 /// KHÔNG tái dùng chúng làm biến tiến độ bản đồ.
 abstract class HistoricalScenePainter extends CustomPainter
     with ChangeNotifier {
+  /// P0 §3 — khi `true`, painter KHÔNG vẽ nền opaque (parchmentDim /
+  /// base fill) để lộ layer background asset bên dưới trong
+  /// `ManifestAssetLayers`. Set bởi player trước frame đầu nếu manifest
+  /// khai báo background asset; default `false` = v1 giữ nguyên nền
+  /// procedural (không phá scene cũ).
+  bool suppressBaseBackground = false;
+
   // --- Trạng thái riêng của river scene (no-op ở base, override ở
   // RiverScenePainter). Map scene dùng setter typed riêng của nó. ---
   double get waterLevel => 0.5;

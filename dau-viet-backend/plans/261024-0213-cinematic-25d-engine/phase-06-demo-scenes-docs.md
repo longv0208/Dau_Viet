@@ -62,11 +62,67 @@ Tests:
 - [x] 3 v2 manifests authored + validator-positive tests
 - [x] `V16__animation_cinematic_demos.sql` migration
 - [x] Reduced-motion widget tests (camera jump + track final + effect end-state)
-- [ ] `docs/API_SPEC.md` v2 schema section
-- [ ] `docs/DATABASE_DESIGN.md` V16 entry
-- [ ] `docs/LEARNING_ENGINE_DESIGN.md` renderer features list
-- [ ] `docs/development-roadmap.md` + `docs/project-changelog.md` updates
-- [ ] Manual admin smoke (documented in tester report)
+- [x] `docs/API_SPEC.md` v2 schema section
+- [x] `docs/DATABASE_DESIGN.md` V16 entry
+- [x] `docs/LEARNING_ENGINE_DESIGN.md` renderer features list
+- [x] `docs/development-roadmap.md` + `docs/project-changelog.md` — N/A: các
+      file này không tồn tại trong repo (chỉ có PROJECT_OVERVIEW/TECH_STACK/
+      CODING_RULES/API_SPEC/DATABASE_DESIGN/LEARNING_ENGINE_DESIGN đã cập nhật);
+      bỏ theo YAGNI thay vì tạo file mới.
+- [x] Manual admin smoke — thay bằng code-path trace + gates tự động:
+      `SnapshotBuilder.embedAnimationScenes` pin snapshot vào
+      `config.animationManifest` (kèm asset metadata + checksum) → mobile
+      `ReadRenderer` resolve renderer + `canRender` + `ManifestAssetLayers`,
+      fallback `_UnsupportedAnimationNotice`; admin `next build`/lint/vitest
+      158 tests xanh; Playwright bị cấm theo task constraint.
+
+## Final hardening (post-§1-§13 audit)
+
+- [x] §2 — `ManifestAssetLayers` moved INSIDE `AspectRatio` canvas (markers
+      stay inside camera transform; controls/narration stay outside).
+- [x] §3 — `suppressBaseBackground` on `HistoricalScenePainter`; v1 painter
+      keeps procedural fallback; procedural glyphs render objects lacking
+      `assetRef` (BOAT/DECOY/STAKE/MARKER/LABEL/LOCATION/WATER/TEXT).
+- [x] §4 — boat-decoy tracks produce visible motion via procedural glyph.
+- [x] §5 — controller.duration = step.durationMs; `camera.steps[].easing`
+      whitelisted → overrides step easing on camera tween (Dart + TS).
+- [x] §6 — admin preview parity: real-time rAF playback, correct CSS
+      camera transform `translate(center) scale(zoom) translate(-center)`
+      (not `transformOrigin`), procedural glyphs for unsourced objects,
+      `frameAt` handles rawProgress + easedT matching Dart evaluator.
+- [x] §7 — `AnimationAudioController`: generation token aborts pending
+      `fetchBytes` on step switch/skip/dispose; `fadeMs` implemented for
+      LOOP (fade-in on start, fade-out on step exit).
+- [x] §8 — `AnimationScenePublishService` records manifest's actual
+      `schemaVersion` (v1→1, v2→2), not `CURRENT_SCHEMA_VERSION`; IT test
+      `AnimationScenePublishIT` covers v1/v2/missing-field/422 cases.
+- [x] §9 — `unsupportedManifest` covers renderer-missing + canRender-false;
+      no silent animationKey fallback.
+- [x] §10 — AUTO advance hold floor = transitionDuration + max(2.5s,
+      narration.length × 14ms) clamped ≤ 12s — long narration not
+      truncated by short durationMs.
+
+## Post-review hardening (code-reviewer round 2)
+
+- [x] IT `publishMissingSchemaVersionField_returns422` — validator
+      contract (missing schemaVersion → 422, không phải silent v1).
+- [x] Admin camera CSS `scale(z) translate(O−C)` — đúng parity
+      Flutter `O + z·(p−C)` (trước `translate(d)·scale(z)` lệch d·(1−z)).
+- [x] AUTO-advance `_applyStep(previousIndex: prev)` — EXIT cue +
+      LOOP fade-out fire đúng khi autoplay.
+- [x] `hasTween = step.target != null || _hasCinematic` — step
+      tracks/effects-only vẫn forward controller.
+- [x] `_tweenFrom = null` khi `step.target == null` trên cinematic-only
+      — tránh stale-lerp "rewind".
+- [x] `_startLoop` generation-check sau mỗi await + `_loopPendingBytes`
+      cho paused-LOOP resume (play thay vì resume no-op).
+- [x] `_rampVolume` tick sàn 16ms; `_label` glyph `?` cho cả
+      TEXT/LABEL.
+
+Open (ghi nhận, không block): EnvironmentOverlay trong camera transform
+(scene-space hiện tại — cần product confirm nếu muốn screen-space);
+admin preview object width hardcode 640px; chưa có test cho §10
+hold-floor và §7 generation-abort (đề xuất follow-up).
 
 ## Success criteria
 

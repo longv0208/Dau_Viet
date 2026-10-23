@@ -9,18 +9,18 @@ class AnimationAssetResolver {
   final Map<String, Map<String, String>> _byId;
 
   AnimationAssetResolver(List<dynamic>? snapshotAssets)
-      : _byId = {
-          if (snapshotAssets != null)
-            for (final a in snapshotAssets)
-              if (a is Map && a['id'] != null)
-                '${a['id']}': {
-                  if (a['storageKey'] != null) 'storageKey': '${a['storageKey']}',
-                  if (a['mimeType'] != null) 'mimeType': '${a['mimeType']}',
-                  if (a['originalFilename'] != null)
-                    'originalFilename': '${a['originalFilename']}',
-                  if (a['altText'] != null) 'altText': '${a['altText']}',
-                },
-        };
+    : _byId = {
+        if (snapshotAssets != null)
+          for (final a in snapshotAssets)
+            if (a is Map && a['id'] != null)
+              '${a['id']}': {
+                if (a['storageKey'] != null) 'storageKey': '${a['storageKey']}',
+                if (a['mimeType'] != null) 'mimeType': '${a['mimeType']}',
+                if (a['originalFilename'] != null)
+                  'originalFilename': '${a['originalFilename']}',
+                if (a['altText'] != null) 'altText': '${a['altText']}',
+              },
+      };
 
   /// Manifest dùng cả hai dạng: draft `{id, assetId}` hoặc snapshot
   /// `{id:<uuid>}` đã embed — id nào resolve được cũng trả assetId

@@ -16,6 +16,9 @@ import 'animation_manifest_dto.dart';
 /// - Dispose → stop + release mọi player.
 /// - Skip → stop mọi cue.
 /// - Pause → pause LOOP; resume → resume LOOP.
+/// - fadeMs của LOOP cue → fade-in khi start, fade-out khi exit step.
+/// - Generation token: pending fetchBytes của step cũ không phát âm
+///   khi learner đã chuyển step / skip / dispose.
 ///
 /// Chỉ MỘT LOOP player tại một thời điểm — LOOP mới thay LOOP cũ.
 class AnimationAudioController {
@@ -39,8 +42,24 @@ class AnimationAudioController {
   AudioPlayer? _loopPlayer;
   String? _loopStepId;
 
+  /// fadeMs + volume của LOOP đang chạy — dùng khi fade-out lúc exit.
+  int _loopFadeMs = 0;
+  double _loopVolume = 1.0;
+
+  /// Bytes của LOOP player đang pending start (learner pause ngay lúc
+  /// LOOP fire). `onResume` dùng để `play` thay vì `resume` — resume
+  /// trên player chưa start là no-op trong audioplayers.
+  List<int>? _loopPendingBytes;
+  bool _loopStarted = false;
+
   bool _disposed = false;
   bool _paused = false;
+
+  /// P1 §7 — Generation token chống race: pending `fetchBytes` của step
+  /// cũ không được phát âm khi learner đã chuyển step. Mỗi onStepEnter/
+  /// onStepExit/onSkip/ dispose tăng generation; `_fire` chụp gen tại
+  /// thời điểm fire và abort nếu gen đổi trước khi bytes về.
+  int _generation = 0;
 
   AnimationAudioController({
     required this.fetchBytes,
@@ -48,9 +67,7 @@ class AnimationAudioController {
     required List<AudioCueDto> cues,
   }) : cuesByStep = _groupByStep(cues);
 
-  static Map<String, List<AudioCueDto>> _groupByStep(
-    List<AudioCueDto> cues,
-  ) {
+  static Map<String, List<AudioCueDto>> _groupByStep(List<AudioCueDto> cues) {
     final grouped = <String, List<AudioCueDto>>{};
     for (final c in cues) {
       (grouped[c.stepId] ??= []).add(c);
@@ -75,14 +92,19 @@ class AnimationAudioController {
   }
 
   /// Phát một cue — ENTER: play once; EXIT: play once (hiếm); LOOP:
-  /// chuyển thành loop player. Không throw — mọi lỗi nuốt vào debugPrint.
+  /// chuyển thành loop player. Chụp [_generation] trước await: nếu gen
+  /// đổi (learner đã chuyển step / skip / dispose) trong lúc fetch
+  /// bytes thì abort — không phát âm thanh của step cũ.
   Future<void> _fire(AudioCueDto cue) async {
     if (_disposed || !_soundEnabled || _isTest) return;
+    final gen = _generation;
     try {
       final bytes = await _bytesOf(cue.assetRef);
-      if (_disposed || bytes == null || bytes.isEmpty) return;
+      if (_disposed || gen != _generation || bytes == null || bytes.isEmpty) {
+        return;
+      }
       if (cue.cue == 'LOOP') {
-        await _startLoop(cue, bytes);
+        await _startLoop(cue, bytes, gen);
       } else {
         await _playOnce(cue, bytes);
       }
@@ -100,29 +122,98 @@ class AnimationAudioController {
     await player.play(BytesSource(Uint8List.fromList(bytes)));
   }
 
-  Future<void> _startLoop(AudioCueDto cue, List<int> bytes) async {
+  /// [gen] = generation chụp từ `_fire` — sau MỖI await phải kiểm tra
+  /// lại, vì `_fire` của step mới có thể interleave và `_stopLoop` của
+  /// nó sẽ dispose player nửa-configured của call này; nếu tiếp tục
+  /// gán `_loopPlayer = p` sẽ overwrite con trỏ của call sau → player
+  /// mồ côi vẫn phát (leak + âm chồng).
+  Future<void> _startLoop(AudioCueDto cue, List<int> bytes, int gen) async {
     // LOOP mới thay LOOP cũ — dừng cái đang chạy trước.
     await _stopLoop();
+    if (_disposed || gen != _generation) return;
     final p = _loopPlayer = AudioPlayer();
     _loopStepId = cue.stepId;
+    _loopFadeMs = cue.fadeMs;
+    _loopVolume = cue.volume;
+    _loopStarted = false;
+    _loopPendingBytes = bytes;
     await p.setReleaseMode(ReleaseMode.loop);
-    await p.setVolume(cue.volume);
-    if (_paused) return; // learner đang pause → không start
+    if (_disposed || gen != _generation) return;
+    // fadeMs > 0 → fade-in từ 0 lên volume đích sau khi play.
+    await p.setVolume(cue.fadeMs > 0 ? 0 : cue.volume);
+    if (_disposed || gen != _generation) return;
+    if (_paused) return; // learner đang pause → onResume sẽ play
     await p.play(BytesSource(Uint8List.fromList(bytes)));
+    _loopStarted = true;
+    _loopPendingBytes = null;
+    if (cue.fadeMs > 0) {
+      unawaited(_rampVolume(p, cue.volume, cue.fadeMs));
+    }
   }
 
-  Future<void> _stopLoop() async {
-    _loopStepId = null;
-    try {
-      await _loopPlayer?.stop();
-      await _loopPlayer?.dispose();
-    } catch (_) {}
+  /// Ramp volume của [p] về [target] trong [durationMs] — dùng cho
+  /// fade-in của LOOP (0→cue.volume). Dừng sớm nếu player đã bị thay
+  /// thế/dispose (check identical với _loopPlayer).
+  Future<void> _rampVolume(AudioPlayer p, double target, int durationMs) async {
+    const steps = 8;
+    const startVol = 0.0;
+    // fadeMs nhỏ (<8) → tick=0 → loop chồng setVolume; sàn 16ms/tick.
+    final tick = Duration(
+      milliseconds: (durationMs ~/ steps).clamp(16, 1 << 30),
+    );
+    for (var i = 1; i <= steps; i++) {
+      await Future.delayed(tick);
+      if (_disposed || !identical(p, _loopPlayer)) return;
+      final t = i / steps;
+      final vol = startVol + (target - startVol) * t;
+      try {
+        await p.setVolume(vol.clamp(0.0, 1.0));
+      } catch (_) {
+        return;
+      }
+    }
+  }
+
+  /// Dừng LOOP — [fade]=true thì ramp volume về 0 trong `_loopFadeMs`
+  /// trước khi stop (step exit tự nhiên); skip/dispose truyền false để
+  /// dừng ngay.
+  Future<void> _stopLoop({bool fade = false}) async {
+    final p = _loopPlayer;
+    final fadeMs = fade ? _loopFadeMs : 0;
     _loopPlayer = null;
+    _loopStepId = null;
+    _loopStarted = false;
+    _loopPendingBytes = null;
+    if (p == null) return;
+    try {
+      if (fadeMs > 0) {
+        // Fade-out trên player detach — không còn là _loopPlayer nên
+        // _rampVolume sẽ bail ngay; ramp thủ công ở đây.
+        const steps = 8;
+        final tick = Duration(
+          milliseconds: (fadeMs ~/ steps).clamp(16, 1 << 30),
+        );
+        for (var i = 1; i <= steps; i++) {
+          await Future.delayed(tick);
+          if (_disposed) break;
+          try {
+            await p.setVolume(_loopVolume * (1 - i / steps).clamp(0.0, 1.0));
+          } catch (_) {
+            break;
+          }
+        }
+      }
+      await p.stop();
+      await p.dispose();
+    } catch (_) {}
+    _loopFadeMs = 0;
   }
 
   /// Player vào step — fire ENTER cues + LOOP cues gắn stepId này.
-  /// Idempotent khi gọi lại cùng step (replay an toàn).
+  /// Idempotent khi gọi lại cùng step (replay an toàn). Bump generation
+  /// để invalidate pending fetch của step trước.
   void onStepEnter(String stepId) {
+    _generation++;
     if (_disposed || !_soundEnabled) return;
     final cues = cuesByStep[stepId];
     if (cues == null) return;
@@ -133,7 +224,10 @@ class AnimationAudioController {
   }
 
   /// Player rời step — fire EXIT cues, dừng LOOP nếu LOOP gắn step này.
+  /// LOOP fade-out theo `fadeMs` của cue (rời step tự nhiên), khác với
+  /// skip/dispose là dừng ngay.
   void onStepExit(String stepId) {
+    _generation++;
     if (_disposed || !_soundEnabled) return;
     final cues = cuesByStep[stepId];
     if (cues != null) {
@@ -141,7 +235,8 @@ class AnimationAudioController {
         if (c.cue == 'EXIT') _fire(c);
       }
     }
-    if (_loopStepId == stepId) _stopLoop();
+    // _stopLoop tự reset _loopPlayer/_loopStepId/_loopStarted/_loopPendingBytes.
+    if (_loopStepId == stepId) _stopLoop(fade: true);
   }
 
   /// Learner pause — LOOP pause theo; one-shot để nguyên (ngắn).
@@ -152,16 +247,36 @@ class AnimationAudioController {
     } catch (_) {}
   }
 
-  /// Learner resume — LOOP tiếp tục nếu còn active.
+  /// Learner resume — LOOP tiếp tục nếu còn active. Nếu LOOP được fire
+  /// TRONG LÚC pause (chưa start — `_loopStarted=false`), resume() trên
+  /// player chưa play là no-op → phải `play` với bytes đã giữ.
   void onResume() {
     _paused = false;
+    final p = _loopPlayer;
+    if (p == null) return;
+    if (!_loopStarted && _loopPendingBytes != null) {
+      final bytes = _loopPendingBytes!;
+      _loopPendingBytes = null;
+      p
+          .play(BytesSource(Uint8List.fromList(bytes)))
+          .then((_) {
+            _loopStarted = true;
+            if (_loopFadeMs > 0) {
+              unawaited(_rampVolume(p, _loopVolume, _loopFadeMs));
+            }
+          })
+          .catchError((_) {});
+      return;
+    }
     try {
-      _loopPlayer?.resume();
+      p.resume();
     } catch (_) {}
   }
 
-  /// Skip — dừng mọi cue ngay (không fire EXIT).
+  /// Skip — dừng mọi cue ngay (không fire EXIT). Bump generation để
+  /// pending fetch không phát âm sau skip.
   void onSkip() {
+    _generation++;
     if (_disposed) return;
     _stopLoop();
     for (final p in _oneShotPlayers.values) {
@@ -171,10 +286,11 @@ class AnimationAudioController {
     }
   }
 
-  /// Dispose player — stop + release mọi player.
+  /// Dispose player — stop + release mọi player. Bump generation.
   Future<void> dispose() async {
     if (_disposed) return;
     _disposed = true;
+    _generation++;
     await _stopLoop();
     for (final p in _oneShotPlayers.values) {
       try {

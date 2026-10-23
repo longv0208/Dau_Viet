@@ -28,11 +28,11 @@ class CameraState {
   static const initial = CameraState();
 
   CameraState lerp(CameraState to, double t) => CameraState(
-        center: Offset.lerp(center, to.center, t) ?? to.center,
-        zoom: zoom + (to.zoom - zoom) * t,
-        focusObjectId: t < 1 ? focusObjectId : to.focusObjectId,
-        focusLocationId: t < 1 ? focusLocationId : to.focusLocationId,
-      );
+    center: Offset.lerp(center, to.center, t) ?? to.center,
+    zoom: zoom + (to.zoom - zoom) * t,
+    focusObjectId: t < 1 ? focusObjectId : to.focusObjectId,
+    focusLocationId: t < 1 ? focusLocationId : to.focusLocationId,
+  );
 
   /// Ma trận transform áp lên canvas: scale quanh [center] của viewport.
   /// [size] là kích thước widget thật (px).
@@ -69,23 +69,21 @@ class ObjectVisualState {
     double? rotation,
     double? opacity,
     bool? visible,
-  }) =>
-      ObjectVisualState(
-        position: position ?? this.position,
-        scale: scale ?? this.scale,
-        rotation: rotation ?? this.rotation,
-        opacity: opacity ?? this.opacity,
-        visible: visible ?? this.visible,
-      );
+  }) => ObjectVisualState(
+    position: position ?? this.position,
+    scale: scale ?? this.scale,
+    rotation: rotation ?? this.rotation,
+    opacity: opacity ?? this.opacity,
+    visible: visible ?? this.visible,
+  );
 
-  ObjectVisualState lerp(ObjectVisualState to, double t) =>
-      ObjectVisualState(
-        position: Offset.lerp(position, to.position, t) ?? to.position,
-        scale: scale + (to.scale - scale) * t,
-        rotation: rotation + (to.rotation - rotation) * t,
-        opacity: opacity + (to.opacity - opacity) * t,
-        visible: t < 1 ? visible : to.visible,
-      );
+  ObjectVisualState lerp(ObjectVisualState to, double t) => ObjectVisualState(
+    position: Offset.lerp(position, to.position, t) ?? to.position,
+    scale: scale + (to.scale - scale) * t,
+    rotation: rotation + (to.rotation - rotation) * t,
+    opacity: opacity + (to.opacity - opacity) * t,
+    visible: t < 1 ? visible : to.visible,
+  );
 }
 
 /// Một keyframe trên timeline cảnh — [tMs] tuyệt đối tính từ đầu scene.
@@ -208,6 +206,11 @@ class CinematicEvaluator {
   final List<String> stepIds;
   final List<SceneEffectSpec> effects;
 
+  /// P1 §5 — `camera.steps[].easing` whitelist → curve riêng cho camera
+  /// tween (index-aligned với cameraSteps). Null/missing = dùng easedT
+  /// caller truyền (tức step.easing chung).
+  final List<Curve?> cameraEasings;
+
   const CinematicEvaluator({
     this.cameraInitial = CameraState.initial,
     this.cameraSteps = const [],
@@ -216,6 +219,7 @@ class CinematicEvaluator {
     this.stepDurationsMs = const [],
     this.stepIds = const [],
     this.effects = const [],
+    this.cameraEasings = const [],
   });
 
   /// tMs toàn cục = tổng duration các bước đã xong + tiến độ trong bước
@@ -234,13 +238,16 @@ class CinematicEvaluator {
 
   /// Camera pose tại (stepIndex, t eased 0..1 trong bước): lerp từ pose
   /// trước tới cameraSteps[stepIndex] (hoặc giữ pose cuối nếu bước không
-  /// khai báo camera).
+  /// khai báo camera). Khi `cameraEasings[idx]` có → transform `t` lại
+  /// bằng curve đó (override step.easing cho riêng camera).
   CameraState cameraAt(int stepIndex, double t) {
     if (cameraSteps.isEmpty) return cameraInitial;
     final idx = stepIndex.clamp(0, cameraSteps.length - 1);
     final from = idx == 0 ? cameraInitial : cameraSteps[idx - 1];
     final to = cameraSteps[idx];
-    return from.lerp(to, t);
+    final override = idx < cameraEasings.length ? cameraEasings[idx] : null;
+    final camT = override != null ? override.transform(t.clamp(0.0, 1.0)) : t;
+    return from.lerp(to, camT);
   }
 
   /// Camera pose CUỐI của bước (t=1) — dùng cho reduced-motion/skip.
@@ -288,20 +295,21 @@ class CinematicEvaluator {
       if (e.durationMs > 0 && dur > 0) {
         p = ((rawProgress * dur) / e.durationMs).clamp(0.0, 1.0);
       }
-      out.add(ActiveEffect(
-        type: e.type,
-        center: e.center,
-        intensity: e.intensity,
-        objectId: e.objectId,
-        progress: p,
-      ));
+      out.add(
+        ActiveEffect(
+          type: e.type,
+          center: e.center,
+          intensity: e.intensity,
+          objectId: e.objectId,
+          progress: p,
+        ),
+      );
     }
     return out;
   }
 
   /// Frame CUỐI của bước — reduced-motion/skip nhảy thẳng đây.
-  CinematicFrame frameEndAt(int stepIndex) =>
-      frameAt(stepIndex, 1.0, 1.0);
+  CinematicFrame frameEndAt(int stepIndex) => frameAt(stepIndex, 1.0, 1.0);
 
   static Object _baseValue(ObjectVisualState s, String property) =>
       switch (property) {
@@ -314,15 +322,17 @@ class CinematicEvaluator {
       };
 
   static ObjectVisualState _apply(
-          ObjectVisualState s, String property, Object v) =>
-      switch (property) {
-        'position' => s.copyWith(position: v as Offset),
-        'scale' => s.copyWith(scale: (v as num).toDouble()),
-        'rotation' => s.copyWith(rotation: (v as num).toDouble()),
-        'opacity' => s.copyWith(opacity: (v as num).toDouble()),
-        'visible' => s.copyWith(visible: v as bool),
-        _ => s,
-      };
+    ObjectVisualState s,
+    String property,
+    Object v,
+  ) => switch (property) {
+    'position' => s.copyWith(position: v as Offset),
+    'scale' => s.copyWith(scale: (v as num).toDouble()),
+    'rotation' => s.copyWith(rotation: (v as num).toDouble()),
+    'opacity' => s.copyWith(opacity: (v as num).toDouble()),
+    'visible' => s.copyWith(visible: v as bool),
+    _ => s,
+  };
 }
 
 /// v2 — spec cho một scene effect (đã giải param sang typed values).

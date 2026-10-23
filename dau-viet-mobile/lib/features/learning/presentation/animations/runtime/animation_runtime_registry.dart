@@ -35,9 +35,7 @@ class AnimationRuntimeRegistry {
     final raw = embedded['manifest'] ?? embedded;
     if (raw is! Map) return null;
     try {
-      final dto = AnimationManifestDto.fromJson(
-        Map<String, dynamic>.from(raw),
-      );
+      final dto = AnimationManifestDto.fromJson(Map<String, dynamic>.from(raw));
       return dto.rendererCode.isEmpty ? null : dto;
     } catch (_) {
       return null; // manifest hỏng → fallback, không crash

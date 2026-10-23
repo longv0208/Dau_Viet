@@ -50,15 +50,31 @@ class ManifestAssetLayers extends StatelessWidget {
     return null;
   }
 
-  /// objects[] resolve được sang một assets[] entry role OBJECT — sort
-  /// theo `layer` (ổn định) để thứ tự chồng lấp deterministic.
+  /// Object vẽ procedural được khi không có assetRef — khớp whitelist
+  /// OBJECT_TYPES backend. Type lạ/không biết → null (backend đã chặn).
+  static const Set<String> _proceduralTypes = {
+    'STAKE',
+    'BOAT',
+    'DECOY',
+    'MARKER',
+    'LABEL',
+    'ROUTE',
+    'LOCATION',
+    'WATER',
+    'TEXT',
+  };
+
+  /// objects[] render được: resolve assets[] role OBJECT, HOẶC type
+  /// có glyph procedural (BOAT/DECOY/MARKER…). Object không assetRef
+  /// lẫn type lạ sẽ bị lọc ra — validator backend chặn type lạ trước.
+  /// Sort theo `layer` (ổn định) để thứ tự chồng lấp deterministic.
   List<_ResolvedObject> get _objectLayers {
     final byKey = {for (final a in manifest.assetRefs) a.id: a};
     final list = <_ResolvedObject>[];
     for (final o in manifest.objects) {
       if (!o.visible) continue;
       final ref = o.assetRef == null ? null : byKey[o.assetRef];
-      if (ref == null || ref.role != 'OBJECT') continue;
+      if (ref == null && !_proceduralTypes.contains(o.type)) continue;
       list.add(_ResolvedObject(o, ref));
     }
     list.sort((a, b) => a.object.layer.compareTo(b.object.layer));
@@ -160,7 +176,8 @@ class ManifestAssetLayers extends StatelessWidget {
 
   Widget _positioned(_ResolvedObject r, Size size, ObjectVisualState? vs) {
     final o = r.object;
-    final state = vs ??
+    final state =
+        vs ??
         ObjectVisualState(
           position: o.position,
           scale: o.scale,
@@ -174,6 +191,7 @@ class ManifestAssetLayers extends StatelessWidget {
     final diameter = (size.width * state.scale).clamp(24.0, size.width);
     final cx = state.position.dx * size.width;
     final cy = state.position.dy * size.height;
+    final ref = r.ref;
     return Positioned(
       left: cx - diameter / 2,
       top: cy - diameter / 2,
@@ -183,12 +201,21 @@ class ManifestAssetLayers extends StatelessWidget {
         opacity: state.opacity.clamp(0.0, 1.0),
         child: Transform.rotate(
           angle: state.rotation * 3.141592653589793 / 180,
-          child: _ManifestImage(
-            key: ValueKey('manifest_obj_${o.id}_${r.ref.assetId}'),
-            assetId: r.ref.assetId,
-            altText: manifest.altTextOf(r.ref.assetId) ?? o.id,
-            shape: o.shape,
-          ),
+          child: ref != null && ref.role == 'OBJECT'
+              ? _ManifestImage(
+                  key: ValueKey('manifest_obj_${o.id}_${ref.assetId}'),
+                  assetId: ref.assetId,
+                  altText: manifest.altTextOf(ref.assetId) ?? o.id,
+                  shape: o.shape,
+                )
+              // P0 §3/§4 — object không assetRef vẫn phải hiện hình:
+              // glyph procedural theo `type` (BOAT/DECOY/STAKE/MARKER…),
+              // KHÔNG silently animate object vô hình.
+              : CustomPaint(
+                  key: ValueKey('manifest_obj_glyph_${o.id}'),
+                  painter: _ProceduralObjectPainter(type: o.type),
+                  size: Size.square(diameter),
+                ),
         ),
       ),
     );
@@ -206,14 +233,11 @@ class ManifestAssetLayers extends StatelessWidget {
     }
     final painter = switch (e.type) {
       'WATER_RIPPLE' => WaterRipplePainter(
-          center: center,
-          progress: e.progress,
-        ),
+        center: center,
+        progress: e.progress,
+      ),
       'MIST' => MistPainter(intensity: e.intensity),
-      'GLOW' => GlowPainter(
-          center: center,
-          intensity: e.intensity,
-        ),
+      'GLOW' => GlowPainter(center: center, intensity: e.intensity),
       'FADE_IN' => FadePainter(opacity: 1 - e.progress),
       'FADE_OUT' => FadePainter(opacity: e.progress),
       // ROUTE_REVEAL: painter canvas tự xử lý qua routeProgress — không
@@ -222,17 +246,173 @@ class ManifestAssetLayers extends StatelessWidget {
     };
     if (painter == null) return const SizedBox.shrink();
     return Positioned.fill(
-      child: IgnorePointer(
-        child: CustomPaint(painter: painter),
-      ),
+      child: IgnorePointer(child: CustomPaint(painter: painter)),
     );
   }
 }
 
 class _ResolvedObject {
   final AnimationObjectDto object;
-  final AnimationAssetRefDto ref;
+
+  /// assets[] entry role OBJECT — null khi object render procedural.
+  final AnimationAssetRefDto? ref;
   const _ResolvedObject(this.object, this.ref);
+}
+
+/// Glyph procedural cho `objects[]` không có assetRef (P0 §3/§4).
+/// Style thống nhất với painter v1 (mực/đất nung): BOAT/DECOY = thuyền
+/// stylized (DECOY thêm buồm xanh lục theo convention "quân ta"), STAKE
+/// = cọc nhọn, MARKER/LOCATION = chấm + vòng, LABEL/TEXT = nhãn chữ,
+/// WATER = gợn sóng, ROUTE/BACKGROUND = bỏ trống (do painter vẽ).
+/// Không "ảnh cinematic giả" — chỉ là sơ đồ để track có cái để animate.
+class _ProceduralObjectPainter extends CustomPainter {
+  final String type;
+  const _ProceduralObjectPainter({required this.type});
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    final w = size.width;
+    final h = size.height;
+    final ink = Paint()
+      ..color = DauVietColors.inkText
+      ..style = PaintingStyle.fill;
+    switch (type) {
+      case 'BOAT':
+      case 'DECOY':
+        _boat(canvas, w, h, ink);
+      case 'STAKE':
+        _stake(canvas, w, h, ink);
+      case 'MARKER':
+      case 'LOCATION':
+        _marker(canvas, w, h, ink);
+      case 'LABEL':
+      case 'TEXT':
+        _label(canvas, w, h);
+      case 'WATER':
+        _water(canvas, w, h, ink);
+      default:
+        break;
+    }
+  }
+
+  /// Thuyền stylized: thân đậm + buồm; DECOY buồm xanh lục (convention
+  /// phòng thủ/dụ — khớp `sailColor` của RiverScenePainter._paintSmallBoat).
+  void _boat(Canvas canvas, double w, double h, Paint ink) {
+    final hull = Path()
+      ..moveTo(w * 0.18, h * 0.62)
+      ..lineTo(w * 0.82, h * 0.62)
+      ..lineTo(w * 0.70, h * 0.78)
+      ..lineTo(w * 0.30, h * 0.78)
+      ..close();
+    canvas.drawPath(
+      hull,
+      Paint()
+        ..color = const Color(0xFF4A3226)
+        ..style = PaintingStyle.fill,
+    );
+    final sailColor = type == 'DECOY'
+        ? DauVietColors.natureGreen
+        : DauVietColors.cinnabarRed;
+    final sail = Path()
+      ..moveTo(w * 0.5, h * 0.56)
+      ..lineTo(w * 0.5, h * 0.18)
+      ..lineTo(w * 0.72, h * 0.56)
+      ..close();
+    canvas.drawPath(
+      sail,
+      Paint()
+        ..color = sailColor.withValues(alpha: 0.9)
+        ..style = PaintingStyle.fill,
+    );
+  }
+
+  /// Cọc nhọn: thân mực + đầu nhọn đỏ chu sa.
+  void _stake(Canvas canvas, double w, double h, Paint ink) {
+    final shaft = Path()
+      ..moveTo(w * 0.46, h * 0.22)
+      ..lineTo(w * 0.54, h * 0.22)
+      ..lineTo(w * 0.58, h * 0.85)
+      ..lineTo(w * 0.42, h * 0.85)
+      ..close();
+    canvas.drawPath(shaft, ink);
+    final tip = Path()
+      ..moveTo(w * 0.5, h * 0.08)
+      ..lineTo(w * 0.56, h * 0.24)
+      ..lineTo(w * 0.44, h * 0.24)
+      ..close();
+    canvas.drawPath(
+      tip,
+      Paint()
+        ..color = DauVietColors.cinnabarRed
+        ..style = PaintingStyle.fill,
+    );
+  }
+
+  /// Marker/location: chấm tròn viền đỏ + lõi đậm — đọc rõ tâm hit.
+  void _marker(Canvas canvas, double w, double h, Paint ink) {
+    final c = Offset(w / 2, h / 2);
+    canvas.drawCircle(
+      c,
+      w * 0.34,
+      Paint()
+        ..color = DauVietColors.cinnabarRed.withValues(alpha: 0.9)
+        ..style = PaintingStyle.stroke
+        ..strokeWidth = w * 0.06,
+    );
+    canvas.drawCircle(c, w * 0.16, ink);
+  }
+
+  /// Label/text: ô chữ mực trên nền parchment — chữ lấy từ object.id.
+  void _label(Canvas canvas, double w, double h) {
+    final r = RRect.fromRectAndRadius(
+      Rect.fromLTWH(w * 0.06, h * 0.3, w * 0.88, h * 0.4),
+      const Radius.circular(4),
+    );
+    canvas.drawRRect(
+      r,
+      Paint()..color = DauVietColors.parchmentContainer.withValues(alpha: 0.9),
+    );
+    canvas.drawRRect(
+      r,
+      Paint()
+        ..color = DauVietColors.outlineVariant
+        ..style = PaintingStyle.stroke
+        ..strokeWidth = 1,
+    );
+    final tp = TextPainter(
+      text: TextSpan(
+        // LABEL/TEXT đều render '?' — glyph placeholder (không phải
+        // text thật của object, giữ placeholder trung lập cho cả 2).
+        text: '?',
+        style: TextStyle(
+          color: DauVietColors.inkText,
+          fontSize: h * 0.22,
+          fontWeight: FontWeight.w700,
+        ),
+      ),
+      textDirection: TextDirection.ltr,
+    )..layout(maxWidth: w * 0.8);
+    tp.paint(canvas, Offset(w / 2 - tp.width / 2, h * 0.36));
+  }
+
+  /// Water: 2 gợn sóng ngang.
+  void _water(Canvas canvas, double w, double h, Paint ink) {
+    final p = Paint()
+      ..color = DauVietColors.natureGreen.withValues(alpha: 0.6)
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = w * 0.05
+      ..strokeCap = StrokeCap.round;
+    for (final y in [h * 0.42, h * 0.62]) {
+      final wave = Path()
+        ..moveTo(w * 0.12, y)
+        ..quadraticBezierTo(w * 0.32, y - h * 0.12, w * 0.5, y)
+        ..quadraticBezierTo(w * 0.68, y + h * 0.12, w * 0.88, y);
+      canvas.drawPath(wave, p);
+    }
+  }
+
+  @override
+  bool shouldRepaint(_ProceduralObjectPainter old) => old.type != type;
 }
 
 /// Một ảnh manifest — chỉ fetch khi auth session là `authenticated`
@@ -282,8 +462,7 @@ class _ManifestImageState extends ConsumerState<_ManifestImage> {
   void didUpdateWidget(covariant _ManifestImage oldWidget) {
     super.didUpdateWidget(oldWidget);
     if (oldWidget.assetId != widget.assetId) {
-      _future =
-          _authed ? fetchLearningAssetBytes(ref, widget.assetId) : null;
+      _future = _authed ? fetchLearningAssetBytes(ref, widget.assetId) : null;
     }
   }
 
@@ -309,15 +488,10 @@ class _ManifestImageState extends ConsumerState<_ManifestImage> {
         );
         final clipped = widget.shape == 'circle'
             ? ClipOval(child: img)
-            : ClipRRect(
-                borderRadius: BorderRadius.circular(6),
-                child: img,
-              );
+            : ClipRRect(borderRadius: BorderRadius.circular(6), child: img);
         // Background mờ để painter/label vẫn đọc được — ảnh là bối cảnh
         // minh họa, không phải nội dung chính.
-        return widget.frame
-            ? clipped
-            : Opacity(opacity: 0.45, child: clipped);
+        return widget.frame ? clipped : Opacity(opacity: 0.45, child: clipped);
       },
     );
   }
@@ -340,20 +514,20 @@ class _ManifestImageState extends ConsumerState<_ManifestImage> {
       : const SizedBox.shrink();
 
   Widget _broken() => Container(
-        decoration: BoxDecoration(
-          color: DauVietColors.parchmentContainer.withValues(alpha: 0.5),
-          borderRadius: BorderRadius.circular(6),
-          border: Border.all(color: DauVietColors.outlineVariant),
+    decoration: BoxDecoration(
+      color: DauVietColors.parchmentContainer.withValues(alpha: 0.5),
+      borderRadius: BorderRadius.circular(6),
+      border: Border.all(color: DauVietColors.outlineVariant),
+    ),
+    child: Tooltip(
+      message: widget.altText,
+      child: const Center(
+        child: Icon(
+          Icons.broken_image_outlined,
+          color: DauVietColors.inkMuted,
+          size: 20,
         ),
-        child: Tooltip(
-          message: widget.altText,
-          child: const Center(
-            child: Icon(
-              Icons.broken_image_outlined,
-              color: DauVietColors.inkMuted,
-              size: 20,
-            ),
-          ),
-        ),
-      );
+      ),
+    ),
+  );
 }
