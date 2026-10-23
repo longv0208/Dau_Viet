@@ -1,0 +1,45 @@
+{
+  "schemaVersion": 1,
+  "id": "TASK-0019",
+  "type": "feature",
+  "risk": "high-risk",
+  "status": "done",
+  "goal": "Bạch Đằng 938 production cinematic slice: V17 migration seeds a PUBLISHED RIVER_TIDE v2 scene bound to event bach-dang-938 with real assets (hero background, map-base, narration audio) replacing V16 silent-WAV placeholders; 8-beat storyboard, camera + object tracks + effects + audio cues + prediction checkpoint, all via existing AnimationManifestDto/HistoricalAnimationPlayer — no new renderer, no eventId hard-code.",
+  "owner": "claude",
+  "modules": ["backend", "mobile", "admin"],
+  "scope": [
+    "dau-viet-backend/src/main/resources/db/migration/V17__bachdang_production_scene.sql",
+    "dau-viet-backend/data/assets/",
+    "dau-viet-backend/src/test/java/com/dauviet/animation/manifest/",
+    "tasks/TASK-0019/",
+    "plans/261024-bachdang-938-cinematic-slice/"
+  ],
+  "acceptanceCriteria": [
+    { "id": "AC-1", "text": "V17 is idempotent (ON CONFLICT DO NOTHING), declares 3 ACTIVE assets (hero jpg, map-base jpg, narration wav) with fixed UUIDs d7a70000-…-001/002/003, correct mime_type/size_bytes/alt_text, storage_key assets/<uuid>.<ext> matching files copied to dau-viet-backend/data/assets/." },
+    { "id": "AC-2", "text": "Scene bach-dang-938-prod: RIVER_TIDE template d7a10000-…-001, event_id 00000000-…-001 (EventSeedService), schemaVersion 2, PUBLISHED with version 1 snapshot + current_version_id, manifest passes AnimationManifestValidator (0 errors) — verified by extracting m_bd_prod literal in a unit test with mocked AssetRepository." },
+    { "id": "AC-3", "text": "8 steps: estuary, stake-prep, tide-rise, decoy, prediction-checkpoint (PREDICTION interaction), tide-fall, counterattack, evidence — each with title/narration/hint/durationMs/easing/targetState; camera steps align; tracks animate boat-decoy; effects WATER_RIPPLE/MIST/GLOW/FADE_*; audio ENTER/LOOP/EXIT reference AUDIO-role assetRef only." },
+    { "id": "AC-4", "text": "prediction: >=2 options, explainedOptionIndex valid, revealTargetState uses whitelisted RIVER_TIDE keys, sourceReferences >=1 with title, disclaimer non-blank, no answer key leakage." },
+    { "id": "AC-5", "text": "No modification to V15/V16 scenes or published snapshots; scene id d7a80000-…-001 is new; V16 demo scenes remain intact." },
+    { "id": "AC-6", "text": "Backend `mvnw compile` + `mvnw test` green except pre-existing Docker-blocked ITs (DauVietApplicationTests/Testcontainers); AnimationSeedManifestTest-style test proves V17 manifest validates." }
+  ],
+  "dependencies": ["TASK-0018"],
+  "planPath": "plans/261024-bachdang-938-cinematic-slice/plan.md",
+  "evidenceRefs": [
+    "plans/261024-bachdang-938-cinematic-slice/plan.md",
+    "dau-viet-backend/src/main/resources/db/migration/V17__bachdang_production_scene.sql",
+    "dau-viet-backend/src/test/java/com/dauviet/animation/manifest/AnimationProductionSeedTest.java"
+  ],
+  "reviewRefs": [
+    "plans/261024-bachdang-938-cinematic-slice/plan.md"
+  ],
+  "nextAction": "Bật Docker → mvnw verify cho Testcontainers ITs (AnimationScenePublishIT, asset content). Admin pin scene bach-dang-938-prod vào lesson. Verify visual trên thiết bị.",
+  "baseCommit": "cd896cc65d81a33a606e733d315e3a505d65a3fa",
+  "inputFingerprint": null,
+  "snapshot": null,
+  "roleReports": [],
+  "blockedReason": "Docker daemon OFF — Testcontainers ITs (FlywayMigrationIT, AnimationScenePublishIT, asset content endpoint) cannot run; V17 manifest covered by AnimationProductionSeedTest validator-level test only.",
+  "resumeFrom": null,
+  "handoffRef": null,
+  "createdAt": "2026-10-24T00:00:00+07:00",
+  "updatedAt": "2026-10-24T00:00:00+07:00"
+}
