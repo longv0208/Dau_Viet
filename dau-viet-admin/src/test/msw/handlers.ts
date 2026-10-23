@@ -2,6 +2,7 @@ import { http, HttpResponse } from "msw";
 
 import {
   adminUserFixture,
+  animationScenesPageFixture,
   assetsPageFixture,
   draftFixture,
   emptyPageFixture,
@@ -565,4 +566,36 @@ export const handlers = [
   http.post("*/api/proxy/admin/assets", async () =>
     HttpResponse.json(assetsPageFixture.content[0], { status: 201 }),
   ),
+
+  /* ---------- Animation scenes (builder picker) ---------- */
+  http.get("*/api/proxy/admin/animation-scenes", ({ request }) => {
+    const url = new URL(request.url);
+    const status = url.searchParams.get("status");
+    const q = (url.searchParams.get("q") ?? "").toLowerCase();
+    let rows = animationScenesPageFixture.content;
+    if (status) rows = rows.filter((s) => s.status === status);
+    if (q) rows = rows.filter((s) => s.title.toLowerCase().includes(q));
+    return HttpResponse.json({
+      ...animationScenesPageFixture,
+      content: rows,
+      totalElements: rows.length,
+    });
+  }),
+  http.get("*/api/proxy/admin/animation-scenes/:id", ({ params }) => {
+    const s = animationScenesPageFixture.content.find((x) => x.id === params.id);
+    if (!s) {
+      return HttpResponse.json(
+        { code: "ANIMATION_SCENE_NOT_FOUND", message: "not found" },
+        { status: 404 },
+      );
+    }
+    return HttpResponse.json({
+      ...s,
+      templateCode: s.rendererCode,
+      draftJson: "{}",
+      createdBy: adminUserFixture.id,
+      updatedBy: adminUserFixture.id,
+      createdAt: s.updatedAt,
+    });
+  }),
 ];

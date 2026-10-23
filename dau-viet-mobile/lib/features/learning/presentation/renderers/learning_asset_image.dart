@@ -72,6 +72,14 @@ String _sessionOwnerOf(AuthState s) =>
 /// (renderer, zoom dialog, recap). Session được validate trước khi đọc cache
 /// nên logout→login khi không có widget mounted vẫn fetch mới đúng credential.
 /// Kết quả lỗi/rỗng tự evict để lần sau retry thật.
+///
+/// Public wrapper cho các lớp ảnh manifest (animation assets) — cùng cache,
+/// auth (withAuth Bearer) và session-tag invalidation với [LearningAssetImage]
+/// nên ảnh scene tải đúng endpoint `/api/v1/assets/{id}/content`, không qua
+/// storageKey ngoài (an toàn media + pin đúng snapshot).
+Future<List<int>> fetchLearningAssetBytes(WidgetRef ref, String assetId) =>
+    _fetchAssetBytes(ref, assetId);
+
 Future<List<int>> _fetchAssetBytes(WidgetRef ref, String assetId) {
   final int tag = _syncCacheSession(
     _sessionOwnerOf(ref.read(authSessionProvider)),

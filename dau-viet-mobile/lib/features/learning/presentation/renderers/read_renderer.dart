@@ -5,7 +5,9 @@ import '../../../../core/theme/dau_viet_typography.dart';
 import '../../data/attempt_dtos.dart';
 import '../animations/historical_animation_player.dart';
 import '../animations/historical_animation_registry.dart';
+import '../animations/runtime/animation_manifest_dto.dart';
 import '../animations/runtime/animation_runtime_registry.dart';
+import '../animations/widgets/manifest_asset_layers.dart';
 import 'renderer_base.dart';
 
 /// READ — nội dung đọc + nút "Đã đọc xong, tiếp tục" (acknowledgment `{}`).
@@ -72,9 +74,10 @@ class ReadRenderer extends StatelessWidget {
     final manifestRenderer = manifestDto == null
         ? null
         : AnimationRuntimeRegistry.resolve(manifestDto.rendererCode);
+    final playbackMode = configText(config, ['playbackMode']) ?? 'AUTO';
     final animation = manifestRenderer != null &&
             manifestRenderer.canRender(manifestDto!)
-        ? manifestRenderer.build(manifestDto)
+        ? manifestRenderer.build(manifestDto, playbackMode: playbackMode)
         : HistoricalAnimationRegistry.resolve(
             configText(config, ['animationKey']),
           );
@@ -87,9 +90,17 @@ class ReadRenderer extends StatelessWidget {
         if (animation != null) ...[
           // Keyed theo animationKey + activity id: đổi activity → dispose
           // controller cũ, không rò state giữa các bài.
-          HistoricalAnimationPlayer(
-            key: ValueKey('anim_${animation.key}_${activity.id}'),
-            definition: animation,
+          //
+          // P0-4: manifest mang assets[]/objects[] → bọc player bằng lớp
+          // ảnh (background dưới + object trên). Manifest KHÔNG khai báo
+          // ảnh nào → widget trả về `child` nguyên trạng, không đổi layout.
+          ManifestAssetLayers(
+            manifest: manifestDto ?? AnimationManifestDto.empty,
+            aspectRatio: animation.aspectRatio,
+            child: HistoricalAnimationPlayer(
+              key: ValueKey('anim_${animation.key}_${activity.id}'),
+              definition: animation,
+            ),
           ),
           const SizedBox(height: 14),
         ] else if (unsupportedManifest) ...[

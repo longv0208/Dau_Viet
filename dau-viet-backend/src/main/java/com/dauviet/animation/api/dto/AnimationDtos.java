@@ -5,6 +5,7 @@ import java.util.List;
 import java.util.UUID;
 
 import jakarta.validation.constraints.NotBlank;
+import jakarta.validation.constraints.NotNull;
 import jakarta.validation.constraints.Pattern;
 import jakarta.validation.constraints.Size;
 
@@ -52,7 +53,7 @@ public final class AnimationDtos {
     /* ---------- scenes ---------- */
 
     public record SceneCreateRequest(
-            @NotBlank UUID templateId,
+            @NotNull UUID templateId,
             UUID eventId,
             @NotBlank @Size(max = 255) String title,
             String draftJson) {
@@ -75,7 +76,8 @@ public final class AnimationDtos {
 
     public record SceneSummaryResponse(
             UUID id, UUID templateId, String rendererCode, UUID eventId,
-            String title, String status, Integer currentVersionNo,
+            String title, String status,
+            UUID currentVersionId, Integer currentVersionNo,
             Long rowVersion, Instant updatedAt) {
     }
 

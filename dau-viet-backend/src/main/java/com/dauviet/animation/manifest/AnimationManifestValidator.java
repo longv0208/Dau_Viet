@@ -91,10 +91,18 @@ public class AnimationManifestValidator {
                             + "' does not match template renderer '"
                             + template.getRendererCode() + "'"));
         }
-        if (manifest.has("rendererVersion")
-                && manifest.get("rendererVersion").asInt(0) < 1) {
-            errors.add(err("manifest.rendererVersion", "INVALID_VALUE",
-                    "rendererVersion must be >= 1"));
+        if (manifest.has("rendererVersion")) {
+            int rv = manifest.get("rendererVersion").asInt(0);
+            if (rv < 1) {
+                errors.add(err("manifest.rendererVersion", "INVALID_VALUE",
+                        "rendererVersion must be >= 1"));
+            } else if (rv > template.getRendererVersion()) {
+                // P1-6 — manifest viết cho renderer mới hơn template hiện
+                // có: reject rõ ràng thay vì publish rồi app không đọc được.
+                errors.add(err("manifest.rendererVersion", "UNSUPPORTED_VERSION",
+                        "rendererVersion " + rv + " exceeds template's "
+                                + template.getRendererVersion()));
+            }
         }
 
         // (5) title — required learner-facing label.
@@ -296,9 +304,13 @@ public class AnimationManifestValidator {
             }
         }
 
-        // (13) sourceReferences[] — each needs a title (provenance).
+        // (13) sourceReferences[] — REQUIRED provenance: every published
+        // scene must cite at least one source, each with a title.
         JsonNode refs = manifest.get("sourceReferences");
-        if (refs != null && refs.isArray()) {
+        if (refs == null || !refs.isArray() || refs.isEmpty()) {
+            errors.add(err("manifest.sourceReferences", "MISSING_FIELD",
+                    "sourceReferences must list at least one source"));
+        } else {
             for (int i = 0; i < refs.size(); i++) {
                 JsonNode r = refs.get(i);
                 if (!r.isObject() || text(r, "title") == null || text(r, "title").isBlank()) {
@@ -308,7 +320,13 @@ public class AnimationManifestValidator {
             }
         }
 
-        // (14) narration / disclaimer length bounds.
+        // (14) disclaimer — required learner-facing honesty note.
+        if (text(manifest, "disclaimer") == null || text(manifest, "disclaimer").isBlank()) {
+            errors.add(err("manifest.disclaimer", "MISSING_FIELD",
+                    "disclaimer is required (schematic/historical-honesty note)"));
+        }
+
+        // (15) narration / disclaimer length bounds.
         checkLen(manifest, "narration", "manifest.narration", MAX_TEXT, errors);
         checkLen(manifest, "disclaimer", "manifest.disclaimer", MAX_TEXT, errors);
 
@@ -351,6 +369,69 @@ public class AnimationManifestValidator {
                         || s.get("length").asDouble() <= 0) {
                     errors.add(err(p + ".length", "INVALID_VALUE",
                             "stake length must be a positive number"));
+                }
+            }
+        }
+        // RIVER numeric bounds in initialState / step.targetState —
+        // water/boat/decoy/counterattack progress are normalized 0..1.
+        checkRiverState(manifest.get("initialState"), "manifest.initialState",
+                stakeIdSet(stakes), errors);
+        JsonNode steps = manifest.get("steps");
+        if (steps != null && steps.isArray()) {
+            for (int i = 0; i < steps.size(); i++) {
+                JsonNode s = steps.get(i);
+                if (s.isObject()) {
+                    checkRiverState(s.get("targetState"),
+                            "manifest.steps[" + i + "].targetState",
+                            stakeIdSet(stakes), errors);
+                }
+            }
+        }
+    }
+
+    private Set<String> stakeIdSet(JsonNode stakes) {
+        Set<String> ids = new LinkedHashSet<>();
+        if (stakes != null && stakes.isArray()) {
+            for (JsonNode s : stakes) {
+                String sid = s.path("id").asText(null);
+                if (sid != null) ids.add(sid);
+            }
+        }
+        return ids;
+    }
+
+    /** RIVER_TIDE state bounds + stake refs — water/boat 0..1. */
+    private void checkRiverState(JsonNode state, String path,
+                                 Set<String> stakeIds,
+                                 List<ManifestFieldError> errors) {
+        if (state == null || !state.isObject()) return;
+        for (String f : new String[]{
+                "waterLevel", "boatProgress", "decoyProgress",
+                "counterattackProgress"}) {
+            JsonNode v = state.get(f);
+            if (v != null && v.isNumber()
+                    && (v.asDouble() < 0 || v.asDouble() > 1)) {
+                errors.add(err(path + "." + f, "OUT_OF_RANGE",
+                        f + " must be a normalized 0..1 number"));
+            }
+        }
+        JsonNode vis = state.get("stakeVisibility");
+        if (vis != null && vis.isObject() && !stakeIds.isEmpty()) {
+            for (var it = vis.fieldNames(); it.hasNext();) {
+                String k = it.next();
+                if (!stakeIds.contains(k)) {
+                    errors.add(err(path + ".stakeVisibility." + k, "UNKNOWN_REF",
+                            "stakeVisibility references unknown stake '" + k + "'"));
+                }
+            }
+        }
+        JsonNode hl = state.get("stakeHighlight");
+        if (hl != null && hl.isArray() && !stakeIds.isEmpty()) {
+            for (int i = 0; i < hl.size(); i++) {
+                String ref = hl.get(i).asText(null);
+                if (ref != null && !stakeIds.contains(ref)) {
+                    errors.add(err(path + ".stakeHighlight[" + i + "]", "UNKNOWN_REF",
+                            "stakeHighlight references unknown stake '" + ref + "'"));
                 }
             }
         }
@@ -424,6 +505,94 @@ public class AnimationManifestValidator {
                     for (int j = 0; j < via.size(); j++) {
                         checkNormalizedPos(via.get(j), p + ".via[" + j + "]", errors);
                     }
+                }
+            }
+        }
+        // map.backgroundAssetId — must reference an ACTIVE asset (same
+        // check as manifest.assets[].assetId).
+        String bg = map.path("backgroundAssetId").asText(null);
+        if (bg != null) {
+            UUID uuid = parseUuid(bg);
+            if (uuid == null || !assets.existsByIdAndState(uuid, "ACTIVE")) {
+                errors.add(err("manifest.map.backgroundAssetId", "ASSET_NOT_FOUND",
+                        "backgroundAssetId '" + bg + "' is not an active asset"));
+            }
+        }
+        // State-map references — markerVisibility/markerHighlight/
+        // focusedLocationId/routeProgress must point at declared ids.
+        checkStateRefs(manifest.get("initialState"), "manifest.initialState",
+                locationIds, routeIdsOf(routes), errors);
+        JsonNode steps = manifest.get("steps");
+        if (steps != null && steps.isArray()) {
+            for (int i = 0; i < steps.size(); i++) {
+                JsonNode s = steps.get(i);
+                if (s.isObject()) {
+                    checkStateRefs(s.get("targetState"),
+                            "manifest.steps[" + i + "].targetState",
+                            locationIds, routeIdsOf(routes), errors);
+                }
+            }
+        }
+    }
+
+    private Set<String> routeIdsOf(JsonNode routes) {
+        Set<String> ids = new LinkedHashSet<>();
+        if (routes != null && routes.isArray()) {
+            for (JsonNode r : routes) {
+                String rid = r.path("id").asText(null);
+                if (rid != null) ids.add(rid);
+            }
+        }
+        return ids;
+    }
+
+    /** Validate JOURNEY_MAP state keys that reference declared ids. */
+    private void checkStateRefs(JsonNode state, String path,
+                                Set<String> locationIds, Set<String> routeIds,
+                                List<ManifestFieldError> errors) {
+        if (state == null || !state.isObject() || locationIds.isEmpty()) return;
+        JsonNode vis = state.get("markerVisibility");
+        if (vis != null && vis.isObject()) {
+            for (var it = vis.fieldNames(); it.hasNext();) {
+                String k = it.next();
+                if (!locationIds.contains(k)) {
+                    errors.add(err(path + ".markerVisibility." + k, "UNKNOWN_REF",
+                            "markerVisibility references unknown location '" + k + "'"));
+                }
+                JsonNode v = vis.get(k);
+                if (v.isNumber() && (v.asDouble() < 0 || v.asDouble() > 1)) {
+                    errors.add(err(path + ".markerVisibility." + k, "OUT_OF_RANGE",
+                            "markerVisibility." + k + " must be 0..1"));
+                }
+            }
+        }
+        JsonNode hl = state.get("markerHighlight");
+        if (hl != null && hl.isArray()) {
+            for (int i = 0; i < hl.size(); i++) {
+                String ref = hl.get(i).asText(null);
+                if (ref != null && !locationIds.contains(ref)) {
+                    errors.add(err(path + ".markerHighlight[" + i + "]", "UNKNOWN_REF",
+                            "markerHighlight references unknown location '" + ref + "'"));
+                }
+            }
+        }
+        String focused = state.path("focusedLocationId").asText(null);
+        if (focused != null && !locationIds.contains(focused)) {
+            errors.add(err(path + ".focusedLocationId", "UNKNOWN_REF",
+                    "focusedLocationId references unknown location '" + focused + "'"));
+        }
+        JsonNode rp = state.get("routeProgress");
+        if (rp != null && rp.isObject()) {
+            for (var it = rp.fieldNames(); it.hasNext();) {
+                String k = it.next();
+                if (!routeIds.contains(k)) {
+                    errors.add(err(path + ".routeProgress." + k, "UNKNOWN_REF",
+                            "routeProgress references unknown route '" + k + "'"));
+                }
+                JsonNode v = rp.get(k);
+                if (v.isNumber() && (v.asDouble() < 0 || v.asDouble() > 1)) {
+                    errors.add(err(path + ".routeProgress." + k, "OUT_OF_RANGE",
+                            "routeProgress." + k + " must be 0..1"));
                 }
             }
         }

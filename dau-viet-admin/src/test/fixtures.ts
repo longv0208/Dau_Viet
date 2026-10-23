@@ -240,6 +240,51 @@ export const assetsPageFixture = {
   ],
 };
 
+/** PageResponse<SceneSummaryResponse> — animation scenes for the builder picker. */
+export const animationScenesPageFixture = {
+  ...emptyPageFixture,
+  totalElements: 2,
+  totalPages: 1,
+  content: [
+    {
+      id: "aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa",
+      templateId: "88888888-8888-8888-8888-888888888888",
+      rendererCode: "RIVER_TIDE",
+      eventId: "11111111-1111-1111-1111-111111111111",
+      title: "Trận thủy chiến Bạch Đằng 938",
+      status: "PUBLISHED",
+      currentVersionId: "bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb",
+      currentVersionNo: 1,
+      rowVersion: 4,
+      updatedAt: "2026-01-02T00:00:00Z",
+    },
+    {
+      id: "cccccccc-cccc-cccc-cccc-cccccccccccc",
+      templateId: "99999999-9999-9999-9999-999999999999",
+      rendererCode: "JOURNEY_MAP",
+      eventId: "22222222-2222-2222-2222-222222222222",
+      title: "Hành trình về Thăng Long 1010",
+      status: "PUBLISHED",
+      currentVersionId: "dddddddd-dddd-dddd-dddd-dddddddddddd",
+      currentVersionNo: 2,
+      rowVersion: 7,
+      updatedAt: "2026-01-03T00:00:00Z",
+    },
+    {
+      id: "eeeeeeee-eeee-eeee-eeee-eeeeeeeeeeee",
+      templateId: "88888888-8888-8888-8888-888888888888",
+      rendererCode: "RIVER_TIDE",
+      eventId: null,
+      title: "Cảnh nháp chưa xuất bản",
+      status: "DRAFT",
+      currentVersionId: null,
+      currentVersionNo: null,
+      rowVersion: 1,
+      updatedAt: "2026-01-04T00:00:00Z",
+    },
+  ],
+};
+
 /** GET /admin/lesson-templates returns a plain array (not paged). */
 export const templatesFixture = [
   {

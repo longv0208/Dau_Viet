@@ -4,7 +4,9 @@ import java.nio.charset.StandardCharsets;
 import java.security.MessageDigest;
 import java.time.Instant;
 import java.util.HexFormat;
+import java.util.HashMap;
 import java.util.LinkedHashSet;
+import java.util.Map;
 import java.util.Set;
 import java.util.UUID;
 
@@ -95,8 +97,9 @@ public class AnimationScenePublishService {
 
         // Snapshot = validated manifest + pinned asset metadata so a later
         // asset edit/rename cannot retroactively change a published manifest.
+        // assets[] keeps {id (manifest key), assetId, role} + metadata.
         ObjectNode snapshot = manifest.deepCopy();
-        snapshot.set("assets", embedAssets(collectAssetIds(manifest)));
+        snapshot.set("assets", embedAssets(collectAssetRefs(manifest)));
 
         // Checksum covers the canonical snapshot text — what is stored and what
         // the learner actually receives (manifest + embedded assets), matching
@@ -134,7 +137,11 @@ public class AnimationScenePublishService {
 
     /* ---------- snapshot helpers ---------- */
 
-    private record AssetRef(UUID assetId, String role) {
+    /**
+     * manifestKey = the draft's declared assets[].id (binding key inside the
+     * manifest); assetId = the real Asset row; role = BACKGROUND/OBJECT/…
+     */
+    private record AssetRef(String manifestKey, UUID assetId, String role) {
     }
 
     private Set<AssetRef> collectAssetRefs(JsonNode manifest) {
@@ -144,30 +151,38 @@ public class AnimationScenePublishService {
             for (JsonNode a : arr) {
                 UUID id = parseUuid(a.path("assetId").asText(null));
                 if (id != null) {
-                    refs.add(new AssetRef(id, a.path("role").asText("OBJECT")));
+                    refs.add(new AssetRef(a.path("id").asText(null), id,
+                            a.path("role").asText("OBJECT")));
                 }
             }
         }
         JsonNode map = manifest.get("map");
         if (map != null) {
             UUID bg = parseUuid(map.path("backgroundAssetId").asText(null));
-            if (bg != null) refs.add(new AssetRef(bg, "BACKGROUND"));
+            if (bg != null) refs.add(new AssetRef("background", bg, "BACKGROUND"));
         }
         return refs;
     }
 
-    private Set<UUID> collectAssetIds(JsonNode manifest) {
-        Set<UUID> ids = new LinkedHashSet<>();
-        for (AssetRef r : collectAssetRefs(manifest)) ids.add(r.assetId());
-        return ids;
-    }
-
-    private com.fasterxml.jackson.databind.node.ArrayNode embedAssets(Set<UUID> ids) {
+    private com.fasterxml.jackson.databind.node.ArrayNode embedAssets(
+            Set<AssetRef> refs) {
         var out = objectMapper.createArrayNode();
-        if (ids.isEmpty()) return out;
-        for (Asset a : assets.findAllById(ids)) {
+        if (refs.isEmpty()) return out;
+        Set<UUID> ids = new LinkedHashSet<>();
+        for (AssetRef r : refs) ids.add(r.assetId());
+        Map<UUID, Asset> byId = new HashMap<>();
+        for (Asset a : assets.findAllById(ids)) byId.put(a.getId(), a);
+        for (AssetRef ref : refs) {
+            Asset a = byId.get(ref.assetId());
+            if (a == null) continue; // validator already rejects missing assets
             ObjectNode node = objectMapper.createObjectNode();
-            node.put("id", a.getId().toString());
+            // Keep the manifest binding: stable key + assetId + role — the
+            // learner resolves assetId → bytes; publish must never lose
+            // role/binding when replacing assets[] with metadata.
+            node.put("id", ref.manifestKey() == null
+                    ? a.getId().toString() : ref.manifestKey());
+            node.put("assetId", a.getId().toString());
+            node.put("role", ref.role());
             node.put("storageKey", a.getStorageKey());
             node.put("mimeType", a.getMimeType());
             node.put("sizeBytes", a.getSizeBytes());

@@ -5,6 +5,7 @@ import 'package:dau_viet_mobile/features/learning/presentation/animations/runtim
 import 'package:dau_viet_mobile/features/learning/presentation/animations/runtime/animation_runtime_registry.dart';
 import 'package:dau_viet_mobile/features/learning/presentation/animations/scenes/historical_map_scene.dart';
 import 'package:dau_viet_mobile/features/learning/presentation/animations/scenes/river_scene.dart';
+import 'package:dau_viet_mobile/features/learning/presentation/animations/widgets/manifest_asset_layers.dart';
 import 'package:dau_viet_mobile/features/learning/presentation/renderers/read_renderer.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -322,6 +323,45 @@ void main() {
       expect(mp.focusedId, 'a');
     });
 
+    test('definition carries manifest canvas aspectRatio + per-step timing', () {
+      final m = _riverManifest();
+      (m['canvas'] as Map)['aspectRatio'] = 2.0;
+      final def = AnimationRuntimeRegistry.resolve('RIVER_TIDE')!
+          .build(AnimationManifestDto.fromJson(m));
+      expect(def.aspectRatio, closeTo(2.0, 0.001));
+      expect(def.steps[0].durationMs, 900);
+      expect(def.steps[0].easing, 'easeInOut');
+      expect(def.steps[1].easing, 'easeInOut'); // default khi thiếu
+    });
+
+    test('build honours the requested playbackMode', () {
+      final manifest = AnimationManifestDto.fromJson(_mapManifest());
+      final renderer = AnimationRuntimeRegistry.resolve('JOURNEY_MAP')!;
+      expect(renderer.build(manifest).playbackMode, 'AUTO');
+      expect(
+        renderer.build(manifest, playbackMode: 'STEPPED').playbackMode,
+        'STEPPED',
+      );
+      expect(
+        renderer.build(manifest, playbackMode: 'INTERACTIVE').playbackMode,
+        'INTERACTIVE',
+      );
+    });
+
+    test('unknown easing falls back to the default curve', () {
+      final m = _riverManifest();
+      final steps = m['steps'] as List;
+      steps[1] = <String, Object>{
+        ...(steps[1] as Map).cast<String, Object>(),
+        'easing': 'springyCustom',
+      };
+      final def = AnimationRuntimeRegistry.resolve('RIVER_TIDE')!
+          .build(AnimationManifestDto.fromJson(m));
+      // Player maps unknown keys to Curves.easeInOut — step field is
+      // preserved verbatim and resolved at play time.
+      expect(def.steps[1].easing, 'springyCustom');
+    });
+
     test('manifest state decodes into typed scene transitions', () {
       final manifest = AnimationManifestDto.fromJson(_mapManifest());
       final def = AnimationRuntimeRegistry.resolve('JOURNEY_MAP')!
@@ -359,6 +399,109 @@ void main() {
       expect(resolver.storageKeyOf('uuid-1'), 'assets/uuid-1.png');
       expect(resolver.altTextOf('uuid-1'), 'Bản đồ nền');
       expect(resolver.storageKeyOf('missing'), isNull);
+    });
+  });
+
+  group('Manifest assets + objects (P0-4)', () {
+    test('parses embedded assets[] keeping {id, assetId, role}', () {
+      final m = _mapManifest();
+      m['assets'] = [
+        {
+          'id': 'bg',
+          'assetId': 'aaaaaaaa-0000-4000-8000-000000000001',
+          'role': 'BACKGROUND',
+          'altText': 'Bản đồ nền',
+        },
+        {
+          'id': 'boat',
+          'assetId': 'bbbbbbbb-0000-4000-8000-000000000002',
+          'role': 'OBJECT',
+          'altText': 'Thuyền',
+        },
+      ];
+      m['objects'] = [
+        {
+          'id': 'obj-1',
+          'type': 'MARKER',
+          'position': {'x': 0.4, 'y': 0.6},
+          'scale': 0.2,
+          'layer': 1,
+          'assetRef': 'boat',
+        },
+        {
+          // Không assetRef → bỏ qua.
+          'id': 'obj-2',
+          'type': 'LABEL',
+          'position': {'x': 0.5, 'y': 0.5},
+        },
+      ];
+      final dto = AnimationManifestDto.fromJson(m);
+      expect(dto.assetRefs, hasLength(2));
+      expect(dto.assetRefs.first.id, 'bg');
+      expect(dto.assetRefs.first.role, 'BACKGROUND');
+      expect(dto.objects, hasLength(2));
+      expect(dto.objects[0].assetRef, 'boat');
+      expect(
+        dto.altTextOf('aaaaaaaa-0000-4000-8000-000000000001'),
+        'Bản đồ nền',
+      );
+    });
+
+    testWidgets('asset layers render only when manifest declares assets', (
+      tester,
+    ) async {
+      final plain = _mapManifest();
+      // Không assets/objects → ManifestAssetLayers trả child nguyên trạng.
+      await tester.pumpWidget(
+        MaterialApp(
+          home: ManifestAssetLayers(
+            manifest: AnimationManifestDto.fromJson(plain),
+            aspectRatio: 1.6,
+            child: const Text('scene'),
+          ),
+        ),
+      );
+      expect(find.text('scene'), findsOneWidget);
+      expect(find.byType(Stack), findsNothing);
+
+      // Manifest có assets+objects → mount Stack + placeholder (không
+      // ProviderScope → không fetch, vẫn không crash).
+      final withAssets = _mapManifest()
+        ..['assets'] = [
+          {
+            'id': 'bg',
+            'assetId': 'aaaaaaaa-0000-4000-8000-000000000001',
+            'role': 'BACKGROUND',
+          },
+          {
+            'id': 'boat',
+            'assetId': 'bbbbbbbb-0000-4000-8000-000000000002',
+            'role': 'OBJECT',
+          },
+        ]
+        ..['objects'] = [
+          {
+            'id': 'obj-1',
+            'type': 'MARKER',
+            'position': {'x': 0.4, 'y': 0.6},
+            'scale': 0.2,
+            'assetRef': 'boat',
+          },
+        ];
+      await tester.pumpWidget(
+        MaterialApp(
+          home: ManifestAssetLayers(
+            manifest: AnimationManifestDto.fromJson(withAssets),
+            aspectRatio: 1.6,
+            child: const Text('scene'),
+          ),
+        ),
+      );
+      expect(find.text('scene'), findsOneWidget);
+      expect(find.byType(Stack), findsOneWidget);
+      // Object layer mount placeholder khung (unauthenticated → không fetch).
+      expect(find.byIcon(Icons.image_outlined), findsOneWidget);
+      expect(tester.takeException(), isNull);
     });
   });
 

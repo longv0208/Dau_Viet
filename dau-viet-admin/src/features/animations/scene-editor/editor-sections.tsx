@@ -21,6 +21,21 @@ import {
   type ManifestObject,
   type ManifestPrediction,
 } from "../animation-types";
+import { useAssetObjectUrl } from "@/features/assets/use-asset-object-url";
+
+/** Preview thumbnail của asset đã chọn (qua BFF auth, một lần). */
+function AssetThumb({ assetId }: { assetId: string }) {
+  const { src } = useAssetObjectUrl(`/api/v1/admin/assets/${assetId}/content`);
+  if (!src) {
+    return <div className="h-14 w-14 rounded-md border border-border bg-surface-alt" aria-hidden />;
+  }
+  // eslint-disable-next-line @next/next/no-img-element
+  return <img src={src} alt="" className="h-14 w-14 rounded-md border border-border object-cover" />;
+}
+
+/** Role mà runtime Flutter + preview thực sự render được — các role còn
+ * lại bị disable để tránh "giả vờ cấu hình được" mà app không vẽ. */
+const SUPPORTED_ASSET_ROLES = new Set(["BACKGROUND", "OBJECT"]);
 
 export interface SectionProps {
   manifest: AnimationManifest;
@@ -190,6 +205,7 @@ export function AssetsSection({ manifest, readOnly, onChange }: SectionProps) {
       <div className="flex flex-col gap-3">
         {assets.map((a, i) => (
           <div key={a.id || i} className="flex flex-wrap items-end gap-2 rounded-md border border-border p-3">
+            <AssetThumb assetId={a.assetId} />
             <div className="min-w-40 flex-1">
               <Label>Tên gọi trong cảnh</Label>
               <Input
@@ -210,8 +226,12 @@ export function AssetsSection({ manifest, readOnly, onChange }: SectionProps) {
                 onChange={(e) => update(i, { role: e.target.value })}
               >
                 {ASSET_ROLES.map((r) => (
-                  <option key={r} value={r}>
-                    {r}
+                  <option
+                    key={r}
+                    value={r}
+                    disabled={!SUPPORTED_ASSET_ROLES.has(r)}
+                  >
+                    {r}{SUPPORTED_ASSET_ROLES.has(r) ? "" : " (chưa hỗ trợ)"}
                   </option>
                 ))}
               </Select>

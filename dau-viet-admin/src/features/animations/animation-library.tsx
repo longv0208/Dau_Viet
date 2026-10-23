@@ -64,6 +64,7 @@ export function AnimationLibrary() {
     mutationFn: (id: string) => animationApi.archiveScene(id),
     onSuccess: invalidate,
   });
+  const actionError = duplicate.error ?? archive.error;
 
   const rows = query.data?.content ?? [];
 
@@ -177,6 +178,12 @@ export function AnimationLibrary() {
           ))}
         </Select>
       </div>
+
+      {actionError && (
+        <p role="alert" className="rounded-md border border-error/40 bg-error/5 px-3 py-2 text-xs text-error">
+          Thao tác thất bại: {actionError.message}
+        </p>
+      )}
 
       <DataTable
         columns={columns}

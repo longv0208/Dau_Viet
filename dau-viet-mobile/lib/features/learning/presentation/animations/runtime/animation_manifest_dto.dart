@@ -34,6 +34,21 @@ class AnimationManifestDto {
   final List<MapLocation> locations;
   final List<MapRoute> routes;
 
+  /// P0-4 — assets[] đã embed trong snapshot publish: `{id, assetId, role}`
+  /// + metadata (storageKey/mimeType/altText); `id` là manifest key. Draft
+  /// cũng đọc được (`{id, assetId, role}`) — resolver chấp nhận cả hai.
+  final List<AnimationAssetRefDto> assetRefs;
+
+  /// P0-4 — objects[] có `assetRef` → assets[].id; position/scale/layer/
+  /// shape chuẩn hóa. Chỉ object resolve được role OBJECT mới render.
+  final List<AnimationObjectDto> objects;
+
+  /// JOURNEY_MAP — assetId của ảnh nền bản đồ (map.backgroundAssetId).
+  final String? backgroundAssetId;
+
+  /// assetId → altText đã embed trong snapshot (a11y/fallback text).
+  final Map<String, String> assetAltText;
+
   const AnimationManifestDto({
     required this.schemaVersion,
     required this.rendererCode,
@@ -51,7 +66,29 @@ class AnimationManifestDto {
     this.stakes = const [],
     this.locations = const [],
     this.routes = const [],
+    this.assetRefs = const [],
+    this.objects = const [],
+    this.backgroundAssetId,
+    this.assetAltText = const {},
   });
+
+  /// altText của assetId (từ metadata embed trong snapshot); null khi
+  /// snapshot chưa pin meta — caller dùng nhãn dự phòng.
+  String? altTextOf(String assetId) => assetAltText[assetId];
+
+  /// Instance rỗng — dùng làm fallback khi caller không có manifest
+  /// (legacy animationKey). Không asset/object nào → ManifestAssetLayers
+  /// trả child nguyên trạng.
+  static const empty = AnimationManifestDto(
+    schemaVersion: 1,
+    rendererCode: '',
+    rendererVersion: 1,
+    title: '',
+    learningObjective: '',
+    canvasAspectRatio: 1.6,
+    steps: [],
+    disclaimer: '',
+  );
 
   /// Parse embedded manifest — field thiếu/sai nhận default an toàn,
   /// không throw (app cũ đọc manifest mới vẫn render phần đọc được).
@@ -100,6 +137,22 @@ class AnimationManifestDto {
                 if (r is Map) _route(r),
             ]
           : const [],
+      assetRefs: _assetRefs(json['assets']),
+      objects: [
+        for (final o in _list(json['objects']))
+          if (o is Map) AnimationObjectDto.fromJson(o),
+      ],
+      backgroundAssetId: map is Map
+          ? map['backgroundAssetId'] as String?
+          : null,
+      assetAltText: {
+        for (final a in _list(json['assets']))
+          if (a is Map)
+            // Snapshot embed: id = manifest key, assetId = uuid thật;
+            // draft cũ: id có thể chính là uuid. Cả hai đều map về
+            // assetId fetch được.
+            '${a['assetId'] ?? a['id']}': '${a['altText'] ?? ''}',
+      }..removeWhere((k, v) => v.isEmpty || k == 'null'),
     );
   }
 
@@ -114,6 +167,19 @@ class AnimationManifestDto {
 
   static AnimationPredictionDto? _prediction(Object? raw) =>
       raw is Map ? AnimationPredictionDto.fromJson(raw) : null;
+
+  /// assets[] → ref typed. Snapshot embed đã pin `{id:<key>, assetId,
+  /// role}`; bỏ entry thiếu assetId (validator backend đã chặn, đây là
+  /// lớp phòng thủ thứ hai cho payload thủ công).
+  static List<AnimationAssetRefDto> _assetRefs(Object? raw) => [
+        for (final a in _list(raw))
+          if (a is Map && a['assetId'] != null)
+            AnimationAssetRefDto(
+              id: '${a['id'] ?? ''}',
+              assetId: '${a['assetId']}',
+              role: '${a['role'] ?? 'OBJECT'}',
+            ),
+      ];
 
   static MapLocation _location(Map l) => MapLocation(
         id: '${l['id'] ?? ''}',
@@ -233,6 +299,8 @@ class RiverStakeDto {
 }
 
 /// Một asset reference trong manifest — resolver map sang snapshot assets[].
+/// Draft `{id:<key>, assetId:<uuid>, role}`; snapshot publish thêm
+/// storageKey/mimeType/altText — DTO giữ đủ cả hai dạng.
 class AnimationAssetRefDto {
   final String id;
   final String assetId;
@@ -245,10 +313,59 @@ class AnimationAssetRefDto {
   });
 }
 
+/// P0-4 — objects[] entry: vật thể đặt trên canvas ở vị trí chuẩn hóa.
+/// `assetRef` trỏ tới assets[].id — chỉ entry resolve được role OBJECT
+/// mới render (role khác bị bỏ qua, không "giả vờ" cấu hình được).
+class AnimationObjectDto {
+  final String id;
+  final String type;
+
+  /// Tâm vật thể theo tọa độ chuẩn hóa 0..1.
+  final Offset position;
+
+  /// Đường kính vật thể theo tỉ lệ chiều rộng canvas (mặc định ~12%).
+  final double scale;
+
+  /// Thứ tự chồng lấp — cao hơn vẽ sau (trên cùng).
+  final int layer;
+  final bool visible;
+  final String shape;
+
+  /// Khóa tham chiếu sang assets[].id — null khi object không gắn ảnh.
+  final String? assetRef;
+
+  const AnimationObjectDto({
+    required this.id,
+    required this.type,
+    required this.position,
+    this.scale = 0.12,
+    this.layer = 0,
+    this.visible = true,
+    this.shape = 'rect',
+    this.assetRef,
+  });
+
+  factory AnimationObjectDto.fromJson(Map json) => AnimationObjectDto(
+        id: '${json['id'] ?? ''}',
+        type: '${json['type'] ?? ''}',
+        position: Offset(
+          _double((json['position'] as Map?)?['x'], 0.5),
+          _double((json['position'] as Map?)?['y'], 0.5),
+        ),
+        scale: _double(json['scale'], 0.12),
+        layer: _int(json['layer'], 0),
+        visible: json['visible'] != false,
+        shape: json['shape'] as String? ?? 'rect',
+        assetRef: json['assetRef'] as String?,
+      );
+}
+
 /// Bridge: manifest → typed definition của runtime cũ — tái dùng
 /// painter/player hiện có (RiverSceneState/MapSceneState lerp sẵn).
 extension AnimationManifestToDefinition on AnimationManifestDto {
-  HistoricalAnimationDefinition toDefinition() {
+  /// `playbackMode` lấy từ READ config (AUTO/STEPPED/INTERACTIVE) —
+  /// read_renderer truyền vào; manifest không mang field này.
+  HistoricalAnimationDefinition toDefinition({String playbackMode = 'AUTO'}) {
     final steps = this.steps
         .map(
           (s) => HistoricalAnimationStep(
@@ -256,6 +373,8 @@ extension AnimationManifestToDefinition on AnimationManifestDto {
             narration: s.narration,
             hint: s.hint,
             target: _target(s.targetState),
+            durationMs: s.durationMs > 0 ? s.durationMs : null,
+            easing: s.easing,
           ),
         )
         .toList();
@@ -279,6 +398,8 @@ extension AnimationManifestToDefinition on AnimationManifestDto {
       transitionDuration: transitionDuration,
       hasWaterControl: hasWaterControl,
       hasLocationExplorer: hasLocationExplorer,
+      aspectRatio: canvasAspectRatio,
+      playbackMode: playbackMode,
       createPainter: rendererCode == 'RIVER_TIDE'
           ? () => _seedRiver(RiverScenePainter(
                 stakes: stakes.isEmpty

@@ -90,6 +90,10 @@ export interface ManifestObject {
   rotation?: number;
   visible?: boolean;
   layer?: number;
+  /** Khóa tham chiếu sang assets[].id — chỉ entry role OBJECT mới render ảnh. */
+  assetRef?: string;
+  /** "rect" | "circle" — shape của khung ảnh (mặc định rect). */
+  shape?: string;
 }
 
 export interface ManifestStep {

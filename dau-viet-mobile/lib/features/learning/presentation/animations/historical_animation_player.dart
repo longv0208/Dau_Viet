@@ -61,6 +61,9 @@ class _HistoricalAnimationPlayerState extends State<HistoricalAnimationPlayer>
   // Địa điểm đang chọn trên map (ANIM-02) — local UI state.
   String? _selectedLocationId;
 
+  /// Curve áp cho tween hiện tại — mỗi bước có thể chọn easing riêng.
+  Curve _stepCurve = Curves.easeInOut;
+
   bool get _reduceMotion =>
       MediaQuery.maybeDisableAnimationsOf(context) ?? false;
 
@@ -90,7 +93,7 @@ class _HistoricalAnimationPlayerState extends State<HistoricalAnimationPlayer>
   }
 
   void _onTick() {
-    final t = Curves.easeInOut.transform(_controller.value);
+    final t = _stepCurve.transform(_controller.value);
     setState(() => _applyCurrent(t));
   }
 
@@ -118,6 +121,9 @@ class _HistoricalAnimationPlayerState extends State<HistoricalAnimationPlayer>
       // chuyển bước giữa chừng không nhảy, mượt từ vị trí hiện tại.
       _tweenFrom = _current!.captured(_painter);
     }
+    // Easing của tween tới bước này — whitelist manifest, bước thiếu
+    // giữ curve mặc định. Map: manifest key → Flutter curve.
+    _stepCurve = _curveOf(step.easing);
     if (animate && !_reduceMotion && step.target != null) {
       _controller
         ..stop()
@@ -129,13 +135,33 @@ class _HistoricalAnimationPlayerState extends State<HistoricalAnimationPlayer>
     }
   }
 
+  static const Map<String, Curve> _easingMap = {
+    'linear': Curves.linear,
+    'easeIn': Curves.easeIn,
+    'easeOut': Curves.easeOut,
+    'easeInOut': Curves.easeInOut,
+    'easeInOutCubic': Curves.easeInOutCubic,
+  };
+
+  static Curve _curveOf(String easing) =>
+      _easingMap[easing] ?? Curves.easeInOut;
+
   void _scheduleAdvance() {
     _advanceTimer?.cancel();
     if (!_playing) return;
+    // Chế độ STEPPED/INTERACTIVE: không auto-advance — học viên tự bấm
+    // (STEPPED) hoặc khám phá tương tác (INTERACTIVE). AUTO mới đặt timer.
+    if (widget.definition.playbackMode != 'AUTO') return;
+    final step = widget.definition.steps[_stepIndex];
+    // durationMs (manifest) = TỔNG thời gian ở bước (transition + hold).
+    // Mặc định: transitionDuration + 2.2s hold cho đọc narration.
+    final total = step.durationMs != null
+        ? Duration(milliseconds: step.durationMs!)
+        : widget.definition.transitionDuration +
+            const Duration(milliseconds: 2200);
     final delay = _reduceMotion
         ? const Duration(seconds: 4) // cho đọc khi không có motion
-        : widget.definition.transitionDuration +
-              const Duration(milliseconds: 2200);
+        : total;
     _advanceTimer = Timer(delay, () {
       if (!mounted || !_playing) return;
       if (_stepIndex < widget.definition.steps.length - 1) {
@@ -298,7 +324,7 @@ class _HistoricalAnimationPlayerState extends State<HistoricalAnimationPlayer>
               '${_step.label}',
           image: true,
           child: AspectRatio(
-            aspectRatio: 16 / 10,
+            aspectRatio: def.aspectRatio,
             child: ClipRRect(
               borderRadius: BorderRadius.circular(10),
               child: Container(

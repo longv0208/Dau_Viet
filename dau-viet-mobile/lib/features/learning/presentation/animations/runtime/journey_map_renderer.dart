@@ -21,6 +21,9 @@ class JourneyMapRenderer extends AnimationSceneRenderer {
       manifest.locations.isNotEmpty;
 
   @override
-  HistoricalAnimationDefinition build(AnimationManifestDto manifest) =>
-      manifest.toDefinition();
+  HistoricalAnimationDefinition build(
+    AnimationManifestDto manifest, {
+    String playbackMode = 'AUTO',
+  }) =>
+      manifest.toDefinition(playbackMode: playbackMode);
 }

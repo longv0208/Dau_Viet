@@ -163,9 +163,15 @@ export function SceneEditor({ sceneId }: { sceneId: string }) {
           <PublishSection scene={ed.scene} onSaved={() => ed.refetch()} />
         </div>
 
-        {/* Cột preview sticky */}
+        {/* Cột preview sticky — render manifest đang soạn (bản nháp chưa lưu),
+            KHÔNG phải phiên bản đã publish. */}
         <div className="lg:sticky lg:top-20 lg:self-start">
           <Section title="Xem trước tương tác">
+            <p className="mb-2 text-[11px] text-ink-muted">
+              Xem trước phản ánh nội dung đang soạn{ed.dirty ? " (chưa lưu)" : " (bản nháp đã lưu)"}
+              {ed.scene.currentVersionNo != null &&
+                ` — phiên bản đã phát hành v${ed.scene.currentVersionNo} không đổi.`}
+            </p>
             <ScenePreview manifest={m} />
           </Section>
         </div>

@@ -98,7 +98,9 @@ class AnimationManifestValidatorTest {
               "initialState": {"markerVisibility": {"hat-mon": true}},
               "steps": [{"id": "s1", "title": "Khởi đầu",
                          "targetState": {"focusedLocationId": "hat-mon"}}],
-              "interactions": ["TAP_TO_EXPLORE"]
+              "interactions": ["TAP_TO_EXPLORE"],
+              "sourceReferences": [{"title": "Đại Việt sử ký"}],
+              "disclaimer": "Bản đồ schematic"
             }
             """;
     }
@@ -235,5 +237,136 @@ class AnimationManifestValidatorTest {
         assertTrue(run(json, mapTemplate).stream()
                 .anyMatch(e -> e.code().equals("MISSING_FIELD")
                         && e.path().equals("manifest.map.locations")));
+    }
+
+    /* ---------- P1-9 hardening ---------- */
+
+    @Test
+    void rejectsMissingSourceReferences() {
+        String json = riverManifest().replace(
+                "\"sourceReferences\": [{\"title\": \"Bảo tàng LSQG\"}],", "");
+        assertTrue(run(json, riverTemplate).stream()
+                .anyMatch(e -> e.code().equals("MISSING_FIELD")
+                        && e.path().equals("manifest.sourceReferences")));
+    }
+
+    @Test
+    void rejectsEmptySourceReferences() {
+        String json2 = riverManifest().replace(
+                "[{\"title\": \"Bảo tàng LSQG\"}]", "[]");
+        assertTrue(run(json2, riverTemplate).stream()
+                .anyMatch(e -> e.code().equals("MISSING_FIELD")
+                        && e.path().equals("manifest.sourceReferences")));
+    }
+
+    @Test
+    void rejectsMissingDisclaimer() {
+        String json = riverManifest().replace(
+                "\"disclaimer\": \"Minh họa mô phỏng\"", "\"disclaimerX\": 1");
+        assertTrue(run(json, riverTemplate).stream()
+                .anyMatch(e -> e.code().equals("MISSING_FIELD")
+                        && e.path().equals("manifest.disclaimer")));
+    }
+
+    @Test
+    void rejectsInactiveBackgroundAsset() {
+        when(assets.existsByIdAndState(any(UUID.class), eq("ACTIVE"))).thenReturn(false);
+        String json = mapManifest().replace(
+                "\"routes\": [",
+                "\"backgroundAssetId\": \"" + UUID.randomUUID() + "\", \"routes\": [");
+        assertTrue(run(json, mapTemplate).stream()
+                .anyMatch(e -> e.code().equals("ASSET_NOT_FOUND")
+                        && e.path().equals("manifest.map.backgroundAssetId")));
+    }
+
+    @Test
+    void rejectsWaterLevelOutOfRange() {
+        String json = riverManifest().replace(
+                "\"targetState\": {\"waterLevel\": 0.9}",
+                "\"targetState\": {\"waterLevel\": 1.5}");
+        assertTrue(run(json, riverTemplate).stream()
+                .anyMatch(e -> e.code().equals("OUT_OF_RANGE")
+                        && e.path().contains("waterLevel")));
+    }
+
+    @Test
+    void rejectsMarkerVisibilityUnknownLocation() {
+        String json = mapManifest().replace(
+                "\"markerVisibility\": {\"hat-mon\": true}",
+                "\"markerVisibility\": {\"nowhere\": 1}");
+        assertTrue(run(json, mapTemplate).stream()
+                .anyMatch(e -> e.code().equals("UNKNOWN_REF")
+                        && e.path().contains("markerVisibility")));
+    }
+
+    @Test
+    void rejectsRouteProgressUnknownRoute() {
+        String json = mapManifest().replace(
+                "\"targetState\": {\"focusedLocationId\": \"hat-mon\"}",
+                "\"targetState\": {\"routeProgress\": {\"ghost-route\": 0.5}}");
+        assertTrue(run(json, mapTemplate).stream()
+                .anyMatch(e -> e.code().equals("UNKNOWN_REF")
+                        && e.path().contains("routeProgress")));
+    }
+
+    @Test
+    void rejectsFocusedLocationUnknown() {
+        String json = mapManifest().replace(
+                "\"focusedLocationId\": \"hat-mon\"",
+                "\"focusedLocationId\": \"nowhere\"");
+        assertTrue(run(json, mapTemplate).stream()
+                .anyMatch(e -> e.code().equals("UNKNOWN_REF")
+                        && e.path().contains("focusedLocationId")));
+    }
+
+    /* ---------- P1-6 renderer/schema version compat ---------- */
+
+    @Test
+    void rejectsNewerRendererVersionThanTemplate() {
+        String json = riverManifest().replace(
+                "\"rendererVersion\": 1", "\"rendererVersion\": 2");
+        assertTrue(run(json, riverTemplate).stream()
+                .anyMatch(e -> e.code().equals("UNSUPPORTED_VERSION")
+                        && e.path().equals("manifest.rendererVersion")));
+    }
+
+    @Test
+    void acceptsMatchingOrOlderRendererVersion() {
+        // rendererVersion == template.rendererVersion → pass.
+        assertTrue(run(riverManifest(), riverTemplate).isEmpty());
+        // rendererVersion thấp hơn template vẫn tương thích (app cũ đọc
+        // manifest cũ) — field khác giữ nguyên.
+        String json = riverManifest().replace(
+                "\"rendererVersion\": 1", "\"rendererVersion\": 1");
+        riverTemplate.setRendererVersion(3);
+        assertTrue(run(json, riverTemplate).isEmpty());
+    }
+
+    @Test
+    void rejectsRendererVersionBelowOne() {
+        String json = riverManifest().replace(
+                "\"rendererVersion\": 1", "\"rendererVersion\": 0");
+        assertTrue(run(json, riverTemplate).stream()
+                .anyMatch(e -> e.code().equals("INVALID_VALUE")
+                        && e.path().equals("manifest.rendererVersion")));
+    }
+
+    @Test
+    void rejectsUnsupportedSchemaVersion() {
+        String json = riverManifest().replace(
+                "\"schemaVersion\": 1", "\"schemaVersion\": 99");
+        assertTrue(run(json, riverTemplate).stream()
+                .anyMatch(e -> e.code().equals("UNSUPPORTED_SCHEMA")
+                        && e.path().equals("manifest.schemaVersion")));
+    }
+
+    @Test
+    void rejectsStakeVisibilityUnknownStake() {
+        String json = riverManifest().replace(
+                "\"targetState\": {\"waterLevel\": 0.3}",
+                "\"targetState\": {\"stakeVisibility\": {\"ghost\": 1}}");
+        assertTrue(run(json, riverTemplate).stream()
+                .anyMatch(e -> e.code().equals("UNKNOWN_REF")
+                        && e.path().contains("stakeVisibility")));
     }
 }

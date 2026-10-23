@@ -112,8 +112,17 @@ public class AnimationSceneService {
             }
             return cb.and(preds.toArray(new Predicate[0]));
         };
-        return scenes.findAll(spec, pageable)
-                .map(s -> mapper.toSceneSummary(s, versions));
+        Page<AnimationScene> page = scenes.findAll(spec, pageable);
+        // Batch-load renderer codes to avoid N+1 template lookups per row.
+        java.util.Set<UUID> templateIds = page.getContent().stream()
+                .map(AnimationScene::getTemplateId)
+                .collect(java.util.stream.Collectors.toSet());
+        java.util.Map<UUID, String> rendererByTemplate = templates.findAllById(templateIds)
+                .stream()
+                .collect(java.util.stream.Collectors.toMap(
+                        AnimationTemplate::getId, AnimationTemplate::getRendererCode));
+        return page.map(s -> mapper.toSceneSummary(
+                s, rendererByTemplate.get(s.getTemplateId()), versions));
     }
 
     @Transactional(readOnly = true)

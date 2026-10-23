@@ -18,11 +18,21 @@ class HistoricalAnimationStep {
   /// MapSceneState); player chỉ biết [SceneTransition.lerp].
   final SceneTransition? target;
 
+  /// Tổng thời gian ở lại bước này khi AUTO (transition + hold) — ms.
+  /// Bước không khai báo → definition.transitionDuration + hold mặc định.
+  final int? durationMs;
+
+  /// Easing của transition vào bước này — whitelist manifest
+  /// {linear, easeIn, easeOut, easeInOut, easeInOutCubic}.
+  final String easing;
+
   const HistoricalAnimationStep({
     required this.label,
     required this.narration,
     this.hint,
     this.target,
+    this.durationMs,
+    this.easing = 'easeInOut',
   });
 }
 
@@ -130,8 +140,14 @@ class HistoricalAnimationDefinition {
   /// scene). Player render overlay tương tác thay vì canvas thuần.
   final bool hasLocationExplorer;
 
-  /// Cờ "đang chơi" ngầm định ban đầu — map scene thường bắt đầu với
-  /// một transition rỗng; river scene giữ hành vi cũ.
+  /// canvas.aspectRatio từ manifest — KHÔNG hard-code 16/10 ở player.
+  final double aspectRatio;
+
+  /// Chế độ phát khai báo trong READ config: AUTO (tự chạy hết),
+  /// STEPPED (học viên tự bấm từng bước), INTERACTIVE (giữ các control
+  /// tương tác như TAP_TO_EXPLORE / WATER_LEVEL_CONTROL).
+  final String playbackMode;
+
   const HistoricalAnimationDefinition({
     required this.key,
     required this.title,
@@ -144,5 +160,7 @@ class HistoricalAnimationDefinition {
     this.transitionDuration = const Duration(milliseconds: 900),
     this.hasWaterControl = false,
     this.hasLocationExplorer = false,
+    this.aspectRatio = 16 / 10,
+    this.playbackMode = 'AUTO',
   });
 }

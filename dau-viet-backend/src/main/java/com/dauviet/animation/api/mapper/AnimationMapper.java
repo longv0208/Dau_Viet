@@ -40,7 +40,7 @@ public class AnimationMapper {
                 s.getRowVersion(), s.getCreatedAt(), s.getUpdatedAt());
     }
 
-    public SceneSummaryResponse toSceneSummary(AnimationScene s,
+    public SceneSummaryResponse toSceneSummary(AnimationScene s, String rendererCode,
                                                AnimationSceneVersionRepository versions) {
         Integer currentNo = null;
         if (s.getCurrentVersionId() != null) {
@@ -48,8 +48,9 @@ public class AnimationMapper {
                     .map(AnimationSceneVersion::getVersionNo).orElse(null);
         }
         return new SceneSummaryResponse(
-                s.getId(), s.getTemplateId(), null, s.getEventId(), s.getTitle(),
-                s.getStatus().name(), currentNo, s.getRowVersion(), s.getUpdatedAt());
+                s.getId(), s.getTemplateId(), rendererCode, s.getEventId(), s.getTitle(),
+                s.getStatus().name(), s.getCurrentVersionId(), currentNo,
+                s.getRowVersion(), s.getUpdatedAt());
     }
 
     public SceneVersionSummary toVersionSummary(AnimationSceneVersion v) {

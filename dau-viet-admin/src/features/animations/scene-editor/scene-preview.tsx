@@ -4,8 +4,17 @@ import { useEffect, useMemo, useState } from "react";
 import { Pause, Play, SkipBack, SkipForward } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
+import { useAssetObjectUrl } from "@/features/assets/use-asset-object-url";
 
 import type { AnimationManifest, ManifestStep } from "../animation-types";
+
+/** Ảnh nền preview — tải qua BFF có auth, một lần (không per-frame). */
+function ManifestImage({ assetId, alt, className }: { assetId: string; alt: string; className?: string }) {
+  const { src } = useAssetObjectUrl(`/api/v1/admin/assets/${assetId}/content`);
+  if (!src) return null;
+  // eslint-disable-next-line @next/next/no-img-element
+  return <img src={src} alt={alt} className={className} />;
+}
 
 /**
  * Preview tương tác thật: đọc manifest.steps[].targetState và vẽ lại
@@ -57,20 +66,68 @@ export function ScenePreview({ manifest }: { manifest: AnimationManifest }) {
   const allowWater = step?.allowedInteractions?.includes("WATER_LEVEL_CONTROL");
   const allowTap = step?.allowedInteractions?.includes("TAP_TO_EXPLORE");
 
+  const aspect = manifest.canvas?.aspectRatio ?? 1.6;
+  const assets = manifest.assets ?? [];
+  const objects = manifest.objects ?? [];
+
+  // Ảnh nền: map.backgroundAssetId → assets[] role BACKGROUND đầu tiên.
+  const bgAssetId = manifest.map?.backgroundAssetId ??
+    assets.find((a) => a.role === "BACKGROUND")?.assetId;
+  // Vật thể ảnh: objects[] có assetRef → assets[] entry role OBJECT.
+  const objectLayers = useMemo(() => {
+    const byKey = new Map(assets.map((a) => [a.id, a]));
+    return objects
+      .filter((o) => o.visible !== false && o.assetRef && byKey.get(o.assetRef)?.role === "OBJECT")
+      .map((o) => ({ object: o, ref: byKey.get(o.assetRef!)! }))
+      .sort((a, b) => (a.object.layer ?? 0) - (b.object.layer ?? 0));
+  }, [assets, objects]);
+
   return (
     <div className="flex flex-col gap-3">
-      <div className="overflow-hidden rounded-lg border border-border bg-[#f3ead3]">
-        {manifest.rendererCode === "RIVER_TIDE" ? (
-          <RiverPreview manifest={manifest} state={state} />
-        ) : (
-          <MapPreview
-            manifest={manifest}
-            state={state}
-            interactive={!!allowTap}
-            tappedId={tappedId}
-            onTap={setTappedId}
+      <div
+        className="relative overflow-hidden rounded-lg border border-border bg-[#f3ead3]"
+        style={{ aspectRatio: String(aspect) }}
+      >
+        {/* Ảnh nền (mờ, dưới painter) — preview parity với Flutter. */}
+        {bgAssetId && (
+          <ManifestImage
+            assetId={bgAssetId}
+            alt={assets.find((a) => a.assetId === bgAssetId)?.assetId ?? "Nền minh họa"}
+            className="absolute inset-0 h-full w-full object-cover opacity-45"
           />
         )}
+        <div className="absolute inset-0">
+          {manifest.rendererCode === "RIVER_TIDE" ? (
+            <RiverPreview manifest={manifest} state={state} />
+          ) : (
+            <MapPreview
+              manifest={manifest}
+              state={state}
+              interactive={!!allowTap}
+              tappedId={tappedId}
+              onTap={setTappedId}
+            />
+          )}
+        </div>
+        {/* Vật thể ảnh theo tọa độ chuẩn hóa + layer — preview parity. */}
+        {objectLayers.map(({ object, ref }) => {
+          const w = `${Math.max(24, Math.round((object.scale ?? 0.12) * 640))}px`;
+          const x = (object.position?.x ?? 0.5) * 100;
+          const y = (object.position?.y ?? 0.5) * 100;
+          return (
+            <div
+              key={object.id}
+              className="absolute -translate-x-1/2 -translate-y-1/2 overflow-hidden rounded-md border border-border bg-surface-alt"
+              style={{ left: `${x}%`, top: `${y}%`, width: w, height: w }}
+            >
+              <ManifestImage
+                assetId={ref.assetId}
+                alt={object.id}
+                className="h-full w-full object-cover"
+              />
+            </div>
+          );
+        })}
       </div>
 
       {/* Chú giải tương tác */}

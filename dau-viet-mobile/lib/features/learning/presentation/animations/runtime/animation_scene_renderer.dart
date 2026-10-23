@@ -18,6 +18,11 @@ abstract class AnimationSceneRenderer {
   /// locations; river không bắt buộc stakes vì có field mặc định).
   bool canRender(AnimationManifestDto manifest);
 
-  /// Build definition cho [HistoricalAnimationPlayer].
-  HistoricalAnimationDefinition build(AnimationManifestDto manifest);
+  /// Build definition cho [HistoricalAnimationPlayer]. `playbackMode`
+  /// đến từ READ config (AUTO/STEPPED/INTERACTIVE), không nằm trong
+  /// manifest — renderer truyền thẳng cho definition.
+  HistoricalAnimationDefinition build(
+    AnimationManifestDto manifest, {
+    String playbackMode = 'AUTO',
+  });
 }
