@@ -69,31 +69,46 @@ class ReadRenderer extends StatelessWidget {
     // resolve qua registry hard-code. Cả hai đều null → render text
     // thường; rendererCode lạ (app cũ gặp renderer mới) → fallback
     // placeholder an toàn, KHÔNG crash.
-    final manifestDto = AnimationRuntimeRegistry.parseManifest(
+    //
+    // FIX-P1 — phân biệt 3 nhánh, KHÔNG để manifest hỏng rơi về
+    // animationKey (đó là scene khác, sai ngữ cảnh):
+    //   1. Không có animationManifest, không animationKey → text thường.
+    //   2. Chỉ legacy animationKey → registry hard-code (snapshot cũ).
+    //   3. Có animationManifest nhưng invalid/unsupported → notice rõ,
+    //      giữ nội dung đọc, không crash, không tự hoàn thành bài.
+    final parseRes = AnimationRuntimeRegistry.parseManifestDetailed(
       config['animationManifest'],
     );
+    final manifestDto = parseRes.dto;
     final manifestRenderer = manifestDto == null
         ? null
         : AnimationRuntimeRegistry.resolve(manifestDto.rendererCode);
     final playbackMode = configText(config, ['playbackMode']) ?? 'AUTO';
-    // Khi có manifestDto: render theo manifest NẾU renderer hỗ trợ +
-    // manifest đủ cấu trúc; nếu không → null (không silent fallback
-    // sang animationKey — đó là scene khác, sai ngữ cảnh). Chỉ khi KHÔNG
-    // có manifestDto mới resolve legacy animationKey (snapshot cũ).
-    final animation = manifestDto != null
-        ? (manifestRenderer != null && manifestRenderer.canRender(manifestDto)
-            ? manifestRenderer.build(manifestDto, playbackMode: playbackMode)
-            : null)
+    // Có manifest (parseRes.present): render theo manifest NẾU hợp lệ;
+    // nếu không → null + notice. Chỉ khi manifest ABSENT (không có key
+    // animationManifest) mới resolve legacy animationKey (snapshot cũ).
+    final bool manifestPresent = parseRes.present;
+    final animation = manifestPresent
+        ? (manifestDto != null &&
+                  manifestRenderer != null &&
+                  manifestRenderer.canRender(manifestDto)
+              ? manifestRenderer.build(manifestDto, playbackMode: playbackMode)
+              : null)
         : HistoricalAnimationRegistry.resolve(
             configText(config, ['animationKey']),
           );
-    // P1 §9 — "unsupported" gồm: rendererCode lạ (resolve=null) HOẶC
-    // renderer khớp nhưng manifest không đủ cấu trúc/version
-    // (canRender=false — vd map thiếu locations, rendererVersion mới hơn
-    // app). Cả hai đều hiện notice thay vì im lặng rơi về animationKey
-    // fallback (có thể mount animation CŨ sai ngữ cảnh).
-    final bool unsupportedManifest = manifestDto != null &&
-        (manifestRenderer == null || !manifestRenderer.canRender(manifestDto));
+    // "unsupported" gồm: (a) manifest present nhưng invalid shape /
+    // parse fail (dto=null), (b) rendererCode lạ (resolve=null), hoặc
+    // (c) renderer khớp nhưng manifest không đủ cấu trúc/version
+    // (canRender=false — vd map thiếu locations, rendererVersion/
+    // schemaVersion mới hơn app). Tất cả hiện notice thay vì im lặng
+    // rơi về animationKey fallback (có thể mount animation CŨ sai ngữ
+    // cảnh). Notice KHÔNG chứa JSON/nội bộ — chỉ title + thông báo.
+    final bool unsupportedManifest =
+        manifestPresent &&
+        (manifestDto == null ||
+            manifestRenderer == null ||
+            !manifestRenderer.canRender(manifestDto));
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -114,7 +129,7 @@ class ReadRenderer extends StatelessWidget {
         ] else if (unsupportedManifest) ...[
           // ANIM-03: app cũ gặp manifest của renderer chưa hỗ trợ —
           // fallback rõ ràng thay vì crash hay im lặng trắng.
-          _UnsupportedAnimationNotice(title: manifestDto.title),
+          _UnsupportedAnimationNotice(title: manifestDto?.title ?? ''),
           const SizedBox(height: 14),
         ],
         ActivityCard(
@@ -211,8 +226,7 @@ class _CinematicBoundPlayer extends StatefulWidget {
   });
 
   @override
-  State<_CinematicBoundPlayer> createState() =>
-      _CinematicBoundPlayerState();
+  State<_CinematicBoundPlayer> createState() => _CinematicBoundPlayerState();
 }
 
 class _CinematicBoundPlayerState extends State<_CinematicBoundPlayer> {

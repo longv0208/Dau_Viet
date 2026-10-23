@@ -121,6 +121,121 @@ void main() {
     });
   });
 
+  /* ---------- FIX-P1 §3 — camera easing override semantics ----------
+     Parity với cinematic-eval.test.ts: override áp trên RAW progress
+     đúng 1 lần; không override → dùng easedT của step.easing. */
+  group('CinematicEvaluator camera easing override (FIX-P1)', () {
+    // Camera ban đầu 0→1 trên x (đích step 0: x=1, zoom=2).
+    const camInitial = CameraState(center: Offset(0, 0.5), zoom: 1);
+    const camSteps = [
+      CameraState(center: Offset(1, 0.5), zoom: 2),
+      CameraState(center: Offset(0, 0.5), zoom: 1),
+    ];
+
+    CinematicEvaluator mk({
+      List<Curve?> easings = const [],
+      List<int> camDurMs = const [],
+      List<int> stepDurMs = const [2000, 2000],
+    }) => CinematicEvaluator(
+      cameraInitial: camInitial,
+      cameraSteps: camSteps,
+      cameraEasings: easings,
+      cameraStepDurationsMs: camDurMs,
+      stepDurationsMs: stepDurMs,
+    );
+
+    test('camera.easing override nội suy trên RAW, không double-ease', () {
+      // step.easing=easeOut → caller truyền easedT = easeOut(0.5) = 0.75.
+      // camera.easing=linear → camT = raw = 0.5 → x = 0.5 (không phải 0.75).
+      final ev = mk(easings: const [Curves.linear]);
+      final f = ev.cameraAtRaw(0, 0.75, 0.5);
+      expect(f.center.dx, closeTo(0.5, 1e-9));
+    });
+
+    test('step linear + camera easeIn → easeIn áp 1 lần trên raw', () {
+      // step linear → easedT = raw; camera easeIn → camT = easeIn(raw).
+      // Lưu ý: Curves.easeIn của Flutter là cubic-bezier (0.42,0,1,1),
+      // khác x² của TS easeValue — nhưng contract giống nhau (override
+      // áp lên raw đúng 1 lần) nên expected tính từ cùng Curve object.
+      final ev = mk(easings: const [Curves.easeIn]);
+      for (final raw in const [0.0, 0.25, 0.5, 0.75, 1.0]) {
+        final f = ev.cameraAtRaw(0, raw, raw);
+        expect(
+          f.center.dx,
+          closeTo(Curves.easeIn.transform(raw), 1e-5),
+          reason: 'raw=$raw',
+        );
+      }
+    });
+
+    test('step easeOut + camera linear → camera linear trên raw', () {
+      // easedT = easeOut(raw); camera linear → camT = raw.
+      final ev = mk(easings: const [Curves.linear]);
+      for (final raw in const [0.0, 0.25, 0.5, 0.75, 1.0]) {
+        final easedT = Curves.easeOut.transform(raw);
+        final f = ev.cameraAtRaw(0, easedT, raw);
+        expect(f.center.dx, closeTo(raw, 1e-5), reason: 'raw=$raw');
+      }
+    });
+
+    test('step easeInOut + camera easeOut → camera easeOut trên raw', () {
+      final ev = mk(easings: const [Curves.easeOut]);
+      for (final raw in const [0.0, 0.25, 0.5, 0.75, 1.0]) {
+        final easedT = Curves.easeInOut.transform(raw);
+        final f = ev.cameraAtRaw(0, easedT, raw);
+        expect(
+          f.center.dx,
+          closeTo(Curves.easeOut.transform(raw), 1e-5),
+          reason: 'raw=$raw',
+        );
+      }
+    });
+
+    test(
+      'camDur<stepDur + camera.easing → ease 1 lần trong window rồi hold',
+      () {
+        // step=2000ms, camera=500ms → cap=0.25. camera.easing=easeIn.
+        final ev = mk(
+          easings: const [Curves.easeIn],
+          camDurMs: const [500],
+          stepDurMs: const [2000],
+        );
+        // raw 0.125 (nửa window) → inTween=0.5 → easeIn(0.5) → x=easeIn(0.5).
+        expect(
+          ev.cameraAtRaw(0, 0.125, 0.125).center.dx,
+          closeTo(Curves.easeIn.transform(0.5), 1e-5),
+        );
+        // raw 0.5 (sau cap) → hold pose cuối x=1.
+        expect(ev.cameraAtRaw(0, 0.5, 0.5).center.dx, closeTo(1.0, 1e-9));
+        expect(ev.cameraAtRaw(0, 0.9, 0.9).center.dx, closeTo(1.0, 1e-9));
+      },
+    );
+
+    test('camDur<stepDur KHÔNG camera.easing → clamp raw rồi hold', () {
+      final ev = mk(camDurMs: const [500], stepDurMs: const [2000]);
+      // raw 0.125 → inTween = 0.125/0.25 = 0.5 → x=0.5.
+      expect(ev.cameraAtRaw(0, 0.5, 0.125).center.dx, closeTo(0.5, 1e-9));
+      // Sau cap → hold 1.0.
+      expect(ev.cameraAtRaw(0, 1.0, 0.6).center.dx, closeTo(1.0, 1e-9));
+    });
+
+    test('không camera.easing → camera dùng easedT của step', () {
+      final ev = mk();
+      // Caller truyền easedT = 0.5 (đã qua step.easing); camT = easedT.
+      expect(ev.cameraAtRaw(0, 0.5, 0.2).center.dx, closeTo(0.5, 1e-9));
+    });
+
+    test('cameraAt(t) cũ = cameraAtRaw(t, t) — v1 không đổi hành vi', () {
+      final ev = mk(easings: const [Curves.easeIn]);
+      for (final t in const [0.0, 0.25, 0.5, 0.75, 1.0]) {
+        final a = ev.cameraAt(0, t);
+        final b = ev.cameraAtRaw(0, t, t);
+        expect(a.center, b.center);
+        expect(a.zoom, b.zoom);
+      }
+    });
+  });
+
   group('CinematicEvaluator.effectsAt', () {
     final ev = CinematicEvaluator(
       stepIds: const ['s1', 's2'],

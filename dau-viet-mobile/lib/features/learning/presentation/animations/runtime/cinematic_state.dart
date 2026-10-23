@@ -256,33 +256,35 @@ class CinematicEvaluator {
   }
 
   /// Tách riêng easedT (cho scene-state painter) và rawProgress (cho
-  /// camera-duration clamp) — player gọi với cả hai; TS port giữ API
-  /// `cameraAt(spec, stepIndex, easedT, rawProgress)` tương đương.
+  /// camera-duration clamp + camera.easing override) — player gọi với
+  /// cả hai; TS port giữ API `cameraAt(spec, stepIndex, easedT, raw)`.
+  ///
+  /// FIX-P1 easing-contract — KHÔNG double-ease:
+  ///  - `cameraEasings[idx]` có → nội suy trên RAW progress (không phải
+  ///    easedT đã qua step.easing) rồi apply camera.easing ĐÚNG 1 lần.
+  ///  - Không có → dùng `easedT` (step.easing đã áp bởi caller).
+  ///  - `cameraStepDurationsMs[idx]` > 0 → normalize rawProgress vào
+  ///    window [0..camDur], ease 1 lần, sau ngưỡng giữ pose cuối.
   CameraState cameraAtRaw(int stepIndex, double easedT, double rawProgress) {
     if (cameraSteps.isEmpty) return cameraInitial;
     final idx = stepIndex.clamp(0, cameraSteps.length - 1);
     final from = idx == 0 ? cameraInitial : cameraSteps[idx - 1];
     final to = cameraSteps[idx];
     final override = idx < cameraEasings.length ? cameraEasings[idx] : null;
-    var camT = override != null
-        ? override.transform(easedT.clamp(0.0, 1.0))
-        : easedT; // easedT = caller-đã-ease (step.easing) khi không override
-    // FIX-05 — camera duration ngắn hơn step → tween xong sớm, giữ pose.
+    final raw = rawProgress.clamp(0.0, 1.0);
     final camDur = idx < cameraStepDurationsMs.length
         ? cameraStepDurationsMs[idx]
         : 0;
     final stepDur = idx < stepDurationsMs.length ? stepDurationsMs[idx] : 0;
+    final double camT;
     if (camDur > 0 && stepDur > 0 && camDur < stepDur) {
-      // Normalize raw progress vào phạm vi tween [0..camDur] rồi mới
-      // ease — sau ngưỡng camDur, camT = curve(1) giữ pose cuối. Khi
-      // không có override (cameraEasings[idx] = null), step-easing đã
-      // được caller áp lên `easedT` → un-ease không khả thi; giữ camT
-      // theo raw-progress scale là xấp xỉ đúng đủ cho preview (parity
-      // TS cùng hành vi — manifest không khai báo camera.easing thì
-      // camera tween theo step easing trên cửa sổ con).
+      // Hold-pose: normalize raw vào [0..cap], ease 1 lần, giữ pose.
       final cap = camDur / stepDur;
-      final rawInTween = (rawProgress / cap).clamp(0.0, 1.0);
-      camT = override != null ? override.transform(rawInTween) : rawInTween;
+      final inTween = (raw / cap).clamp(0.0, 1.0);
+      camT = override != null ? override.transform(inTween) : inTween;
+    } else {
+      // Full-step: có camera.easing → ease(raw) 1 lần; không → easedT.
+      camT = override != null ? override.transform(raw) : easedT;
     }
     return from.lerp(to, camT.clamp(0.0, 1.0));
   }

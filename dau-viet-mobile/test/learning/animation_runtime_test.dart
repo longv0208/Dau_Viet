@@ -246,6 +246,61 @@ void main() {
         isNull,
       );
     });
+
+    /* ---------- FIX-P1 — parseManifestDetailed (typed 3-nhánh) -------- */
+
+    test('parseManifestDetailed: absent chỉ khi payload null', () {
+      final res = AnimationRuntimeRegistry.parseManifestDetailed(null);
+      expect(res.present, isFalse);
+      expect(res.dto, isNull);
+      // Mọi payload KHÁC null (kể cả shape sai) đều là "có manifest" —
+      // không được rơi về legacy animationKey.
+      for (final bad in [
+        'not-a-map',
+        42,
+        const ['a'],
+        const {},
+        const {'manifest': 'no'},
+        const {'manifest': 7},
+      ]) {
+        expect(
+          AnimationRuntimeRegistry.parseManifestDetailed(bad).present,
+          isTrue,
+          reason: 'payload $bad phải được coi là manifest present-invalid',
+        );
+      }
+    });
+
+    test('parseManifestDetailed: missing/empty rendererCode → invalid', () {
+      // Map hợp lệ JSON nhưng không rendererCode → DTO parse được nhưng
+      // rendererCode rỗng → invalid (không mount được renderer nào).
+      final noCode = AnimationRuntimeRegistry.parseManifestDetailed(
+        _embedded(_riverManifest()..remove('rendererCode')),
+      );
+      expect(noCode.present, isTrue);
+      expect(noCode.dto, isNull);
+      final emptyCode = AnimationRuntimeRegistry.parseManifestDetailed(
+        _embedded(_riverManifest()..['rendererCode'] = ''),
+      );
+      expect(emptyCode.present, isTrue);
+      expect(emptyCode.dto, isNull);
+    });
+
+    test('parseManifestDetailed: envelope thiếu key manifest → bare map', () {
+      // Envelope không có 'manifest' → parse như bare manifest (compat).
+      // Bare map không rendererCode → invalid.
+      final bare = AnimationRuntimeRegistry.parseManifestDetailed(const {
+        'title': 'x',
+      });
+      expect(bare.present, isTrue);
+      expect(bare.dto, isNull);
+      // Bare manifest đầy đủ → ok.
+      final ok = AnimationRuntimeRegistry.parseManifestDetailed(
+        _riverManifest(),
+      );
+      expect(ok.present, isTrue);
+      expect(ok.dto, isNotNull);
+    });
   });
 
   group('Renderers build definitions from manifests', () {
@@ -657,10 +712,123 @@ void main() {
       await _pumpRead(tester, const {
         'text': 'Vẫn đọc được.',
         'animationManifest': 'not-a-map',
+        // Kèm legacy key để chứng minh manifest hỏng KHÔNG rơi về legacy.
+        'animationKey': 'bach_dang_938_tide_v1',
       });
       await tester.pump();
       expect(find.byType(HistoricalAnimationPlayer), findsNothing);
       expect(find.text('Vẫn đọc được.'), findsOneWidget);
+      expect(tester.takeException(), isNull);
+    });
+
+    /* ---------- FIX-P1 — 3-nhánh fallback trong READ ------------------ */
+
+    testWidgets('missing rendererCode → notice, giữ READ, không crash', (
+      tester,
+    ) async {
+      final broken = _riverManifest()..remove('rendererCode');
+      await _pumpRead(tester, {
+        'text': 'Nội dung đọc vẫn đủ.',
+        'animationManifest': _embedded(broken),
+      });
+      await tester.pump();
+      expect(find.byType(HistoricalAnimationPlayer), findsNothing);
+      expect(
+        find.textContaining('cần phiên bản ứng dụng mới hơn'),
+        findsOneWidget,
+      );
+      expect(find.text('Nội dung đọc vẫn đủ.'), findsOneWidget);
+      expect(tester.takeException(), isNull);
+    });
+
+    testWidgets('unsupported rendererVersion → notice, không silent drop', (
+      tester,
+    ) async {
+      final future = _riverManifest()..['rendererVersion'] = 2;
+      await _pumpRead(tester, {
+        'text': 'Đọc được.',
+        'animationManifest': _embedded(future),
+      });
+      await tester.pump();
+      expect(find.byType(HistoricalAnimationPlayer), findsNothing);
+      expect(
+        find.textContaining('cần phiên bản ứng dụng mới hơn'),
+        findsOneWidget,
+      );
+      expect(find.text('Đọc được.'), findsOneWidget);
+      expect(tester.takeException(), isNull);
+    });
+
+    testWidgets('map thiếu locations → canRender false → notice', (
+      tester,
+    ) async {
+      final broken = _mapManifest();
+      (broken['map'] as Map).remove('locations');
+      await _pumpRead(tester, {
+        'text': 'Bản đồ thiếu điểm.',
+        'animationManifest': _embedded(broken),
+      });
+      await tester.pump();
+      expect(find.byType(HistoricalAnimationPlayer), findsNothing);
+      expect(
+        find.textContaining('cần phiên bản ứng dụng mới hơn'),
+        findsOneWidget,
+      );
+      expect(find.text('Bản đồ thiếu điểm.'), findsOneWidget);
+      expect(tester.takeException(), isNull);
+    });
+
+    testWidgets('manifest hỏng + legacy key → KHÔNG mount animation khác', (
+      tester,
+    ) async {
+      // Trường hợp nguy hiểm nhất: manifest invalid NHƯNG config cũng có
+      // animationKey hợp lệ. Đúng hành vi = notice (manifest là nguồn
+      // truth của snapshot), KHÔNG mount river legacy sai ngữ cảnh.
+      final broken = _mapManifest()..['schemaVersion'] = 3;
+      await _pumpRead(tester, {
+        'text': 'x',
+        'animationKey': 'bach_dang_938_tide_v1',
+        'animationManifest': _embedded(broken),
+      });
+      await tester.pump();
+      expect(find.byType(HistoricalAnimationPlayer), findsNothing);
+      // Không slider nước của legacy river scene.
+      expect(find.byType(Slider), findsNothing);
+      expect(
+        find.textContaining('cần phiên bản ứng dụng mới hơn'),
+        findsOneWidget,
+      );
+      expect(tester.takeException(), isNull);
+    });
+
+    testWidgets('invalid manifest không tự submit / không auto-complete', (
+      tester,
+    ) async {
+      var submitted = false;
+      final broken = _riverManifest()..remove('rendererCode');
+      await tester.pumpWidget(
+        MaterialApp(
+          home: MediaQuery(
+            data: const MediaQueryData(size: Size(800, 1600)),
+            child: Scaffold(
+              body: SingleChildScrollView(
+                child: ReadRenderer(
+                  activity: _readActivity({
+                    'text': 'x',
+                    'animationManifest': _embedded(broken),
+                  }),
+                  submitting: false,
+                  onSubmit: (_) async => submitted = true,
+                ),
+              ),
+            ),
+          ),
+        ),
+      );
+      await tester.pump();
+      await tester.pump(const Duration(seconds: 2));
+      // Không có player → không auto-play → onSubmit không được gọi.
+      expect(submitted, isFalse);
       expect(tester.takeException(), isNull);
     });
 

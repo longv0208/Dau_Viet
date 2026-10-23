@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useRef, useState } from "react";
-import { Pause, Play, SkipBack, SkipForward } from "lucide-react";
+import { Pause, Play, RotateCcw, SkipBack, SkipForward } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
 import { useAssetObjectUrl } from "@/features/assets/use-asset-object-url";
@@ -25,6 +25,20 @@ function ManifestImage({ assetId, alt, className }: { assetId: string; alt: stri
 }
 
 /**
+ * Playback state machine tối thiểu (FIX-P1):
+ *   idle → playing → paused → playing → finished → playing
+ * - idle:    trạng thái tĩnh (progress=1 của bước hiện tại), chưa phát.
+ * - playing: rAF đang tick, progress chạy theo wall-clock.
+ * - paused:  giữ progress tại thời điểm pause, không rAF.
+ * - finished:đã chạy hết step cuối, giữ frame cuối; Play → replay từ 0.
+ *
+ * `progress` nằm ngoài status vì preview tĩnh dùng progress=1 (end-state
+ * của bước) còn playing dùng progress thật; `playbackElapsed` giữ tích
+ * lũy ms trong step để Resume không chạy bù.
+ */
+type PlaybackStatus = "idle" | "playing" | "paused" | "finished";
+
+/**
  * Preview tương tác thật: đọc manifest.steps[].targetState và vẽ lại
  * hình học cảnh bằng SVG (rect/circle/path) — đơn giản nhưng phản ánh
  * đúng dữ liệu manifest, không phải stub. Hỗ trợ phát tự động theo
@@ -33,80 +47,64 @@ function ManifestImage({ assetId, alt, className }: { assetId: string; alt: stri
 export function ScenePreview({ manifest }: { manifest: AnimationManifest }) {
   const steps = useMemo(() => manifest.steps ?? [], [manifest.steps]);
   const [index, setIndex] = useState(0);
-  const [playing, setPlaying] = useState(false);
+  const [status, setStatus] = useState<PlaybackStatus>("idle");
   const [waterOverride, setWaterOverride] = useState<number | null>(null);
   const [tappedId, setTappedId] = useState<string | null>(null);
-
-  // P1 §6 — real-time playback: progress 0..1 trong step, tăng theo rAF.
-  // Trước đây preview tĩnh (progress=1 mỗi bước) — giờ camera/tracks/
-  // effects chạy đúng thời gian giống Flutter `AnimationController`.
   const [progress, setProgress] = useState(1);
+
   const rafRef = useRef<number | null>(null);
-  const stepStartRef = useRef<number>(0);
-  // Refs cho rAF loop — tick đọc state mới nhất mà không cần re-register
-  // listener (đúng một vòng rAF duy nhất, không chồng loop khi index
-  // đổi hay manifest biên tập giữa chừng).
+  // Timestamp bắt đầu đoạn playing hiện tại của step (đã rebase sau pause).
+  const stepStartRef = useRef(0);
+  // Tổng ms đã elapsed trong step TRƯỚC khi pause — Resume: start =
+  // now - elapsed → không chạy bù thời gian đứng.
+  const elapsedBeforePauseRef = useRef(0);
+
   const indexRef = useRef(index);
-  const playingRef = useRef(playing);
+  const statusRef = useRef<PlaybackStatus>(status);
   const stepsRef = useRef(steps);
+  const progressRef = useRef(progress);
 
-  const step: ManifestStep | undefined = steps[Math.min(index, steps.length - 1)];
+  const clampedIndex = Math.min(index, Math.max(0, steps.length - 1));
+  const step: ManifestStep | undefined = steps[clampedIndex];
+  const playing = status === "playing";
 
-  // FIX-02 — trạng thái hiệu lực NỘI SUY theo eased progress (parity
-  // `SceneTransition.applyFrom` của Flutter), không còn snap thẳng về
-  // targetState: `from` = end-state bước trước (initialState khi bước
-  // đầu), `to` = raw targetState bước hiện tại (key vắng → default
-  // typed-state như `_target` decode trong Dart). Bước không targetState
-  // giữ nguyên state của bước trước (player không tween).
-  const state = useMemo(() => {
-    const base: Record<string, unknown> = { ...(manifest.initialState ?? {}) };
-    let from = base;
-    for (let i = 0; i < index; i++) {
-      const t = steps[i]?.targetState;
-      // Bước không targetState → painter giữ state (`_target` → null).
-      from = t ? lerpSceneState(manifest.rendererCode, base, from, t, 1) : from;
-    }
-    const target = step?.targetState ?? {};
-    const raw = playing ? progress : 1;
-    const easedT = easeValue(step?.easing, raw);
-    const merged = lerpSceneState(manifest.rendererCode, base, from, target, easedT);
-    if (waterOverride != null) merged.waterLevel = waterOverride;
-    return merged;
-  }, [manifest.initialState, manifest.rendererCode, steps, index, step, progress, playing, waterOverride]);
-
-  // Đồng bộ refs MỖI render — manifest biên tập giữa chừng (steps đổi)
-  // vẫn cho tick đọc dữ liệu mới ngay frame kế.
+  // Đồng bộ refs mỗi render — tick đọc state mới nhất, không re-register.
   useEffect(() => {
-    indexRef.current = index;
-    playingRef.current = playing;
+    indexRef.current = clampedIndex;
+    statusRef.current = status;
     stepsRef.current = steps;
+    progressRef.current = progress;
   });
 
-  // MỘT vòng rAF duy nhất: đăng ký khi `playing` bật, hủy khi pause/
-  // unmount; tick đọc index/duration qua ref → không re-register theo
-  // index → không chồng loop. Hết danh sách → dừng (giữ frame cuối).
+  /* ---------- rAF loop — MỘT vòng duy nhất, sống/chết theo `status`.
+     tick: đọc duration/index từ ref → tính p từ (now - stepStart);
+     p>=1 → next step (rebase stepStart) hoặc finished. ---------- */
   useEffect(() => {
-    if (!playing) return;
+    if (status !== "playing") return;
     rafRef.current = requestAnimationFrame(function tick(now: number) {
       const list = stepsRef.current;
       const i = indexRef.current;
-      if (list.length === 0 || !playingRef.current) {
+      if (list.length === 0 || statusRef.current !== "playing") {
         rafRef.current = null;
         return;
       }
       const duration = Math.max(200, list[Math.min(i, list.length - 1)]?.durationMs ?? 4000);
-      const p = Math.min(1, (now - stepStartRef.current) / duration);
+      const elapsed = now - stepStartRef.current;
+      const p = Math.min(1, elapsed / duration);
       setProgress(p);
       if (p >= 1) {
         if (i < list.length - 1) {
           indexRef.current = i + 1;
           setIndex(i + 1);
           setProgress(0);
+          elapsedBeforePauseRef.current = 0;
           stepStartRef.current = now;
           rafRef.current = requestAnimationFrame(tick);
         } else {
-          playingRef.current = false;
-          setPlaying(false);
+          // Hết step cuối → finished, giữ frame cuối (progress vừa set =1).
+          statusRef.current = "finished";
+          setStatus("finished");
+          elapsedBeforePauseRef.current = 0;
           rafRef.current = null;
         }
         return;
@@ -117,35 +115,89 @@ export function ScenePreview({ manifest }: { manifest: AnimationManifest }) {
       if (rafRef.current != null) cancelAnimationFrame(rafRef.current);
       rafRef.current = null;
     };
-  }, [playing]);
+  }, [status]);
 
+  /* ---------- navigation ---------- */
   const go = (i: number) => {
     const next = Math.max(0, Math.min(i, steps.length - 1));
     indexRef.current = next;
     setIndex(next);
-    setProgress(playing ? 0 : 1); // đang phát → tween mới từ đầu
-    stepStartRef.current = performance.now();
+    // Đang phát → step mới tween từ đầu; idle/paused → giữ end-state tĩnh
+    // (paused giữ progress hiện tại khi đổi step — deterministic).
+    if (status === "playing") {
+      setProgress(0);
+      elapsedBeforePauseRef.current = 0;
+      stepStartRef.current = performance.now();
+    } else if (status === "idle" || status === "finished") {
+      setProgress(1);
+      elapsedBeforePauseRef.current = 0;
+    }
     setWaterOverride(null);
   };
 
-  const togglePlay = () => {
-    if (playing) {
-      playingRef.current = false;
-      setPlaying(false);
-      return;
-    }
-    // FIX-03 — Play ở bước CUỐI (đã chạy xong, progress=1) phải quay về
-    // bước 0 với progress=0 rồi phát lại — không bỏ qua frame, không
-    // để duration cũ nuốt tween đầu (stepStart tính từ bây giờ).
-    if (index >= steps.length - 1) {
+  /* ---------- transport ---------- */
+  const play = () => {
+    if (steps.length === 0) return;
+    if (status === "finished" || (status === "idle" && index >= steps.length - 1)) {
+      // Replay: step 0, progress 0, reset transient (water/marker).
       indexRef.current = 0;
       setIndex(0);
       setProgress(0);
+      elapsedBeforePauseRef.current = 0;
+      stepStartRef.current = performance.now();
+      setWaterOverride(null);
+      setTappedId(null);
+    } else if (status === "paused") {
+      // Resume: rebase start = now - elapsed trước pause → không chạy bù.
+      stepStartRef.current = performance.now() - elapsedBeforePauseRef.current;
+    } else {
+      // idle: preview đang hiển thị end-state (progress=1) → reset về 0
+      // rồi phát thật; timestamp chốt ngay lúc bấm Play.
+      setProgress(0);
+      elapsedBeforePauseRef.current = 0;
       stepStartRef.current = performance.now();
     }
-    playingRef.current = true;
-    setPlaying(true);
+    statusRef.current = "playing";
+    setStatus("playing");
   };
+
+  const pause = () => {
+    // stepStart đã rebase sau mỗi resume → elapsed trong step = now − start.
+    // Ghi lại để Resume rebase tiếp; progress giữ nguyên frame, không snap.
+    elapsedBeforePauseRef.current = performance.now() - stepStartRef.current;
+    statusRef.current = "paused";
+    setStatus("paused");
+  };
+
+  const togglePlay = () => {
+    if (status === "playing") pause();
+    else play();
+  };
+
+  /* ---------- scene state ---------- */
+  // FIX-02 — trạng thái hiệu lực NỘI SUY theo eased progress (parity
+  // `SceneTransition.applyFrom` của Flutter), không còn snap thẳng về
+  // targetState: `from` = end-state bước trước (initialState khi bước
+  // đầu), `to` = raw targetState bước hiện tại. Bước không targetState
+  // giữ nguyên state của bước trước.
+  // rawProgress cho scene-state + cinematic: playing → progress thật;
+  // paused → GIỮ frame đã đóng băng lúc pause (progress cũ, không snap
+  // về 1); idle/finished → end-state tĩnh (progress=1).
+  const rawFrame = (status === "playing" || status === "paused") ? progress : 1;
+
+  const state = useMemo(() => {
+    const base: Record<string, unknown> = { ...(manifest.initialState ?? {}) };
+    let from = base;
+    for (let i = 0; i < clampedIndex; i++) {
+      const t = steps[i]?.targetState;
+      from = t ? lerpSceneState(manifest.rendererCode, base, from, t, 1) : from;
+    }
+    const target = step?.targetState ?? {};
+    const easedT = easeValue(step?.easing, rawFrame);
+    const merged = lerpSceneState(manifest.rendererCode, base, from, target, easedT);
+    if (waterOverride != null) merged.waterLevel = waterOverride;
+    return merged;
+  }, [manifest.initialState, manifest.rendererCode, steps, clampedIndex, step, rawFrame, waterOverride]);
 
   const allowWater = step?.allowedInteractions?.includes("WATER_LEVEL_CONTROL");
   const allowTap = step?.allowedInteractions?.includes("TAP_TO_EXPLORE");
@@ -154,12 +206,8 @@ export function ScenePreview({ manifest }: { manifest: AnimationManifest }) {
   const assets = useMemo(() => manifest.assets ?? [], [manifest.assets]);
   const objects = useMemo(() => manifest.objects ?? [], [manifest.objects]);
 
-  // Ảnh nền: map.backgroundAssetId → assets[] role BACKGROUND đầu tiên.
   const bgAssetId = manifest.map?.backgroundAssetId ??
     assets.find((a) => a.role === "BACKGROUND")?.assetId;
-  // Vật thể: objects[] resolve assetRef → assets[] role OBJECT, HOẶC
-  // type whitelisted render procedural glyph (P0 §3/§4 — không assetRef
-  // vẫn phải hiện hình: BOAT/DECOY/STAKE/MARKER/LABEL/LOCATION/WATER).
   const PROCEDURAL_TYPES = useMemo(() => new Set([
     "STAKE", "BOAT", "DECOY", "MARKER", "LABEL", "ROUTE", "LOCATION",
     "WATER", "TEXT",
@@ -180,10 +228,7 @@ export function ScenePreview({ manifest }: { manifest: AnimationManifest }) {
       .sort((a, b) => (a.object.layer ?? 0) - (b.object.layer ?? 0));
   }, [assets, objects, PROCEDURAL_TYPES]);
 
-  /* ---------- v2 cinematic — camera + tracks + effects tại bước hiện tại.
-     Đánh giá ở trạng thái CUỐI bước (progress = 1) — preview tĩnh theo
-     bước, không phải player thời gian thực; parity với Flutter
-     `frameEndAt` (cùng evaluator spec). ---------- */
+  /* ---------- v2 cinematic spec ---------- */
   const cinematicSpec = useMemo<EvaluatorSpec | null>(() => {
     const cam = manifest.camera;
     const tracks = manifest.tracks ?? [];
@@ -198,11 +243,7 @@ export function ScenePreview({ manifest }: { manifest: AnimationManifest }) {
         center: { x: s.target.x, y: s.target.y },
         zoom: s.target.zoom,
       })),
-      // P1 §5 — camera.steps[].easing (whitelist) override step.easing
-      // cho camera tween, khớp Dart `cameraEasings`.
       cameraEasings: (cam?.steps ?? []).map((s) => s.easing ?? null),
-      // FIX-05 — camera.steps[].durationMs > 0 → camera tween hoàn
-      // thành trong khoảng đó rồi GIỮ POSE cho phần còn lại của step.
       cameraStepDurationsMs: (cam?.steps ?? []).map((s) => s.durationMs ?? 0),
       tracks: tracks.map((t) => ({
         objectId: t.objectId,
@@ -241,25 +282,12 @@ export function ScenePreview({ manifest }: { manifest: AnimationManifest }) {
     };
   }, [manifest.camera, manifest.tracks, manifest.effects, objects, steps]);
 
-  // Frame cinematic hiện tại — progress liên tục khi playing (rAF), else
-  // nhảy cuối bước. easedT = step.easing áp lên progress (parity Dart
-  // `_stepCurve.transform(rawProgress)` → frameAt(easedT, rawProgress)).
   const cinematicFrame = useMemo(() => {
     if (!cinematicSpec) return null;
-    const raw = playing ? progress : 1;
-    // easedT cho camera nằm TRONG frameAt → cameraAt tự transform thêm
-    // cameraEasings[idx] nếu khai báo; ở đây truyền raw progress ×
-    // step.easing (parity Dart `_stepCurve.transform(rawProgress)`).
-    const easedT = easeValue(step?.easing, raw);
-    return frameAt(cinematicSpec, index, easedT, raw);
-  }, [cinematicSpec, index, progress, playing, step?.easing]);
+    const easedT = easeValue(step?.easing, rawFrame);
+    return frameAt(cinematicSpec, clampedIndex, easedT, rawFrame);
+  }, [cinematicSpec, clampedIndex, rawFrame, step?.easing]);
 
-  // CSS transform cho camera — parity với Flutter Matrix4:
-  //   Flutter: translate(O)·scale(z)·translate(-C) = O + z·(p−C).
-  //   CSS viết phải-đọc-trái: `scale(z) translate(O−C)` — translate chạy
-  //   TRƯỚC (ở không gian unscaled) rồi scale về origin O mặc định 50%:
-  //   p' = O + z·(p + (O−C) − O) = O + z·(p−C). Khớp Flutter.
-  //   (Ngược lại `translate(d) scale(z)` = O + z·(p−O) + d → lệch d·(1−z).)
   const cameraStyle = useMemo(() => {
     const cam = cinematicFrame?.camera;
     if (!cam) return undefined;
@@ -277,15 +305,12 @@ export function ScenePreview({ manifest }: { manifest: AnimationManifest }) {
   const env = manifest.environment;
 
   return (
-    <div className="flex flex-col gap-3">
+    <div className="flex flex-col gap-3" data-testid="scene-preview">
       <div
         className="relative overflow-hidden rounded-lg border border-border bg-[#f3ead3]"
         style={{ aspectRatio: String(aspect) }}
       >
-        {/* Toàn bộ scene (bg + painter + objects) nằm TRONG camera
-            transform — parity với ManifestAssetLayers cinematic path. */}
-        <div className="absolute inset-0" style={cameraStyle}>
-          {/* Ảnh nền (mờ, dưới painter) — preview parity với Flutter. */}
+        <div className="absolute inset-0" style={cameraStyle} data-testid="camera-layer">
           {bgAssetId && (
             <ManifestImage
               assetId={bgAssetId}
@@ -293,7 +318,6 @@ export function ScenePreview({ manifest }: { manifest: AnimationManifest }) {
               className="absolute inset-0 h-full w-full object-cover opacity-45"
             />
           )}
-          {/* Ambient environment — mist/glow nền (RIVER), static overlay. */}
           {(env?.glow ?? 0) > 0 && (
             <div
               className="pointer-events-none absolute inset-0"
@@ -323,9 +347,6 @@ export function ScenePreview({ manifest }: { manifest: AnimationManifest }) {
               }}
             />
           )}
-          {/* Vật thể ảnh theo tọa độ chuẩn hóa + layer — v2 đọc
-              ObjectVisualState (position/scale/rotation/opacity/visible)
-              đã override bởi keyframe tracks, không phải objects[] tĩnh. */}
           {objectLayers.map(({ object, ref }) => {
             const vs = cinematicFrame?.objects[object.id];
             const pos = vs?.position ?? { x: object.position?.x ?? 0.5, y: object.position?.y ?? 0.5 };
@@ -355,16 +376,11 @@ export function ScenePreview({ manifest }: { manifest: AnimationManifest }) {
                     className="h-full w-full object-cover border border-border bg-surface-alt"
                   />
                 ) : (
-                  // P0 §3/§4 — object không assetRef → glyph procedural
-                  // theo type, khớp _ProceduralObjectPainter của Flutter.
                   <ProceduralGlyph type={object.type ?? ""} id={object.id} />
                 )}
               </div>
             );
           })}
-          {/* Typed effect overlays — tĩnh theo bước (progress=1):
-              FADE_IN đã mờ hết (0), FADE_OUT đã tối (1), MIST/GLOW/RIPPLE
-              render ở cường độ khai báo. */}
           {activeEffects.map((e, i) => {
             const center = e.type === "GLOW" && e.objectId && cinematicFrame?.objects[e.objectId]
               ? cinematicFrame.objects[e.objectId]!.position
@@ -414,7 +430,6 @@ export function ScenePreview({ manifest }: { manifest: AnimationManifest }) {
         </div>
       </div>
 
-      {/* Chú giải tương tác */}
       {allowWater && (
         <label className="flex items-center gap-2 text-xs text-ink">
           <span className="whitespace-nowrap">Học viên kéo mực nước:</span>
@@ -437,7 +452,7 @@ export function ScenePreview({ manifest }: { manifest: AnimationManifest }) {
       )}
 
       {/* Điều khiển phát */}
-      <div className="flex items-center gap-2">
+      <div className="flex items-center gap-2" data-testid="playback-controls">
         <Button variant="outline" size="sm" disabled={steps.length === 0 || index === 0} onClick={() => go(index - 1)} aria-label="Bước trước">
           <SkipBack className="size-4" />
         </Button>
@@ -446,14 +461,15 @@ export function ScenePreview({ manifest }: { manifest: AnimationManifest }) {
           size="sm"
           disabled={steps.length === 0}
           onClick={togglePlay}
+          data-testid="play-toggle"
         >
-          {playing ? <Pause className="mr-1 size-4" /> : <Play className="mr-1 size-4" />}
-          {playing ? "Tạm dừng" : "Phát"}
+          {playing ? <Pause className="mr-1 size-4" /> : status === "finished" ? <RotateCcw className="mr-1 size-4" /> : <Play className="mr-1 size-4" />}
+          {playing ? "Tạm dừng" : status === "finished" ? "Phát lại" : "Phát"}
         </Button>
         <Button variant="outline" size="sm" disabled={index >= steps.length - 1} onClick={() => go(index + 1)} aria-label="Bước sau">
           <SkipForward className="size-4" />
         </Button>
-        <span className="ml-2 text-xs text-ink-muted">
+        <span className="ml-2 text-xs text-ink-muted" data-testid="step-label">
           {steps.length === 0 ? "Chưa có bước" : `Bước ${index + 1}/${steps.length} — ${step?.title ?? ""}`}
         </span>
         {audioForStep.length > 0 && (
@@ -559,12 +575,10 @@ function RiverPreview({ manifest, state }: { manifest: AnimationManifest; state:
 
   const waterTop = H * (1 - water);
   return (
-    <svg viewBox={`0 0 ${W} ${H}`} role="img" aria-label="Xem trước cảnh sông" className="w-full">
+    <svg viewBox={`0 0 ${W} ${H}`} role="img" aria-label="Xem trước cảnh sông" className="w-full" data-testid="river-scene">
       <rect width={W} height={H} fill="#e9dcbb" />
-      {/* Nước */}
-      <rect y={waterTop} width={W} height={H - waterTop} fill="#3f6f9e" opacity={0.85} />
+      <rect y={waterTop} width={W} height={H - waterTop} fill="#3f6f9e" opacity={0.85} data-testid="water-rect" />
       <line x1={0} y1={waterTop} x2={W} y2={waterTop} stroke="#2c567e" strokeWidth="3" />
-      {/* Bãi cọc */}
       {stakes.map((s) => {
         const vis = visOverride[s.id] ?? (s.visible === false ? 0 : 1);
         if (vis <= 0) return null;
@@ -582,20 +596,17 @@ function RiverPreview({ manifest, state }: { manifest: AnimationManifest; state:
           />
         );
       })}
-      {/* Thuyền địch — mắc cọc thì đỏ */}
       {boat > 0 && (
         <g transform={`translate(${boat * W}, ${waterTop - 18})`}>
           <path d="M-30 0 L30 0 L18 14 L-18 14 Z" fill={obstructed ? "#b3402f" : "#4a3a2a"} />
           <rect x={-4} y={-16} width={8} height={16} fill="#4a3a2a" />
         </g>
       )}
-      {/* Thuyền dụ */}
       {decoy > 0 && (
         <g transform={`translate(${decoy * W}, ${waterTop - 8})`} opacity={0.7}>
           <path d="M-18 0 L18 0 L12 8 L-12 8 Z" fill="#8a7a5a" />
         </g>
       )}
-      {/* Thuyền phản công hai cánh */}
       {counter > 0 && (
         <>
           <g transform={`translate(${W - counter * W * 0.4}, ${waterTop - 26})`}>
@@ -606,7 +617,6 @@ function RiverPreview({ manifest, state }: { manifest: AnimationManifest; state:
           </g>
         </>
       )}
-      {/* Sơ đồ chuỗi tổng kết */}
       {summary && (
         <g>
           {[0, 1, 2].map((i) => (
@@ -646,14 +656,13 @@ function MapPreview({
   const focused = state.focusedLocationId as string | undefined;
 
   return (
-    <svg viewBox={`0 0 ${W} ${H}`} role="img" aria-label="Xem trước bản đồ" className="w-full">
+    <svg viewBox={`0 0 ${W} ${H}`} role="img" aria-label="Xem trước bản đồ" className="w-full" data-testid="map-scene">
       <rect width={W} height={H} fill="#f3ead3" />
       <path
         d={`M32 ${H * 0.75} Q${W * 0.2} ${H * 0.4} ${W * 0.45} ${H * 0.3} Q${W * 0.75} ${H * 0.18} ${W * 0.92} ${H * 0.38} Q${W * 0.98} ${H * 0.6} ${W * 0.8} ${H * 0.85} Q${W * 0.45} ${H * 0.97} 32 ${H * 0.75} Z`}
         fill="#8fb57324"
         stroke="#7a5a3e33"
       />
-      {/* Tuyến với strokeDashoffset theo routeProgress */}
       {routes.map((r) => {
         const from = locations.find((l) => l.id === r.from);
         const to = locations.find((l) => l.id === r.to);
@@ -680,7 +689,6 @@ function MapPreview({
           />
         );
       })}
-      {/* Marker */}
       {locations.map((l) => {
         const vis = markerVis[l.id] ?? 0;
         if (vis <= 0) return null;
@@ -702,11 +710,11 @@ function MapPreview({
               stroke="#fff"
               strokeWidth="2.5"
             />
-            <text x={l.x * W} y={l.y * H + r + 16} textAnchor="middle" fontSize="13" fontWeight="700" fill="#3a2c22">
+            <text x={l.x * W} y={l.y * H + r + 16} textAnchor="middle" fontSize={13} fontWeight={700} fill="#3a2c22">
               {l.name || l.id}
             </text>
             {l.contextLabel && (
-              <text x={l.x * W} y={l.y * H + r + 30} textAnchor="middle" fontSize="10" fill="#7a5a3e">
+              <text x={l.x * W} y={l.y * H + r + 30} textAnchor="middle" fontSize={10} fill="#7a5a3e">
                 {l.contextLabel}
               </text>
             )}

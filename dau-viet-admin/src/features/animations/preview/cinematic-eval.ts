@@ -122,12 +122,15 @@ export function lerpCamera(from: CameraState, to: CameraState, t: number): Camer
 /**
  * Camera pose tại (stepIndex, easedT, rawProgress) — steps[i] tween từ
  * pose trước (initial khi i==0) tới pose i. Giữ pose cuối khi bước không
- * khai báo. Khi `cameraEasings[idx]` có → transform `t` bằng curve đó
- * trước khi lerp (override step.easing cho riêng camera — parity Dart).
+ * khai báo.
  *
- * FIX-05 — `cameraStepDurationsMs[idx]` > 0: camera hoàn thành tween
- * trong `durationMs` ms đầu của bước rồi GIỮ POSE cuối cho phần còn
- * lại — clamp tại `camDur / stepDur` của rawProgress rồi re-ease.
+ * FIX-P1 easing-contract — KHÔNG double-ease:
+ *  - `cameraEasings[idx]` có → camera nội suy trên RAW progress (không
+ *    phải easedT đã qua step.easing) rồi apply camera.easing ĐÚNG 1 lần.
+ *  - Không có → dùng `t` (easedT = step.easing đã áp bởi caller).
+ *
+ * FIX-05 — `cameraStepDurationsMs[idx]` > 0: normalize rawProgress vào
+ * window [0..camDur] rồi ease 1 lần; sau ngưỡng → giữ pose cuối.
  */
 export function cameraAt(
   initial: CameraState,
@@ -146,16 +149,19 @@ export function cameraAt(
   const override = easings?.[idx];
   const camDur = cameraStepDurationsMs?.[idx] ?? 0;
   const stepDur = stepDurationsMs?.[idx] ?? 0;
+  const raw = Math.min(1, Math.max(0, rawProgress ?? t));
+  let camT: number;
   if (camDur > 0 && stepDur > 0 && camDur < stepDur) {
-    // Normalize raw progress vào phạm vi tween [0..camDur] rồi mới
-    // ease — sau ngưỡng camDur, camT = curve(1) giữ pose cuối.
+    // Window con [0..cap] — normalize raw vào đó, ease 1 lần, giữ pose.
     const cap = camDur / stepDur;
-    const raw = Math.min(1, Math.max(0, (rawProgress ?? t) / cap));
-    const camT = override ? easeValue(override, raw) : raw;
-    return lerpCamera(from, to, camT);
+    const inTween = Math.min(1, Math.max(0, raw / cap));
+    camT = override ? easeValue(override, inTween) : inTween;
+  } else {
+    // Full-step tween: có camera.easing → ease(raw) 1 lần; không → dùng
+    // easedT (step.easing đã áp).
+    camT = override ? easeValue(override, raw) : t;
   }
-  const camT = override ? easeValue(override, t) : t;
-  return lerpCamera(from, to, camT);
+  return lerpCamera(from, to, Math.min(1, Math.max(0, camT)));
 }
 
 /* ---------- object tracks ---------- */

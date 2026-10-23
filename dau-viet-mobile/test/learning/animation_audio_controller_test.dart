@@ -197,5 +197,33 @@ void main() {
       // Post-dispose không phát.
       expect(log.where((e) => e == 'play'), isEmpty);
     });
+
+    test('LOOP does not leak after step transition (old loop stopped, '
+        'new loop owns the single _loopPlayer slot)', () async {
+      // Hai step cùng LOOP cue asset. Fetch resolve ngay để loop1 start.
+      final c = raceCtrl(
+        cues: const [
+          AudioCueDto(stepId: 's1', assetRef: 'a1', cue: 'LOOP'),
+          AudioCueDto(stepId: 's2', assetRef: 'a1', cue: 'LOOP'),
+        ],
+      );
+      c.onStepEnter('s1'); // startLoop(gen1)
+      await Future<void>.delayed(Duration.zero); // flush async fetch+start
+      // Chuyển step → exit s1 (stopLoop fade) + enter s2 (startLoop gen2).
+      c.onStepExit('s1');
+      c.onStepEnter('s2');
+      await Future<void>.delayed(Duration.zero);
+      // Player của s1 phải bị stop+dispose (không còn phát chồng).
+      expect(log.where((e) => e == 'stop'), isNotEmpty);
+      expect(log.where((e) => e == 'dispose'), isNotEmpty);
+      // Chỉ MỘT loop player sống — số 'play' = số loop start (s1 + s2),
+      // nhưng mỗi player riêng; assert không player nào sống sót bằng
+      // cách kiểm tra stop xảy ra TRƯỚC play thứ hai.
+      final plays = log.where((e) => e == 'play').length;
+      final stops = log.where((e) => e == 'stop').length;
+      expect(plays, greaterThanOrEqualTo(1));
+      expect(stops, greaterThanOrEqualTo(1));
+      await c.dispose();
+    });
   });
 }

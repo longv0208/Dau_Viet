@@ -56,6 +56,95 @@ describe("camera", () => {
     expect(fallback.center.x).toBeCloseTo(0.75);
   });
 
+  /* ---------- FIX-P1 §3 — camera easing override semantics ---------- */
+
+  // Helper: CAMERA_INITIAL.x = 0.5 → đích x = 1.0. Lerp range = 0.5,
+  // nên expected.x = 0.5 + 0.5*camT. `xOf(camT)` đọc rõ contract.
+  const camSteps = [
+    { center: { x: 1.0, y: 0.5 }, zoom: 2.0 },
+    { center: { x: 0.0, y: 0.5 }, zoom: 1.0 },
+  ];
+  const xOf = (camT: number) => 0.5 + 0.5 * camT;
+
+  it("camera.easing override nội suy trên RAW progress, không double-ease", () => {
+    // step.easing=easeOut (caller truyền easedT = easeOut(0.5)=0.75),
+    // camera.easing="linear" → camera dùng RAW=0.5 → camT=0.5.
+    // (Bug cũ: easeValue(override, easedT) → double easing → sai pose.)
+    const f = cameraAt(
+      CAMERA_INITIAL, camSteps, 0,
+      /* easedT (step easeOut @0.5) */ 0.75,
+      /* cameraEasings */ ["linear"],
+      /* rawProgress */ 0.5,
+    );
+    // camT = raw = 0.5 → x = 0.5 + 0.5*0.5 = 0.75 (không phải easedT 0.75→x≈0.875).
+    expect(f.center.x).toBeCloseTo(xOf(0.5), 5);
+  });
+
+  it("step linear + camera easeIn → camera easeIn applied once on raw", () => {
+    // step.easing=linear → easedT=raw. camera.easing=easeIn → camT=easeIn(raw)=raw².
+    for (const raw of [0, 0.25, 0.5, 0.75, 1]) {
+      const f = cameraAt(
+        CAMERA_INITIAL, camSteps, 0, raw, ["easeIn"], raw,
+      );
+      expect(f.center.x).toBeCloseTo(xOf(raw * raw), 5);
+    }
+  });
+
+  it("step easeOut + camera linear → camera linear on raw (không phải easeOut)", () => {
+    // easedT = easeOut(raw) = 1-(1-raw)². camera linear → camT = raw.
+    for (const raw of [0, 0.25, 0.5, 0.75, 1]) {
+      const easedT = 1 - (1 - raw) * (1 - raw);
+      const f = cameraAt(
+        CAMERA_INITIAL, camSteps, 0, easedT, ["linear"], raw,
+      );
+      expect(f.center.x).toBeCloseTo(xOf(raw), 5); // raw, không easedT
+    }
+  });
+
+  it("step easeInOut + camera easeOut → camera easeOut on raw", () => {
+    // easedT = smoothstep(raw); camera easeOut → camT = easeOut(raw).
+    const easeOut = (x: number) => 1 - (1 - x) * (1 - x);
+    for (const raw of [0, 0.25, 0.5, 0.75, 1]) {
+      const easedT = raw * raw * (3 - 2 * raw); // smoothstep
+      const f = cameraAt(
+        CAMERA_INITIAL, camSteps, 0, easedT, ["easeOut"], raw,
+      );
+      expect(f.center.x).toBeCloseTo(xOf(easeOut(raw)), 5);
+    }
+  });
+
+  it("camera.durationMs < step.durationMs + camera.easing → ease once trong window rồi hold", () => {
+    // step=2000ms, camera=500ms → cap=0.25. camera.easing=easeIn.
+    const [camDur, stepDur] = [[500], [2000]];
+    // raw 0.125 (nửa window) → inTween=0.5 → easeIn(0.5)=0.25 → x=0.5+0.5*0.25.
+    const mid = cameraAt(
+      CAMERA_INITIAL, camSteps, 0,
+      /* easedT (step linear @0.125) */ 0.125,
+      ["easeIn"], 0.125, camDur, stepDur,
+    );
+    expect(mid.center.x).toBeCloseTo(xOf(0.25), 5);
+    // raw 0.5 (sau cap) → inTween=1 → easeIn(1)=1 → hold pose cuối x=1.0.
+    const held = cameraAt(
+      CAMERA_INITIAL, camSteps, 0, 0.5, ["easeIn"], 0.5, camDur, stepDur,
+    );
+    expect(held.center.x).toBeCloseTo(1.0);
+    // raw 0.9 → vẫn hold.
+    const held2 = cameraAt(
+      CAMERA_INITIAL, camSteps, 0, 0.9, ["easeIn"], 0.9, camDur, stepDur,
+    );
+    expect(held2.center.x).toBeCloseTo(1.0);
+  });
+
+  it("không camera.easing → camera dùng step.easing (easedT)", () => {
+    // cameraEasings = [null] → camT = easedT caller truyền.
+    const f = cameraAt(
+      CAMERA_INITIAL, camSteps, 0,
+      /* easedT = easeInOut(0.5) = 0.5 */ 0.5,
+      [null], 0.5,
+    );
+    expect(f.center.x).toBeCloseTo(xOf(0.5), 5);
+  });
+
   it("cameraAt with cameraStepDurationsMs clamps tween to window", () => {
     const steps = [
       { center: { x: 1.0, y: 0.5 }, zoom: 2.0 }, // đích step 0

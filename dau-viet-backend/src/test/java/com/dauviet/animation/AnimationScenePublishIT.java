@@ -239,23 +239,27 @@ class AnimationScenePublishIT extends AbstractPostgresIT {
         return id;
     }
 
-    /** Draft lesson tối thiểu: 1 stage required (CONTEXT) + 1 READ pin
-     *  `animationSceneVersionId` + 1 MULTIPLE_CHOICE required (publish
-     *  guardrail yêu cầu non-READ). */
+    /** Draft lesson hợp lệ theo DraftSchema.STAGE_ALLOWED_ACTIVITIES:
+     *  CONTEXT chỉ chứa READ/VIEW_IMAGE — MULTIPLE_CHOICE phải nằm trong
+     *  VERIFICATION. Hai stage: ctx (READ pin animation) → verify (MC). */
     private String lessonDraft(String sceneVersionId) {
         return """
                 {"schemaVersion":1,
-                 "stages":[{"id":"ctx","type":"CONTEXT","required":true,
-                   "nextStageIds":[],
-                   "activities":[
-                     {"id":"read1","type":"READ","required":false,
-                      "config":{"text":"Đọc.",
-                        "animationSceneVersionId":"%s"}},
-                     {"id":"mc1","type":"MULTIPLE_CHOICE","required":true,
-                      "config":{"question":"Q?",
-                        "options":[{"id":"o1","label":"A"},
-                                   {"id":"o2","label":"B"}],
-                        "correctOptionIds":["o1"]}}]}],
+                 "stages":[
+                   {"id":"ctx","type":"CONTEXT","required":true,
+                    "nextStageIds":["verify"],
+                    "activities":[
+                      {"id":"read1","type":"READ","required":false,
+                       "config":{"text":"Đọc.",
+                         "animationSceneVersionId":"%s"}}]},
+                   {"id":"verify","type":"VERIFICATION","required":true,
+                    "nextStageIds":[],
+                    "activities":[
+                      {"id":"mc1","type":"MULTIPLE_CHOICE","required":true,
+                       "config":{"question":"Q?",
+                         "options":[{"id":"o1","label":"A"},
+                                    {"id":"o2","label":"B"}],
+                         "correctOptionIds":["o1"]}}]}],
                  "completion":{"requireAllRequiredStages":true}}
                 """.formatted(sceneVersionId);
     }
