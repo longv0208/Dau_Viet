@@ -57,6 +57,12 @@ Audit commit 82765d3. Vertical slice: Admin create/configure/preview/publish sce
 - §5 audio re-check — đã có `_exitEpoch` + `_generation` + skip/dispose invalidate từ FIX-04; thêm test LOOP-leak sau transition (fake CueAudioPlayer, assert stop+dispose player cũ).
 - Gates chạy lại: backend `mvnw compile` OK + `mvnw test` 244/0fail/1err(Docker); admin `tsc --noEmit` OK, `next lint` 0, vitest **187/187**, `next build` OK; flutter `dart format` applied, `analyze` 1 info có sẵn (`stage-guidance.dart` filename), `flutter test test/learning` **227/227**; `git diff --check` sạch (chỉ CRLF warnings).
 
+## CLOSE (2026-10-24, base dab8073)
+- P0 `SnapshotBuilder.stagesCopy` — `draft.path("stages")` là JSON **Array** nhưng gán về `ObjectNode` (generic deepCopy che lỗi compile → ClassCastException lúc publish mọi lesson hợp lệ). Sửa: kiểm `isArray` trước, throw `DraftValidationException(STAGES_NOT_ARRAY)` có kiểm soát, dùng `ArrayNode`. Mới `SnapshotBuilderTest` 4/4: embed manifest vào READ/CONTEXT, pin latest theo `animationSceneId`, giữ order, không mutate draft, negative non-array.
+- P1 pause→nav→play — `go()` khi không playing giờ reset `elapsedBeforePauseRef` + status về `idle` + progress=1 (end-state step mới); `play()` nhánh `finished` mới replay từ step 0 — `idle` (kể cả vừa navigate tới step cuối) phát step ĐANG CHỌN từ đầu, không replay toàn scene, không giật frame. +4 RTL tests (2 durations khác nhau).
+- P1 camDur+no-override → **step.easing(inTween)**, không linear: thêm `stepEasings` vào `EvaluatorSpec`(TS) + `CinematicEvaluator`(Dart), populated từ `steps[].easing`. Window `[0..cap]`: override→override(inTween); không override→stepCurve(inTween); fallback linear khi stepEasings rỗng (compat cũ). +3 TS +4 Dart tests (ma trận raw 0/12.5/25% qua cap).
+- Gates chạy lại: backend `mvnw test` **248/0fail/1err** (`DauVietApplicationTests` — Docker OFF, BLOCKED); `SnapshotBuilderTest` 4/4. Admin `tsc` OK, `next lint` 0, vitest **194/194**, `next build` OK. Flutter `dart format` applied, `analyze` 1 info pre-existing, `flutter test test/learning` **230/230**. `git diff --check` sạch.
+
 ## Blockers
 - Docker Desktop daemon OFF → all Testcontainers ITs (P1-10, gồm AnimationScenePublishIT cho FIX-01/FIX-P0) cannot run; KHÔNG đánh dấu PASS. `docker info` lỗi `//./pipe/dockerDesktopLinuxEngine` không tồn tại. Unit/MockMvc/validator + admin vitest + flutter tests đã cover phạm vi sửa.
 - Audio demo scenes (V16) chỉ seed silent-WAV placeholder — chưa có audio/artwork thật; scene vẫn render, audio no-op theo contract v2.

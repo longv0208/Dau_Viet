@@ -311,4 +311,113 @@ describe("ScenePreview playback state machine", () => {
     act(() => tickTo(500));
     expect(rafQueue.length).toBe(1);
   });
+
+  /* ---------- FIX-P1 §2 — pause → navigate → play (khác duration) --- */
+
+  // 2 step duration khác nhau: s1=1000ms, s2=2000ms.
+  function twoDurManifest(): AnimationManifest {
+    const m = emptyManifest("RIVER_TIDE");
+    m.title = "Nav";
+    m.steps = [
+      { id: "s1", title: "S1", durationMs: 1000, targetState: { waterLevel: 0.9 } },
+      { id: "s2", title: "S2", durationMs: 2000, targetState: { waterLevel: 0.2 } },
+    ];
+    return m;
+  }
+
+  it("Pause@400ms → Next (dur khác) → Play chạy step 2 từ đầu, không giật", async () => {
+    render(<ScenePreview manifest={twoDurManifest()} />);
+    await act(async () => {
+      await userEvent.click(playBtn());
+    });
+    act(() => tickTo(400)); // pause @0.4 của step1
+    await act(async () => {
+      await userEvent.click(playBtn()); // pause
+    });
+    // Next sang step 2 (dur 2000) → end-state tĩnh, status về idle.
+    await act(async () => {
+      await userEvent.click(screen.getByLabelText("Bước sau"));
+    });
+    expect(label()).toContain("Bước 2/2");
+    // Play → chạy step 2 TỪ ĐẦU (không rebase elapsed 400ms của step 1).
+    nowMs = 400;
+    await act(async () => {
+      await userEvent.click(playBtn());
+    });
+    act(() => tickTo(600)); // elapsed 200ms vào step 2 → progress 0.1
+    // water level đang lerp từ 0.9 → 0.2 ở progress 0.1 → y gần endState
+    // start, không nhảy về progress 0.4+ cũ (đó là giật frame).
+    expect(label()).toContain("Bước 2/2");
+    // Vẫn đúng 1 rAF loop.
+    expect(rafQueue.length).toBe(1);
+    // Chạy hết 2000ms → finished (không tua nhanh từ elapsed cũ).
+    act(() => tickTo(2600));
+    expect(playBtn().textContent).toContain("Phát lại");
+  });
+
+  it("Pause → Previous → Play chạy step 1 từ đầu", async () => {
+    render(<ScenePreview manifest={twoDurManifest()} />);
+    await act(async () => {
+      await userEvent.click(playBtn());
+    });
+    act(() => tickTo(1000)); // hết s1 → vào s2
+    act(() => tickTo(1400)); // s2 @0.2
+    await act(async () => {
+      await userEvent.click(playBtn()); // pause s2
+    });
+    await act(async () => {
+      await userEvent.click(screen.getByLabelText("Bước trước"));
+    });
+    expect(label()).toContain("Bước 1/2");
+    // Play → step 1 từ đầu.
+    nowMs = 1400;
+    await act(async () => {
+      await userEvent.click(playBtn());
+    });
+    act(() => tickTo(1900)); // elapsed 500 → progress 0.5 s1
+    expect(label()).toContain("Bước 1/2");
+    // Hết 1000ms → sang s2.
+    act(() => tickTo(2400));
+    expect(label()).toContain("Bước 2/2");
+  });
+
+  it("Finish → Previous → Play chạy step đó (không replay từ 0)", async () => {
+    render(<ScenePreview manifest={twoDurManifest()} />);
+    await act(async () => {
+      await userEvent.click(playBtn());
+    });
+    act(() => tickTo(1000));
+    act(() => tickTo(3000)); // finished
+    expect(playBtn().textContent).toContain("Phát lại");
+    // Prev về step 1 → idle end-state.
+    await act(async () => {
+      await userEvent.click(screen.getByLabelText("Bước trước"));
+    });
+    expect(label()).toContain("Bước 1/2");
+    // Play → chạy step 1 (không phải replay toàn scene từ step 0 — user
+    // đã chọn step 1).
+    nowMs = 3000;
+    await act(async () => {
+      await userEvent.click(playBtn());
+    });
+    act(() => tickTo(3100));
+    expect(label()).toContain("Bước 1/2");
+    expect(rafQueue.length).toBe(1);
+  });
+
+  it("Pause → Next → Pause lại không kích hoạt rAF cũ", async () => {
+    render(<ScenePreview manifest={twoDurManifest()} />);
+    await act(async () => {
+      await userEvent.click(playBtn());
+    });
+    act(() => tickTo(400));
+    await act(async () => {
+      await userEvent.click(playBtn()); // pause
+    });
+    await act(async () => {
+      await userEvent.click(screen.getByLabelText("Bước sau")); // idle @s2
+    });
+    // Không rAF nào pending khi idle.
+    expect(rafQueue.length).toBe(0);
+  });
 });

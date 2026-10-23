@@ -122,15 +122,20 @@ export function ScenePreview({ manifest }: { manifest: AnimationManifest }) {
     const next = Math.max(0, Math.min(i, steps.length - 1));
     indexRef.current = next;
     setIndex(next);
-    // Đang phát → step mới tween từ đầu; idle/paused → giữ end-state tĩnh
-    // (paused giữ progress hiện tại khi đổi step — deterministic).
+    // Đang phát → step mới tween từ đầu; không phát → step mới hiển thị
+    // end-state (progress=1) và status về idle — elapsed của step cũ bị
+    // hủy để Play tiếp theo chạy từ đầu step mới (không giật frame).
     if (status === "playing") {
       setProgress(0);
       elapsedBeforePauseRef.current = 0;
       stepStartRef.current = performance.now();
-    } else if (status === "idle" || status === "finished") {
+    } else {
       setProgress(1);
       elapsedBeforePauseRef.current = 0;
+      if (status !== "idle") {
+        statusRef.current = "idle";
+        setStatus("idle");
+      }
     }
     setWaterOverride(null);
   };
@@ -138,7 +143,7 @@ export function ScenePreview({ manifest }: { manifest: AnimationManifest }) {
   /* ---------- transport ---------- */
   const play = () => {
     if (steps.length === 0) return;
-    if (status === "finished" || (status === "idle" && index >= steps.length - 1)) {
+    if (status === "finished") {
       // Replay: step 0, progress 0, reset transient (water/marker).
       indexRef.current = 0;
       setIndex(0);
@@ -151,8 +156,10 @@ export function ScenePreview({ manifest }: { manifest: AnimationManifest }) {
       // Resume: rebase start = now - elapsed trước pause → không chạy bù.
       stepStartRef.current = performance.now() - elapsedBeforePauseRef.current;
     } else {
-      // idle: preview đang hiển thị end-state (progress=1) → reset về 0
-      // rồi phát thật; timestamp chốt ngay lúc bấm Play.
+      // idle (kể cả vừa navigate tới step cuối): preview đang hiển thị
+      // end-state → reset về 0 rồi phát step ĐANG CHỌN từ đầu. KHÔNG
+      // nhảy về step 0 — navigation đặt user ở step nào thì Play chạy
+      // step đó.
       setProgress(0);
       elapsedBeforePauseRef.current = 0;
       stepStartRef.current = performance.now();
@@ -267,6 +274,7 @@ export function ScenePreview({ manifest }: { manifest: AnimationManifest }) {
         ]),
       ),
       stepDurationsMs: steps.map((s) => s.durationMs ?? 4000),
+      stepEasings: steps.map((s) => s.easing),
       stepIds: steps.map((s) => s.id),
       effects: effects.map((e): SceneEffectSpec => ({
         type: e.type,

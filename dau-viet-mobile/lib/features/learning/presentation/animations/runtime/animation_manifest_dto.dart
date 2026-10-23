@@ -210,6 +210,9 @@ class AnimationManifestDto {
         // FIX-05 — camera.steps[].durationMs > 0 → camera tween hoàn
         // thành trong khoảng đó rồi GIỮ POSE cho phần còn lại của step.
         cameraStepDurationsMs: camera.stepDurationsMs,
+        // P1 §3 — step.easing per-step: cần để camera-duration window
+        // vẫn dùng step.easing (đúng 1 lần) khi không có camera.easing.
+        stepEasings: [for (final s in steps) ObjectTrackDto._curve(s.easing)],
         tracks: [
           for (final t in tracks)
             ObjectTrackSpec(

@@ -217,6 +217,12 @@ class CinematicEvaluator {
   /// như cũ. Parity với TS `cameraStepDurationsMs` trong cinematic-eval.
   final List<int> cameraStepDurationsMs;
 
+  /// P1 §3 — step.easing per-step (index-aligned với `steps` của
+  /// manifest). Cần khi có camera duration window nhưng KHÔNG có
+  /// camera.easing: camera vẫn phải ease bằng step.easing (đúng 1 lần)
+  /// chứ không rơi về linear. Parity `stepEasings` của cinematic-eval.ts.
+  final List<Curve?> stepEasings;
+
   const CinematicEvaluator({
     this.cameraInitial = CameraState.initial,
     this.cameraSteps = const [],
@@ -227,6 +233,7 @@ class CinematicEvaluator {
     this.effects = const [],
     this.cameraEasings = const [],
     this.cameraStepDurationsMs = const [],
+    this.stepEasings = const [],
   });
 
   /// tMs toàn cục = tổng duration các bước đã xong + tiến độ trong bước
@@ -276,12 +283,19 @@ class CinematicEvaluator {
         ? cameraStepDurationsMs[idx]
         : 0;
     final stepDur = idx < stepDurationsMs.length ? stepDurationsMs[idx] : 0;
+    final stepCurve = idx < stepEasings.length ? stepEasings[idx] : null;
     final double camT;
     if (camDur > 0 && stepDur > 0 && camDur < stepDur) {
-      // Hold-pose: normalize raw vào [0..cap], ease 1 lần, giữ pose.
+      // Hold-pose: normalize raw vào [0..cap], ease ĐÚNG 1 lần:
+      //   camera.easing → override.transform(inTween);
+      //   không có       → step.easing(inTween) — KHÔNG linear, cũng
+      //                    không dùng easedT full-step (đó là curve của
+      //                    raw chứ không phải inTween → sai pose).
       final cap = camDur / stepDur;
       final inTween = (raw / cap).clamp(0.0, 1.0);
-      camT = override != null ? override.transform(inTween) : inTween;
+      camT = override != null
+          ? override.transform(inTween)
+          : (stepCurve ?? Curves.linear).transform(inTween);
     } else {
       // Full-step: có camera.easing → ease(raw) 1 lần; không → easedT.
       camT = override != null ? override.transform(raw) : easedT;

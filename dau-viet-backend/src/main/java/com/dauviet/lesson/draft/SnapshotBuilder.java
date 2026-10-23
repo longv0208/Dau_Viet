@@ -64,7 +64,18 @@ public class SnapshotBuilder {
         snapshot.put("centralQuestion", lesson.getCentralQuestion());
         snapshot.set("objectives", parse(lesson.getObjectivesJson()));
         snapshot.put("templateCode", template.getCode());
-        ObjectNode stagesCopy = draft.path("stages").deepCopy();
+        JsonNode stagesNode = draft.path("stages");
+        if (!stagesNode.isArray()) {
+            // Contract: draft.stages phải là JSON array — DraftValidator đã
+            // chặn publish khi sai, nhưng builder cũng phải fail-fast với
+            // lỗi có kiểm soát thay vì ClassCastException khi ép về
+            // ObjectNode (stagesCopy là ArrayNode, không phải ObjectNode).
+            throw new DraftValidationException(java.util.List.of(
+                    new FieldError("stages", "STAGES_NOT_ARRAY",
+                            "draft.stages must be a JSON array, got: "
+                                    + stagesNode.getNodeType())));
+        }
+        ArrayNode stagesCopy = stagesNode.deepCopy();
         embedAnimationScenes(stagesCopy);
         snapshot.set("stages", stagesCopy);
         if (draft.has("completion")) {

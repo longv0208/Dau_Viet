@@ -141,6 +141,7 @@ export function cameraAt(
   rawProgress?: number,
   cameraStepDurationsMs?: number[],
   stepDurationsMs?: number[],
+  stepEasing?: string,
 ): CameraState {
   const idx = Math.min(Math.max(0, stepIndex), steps.length - 1);
   const to = steps[idx];
@@ -152,13 +153,19 @@ export function cameraAt(
   const raw = Math.min(1, Math.max(0, rawProgress ?? t));
   let camT: number;
   if (camDur > 0 && stepDur > 0 && camDur < stepDur) {
-    // Window con [0..cap] — normalize raw vào đó, ease 1 lần, giữ pose.
+    // Window con [0..cap] — normalize raw vào đó. Ease ĐÚNG 1 lần:
+    //   camera.easing → camera.easing(inTween);
+    //   không có       → step.easing(inTween) — KHÔNG linear, cũng không
+    //                    dùng easedT full-step (đó là curve của raw, không
+    //                    phải của inTween → double-ease/sai pose).
     const cap = camDur / stepDur;
     const inTween = Math.min(1, Math.max(0, raw / cap));
-    camT = override ? easeValue(override, inTween) : inTween;
+    camT = override
+      ? easeValue(override, inTween)
+      : easeValue(stepEasing, inTween);
   } else {
     // Full-step tween: có camera.easing → ease(raw) 1 lần; không → dùng
-    // easedT (step.easing đã áp).
+    // easedT (step.easing đã áp bởi caller).
     camT = override ? easeValue(override, raw) : t;
   }
   return lerpCamera(from, to, Math.min(1, Math.max(0, camT)));
@@ -234,6 +241,10 @@ export interface EvaluatorSpec {
    * tween hoàn thành trong durationMs đầu bước rồi GIỮ POSE cuối cho
    * phần còn lại (hold-pose); 0/vắng = camera chạy cả bước như cũ. */
   cameraStepDurationsMs?: number[];
+  /** P1 §3 — step.easing per-step (index-aligned). Cần khi có camera
+   * duration window nhưng KHÔNG có camera.easing: camera vẫn phải ease
+   * bằng step.easing (đúng 1 lần) chứ không rơi về linear. */
+  stepEasings?: (string | undefined)[];
   tracks: ObjectTrackSpec[];
   baseObjects: Record<string, ObjectVisualState>;
   stepDurationsMs: number[];
@@ -303,6 +314,7 @@ export function frameAt(
       spec.cameraInitial, spec.cameraSteps, stepIndex, easedT,
       spec.cameraEasings, rawProgress,
       spec.cameraStepDurationsMs, spec.stepDurationsMs,
+      spec.stepEasings?.[stepIndex],
     ),
     objects: objectsAt(spec, tMs),
     effects: effectsAt(spec, stepIndex, rawProgress),
