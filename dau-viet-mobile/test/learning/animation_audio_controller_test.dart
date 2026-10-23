@@ -1,6 +1,29 @@
+import 'dart:async';
+
+import 'package:audioplayers/audioplayers.dart';
 import 'package:dau_viet_mobile/features/learning/presentation/animations/runtime/animation_audio_controller.dart';
 import 'package:dau_viet_mobile/features/learning/presentation/animations/runtime/animation_manifest_dto.dart';
 import 'package:flutter_test/flutter_test.dart';
+
+/// Fake CueAudioPlayer — absorb mọi lệnh, ghi nhận để assert.
+class _FakeCuePlayer implements CueAudioPlayer {
+  _FakeCuePlayer(this.log);
+  final List<String> log;
+  @override
+  Future<void> stop() async => log.add('stop');
+  @override
+  Future<void> pause() async => log.add('pause');
+  @override
+  Future<void> resume() async => log.add('resume');
+  @override
+  Future<void> dispose() async => log.add('dispose');
+  @override
+  Future<void> setReleaseMode(ReleaseMode m) async => log.add('mode:$m');
+  @override
+  Future<void> setVolume(double v) async => log.add('vol:$v');
+  @override
+  Future<void> play(Source s) async => log.add('play');
+}
 
 /// v2 — unit tests cho AnimationAudioController: cue routing, byte cache,
 /// missing-asset safe path. audioplayers không chạy trong test env
@@ -88,6 +111,91 @@ void main() {
         cues: const [AudioCueDto(stepId: 's1', assetRef: 'a1', cue: 'ENTER')],
       );
       expect(() => c.onStepEnter('s1'), returnsNormally);
+    });
+  });
+
+  /* ---------- FIX-04 — race tests bằng fake CueAudioPlayer + Completer --- */
+
+  group('FIX-04 race conditions', () {
+    late List<String> log;
+
+    setUp(() {
+      log = <String>[];
+      audioTestBypassPlugin = true;
+    });
+    tearDown(() => audioTestBypassPlugin = false);
+
+    AnimationAudioController raceCtrl({
+      Map<String, String>? audioAssetIds,
+      List<AudioCueDto>? cues,
+      Future<List<int>?> Function(String)? fetchBytes,
+    }) => AnimationAudioController(
+      fetchBytes: fetchBytes ?? (_) async => [1, 2, 3],
+      audioAssetIds: audioAssetIds ?? const {'a1': 'uuid-1'},
+      cues: cues ?? const [],
+      playerFactory: () => _FakeCuePlayer(log),
+    );
+
+    test('EXIT cue still fires after step transitions (gen bumped by '
+        'onStepEnter does NOT kill in-flight EXIT fetch)', () async {
+      final gate = Completer<List<int>?>();
+      final c = raceCtrl(
+        fetchBytes: (_) => gate.future,
+        cues: const [AudioCueDto(stepId: 's1', assetRef: 'a1', cue: 'EXIT')],
+      );
+      c.onStepExit('s1'); // fires EXIT → awaits gate
+      // Learner chuyển step NGAY — onStepEnter bump _generation.
+      c.onStepEnter('s2');
+      // EXIT vẫn phải hoàn thành (không bị gen-check kill).
+      gate.complete([7, 8, 9]);
+      await Future<void>.delayed(Duration.zero);
+      // _playOnce đã chạy → fake player ghi 'play'.
+      expect(log.where((e) => e == 'play').length, greaterThanOrEqualTo(1));
+      await c.dispose();
+    });
+
+    test('EXIT cue aborted on onSkip (epoch invalidated)', () async {
+      final gate = Completer<List<int>?>();
+      final c = raceCtrl(
+        fetchBytes: (_) => gate.future,
+        cues: const [AudioCueDto(stepId: 's1', assetRef: 'a1', cue: 'EXIT')],
+      );
+      c.onStepExit('s1');
+      c.onSkip(); // reset _exitEpoch → pending EXIT abort
+      gate.complete([7, 8, 9]);
+      await Future<void>.delayed(Duration.zero);
+      // Không 'play' nào được gọi — abort trước khi _playOnce.
+      expect(log.where((e) => e == 'play'), isEmpty);
+      await c.dispose();
+    });
+
+    test('stale ENTER never plays late (gen invalid on step switch)', () async {
+      final gate = Completer<List<int>?>();
+      final c = raceCtrl(
+        fetchBytes: (_) => gate.future,
+        cues: const [AudioCueDto(stepId: 's1', assetRef: 'a1', cue: 'ENTER')],
+      );
+      c.onStepEnter('s1'); // gen=1, fetch pending
+      c.onStepEnter('s2'); // gen=2 — gen 1 stale
+      gate.complete([1]);
+      await Future<void>.delayed(Duration.zero);
+      // Enter cue của step cũ KHÔNG được play sau khi chuyển step.
+      expect(log.where((e) => e == 'play'), isEmpty);
+      await c.dispose();
+    });
+
+    test('dispose mid-fetch does not play', () async {
+      final gate = Completer<List<int>?>();
+      final c = raceCtrl(
+        fetchBytes: (_) => gate.future,
+        cues: const [AudioCueDto(stepId: 's1', assetRef: 'a1', cue: 'ENTER')],
+      );
+      c.onStepEnter('s1');
+      await c.dispose();
+      gate.complete([1]);
+      await Future<void>.delayed(Duration.zero);
+      // Post-dispose không phát.
+      expect(log.where((e) => e == 'play'), isEmpty);
     });
   });
 }

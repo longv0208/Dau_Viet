@@ -14,6 +14,13 @@ abstract class AnimationSceneRenderer {
   /// đã biết (DTO bỏ qua field lạ) nhưng caller có thể cảnh báo.
   int get supportedRendererVersion;
 
+  /// SchemaVersion tối đa renderer này hiểu (whitelist `{camera, tracks,
+  /// effects, audio, environment}` = v2). Manifest v3+ → canRender false
+  /// → explicit `_UnsupportedAnimationNotice` thay vì silently drop
+  /// features — đúng versioning contract: rendererVersion=1 KHÔNG có
+  /// nghĩa renderer hiểu mọi schemaVersion.
+  int get supportedSchemaVersion => 2;
+
   /// Manifest hợp lệ tối thiểu để renderer vận hành (vd: map cần
   /// locations; river không bắt buộc stakes vì có field mặc định).
   bool canRender(AnimationManifestDto manifest);

@@ -211,6 +211,12 @@ class CinematicEvaluator {
   /// caller truyền (tức step.easing chung).
   final List<Curve?> cameraEasings;
 
+  /// FIX-05 — `camera.steps[].durationMs` (index-aligned). >0 → camera
+  /// tween hoàn thành trong `durationMs` ms đầu của bước rồi GIỮ POSE
+  /// cuối cho phần còn lại (hold-pose); 0/vắng = camera chạy cả bước
+  /// như cũ. Parity với TS `cameraStepDurationsMs` trong cinematic-eval.
+  final List<int> cameraStepDurationsMs;
+
   const CinematicEvaluator({
     this.cameraInitial = CameraState.initial,
     this.cameraSteps = const [],
@@ -220,6 +226,7 @@ class CinematicEvaluator {
     this.stepIds = const [],
     this.effects = const [],
     this.cameraEasings = const [],
+    this.cameraStepDurationsMs = const [],
   });
 
   /// tMs toàn cục = tổng duration các bước đã xong + tiến độ trong bước
@@ -240,14 +247,44 @@ class CinematicEvaluator {
   /// trước tới cameraSteps[stepIndex] (hoặc giữ pose cuối nếu bước không
   /// khai báo camera). Khi `cameraEasings[idx]` có → transform `t` lại
   /// bằng curve đó (override step.easing cho riêng camera).
+  ///
+  /// FIX-05 — `cameraStepDurationsMs[idx]` > 0: camera hoàn thành tween
+  /// trong khoảng đó (ms đầu bước) rồi GIỮ POSE cuối — rawProgress của
+  /// bước chạy đầy đủ nhưng camera clamp t ở `camDuration / stepDuration`.
   CameraState cameraAt(int stepIndex, double t) {
+    return cameraAtRaw(stepIndex, t, t);
+  }
+
+  /// Tách riêng easedT (cho scene-state painter) và rawProgress (cho
+  /// camera-duration clamp) — player gọi với cả hai; TS port giữ API
+  /// `cameraAt(spec, stepIndex, easedT, rawProgress)` tương đương.
+  CameraState cameraAtRaw(int stepIndex, double easedT, double rawProgress) {
     if (cameraSteps.isEmpty) return cameraInitial;
     final idx = stepIndex.clamp(0, cameraSteps.length - 1);
     final from = idx == 0 ? cameraInitial : cameraSteps[idx - 1];
     final to = cameraSteps[idx];
     final override = idx < cameraEasings.length ? cameraEasings[idx] : null;
-    final camT = override != null ? override.transform(t.clamp(0.0, 1.0)) : t;
-    return from.lerp(to, camT);
+    var camT = override != null
+        ? override.transform(easedT.clamp(0.0, 1.0))
+        : easedT; // easedT = caller-đã-ease (step.easing) khi không override
+    // FIX-05 — camera duration ngắn hơn step → tween xong sớm, giữ pose.
+    final camDur = idx < cameraStepDurationsMs.length
+        ? cameraStepDurationsMs[idx]
+        : 0;
+    final stepDur = idx < stepDurationsMs.length ? stepDurationsMs[idx] : 0;
+    if (camDur > 0 && stepDur > 0 && camDur < stepDur) {
+      // Normalize raw progress vào phạm vi tween [0..camDur] rồi mới
+      // ease — sau ngưỡng camDur, camT = curve(1) giữ pose cuối. Khi
+      // không có override (cameraEasings[idx] = null), step-easing đã
+      // được caller áp lên `easedT` → un-ease không khả thi; giữ camT
+      // theo raw-progress scale là xấp xỉ đúng đủ cho preview (parity
+      // TS cùng hành vi — manifest không khai báo camera.easing thì
+      // camera tween theo step easing trên cửa sổ con).
+      final cap = camDur / stepDur;
+      final rawInTween = (rawProgress / cap).clamp(0.0, 1.0);
+      camT = override != null ? override.transform(rawInTween) : rawInTween;
+    }
+    return from.lerp(to, camT.clamp(0.0, 1.0));
   }
 
   /// Camera pose CUỐI của bước (t=1) — dùng cho reduced-motion/skip.
@@ -271,7 +308,7 @@ class CinematicEvaluator {
   CinematicFrame frameAt(int stepIndex, double easedT, double rawProgress) {
     final tMs = globalTMs(stepIndex, rawProgress);
     return CinematicFrame(
-      camera: cameraAt(stepIndex, easedT),
+      camera: cameraAtRaw(stepIndex, easedT, rawProgress),
       objects: objectsAt(tMs),
       effects: effectsAt(stepIndex, rawProgress),
     );

@@ -11,6 +11,7 @@ import {
   CAMERA_INITIAL,
   easeValue,
   frameAt,
+  lerpSceneState,
   type EvaluatorSpec,
   type SceneEffectSpec,
 } from "../preview/cinematic-eval";
@@ -42,62 +43,108 @@ export function ScenePreview({ manifest }: { manifest: AnimationManifest }) {
   const [progress, setProgress] = useState(1);
   const rafRef = useRef<number | null>(null);
   const stepStartRef = useRef<number>(0);
+  // Refs cho rAF loop — tick đọc state mới nhất mà không cần re-register
+  // listener (đúng một vòng rAF duy nhất, không chồng loop khi index
+  // đổi hay manifest biên tập giữa chừng).
+  const indexRef = useRef(index);
+  const playingRef = useRef(playing);
+  const stepsRef = useRef(steps);
 
   const step: ManifestStep | undefined = steps[Math.min(index, steps.length - 1)];
 
-  // Trạng thái hiệu lực = initialState gộp targetState của bước đang chọn.
+  // FIX-02 — trạng thái hiệu lực NỘI SUY theo eased progress (parity
+  // `SceneTransition.applyFrom` của Flutter), không còn snap thẳng về
+  // targetState: `from` = end-state bước trước (initialState khi bước
+  // đầu), `to` = raw targetState bước hiện tại (key vắng → default
+  // typed-state như `_target` decode trong Dart). Bước không targetState
+  // giữ nguyên state của bước trước (player không tween).
   const state = useMemo(() => {
-    const merged: Record<string, unknown> = { ...(manifest.initialState ?? {}) };
-    if (step?.targetState) {
-      for (const [k, v] of Object.entries(step.targetState)) {
-        if (v && typeof v === "object" && !Array.isArray(v) && typeof merged[k] === "object" && merged[k]) {
-          merged[k] = { ...(merged[k] as object), ...(v as object) };
-        } else {
-          merged[k] = v;
-        }
-      }
+    const base: Record<string, unknown> = { ...(manifest.initialState ?? {}) };
+    let from = base;
+    for (let i = 0; i < index; i++) {
+      const t = steps[i]?.targetState;
+      // Bước không targetState → painter giữ state (`_target` → null).
+      from = t ? lerpSceneState(manifest.rendererCode, base, from, t, 1) : from;
     }
+    const target = step?.targetState ?? {};
+    const raw = playing ? progress : 1;
+    const easedT = easeValue(step?.easing, raw);
+    const merged = lerpSceneState(manifest.rendererCode, base, from, target, easedT);
     if (waterOverride != null) merged.waterLevel = waterOverride;
     return merged;
-  }, [manifest.initialState, step, waterOverride]);
+  }, [manifest.initialState, manifest.rendererCode, steps, index, step, progress, playing, waterOverride]);
 
-  // Phát tự động theo rAF: progress chạy 0→1 trong durationMs rồi nhảy
-  // bước kế; hết danh sách → dừng. Tween liên tục (không snap cuối bước).
+  // Đồng bộ refs MỖI render — manifest biên tập giữa chừng (steps đổi)
+  // vẫn cho tick đọc dữ liệu mới ngay frame kế.
   useEffect(() => {
-    if (!playing || steps.length === 0) return;
-    const duration = Math.max(200, step?.durationMs ?? 4000);
-    stepStartRef.current = performance.now() - progress * duration;
-    const tick = (now: number) => {
+    indexRef.current = index;
+    playingRef.current = playing;
+    stepsRef.current = steps;
+  });
+
+  // MỘT vòng rAF duy nhất: đăng ký khi `playing` bật, hủy khi pause/
+  // unmount; tick đọc index/duration qua ref → không re-register theo
+  // index → không chồng loop. Hết danh sách → dừng (giữ frame cuối).
+  useEffect(() => {
+    if (!playing) return;
+    rafRef.current = requestAnimationFrame(function tick(now: number) {
+      const list = stepsRef.current;
+      const i = indexRef.current;
+      if (list.length === 0 || !playingRef.current) {
+        rafRef.current = null;
+        return;
+      }
+      const duration = Math.max(200, list[Math.min(i, list.length - 1)]?.durationMs ?? 4000);
       const p = Math.min(1, (now - stepStartRef.current) / duration);
       setProgress(p);
       if (p >= 1) {
-        if (index < steps.length - 1) {
-          setIndex(index + 1);
+        if (i < list.length - 1) {
+          indexRef.current = i + 1;
+          setIndex(i + 1);
           setProgress(0);
           stepStartRef.current = now;
           rafRef.current = requestAnimationFrame(tick);
         } else {
+          playingRef.current = false;
           setPlaying(false);
           rafRef.current = null;
         }
         return;
       }
       rafRef.current = requestAnimationFrame(tick);
-    };
-    rafRef.current = requestAnimationFrame(tick);
+    });
     return () => {
       if (rafRef.current != null) cancelAnimationFrame(rafRef.current);
       rafRef.current = null;
     };
-    // progress không phải dep — loop tự chạy theo index.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [playing, index, steps.length, step?.durationMs]);
+  }, [playing]);
 
   const go = (i: number) => {
-    setIndex(Math.max(0, Math.min(i, steps.length - 1)));
+    const next = Math.max(0, Math.min(i, steps.length - 1));
+    indexRef.current = next;
+    setIndex(next);
     setProgress(playing ? 0 : 1); // đang phát → tween mới từ đầu
     stepStartRef.current = performance.now();
     setWaterOverride(null);
+  };
+
+  const togglePlay = () => {
+    if (playing) {
+      playingRef.current = false;
+      setPlaying(false);
+      return;
+    }
+    // FIX-03 — Play ở bước CUỐI (đã chạy xong, progress=1) phải quay về
+    // bước 0 với progress=0 rồi phát lại — không bỏ qua frame, không
+    // để duration cũ nuốt tween đầu (stepStart tính từ bây giờ).
+    if (index >= steps.length - 1) {
+      indexRef.current = 0;
+      setIndex(0);
+      setProgress(0);
+      stepStartRef.current = performance.now();
+    }
+    playingRef.current = true;
+    setPlaying(true);
   };
 
   const allowWater = step?.allowedInteractions?.includes("WATER_LEVEL_CONTROL");
@@ -154,6 +201,9 @@ export function ScenePreview({ manifest }: { manifest: AnimationManifest }) {
       // P1 §5 — camera.steps[].easing (whitelist) override step.easing
       // cho camera tween, khớp Dart `cameraEasings`.
       cameraEasings: (cam?.steps ?? []).map((s) => s.easing ?? null),
+      // FIX-05 — camera.steps[].durationMs > 0 → camera tween hoàn
+      // thành trong khoảng đó rồi GIỮ POSE cho phần còn lại của step.
+      cameraStepDurationsMs: (cam?.steps ?? []).map((s) => s.durationMs ?? 0),
       tracks: tracks.map((t) => ({
         objectId: t.objectId,
         property: t.property,
@@ -395,10 +445,7 @@ export function ScenePreview({ manifest }: { manifest: AnimationManifest }) {
           variant="secondary"
           size="sm"
           disabled={steps.length === 0}
-          onClick={() => {
-            if (index >= steps.length - 1) setIndex(0);
-            setPlaying((p) => !p);
-          }}
+          onClick={togglePlay}
         >
           {playing ? <Pause className="mr-1 size-4" /> : <Play className="mr-1 size-4" />}
           {playing ? "Tạm dừng" : "Phát"}

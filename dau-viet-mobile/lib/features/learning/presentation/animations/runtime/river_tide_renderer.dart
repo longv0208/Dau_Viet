@@ -18,6 +18,9 @@ class RiverTideRenderer extends AnimationSceneRenderer {
   bool canRender(AnimationManifestDto manifest) =>
       manifest.rendererCode == rendererCode &&
       manifest.rendererVersion <= supportedRendererVersion &&
+      // FIX-06 — schemaVersion tương lai (> supportedSchemaVersion) →
+      // explicit unsupported, không im lặng bỏ v2 keys.
+      manifest.schemaVersion <= supportedSchemaVersion &&
       manifest.steps.isNotEmpty;
 
   @override

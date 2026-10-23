@@ -379,6 +379,81 @@ void main() {
     });
   });
 
+  group('FIX-06 — version gating (schemaVersion / rendererVersion)', () {
+    test('schemaVersion=2 manifest vẫn render được (v2 keys hiểu)', () {
+      final m = _riverManifest()..['schemaVersion'] = 2;
+      final manifest = AnimationManifestDto.fromJson(m);
+      expect(manifest.schemaVersion, 2);
+      expect(
+        AnimationRuntimeRegistry.resolve('RIVER_TIDE')!.canRender(manifest),
+        isTrue,
+      );
+      final mm = _mapManifest()..['schemaVersion'] = 2;
+      expect(
+        AnimationRuntimeRegistry.resolve(
+          'JOURNEY_MAP',
+        )!.canRender(AnimationManifestDto.fromJson(mm)),
+        isTrue,
+      );
+    });
+
+    test(
+      'schemaVersion tương lai (3) → canRender false, không silently drop',
+      () {
+        final m = _riverManifest()..['schemaVersion'] = 3;
+        final manifest = AnimationManifestDto.fromJson(m);
+        // DTO vẫn parse được (bỏ qua field lạ) nhưng renderer từ chối.
+        expect(manifest.schemaVersion, 3);
+        expect(
+          AnimationRuntimeRegistry.resolve('RIVER_TIDE')!.canRender(manifest),
+          isFalse,
+        );
+        final mm = _mapManifest()..['schemaVersion'] = 3;
+        expect(
+          AnimationRuntimeRegistry.resolve(
+            'JOURNEY_MAP',
+          )!.canRender(AnimationManifestDto.fromJson(mm)),
+          isFalse,
+        );
+      },
+    );
+
+    test('rendererVersion=2 > supported → canRender false', () {
+      final m = _riverManifest()..['rendererVersion'] = 2;
+      expect(
+        AnimationRuntimeRegistry.resolve(
+          'RIVER_TIDE',
+        )!.canRender(AnimationManifestDto.fromJson(m)),
+        isFalse,
+      );
+      final mm = _mapManifest()..['rendererVersion'] = 2;
+      expect(
+        AnimationRuntimeRegistry.resolve(
+          'JOURNEY_MAP',
+        )!.canRender(AnimationManifestDto.fromJson(mm)),
+        isFalse,
+      );
+    });
+
+    testWidgets('schemaVersion=3 → explicit unsupported notice, không crash', (
+      tester,
+    ) async {
+      final future = _riverManifest()..['schemaVersion'] = 3;
+      await _pumpRead(tester, {
+        'text': 'Nội dung đọc vẫn đủ.',
+        'animationManifest': _embedded(future),
+      });
+      await tester.pump();
+      expect(find.byType(HistoricalAnimationPlayer), findsNothing);
+      expect(
+        find.textContaining('cần phiên bản ứng dụng mới hơn'),
+        findsOneWidget,
+      );
+      expect(find.text('Nội dung đọc vẫn đủ.'), findsOneWidget);
+      expect(tester.takeException(), isNull);
+    });
+  });
+
   group('AnimationAssetResolver', () {
     test('resolves draft-style refs and snapshot-style refs', () {
       final resolver = AnimationAssetResolver([

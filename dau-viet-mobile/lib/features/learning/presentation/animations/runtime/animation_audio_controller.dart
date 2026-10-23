@@ -21,10 +21,58 @@ import 'animation_manifest_dto.dart';
 ///   khi learner đã chuyển step / skip / dispose.
 ///
 /// Chỉ MỘT LOOP player tại một thời điểm — LOOP mới thay LOOP cũ.
+/// API tối thiểu của một cue-player: chỉ phần controller cần gọi.
+/// `AudioPlayer` của audioplayers implement trực tiếp qua extension
+/// `CueAudioPlayerImpl`; test inject `FakeCueAudioPlayer` để quan sát
+/// lệnh play/stop mà không đụng plugin (ctor AudioPlayer gọi platform
+/// channel ngay khi khởi tạo → không dùng được trong flutter test).
+abstract interface class CueAudioPlayer {
+  Future<void> stop();
+  Future<void> pause();
+  Future<void> resume();
+  Future<void> dispose();
+  Future<void> setReleaseMode(ReleaseMode mode);
+  Future<void> setVolume(double v);
+  Future<void> play(Source source);
+}
+
+/// Production impl — bọc `AudioPlayer` thật.
+class _PluginCueAudioPlayer implements CueAudioPlayer {
+  _PluginCueAudioPlayer(this._p);
+  final AudioPlayer _p;
+  @override
+  Future<void> stop() => _p.stop();
+  @override
+  Future<void> pause() => _p.pause();
+  @override
+  Future<void> resume() => _p.resume();
+  @override
+  Future<void> dispose() => _p.dispose();
+  @override
+  Future<void> setReleaseMode(ReleaseMode m) => _p.setReleaseMode(m);
+  @override
+  Future<void> setVolume(double v) => _p.setVolume(v);
+  @override
+  Future<void> play(Source s) => _p.play(s);
+}
+
+/// Tạo player — seam để test thay bằng fake (audioplayers không chạy
+/// trong `flutter test`). Mặc định wrap `AudioPlayer`.
+typedef CueAudioPlayerFactory = CueAudioPlayer Function();
+
+/// @visibleForTesting — khi true (chỉ test set) `_isTest` trả false để
+/// `_playOnce`/`_startLoop` chạy qua fake `playerFactory` thay vì bail.
+/// Production không bao giờ set — an toàn mặc định.
+bool audioTestBypassPlugin = false;
+
 class AnimationAudioController {
   /// Fetch bytes của một assetId — inject bởi caller (Player dùng
   /// `fetchLearningAssetBytes(ref, id)`). Trả null khi lỗi/missing.
   final Future<List<int>?> Function(String assetId) fetchBytes;
+
+  /// Factory tạo cue-player — test override bằng `FakeCueAudioPlayer`
+  /// để kiểm soát delay/thứ tự play/stop mà không cần plugin thật.
+  final CueAudioPlayerFactory _playerFactory;
 
   /// assetRef → assetId resolution (manifest.assets[] role AUDIO).
   final Map<String, String> audioAssetIds;
@@ -36,10 +84,10 @@ class AnimationAudioController {
   final Map<String, Future<List<int>?>> _byteCache = {};
 
   /// Players one-shot (ENTER/EXIT) — key = assetId+cue để dispose riêng.
-  final Map<String, AudioPlayer> _oneShotPlayers = {};
+  final Map<String, CueAudioPlayer> _oneShotPlayers = {};
 
   /// LOOP player đơn — chỉ một tại một thời điểm.
-  AudioPlayer? _loopPlayer;
+  CueAudioPlayer? _loopPlayer;
   String? _loopStepId;
 
   /// fadeMs + volume của LOOP đang chạy — dùng khi fade-out lúc exit.
@@ -61,11 +109,22 @@ class AnimationAudioController {
   /// thời điểm fire và abort nếu gen đổi trước khi bytes về.
   int _generation = 0;
 
+  /// FIX-04 — epoch chụp lúc `onStepExit`: EXIT cue chạy trên epoch
+  /// riêng để `onStepEnter` step kế không abort nó giữa fetch. onSkip/
+  /// dispose reset `_exitEpoch = -1` → `_fireExit` abort đúng.
+  int _exitEpoch = -1;
+
+  /// Default factory — tên riêng để `_playerFactoryIsDefault` so sánh.
+  static CueAudioPlayer _defaultFactory() =>
+      _PluginCueAudioPlayer(AudioPlayer());
+
   AnimationAudioController({
     required this.fetchBytes,
     required this.audioAssetIds,
     required List<AudioCueDto> cues,
-  }) : cuesByStep = _groupByStep(cues);
+    CueAudioPlayerFactory? playerFactory,
+  }) : _playerFactory = playerFactory ?? _defaultFactory,
+       cuesByStep = _groupByStep(cues);
 
   static Map<String, List<AudioCueDto>> _groupByStep(List<AudioCueDto> cues) {
     final grouped = <String, List<AudioCueDto>>{};
@@ -76,7 +135,16 @@ class AnimationAudioController {
   }
 
   bool get _soundEnabled => DauVietAudioService.instance.isSoundEnabled;
-  bool get _isTest => DauVietAudioService.isTestEnvironment;
+
+  /// Test seam — `_isTest` guard chỉ chặn lệnh `play`/`setReleaseMode`
+  /// xuống plugin audioplayers (không chạy trong `flutter test`); logic
+  /// routing, generation, byte-cache, abort vẫn chạy → race-condition
+  /// test được bằng `CueAudioPlayer` fake inject qua `playerFactory`.
+  /// Khi test inject `playerFactory` (fake trả `FakeCueAudioPlayer`),
+  /// `_isTest` trả false để `_playOnce`/`_startLoop` đi qua như
+  /// production — fake ghi nhận lệnh gọi mà không cần plugin thật.
+  bool get _isTest =>
+      !audioTestBypassPlugin && DauVietAudioService.isTestEnvironment;
 
   /// Bytes của assetId — cache lần đầu; null khi không resolve được
   /// hoặc fetch lỗi/rỗng.
@@ -91,12 +159,11 @@ class AnimationAudioController {
     );
   }
 
-  /// Phát một cue — ENTER: play once; EXIT: play once (hiếm); LOOP:
-  /// chuyển thành loop player. Chụp [_generation] trước await: nếu gen
-  /// đổi (learner đã chuyển step / skip / dispose) trong lúc fetch
-  /// bytes thì abort — không phát âm thanh của step cũ.
+  /// Phát một cue — ENTER: play once; LOOP: chuyển thành loop player.
+  /// Chụp [_generation] trước await: nếu gen đổi (learner đã chuyển
+  /// step / skip / dispose) trong lúc fetch bytes thì abort.
   Future<void> _fire(AudioCueDto cue) async {
-    if (_disposed || !_soundEnabled || _isTest) return;
+    if (_disposed || !_soundEnabled) return;
     final gen = _generation;
     try {
       final bytes = await _bytesOf(cue.assetRef);
@@ -113,9 +180,28 @@ class AnimationAudioController {
     }
   }
 
+  /// FIX-04 — phát EXIT cue ngoài generation-token của `_fire`. EXIT
+  /// phát KHI rời step — `_generation` của step mới (onStepEnter kế)
+  /// không được kill nó; chỉ skip/dispose (bump `_exitEpoch`) mới abort.
+  /// LOOP cue không qua đây — EXIT luôn one-shot.
+  Future<void> _fireExit(AudioCueDto cue) async {
+    if (_disposed || !_soundEnabled) return;
+    final epoch = _exitEpoch;
+    try {
+      final bytes = await _bytesOf(cue.assetRef);
+      if (_disposed || epoch != _exitEpoch || bytes == null || bytes.isEmpty) {
+        return;
+      }
+      await _playOnce(cue, bytes);
+    } catch (e) {
+      debugPrint('AnimationAudioController exit cue error: $e');
+    }
+  }
+
   Future<void> _playOnce(AudioCueDto cue, List<int> bytes) async {
+    if (_isTest) return; // plugin không chạy trong flutter test
     final key = '${cue.assetRef}:${cue.cue}';
-    final player = _oneShotPlayers[key] ??= AudioPlayer();
+    final player = _oneShotPlayers[key] ??= _playerFactory();
     await player.stop();
     await player.setReleaseMode(ReleaseMode.stop);
     await player.setVolume(cue.volume);
@@ -131,7 +217,10 @@ class AnimationAudioController {
     // LOOP mới thay LOOP cũ — dừng cái đang chạy trước.
     await _stopLoop();
     if (_disposed || gen != _generation) return;
-    final p = _loopPlayer = AudioPlayer();
+    // Test seam — trong flutter test (`_isTest` && không inject fake
+    // player) thì skip phần config/play plugin; logic lifecycle vẫn chạy.
+    if (_isTest) return;
+    final p = _loopPlayer = _playerFactory();
     _loopStepId = cue.stepId;
     _loopFadeMs = cue.fadeMs;
     _loopVolume = cue.volume;
@@ -154,7 +243,11 @@ class AnimationAudioController {
   /// Ramp volume của [p] về [target] trong [durationMs] — dùng cho
   /// fade-in của LOOP (0→cue.volume). Dừng sớm nếu player đã bị thay
   /// thế/dispose (check identical với _loopPlayer).
-  Future<void> _rampVolume(AudioPlayer p, double target, int durationMs) async {
+  Future<void> _rampVolume(
+    CueAudioPlayer p,
+    double target,
+    int durationMs,
+  ) async {
     const steps = 8;
     const startVol = 0.0;
     // fadeMs nhỏ (<8) → tick=0 → loop chồng setVolume; sàn 16ms/tick.
@@ -226,13 +319,22 @@ class AnimationAudioController {
   /// Player rời step — fire EXIT cues, dừng LOOP nếu LOOP gắn step này.
   /// LOOP fade-out theo `fadeMs` của cue (rời step tự nhiên), khác với
   /// skip/dispose là dừng ngay.
+  ///
+  /// FIX-04 — EXIT cue chạy ĐỘC LẬP generation: `onStepEnter` của step
+  /// kế bump `_generation` NGAY sau (chuyển bước là atomic) — nếu EXIT
+  /// dùng `_fire` chung, gen-check sẽ kill nó giữa fetch → exit cue
+  /// hợp lệ không bao giờ phát. `_fireExit` pin `_exitEpoch` lúc rời
+  /// bước; chỉ onSkip/dispose (reset `_exitEpoch = -1`) mới abort nó,
+  /// còn enter step mới thì EXIT vẫn phát đúng. Byte-cache làm fetch
+  /// EXIT thường instant nếu đã tải.
   void onStepExit(String stepId) {
     _generation++;
+    _exitEpoch = _generation; // pin — chuyển step kế không kill EXIT
     if (_disposed || !_soundEnabled) return;
     final cues = cuesByStep[stepId];
     if (cues != null) {
       for (final c in cues) {
-        if (c.cue == 'EXIT') _fire(c);
+        if (c.cue == 'EXIT') _fireExit(c);
       }
     }
     // _stopLoop tự reset _loopPlayer/_loopStepId/_loopStarted/_loopPendingBytes.
@@ -273,10 +375,11 @@ class AnimationAudioController {
     } catch (_) {}
   }
 
-  /// Skip — dừng mọi cue ngay (không fire EXIT). Bump generation để
-  /// pending fetch không phát âm sau skip.
+  /// Skip — dừng mọi cue ngay (không fire EXIT). Bump generation +
+  /// `_exitEpoch` để pending fetch/EXIT không phát âm sau skip.
   void onSkip() {
     _generation++;
+    _exitEpoch = -1;
     if (_disposed) return;
     _stopLoop();
     for (final p in _oneShotPlayers.values) {
@@ -291,6 +394,7 @@ class AnimationAudioController {
     if (_disposed) return;
     _disposed = true;
     _generation++;
+    _exitEpoch = -1; // pending EXIT abort
     await _stopLoop();
     for (final p in _oneShotPlayers.values) {
       try {

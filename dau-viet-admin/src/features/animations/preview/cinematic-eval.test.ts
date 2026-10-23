@@ -8,6 +8,8 @@ import {
   frameEndAt,
   globalTMs,
   lerpCamera,
+  lerpSceneState,
+  mergeSceneState,
   objectsAt,
   trackValueAt,
   type EvaluatorSpec,
@@ -52,6 +54,31 @@ describe("camera", () => {
     // Không khai báo → giữ nguyên easedT caller truyền (step.easing).
     const fallback = cameraAt(CAMERA_INITIAL, steps, 0, 0.5);
     expect(fallback.center.x).toBeCloseTo(0.75);
+  });
+
+  it("cameraAt with cameraStepDurationsMs clamps tween to window", () => {
+    const steps = [
+      { center: { x: 1.0, y: 0.5 }, zoom: 2.0 }, // đích step 0
+      { center: { x: 0.0, y: 0.5 }, zoom: 1.0 },
+    ];
+    // camera.steps[0].durationMs = 500 trong step 2000ms → cap = 0.25.
+    // rawProgress 0.125 (nửa cửa sổ) → camT = 0.5 → giữa tween.
+    const mid = cameraAt(
+      CAMERA_INITIAL, steps, 0, 0.5, undefined, 0.125, [500], [2000],
+    );
+    expect(mid.center.x).toBeCloseTo(0.75);
+    expect(mid.zoom).toBeCloseTo(1.5);
+    // rawProgress 0.5 (sau cap 0.25) → camT = 1 → giữ pose cuối.
+    const held = cameraAt(
+      CAMERA_INITIAL, steps, 0, 1.0, undefined, 0.5, [500], [2000],
+    );
+    expect(held.center.x).toBeCloseTo(1.0);
+    expect(held.zoom).toBeCloseTo(2.0);
+    // Không khai báo durationMs → camera chạy cả bước như cũ.
+    const full = cameraAt(
+      CAMERA_INITIAL, steps, 0, 0.5, undefined, 0.5, [0], [2000],
+    );
+    expect(full.center.x).toBeCloseTo(0.75);
   });
 });
 
@@ -185,5 +212,111 @@ describe("effectsAt", () => {
     for (const i of [0, 1]) {
       expect(effectsAt(spec, i, 0.5).some((e) => e.type === "FADE_IN")).toBe(false);
     }
+  });
+});
+
+/* ---------- FIX-02 — lerpSceneState parity với SceneTransition.applyFrom ---------- */
+
+describe("lerpSceneState (RIVER_TIDE)", () => {
+  const base = { waterLevel: 0.3, boatProgress: 0 };
+  const from = { waterLevel: 0.3, boatProgress: 0.2, decoyProgress: 0 };
+  const to = { waterLevel: 0.9, boatProgress: 1, obstructed: true, highlightStakes: true };
+
+  it.each([0, 0.25, 0.5, 0.75, 1])(
+    "lerps numeric fields at progress %s, flags apply at target",
+    (t) => {
+      const s = lerpSceneState("RIVER_TIDE", base, from, to, t);
+      expect(s.waterLevel as number).toBeCloseTo(0.3 + (0.9 - 0.3) * t);
+      expect(s.boatProgress as number).toBeCloseTo(0.2 + (1 - 0.2) * t);
+      // Boolean cờ áp NGAY từ target (Dart gán thẳng, không lerp).
+      expect(s.obstructed).toBe(true);
+      expect(s.highlightStakes).toBe(true);
+    },
+  );
+
+  it("missing target field decodes to typed default (0), not stale merge", () => {
+    // Dart `_target`: vắng `decoyProgress` → 0, không giữ end-state trước.
+    const s = lerpSceneState(
+      "RIVER_TIDE",
+      base,
+      { decoyProgress: 0.8 },
+      { boatProgress: 0.5 },
+      0.5,
+    );
+    expect(s.decoyProgress as number).toBeCloseTo(0.4); // 0.8 → 0 midpoint
+  });
+
+  it("mid-step change lerps from previous end-state", () => {
+    // Step trước kết ở boat 0.4 → bước này target 0.8, t=0.5 → 0.6.
+    const s = lerpSceneState(
+      "RIVER_TIDE",
+      base,
+      { boatProgress: 0.4 },
+      { boatProgress: 0.8 },
+      0.5,
+    );
+    expect(s.boatProgress as number).toBeCloseTo(0.6);
+  });
+});
+
+describe("lerpSceneState (JOURNEY_MAP)", () => {
+  const base: Record<string, unknown> = { markerVisibility: { a: 1 } };
+
+  it("lerps markerVisibility/routeProgress on union keys", () => {
+    const s = lerpSceneState(
+      "JOURNEY_MAP",
+      base,
+      { markerVisibility: { a: 1, b: 0 }, routeProgress: { r1: 0.2 } },
+      { markerVisibility: { a: 0, b: 1 }, routeProgress: { r1: 1, r2: 0.5 } },
+      0.5,
+    );
+    const vis = s.markerVisibility as Record<string, number>;
+    expect(vis.a).toBeCloseTo(0.5);
+    expect(vis.b).toBeCloseTo(0.5);
+    const rp = s.routeProgress as Record<string, number>;
+    expect(rp.r1).toBeCloseTo(0.6);
+    expect(rp.r2).toBeCloseTo(0.25); // 0 → 0.5
+  });
+
+  it("focusedLocationId + markerHighlight apply at target immediately", () => {
+    const s = lerpSceneState(
+      "JOURNEY_MAP",
+      base,
+      {},
+      { focusedLocationId: "x", markerHighlight: ["a", "b"] },
+      0.1,
+    );
+    expect(s.focusedLocationId).toBe("x");
+    expect(s.markerHighlight).toEqual(["a", "b"]);
+  });
+
+  it("t=1 settles at decoded target (missing map key fades to 0)", () => {
+    // targetState CÓ field khác nhưng vắng markerVisibility → Dart decode
+    // markerVisibility = {} → union-key lerp kéo 'a' về 0.
+    const s = lerpSceneState(
+      "JOURNEY_MAP",
+      base,
+      { markerVisibility: { a: 1 } },
+      { focusedLocationId: "b" },
+      1,
+    );
+    expect(s.markerVisibility).toEqual({ a: 0 });
+    expect(s.focusedLocationId).toBe("b");
+  });
+
+  it("empty targetState keeps prior state (player does not tween)", () => {
+    const s = lerpSceneState("JOURNEY_MAP", base, base, {}, 0.5);
+    expect(s.markerVisibility).toEqual({ a: 1 });
+  });
+});
+
+describe("mergeSceneState", () => {
+  it("deep-merges nested maps, overwrites scalars", () => {
+    const m = mergeSceneState(
+      { markerVisibility: { a: 1 }, waterLevel: 0.3 },
+      { markerVisibility: { b: 0.5 }, waterLevel: 0.9 },
+    );
+    expect(m.markerVisibility).toEqual({ a: 1, b: 0.5 });
+    expect(m.waterLevel).toBe(0.9);
   });
 });

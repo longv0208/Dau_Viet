@@ -39,5 +39,16 @@ Audit commit 82765d3. Vertical slice: Admin create/configure/preview/publish sce
 - Admin tsc clean, vitest 144/144
 - Mobile 278/278
 
+## Final stabilization (2026-10-24, HEAD cd176d1)
+- FIX-01 publish-IT fixtures hợp validator — AnimationScenePublishIT compile OK, chạy blocked vì Docker.
+- FIX-02 admin preview lerp raw `step.targetState` (RIVER_TIDE numeric + flags; JOURNEY_MAP markerVisibility/routeProgress/markerHighlight/focusedLocationId) — parity Flutter↔Admin, 0/25/50/75/100% + mid-step tests.
+- FIX-03 `scene-preview.tsx` — đúng 1 rAF loop (refs + effect [playing]); Play tại step cuối reset về 0; an toàn pause/resume/prev/next/unmount/edit-mid-play.
+- FIX-04 `animation_audio_controller.dart` — tách `_exitEpoch` để EXIT cue sống qua `_generation` bump của step kế; seam `CueAudioPlayer` + `audioTestBypassPlugin`; 4 race tests với Completer.
+- FIX-05 `camera.steps[].durationMs` hold-pose semantics đồng bộ Dart (`cameraAtRaw`) + TS (`cameraAt`): camera tween xong trong `durationMs` đầu bước rồi giữ pose; 0/vắng = legacy.
+- FIX-06 `supportedSchemaVersion=2` trên `AnimationSceneRenderer`; canRender của cả 2 renderer chặn `schemaVersion>2` → `_UnsupportedAnimationNotice` (không silent drop). 4 negative tests mới.
+- FIX-07 3 fixture `bd/hb/lt.json` bị mojibake (UTF-8 lưu nhầm Latin-1) — đã re-encode đúng từ literal trong V16 SQL; validator tests 44/44 pass.
+- FIX-09 gates: backend compile OK, `mvn test` 244 run / 0 fail / 1 error duy nhất (`ActuatorHealthIT`, Testcontainers — Docker OFF; mọi `*IT` cùng blocked); admin tsc clean, lint 0, vitest 171/171, build OK; flutter format + analyze sạch trên vùng sửa, `flutter test test/learning` 210/210.
+
 ## Blockers
-- Docker Desktop daemon OFF → all Testcontainers ITs (P1-10) cannot run; unit/MockMvc tests proceed.
+- Docker Desktop daemon OFF → all Testcontainers ITs (P1-10, gồm AnimationScenePublishIT cho FIX-01) cannot run; KHÔNG đánh dấu PASS. Unit/MockMvc/validator tests đã cover phạm vi sửa.
+- Audio demo scenes (V16) chỉ seed silent-WAV placeholder — chưa có audio/artwork thật; scene vẫn render, audio no-op theo contract v2.

@@ -1,103 +1,343 @@
 {
-      "schemaVersion": 2,
-      "rendererCode": "JOURNEY_MAP",
-      "rendererVersion": 1,
-      "title": "Khá»Ÿi nghÄ©a Hai BĂ  TrÆ°ng nÄƒm 40 â€” Cinematic",
-      "learningObjective": "Nháº­n biáº¿t cĂ¡c Ä‘á»‹a Ä‘iá»ƒm then chá»‘t qua camera pan Ä‘iá»‡n áº£nh + route reveal â€” HĂ¡t MĂ´n, MĂª Linh, Luy LĂ¢u.",
-      "canvas": {"aspectRatio": 1.6},
-      "assets": [
-        {"id": "amb-battle", "assetId": "d7a60000-0000-4000-8000-000000000001",
-         "role": "AUDIO"}
-      ],
-      "objects": [],
-      "initialState": {},
-      "interactions": ["TAP_TO_EXPLORE", "PREDICTION"],
-      "disclaimer": "Báº£n Ä‘á»“ minh há»a schematic + cinematic camera â€” khĂ´ng theo tá»‰ lá»‡, khĂ´ng pháº£i báº£n Ä‘á»“ Ä‘á»‹a lĂ½ chĂ­nh xĂ¡c.",
-      "sourceReferences": [
-        {"title": "Báº£o tĂ ng Lá»‹ch sá»­ Quá»‘c gia â€” \"Cuá»™c khá»Ÿi nghÄ©a Hai BĂ  TrÆ°ng (nÄƒm 40â€“43 sau CĂ´ng nguyĂªn)\" (baotanglichsuquocgia.vn)."}
-      ],
-      "map": {
-        "locations": [
-          {"id": "hat-mon", "name": "HĂ¡t MĂ´n", "x": 0.30, "y": 0.62,
-           "description": "Khu vá»±c sĂ´ng HĂ¡t / HĂ¡t MĂ´n â€” nÆ¡i cuá»™c khá»Ÿi nghÄ©a báº¯t Ä‘áº§u nÄƒm 40.",
-           "contextLabel": "NÆ¡i phĂ¡t khá»Ÿi"},
-          {"id": "me-linh", "name": "MĂª Linh", "x": 0.48, "y": 0.42,
-           "description": "VĂ¹ng MĂª Linh â€” quĂª hÆ°Æ¡ng vĂ  nÆ¡i quy tá»¥ lá»±c lÆ°á»£ng.",
-           "contextLabel": "NÆ¡i quy tá»¥"},
-          {"id": "luy-lau", "name": "Luy LĂ¢u", "x": 0.72, "y": 0.34,
-           "description": "Luy LĂ¢u â€” trung tĂ¢m hĂ nh chĂ­nh cá»§a nhĂ  ÄĂ´ng HĂ¡n á»Ÿ Giao Chá»‰.",
-           "contextLabel": "Trung tĂ¢m HĂ¡n"}
-        ],
-        "routes": [
-          {"id": "gather", "from": "hat-mon", "to": "me-linh", "via": [{"x": 0.40, "y": 0.55}],
-           "explanation": "Tá»« Ä‘iá»ƒm phĂ¡t khá»Ÿi, lá»±c lÆ°á»£ng quy tá»¥ vá» MĂª Linh."},
-          {"id": "advance", "from": "me-linh", "to": "luy-lau", "via": [{"x": 0.60, "y": 0.40}],
-           "explanation": "Cuá»™c khá»Ÿi nghÄ©a hÆ°á»›ng vá» Luy LĂ¢u."}
-        ]
+  "schemaVersion": 2,
+  "rendererCode": "JOURNEY_MAP",
+  "rendererVersion": 1,
+  "title": "Khởi nghĩa Hai Bà Trưng năm 40 — Cinematic",
+  "learningObjective": "Nhận biết các địa điểm then chốt qua camera pan điện ảnh + route reveal — Hát Môn, Mê Linh, Luy Lâu.",
+  "canvas": {
+    "aspectRatio": 1.6
+  },
+  "assets": [
+    {
+      "id": "amb-battle",
+      "assetId": "d7a60000-0000-4000-8000-000000000001",
+      "role": "AUDIO"
+    }
+  ],
+  "objects": [],
+  "initialState": {},
+  "interactions": [
+    "TAP_TO_EXPLORE",
+    "PREDICTION"
+  ],
+  "disclaimer": "Bản đồ minh họa schematic + cinematic camera — không theo tỉ lệ, không phải bản đồ địa lý chính xác.",
+  "sourceReferences": [
+    {
+      "title": "Bảo tàng Lịch sử Quốc gia — \"Cuộc khởi nghĩa Hai Bà Trưng (năm 40–43 sau Công nguyên)\" (baotanglichsuquocgia.vn)."
+    }
+  ],
+  "map": {
+    "locations": [
+      {
+        "id": "hat-mon",
+        "name": "Hát Môn",
+        "x": 0.3,
+        "y": 0.62,
+        "description": "Khu vực sông Hát / Hát Môn — nơi cuộc khởi nghĩa bắt đầu năm 40.",
+        "contextLabel": "Nơi phát khởi"
       },
-      "camera": {
-        "initial": {"x": 0.5, "y": 0.5, "zoom": 1.0},
-        "steps": [
-          {"target": {"x": 0.5, "y": 0.5, "zoom": 1.0}},
-          {"target": {"x": 0.3, "y": 0.62, "zoom": 1.4, "focusLocationId": "hat-mon"}},
-          {"target": {"x": 0.48, "y": 0.42, "zoom": 1.4, "focusLocationId": "me-linh"}},
-          {"target": {"x": 0.72, "y": 0.34, "zoom": 1.5, "focusLocationId": "luy-lau"}},
-          {"target": {"x": 0.5, "y": 0.5, "zoom": 1.0}},
-          {"target": {"x": 0.5, "y": 0.5, "zoom": 1.0}}
-        ]
+      {
+        "id": "me-linh",
+        "name": "Mê Linh",
+        "x": 0.48,
+        "y": 0.42,
+        "description": "Vùng Mê Linh — quê hương và nơi quy tụ lực lượng.",
+        "contextLabel": "Nơi quy tụ"
       },
-      "tracks": [],
-      "effects": [
-        {"type": "FADE_IN", "stepId": "context", "durationMs": 800},
-        {"type": "GLOW", "stepId": "outbreak", "durationMs": 2200,
-         "params": {"x": 0.30, "y": 0.62, "intensity": 0.6}},
-        {"type": "GLOW", "stepId": "advance", "durationMs": 2200,
-         "params": {"x": 0.72, "y": 0.34, "intensity": 0.6}},
-        {"type": "FADE_OUT", "stepId": "meaning", "durationMs": 1000}
-      ],
-      "audio": [
-        {"stepId": "context", "assetRef": "amb-battle", "cue": "ENTER", "volume": 0.4},
-        {"stepId": "outbreak", "assetRef": "amb-battle", "cue": "ENTER", "volume": 0.5},
-        {"stepId": "gather", "assetRef": "amb-battle", "cue": "ENTER", "volume": 0.5},
-        {"stepId": "advance", "assetRef": "amb-battle", "cue": "ENTER", "volume": 0.6},
-        {"stepId": "meaning", "assetRef": "amb-battle", "cue": "EXIT", "fadeMs": 800}
-      ],
-      "steps": [
-        {"id": "context", "title": "Bá»‘i cáº£nh", "durationMs": 1100, "easing": "easeInOut",
-         "narration": "Äáº§u tháº¿ ká»· I sau CĂ´ng nguyĂªn, vĂ¹ng Ä‘á»“ng báº±ng Báº¯c Bá»™ chá»‹u sá»± cai trá»‹ cá»§a nhĂ  ÄĂ´ng HĂ¡n. Fade in má»Ÿ mĂ n.",
-         "hint": "Fade in Ä‘Ă¡nh dáº¥u má»Ÿ cáº£nh.",
-         "targetState": {"markerVisibility": {}}},
-        {"id": "outbreak", "title": "Khá»Ÿi nghÄ©a bĂ¹ng lĂªn", "durationMs": 1100, "easing": "easeInOut",
-         "narration": "NÄƒm 40, cuá»™c khá»Ÿi nghÄ©a bĂ¹ng lĂªn á»Ÿ sĂ´ng HĂ¡t / HĂ¡t MĂ´n. Camera zoom vĂ o Ä‘iá»ƒm phĂ¡t khá»Ÿi vá»›i glow Ä‘Ă¡nh dáº¥u.",
-         "hint": "Camera pan + zoom vĂ o HĂ¡t MĂ´n, glow nháº¥n Ä‘iá»ƒm phĂ¡t khá»Ÿi.",
-         "targetState": {"markerVisibility": {"hat-mon": 1}, "focusedLocationId": "hat-mon"}},
-        {"id": "gather", "title": "Quy tá»¥ lá»±c lÆ°á»£ng", "durationMs": 1100, "easing": "easeInOut",
-         "narration": "Tá»« Ä‘iá»ƒm phĂ¡t khá»Ÿi, lá»±c lÆ°á»£ng quy tá»¥ vá» MĂª Linh. Camera tiáº¿p tá»¥c pan theo hÆ°á»›ng di chuyá»ƒn.",
-         "hint": "Camera pan sang MĂª Linh, route reveal trĂªn báº£n Ä‘á»“.",
-         "targetState": {"markerVisibility": {"hat-mon": 1, "me-linh": 1}, "routeProgress": {"gather": 1}, "focusedLocationId": "me-linh"}},
-        {"id": "advance", "title": "HÆ°á»›ng vá» Luy LĂ¢u", "durationMs": 1100, "easing": "easeInOut",
-         "narration": "Cuá»™c khá»Ÿi nghÄ©a hÆ°á»›ng tá»›i Luy LĂ¢u â€” camera zoom sĂ¢u nháº¥t khi nháº¯m trung tĂ¢m cai trá»‹ HĂ¡n.",
-         "hint": "Zoom máº¡nh nháº¥t táº¡i Luy LĂ¢u.",
-         "targetState": {"markerVisibility": {"hat-mon": 1, "me-linh": 1, "luy-lau": 1}, "routeProgress": {"gather": 1, "advance": 1}, "markerHighlight": ["luy-lau"], "focusedLocationId": "luy-lau"}},
-        {"id": "explore", "title": "KhĂ¡m phĂ¡ báº£n Ä‘á»“", "durationMs": 1100, "easing": "easeInOut",
-         "narration": "Camera trá»Ÿ vá» tá»•ng quan â€” cháº¡m vĂ o tá»«ng Ä‘á»‹a Ä‘iá»ƒm Ä‘á»ƒ Ä‘á»c Ă½ nghÄ©a lá»‹ch sá»­.",
-         "hint": "Camera zoom out, má»Ÿ khĂ¡m phĂ¡ tÆ°Æ¡ng tĂ¡c.",
-         "allowedInteractions": ["TAP_TO_EXPLORE"],
-         "targetState": {"markerVisibility": {"hat-mon": 1, "me-linh": 1, "luy-lau": 1}, "routeProgress": {"gather": 1, "advance": 1}}},
-        {"id": "meaning", "title": "Ă nghÄ©a", "durationMs": 1100, "easing": "easeInOut",
-         "narration": "Cuá»™c khá»Ÿi nghÄ©a nÄƒm 40 thá»ƒ hiá»‡n tinh tháº§n Ä‘á»™c láº­p máº¡nh máº½. Fade out khĂ©p láº¡i hĂ nh trĂ¬nh.",
-         "hint": "Fade out káº¿t thĂºc cinematic.",
-         "targetState": {"markerVisibility": {"hat-mon": 1, "me-linh": 1, "luy-lau": 1}, "routeProgress": {"gather": 1, "advance": 1}, "markerHighlight": ["luy-lau"]}}
-      ],
-      "prediction": {
-        "question": "Táº¡i sao Luy LĂ¢u lĂ  má»™t Ä‘á»‹a Ä‘iá»ƒm quan trá»ng trong diá»…n biáº¿n khá»Ÿi nghÄ©a?",
-        "options": [
-          {"text": "VĂ¬ Ä‘Ă¢y lĂ  nÆ¡i cuá»™c khá»Ÿi nghÄ©a báº¯t Ä‘áº§u nÄƒm 40."},
-          {"text": "VĂ¬ Ä‘Ă¢y lĂ  trung tĂ¢m hĂ nh chĂ­nh cá»§a nhĂ  HĂ¡n á»Ÿ Giao Chá»‰."}
+      {
+        "id": "luy-lau",
+        "name": "Luy Lâu",
+        "x": 0.72,
+        "y": 0.34,
+        "description": "Luy Lâu — trung tâm hành chính của nhà Đông Hán ở Giao Chỉ.",
+        "contextLabel": "Trung tâm Hán"
+      }
+    ],
+    "routes": [
+      {
+        "id": "gather",
+        "from": "hat-mon",
+        "to": "me-linh",
+        "via": [
+          {
+            "x": 0.4,
+            "y": 0.55
+          }
         ],
-        "explainedOptionIndex": 1,
-        "explanation": "Luy LĂ¢u lĂ  trung tĂ¢m hĂ nh chĂ­nh cá»§a nhĂ  ÄĂ´ng HĂ¡n táº¡i Giao Chá»‰ â€” cuá»™c khá»Ÿi nghÄ©a hÆ°á»›ng vá» Luy LĂ¢u thĂ¡ch thá»©c trá»±c tiáº¿p bá»™ mĂ¡y cai trá»‹.",
-        "retryHint": "NhĂ¬n láº¡i sÆ¡ Ä‘á»“: HĂ¡t MĂ´n má»›i lĂ  nÆ¡i phĂ¡t khá»Ÿi. Luy LĂ¢u Ä‘Ă³ng vai trĂ² khĂ¡c trong thá»ƒ cháº¿ cai trá»‹.",
-        "revealTargetState": {"markerVisibility": {"hat-mon": 1, "me-linh": 1, "luy-lau": 1}, "routeProgress": {"gather": 1, "advance": 1}, "markerHighlight": ["luy-lau"], "focusedLocationId": "luy-lau"}
+        "explanation": "Từ điểm phát khởi, lực lượng quy tụ về Mê Linh."
+      },
+      {
+        "id": "advance",
+        "from": "me-linh",
+        "to": "luy-lau",
+        "via": [
+          {
+            "x": 0.6,
+            "y": 0.4
+          }
+        ],
+        "explanation": "Cuộc khởi nghĩa hướng về Luy Lâu."
+      }
+    ]
+  },
+  "camera": {
+    "initial": {
+      "x": 0.5,
+      "y": 0.5,
+      "zoom": 1.0
+    },
+    "steps": [
+      {
+        "target": {
+          "x": 0.5,
+          "y": 0.5,
+          "zoom": 1.0
+        }
+      },
+      {
+        "target": {
+          "x": 0.3,
+          "y": 0.62,
+          "zoom": 1.4,
+          "focusLocationId": "hat-mon"
+        }
+      },
+      {
+        "target": {
+          "x": 0.48,
+          "y": 0.42,
+          "zoom": 1.4,
+          "focusLocationId": "me-linh"
+        }
+      },
+      {
+        "target": {
+          "x": 0.72,
+          "y": 0.34,
+          "zoom": 1.5,
+          "focusLocationId": "luy-lau"
+        }
+      },
+      {
+        "target": {
+          "x": 0.5,
+          "y": 0.5,
+          "zoom": 1.0
+        }
+      },
+      {
+        "target": {
+          "x": 0.5,
+          "y": 0.5,
+          "zoom": 1.0
+        }
+      }
+    ]
+  },
+  "tracks": [],
+  "effects": [
+    {
+      "type": "FADE_IN",
+      "stepId": "context",
+      "durationMs": 800
+    },
+    {
+      "type": "GLOW",
+      "stepId": "outbreak",
+      "durationMs": 2200,
+      "params": {
+        "x": 0.3,
+        "y": 0.62,
+        "intensity": 0.6
+      }
+    },
+    {
+      "type": "GLOW",
+      "stepId": "advance",
+      "durationMs": 2200,
+      "params": {
+        "x": 0.72,
+        "y": 0.34,
+        "intensity": 0.6
+      }
+    },
+    {
+      "type": "FADE_OUT",
+      "stepId": "meaning",
+      "durationMs": 1000
+    }
+  ],
+  "audio": [
+    {
+      "stepId": "context",
+      "assetRef": "amb-battle",
+      "cue": "ENTER",
+      "volume": 0.4
+    },
+    {
+      "stepId": "outbreak",
+      "assetRef": "amb-battle",
+      "cue": "ENTER",
+      "volume": 0.5
+    },
+    {
+      "stepId": "gather",
+      "assetRef": "amb-battle",
+      "cue": "ENTER",
+      "volume": 0.5
+    },
+    {
+      "stepId": "advance",
+      "assetRef": "amb-battle",
+      "cue": "ENTER",
+      "volume": 0.6
+    },
+    {
+      "stepId": "meaning",
+      "assetRef": "amb-battle",
+      "cue": "EXIT",
+      "fadeMs": 800
+    }
+  ],
+  "steps": [
+    {
+      "id": "context",
+      "title": "Bối cảnh",
+      "durationMs": 1100,
+      "easing": "easeInOut",
+      "narration": "Đầu thế kỷ I sau Công nguyên, vùng đồng bằng Bắc Bộ chịu sự cai trị của nhà Đông Hán. Fade in mở màn.",
+      "hint": "Fade in đánh dấu mở cảnh.",
+      "targetState": {
+        "markerVisibility": {}
+      }
+    },
+    {
+      "id": "outbreak",
+      "title": "Khởi nghĩa bùng lên",
+      "durationMs": 1100,
+      "easing": "easeInOut",
+      "narration": "Năm 40, cuộc khởi nghĩa bùng lên ở sông Hát / Hát Môn. Camera zoom vào điểm phát khởi với glow đánh dấu.",
+      "hint": "Camera pan + zoom vào Hát Môn, glow nhấn điểm phát khởi.",
+      "targetState": {
+        "markerVisibility": {
+          "hat-mon": 1
+        },
+        "focusedLocationId": "hat-mon"
+      }
+    },
+    {
+      "id": "gather",
+      "title": "Quy tụ lực lượng",
+      "durationMs": 1100,
+      "easing": "easeInOut",
+      "narration": "Từ điểm phát khởi, lực lượng quy tụ về Mê Linh. Camera tiếp tục pan theo hướng di chuyển.",
+      "hint": "Camera pan sang Mê Linh, route reveal trên bản đồ.",
+      "targetState": {
+        "markerVisibility": {
+          "hat-mon": 1,
+          "me-linh": 1
+        },
+        "routeProgress": {
+          "gather": 1
+        },
+        "focusedLocationId": "me-linh"
+      }
+    },
+    {
+      "id": "advance",
+      "title": "Hướng về Luy Lâu",
+      "durationMs": 1100,
+      "easing": "easeInOut",
+      "narration": "Cuộc khởi nghĩa hướng tới Luy Lâu — camera zoom sâu nhất khi nhắm trung tâm cai trị Hán.",
+      "hint": "Zoom mạnh nhất tại Luy Lâu.",
+      "targetState": {
+        "markerVisibility": {
+          "hat-mon": 1,
+          "me-linh": 1,
+          "luy-lau": 1
+        },
+        "routeProgress": {
+          "gather": 1,
+          "advance": 1
+        },
+        "markerHighlight": [
+          "luy-lau"
+        ],
+        "focusedLocationId": "luy-lau"
+      }
+    },
+    {
+      "id": "explore",
+      "title": "Khám phá bản đồ",
+      "durationMs": 1100,
+      "easing": "easeInOut",
+      "narration": "Camera trở về tổng quan — chạm vào từng địa điểm để đọc ý nghĩa lịch sử.",
+      "hint": "Camera zoom out, mở khám phá tương tác.",
+      "allowedInteractions": [
+        "TAP_TO_EXPLORE"
+      ],
+      "targetState": {
+        "markerVisibility": {
+          "hat-mon": 1,
+          "me-linh": 1,
+          "luy-lau": 1
+        },
+        "routeProgress": {
+          "gather": 1,
+          "advance": 1
+        }
+      }
+    },
+    {
+      "id": "meaning",
+      "title": "Ý nghĩa",
+      "durationMs": 1100,
+      "easing": "easeInOut",
+      "narration": "Cuộc khởi nghĩa năm 40 thể hiện tinh thần độc lập mạnh mẽ. Fade out khép lại hành trình.",
+      "hint": "Fade out kết thúc cinematic.",
+      "targetState": {
+        "markerVisibility": {
+          "hat-mon": 1,
+          "me-linh": 1,
+          "luy-lau": 1
+        },
+        "routeProgress": {
+          "gather": 1,
+          "advance": 1
+        },
+        "markerHighlight": [
+          "luy-lau"
+        ]
       }
     }
+  ],
+  "prediction": {
+    "question": "Tại sao Luy Lâu là một địa điểm quan trọng trong diễn biến khởi nghĩa?",
+    "options": [
+      {
+        "text": "Vì đây là nơi cuộc khởi nghĩa bắt đầu năm 40."
+      },
+      {
+        "text": "Vì đây là trung tâm hành chính của nhà Hán ở Giao Chỉ."
+      }
+    ],
+    "explainedOptionIndex": 1,
+    "explanation": "Luy Lâu là trung tâm hành chính của nhà Đông Hán tại Giao Chỉ — cuộc khởi nghĩa hướng về Luy Lâu thách thức trực tiếp bộ máy cai trị.",
+    "retryHint": "Nhìn lại sơ đồ: Hát Môn mới là nơi phát khởi. Luy Lâu đóng vai trò khác trong thể chế cai trị.",
+    "revealTargetState": {
+      "markerVisibility": {
+        "hat-mon": 1,
+        "me-linh": 1,
+        "luy-lau": 1
+      },
+      "routeProgress": {
+        "gather": 1,
+        "advance": 1
+      },
+      "markerHighlight": [
+        "luy-lau"
+      ],
+      "focusedLocationId": "luy-lau"
+    }
+  }
+}

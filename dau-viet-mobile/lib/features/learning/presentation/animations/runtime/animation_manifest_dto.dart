@@ -207,6 +207,9 @@ class AnimationManifestDto {
           for (final e in camera.easings)
             e == null ? null : ObjectTrackDto._curve(e),
         ],
+        // FIX-05 — camera.steps[].durationMs > 0 → camera tween hoàn
+        // thành trong khoảng đó rồi GIỮ POSE cho phần còn lại của step.
+        cameraStepDurationsMs: camera.stepDurationsMs,
         tracks: [
           for (final t in tracks)
             ObjectTrackSpec(
@@ -488,10 +491,18 @@ class CameraTrackDto {
   /// camera pan/zoom có thể mượt khác với lerp trạng thái painter.
   final List<String?> easings;
 
+  /// FIX-05 — `camera.steps[].durationMs` (ms): thời lượng RIÊNG của
+  /// camera tween trong bước đó. 0/không khai báo → camera chạy cả
+  /// durationMs của step (giữ semantics cũ). >0 → camera hoàn thành
+  /// tween trong `durationMs` rồi GIỮ POSE cuối cho phần còn lại của
+  /// bước (hold-pose semantics, khớp admin preview).
+  final List<int> stepDurationsMs;
+
   const CameraTrackDto({
     this.initial = CameraState.initial,
     this.steps = const [],
     this.easings = const [],
+    this.stepDurationsMs = const [],
   });
 
   factory CameraTrackDto.fromJson(Object? raw) {
@@ -505,6 +516,9 @@ class CameraTrackDto {
       ],
       easings: [
         for (final s in rawSteps) s is Map ? s['easing'] as String? : null,
+      ],
+      stepDurationsMs: [
+        for (final s in rawSteps) s is Map ? _int(s['durationMs'], 0) : 0,
       ],
     );
   }

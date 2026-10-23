@@ -120,10 +120,14 @@ export function lerpCamera(from: CameraState, to: CameraState, t: number): Camer
 }
 
 /**
- * Camera pose tại (stepIndex, easedT) — steps[i] tween từ pose trước
- * (initial khi i==0) tới pose i. Giữ pose cuối khi bước không khai báo.
- * Khi `cameraEasings[idx]` có → transform `t` bằng curve đó trước khi
- * lerp (override step.easing cho riêng camera — parity với Dart).
+ * Camera pose tại (stepIndex, easedT, rawProgress) — steps[i] tween từ
+ * pose trước (initial khi i==0) tới pose i. Giữ pose cuối khi bước không
+ * khai báo. Khi `cameraEasings[idx]` có → transform `t` bằng curve đó
+ * trước khi lerp (override step.easing cho riêng camera — parity Dart).
+ *
+ * FIX-05 — `cameraStepDurationsMs[idx]` > 0: camera hoàn thành tween
+ * trong `durationMs` ms đầu của bước rồi GIỮ POSE cuối cho phần còn
+ * lại — clamp tại `camDur / stepDur` của rawProgress rồi re-ease.
  */
 export function cameraAt(
   initial: CameraState,
@@ -131,12 +135,25 @@ export function cameraAt(
   stepIndex: number,
   t: number,
   easings?: (string | null)[],
+  rawProgress?: number,
+  cameraStepDurationsMs?: number[],
+  stepDurationsMs?: number[],
 ): CameraState {
   const idx = Math.min(Math.max(0, stepIndex), steps.length - 1);
   const to = steps[idx];
   if (!to) return initial;
   const from = idx === 0 ? initial : (steps[idx - 1] ?? initial);
   const override = easings?.[idx];
+  const camDur = cameraStepDurationsMs?.[idx] ?? 0;
+  const stepDur = stepDurationsMs?.[idx] ?? 0;
+  if (camDur > 0 && stepDur > 0 && camDur < stepDur) {
+    // Normalize raw progress vào phạm vi tween [0..camDur] rồi mới
+    // ease — sau ngưỡng camDur, camT = curve(1) giữ pose cuối.
+    const cap = camDur / stepDur;
+    const raw = Math.min(1, Math.max(0, (rawProgress ?? t) / cap));
+    const camT = override ? easeValue(override, raw) : raw;
+    return lerpCamera(from, to, camT);
+  }
   const camT = override ? easeValue(override, t) : t;
   return lerpCamera(from, to, camT);
 }
@@ -207,6 +224,10 @@ export interface EvaluatorSpec {
    * cho camera tween — parity Dart `cameraEasings`. Index-aligned với
    * cameraSteps; null/missing = dùng easedT của caller. */
   cameraEasings?: (string | null)[];
+  /** FIX-05 — camera.steps[].durationMs (index-aligned). >0 → camera
+   * tween hoàn thành trong durationMs đầu bước rồi GIỮ POSE cuối cho
+   * phần còn lại (hold-pose); 0/vắng = camera chạy cả bước như cũ. */
+  cameraStepDurationsMs?: number[];
   tracks: ObjectTrackSpec[];
   baseObjects: Record<string, ObjectVisualState>;
   stepDurationsMs: number[];
@@ -274,7 +295,8 @@ export function frameAt(
   return {
     camera: cameraAt(
       spec.cameraInitial, spec.cameraSteps, stepIndex, easedT,
-      spec.cameraEasings,
+      spec.cameraEasings, rawProgress,
+      spec.cameraStepDurationsMs, spec.stepDurationsMs,
     ),
     objects: objectsAt(spec, tMs),
     effects: effectsAt(spec, stepIndex, rawProgress),
@@ -284,4 +306,117 @@ export function frameAt(
 /** Frame CUỐI bước — reduced-motion/skip nhảy thẳng đây. */
 export function frameEndAt(spec: EvaluatorSpec, stepIndex: number): CinematicFrame {
   return frameAt(spec, stepIndex, 1, 1);
+}
+
+/* ---------- scene-state interpolation (PARITY: SceneTransition.applyFrom) ---------- */
+
+/**
+ * Trạng thái painter hiệu dụng tại progress `t` trong bước — parity với
+ * `SceneTransition.applyFrom(painter, from, t)` của Flutter:
+ *
+ *  - RIVER_TIDE (`RiverSceneState`): lerp `waterLevel`, `boatProgress`,
+ *    `decoyProgress`, `counterattackProgress` từ snapshot `from`;
+ *    `obstructed`/`highlightStakes`/`showSequenceSummary` áp NGAY từ
+ *    target (Dart gán boolean thẳng, không lerp).
+ *  - JOURNEY_MAP (`MapSceneState`): lerp từng entry của `markerVisibility`
+ *    và `routeProgress` trên union keys (key vắng = 0 — fade-out có chủ
+ *    đích); `markerHighlight` + `focusedLocationId` áp NGAY từ target.
+ *
+ * `from` phải là snapshot ĐÓNG BĂNG lúc tween bắt đầu (end-state merge
+ * của bước trước) — không phải trạng thái frame trước, để kết quả tại
+ * t độc lập số frame đã render (giống `_tweenFrom` trong player).
+ * Bước không khai báo targetState → trả `base` (painter giữ nguyên).
+ * `t = 1` vẫn trả state đích đã nội suy xong (default field tính ra
+ * giá trị cuối, khớp `applyFrom(t=1)` trên typed target).
+ *
+ * Key lạ (không thuộc whitelist renderer) lọt sang `out` ở trạng thái
+ * đích như merge cũ — bảo toàn tương thích field mở rộng tương lai.
+ */
+export function lerpSceneState(
+  rendererCode: string | undefined,
+  base: Record<string, unknown>,
+  from: Record<string, unknown>,
+  to: Record<string, unknown>,
+  t: number,
+): Record<string, unknown> {
+  // Step không khai báo targetState → `_target` trả null → player không
+  // tween, painter GIỮ NGUYÊN trạng thái hiện tại (không reset default).
+  if (Object.keys(to).length === 0) return { ...base };
+  const out = mergeSceneState(base, to);
+
+  if (rendererCode === "RIVER_TIDE") {
+    // Dart `_target` decode: key vắng → default typed-state
+    // (waterLevel 0.3, các progress 0) — KHÔNG giữ giá trị cũ. Và
+    // `applyFrom` lerp `from[key] ?? painter[key]`: painter-current ≈
+    // `base` (end-state bước trước) nếu `from` thiếu key.
+    for (const [key, def] of [
+      ["waterLevel", 0.3],
+      ["boatProgress", 0],
+      ["decoyProgress", 0],
+      ["counterattackProgress", 0],
+    ] as const) {
+      const a = numOf(from[key], numOf(base[key], def)) ?? def;
+      const b = numOf(to[key], def) ?? def;
+      out[key] = lerpNum(a, b, t);
+    }
+  } else if (rendererCode === "JOURNEY_MAP") {
+    out.markerVisibility = lerpIdMap(from.markerVisibility, to.markerVisibility, t);
+    out.routeProgress = lerpIdMap(from.routeProgress, to.routeProgress, t);
+  }
+  return out;
+}
+
+/**
+ * Merge end-state của một step lên `base` — deep-merge map con
+ * (markerVisibility/routeProgress) rồi overwrite scalar. Dùng để chụp
+ * snapshot `from` cho bước kế tiếp và cho trạng thái "đứng yên"
+ * (paused/không playing) — tương đương `_applyCurrent(1)`.
+ */
+export function mergeSceneState(
+  base: Record<string, unknown>,
+  target: Record<string, unknown> | undefined,
+): Record<string, unknown> {
+  const merged: Record<string, unknown> = { ...base };
+  if (!target) return merged;
+  for (const [k, v] of Object.entries(target)) {
+    const prev = merged[k];
+    if (
+      v !== null && typeof v === "object" && !Array.isArray(v) &&
+      prev !== null && typeof prev === "object" && !Array.isArray(prev)
+    ) {
+      merged[k] = { ...(prev as Record<string, unknown>), ...(v as Record<string, unknown>) };
+    } else {
+      merged[k] = v;
+    }
+  }
+  return merged;
+}
+
+function numOf(v: unknown, fallback?: number): number | undefined {
+  if (typeof v === "number") return v;
+  return fallback;
+}
+
+/** Parity `MapSceneState._lerpIdMap` — union keys, vắng = 0. */
+function lerpIdMap(
+  from: unknown,
+  to: unknown,
+  t: number,
+): Record<string, number> {
+  const f = asNumMap(from);
+  const g = asNumMap(to);
+  const out: Record<string, number> = {};
+  for (const k of new Set([...Object.keys(f), ...Object.keys(g)])) {
+    out[k] = lerpNum(f[k] ?? 0, g[k] ?? 0, t);
+  }
+  return out;
+}
+
+function asNumMap(v: unknown): Record<string, number> {
+  if (v === null || typeof v !== "object" || Array.isArray(v)) return {};
+  const out: Record<string, number> = {};
+  for (const [k, val] of Object.entries(v as Record<string, unknown>)) {
+    if (typeof val === "number") out[k] = val;
+  }
+  return out;
 }

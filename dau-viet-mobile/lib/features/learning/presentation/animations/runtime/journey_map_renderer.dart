@@ -18,6 +18,8 @@ class JourneyMapRenderer extends AnimationSceneRenderer {
   bool canRender(AnimationManifestDto manifest) =>
       manifest.rendererCode == rendererCode &&
       manifest.rendererVersion <= supportedRendererVersion &&
+      // FIX-06 — schemaVersion tương lai → explicit unsupported.
+      manifest.schemaVersion <= supportedSchemaVersion &&
       manifest.steps.isNotEmpty &&
       manifest.locations.isNotEmpty;
 
