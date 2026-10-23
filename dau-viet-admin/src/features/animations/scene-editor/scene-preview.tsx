@@ -7,6 +7,15 @@ import { Button } from "@/components/ui/button";
 import { useAssetObjectUrl } from "@/features/assets/use-asset-object-url";
 
 import type { AnimationManifest, ManifestStep } from "../animation-types";
+import {
+  CAMERA_INITIAL,
+  cameraAt,
+  effectsAt,
+  globalTMs,
+  objectsAt,
+  type EvaluatorSpec,
+  type SceneEffectSpec,
+} from "../preview/cinematic-eval";
 
 /** Ảnh nền preview — tải qua BFF có auth, một lần (không per-frame). */
 function ManifestImage({ assetId, alt, className }: { assetId: string; alt: string; className?: string }) {
@@ -82,52 +91,217 @@ export function ScenePreview({ manifest }: { manifest: AnimationManifest }) {
       .sort((a, b) => (a.object.layer ?? 0) - (b.object.layer ?? 0));
   }, [assets, objects]);
 
+  /* ---------- v2 cinematic — camera + tracks + effects tại bước hiện tại.
+     Đánh giá ở trạng thái CUỐI bước (progress = 1) — preview tĩnh theo
+     bước, không phải player thời gian thực; parity với Flutter
+     `frameEndAt` (cùng evaluator spec). ---------- */
+  const cinematicSpec = useMemo<EvaluatorSpec | null>(() => {
+    const cam = manifest.camera;
+    const tracks = manifest.tracks ?? [];
+    const effects = manifest.effects ?? [];
+    const hasV2 = cam || tracks.length > 0 || effects.length > 0;
+    if (!hasV2) return null;
+    return {
+      cameraInitial: cam
+        ? { center: { x: cam.initial.x, y: cam.initial.y }, zoom: cam.initial.zoom }
+        : CAMERA_INITIAL,
+      cameraSteps: (cam?.steps ?? []).map((s) => ({
+        center: { x: s.target.x, y: s.target.y },
+        zoom: s.target.zoom,
+      })),
+      tracks: tracks.map((t) => ({
+        objectId: t.objectId,
+        property: t.property,
+        keyframes: t.keyframes.map((k) => ({
+          tMs: k.tMs,
+          value: k.value,
+          easing: k.easing,
+        })),
+      })),
+      baseObjects: Object.fromEntries(
+        objects.map((o) => [
+          o.id,
+          {
+            position: { x: o.position?.x ?? 0.5, y: o.position?.y ?? 0.5 },
+            scale: o.scale ?? 0.12,
+            rotation: o.rotation ?? 0,
+            opacity: o.visible === false ? 0 : 1,
+            visible: o.visible !== false,
+          },
+        ]),
+      ),
+      stepDurationsMs: steps.map((s) => s.durationMs ?? 4000),
+      stepIds: steps.map((s) => s.id),
+      effects: effects.map((e): SceneEffectSpec => ({
+        type: e.type,
+        stepId: e.stepId,
+        durationMs: e.durationMs,
+        center: {
+          x: (e.params?.x as number) ?? 0.5,
+          y: (e.params?.y as number) ?? 0.5,
+        },
+        intensity: (e.params?.intensity as number) ?? 0.5,
+        objectId: e.params?.objectId as string | undefined,
+      })),
+    };
+  }, [manifest.camera, manifest.tracks, manifest.effects, objects, steps]);
+
+  // Frame cuối bước hiện tại (preview tĩnh theo bước).
+  const cinematicFrame = useMemo(() => {
+    if (!cinematicSpec) return null;
+    const tMs = globalTMs(cinematicSpec, index, 1);
+    return {
+      camera: cameraAt(cinematicSpec.cameraInitial, cinematicSpec.cameraSteps, index, 1),
+      objects: objectsAt(cinematicSpec, tMs),
+      effects: effectsAt(cinematicSpec, index, 1),
+    };
+  }, [cinematicSpec, index]);
+
+  // CSS transform cho camera: scale quanh center. (Flutter dùng Matrix4 —
+  // cùng công thức: translate(viewport center) → scale → -camera center.)
+  const cameraStyle = useMemo(() => {
+    const cam = cinematicFrame?.camera;
+    if (!cam || cam.zoom === 1) return undefined;
+    return {
+      transform: `scale(${cam.zoom})`,
+      transformOrigin: `${cam.center.x * 100}% ${cam.center.y * 100}%`,
+    } as const;
+  }, [cinematicFrame]);
+
+  const activeEffects = cinematicFrame?.effects ?? [];
+  const audioForStep = (manifest.audio ?? []).filter((c) => c.stepId === step?.id);
+  const env = manifest.environment;
+
   return (
     <div className="flex flex-col gap-3">
       <div
         className="relative overflow-hidden rounded-lg border border-border bg-[#f3ead3]"
         style={{ aspectRatio: String(aspect) }}
       >
-        {/* Ảnh nền (mờ, dưới painter) — preview parity với Flutter. */}
-        {bgAssetId && (
-          <ManifestImage
-            assetId={bgAssetId}
-            alt={assets.find((a) => a.assetId === bgAssetId)?.assetId ?? "Nền minh họa"}
-            className="absolute inset-0 h-full w-full object-cover opacity-45"
-          />
-        )}
-        <div className="absolute inset-0">
-          {manifest.rendererCode === "RIVER_TIDE" ? (
-            <RiverPreview manifest={manifest} state={state} />
-          ) : (
-            <MapPreview
-              manifest={manifest}
-              state={state}
-              interactive={!!allowTap}
-              tappedId={tappedId}
-              onTap={setTappedId}
+        {/* Toàn bộ scene (bg + painter + objects) nằm TRONG camera
+            transform — parity với ManifestAssetLayers cinematic path. */}
+        <div className="absolute inset-0" style={cameraStyle}>
+          {/* Ảnh nền (mờ, dưới painter) — preview parity với Flutter. */}
+          {bgAssetId && (
+            <ManifestImage
+              assetId={bgAssetId}
+              alt={assets.find((a) => a.assetId === bgAssetId)?.assetId ?? "Nền minh họa"}
+              className="absolute inset-0 h-full w-full object-cover opacity-45"
             />
           )}
-        </div>
-        {/* Vật thể ảnh theo tọa độ chuẩn hóa + layer — preview parity. */}
-        {objectLayers.map(({ object, ref }) => {
-          const w = `${Math.max(24, Math.round((object.scale ?? 0.12) * 640))}px`;
-          const x = (object.position?.x ?? 0.5) * 100;
-          const y = (object.position?.y ?? 0.5) * 100;
-          return (
+          {/* Ambient environment — mist/glow nền (RIVER), static overlay. */}
+          {(env?.glow ?? 0) > 0 && (
             <div
-              key={object.id}
-              className="absolute -translate-x-1/2 -translate-y-1/2 overflow-hidden rounded-md border border-border bg-surface-alt"
-              style={{ left: `${x}%`, top: `${y}%`, width: w, height: w }}
-            >
-              <ManifestImage
-                assetId={ref.assetId}
-                alt={object.id}
-                className="h-full w-full object-cover"
+              className="pointer-events-none absolute inset-0"
+              style={{
+                background: `radial-gradient(circle at 50% 42%, rgba(232,184,109,${(env!.glow! * 0.5).toFixed(2)}) 0%, transparent 55%)`,
+              }}
+            />
+          )}
+          <div className="absolute inset-0">
+            {manifest.rendererCode === "RIVER_TIDE" ? (
+              <RiverPreview manifest={manifest} state={state} />
+            ) : (
+              <MapPreview
+                manifest={manifest}
+                state={state}
+                interactive={!!allowTap}
+                tappedId={tappedId}
+                onTap={setTappedId}
               />
-            </div>
-          );
-        })}
+            )}
+          </div>
+          {(env?.mist ?? 0) > 0 && (
+            <div
+              className="pointer-events-none absolute inset-0"
+              style={{
+                background: `linear-gradient(to bottom, rgba(243,234,211,${(env!.mist! * 0.85).toFixed(2)}) 0%, transparent 62%, rgba(243,234,211,${(env!.mist! * 0.5).toFixed(2)}) 100%)`,
+              }}
+            />
+          )}
+          {/* Vật thể ảnh theo tọa độ chuẩn hóa + layer — v2 đọc
+              ObjectVisualState (position/scale/rotation/opacity/visible)
+              đã override bởi keyframe tracks, không phải objects[] tĩnh. */}
+          {objectLayers.map(({ object, ref }) => {
+            const vs = cinematicFrame?.objects[object.id];
+            const pos = vs?.position ?? { x: object.position?.x ?? 0.5, y: object.position?.y ?? 0.5 };
+            const scale = vs?.scale ?? object.scale ?? 0.12;
+            const rotation = vs?.rotation ?? object.rotation ?? 0;
+            const opacity = vs?.opacity ?? (object.visible === false ? 0 : 1);
+            const visible = vs?.visible ?? object.visible !== false;
+            if (!visible || opacity <= 0) return null;
+            const w = `${Math.max(24, Math.round(scale * 640))}px`;
+            return (
+              <div
+                key={object.id}
+                className="absolute -translate-x-1/2 -translate-y-1/2 overflow-hidden rounded-md border border-border bg-surface-alt"
+                style={{
+                  left: `${pos.x * 100}%`,
+                  top: `${pos.y * 100}%`,
+                  width: w,
+                  height: w,
+                  opacity,
+                  transform: `translate(-50%, -50%) rotate(${rotation}deg)`,
+                }}
+              >
+                <ManifestImage
+                  assetId={ref.assetId}
+                  alt={object.id}
+                  className="h-full w-full object-cover"
+                />
+              </div>
+            );
+          })}
+          {/* Typed effect overlays — tĩnh theo bước (progress=1):
+              FADE_IN đã mờ hết (0), FADE_OUT đã tối (1), MIST/GLOW/RIPPLE
+              render ở cường độ khai báo. */}
+          {activeEffects.map((e, i) => {
+            const center = e.type === "GLOW" && e.objectId && cinematicFrame?.objects[e.objectId]
+              ? cinematicFrame.objects[e.objectId]!.position
+              : e.center;
+            const cx = `${center.x * 100}%`;
+            const cy = `${center.y * 100}%`;
+            if (e.type === "MIST") {
+              return (
+                <div
+                  key={i}
+                  className="pointer-events-none absolute inset-0"
+                  style={{
+                    background: `linear-gradient(to bottom, rgba(243,234,211,${(e.intensity * 0.85).toFixed(2)}) 0%, transparent 62%, rgba(243,234,211,${(e.intensity * 0.5).toFixed(2)}) 100%)`,
+                  }}
+                />
+              );
+            }
+            if (e.type === "GLOW") {
+              return (
+                <div
+                  key={i}
+                  className="pointer-events-none absolute inset-0"
+                  style={{
+                    background: `radial-gradient(circle at ${cx} ${cy}, rgba(232,184,109,${(e.intensity * 0.5).toFixed(2)}) 0%, transparent 40%)`,
+                  }}
+                />
+              );
+            }
+            if (e.type === "FADE_OUT") {
+              return <div key={i} className="pointer-events-none absolute inset-0 bg-[#2a2018]" />;
+            }
+            if (e.type === "WATER_RIPPLE") {
+              return (
+                <div
+                  key={i}
+                  className="pointer-events-none absolute rounded-full border-2 border-[#7ba7bc]/60"
+                  style={{
+                    left: cx, top: cy, width: 120, height: 120,
+                    transform: "translate(-50%, -50%)",
+                    opacity: 0.4,
+                  }}
+                />
+              );
+            }
+            return null;
+          })}
+        </div>
       </div>
 
       {/* Chú giải tương tác */}
@@ -175,6 +349,14 @@ export function ScenePreview({ manifest }: { manifest: AnimationManifest }) {
         <span className="ml-2 text-xs text-ink-muted">
           {steps.length === 0 ? "Chưa có bước" : `Bước ${index + 1}/${steps.length} — ${step?.title ?? ""}`}
         </span>
+        {audioForStep.length > 0 && (
+          <span
+            className="ml-auto rounded border border-brand/40 bg-brand/10 px-2 py-0.5 text-[10px] font-semibold text-brand"
+            title={audioForStep.map((c) => `${c.cue}: ${c.assetRef}`).join(" · ")}
+          >
+            ♪ {audioForStep.length} cue
+          </span>
+        )}
       </div>
     </div>
   );

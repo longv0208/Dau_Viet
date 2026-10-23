@@ -1,11 +1,16 @@
 import 'dart:async';
 
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../../core/theme/dau_viet_colors.dart';
 import '../../../../core/theme/dau_viet_typography.dart';
+import '../renderers/learning_asset_image.dart' show fetchLearningAssetBytes;
 import 'historical_animation_controls.dart';
 import 'historical_animation_definition.dart';
+import 'runtime/animation_audio_controller.dart';
+import 'runtime/animation_manifest_dto.dart';
+import 'runtime/cinematic_state.dart';
 import 'scenes/historical_map_scene.dart';
 import 'widgets/location_info_panel.dart';
 import 'widgets/map_marker_overlay.dart';
@@ -20,17 +25,32 @@ import 'widgets/water_level_control.dart';
 ///
 /// ANIM-02 mở rộng qua [SceneTransition]: mỗi bước mang target typed,
 /// player chỉ snapshot + lerp — không biết field cụ thể của scene.
-class HistoricalAnimationPlayer extends StatefulWidget {
+class HistoricalAnimationPlayer extends ConsumerStatefulWidget {
   final HistoricalAnimationDefinition definition;
 
-  const HistoricalAnimationPlayer({super.key, required this.definition});
+  /// v2 — manifest nguồn (khi có) chứa camera/tracks/effects/audio.
+  /// Null = scene v1/legacy → player render y nguyên, không cinematic.
+  final AnimationManifestDto? manifest;
+
+  /// Frame cinematic hiện tại — ManifestAssetLayers lắng nghe để áp
+  /// camera transform + object visual state. Expose ra ngoài để wrapper
+  /// không phải tự tính timeline.
+  final ValueNotifier<CinematicFrame>? cinematicFrame;
+
+  const HistoricalAnimationPlayer({
+    super.key,
+    required this.definition,
+    this.manifest,
+    this.cinematicFrame,
+  });
 
   @override
-  State<HistoricalAnimationPlayer> createState() =>
+  ConsumerState<HistoricalAnimationPlayer> createState() =>
       _HistoricalAnimationPlayerState();
 }
 
-class _HistoricalAnimationPlayerState extends State<HistoricalAnimationPlayer>
+class _HistoricalAnimationPlayerState
+    extends ConsumerState<HistoricalAnimationPlayer>
     with SingleTickerProviderStateMixin {
   late final AnimationController _controller;
   late final HistoricalScenePainter _painter;
@@ -64,6 +84,18 @@ class _HistoricalAnimationPlayerState extends State<HistoricalAnimationPlayer>
   /// Curve áp cho tween hiện tại — mỗi bước có thể chọn easing riêng.
   Curve _stepCurve = Curves.easeInOut;
 
+  /// v2 — evaluator cinematic (camera + tracks) lấy từ manifest; null
+  /// khi scene v1/legacy (không cinematic key nào).
+  CinematicEvaluator? get _cinematic => widget.manifest?.cinematic;
+
+  bool get _hasCinematic =>
+      _cinematic != null &&
+      (_cinematic!.cameraSteps.isNotEmpty || _cinematic!.tracks.isNotEmpty);
+
+  /// v2 — audio cues controller, lazy-init khi manifest có audio[] và
+  /// auth session sẵn sàng. null → không cue nào chạy (v1/muted).
+  AnimationAudioController? _audio;
+
   bool get _reduceMotion =>
       MediaQuery.maybeDisableAnimationsOf(context) ?? false;
 
@@ -87,14 +119,68 @@ class _HistoricalAnimationPlayerState extends State<HistoricalAnimationPlayer>
   @override
   void dispose() {
     _advanceTimer?.cancel();
+    _audio?.dispose();
     _controller.dispose();
     _painter.dispose(); // ChangeNotifier — giải phóng listener.
     super.dispose();
   }
 
+  /// step.id trong manifest — player chỉ biết index; audio cue match
+  /// theo manifest stepIds (index-trusted vì validator bắt buộc id
+  /// unique theo thứ tự). Fallback: '' khi manifest thiếu.
+  String _stepIdAt(int index) {
+    final ids = _cinematic?.stepIds;
+    if (ids == null || index >= ids.length) return '';
+    return ids[index];
+  }
+
+  /// v2 — lazy-init audio controller khi manifest có audio[] + player
+  /// đã có ref (ConsumerState). Idempotent — gọi lại an toàn.
+  void _ensureAudio() {
+    if (_audio != null) return;
+    final m = widget.manifest;
+    if (m == null || m.audioCues.isEmpty) return;
+    // Resolve assetRef (manifest key) → assetId (uuid backend) cho role
+    // AUDIO — controller không tự parse manifest.
+    final audioIds = <String, String>{
+      for (final a in m.assetRefs)
+        if (a.role == 'AUDIO') a.id: a.assetId,
+    };
+    _audio = AnimationAudioController(
+      fetchBytes: (id) async {
+        try {
+          return await fetchLearningAssetBytes(ref, id);
+        } catch (_) {
+          return null;
+        }
+      },
+      audioAssetIds: audioIds,
+      cues: m.audioCues,
+    );
+  }
+
   void _onTick() {
     final t = _stepCurve.transform(_controller.value);
     setState(() => _applyCurrent(t));
+    _emitFrame(t, _controller.value);
+  }
+
+  /// v2 — phát CinematicFrame hiện tại (camera lerp theo easedT, object
+  /// tracks theo tMs toàn cục) cho wrapper ngoài. Không setState — frame
+  /// đi qua ValueNotifier để ManifestAssetLayers tự rebuild.
+  void _emitFrame(double easedT, double rawProgress) {
+    final ev = _cinematic;
+    final sink = widget.cinematicFrame;
+    if (ev == null || sink == null || !_hasCinematic) return;
+    sink.value = ev.frameAt(_stepIndex, easedT, rawProgress);
+  }
+
+  /// v2 — nhảy thẳng tới frame cuối bước (reduced-motion/skip/init).
+  void _emitFrameEnd() {
+    final ev = _cinematic;
+    final sink = widget.cinematicFrame;
+    if (ev == null || sink == null || !_hasCinematic) return;
+    sink.value = ev.frameEndAt(_stepIndex);
   }
 
   /// Áp transition đích ở tiến độ t — lerp từ snapshot đóng băng
@@ -113,8 +199,14 @@ class _HistoricalAnimationPlayerState extends State<HistoricalAnimationPlayer>
   /// Áp trạng thái đích của bước: tween mượt nếu motion bật, nhảy tĩnh
   /// nếu reduced-motion. `animate=false` cho khởi tạo/replay nhanh.
   /// Bước có `target == null` giữ nguyên trạng thái hiện tại.
-  void _applyStep(int index, {bool animate = true}) {
+  /// v2 — fire audio cues: EXIT của step trước, ENTER của step mới.
+  void _applyStep(int index, {bool animate = true, int? previousIndex}) {
+    _ensureAudio();
+    if (previousIndex != null && previousIndex != index) {
+      _audio?.onStepExit(_stepIdAt(previousIndex));
+    }
     final step = widget.definition.steps[index];
+    _audio?.onStepEnter(_stepIdAt(index));
     if (step.target != null) {
       _current = step.target;
       // Chụp trạng thái ĐANG HIỂN THỊ (kể cả tween cũ đang dở) làm gốc —
@@ -124,7 +216,11 @@ class _HistoricalAnimationPlayerState extends State<HistoricalAnimationPlayer>
     // Easing của tween tới bước này — whitelist manifest, bước thiếu
     // giữ curve mặc định. Map: manifest key → Flutter curve.
     _stepCurve = _curveOf(step.easing);
-    if (animate && !_reduceMotion && step.target != null) {
+    // Bước có tween khi có targetState HOẶC có camera/tracks v2 — bước
+    // chỉ-camera vẫn cần controller chạy để camera pan/zoom mượt.
+    final hasTween = step.target != null ||
+        (_hasCinematic && index < (_cinematic!.cameraSteps.length));
+    if (animate && !_reduceMotion && hasTween) {
       _controller
         ..stop()
         ..reset()
@@ -132,6 +228,7 @@ class _HistoricalAnimationPlayerState extends State<HistoricalAnimationPlayer>
     } else {
       _controller.stop();
       _applyCurrent(1);
+      _emitFrameEnd();
     }
   }
 
@@ -181,6 +278,7 @@ class _HistoricalAnimationPlayerState extends State<HistoricalAnimationPlayer>
       // PAUSE: đóng băng ngay cả tween đang chạy — không chỉ hủy timer.
       // Đánh dấu đây là PAUSE chủ động để resume nối tiếp đúng tween này.
       _advanceTimer?.cancel();
+      _audio?.onPause();
       setState(() {
         _playing = false;
         _tweenPaused = _controller.value > 0 && _controller.value < 1;
@@ -198,6 +296,7 @@ class _HistoricalAnimationPlayerState extends State<HistoricalAnimationPlayer>
         _tweenPaused = false;
         if (resumeTween) _controller.forward();
       });
+      _audio?.onResume();
       _scheduleAdvance();
     } else {
       // Đang ở bước cuối và bấm PHÁT → tua lại rồi phát tiếp.
@@ -205,6 +304,7 @@ class _HistoricalAnimationPlayerState extends State<HistoricalAnimationPlayer>
         _playing = true;
         _skipped = false;
       });
+      _audio?.onResume();
       _replay();
     }
   }
@@ -212,18 +312,20 @@ class _HistoricalAnimationPlayerState extends State<HistoricalAnimationPlayer>
   void _goTo(int index) {
     if (index < 0 || index >= widget.definition.steps.length) return;
     _advanceTimer?.cancel();
+    final prev = _stepIndex;
     setState(() {
       _stepIndex = index;
       _skipped = false;
       _tweenPaused = false; // tween mới, không phải pause
       _selectedLocationId = null; // panel cũ không sống qua bước mới
-      _applyStep(index);
+      _applyStep(index, previousIndex: prev);
     });
     _scheduleAdvance();
   }
 
   void _replay() {
     _advanceTimer?.cancel();
+    final prev = _stepIndex;
     setState(() {
       _stepIndex = 0;
       _skipped = false;
@@ -233,13 +335,14 @@ class _HistoricalAnimationPlayerState extends State<HistoricalAnimationPlayer>
       _chosenOption = null;
       _predictionRevealed = false;
       _selectedLocationId = null;
-      _applyStep(0, animate: false);
+      _applyStep(0, animate: false, previousIndex: prev);
     });
     _scheduleAdvance();
   }
 
   void _skip() {
     _advanceTimer?.cancel();
+    _audio?.onSkip(); // dừng mọi cue ngay, không fire EXIT
     setState(() {
       _playing = false;
       _skipped = true;
@@ -253,6 +356,7 @@ class _HistoricalAnimationPlayerState extends State<HistoricalAnimationPlayer>
   /// hưởng; giữ hành vi ANIM-01 (kéo tay thắng tween).
   void _setWater(double v) {
     _advanceTimer?.cancel();
+    _audio?.onPause(); // learner tương tác = pause ambient loop
     setState(() {
       _playing = false; // thao tác tay → không auto-advance
       _tweenPaused = false; // HỦY tween, không phải pause
@@ -265,6 +369,7 @@ class _HistoricalAnimationPlayerState extends State<HistoricalAnimationPlayer>
 
   void _selectLocation(String? id) {
     _advanceTimer?.cancel();
+    _audio?.onPause();
     setState(() {
       // Chạm marker = TẠM DỪNG khám phá: settle scene về trạng thái đích
       // của bước hiện tại (deterministic), UI về PHÁT, không timer mới.

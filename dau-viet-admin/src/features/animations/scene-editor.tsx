@@ -17,6 +17,13 @@ import {
   Section,
   SourcesSection,
 } from "./scene-editor/editor-sections";
+import {
+  AudioSection,
+  CameraSection,
+  EffectsSection,
+  EnvironmentSection,
+  TracksSection,
+} from "./scene-editor/cinematic-sections";
 import { TimelineSection } from "./scene-editor/timeline-section";
 import { JourneyMapEditor, MapStateFields, RiverStakesEditor, RiverStateFields } from "./scene-editor/renderer-editors";
 import { PublishSection } from "./scene-editor/publish-section";
@@ -139,6 +146,16 @@ export function SceneEditor({ sceneId }: { sceneId: string }) {
 
           <TimelineSection manifest={m} readOnly={ed.readOnly} onChange={ed.setManifest} />
           <InteractionsSection manifest={m} readOnly={ed.readOnly} onChange={ed.setManifest} />
+
+          {/* v2 cinematic — camera/tracks/effects/audio/environment.
+              Các section tự bump schemaVersion khi thêm key đầu tiên. */}
+          <CameraSection manifest={m} readOnly={ed.readOnly} onChange={ed.setManifest} />
+          <TracksSection manifest={m} readOnly={ed.readOnly} onChange={ed.setManifest} />
+          <EffectsSection manifest={m} readOnly={ed.readOnly} onChange={ed.setManifest} />
+          <AudioSection manifest={m} readOnly={ed.readOnly} onChange={ed.setManifest} />
+          {isRiver && (
+            <EnvironmentSection manifest={m} readOnly={ed.readOnly} onChange={ed.setManifest} />
+          )}
 
           {/* Trạng thái ban đầu — cùng state-map của renderer */}
           <Section title="Trạng thái ban đầu" defaultOpen={false}>

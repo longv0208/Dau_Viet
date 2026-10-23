@@ -369,4 +369,160 @@ class AnimationManifestValidatorTest {
                 .anyMatch(e -> e.code().equals("UNKNOWN_REF")
                         && e.path().contains("stakeVisibility")));
     }
+
+    /* ---------- Cinematic v2 fields ---------- */
+
+    private String v2River() {
+        return riverManifest()
+                .replace("\"schemaVersion\": 1", "\"schemaVersion\": 2")
+                .replace("\"canvas\": {\"aspectRatio\": 1.6},",
+                        "\"canvas\": {\"aspectRatio\": 1.6},"
+                        + "\"objects\": [{\"id\": \"decoy-1\", \"type\": \"DECOY\","
+                        + " \"position\": {\"x\": 0.8, \"y\": 0.4}}],"
+                        + "\"camera\": {\"initial\": {\"x\": 0.5, \"y\": 0.5, \"zoom\": 1.0},"
+                        + " \"steps\": [{\"target\": {\"x\": 0.55, \"y\": 0.6, \"zoom\": 1.4},"
+                        + "  \"easing\": \"easeInOut\"}]},"
+                        + "\"tracks\": [{\"objectId\": \"decoy-1\", \"property\": \"position\","
+                        + " \"keyframes\": [{\"tMs\": 0, \"value\": {\"x\": 0.9, \"y\": 0.4}},"
+                        + "  {\"tMs\": 1500, \"value\": {\"x\": 0.5, \"y\": 0.4}}]}],"
+                        + "\"effects\": [{\"type\": \"MIST\", \"params\": {\"intensity\": 0.5}}],"
+                        + "\"environment\": {\"waterLevel\": 0.3, \"mist\": 0.4},"
+                        + "\"audio\": [{\"stepId\": \"s1\", \"assetRef\": \"river-amb\","
+                        + " \"cue\": \"LOOP\", \"volume\": 0.6}],"
+                        + "\"assets\": [{\"id\": \"river-amb\", \"assetId\": \""
+                        + UUID.randomUUID() + "\", \"role\": \"AUDIO\"}],");
+    }
+
+    @Test
+    void validV2RiverManifestPasses() {
+        assertTrue(run(v2River(), riverTemplate).isEmpty(),
+                "v2 manifest with camera+tracks+effects+audio+environment must validate");
+    }
+
+    @Test
+    void v1ManifestStillValidates() {
+        assertTrue(run(riverManifest(), riverTemplate).isEmpty());
+        assertTrue(run(mapManifest(), mapTemplate).isEmpty());
+    }
+
+    @Test
+    void rejectsV2KeysUnderSchemaVersion1() {
+        String json = riverManifest().replace(
+                "\"canvas\": {\"aspectRatio\": 1.6},",
+                "\"canvas\": {\"aspectRatio\": 1.6},"
+                + "\"camera\": {\"initial\": {\"x\": 0.5, \"y\": 0.5, \"zoom\": 1.0}},");
+        var errs = run(json, riverTemplate);
+        assertTrue(errs.stream().anyMatch(e -> e.code().equals("OUTDATED_SCHEMA")
+                && e.path().equals("manifest.schemaVersion")));
+    }
+
+    @Test
+    void rejectsCameraZoomOutOfRange() {
+        String json = v2River().replace("\"zoom\": 1.4", "\"zoom\": 5.0");
+        assertTrue(run(json, riverTemplate).stream()
+                .anyMatch(e -> e.code().equals("OUT_OF_RANGE")
+                        && e.path().contains("zoom")));
+    }
+
+    @Test
+    void rejectsCameraFocusUnknownObject() {
+        String json = v2River().replace(
+                "\"zoom\": 1.4", "\"zoom\": 1.4, \"focusObjectId\": \"ghost\"");
+        assertTrue(run(json, riverTemplate).stream()
+                .anyMatch(e -> e.code().equals("UNKNOWN_REF")
+                        && e.path().contains("focusObjectId")));
+    }
+
+    @Test
+    void rejectsTrackUnknownObject() {
+        String json = v2River().replace(
+                "\"objectId\": \"decoy-1\"", "\"objectId\": \"ghost\"");
+        assertTrue(run(json, riverTemplate).stream()
+                .anyMatch(e -> e.code().equals("UNKNOWN_REF")
+                        && e.path().contains("objectId")));
+    }
+
+    @Test
+    void rejectsTrackBadProperty() {
+        String json = v2River().replace(
+                "\"property\": \"position\"", "\"property\": \"explode\"");
+        assertTrue(run(json, riverTemplate).stream()
+                .anyMatch(e -> e.code().equals("INVALID_VALUE")
+                        && e.path().contains("property")));
+    }
+
+    @Test
+    void rejectsKeyframesNotAscending() {
+        String json = v2River().replace("\"tMs\": 1500", "\"tMs\": 0");
+        assertTrue(run(json, riverTemplate).stream()
+                .anyMatch(e -> e.code().equals("OUT_OF_ORDER")));
+    }
+
+    @Test
+    void rejectsAudioNonAudioRole() {
+        String json = v2River().replace("\"role\": \"AUDIO\"", "\"role\": \"OBJECT\"");
+        assertTrue(run(json, riverTemplate).stream()
+                .anyMatch(e -> e.code().equals("UNKNOWN_REF")
+                        && e.path().contains("assetRef")));
+    }
+
+    @Test
+    void rejectsAudioBadStep() {
+        String json = v2River().replace("\"stepId\": \"s1\"", "\"stepId\": \"ghost\"");
+        assertTrue(run(json, riverTemplate).stream()
+                .anyMatch(e -> e.code().equals("UNKNOWN_REF")
+                        && e.path().contains("stepId")));
+    }
+
+    @Test
+    void rejectsEnvironmentOnJourneyMap() {
+        String json = mapManifest()
+                .replace("\"schemaVersion\": 1", "\"schemaVersion\": 2")
+                .replace("\"map\": {",
+                        "\"environment\": {\"waterLevel\": 0.5}, \"map\": {");
+        assertTrue(run(json, mapTemplate).stream()
+                .anyMatch(e -> e.code().equals("RENDERER_MISMATCH")
+                        && e.path().contains("environment")));
+    }
+
+    @Test
+    void rejectsUnknownEffectType() {
+        String json = v2River().replace("\"type\": \"MIST\"", "\"type\": \"EXPLODE\"");
+        assertTrue(run(json, riverTemplate).stream()
+                .anyMatch(e -> e.code().equals("INVALID_VALUE")
+                        && e.path().contains("effects")));
+    }
+
+    /* ---------- V16 demo-scene positive tests ---------- */
+
+    private String resource(String name) {
+        try (var in = getClass().getResourceAsStream(
+                "/animation-manifests/" + name)) {
+            if (in == null) throw new AssertionError("missing fixture " + name);
+            return new String(in.readAllBytes(), java.nio.charset.StandardCharsets.UTF_8);
+        } catch (java.io.IOException e) {
+            throw new AssertionError("cannot read fixture " + name, e);
+        }
+    }
+
+    @Test
+    void v16BachDangCinematicValidates() {
+        var errs = run(resource("bd.json"), riverTemplate);
+        assertTrue(errs.isEmpty(),
+                () -> "bach_dang_938_cinematic must validate cleanly: " + errs);
+    }
+
+    @Test
+    void v16HaiBaTrungCinematicValidates() {
+        var errs = run(resource("hb.json"), mapTemplate);
+        assertTrue(errs.isEmpty(),
+                () -> "hai_ba_trung_40_cinematic must validate cleanly: " + errs);
+    }
+
+    @Test
+    void v16LyThaiToCinematicValidates() {
+        var errs = run(resource("lt.json"), mapTemplate);
+        assertTrue(errs.isEmpty(),
+                () -> "ly_thai_to_1010_cinematic must validate cleanly: " + errs);
+    }
 }

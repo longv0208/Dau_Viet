@@ -1,0 +1,115 @@
+{
+      "schemaVersion": 2,
+      "rendererCode": "RIVER_TIDE",
+      "rendererVersion": 1,
+      "title": "Tráº­n Báº¡ch Äáº±ng nÄƒm 938 â€” Cinematic",
+      "learningObjective": "Hiá»ƒu má»‘i liĂªn há»‡ giá»¯a bĂ£i cá»c, thá»§y triá»u, viá»‡c dá»¥ Ä‘á»‹ch vĂ  pháº£n cĂ´ng phá»‘i há»£p â€” qua lÄƒng kĂ­nh Ä‘iá»‡n áº£nh: camera pan/zoom, object chuyá»ƒn Ä‘á»™ng, hiá»‡u á»©ng mĂ´i trÆ°á»ng.",
+      "canvas": {"aspectRatio": 1.6},
+      "assets": [
+        {"id": "amb-river", "assetId": "d7a60000-0000-4000-8000-000000000001",
+         "role": "AUDIO"}
+      ],
+      "objects": [
+        {"id": "boat-decoy", "type": "BOAT",
+         "position": {"x": 0.15, "y": 0.45}, "scale": 0.14, "layer": 1,
+         "visible": true, "rotation": 0, "opacity": 1}
+      ],
+      "initialState": {},
+      "interactions": ["WATER_LEVEL_CONTROL", "PREDICTION"],
+      "disclaimer": "SÆ¡ Ä‘á»“ minh há»a chiáº¿n thuáº­t + cinematic camera â€” khĂ´ng theo tá»‰ lá»‡, khĂ´ng pháº£i phá»¥c dá»±ng chĂ­nh xĂ¡c tráº­n Ä‘Ă¡nh.",
+      "sourceReferences": [
+        {"title": "Báº£o tĂ ng Lá»‹ch sá»­ Quá»‘c gia â€” \"NgĂ´ Quyá»n vĂ  chiáº¿n tháº¯ng Báº¡ch Äáº±ng nÄƒm 938\" (baotanglichsuquocgia.vn)."}
+      ],
+      "river": {"stakes": [
+        {"id": "stake-1", "x": 0.42, "length": 0.20},
+        {"id": "stake-2", "x": 0.47, "length": 0.22},
+        {"id": "stake-3", "x": 0.52, "length": 0.17},
+        {"id": "stake-4", "x": 0.57, "length": 0.24},
+        {"id": "stake-5", "x": 0.62, "length": 0.19},
+        {"id": "stake-6", "x": 0.45, "length": 0.16},
+        {"id": "stake-7", "x": 0.55, "length": 0.21},
+        {"id": "stake-8", "x": 0.65, "length": 0.23},
+        {"id": "stake-9", "x": 0.60, "length": 0.18}
+      ]},
+      "environment": {"mist": 0.35, "glow": 0.2},
+      "camera": {
+        "initial": {"x": 0.5, "y": 0.5, "zoom": 1.0},
+        "steps": [
+          {"target": {"x": 0.5, "y": 0.5, "zoom": 1.0}},
+          {"target": {"x": 0.5, "y": 0.5, "zoom": 1.0}},
+          {"target": {"x": 0.55, "y": 0.55, "zoom": 1.2, "focusObjectId": "boat-decoy"}},
+          {"target": {"x": 0.52, "y": 0.55, "zoom": 1.6}},
+          {"target": {"x": 0.55, "y": 0.5, "zoom": 1.8}},
+          {"target": {"x": 0.5, "y": 0.5, "zoom": 1.0}}
+        ]
+      },
+      "tracks": [
+        {"objectId": "boat-decoy", "property": "position",
+         "keyframes": [
+           {"tMs": 0, "value": {"x": 0.15, "y": 0.45}, "easing": "linear"},
+           {"tMs": 2200, "value": {"x": 0.45, "y": 0.42}, "easing": "linear"},
+           {"tMs": 4400, "value": {"x": 0.62, "y": 0.40}, "easing": "linear"},
+           {"tMs": 6600, "value": {"x": 0.62, "y": 0.40}, "easing": "linear"}
+         ]},
+        {"objectId": "boat-decoy", "property": "rotation",
+         "keyframes": [
+           {"tMs": 0, "value": 0, "easing": "easeInOut"},
+           {"tMs": 4400, "value": 0, "easing": "easeInOut"},
+           {"tMs": 6600, "value": -25, "easing": "easeInOut"}
+         ]}
+      ],
+      "effects": [
+        {"type": "MIST", "params": {"intensity": 0.3}},
+        {"type": "WATER_RIPPLE", "stepId": "tide-fall", "durationMs": 2200,
+         "params": {"x": 0.55, "y": 0.62, "intensity": 0.7}},
+        {"type": "GLOW", "stepId": "counterattack", "durationMs": 2200,
+         "params": {"x": 0.55, "y": 0.45, "intensity": 0.5, "objectId": "boat-decoy"}},
+        {"type": "FADE_OUT", "stepId": "summary", "durationMs": 800}
+      ],
+      "audio": [
+        {"stepId": "prepare", "assetRef": "amb-river", "cue": "LOOP", "volume": 0.4},
+        {"stepId": "tide-fall", "assetRef": "amb-river", "cue": "ENTER", "volume": 0.5},
+        {"stepId": "counterattack", "assetRef": "amb-river", "cue": "ENTER", "volume": 0.7},
+        {"stepId": "summary", "assetRef": "amb-river", "cue": "EXIT", "fadeMs": 600}
+      ],
+      "steps": [
+        {"id": "prepare", "title": "Chuáº©n bá»‹", "durationMs": 1100, "easing": "easeInOut",
+         "narration": "TrÆ°á»›c tráº­n Ä‘Ă¡nh, quĂ¢n ta Ä‘Ă£ Ä‘Ă³ng sáºµn má»™t bĂ£i cá»c gá»— ngáº§m dÆ°á»›i lĂ²ng sĂ´ng. SÆ¡ Ä‘á»“ chá»‰ váº½ cá»c mang tĂ­nh minh há»a â€” sá»­ liá»‡u khĂ´ng ghi bá»‘ trĂ­ chĂ­nh xĂ¡c tá»«ng cá»c.",
+         "hint": "Quan sĂ¡t vá»‹ trĂ­ cĂ¡c cá»c nhĂ´ lĂªn tá»« Ä‘Ă¡y sĂ´ng.",
+         "targetState": {"waterLevel": 0.30, "boatProgress": 0.0, "obstructed": false}},
+        {"id": "tide-rise", "title": "NÆ°á»›c dĂ¢ng", "durationMs": 1100, "easing": "easeInOut",
+         "narration": "Khi thá»§y triá»u dĂ¢ng, máº·t nÆ°á»›c cao dáº§n vĂ  che khuáº¥t Ä‘á»‰nh cá»c. Tá»« trĂªn thuyá»n nhĂ¬n xuá»‘ng, khĂ³ nháº­n ra chÆ°á»›ng ngáº¡i váº­t Ä‘ang áº©n phĂ­a dÆ°á»›i.",
+         "hint": "KĂ©o thanh má»±c nÆ°á»›c Ä‘á»ƒ tá»± tháº¥y cá»c bá»‹ che Ä‘i.",
+         "allowedInteractions": ["WATER_LEVEL_CONTROL"],
+         "targetState": {"waterLevel": 0.90, "boatProgress": 0.0, "obstructed": false}},
+        {"id": "decoy", "title": "Dá»¥ Ä‘á»‹ch vĂ o bĂ£i", "durationMs": 1100, "easing": "easeInOut",
+         "narration": "Sá»­ liá»‡u ghi nháº­n quĂ¢n ta Ä‘Ă£ lá»£i dá»¥ng lĂºc nÆ°á»›c lá»›n dá»¥ hoáº·c dáº«n thuyá»n Ä‘á»‹ch vĂ o vĂ¹ng bĂ£i cá»c. Thuyá»n dá»¥ Ä‘á»‹ch (track keyframe) trÆ°á»£t vá» phĂ­a bĂ£i.",
+         "hint": "Camera theo thuyá»n dá»¥ vĂ o vĂ¹ng bĂ£i cá»c.",
+         "targetState": {"waterLevel": 0.90, "boatProgress": 0.72, "obstructed": false, "decoyProgress": 1}},
+        {"id": "tide-fall", "title": "NÆ°á»›c rĂºt", "durationMs": 1100, "easing": "easeInOut",
+         "narration": "Khi triá»u rĂºt, má»±c nÆ°á»›c háº¡ dáº§n vĂ  nhá»¯ng Ä‘á»‰nh cá»c lá»™ ra â€” camera zoom vĂ o bĂ£i cá»c; gá»£n nÆ°á»›c Ä‘Ă¡nh dáº¥u Ä‘iá»ƒm máº¥u chá»‘t.",
+         "hint": "Camera zoom + ripple overlay Ä‘Ă¡nh dáº¥u bĂ£i cá»c lá»™.",
+         "allowedInteractions": ["WATER_LEVEL_CONTROL"],
+         "targetState": {"waterLevel": 0.28, "boatProgress": 0.85, "obstructed": false, "decoyProgress": 1}},
+        {"id": "counterattack", "title": "Pháº£n cĂ´ng phá»‘i há»£p", "durationMs": 1100, "easing": "easeInOut",
+         "narration": "Thuyá»n Ä‘á»‹ch vÆ°á»›ng vĂ o bĂ£i cá»c, khĂ³ di chuyá»ƒn. Camera zoom sĂ¢u hÆ¡n; glow quanh thuyá»n dá»¥ Ä‘Ă¡nh dáº¥u Ä‘iá»ƒm dá»“n lá»±c pháº£n cĂ´ng.",
+         "hint": "Glow + camera zoom tá»‘i Ä‘a khi pháº£n cĂ´ng.",
+         "targetState": {"waterLevel": 0.28, "boatProgress": 0.85, "obstructed": true, "decoyProgress": 1, "counterattackProgress": 1}},
+        {"id": "summary", "title": "Tá»•ng káº¿t", "durationMs": 1100, "easing": "easeInOut",
+         "narration": "Chiáº¿n tháº¯ng Ä‘áº¿n tá»« chuá»—i chá»§ Ä‘á»™ng: chuáº©n bá»‹ bĂ£i cá»c â†’ tĂ­nh nhá»‹p thá»§y triá»u â†’ dá»¥ Ä‘á»‹ch â†’ khá»‘ng cháº¿ â†’ pháº£n cĂ´ng. Fade out khĂ©p láº¡i cáº£nh Ä‘iá»‡n áº£nh.",
+         "hint": "Fade out káº¿t thĂºc cinematic.",
+         "effects": ["SHOW_SEQUENCE_SUMMARY"],
+         "targetState": {"waterLevel": 0.28, "boatProgress": 0.85, "obstructed": true, "decoyProgress": 1, "counterattackProgress": 1, "showSequenceSummary": true}}
+      ],
+      "prediction": {
+        "question": "Khi nÆ°á»›c triá»u rĂºt xuá»‘ng, Ä‘iá»u gĂ¬ thay Ä‘á»•i Ä‘á»‘i vá»›i thuyá»n tiáº¿n vĂ o khu vá»±c bĂ£i cá»c?",
+        "options": [
+          {"text": "CĂ¡c cá»c váº«n chĂ¬m sĂ¢u vĂ  khĂ´ng áº£nh hÆ°á»Ÿng Ä‘áº¿n Ä‘Æ°á»ng Ä‘i."},
+          {"text": "CĂ¡c cá»c dáº§n lá»™ ra, khiáº¿n thuyá»n khĂ³ di chuyá»ƒn."}
+        ],
+        "explainedOptionIndex": 1,
+        "explanation": "Khi má»±c nÆ°á»›c háº¡, Ä‘á»‰nh cá»c nhĂ´ lĂªn khá»i máº·t sĂ´ng â€” thuyá»n Ä‘Ă£ tiáº¿n vĂ o vĂ¹ng bĂ£i cá»c lĂºc nÆ°á»›c lá»›n sáº½ vÆ°á»›ng pháº£i chÆ°á»›ng ngáº¡i váº­t nĂ y.",
+        "retryHint": "Thá»­ kĂ©o má»±c nÆ°á»›c xuá»‘ng tháº¥p rá»“i quan sĂ¡t: pháº§n cá»c nĂ o cĂ²n chĂ¬m, pháº§n nĂ o Ä‘Ă£ lá»™?",
+        "revealTargetState": {"waterLevel": 0.22, "boatProgress": 0.85, "obstructed": true, "highlightStakes": true}
+      }
+    }

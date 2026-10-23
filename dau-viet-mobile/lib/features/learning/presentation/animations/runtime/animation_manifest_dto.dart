@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import '../scenes/historical_map_scene.dart';
 import '../scenes/river_scene.dart';
 import '../historical_animation_definition.dart';
+import 'cinematic_state.dart';
 
 /// ANIM-03 — DTO bất biến cho animation manifest embedded trong lesson
 /// snapshot (`config.animationManifest`). Manifest là DATA whitelist —
@@ -49,6 +50,26 @@ class AnimationManifestDto {
   /// assetId → altText đã embed trong snapshot (a11y/fallback text).
   final Map<String, String> assetAltText;
 
+  // --- Cinematic v2 (tất cả optional — manifest v1 không có key nào) ---
+
+  /// camera {initial, steps[]} — pose viewport per step.
+  final CameraTrackDto camera;
+
+  /// tracks[] — keyframe motion per (objectId, property).
+  final List<ObjectTrackDto> tracks;
+
+  /// effects[] — typed overlay (WATER_RIPPLE/MIST/GLOW/ROUTE_REVEAL/FADE_*).
+  final List<SceneEffectDto> sceneEffects;
+
+  /// audio[] — {stepId, assetRef, cue, volume, fadeMs}.
+  final List<AudioCueDto> audioCues;
+
+  /// environment {waterLevel?, mist?, glow?} — RIVER_TIDE ambient.
+  final EnvironmentDto environment;
+
+  /// Evaluator dựng sẵn từ manifest — player consume trực tiếp.
+  final CinematicEvaluator cinematic;
+
   const AnimationManifestDto({
     required this.schemaVersion,
     required this.rendererCode,
@@ -70,6 +91,12 @@ class AnimationManifestDto {
     this.objects = const [],
     this.backgroundAssetId,
     this.assetAltText = const {},
+    this.camera = const CameraTrackDto(),
+    this.tracks = const [],
+    this.sceneEffects = const [],
+    this.audioCues = const [],
+    this.environment = const EnvironmentDto(),
+    this.cinematic = const CinematicEvaluator(),
   });
 
   /// altText của assetId (từ metadata embed trong snapshot); null khi
@@ -90,11 +117,21 @@ class AnimationManifestDto {
     disclaimer: '',
   );
 
-  /// Parse embedded manifest — field thiếu/sai nhận default an toàn,
+  /// Parse embedded manifest — field thiếu hoặc sai nhận default an toàn,
   /// không throw (app cũ đọc manifest mới vẫn render phần đọc được).
   factory AnimationManifestDto.fromJson(Map<String, dynamic> json) {
     final map = json['map'];
     final river = json['river'];
+    final objects = [
+      for (final o in _list(json['objects']))
+        if (o is Map) AnimationObjectDto.fromJson(o),
+    ];
+    final steps = _steps(json['steps']);
+    final camera = CameraTrackDto.fromJson(json['camera']);
+    final tracks = [
+      for (final t in _list(json['tracks']))
+        if (t is Map) ObjectTrackDto.fromJson(t),
+    ];
     return AnimationManifestDto(
       schemaVersion: _int(json['schemaVersion'], 1),
       rendererCode: json['rendererCode'] as String? ?? '',
@@ -103,7 +140,7 @@ class AnimationManifestDto {
       learningObjective: json['learningObjective'] as String? ?? '',
       canvasAspectRatio:
           _double((json['canvas'] as Map?)?['aspectRatio'], 16 / 10),
-      steps: _steps(json['steps']),
+      steps: steps,
       prediction: _prediction(json['prediction']),
       interactions: {
         for (final i in _list(json['interactions'])) '$i',
@@ -138,10 +175,7 @@ class AnimationManifestDto {
             ]
           : const [],
       assetRefs: _assetRefs(json['assets']),
-      objects: [
-        for (final o in _list(json['objects']))
-          if (o is Map) AnimationObjectDto.fromJson(o),
-      ],
+      objects: objects,
       backgroundAssetId: map is Map
           ? map['backgroundAssetId'] as String?
           : null,
@@ -153,6 +187,61 @@ class AnimationManifestDto {
             // assetId fetch được.
             '${a['assetId'] ?? a['id']}': '${a['altText'] ?? ''}',
       }..removeWhere((k, v) => v.isEmpty || k == 'null'),
+      camera: camera,
+      tracks: tracks,
+      sceneEffects: [
+        for (final e in _list(json['effects']))
+          if (e is Map) SceneEffectDto.fromJson(e),
+      ],
+      audioCues: [
+        for (final a in _list(json['audio']))
+          if (a is Map) AudioCueDto.fromJson(a),
+      ],
+      environment: EnvironmentDto.fromJson(json['environment']),
+      cinematic: CinematicEvaluator(
+        cameraInitial: camera.initial,
+        cameraSteps: camera.steps,
+        tracks: [
+          for (final t in tracks)
+            ObjectTrackSpec(
+              objectId: t.objectId,
+              property: t.property,
+              keyframes: t.keyframes,
+            ),
+        ],
+        baseObjects: {
+          for (final o in objects)
+            o.id: ObjectVisualState(
+              position: o.position,
+              scale: o.scale,
+              rotation: o.rotation,
+              opacity: o.opacity,
+              visible: o.visible,
+            ),
+        },
+        stepDurationsMs: [
+          for (final s in steps) s.durationMs > 0 ? s.durationMs : 4000,
+        ],
+        stepIds: [for (final s in steps) s.id],
+        effects: [
+          for (final e in _list(json['effects']))
+            if (e is Map)
+              SceneEffectSpec(
+                type: '${e['type'] ?? ''}',
+                stepId: e['stepId'] as String?,
+                durationMs: _int(e['durationMs'], 0),
+                center: Offset(
+                  _double((e['params'] as Map?)?['x'], 0.5),
+                  _double((e['params'] as Map?)?['y'], 0.5),
+                ),
+                intensity: _double(
+                  (e['params'] as Map?)?['intensity'],
+                  0.5,
+                ).clamp(0.0, 1.0),
+                objectId: (e['params'] as Map?)?['objectId'] as String?,
+              ),
+        ],
+      ),
     );
   }
 
@@ -168,7 +257,7 @@ class AnimationManifestDto {
   static AnimationPredictionDto? _prediction(Object? raw) =>
       raw is Map ? AnimationPredictionDto.fromJson(raw) : null;
 
-  /// assets[] → ref typed. Snapshot embed đã pin `{id:<key>, assetId,
+  /// assets[] → ref typed. Snapshot embed đã pin `{id: key, assetId,
   /// role}`; bỏ entry thiếu assetId (validator backend đã chặn, đây là
   /// lớp phòng thủ thứ hai cho payload thủ công).
   static List<AnimationAssetRefDto> _assetRefs(Object? raw) => [
@@ -331,6 +420,13 @@ class AnimationObjectDto {
   final bool visible;
   final String shape;
 
+  /// v2 — góc xoay (độ, -360..360) và độ mờ (0..1) mặc định của object.
+  final double rotation;
+  final double opacity;
+
+  /// Độ sâu parallax 0..1 — 0 = dính camera, 1 = dính scene. Optional.
+  final double parallax;
+
   /// Khóa tham chiếu sang assets[].id — null khi object không gắn ảnh.
   final String? assetRef;
 
@@ -342,6 +438,9 @@ class AnimationObjectDto {
     this.layer = 0,
     this.visible = true,
     this.shape = 'rect',
+    this.rotation = 0,
+    this.opacity = 1,
+    this.parallax = 1,
     this.assetRef,
   });
 
@@ -356,8 +455,179 @@ class AnimationObjectDto {
         layer: _int(json['layer'], 0),
         visible: json['visible'] != false,
         shape: json['shape'] as String? ?? 'rect',
+        rotation: _double(json['rotation'], 0),
+        opacity: _double(json['opacity'], 1),
+        parallax: _double(json['parallax'], 1),
         assetRef: json['assetRef'] as String?,
       );
+}
+
+/// v2 — camera track: pose khởi đầu + pose đích per step (theo index).
+class CameraTrackDto {
+  final CameraState initial;
+
+  /// steps[i] = pose đích camera trong bước i; thiếu → giữ pose trước.
+  final List<CameraState> steps;
+
+  const CameraTrackDto({
+    this.initial = CameraState.initial,
+    this.steps = const [],
+  });
+
+  factory CameraTrackDto.fromJson(Object? raw) {
+    if (raw is! Map) return const CameraTrackDto();
+    return CameraTrackDto(
+      initial: _cameraState(raw['initial']) ?? CameraState.initial,
+      steps: [
+        for (final s in _list(raw['steps']))
+          if (s is Map)
+            _cameraState(s['target']) ?? CameraState.initial,
+      ],
+    );
+  }
+
+  static CameraState? _cameraState(Object? raw) {
+    if (raw is! Map) return null;
+    return CameraState(
+      center: Offset(_double(raw['x'], 0.5), _double(raw['y'], 0.5)),
+      zoom: _double(raw['zoom'], 1.0).clamp(0.5, 3.0),
+      focusObjectId: raw['focusObjectId'] as String?,
+      focusLocationId: raw['focusLocationId'] as String?,
+    );
+  }
+}
+
+/// v2 — một keyframe track trên (objectId, property).
+class ObjectTrackDto {
+  final String objectId;
+  final String property;
+  final List<KeyframeSpec> keyframes;
+
+  const ObjectTrackDto({
+    required this.objectId,
+    required this.property,
+    this.keyframes = const [],
+  });
+
+  factory ObjectTrackDto.fromJson(Map json) => ObjectTrackDto(
+        objectId: '${json['objectId'] ?? ''}',
+        property: '${json['property'] ?? ''}',
+        keyframes: [
+          for (final k in _list(json['keyframes']))
+            if (k is Map)
+              KeyframeSpec(
+                tMs: _int(k['tMs'], 0),
+                value: _decodeValue(json['property'], k['value']),
+                curve: _curve(k['easing']),
+              ),
+        ],
+      );
+
+  static Object _decodeValue(Object? property, Object? raw) {
+    return switch ('$property') {
+      'position' when raw is Map => Offset(
+          _double(raw['x'], 0.5),
+          _double(raw['y'], 0.5),
+        ),
+      'visible' => raw == true,
+      _ => _double(raw, 0),
+    };
+  }
+
+  static Curve _curve(Object? easing) => switch ('$easing') {
+        'linear' => Curves.linear,
+        'easeIn' => Curves.easeIn,
+        'easeOut' => Curves.easeOut,
+        'easeInOutCubic' => Curves.easeInOutCubic,
+        _ => Curves.easeInOut,
+      };
+}
+
+/// v2 — typed overlay effect khai báo ở scene level. `stepId` gắn
+/// effect vào một bước cụ thể (rỗng/null = chạy cả scene). Params
+/// bounded — đọc x/y/intensity/objectId qua getter an toàn.
+class SceneEffectDto {
+  final String type;
+
+  /// Gắn vào step.id — null/rỗng nghĩa là ambient (cả scene).
+  final String? stepId;
+  final int durationMs;
+  final Map<String, dynamic> params;
+
+  const SceneEffectDto({
+    required this.type,
+    this.stepId,
+    this.durationMs = 0,
+    this.params = const {},
+  });
+
+  factory SceneEffectDto.fromJson(Map json) => SceneEffectDto(
+        type: '${json['type'] ?? ''}',
+        stepId: json['stepId'] as String?,
+        durationMs: _int(json['durationMs'], 0),
+        params: json['params'] is Map
+            ? Map<String, dynamic>.from(json['params'] as Map)
+            : const {},
+      );
+
+  /// Tọa độ chuẩn hóa trung tâm (WATER_RIPPLE/GLOW) — default giữa.
+  Offset get center => Offset(
+        _double(params['x'], 0.5),
+        _double(params['y'], 0.5),
+      );
+
+  /// Cường độ 0..1 (MIST/GLOW) — default 0.5 để không che scene.
+  double get intensity => _double(params['intensity'], 0.5).clamp(0.0, 1.0);
+
+  /// objectId mà GLOW bám theo — null = dùng center cố định.
+  String? get objectId => params['objectId'] as String?;
+}
+
+/// v2 — audio cue gắn bước: {stepId, assetRef, cue, volume, fadeMs}.
+class AudioCueDto {
+  final String stepId;
+
+  /// Khóa assets[].id (role AUDIO) — resolve sang assetId khi play.
+  final String assetRef;
+  final String cue; // ENTER | EXIT | LOOP
+  final double volume;
+  final int fadeMs;
+
+  const AudioCueDto({
+    required this.stepId,
+    required this.assetRef,
+    required this.cue,
+    this.volume = 1,
+    this.fadeMs = 0,
+  });
+
+  factory AudioCueDto.fromJson(Map json) => AudioCueDto(
+        stepId: '${json['stepId'] ?? ''}',
+        assetRef: '${json['assetRef'] ?? ''}',
+        cue: '${json['cue'] ?? 'ENTER'}',
+        volume: _double(json['volume'], 1).clamp(0.0, 1.0),
+        fadeMs: _int(json['fadeMs'], 0),
+      );
+}
+
+/// v2 — ambient environment (RIVER_TIDE): mist/glow/waterLevel nền.
+class EnvironmentDto {
+  final double? waterLevel;
+  final double mist;
+  final double glow;
+
+  const EnvironmentDto({this.waterLevel, this.mist = 0, this.glow = 0});
+
+  factory EnvironmentDto.fromJson(Object? raw) {
+    if (raw is! Map) return const EnvironmentDto();
+    return EnvironmentDto(
+      waterLevel: raw['waterLevel'] is num
+          ? (raw['waterLevel'] as num).toDouble()
+          : null,
+      mist: _double(raw['mist'], 0).clamp(0.0, 1.0),
+      glow: _double(raw['glow'], 0).clamp(0.0, 1.0),
+    );
+  }
 }
 
 /// Bridge: manifest → typed definition của runtime cũ — tái dùng
@@ -417,7 +687,11 @@ extension AnimationManifestToDefinition on AnimationManifestDto {
   /// Áp manifest.initialState lên painter vừa tạo — key nào thiếu giữ
   /// default của painter, key lạ bị bỏ qua (whitelist implicit qua tên
   /// field đã biết). Bước 0 tween từ đây thay vì default hard-code.
+  /// v2 — environment.waterLevel seed TRƯỚC initialState (thấp hơn
+  /// priority): `initialState.waterLevel` vẫn override nếu khai báo.
   RiverScenePainter _seedRiver(RiverScenePainter p) {
+    final envWater = environment.waterLevel;
+    if (envWater != null) p.waterLevel = envWater;
     final s = initialState;
     if (s.isEmpty) return p;
     if (s['waterLevel'] is num) {

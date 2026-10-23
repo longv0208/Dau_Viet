@@ -38,7 +38,11 @@ public class AssetService {
     private static final Map<String, String> ALLOWED_MIME_EXT = Map.of(
             "image/png", "png",
             "image/jpeg", "jpg",
-            "image/webp", "webp");
+            "image/webp", "webp",
+            "audio/mpeg", "mp3",
+            "audio/wav", "wav",
+            "audio/x-wav", "wav",
+            "audio/ogg", "ogg");
     private static final long MAX_BYTES = 10L * 1024 * 1024; // 10 MB dev cap
     private static final Set<String> ACTIVE = Set.of("ACTIVE");
 
@@ -64,7 +68,8 @@ public class AssetService {
         String ext = ALLOWED_MIME_EXT.get(mime);
         if (ext == null) {
             throw new InvalidAssetUploadException(
-                    "unsupported mime type '" + mime + "' — allowed: PNG, JPEG, WebP");
+                    "unsupported mime type '" + mime
+                            + "' — allowed: PNG, JPEG, WebP, MP3, WAV, OGG");
         }
 
         UUID id = UUID.randomUUID();

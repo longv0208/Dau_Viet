@@ -13,7 +13,13 @@ public final class AnimationManifestSchema {
     private AnimationManifestSchema() {
     }
 
-    public static final int CURRENT_SCHEMA_VERSION = 1;
+    /**
+     * Cinematic manifest schema. v2 adds optional top-level keys
+     * (camera, tracks, effects, audio, environment); a manifest containing
+     * any of them must declare schemaVersion &gt;= 2 (validator enforces).
+     * v1 manifests (none of those keys) stay valid forever.
+     */
+    public static final int CURRENT_SCHEMA_VERSION = 2;
 
     /** Renderers this backend + the mobile runtime both support. */
     public static final Set<String> RENDERER_CODES = Set.of("RIVER_TIDE", "JOURNEY_MAP");
@@ -63,7 +69,36 @@ public final class AnimationManifestSchema {
             "schemaVersion", "rendererCode", "rendererVersion", "title",
             "learningObjective", "canvas", "assets", "objects", "initialState",
             "steps", "interactions", "narration", "prediction",
-            "sourceReferences", "disclaimer", "river", "map");
+            "sourceReferences", "disclaimer", "river", "map",
+            "camera", "tracks", "effects", "audio", "environment");
+
+    /** Keys that mark a manifest as v2 — presence requires schemaVersion >= 2. */
+    public static final Set<String> V2_KEYS = Set.of(
+            "camera", "tracks", "effects", "audio", "environment");
+
+    /** Whitelisted keyframe-track properties (objects[] / camera targets). */
+    public static final Set<String> TRACK_PROPERTIES = Set.of(
+            "position", "scale", "rotation", "opacity", "visible");
+
+    /** Whitelisted typed overlay effects (scene-level effects[]). */
+    public static final Set<String> EFFECT_TYPES_V2 = Set.of(
+            "WATER_RIPPLE", "MIST", "GLOW", "ROUTE_REVEAL",
+            "FADE_IN", "FADE_OUT");
+
+    /** Whitelisted audio cue kinds for audio[]. */
+    public static final Set<String> AUDIO_CUES = Set.of(
+            "ENTER", "EXIT", "LOOP");
+
+    /** Camera bounds — center normalized 0..1, zoom range. */
+    public static final double CAMERA_ZOOM_MIN = 0.5;
+    public static final double CAMERA_ZOOM_MAX = 3.0;
+    public static final double ROTATION_MIN = -360.0;
+    public static final double ROTATION_MAX = 360.0;
+    public static final int MAX_EFFECT_PARAMS_DEPTH = 4;
+    public static final int MAX_TRACKS = 100;
+    public static final int MAX_KEYFRAMES_PER_TRACK = 60;
+    public static final int MAX_AUDIO_CUES = 40;
+    public static final int MAX_SCENE_EFFECTS = 40;
 
     /** Per-renderer state keys allowed inside initialState / step.targetState. */
     public static final Map<String, Set<String>> STATE_KEYS = Map.of(

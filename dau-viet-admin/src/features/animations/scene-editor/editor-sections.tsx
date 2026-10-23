@@ -34,8 +34,9 @@ function AssetThumb({ assetId }: { assetId: string }) {
 }
 
 /** Role mà runtime Flutter + preview thực sự render được — các role còn
- * lại bị disable để tránh "giả vờ cấu hình được" mà app không vẽ. */
-const SUPPORTED_ASSET_ROLES = new Set(["BACKGROUND", "OBJECT"]);
+ * lại bị disable để tránh "giả vờ cấu hình được" mà app không vẽ.
+ * v2: AUDIO phát được qua audio[] cue (backend chấp nhận audio mime). */
+const SUPPORTED_ASSET_ROLES = new Set(["BACKGROUND", "OBJECT", "AUDIO"]);
 
 export interface SectionProps {
   manifest: AnimationManifest;

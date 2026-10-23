@@ -76,6 +76,78 @@ export const INTERACTION_CODES = ["WATER_LEVEL_CONTROL", "TAP_TO_EXPLORE", "PRED
 export const ASSET_ROLES = ["BACKGROUND", "OBJECT", "THUMBNAIL", "AUDIO", "OVERLAY"] as const;
 export const PLAYBACK_MODES = ["AUTO", "STEPPED", "INTERACTIVE"] as const;
 
+/* ---------- Cinematic v2 (schemaVersion >= 2) ---------- */
+
+/** Step-level effect types — whitelisted in EFFECTS above. Scene-level
+ * typed overlays dùng EFFECT_TYPES_V2 riêng (không trùng namespace). */
+export const EFFECT_TYPES_V2 = [
+  "WATER_RIPPLE", "MIST", "GLOW", "ROUTE_REVEAL", "FADE_IN", "FADE_OUT",
+] as const;
+
+export const TRACK_PROPERTIES = [
+  "position", "scale", "rotation", "opacity", "visible",
+] as const;
+
+export const AUDIO_CUES = ["ENTER", "EXIT", "LOOP"] as const;
+
+/** Top-level keys đánh dấu manifest là v2 — presence => schemaVersion >= 2. */
+export const V2_TOP_LEVEL_KEYS = [
+  "camera", "tracks", "effects", "audio", "environment",
+] as const;
+
+export interface CameraPose {
+  x: number; // normalized center 0..1
+  y: number;
+  zoom: number; // 0.5..3.0
+  focusObjectId?: string;
+  focusLocationId?: string;
+}
+
+export interface CameraStep {
+  target: CameraPose;
+  durationMs?: number;
+  easing?: string;
+}
+
+export interface CameraTrack {
+  initial: CameraPose;
+  steps: CameraStep[]; // steps[i] = pose đích cho step index i
+}
+
+export interface Keyframe {
+  tMs: number;
+  /** position = {x,y}; scale/rotation/opacity = number; visible = boolean. */
+  value: unknown;
+  easing?: string;
+}
+
+export interface ObjectTrack {
+  objectId: string;
+  property: string; // TRACK_PROPERTIES
+  keyframes: Keyframe[];
+}
+
+export interface SceneEffect {
+  type: string; // EFFECT_TYPES_V2
+  stepId?: string;
+  durationMs?: number;
+  params?: Record<string, unknown>;
+}
+
+export interface AudioCue {
+  stepId: string;
+  assetRef: string; // assets[].id với role=AUDIO
+  cue: string; // AUDIO_CUES
+  volume?: number; // 0..1
+  fadeMs?: number;
+}
+
+export interface EnvironmentConfig {
+  waterLevel?: number;
+  mist?: number; // 0..1
+  glow?: number; // 0..1
+}
+
 export interface ManifestAssetRef {
   id: string;
   assetId: string;
@@ -163,6 +235,23 @@ export interface AnimationManifest {
     routes?: MapRouteDto[];
     backgroundAssetId?: string;
   };
+  /** v2 cinematic — tất cả optional; presence => schemaVersion >= 2. */
+  camera?: CameraTrack;
+  tracks?: ObjectTrack[];
+  effects?: SceneEffect[];
+  audio?: AudioCue[];
+  environment?: EnvironmentConfig;
+}
+
+/** Kiểm tra manifest có v2 keys — validator backend bắt schemaVersion>=2. */
+export function manifestHasV2(m: AnimationManifest): boolean {
+  return (
+    m.camera !== undefined ||
+    (m.tracks?.length ?? 0) > 0 ||
+    (m.effects?.length ?? 0) > 0 ||
+    (m.audio?.length ?? 0) > 0 ||
+    m.environment !== undefined
+  );
 }
 
 /** Draft rỗng hợp lệ tối thiểu cho renderer cho trước. */

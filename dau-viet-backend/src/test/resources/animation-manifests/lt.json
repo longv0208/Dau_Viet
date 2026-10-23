@@ -1,0 +1,89 @@
+{
+      "schemaVersion": 2,
+      "rendererCode": "JOURNEY_MAP",
+      "rendererVersion": 1,
+      "title": "LĂ½ ThĂ¡i Tá»• dá»i Ä‘Ă´ nÄƒm 1010 â€” Cinematic",
+      "learningObjective": "Hiá»ƒu vĂ¬ sao LĂ½ ThĂ¡i Tá»• chá»n Äáº¡i La lĂ m kinh Ä‘Ă´ má»›i â€” qua cinematic zoom-out reveal.",
+      "canvas": {"aspectRatio": 1.6},
+      "assets": [
+        {"id": "amb-court", "assetId": "d7a60000-0000-4000-8000-000000000001",
+         "role": "AUDIO"}
+      ],
+      "objects": [],
+      "initialState": {},
+      "interactions": ["TAP_TO_EXPLORE", "PREDICTION"],
+      "disclaimer": "Báº£n Ä‘á»“ minh há»a schematic + cinematic camera â€” khĂ´ng theo tá»‰ lá»‡, khĂ´ng pháº£i báº£n Ä‘á»“ Ä‘á»‹a lĂ½ chĂ­nh xĂ¡c.",
+      "sourceReferences": [
+        {"title": "Báº£o tĂ ng Lá»‹ch sá»­ Quá»‘c gia â€” \"ThÄƒng Long thá»i nhĂ  LĂ½ (1009â€“1225)\" vĂ  \"HĂ  Ná»™i â€” Ä‘á»‹a linh nhĂ¢n kiá»‡t\" (baotanglichsuquocgia.vn)."}
+      ],
+      "map": {
+        "locations": [
+          {"id": "hoa-lu", "name": "Hoa LÆ°", "x": 0.28, "y": 0.70,
+           "description": "Hoa LÆ° â€” kinh Ä‘Ă´ cá»§a cĂ¡c triá»u Äinh vĂ  Tiá»n LĂª.",
+           "contextLabel": "Kinh Ä‘Ă´ cÅ©"},
+          {"id": "dai-la", "name": "Äáº¡i La â€” ThÄƒng Long", "x": 0.62, "y": 0.40,
+           "description": "ThĂ nh Äáº¡i La â€” nÆ¡i LĂ½ ThĂ¡i Tá»• chá»n lĂ m kinh Ä‘Ă´ má»›i nÄƒm 1010.",
+           "contextLabel": "Kinh Ä‘Ă´ má»›i"}
+        ],
+        "routes": [
+          {"id": "relocation", "from": "hoa-lu", "to": "dai-la", "via": [{"x": 0.45, "y": 0.58}],
+           "explanation": "Dá»i kinh Ä‘Ă´ tá»« Hoa LÆ° vá» Äáº¡i La."}
+        ]
+      },
+      "camera": {
+        "initial": {"x": 0.28, "y": 0.70, "zoom": 1.3, "focusLocationId": "hoa-lu"},
+        "steps": [
+          {"target": {"x": 0.28, "y": 0.70, "zoom": 1.5}},
+          {"target": {"x": 0.45, "y": 0.55, "zoom": 1.2}},
+          {"target": {"x": 0.62, "y": 0.40, "zoom": 1.6, "focusLocationId": "dai-la"}},
+          {"target": {"x": 0.45, "y": 0.58, "zoom": 1.0}},
+          {"target": {"x": 0.5, "y": 0.5, "zoom": 1.0}}
+        ]
+      },
+      "tracks": [],
+      "effects": [
+        {"type": "FADE_IN", "stepId": "old-capital", "durationMs": 900},
+        {"type": "GLOW", "stepId": "chosen", "durationMs": 2200,
+         "params": {"x": 0.62, "y": 0.40, "intensity": 0.7}},
+        {"type": "FADE_OUT", "stepId": "thang-long", "durationMs": 1200}
+      ],
+      "audio": [
+        {"stepId": "old-capital", "assetRef": "amb-court", "cue": "ENTER", "volume": 0.4},
+        {"stepId": "chosen", "assetRef": "amb-court", "cue": "ENTER", "volume": 0.6},
+        {"stepId": "thang-long", "assetRef": "amb-court", "cue": "EXIT", "fadeMs": 1000}
+      ],
+      "steps": [
+        {"id": "old-capital", "title": "Hoa LÆ° â€” kinh Ä‘Ă´ cÅ©", "durationMs": 1100, "easing": "easeInOut",
+         "narration": "Hoa LÆ° tá»«ng lĂ  kinh Ä‘Ă´ cá»§a cĂ¡c triá»u Äinh vĂ  Tiá»n LĂª. Camera báº¯t Ä‘áº§u zoom sáºµn táº¡i Ä‘Ă¢y + fade in má»Ÿ mĂ n.",
+         "hint": "Camera Ä‘Ă£ zoom sáºµn vĂ o Hoa LÆ° tá»« Ä‘áº§u.",
+         "targetState": {"markerVisibility": {"hoa-lu": 1}, "focusedLocationId": "hoa-lu"}},
+        {"id": "considering", "title": "CĂ¢n nháº¯c dá»i Ä‘Ă´", "durationMs": 1100, "easing": "easeInOut",
+         "narration": "Sau khi lĂªn ngĂ´i, LĂ½ ThĂ¡i Tá»• cĂ¢n nháº¯c vá»‹ trĂ­ kinh Ä‘Ă´ má»›i â€” camera kĂ©o ra Ä‘á»ƒ bao quĂ¡t cáº£ hai vĂ¹ng.",
+         "hint": "Camera zoom out â€” chuáº©n bá»‹ reveal lá»±a chá»n má»›i.",
+         "targetState": {"markerVisibility": {"hoa-lu": 1}}},
+        {"id": "chosen", "title": "Äáº¡i La Ä‘Æ°á»£c chá»n", "durationMs": 1100, "easing": "easeInOut",
+         "narration": "NÄƒm 1010, LĂ½ ThĂ¡i Tá»• chá»n Äáº¡i La lĂ m kinh Ä‘Ă´ má»›i â€” camera zoom sĂ¢u nháº¥t + glow Ä‘Ă¡nh dáº¥u.",
+         "hint": "Zoom + glow Ä‘Ă¡nh dáº¥u Äáº¡i La Ä‘Æ°á»£c chá»n.",
+         "targetState": {"markerVisibility": {"hoa-lu": 1, "dai-la": 1}, "focusedLocationId": "dai-la"}},
+        {"id": "relocated", "title": "Dá»i Ä‘Ă´ nÄƒm 1010", "durationMs": 1100, "easing": "easeInOut",
+         "narration": "Quyáº¿t Ä‘á»‹nh dá»i Ä‘Ă´ thá»±c hiá»‡n â€” camera kĂ©o ra Ä‘á»ƒ bao trá»n tuyáº¿n dá»i Ä‘Ă´.",
+         "hint": "Camera zoom out Ä‘á»ƒ nhĂ¬n cáº£ hĂ nh trĂ¬nh.",
+         "targetState": {"markerVisibility": {"hoa-lu": 1, "dai-la": 1}, "routeProgress": {"relocation": 1}, "focusedLocationId": "dai-la"}},
+        {"id": "thang-long", "title": "ThÄƒng Long", "durationMs": 1100, "easing": "easeInOut",
+         "narration": "Kinh Ä‘Ă´ má»›i Ä‘Æ°á»£c Ä‘áº·t tĂªn ThÄƒng Long â€” \"rá»“ng bay lĂªn\". Fade out khĂ©p láº¡i hĂ nh trĂ¬nh Ä‘iá»‡n áº£nh.",
+         "hint": "Fade out káº¿t thĂºc cinematic.",
+         "allowedInteractions": ["TAP_TO_EXPLORE"],
+         "targetState": {"markerVisibility": {"hoa-lu": 1, "dai-la": 1}, "routeProgress": {"relocation": 1}, "markerHighlight": ["dai-la"]}}
+      ],
+      "prediction": {
+        "question": "Äá»‹a Ä‘iá»ƒm nĂ o Ä‘Æ°á»£c LĂ½ ThĂ¡i Tá»• lá»±a chá»n lĂ m kinh Ä‘Ă´ má»›i?",
+        "options": [
+          {"text": "Hoa LÆ° â€” kinh Ä‘Ă´ cÅ© Ä‘Æ°á»£c giá»¯ nguyĂªn."},
+          {"text": "Äáº¡i La â€” sau nĂ y mang tĂªn ThÄƒng Long."}
+        ],
+        "explainedOptionIndex": 1,
+        "explanation": "NÄƒm 1010, LĂ½ ThĂ¡i Tá»• chá»n thĂ nh Äáº¡i La lĂ m kinh Ä‘Ă´ má»›i vĂ  Ä‘á»•i tĂªn thĂ nh ThÄƒng Long.",
+        "retryHint": "Hoa LÆ° lĂ  kinh Ä‘Ă´ CÅ¨. HĂ£y xem láº¡i sÆ¡ Ä‘á»“: Ä‘á»‹a Ä‘iá»ƒm nĂ o vá»«a xuáº¥t hiá»‡n?",
+        "revealTargetState": {"markerVisibility": {"hoa-lu": 1, "dai-la": 1}, "routeProgress": {"relocation": 1}, "markerHighlight": ["dai-la"], "focusedLocationId": "dai-la"}
+      }
+    }

@@ -330,7 +330,399 @@ public class AnimationManifestValidator {
         checkLen(manifest, "narration", "manifest.narration", MAX_TEXT, errors);
         checkLen(manifest, "disclaimer", "manifest.disclaimer", MAX_TEXT, errors);
 
+        // (16) v2 gate — any cinematic key requires schemaVersion >= 2 so a
+        // v1 client can't silently drop camera/tracks/effects/audio.
+        boolean hasV2 = false;
+        for (String k : V2_KEYS) {
+            if (manifest.has(k)) { hasV2 = true; break; }
+        }
+        if (hasV2 && schemaVersion < 2) {
+            errors.add(err("manifest.schemaVersion", "OUTDATED_SCHEMA",
+                    "manifest uses v2 fields (camera/tracks/effects/audio/environment)"
+                            + " and must declare schemaVersion >= 2"));
+        }
+        if (hasV2 && schemaVersion >= 2) {
+            Set<String> objectIdSet = collectIds(manifest.get("objects"));
+            Set<String> locationIdSet = mapLocationIds(manifest);
+            Set<String> stepIdSet = collectIds(manifest.get("steps"));
+            Set<String> audioAssetKeys = audioAssetKeys(manifest.get("assets"));
+            validateCamera(manifest.get("camera"), objectIdSet, locationIdSet, errors);
+            validateTracks(manifest.get("tracks"), objectIdSet, manifest, errors);
+            validateSceneEffects(manifest.get("effects"), errors);
+            validateAudio(manifest.get("audio"), stepIdSet, audioAssetKeys, errors);
+            validateEnvironment(manifest.get("environment"), rendererCode, errors);
+        }
+
         return errors;
+    }
+
+    /* ---------- v2: camera ---------- */
+
+    private void validateCamera(JsonNode camera, Set<String> objectIds,
+                                Set<String> locationIds,
+                                List<ManifestFieldError> errors) {
+        if (camera == null) return;
+        if (!camera.isObject()) {
+            errors.add(err("manifest.camera", "INVALID_TYPE",
+                    "camera must be an object {initial, steps}"));
+            return;
+        }
+        checkCameraState(camera.get("initial"), "manifest.camera.initial",
+                objectIds, locationIds, errors);
+        JsonNode steps = camera.get("steps");
+        if (steps != null && steps.isArray()) {
+            for (int i = 0; i < steps.size(); i++) {
+                JsonNode s = steps.get(i);
+                String p = "manifest.camera.steps[" + i + "]";
+                if (!s.isObject()) {
+                    errors.add(err(p, "INVALID_TYPE", "camera step must be an object"));
+                    continue;
+                }
+                checkCameraState(s.get("target"), p + ".target",
+                        objectIds, locationIds, errors);
+                String easing = s.path("easing").asText(null);
+                if (easing != null && !EASINGS.contains(easing)) {
+                    errors.add(err(p + ".easing", "INVALID_VALUE",
+                            "easing must be one of " + EASINGS));
+                }
+            }
+        }
+    }
+
+    /** A camera pose: {x, y, zoom, focusObjectId?, focusLocationId?}. */
+    private void checkCameraState(JsonNode st, String path,
+                                  Set<String> objectIds, Set<String> locationIds,
+                                  List<ManifestFieldError> errors) {
+        if (st == null) return;
+        if (!st.isObject()) {
+            errors.add(err(path, "INVALID_TYPE", "camera state must be an object"));
+            return;
+        }
+        check01(st, "x", path + ".x", errors);
+        check01(st, "y", path + ".y", errors);
+        JsonNode zoom = st.get("zoom");
+        if (zoom != null && (!zoom.isNumber()
+                || zoom.asDouble() < CAMERA_ZOOM_MIN
+                || zoom.asDouble() > CAMERA_ZOOM_MAX)) {
+            errors.add(err(path + ".zoom", "OUT_OF_RANGE",
+                    "zoom must be " + CAMERA_ZOOM_MIN + ".." + CAMERA_ZOOM_MAX));
+        }
+        String fo = st.path("focusObjectId").asText(null);
+        if (fo != null && !objectIds.contains(fo)) {
+            errors.add(err(path + ".focusObjectId", "UNKNOWN_REF",
+                    "focusObjectId references unknown object '" + fo + "'"));
+        }
+        String fl = st.path("focusLocationId").asText(null);
+        if (fl != null && !locationIds.contains(fl)) {
+            errors.add(err(path + ".focusLocationId", "UNKNOWN_REF",
+                    "focusLocationId references unknown location '" + fl + "'"));
+        }
+    }
+
+    /* ---------- v2: tracks (keyframes) ---------- */
+
+    private void validateTracks(JsonNode tracks, Set<String> objectIds,
+                                JsonNode manifest,
+                                List<ManifestFieldError> errors) {
+        if (tracks == null) return;
+        if (!tracks.isArray()) {
+            errors.add(err("manifest.tracks", "INVALID_TYPE",
+                    "tracks must be an array"));
+            return;
+        }
+        if (tracks.size() > MAX_TRACKS) {
+            errors.add(err("manifest.tracks", "TOO_MANY",
+                    "tracks exceeds " + MAX_TRACKS));
+        }
+        long sceneMs = sceneDurationMs(manifest);
+        for (int i = 0; i < tracks.size(); i++) {
+            JsonNode tr = tracks.get(i);
+            String p = "manifest.tracks[" + i + "]";
+            if (!tr.isObject()) {
+                errors.add(err(p, "INVALID_TYPE", "track must be an object"));
+                continue;
+            }
+            String oid = tr.path("objectId").asText(null);
+            if (oid == null) {
+                errors.add(err(p + ".objectId", "MISSING_FIELD",
+                        "track.objectId is required"));
+            } else if (!objectIds.contains(oid)) {
+                errors.add(err(p + ".objectId", "UNKNOWN_REF",
+                        "track references unknown object '" + oid + "'"));
+            }
+            String prop = tr.path("property").asText(null);
+            if (prop == null || !TRACK_PROPERTIES.contains(prop)) {
+                errors.add(err(p + ".property", "INVALID_VALUE",
+                        "property must be one of " + TRACK_PROPERTIES));
+                continue;
+            }
+            JsonNode keys = tr.get("keyframes");
+            if (keys == null || !keys.isArray() || keys.isEmpty()) {
+                errors.add(err(p + ".keyframes", "MISSING_FIELD",
+                        "track.keyframes must be a non-empty array"));
+                continue;
+            }
+            if (keys.size() > MAX_KEYFRAMES_PER_TRACK) {
+                errors.add(err(p + ".keyframes", "TOO_MANY",
+                        "keyframes exceeds " + MAX_KEYFRAMES_PER_TRACK));
+            }
+            long prevT = -1;
+            for (int j = 0; j < keys.size(); j++) {
+                JsonNode k = keys.get(j);
+                String kp = p + ".keyframes[" + j + "]";
+                if (!k.isObject()) {
+                    errors.add(err(kp, "INVALID_TYPE", "keyframe must be an object"));
+                    continue;
+                }
+                if (!k.has("tMs") || !k.get("tMs").isNumber()
+                        || k.get("tMs").asLong() < 0) {
+                    errors.add(err(kp + ".tMs", "INVALID_VALUE",
+                            "keyframe tMs must be a number >= 0"));
+                } else {
+                    long t = k.get("tMs").asLong();
+                    if (t <= prevT) {
+                        errors.add(err(kp + ".tMs", "OUT_OF_ORDER",
+                                "keyframe tMs must be strictly ascending"));
+                    }
+                    if (t > sceneMs) {
+                        errors.add(err(kp + ".tMs", "OUT_OF_RANGE",
+                                "keyframe tMs exceeds scene duration " + sceneMs + "ms"));
+                    }
+                    prevT = t;
+                }
+                String ke = k.path("easing").asText(null);
+                if (ke != null && !EASINGS.contains(ke)) {
+                    errors.add(err(kp + ".easing", "INVALID_VALUE",
+                            "easing must be one of " + EASINGS));
+                }
+                checkKeyframeValue(k.get("value"), prop, kp + ".value", errors);
+            }
+        }
+    }
+
+    /** Keyframe value type depends on the animated property. */
+    private void checkKeyframeValue(JsonNode v, String property, String path,
+                                    List<ManifestFieldError> errors) {
+        if (v == null) {
+            errors.add(err(path, "MISSING_FIELD", "keyframe.value is required"));
+            return;
+        }
+        switch (property) {
+            case "position" -> {
+                if (!v.isObject()) {
+                    errors.add(err(path, "INVALID_TYPE",
+                            "position value must be {x,y}"));
+                    return;
+                }
+                check01(v, "x", path + ".x", errors);
+                check01(v, "y", path + ".y", errors);
+            }
+            case "scale" -> {
+                if (!v.isNumber() || v.asDouble() <= 0 || v.asDouble() > 2) {
+                    errors.add(err(path, "OUT_OF_RANGE",
+                            "scale value must be a number in (0, 2]"));
+                }
+            }
+            case "rotation" -> {
+                if (!v.isNumber() || v.asDouble() < ROTATION_MIN
+                        || v.asDouble() > ROTATION_MAX) {
+                    errors.add(err(path, "OUT_OF_RANGE",
+                            "rotation must be " + ROTATION_MIN + ".." + ROTATION_MAX));
+                }
+            }
+            case "opacity" -> {
+                if (!v.isNumber() || v.asDouble() < 0 || v.asDouble() > 1) {
+                    errors.add(err(path, "OUT_OF_RANGE",
+                            "opacity value must be 0..1"));
+                }
+            }
+            case "visible" -> {
+                if (!v.isBoolean()) {
+                    errors.add(err(path, "INVALID_TYPE",
+                            "visible value must be a boolean"));
+                }
+            }
+            default -> { /* property already rejected upstream */ }
+        }
+    }
+
+    /* ---------- v2: scene effects ---------- */
+
+    private void validateSceneEffects(JsonNode effects,
+                                      List<ManifestFieldError> errors) {
+        if (effects == null) return;
+        if (!effects.isArray()) {
+            errors.add(err("manifest.effects", "INVALID_TYPE",
+                    "effects must be an array"));
+            return;
+        }
+        if (effects.size() > MAX_SCENE_EFFECTS) {
+            errors.add(err("manifest.effects", "TOO_MANY",
+                    "effects exceeds " + MAX_SCENE_EFFECTS));
+        }
+        for (int i = 0; i < effects.size(); i++) {
+            JsonNode e = effects.get(i);
+            String p = "manifest.effects[" + i + "]";
+            if (!e.isObject()) {
+                errors.add(err(p, "INVALID_TYPE", "effect must be an object"));
+                continue;
+            }
+            String type = e.path("type").asText(null);
+            if (type == null || !EFFECT_TYPES_V2.contains(type)) {
+                errors.add(err(p + ".type", "INVALID_VALUE",
+                        "effect type must be one of " + EFFECT_TYPES_V2));
+            }
+            if (e.has("durationMs")) {
+                long d = e.get("durationMs").asLong(-1);
+                if (d < 0 || d > MAX_STEP_DURATION_MS) {
+                    errors.add(err(p + ".durationMs", "OUT_OF_RANGE",
+                            "durationMs must be 0.." + MAX_STEP_DURATION_MS));
+                }
+            }
+            JsonNode params = e.get("params");
+            if (params != null
+                    && (!params.isObject() || depth(params, 0) > MAX_EFFECT_PARAMS_DEPTH)) {
+                errors.add(err(p + ".params", "INVALID_TYPE",
+                        "params must be a bounded JSON object"));
+            }
+        }
+    }
+
+    /* ---------- v2: audio cues ---------- */
+
+    private void validateAudio(JsonNode audio, Set<String> stepIds,
+                               Set<String> audioAssetKeys,
+                               List<ManifestFieldError> errors) {
+        if (audio == null) return;
+        if (!audio.isArray()) {
+            errors.add(err("manifest.audio", "INVALID_TYPE",
+                    "audio must be an array"));
+            return;
+        }
+        if (audio.size() > MAX_AUDIO_CUES) {
+            errors.add(err("manifest.audio", "TOO_MANY",
+                    "audio cues exceeds " + MAX_AUDIO_CUES));
+        }
+        for (int i = 0; i < audio.size(); i++) {
+            JsonNode a = audio.get(i);
+            String p = "manifest.audio[" + i + "]";
+            if (!a.isObject()) {
+                errors.add(err(p, "INVALID_TYPE", "audio cue must be an object"));
+                continue;
+            }
+            String stepId = a.path("stepId").asText(null);
+            if (stepId == null) {
+                errors.add(err(p + ".stepId", "MISSING_FIELD",
+                        "audio.stepId is required"));
+            } else if (!stepIds.contains(stepId)) {
+                errors.add(err(p + ".stepId", "UNKNOWN_REF",
+                        "audio.stepId references unknown step '" + stepId + "'"));
+            }
+            String assetRef = a.path("assetRef").asText(null);
+            if (assetRef == null) {
+                errors.add(err(p + ".assetRef", "MISSING_FIELD",
+                        "audio.assetRef is required"));
+            } else if (!audioAssetKeys.contains(assetRef)) {
+                errors.add(err(p + ".assetRef", "UNKNOWN_REF",
+                        "audio.assetRef must reference an assets[] entry"
+                                + " with role AUDIO ('" + assetRef + "')"));
+            }
+            String cue = a.path("cue").asText(null);
+            if (cue == null || !AUDIO_CUES.contains(cue)) {
+                errors.add(err(p + ".cue", "INVALID_VALUE",
+                        "cue must be one of " + AUDIO_CUES));
+            }
+            JsonNode vol = a.get("volume");
+            if (vol != null && (!vol.isNumber()
+                    || vol.asDouble() < 0 || vol.asDouble() > 1)) {
+                errors.add(err(p + ".volume", "OUT_OF_RANGE",
+                        "volume must be 0..1"));
+            }
+            JsonNode fade = a.get("fadeMs");
+            if (fade != null && (!fade.isNumber() || fade.asLong() < 0
+                    || fade.asLong() > MAX_STEP_DURATION_MS)) {
+                errors.add(err(p + ".fadeMs", "OUT_OF_RANGE",
+                        "fadeMs must be 0.." + MAX_STEP_DURATION_MS));
+            }
+        }
+    }
+
+    /* ---------- v2: environment (RIVER_TIDE only) ---------- */
+
+    private void validateEnvironment(JsonNode env, String rendererCode,
+                                     List<ManifestFieldError> errors) {
+        if (env == null) return;
+        if (!"RIVER_TIDE".equals(rendererCode)) {
+            errors.add(err("manifest.environment", "RENDERER_MISMATCH",
+                    "environment is only supported by RIVER_TIDE"));
+            return;
+        }
+        if (!env.isObject()) {
+            errors.add(err("manifest.environment", "INVALID_TYPE",
+                    "environment must be an object"));
+            return;
+        }
+        for (String f : new String[]{"waterLevel", "mist", "glow"}) {
+            JsonNode v = env.get(f);
+            if (v != null && (!v.isNumber()
+                    || v.asDouble() < 0 || v.asDouble() > 1)) {
+                errors.add(err("manifest.environment." + f, "OUT_OF_RANGE",
+                        f + " must be 0..1"));
+            }
+        }
+        for (var it = env.fieldNames(); it.hasNext();) {
+            String k = it.next();
+            if (!Set.of("waterLevel", "mist", "glow").contains(k)) {
+                errors.add(err("manifest.environment." + k, "UNKNOWN_FIELD",
+                        "unknown environment key '" + k + "'"));
+            }
+        }
+    }
+
+    /* ---------- v2 helpers ---------- */
+
+    /** Collects `id` values of an array of objects (objects[]/steps[]). */
+    private Set<String> collectIds(JsonNode arr) {
+        Set<String> ids = new LinkedHashSet<>();
+        if (arr != null && arr.isArray()) {
+            for (JsonNode n : arr) {
+                String id = n.path("id").asText(null);
+                if (id != null) ids.add(id);
+            }
+        }
+        return ids;
+    }
+
+    private Set<String> mapLocationIds(JsonNode manifest) {
+        JsonNode map = manifest.get("map");
+        return map != null ? collectIds(map.get("locations")) : Set.of();
+    }
+
+    /** assets[].id whose role == AUDIO — the only refs audio[] may use. */
+    private Set<String> audioAssetKeys(JsonNode assets) {
+        Set<String> keys = new LinkedHashSet<>();
+        if (assets != null && assets.isArray()) {
+            for (JsonNode a : assets) {
+                if ("AUDIO".equals(a.path("role").asText(null))) {
+                    String id = a.path("id").asText(null);
+                    if (id != null) keys.add(id);
+                }
+            }
+        }
+        return keys;
+    }
+
+    /** Scene duration = sum of steps[].durationMs (4000 default per step). */
+    private long sceneDurationMs(JsonNode manifest) {
+        long total = 0;
+        JsonNode steps = manifest.get("steps");
+        if (steps != null && steps.isArray()) {
+            for (JsonNode s : steps) {
+                long d = s.path("durationMs").asLong(4000);
+                total += d > 0 ? d : 4000;
+            }
+        }
+        return total;
     }
 
     /* ---------- RIVER_TIDE ---------- */

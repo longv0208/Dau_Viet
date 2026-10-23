@@ -1,36 +1,42 @@
-import 'dart:typed_data';
-
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../../../core/theme/dau_viet_colors.dart';
 import '../../../data/learning_providers.dart';
 import '../../renderers/learning_asset_image.dart' show fetchLearningAssetBytes;
+import '../effects/effect_painters.dart';
+import '../effects/environment_overlay.dart';
 import '../runtime/animation_manifest_dto.dart';
+import '../runtime/cinematic_state.dart';
 
-/// ANIM-03/P0-4 — Lớp ảnh manifest quanh canvas painter.
+/// ANIM-03/P0-4/v2 — Lớp ảnh manifest quanh canvas painter + cinematic
+/// transform (camera pan/zoom) + object visual state từ keyframe tracks
+/// + typed effect overlays (WATER_RIPPLE/MIST/GLOW/FADE) + ambient
+/// environment (mist/glow nền).
 ///
-/// KHÔNG gắn vào painter (CustomPainter thuần vẽ, không fetch); widget này
-/// đặt MỘT background image dưới painter + các object image lên trên, theo
-/// tọa độ chuẩn hóa của manifest. Mỗi ảnh fetch đúng MỘT lần lúc mount qua
-/// [fetchLearningAssetBytes] — cùng cache/auth/session-tag với
-/// [LearningAssetImage] nên không có per-frame request và không dựa vào
-/// storageKey ngoài (publish đã pin assetId + meta trong snapshot).
+/// Z-order (trong cùng camera transform):
+///   background image → EnvironmentOverlay (mist/glow) → painter child →
+///   object images (sorted by layer) → EffectOverlay (typed effects)
 ///
-/// Lớp này KHÔNG tự resolve auth — chỉ khi manifest thực sự khai báo ảnh
-/// mới mount [_ManifestImage] (widget đó tự check auth session). Manifest
-/// không khai báo gì → trả `child` nguyên trạng, không đổi layout, không
-/// cần ProviderScope (giữ tương thích widget test pump trực tiếp).
+/// Manifest không khai báo ảnh/object/effect/environment → trả `child`
+/// nguyên trạng, không đổi layout, không cần ProviderScope.
 class ManifestAssetLayers extends StatelessWidget {
   final AnimationManifestDto manifest;
   final double aspectRatio;
   final Widget child;
+
+  /// Frame cinematic hiện tại (camera + object states + effects) —
+  /// player phát qua [ValueListenable]; null → render tĩnh như v1
+  /// (không camera/tracks/effects).
+  final ValueListenable<CinematicFrame>? frameListenable;
 
   const ManifestAssetLayers({
     super.key,
     required this.manifest,
     required this.aspectRatio,
     required this.child,
+    this.frameListenable,
   });
 
   /// assetId lớp nền — ưu tiên `map.backgroundAssetId`, sau đó assets[]
@@ -59,48 +65,165 @@ class ManifestAssetLayers extends StatelessWidget {
     return list;
   }
 
+  bool get _hasCinematic =>
+      manifest.cinematic.cameraSteps.isNotEmpty ||
+      manifest.cinematic.tracks.isNotEmpty ||
+      manifest.cinematic.effects.isNotEmpty;
+
+  bool get _hasEnvironment =>
+      manifest.environment.mist > 0 || manifest.environment.glow > 0;
+
   @override
   Widget build(BuildContext context) {
     final bg = _backgroundAssetId;
     final objects = _objectLayers;
-    if (bg == null && objects.isEmpty) return child;
+    final listenable = frameListenable;
+    final env = manifest.environment;
+    if (bg == null && objects.isEmpty && !_hasCinematic && !_hasEnvironment) {
+      return child;
+    }
 
     return LayoutBuilder(
       builder: (context, constraints) {
         final size = Size(constraints.maxWidth, constraints.maxHeight);
-        return Stack(
-          fit: StackFit.expand,
-          children: [
-            if (bg != null)
-              _ManifestImage(
-                key: ValueKey('manifest_bg_$bg'),
-                assetId: bg,
-                altText: manifest.altTextOf(bg) ?? 'Nền minh họa',
-                frame: false,
+        // Static path — không cinematic: v1 behavior + ambient env.
+        final staticStack = _sceneStack(
+          bg: bg,
+          objects: objects,
+          size: size,
+          frame: null,
+          env: env,
+        );
+        if (listenable == null || !_hasCinematic) {
+          return _wrapEnvironment(staticStack, env);
+        }
+        // Cinematic path — toàn bộ scene trong camera transform;
+        // objects đọc ObjectVisualState động; effects overlay trên cùng.
+        return ClipRect(
+          child: ValueListenableBuilder<CinematicFrame>(
+            valueListenable: listenable,
+            builder: (context, frame, _) => Transform(
+              transform: frame.camera.transformFor(size),
+              child: _wrapEnvironment(
+                _sceneStack(
+                  bg: bg,
+                  objects: objects,
+                  size: size,
+                  frame: frame,
+                  env: env,
+                ),
+                env,
               ),
-            child,
-            for (final r in objects) _positioned(r, size),
-          ],
+            ),
+          ),
         );
       },
     );
   }
 
-  Widget _positioned(_ResolvedObject r, Size size) {
+  Widget _sceneStack({
+    required String? bg,
+    required List<_ResolvedObject> objects,
+    required Size size,
+    required CinematicFrame? frame,
+    required EnvironmentDto env,
+  }) {
+    return Stack(
+      fit: StackFit.expand,
+      children: [
+        if (bg != null)
+          _ManifestImage(
+            key: ValueKey('manifest_bg_$bg'),
+            assetId: bg,
+            altText: manifest.altTextOf(bg) ?? 'Nền minh họa',
+            frame: false,
+          ),
+        // Painter canvas (map/river) — layer 0.
+        child,
+        // Object images — layer >= 0 sorted.
+        for (final r in objects)
+          _positioned(r, size, frame?.objects[r.object.id]),
+        // Typed effect overlays — layer +inf (trên objects, dưới UI).
+        if (frame != null)
+          for (final e in frame.effects) _effectLayer(e, frame),
+      ],
+    );
+  }
+
+  /// Environment ambient (mist/glow) bọc toàn scene — nằm ngoài Stack
+  /// chính nhưng vẫn trong camera transform (cinematic) hoặc trực tiếp
+  /// (static). Mist vẽ đè lên mọi thứ nhẹ; glow đặt sát center.
+  Widget _wrapEnvironment(Widget scene, EnvironmentDto env) {
+    if (!_hasEnvironment) return scene;
+    return EnvironmentOverlay(environment: env, child: scene);
+  }
+
+  Widget _positioned(_ResolvedObject r, Size size, ObjectVisualState? vs) {
     final o = r.object;
-    final diameter = (size.width * o.scale).clamp(24.0, size.width);
-    final cx = o.position.dx * size.width;
-    final cy = o.position.dy * size.height;
+    final state = vs ??
+        ObjectVisualState(
+          position: o.position,
+          scale: o.scale,
+          rotation: o.rotation,
+          opacity: o.opacity,
+          visible: o.visible,
+        );
+    if (!state.visible || state.opacity <= 0) {
+      return const SizedBox.shrink();
+    }
+    final diameter = (size.width * state.scale).clamp(24.0, size.width);
+    final cx = state.position.dx * size.width;
+    final cy = state.position.dy * size.height;
     return Positioned(
       left: cx - diameter / 2,
       top: cy - diameter / 2,
       width: diameter,
       height: diameter,
-      child: _ManifestImage(
-        key: ValueKey('manifest_obj_${o.id}_${r.ref.assetId}'),
-        assetId: r.ref.assetId,
-        altText: manifest.altTextOf(r.ref.assetId) ?? o.id,
-        shape: o.shape,
+      child: Opacity(
+        opacity: state.opacity.clamp(0.0, 1.0),
+        child: Transform.rotate(
+          angle: state.rotation * 3.141592653589793 / 180,
+          child: _ManifestImage(
+            key: ValueKey('manifest_obj_${o.id}_${r.ref.assetId}'),
+            assetId: r.ref.assetId,
+            altText: manifest.altTextOf(r.ref.assetId) ?? o.id,
+            shape: o.shape,
+          ),
+        ),
+      ),
+    );
+  }
+
+  /// Resolve một [ActiveEffect] → widget overlay. GLOW theo `objectId`
+  /// lấy tâm từ ObjectVisualState hiện tại của frame (track đang chạy
+  /// thì glow bám theo object, không dùng center cố định).
+  Widget _effectLayer(ActiveEffect e, CinematicFrame frame) {
+    // GLOW có objectId → tâm = vị trí object trong frame hiện tại.
+    var center = e.center;
+    if (e.type == 'GLOW' && e.objectId != null) {
+      final obj = frame.objects[e.objectId];
+      if (obj != null) center = obj.position;
+    }
+    final painter = switch (e.type) {
+      'WATER_RIPPLE' => WaterRipplePainter(
+          center: center,
+          progress: e.progress,
+        ),
+      'MIST' => MistPainter(intensity: e.intensity),
+      'GLOW' => GlowPainter(
+          center: center,
+          intensity: e.intensity,
+        ),
+      'FADE_IN' => FadePainter(opacity: 1 - e.progress),
+      'FADE_OUT' => FadePainter(opacity: e.progress),
+      // ROUTE_REVEAL: painter canvas tự xử lý qua routeProgress — không
+      // overlay riêng; manifest vẫn khai báo để admin đánh dấu.
+      _ => null,
+    };
+    if (painter == null) return const SizedBox.shrink();
+    return Positioned.fill(
+      child: IgnorePointer(
+        child: CustomPaint(painter: painter),
       ),
     );
   }

@@ -3,10 +3,12 @@ import 'package:flutter/material.dart';
 import '../../../../core/theme/dau_viet_colors.dart';
 import '../../../../core/theme/dau_viet_typography.dart';
 import '../../data/attempt_dtos.dart';
+import '../animations/historical_animation_definition.dart';
 import '../animations/historical_animation_player.dart';
 import '../animations/historical_animation_registry.dart';
 import '../animations/runtime/animation_manifest_dto.dart';
 import '../animations/runtime/animation_runtime_registry.dart';
+import '../animations/runtime/cinematic_state.dart';
 import '../animations/widgets/manifest_asset_layers.dart';
 import 'renderer_base.dart';
 
@@ -94,13 +96,10 @@ class ReadRenderer extends StatelessWidget {
           // P0-4: manifest mang assets[]/objects[] → bọc player bằng lớp
           // ảnh (background dưới + object trên). Manifest KHÔNG khai báo
           // ảnh nào → widget trả về `child` nguyên trạng, không đổi layout.
-          ManifestAssetLayers(
+          _CinematicBoundPlayer(
+            key: ValueKey('anim_${animation.key}_${activity.id}'),
             manifest: manifestDto ?? AnimationManifestDto.empty,
-            aspectRatio: animation.aspectRatio,
-            child: HistoricalAnimationPlayer(
-              key: ValueKey('anim_${animation.key}_${activity.id}'),
-              definition: animation,
-            ),
+            definition: animation,
           ),
           const SizedBox(height: 14),
         ] else if (unsupportedManifest) ...[
@@ -181,6 +180,57 @@ class ReadRenderer extends StatelessWidget {
       .map((p) => p.trim())
       .where((p) => p.isNotEmpty)
       .toList();
+}
+
+/// v2 — Player bọc trong binding cinematic: giữ [ValueNotifier] frame
+/// dùng chung giữa [ManifestAssetLayers] (camera transform + object
+/// states) và [HistoricalAnimationPlayer] (phát frame mỗi tick). Scene
+/// v1 (manifest rỗng/không cinematic) → render đúng như trước.
+class _CinematicBoundPlayer extends StatefulWidget {
+  final AnimationManifestDto manifest;
+  final HistoricalAnimationDefinition definition;
+
+  const _CinematicBoundPlayer({
+    super.key,
+    required this.manifest,
+    required this.definition,
+  });
+
+  @override
+  State<_CinematicBoundPlayer> createState() =>
+      _CinematicBoundPlayerState();
+}
+
+class _CinematicBoundPlayerState extends State<_CinematicBoundPlayer> {
+  late final ValueNotifier<CinematicFrame> _frame;
+
+  @override
+  void initState() {
+    super.initState();
+    _frame = ValueNotifier(
+      CinematicFrame(camera: widget.manifest.cinematic.cameraInitial),
+    );
+  }
+
+  @override
+  void dispose() {
+    _frame.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return ManifestAssetLayers(
+      manifest: widget.manifest,
+      aspectRatio: widget.definition.aspectRatio,
+      frameListenable: _frame,
+      child: HistoricalAnimationPlayer(
+        definition: widget.definition,
+        manifest: widget.manifest,
+        cinematicFrame: _frame,
+      ),
+    );
+  }
 }
 
 /// ANIM-03 — Fallback khi snapshot embed manifest của renderer mà app

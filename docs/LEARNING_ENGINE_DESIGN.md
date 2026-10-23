@@ -165,6 +165,18 @@ Domain exceptions custom phải định nghĩa khi code. Registry đảm bảo a
 - Mobile `AnimationRuntimeRegistry` map `rendererCode → AnimationSceneRenderer` (RIVER_TIDE/JOURNEY_MAP); rendererCode lạ → `_UnsupportedAnimationNotice` (fallback, không crash); manifest lỗi → plain READ; `animationKey` cũ vẫn qua `HistoricalAnimationRegistry` (back-compat).
 - `READ` hoạt họa KHÔNG tạo attempt state riêng — submit vẫn `acknowledgment` như READ thường; prediction/interaction là local UI state (client-side), không ghi `activity_attempts` trừ khi author thêm activity khác (MULTIPLE_CHOICE...) cho đánh giá.
 
+#### Cinematic 2.5D (manifest v2, TASK 2026-10-24)
+
+Manifest `schemaVersion=2` thêm 5 optional keys `{camera, tracks, effects, audio, environment}` — đánh giá bởi `CinematicEvaluator` (pure-Dart deterministic, không phụ thuộc widget/painter):
+
+- `camera`: `initial + steps[i].target {x,y,zoom}` — lerp qua `CameraState.lerp`; `cameraAt(stepIdx, easedT)` lerp từ target bước trước. `transformFor(size)` → Matrix4 áp lên scene stack (ClipRect + Transform).
+- `tracks`: keyframe `position|scale|rotation|opacity|visible` cho `objects[]` — `valueAt(globalTMs)` lerp giữa keyframes theo easing; `tMs` đánh từ timeline toàn cục `sum(stepDurationsMs[0..i])`.
+- `effects`: typed overlay `WATER_RIPPLE|MIST|GLOW|ROUTE_REVEAL|FADE_IN|FADE_OUT` — `stepId` rỗng = ambient; `progress = stepElapsed/durationMs`; `GLOW.params.objectId` follow object hiện tại.
+- `audio`: cue `ENTER|EXIT|LOOP` gắn `stepId` → `AnimationAudioController` lifecycle `onStepEnter/Exit/Pause/Resume/Skip/dispose`; resolve `assetRef` → `assets[].assetId` role `AUDIO`; muted/missing-asset = no-op.
+- `environment`: RIVER_TIDE ambient `{waterLevel?, mist?, glow?}` — `waterLevel` seed trước `initialState` (priority thấp); `mist/glow` overlay dưới/trên painter qua `EnvironmentOverlay`.
+- Reduced-motion (`disableAnimations`): bỏ tween, emit `frameEndAt(stepIdx)` tĩnh ngay + hold 4s/bước; camera/track/effect đều tới end-state không interpolation.
+- Parity contract: `dau-viet-admin/.../preview/cinematic-eval.ts` là bản port 1-1 của `cinematic_state.dart` — mọi thay đổi công thức phải cập nhật cả hai. Admin `ScenePreview` evaluate tĩnh tại `progress=1` mỗi bước (không real-time playback).
+
 **Authoring allow-map (đã chốt TASK-0009):** bảng §2 là "hoạt động tiêu biểu" theo tư duy; phía authoring (`DraftSchema.STAGE_ALLOWED_ACTIVITIES`) cho phép `READ` ở mọi stage và `MULTIPLE_CHOICE` cũng được dùng trong `EVIDENCE`, `REASONING`, `VERIFICATION` (kiểm tra nhận diện/đối chứng nhanh), ngoài các ánh xạ tự nhiên theo bảng trên. Vi phạm → `STAGE_ACTIVITY_MISMATCH` (422) khi save draft.
 
 ## 7. Attempt state machine

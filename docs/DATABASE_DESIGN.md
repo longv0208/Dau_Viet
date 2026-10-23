@@ -69,6 +69,7 @@ erDiagram
 - Publish: `SELECT FOR UPDATE` trên `animation_scenes` (pessimistic lock) → `AnimationManifestValidator` → `version_no = max+1` → insert version + asset refs → xoay `current_version_id` + `status=PUBLISHED` trong một transaction; concurrent publish serialize, unique backstop.
 - `published_by` NOT NULL → V15 bootstrap system user `00000000-0000-4000-8000-000000000001` (`DISABLED`, password sentinel `!locked!` — không thể đăng nhập). `event_id` NULL vì không seed `historical_events`.
 - V15 seed idempotent (`ON CONFLICT DO NOTHING`): 2 templates (`RIVER_TIDE`, `JOURNEY_MAP`) + 3 scenes (`bach_dang_938_tide`, `hai_ba_trung_40`, `ly_thai_to_1010` — title VN) kèm version v1 + checksum `encode(digest(snapshot_text,'sha256'),'hex')`.
+- V16 (`V16__animation_cinematic_demos.sql`, idempotent): seed 3 scene v2 schemaVersion=2 (`bach_dang_938_cinematic` RIVER_TIDE + `hai_ba_trung_40_cinematic`, `ly_thai_to_1010_cinematic` JOURNEY_MAP) với `camera`/`tracks`/`effects`/`audio`/`environment` demo + 1 asset audio fixture `d7a60000-0000-4000-8000-000000000001` (silence.wav 46B, storage `{dauviet.assets.dir}/{id}.wav`). `schema_version=2` trên version rows; checksum recipe giữ nguyên. V1 scenes của V15 không đụng (published immutable).
 
 **Đề xuất:** Dùng `UUID` phía Java, `JSONB` cho `draft_json`, `snapshot_json`, `state_json` và các outputs. Dùng `CHECK`/enum mapping thống nhất cho status; index `(user_id, status)`, `(lesson_id, published_at)`, `(learner_attempt_id, activity_id)`.
 
