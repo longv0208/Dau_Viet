@@ -29,7 +29,7 @@
 | Hypothesis | HYPOTHESIS_CHOICE, CLAIM_EVIDENCE | hypothesis + linkedEvidenceIds[] |
 | Reconstruction | DRAG_ORDER, MAP_PLACE | orderedSequence / reconstruction |
 | Verification | VERIFY | `SUPPORTED`, `PARTIAL`, `CONTRADICTED` + feedback |
-| Conclusion | CER | claim, evidenceIds[], reasoning |
+| Conclusion | CER_CHOICE (Learning Flow 2.0) hoặc legacy CER | claimId + evidenceIds[] + reasoningId, graded parts |
 | Reflection | REFLECTION_PROMPT (optional MVP) | reflectionText/takeaway |
 
 Framework là tầng tư duy. Template có thể chọn/bỏ/đổi thứ tự stage trong guardrails; `Reflection` có thể optional, còn Conclusion hoặc equivalent phải có trước hoàn thành theo tài liệu BA mới.
@@ -90,7 +90,7 @@ public enum ActivityType {
     READ, VIEW_IMAGE, MULTIPLE_CHOICE, EXPLORE_MAP,
     EVIDENCE_SELECT, MATCHING, REASONING_CONNECT,
     HYPOTHESIS_CHOICE, DRAG_ORDER, VERIFICATION,
-    CER, REFLECTION_PROMPT
+    CER, CER_CHOICE, REFLECTION_PROMPT
 }
 
 public interface ActivityHandler {
@@ -152,6 +152,7 @@ Domain exceptions custom phải định nghĩa khi code. Registry đảm bảo a
 | DRAG_ORDER | orderedIds[] | same set as configured, accepted sequences | reconstruction |
 | VERIFICATION | submission/acknowledgment | support mapping from previous outputs | verificationResult |
 | CER | claim, evidenceIds[], reasoning | structure/preset rubric (avoid naive free-text exact match) | conclusion |
+| CER_CHOICE | claimId, evidenceIds[], reasoningId | per-part grading vs `acceptedClaims`/`acceptedEvidenceIds`/`acceptedReasoningIds`, `minCorrect` gate | conclusion + parts score |
 | REFLECTION_PROMPT | text or optionId | length/basic constraints; optional | reflection |
 
 **UX:** Drag & drop cần fallback tap/reorder; kiểm chứng không chỉ pass/fail mà có feedback và đường sửa giả thuyết.
@@ -239,11 +240,11 @@ Publish phải chặn nếu:
 | Hypothesis | HYPOTHESIS_CHOICE | Chọn giải thích và evidence support |
 | Reconstruction | DRAG_ORDER | Chuẩn bị → nhử địch → nước rút → phản công |
 | Verification | VERIFICATION | Supported/Partial/Contradicted và feedback |
-| Conclusion | CER | Trả lời câu hỏi lịch sử bằng claim + evidence + reasoning |
-| Reflection | REFLECTION_PROMPT | Một điều học được (optional) |
+| Conclusion | CER_CHOICE (v2 fixture) / CER (legacy) | Trả lời câu hỏi lịch sử bằng claim + evidence + reasoning |
+| Reflection | REFLECTION_PROMPT | Một điều học được (optional, ungraded) |
 | Result | System screen (không bắt buộc là stage) | Story/result/EXP nếu rule cho phép |
 
-Dùng lesson thứ hai (ví dụ Cách mạng tháng Tám 1945, template `DECISION_ANALYSIS`) để chứng minh **không cần đổi Java handlers/Flutter renderers** khi thêm nội dung.
+Dùng lesson thứ hai (ví dụ Cách mạng tháng Tám 1945, template `DECISION_ANALYSIS`) để chứng minh **không cần đổi Java handlers/Flutter renderers** khi thêm nội dung. Learning Flow 2.0 đã chứng minh điều này bằng fixture `hai-ba-trung-40.draft.json` (Hai Bà Trưng 40) chạy cùng engine không event-specific branch.
 
 ## 11. Flutter renderer contract
 
@@ -287,12 +288,13 @@ Phần này ghi lại các quyết định semantic cho những điểm BA chưa
 | MULTIPLE_CHOICE | `selectedOptionIds` so set-equality với `correctOptionIds` → `COMPLETED`/`INCORRECT`. `maxAttempts` (default 1) đạt giới hạn → `exhausted:true`, activity vẫn tính completed (cursor đi tiếp). Option id không khai báo trong `config.options` → `INCORRECT` (không 500). |
 | MATCHING | `pairs` (`"l=r"`) so pair-set với `correctPairs` → `COMPLETED`/`INCORRECT`. |
 | DRAG_ORDER | `orderedIds` so order-equality với `expectedOrder`/`correctOrder` ∪ `acceptedSequences` → `COMPLETED`/`INCORRECT`. |
-| EVIDENCE_SELECT | `selectedEvidenceIds` ⊆ snapshot evidence ∩ `visibleEvidenceIds` (id lạ → `INCORRECT`); `completed` khi số hợp lệ ≥ `minRequired` (default 1). |
+| EVIDENCE_SELECT | `selectedEvidenceIds` ⊆ snapshot evidence ∩ `visibleEvidenceIds` (id lạ → `INCORRECT`); `completed` khi số hợp lệ ≥ `minRequired` (default 1). **Opt-in `config.graded:true`**: đòi `acceptedEvidenceIds`; exact-set → `COMPLETED`, partial overlap → `PARTIAL` + `score=hits/accepted`, không trúng → `INCORRECT`; `maxAttempts` (default 1) hết → `exhausted:true` vẫn completed. |
 | EXPLORE_MAP | Tích luỹ `discoveredMarkerIds` qua `priorOutputs` (idempotent); `completed` khi đủ `minMarkers` (default = tất cả markers trong config). |
 | HYPOTHESIS_CHOICE | Ghi `{hypothesisId, evidenceIds}` vào outputs (không chấm đúng/sai) → luôn `COMPLETED`; dữ liệu là input cho VERIFICATION. |
 | VERIFICATION | Đọc hypothesis mới nhất từ `priorOutputs`: `SUPPORTED` khi hypothesis khớp `expectedHypothesis` (nếu authored) VÀ `evidenceIds` ⊇ `requiredEvidenceIds`; `PARTIAL` khi có hypothesis nhưng thiếu; `CONTRADICTED` khi không có/không khớp. Chỉ `SUPPORTED` mới `completed`. Không echo required/expected keys trong output. |
-| REASONING_CONNECT | Validate `relations[].{from,to}` ∈ `config.nodes[].id` và `relation` ∈ `allowedRelations` → `COMPLETED` + `relationCount`; id/relation lạ → `INCORRECT`. |
+| REASONING_CONNECT | Validate `relations[].{from,to}` ∈ `config.nodes[].id` và `relation` ∈ `allowedRelations` → `COMPLETED` + `relationCount`; id/relation lạ → `INCORRECT`. **Opt-in `config.graded:true`**: đòi `expectedRelations` hoặc `acceptedRelationSets`; submitted set khớp chính xác một accepted set → `COMPLETED`, ngược lại best-match partial `score=|submitted∩best|/|best|`; `maxAttempts` hết → `exhausted`. Output chỉ chứa counts/score, không echo expected relations. |
 | CER | `claim` + `reasoning` ≥ 20 ký tự mỗi field → `COMPLETED`; `evidenceIds` được filter theo snapshot evidence; output echo claim/reasoning/evidenceIds. Không exact-match free text. |
+| CER_CHOICE | `claimId` ∈ `claims`, `reasoningId` ∈ `reasoningOptions`, `evidenceIds` ⊆ `evidenceOptions` ∪ snapshot evidence (cho `priorEvidenceSource`); mỗi phần chấm riêng vs `acceptedClaims`/`acceptedEvidenceIds`/`acceptedReasoningIds` → `partsCorrect ≥ minCorrect` (default 3) mới đúng → `COMPLETED`/`INCORRECT`; `maxAttempts` (default 3) hết → `exhausted` vẫn completed (chống soft-lock). |
 | REFLECTION_PROMPT | `text` non-empty ≤ 4000 ký tự hoặc `optionId` hợp lệ → `COMPLETED`. |
 
 `AttemptState` (`state_json`): `{completedActivityIds[], discoveredMarkerIds[], outputs{activityId:{...}}, currentStageId, currentActivityId}` — learner-safe, không chứa hidden keys.
@@ -323,12 +325,35 @@ Phần này ghi lại các quyết định semantic cho những điểm BA chưa
 
 **Vẫn mở**: retention policy 24h là config mặc định (PO xác nhận nếu cần khác); `result_json` shape `{attemptId,lessonVersionId,reason,score,completedRequired,totalRequired,detail}` chưa có field reward/EXP; **reward grant thật chưa được code** — `reward_transactions` chỉ là schema (V4), không có service/endpoint nào ghi row (xem `docs/MAP_COLLECTION_REWARDS_ISLAND.md`).
 
+### TASK-0020 — Learning Flow 2.0 (đã chốt 2026-10-24)
+
+Mục tiêu: meaningful learning + automatic assessment — kết luận có cấu trúc chấm được, không còn bắt buộc free-text CER; evidence/reasoning chấm theo nội dung thay vì chỉ đếm; output giữa các activity nối mạch; progress tách khỏi knowledge score.
+
+**`CER_CHOICE` (stage `CONCLUSION`).** Structured Claim→Evidence→Reasoning: learner chọn `claimId` từ `config.claims[]`, `reasoningId` từ `config.reasoningOptions[]`, và `evidenceIds[]` từ `config.evidenceOptions[]` ∪ snapshot evidence (để `priorEvidenceSource` truyền qua). Answer keys server-only: `acceptedClaims`/`acceptedEvidenceIds`/`acceptedReasoningIds` + `minCorrect` (default 3 = cả ba phần) + `maxAttempts` (default 3). Publish bắt buộc: ba key arrays ⊆ option ids tương ứng, `acceptedEvidenceIds` phải là evidence khả dụng của event, và `feedback` activity-level phải có `COMPLETED`+`INCORRECT`. `config.priorEvidenceSource` trỏ tới activity id upstream để reuse lựa chọn evidence đã có (không bắt chọn lại). Legacy free-text `CER` giữ nguyên semantics — flow mới không bắt buộc nó.
+
+**Graded mode opt-in `config.graded:true`.**
+- `EVIDENCE_SELECT`: publish yêu cầu `acceptedEvidenceIds` ⊆ `visibleEvidenceIds` (và refs tồn tại trong event); runtime exact-set → `COMPLETED`, overlap một phần → `PARTIAL` với `score=hits/accepted`, trượt hẳn → `INCORRECT`.
+- `REASONING_CONNECT`: publish yêu cầu `expectedRelations` hoặc `acceptedRelationSets`; mỗi relation `{from,to,relation}` tham chiếu `nodes[].id` + `allowedRelations`; runtime exact-set match với bất kỳ accepted set nào → `COMPLETED`, ngược lại best-match partial `score=|submitted∩best|/|best|`. Output chỉ counts/score — không echo keys.
+- Cả hai: `maxAttempts` (default 1) hết → `exhausted:true`, activity vẫn tính completed để flow đi tiếp — không soft-lock.
+
+**Output continuity.** `LearnerProjectionService.project/projectActivity(snapshot|activity, priorOutputs)` inject `config.priorOutputs` vào learner payload — outputs của các activity đã submit, deep-stripped `LEARNER_HIDDEN_KEYS` lần nữa (defense-in-depth), không mutate snapshot gốc. Renderer downstream (CER_CHOICE, VERIFICATION…) đọc prior selections trực tiếp từ config.
+
+**Bounded dependent invalidation.** Re-submit một activity xóa output+completed của (a) các sibling đứng sau nó trong cùng stage, và (b) mọi activity trong các stage thuộc `nextStageIds` trực tiếp (depth-1). Cố tình không cascade sâu hơn — revise không thể xóa tràn toàn attempt.
+
+**Dual score.** `result_json` của attempt thêm `knowledgeScore` (0-100): trung bình per-activity correctness trên required activities — graded `output.score` (0..1) khi có, else `output.correct` (1/0), else `completed?1:0` (ungraded required đếm đủ khi xong); exhausted-incomplete đóng góp partial score, không free credit. `score` vẫn là completion percentage cũ. `REFLECTION` stage (`required:false`) không tính completion/totals/knowledge — optional ungraded.
+
+**Contract gap fix.** `DraftSchema.ACTIVITY_KEYS` giờ chấp nhận `onPartial`/`onContradicted` — StageTransitionResolver đã đọc hai key này (revise-hop targets) từ trước nhưng publish validator từng reject `UNKNOWN_FIELD`.
+
+**Hidden keys.** `LEARNER_HIDDEN_KEYS` đã bao gồm `acceptedClaims`/`acceptedEvidenceIds`/`acceptedReasoningIds`/`expectedRelations`/`acceptedRelationSets` (+`acceptedOptions`) — CER_CHOICE và graded-mode keys không bao giờ tới learner DTO.
+
+**Fixtures.** `dau-viet-backend/src/test/resources/lessons/bach-dang-938-v2.draft.json` — flow 8-stage tham chiếu dùng CER_CHOICE + graded EVIDENCE_SELECT/REASONING_CONNECT; `hai-ba-trung-40.draft.json` — fixture thứ hai chứng minh engine tái sử dụng không event-specific branch.
+
 ## 14. Open decisions
 
 - 2 template MVP: `EVENT_INVESTIGATION`, `DECISION_ANALYSIS` là đề xuất từ BA mới, cần PO duyệt.
-- CER grading: structure-based/manual rubric/preset choices trong MVP; free text AI grading không thuộc must. TASK-0011 đã chọn structure-based (độ dài tối thiểu + evidence filter) cho MVP — rubric chấm tay vẫn mở.
+- ~~CER grading: structure-based/manual rubric/preset choices~~ — **ĐÃ CHỐT TASK-0020**: preset choices (`CER_CHOICE`) với server-side answer keys + per-part grading; free-text `CER` legacy giữ structure-based (độ dài tối thiểu + evidence filter); AI grading vẫn không thuộc must.
 - Tỷ trọng điểm/retry/hint, số lần học lại, reward repeat và unlock conditions phải có product decision.
-- Reflection optional vs required từng template; Story/Result là stage hay presentation sau hoàn thành?
+- ~~Reflection optional vs required từng template~~ — **ĐÃ CHỐT TASK-0020**: REFLECTION stage `required:false` = optional + ungraded, không tính completion/totals/knowledgeScore. Story/Result là stage hay presentation sau hoàn thành vẫn mở.
 - Island/energy/shop là metagame của mockup, chưa ép vào core engine.
 - ~~`stage.required` vs `activity.required` semantics~~ — **ĐÃ CHỐT 2026-10-16**: `stage.required=false` nghĩa là toàn bộ stage + activities của nó là optional (BA: Reflection optional, Result không bắt buộc là stage). `requiredActivities()` chỉ trả activities khi stage `required:true` → progress `totalRequired`, default completion và cursor transition đều bỏ qua optional stage; `requiredStageIds` explicit vẫn override (đếm `required:true` bên trong stage được chỉ định). Publish reject shape mâu thuẫn `REQUIRED_IN_OPTIONAL_STAGE`; snapshot legacy vẫn an toàn nhờ runtime fallback.
 

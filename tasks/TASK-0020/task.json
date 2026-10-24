@@ -32,9 +32,14 @@
   ],
   "dependencies": [],
   "planPath": "plans/261024-learning-flow-2/plan.md",
-  "evidenceRefs": [],
+  "evidenceRefs": [
+    "mvnw test -Dtest='LearnerAttemptServiceTest,LessonCompletionEvaluatorLearningFlow2Test,CerChoiceValidatorTest' -> 26/26 pass",
+    "mvnw test -Dtest='com.dauviet.learning.**.*Test,com.dauviet.lesson.**.*Test' -> 359 run, 0 failures; 47 errors all AbstractPostgresIT/Testcontainers Docker-unavailable (pre-existing, TASK-0019 scope incl. AdminAnimationSceneControllerTest NoSuchBean AnimationHtmlService)",
+    "admin: vitest 204/204 + tsc clean; mobile: flutter test 366/366 + analyze clean",
+    "fixtures: dau-viet-backend/src/test/resources/lessons/bach-dang-938-v2.draft.json, hai-ba-trung-40.draft.json (publish-valid per CerChoiceValidatorTest)"
+  ],
   "reviewRefs": [],
-  "nextAction": "Backend phases 01-04 implemented + unit-tested green (CER_CHOICE handler/validator, graded branches, priorOutputs surface, dependent invalidation, knowledgeScore). Next: phase 05 admin builder editors, phase 06 flutter renderer, phase 07 reference lesson fixture + integration tests.",
+  "nextAction": "All phases implemented. Backend unit suite green (26/26 new tests: CER_CHOICE validator incl. both fixtures, bounded invalidation, knowledgeScore, optional reflection). Admin 204/204 vitest + tsc clean; Flutter 366/366 + analyze clean. Production fix: DraftSchema.ACTIVITY_KEYS now accepts onPartial/onContradicted (pre-existing contract gap — resolver consumed them but publish validator rejected). Remaining: docs-manager sync LEARNING_ENGINE_DESIGN/API_SPEC; Docker-blocked ITs (47 AbstractPostgresIT errors incl. LearningFlow2IT) need Docker host to verify end-to-end.",
   "baseCommit": null,
   "inputFingerprint": null,
   "snapshot": null,

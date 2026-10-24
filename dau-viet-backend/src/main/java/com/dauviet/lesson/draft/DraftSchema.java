@@ -29,7 +29,10 @@ public final class DraftSchema {
     /** Allowed activity field names. */
     public static final Set<String> ACTIVITY_KEYS =
             Set.of("id", "type", "required", "instruction", "config",
-                    "validation", "feedback", "evidenceRefs");
+                    "validation", "feedback", "evidenceRefs",
+                    // optional revise-hop stage targets consumed by
+                    // StageTransitionResolver (outcome-driven routing)
+                    "onPartial", "onContradicted");
 
     /** Allowed completion field names. */
     public static final Set<String> COMPLETION_KEYS =

@@ -71,7 +71,8 @@ class LearnerAttemptServiceTest {
 
     /**
      * Snapshot: ev(required) -> rs(required) -> cc(required).
-     * es in ev; rc in rs; cer in cc. Re-submitting es must wipe rc + cer.
+     * es in ev; rc in rs; cer in cc. Re-submitting es wipes rc (depth-1
+     * descendant) but deliberately keeps cer (depth-2, bounded scope).
      */
     private static JsonNode snapshotThreeStage() {
         return json("""
@@ -103,9 +104,10 @@ class LearnerAttemptServiceTest {
                 model, state, "es");
 
         assertThat(state.isCompleted("rc")).isFalse();
-        assertThat(state.isCompleted("cer")).isFalse();
         assertThat(state.outputs().containsKey("rc")).isFalse();
-        assertThat(state.outputs().containsKey("cer")).isFalse();
+        // cer sits at depth-2 — bounded invalidation leaves it untouched
+        assertThat(state.isCompleted("cer")).isTrue();
+        assertThat(state.outputs().containsKey("cer")).isTrue();
         // Upstream activity itself is untouched
         assertThat(state.isCompleted("es")).isTrue();
         assertThat(state.outputs().containsKey("es")).isTrue();
@@ -174,8 +176,13 @@ class LearnerAttemptServiceTest {
     }
 
     @Test
-    void knowledgeScoreOf_emptySnapshot_returnsZero() {
-        JsonNode snap = json("{\"stages\":[]}");
+    void knowledgeScoreOf_noRequiredActivities_returnsZero() {
+        // stage exists but carries no required activity -> score base is empty
+        JsonNode snap = json("""
+                {"stages":[{"id":"s1","type":"CONTEXT","activities":[
+                    {"id":"opt","type":"READ"}],
+                   "nextStageIds":[]}]}
+                """);
         SnapshotModel model = SnapshotModel.parse(snap);
         AttemptState state = new AttemptState();
         Object score = ReflectionTestUtils.invokeMethod(service,

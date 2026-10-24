@@ -174,8 +174,9 @@ class CerChoiceValidatorTest {
               + "\"acceptedClaims\":[\"c1\"],"
               + "\"acceptedReasoningIds\":[\"r1\"]}",
                 "{\"COMPLETED\":\"ok\",\"INCORRECT\":\"no\"}"));
+        // absent acceptedEvidenceIds surfaces as INVALID_CONFIG (requireNonEmptyArray)
         assertThat(codes(validator.validate(draft, EVENT, ValidationLevel.PUBLISH)))
-                .contains("MISSING_FIELD");
+                .contains("INVALID_CONFIG");
     }
 
     @Test
