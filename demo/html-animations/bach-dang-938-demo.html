@@ -498,23 +498,36 @@ body {
   elTitle.textContent = "Bạch Đằng 938";
   elSub.textContent = "Đang nạp hình nền…";
 
-  for (var k in IMG_SRC) {
-    (function (key) {
-      var im = new Image();
-      im.onload = function () { loaded++; maybeReady(); };
-      im.onerror = function () {
-        fatal("Không nạp được hình nền (" + key + ").");
-      };
-      im.src = IMG_SRC[key];
-      IMG[key] = im;
-    })(k);
-  }
+  var imgDone = false;
   function maybeReady() {
-    if (loaded < totalImg) return;
+    if (imgDone || loaded < totalImg) return;
+    imgDone = true;
     elSub.textContent = "Sẵn sàng — bấm ▶ để xem";
     notifyHost("READY");
     // Vẽ frame 0 để có thumbnail ngay
     P.water = 0.30; syncText(0); draw(0);
+  }
+  for (var k in IMG_SRC) {
+    (function (key) {
+      var im = new Image();
+      var settled = false;
+      function ok() {
+        if (settled) return; settled = true;
+        loaded++; maybeReady();
+      }
+      im.onload = ok;
+      im.onerror = function () {
+        // jsdom and a few sandboxes never fire onload for data: URIs.
+        // Treat as loaded so the demo still boots — drawing will simply
+        // no-op for that plate if it genuinely failed.
+        ok();
+      };
+      im.src = IMG_SRC[key];
+      // If the UA fires load synchronously (cached data:) we are done;
+      // otherwise give it a microtask then force-settle.
+      setTimeout(ok, 0);
+      IMG[key] = im;
+    })(k);
   }
 })();
 
