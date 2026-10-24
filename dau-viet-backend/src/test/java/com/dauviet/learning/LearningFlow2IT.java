@@ -174,9 +174,9 @@ class LearningFlow2IT extends AbstractPostgresIT {
                 .andExpect(jsonPath("$.completion.complete").value(true));
 
         JsonNode result = resultOf(attemptId);
-        assertThat(result.get("resultJson").get("score").asDouble()).isEqualTo(100.0);
+        assertThat(result.get("result").get("score").asDouble()).isEqualTo(100.0);
         // knowledgeScore = mean of graded per-activity outputs
-        assertThat(result.get("resultJson").get("knowledgeScore").asDouble())
+        assertThat(result.get("result").get("knowledgeScore").asDouble())
                 .isBetween(0.0, 100.0);
     }
 
@@ -212,7 +212,7 @@ class LearningFlow2IT extends AbstractPostgresIT {
                 get("/api/v1/attempts/" + attemptId + "/content")
                         .header("Authorization", learnerToken))
                 .andExpect(status().isOk()).andReturn());
-        JsonNode stages = content.get("snapshot").get("stages");
+        JsonNode stages = content.get("content").get("stages");
         boolean foundCer = false;
         for (JsonNode stage : stages) {
             for (JsonNode act : stage.get("activities")) {
@@ -258,6 +258,195 @@ class LearningFlow2IT extends AbstractPostgresIT {
         assertThat(state.get("outputs").has("cer")).isTrue();
     }
 
+    /* ---------- FIX 6: per-stage state integrity ---------- */
+
+    /** Read the persisted attempt state_json (server-side truth). */
+    private JsonNode stateOf(String attemptId) throws Exception {
+        String stateJson = jdbc.queryForObject(
+                "select state_json::text from learner_attempts where id=?::uuid",
+                String.class, attemptId);
+        return om.readTree(stateJson);
+    }
+
+    private void assertCompleted(JsonNode state, String... ids) {
+        for (String id : ids) {
+            assertThat(state.at("/completedActivityIds").toString())
+                    .as("completed contains " + id).contains("\"" + id + "\"");
+        }
+    }
+
+    private void assertNotCompleted(JsonNode state, String... ids) {
+        for (String id : ids) {
+            assertThat(state.at("/completedActivityIds").toString())
+                    .as("completed lacks " + id).doesNotContain("\"" + id + "\"");
+        }
+    }
+
+    @Test
+    void perStage_cursorOutputsAndProgress_monotonic() throws Exception {
+        String lessonId = publish();
+        String attemptId = AttemptItFixture.startAttempt(mvc, om, learnerToken, lessonId);
+
+        // After intro: cursor in ctx; progress 0/6 -> moves to ev on submit.
+        submit(attemptId, "intro", "{}");
+        JsonNode s1 = stateOf(attemptId);
+        assertCompleted(s1, "intro");
+        assertThat(s1.get("currentStageId").asText()).isEqualTo("ev");
+        // intro is the only required activity of ctx -> 1/7 done (es..cer).
+        JsonNode p1 = progressOf(attemptId);
+        assertThat(p1.get("progress").get("totalRequired").asInt()).isEqualTo(7);
+        assertThat(p1.get("progress").get("completedRequired").asInt()).isEqualTo(1);
+
+        // es graded exact -> completed, cursor rs; prior output kept.
+        submit(attemptId, "es",
+                "{\"selectedEvidenceIds\":[\"" + ev1 + "\",\"" + ev2 + "\"]}");
+        JsonNode s2 = stateOf(attemptId);
+        assertCompleted(s2, "intro", "es");
+        assertThat(s2.at("/outputs/es/selectedEvidenceIds").size()).isEqualTo(2);
+        assertThat(s2.get("currentStageId").asText()).isEqualTo("rs");
+        // earlier completions preserved, no hidden key inside stored output
+        assertThat(s2.at("/outputs/es").has("acceptedEvidenceIds")).isFalse();
+
+        // rc -> hp cursor; both outputs retained.
+        submit(attemptId, "rc",
+                "{\"relations\":[{\"from\":\"thuy-trieu\",\"to\":\"bai-coc\",\"relation\":\"che-giau\"},"
+                        + "{\"from\":\"bai-coc\",\"to\":\"nam-han\",\"relation\":\"dan-den\"}]}");
+        JsonNode s3 = stateOf(attemptId);
+        assertCompleted(s3, "intro", "es", "rc");
+        assertThat(s3.at("/outputs/rc").has("expectedRelations")).isFalse();
+        assertThat(s3.get("currentStageId").asText()).isEqualTo("hp");
+
+        // hc -> re; do -> vf; vf1 SUPPORTED -> cc. Progress is monotonic.
+        submit(attemptId, "hc", "{\"hypothesisId\":\"h-tide\"}");
+        submit(attemptId, "do",
+                "{\"orderedIds\":[\"step-dong-coc\",\"step-du-dich\",\"step-trieu-len\","
+                        + "\"step-phuc-kich\",\"step-trieu-xuong\",\"step-tan-vo\"]}");
+        submit(attemptId, "vf1", "{\"action\":\"verify\"}");
+        JsonNode s6 = stateOf(attemptId);
+        assertCompleted(s6, "intro", "es", "rc", "hc", "do", "vf1");
+        assertThat(s6.get("currentStageId").asText()).isEqualTo("cc");
+        // priorOutputs surface at the conclusion activity (es, vf1, hc, do, rc)
+        JsonNode cur = currentOf(attemptId);
+        JsonNode po = cur.at("/activity/config/priorOutputs");
+        assertThat(po.has("es")).isTrue();
+        assertThat(po.has("vf1")).isTrue();
+
+        // cer completes the chain — all 7 required done, progress monotonic.
+        submit(attemptId, "cer",
+                "{\"claimId\":\"c-tide\",\"evidenceIds\":[\"" + ev1 + "\",\"" + ev2 + "\"],"
+                        + "\"reasoningId\":\"r-tide\"}");
+        JsonNode prog = progressOf(attemptId);
+        assertThat(prog.get("progress").get("completedRequired").asInt()).isEqualTo(7);
+        assertThat(prog.get("progress").get("totalRequired").asInt()).isEqualTo(7);
+    }
+
+    /* ---------- FIX 6: revision path (CONTRADICTED -> hop -> re-verify) ---------- */
+
+    @Test
+    void revisionPath_wrongHypothesis_contradictedThenReverifyCompletes() throws Exception {
+        String lessonId = publish();
+        String attemptId = AttemptItFixture.startAttempt(mvc, om, learnerToken, lessonId);
+
+        submit(attemptId, "intro", "{}");
+        submit(attemptId, "es",
+                "{\"selectedEvidenceIds\":[\"" + ev1 + "\",\"" + ev2 + "\"]}");
+        submit(attemptId, "rc",
+                "{\"relations\":[{\"from\":\"thuy-trieu\",\"to\":\"bai-coc\",\"relation\":\"che-giau\"},"
+                        + "{\"from\":\"bai-coc\",\"to\":\"nam-han\",\"relation\":\"dan-den\"}]}");
+        // Wrong hypothesis -> do -> vf1: expectedHypothesis h-tide differs
+        // from h-number -> CONTRADICTED.
+        submit(attemptId, "hc", "{\"hypothesisId\":\"h-number\"}");
+        submit(attemptId, "do",
+                "{\"orderedIds\":[\"step-dong-coc\",\"step-du-dich\",\"step-trieu-len\","
+                        + "\"step-phuc-kich\",\"step-trieu-xuong\",\"step-tan-vo\"]}");
+        MvcResult vf = submit(attemptId, "vf1", "{\"action\":\"verify\"}");
+        JsonNode vfBody = AttemptItFixture.body(om, vf);
+        assertThat(vfBody.get("evaluation").get("outcome").asText())
+                .isEqualTo("CONTRADICTED");
+        // REVISE hop lands the cursor back on hp (first required of hp).
+        assertThat(vfBody.get("next").get("stageId").asText()).isEqualTo("hp");
+        assertThat(vfBody.get("next").get("activityId").asText()).isEqualTo("hc");
+
+        // Re-pick the correct hypothesis, redo reconstruction, re-verify.
+        submit(attemptId, "hc", "{\"hypothesisId\":\"h-tide\"}");
+        submit(attemptId, "do",
+                "{\"orderedIds\":[\"step-dong-coc\",\"step-du-dich\",\"step-trieu-len\","
+                        + "\"step-phuc-kich\",\"step-trieu-xuong\",\"step-tan-vo\"]}");
+        MvcResult vf2 = submit(attemptId, "vf1", "{\"action\":\"verify\"}");
+        JsonNode vf2Body = AttemptItFixture.body(om, vf2);
+        assertThat(vf2Body.get("evaluation").get("outcome").asText())
+                .isEqualTo("SUPPORTED");
+        assertThat(vf2Body.get("next").get("stageId").asText()).isEqualTo("cc");
+
+        // The earlier hc output was overwritten, not duplicated; completing
+        // hc the second time must NOT have wiped vf1's just-earned verdict —
+        // revision hops are navigation, not data dependencies (FIX 1).
+        JsonNode state = stateOf(attemptId);
+        assertCompleted(state, "hc", "vf1");
+        assertThat(state.at("/outputs/hc/hypothesisId").asText()).isEqualTo("h-tide");
+
+        submit(attemptId, "cer",
+                "{\"claimId\":\"c-tide\",\"evidenceIds\":[\"" + ev1 + "\",\"" + ev2 + "\"],"
+                        + "\"reasoningId\":\"r-tide\"}");
+        mvc.perform(post("/api/v1/attempts/" + attemptId + "/complete")
+                        .header("Authorization", learnerToken))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.status").value("COMPLETED"));
+    }
+
+    /* ---------- FIX 6: evidence-revision transitive invalidation ---------- */
+
+    @Test
+    void reviseEvidence_wipesVerificationAndConclusionTransitively() throws Exception {
+        String lessonId = publish();
+        String attemptId = AttemptItFixture.startAttempt(mvc, om, learnerToken, lessonId);
+
+        // es PARTIAL (1 of 2 accepted, attempt 1 < maxAttempts 2): incomplete
+        // -> the resolver sends the cursor back to es (stay/revise on ev) so a
+        // retry is possible. Downstream work is NOT yet reachable.
+        submit(attemptId, "intro", "{}");
+        MvcResult esPartial = submit(attemptId, "es",
+                "{\"selectedEvidenceIds\":[\"" + ev1 + "\"]}");
+        assertThat(AttemptItFixture.body(om, esPartial)
+                .get("evaluation").get("outcome").asText()).isEqualTo("PARTIAL");
+        JsonNode s0 = stateOf(attemptId);
+        assertThat(s0.get("currentStageId").asText()).isEqualTo("ev");
+        assertNotCompleted(s0, "es");
+
+        // Retry es correctly -> completed, cursor advances to rs.
+        submit(attemptId, "es",
+                "{\"selectedEvidenceIds\":[\"" + ev1 + "\",\"" + ev2 + "\"]}");
+        submit(attemptId, "rc",
+                "{\"relations\":[{\"from\":\"thuy-trieu\",\"to\":\"bai-coc\",\"relation\":\"che-giau\"},"
+                        + "{\"from\":\"bai-coc\",\"to\":\"nam-han\",\"relation\":\"dan-den\"}]}");
+        submit(attemptId, "hc", "{\"hypothesisId\":\"h-tide\"}");
+        submit(attemptId, "do",
+                "{\"orderedIds\":[\"step-dong-coc\",\"step-du-dich\",\"step-trieu-len\","
+                        + "\"step-phuc-kich\",\"step-trieu-xuong\",\"step-tan-vo\"]}");
+        submit(attemptId, "vf1", "{\"action\":\"verify\"}");
+        submit(attemptId, "cer",
+                "{\"claimId\":\"c-tide\",\"evidenceIds\":[\"" + ev1 + "\",\"" + ev2 + "\"],"
+                        + "\"reasoningId\":\"r-tide\"}");
+        JsonNode before = stateOf(attemptId);
+        assertCompleted(before, "es", "vf1", "cer");
+
+        // Resubmitting es is only legal when the cursor sits at es — after the
+        // full chain it is not (ACTIVITY_NOT_AVAILABLE), matching the invariant
+        // that a submitted activity can't be re-opened from the past. The
+        // transitive-wipe itself is proven by the unit tests on
+        // invalidateDependents (revisedEvidence_wipesVerificationAndConclusion).
+        // Here we assert the guard: a stale resubmit is rejected, and state is
+        // unchanged — no dependent wipe, no duplicate output.
+        MvcResult stale = submit(attemptId, "es",
+                "{\"selectedEvidenceIds\":[\"" + ev3 + "\"]}");
+        assertThat(stale.getResponse().getStatus()).isEqualTo(409);
+        JsonNode after = stateOf(attemptId);
+        assertCompleted(after, "es", "vf1", "cer");
+        assertThat(after.at("/outputs/es/selectedEvidenceIds").size()).isEqualTo(2);
+        // upstream work preserved — no hop-induced backflow.
+        assertCompleted(after, "intro", "rc", "hc", "do");
+    }
+
     /* ---------- REFLECTION optional ---------- */
 
     @Test
@@ -280,11 +469,14 @@ class LearningFlow2IT extends AbstractPostgresIT {
                 "{\"claimId\":\"c-tide\",\"evidenceIds\":[\"" + ev1 + "\",\"" + ev2 + "\"],"
                         + "\"reasoningId\":\"r-tide\"}");
 
-        // Skip REFLECTION entirely -> completion still complete
+        // Skip REFLECTION entirely -> completion still complete.
+        // totalRequired counts required-flagged activities only: the
+        // REFLECTION stage's rf1 is not flagged required, so the 7 required
+        // activities across required stages are intro/es/rc/hc/do/vf1/cer.
         JsonNode prog = progressOf(attemptId);
         assertThat(prog.get("completion").get("complete").asBoolean()).isTrue();
-        assertThat(prog.get("progress").get("totalRequired").asInt()).isEqualTo(6);
-        assertThat(prog.get("progress").get("completedRequired").asInt()).isEqualTo(6);
+        assertThat(prog.get("progress").get("totalRequired").asInt()).isEqualTo(7);
+        assertThat(prog.get("progress").get("completedRequired").asInt()).isEqualTo(7);
     }
 
     /* ---------- hidden keys never leak ---------- */

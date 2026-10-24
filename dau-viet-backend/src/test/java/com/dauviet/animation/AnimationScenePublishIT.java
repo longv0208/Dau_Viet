@@ -288,7 +288,7 @@ class AnimationScenePublishIT extends AbstractPostgresIT {
                         .header("Authorization", adminToken))
                 .andExpect(status().isOk()).andReturn();
         return om.readTree(res.getResponse().getContentAsString())
-                .get("versionId").asText();
+                .get("lessonVersionId").asText();
     }
 
     @Test

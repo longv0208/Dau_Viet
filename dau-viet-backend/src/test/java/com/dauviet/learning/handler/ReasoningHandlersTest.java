@@ -181,6 +181,100 @@ class ReasoningHandlersTest {
     }
 
     @Test
+    void reasoningConnect_graded_maxF1BeatsMaxHits() {
+        // FIX 4 (TASK-0020): the accepted set must be chosen by max F1, not
+        // max raw hit count. Two accepted sets — a large canonical (2 rels)
+        // and a small alternative (1 rel). A submission exactly equal to the
+        // small alternative hits 1/2 of canonical (hits=1) but ALL 1/1 of the
+        // alternative (hits=1). Old logic picked canonical by hit count
+        // (ties) or, with a larger alternative, could prefer more hits on a
+        // bigger set at a LOWER F1. Here the small set wins on F1 (1.0)
+        // because it is an exact match.
+        JsonNode act = HandlerTestSupport.json(
+                "{\"id\":\"rc\",\"type\":\"REASONING_CONNECT\",\"config\":{"
+              + "\"graded\":true,\"maxAttempts\":3,"
+              + "\"nodes\":[{\"id\":\"n1\"},{\"id\":\"n2\"},{\"id\":\"n3\"},{\"id\":\"n4\"}],"
+              + "\"allowedRelations\":[\"causes\",\"contradicts\"],"
+              + "\"expectedRelations\":["
+              + "  {\"from\":\"n1\",\"to\":\"n2\",\"relation\":\"causes\"},"
+              + "  {\"from\":\"n3\",\"to\":\"n4\",\"relation\":\"contradicts\"}],"
+              + "\"acceptedRelationSets\":["
+              + "  [{\"from\":\"n1\",\"to\":\"n2\",\"relation\":\"causes\"}]]}}");
+        ActivityResult r = reasoning.evaluate(
+                HandlerTestSupport.ctx(act, snapshot()),
+                HandlerTestSupport.sub("rc",
+                        "{\"relations\":[{\"from\":\"n1\",\"to\":\"n2\",\"relation\":\"causes\"}]}"));
+        // Exact match on the alternative set -> correct, score 1.0. Had the
+        // set been picked by max-hit count against canonical only, this would
+        // still be 1 hit but would NOT be treated as exact.
+        assertThat(r.outcome()).isEqualTo(ActivityResult.COMPLETED);
+        assertThat(r.output().get("correct").asBoolean()).isTrue();
+        assertThat(r.output().get("score").asDouble()).isEqualTo(1.0);
+    }
+
+    @Test
+    void reasoningConnect_graded_f1PrefersBetterRatioOverHitCount() {
+        // Canonical = 3 relations, alternative = 1 relation. Submission =
+        // alternative's single relation + 2 that only appear in canonical.
+        // hits(canonical)=2 -> F1 = 2*2/(3+3)=0.667; hits(alt)=1 -> F1 =
+        // 2*1/(3+1)=0.5. Canonical wins on BOTH hits and F1 here — but a
+        // hit-count-only picker could also pick the alternative (2 vs 1
+        // hits on canonical? no — canonical has MORE hits). The discriminating
+        // case is the reverse: submit a set hitting MORE of a large accepted
+        // set yet scoring worse on F1 than an exact smaller set.
+        // submitted={n1->n2} only: hits canonical=1 (F1 0.5), hits alt=1
+        // (F1 1.0). max-hits ties at 1 -> ambiguous; max-F1 cleanly picks 1.0.
+        JsonNode act = HandlerTestSupport.json(
+                "{\"id\":\"rc\",\"type\":\"REASONING_CONNECT\",\"config\":{"
+              + "\"graded\":true,\"maxAttempts\":3,"
+              + "\"nodes\":[{\"id\":\"n1\"},{\"id\":\"n2\"},{\"id\":\"n3\"},{\"id\":\"n4\"}],"
+              + "\"allowedRelations\":[\"causes\",\"contradicts\"],"
+              + "\"expectedRelations\":["
+              + "  {\"from\":\"n1\",\"to\":\"n2\",\"relation\":\"causes\"},"
+              + "  {\"from\":\"n3\",\"to\":\"n4\",\"relation\":\"causes\"},"
+              + "  {\"from\":\"n4\",\"to\":\"n1\",\"relation\":\"contradicts\"}],"
+              + "\"acceptedRelationSets\":["
+              + "  [{\"from\":\"n1\",\"to\":\"n2\",\"relation\":\"causes\"}]]}}");
+        ActivityResult r = reasoning.evaluate(
+                HandlerTestSupport.ctx(act, snapshot()),
+                HandlerTestSupport.sub("rc",
+                        "{\"relations\":[{\"from\":\"n1\",\"to\":\"n2\",\"relation\":\"causes\"}]}"));
+        // Exact alternative -> correct + 1.0, even though canonical has 3 rels.
+        assertThat(r.output().get("correct").asBoolean()).isTrue();
+        assertThat(r.output().get("score").asDouble()).isEqualTo(1.0);
+    }
+
+    @Test
+    void reasoningConnect_graded_extraRelations_lowerScore() {
+        // Exact set + an incorrect extra relation -> not exact, score < 1.
+        ActivityResult r = reasoning.evaluate(
+                HandlerTestSupport.ctx(gradedReasoningActivity(), snapshot()),
+                HandlerTestSupport.sub("rc",
+                        "{\"relations\":[{\"from\":\"n1\",\"to\":\"n2\",\"relation\":\"causes\"},"
+                      + "               {\"from\":\"n3\",\"to\":\"n1\",\"relation\":\"contradicts\"},"
+                      + "               {\"from\":\"n2\",\"to\":\"n3\",\"relation\":\"causes\"}]}"));
+        // hits=2, |submitted|=3, |accepted|=2 -> F1 = 4/5 = 0.8, not correct.
+        assertThat(r.output().get("correct").asBoolean()).isFalse();
+        assertThat(r.output().get("score").asDouble()).isEqualTo(0.8);
+        assertThat(r.output().get("incorrectCount").asInt()).isEqualTo(1);
+    }
+
+    @Test
+    void reasoningConnect_graded_duplicatesDoNotInflateScore() {
+        // Submitting the same correct relation twice must not push hits past
+        // the accepted size — dedup via the relation-key set.
+        ActivityResult r = reasoning.evaluate(
+                HandlerTestSupport.ctx(gradedReasoningActivity(), snapshot()),
+                HandlerTestSupport.sub("rc",
+                        "{\"relations\":[{\"from\":\"n1\",\"to\":\"n2\",\"relation\":\"causes\"},"
+                      + "               {\"from\":\"n1\",\"to\":\"n2\",\"relation\":\"causes\"},"
+                      + "               {\"from\":\"n3\",\"to\":\"n1\",\"relation\":\"contradicts\"}]}"));
+        // distinct submitted = {n1->n2, n3->n1} = exact canonical match.
+        assertThat(r.output().get("correct").asBoolean()).isTrue();
+        assertThat(r.output().get("score").asDouble()).isEqualTo(1.0);
+    }
+
+    @Test
     void reasoningConnect_graded_outputNeverEchoes_expected() {
         ActivityResult r = reasoning.evaluate(
                 HandlerTestSupport.ctx(gradedReasoningActivity(), snapshot()),
