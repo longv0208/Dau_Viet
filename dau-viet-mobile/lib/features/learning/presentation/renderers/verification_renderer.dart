@@ -6,9 +6,13 @@ import '../../data/attempt_dtos.dart';
 import '../../data/learning_dtos.dart';
 import 'renderer_base.dart';
 
-/// VERIFICATION — học viên đối chiếu lại các nguồn (`visibleSourceIds` /
-/// `visibleEvidenceIds`) rồi xác nhận muốn kiểm chứng lại.
-/// Submit `{revise: true}` — server quyết định kết quả.
+/// VERIFICATION — Learning Flow 2.0 (TASK-0020 §P7): màn hình hiển thị lại
+/// giả thuyết đã chọn (output HYPOTHESIS_CHOICE) cùng bằng chứng đã thu thập
+/// (output của EVIDENCE_SELECT được khai báo qua `config.evidenceSource`, hoặc
+/// bằng chứng kèm giả thuyết ở snapshot cũ), cộng với `visibleSourceIds` để
+/// đối chiếu. Học viên thực hiện một hành động kiểm chứng có chủ đích —
+/// submit `{action: "verify"}`; server chấm SUPPORTED/PARTIAL/CONTRADICTED.
+/// Không có chọn verdict phía client (verdict do backend quyết định).
 class VerificationRenderer extends StatelessWidget {
   final ActivityRefDto activity;
   final LessonContentDto content;
@@ -23,6 +27,42 @@ class VerificationRenderer extends StatelessWidget {
     required this.onSubmit,
   });
 
+  /// Id giả thuyết đã chọn — đọc từ priorOutputs (bất kỳ output nào mang
+  /// `hypothesisId`), cùng contract VerificationHandler dùng để chấm.
+  String? _priorHypothesisId(Map<String, dynamic> config) {
+    final prior = config['priorOutputs'];
+    if (prior is! Map) return null;
+    for (final out in prior.values) {
+      if (out is Map && out['hypothesisId'] is String) {
+        return out['hypothesisId'] as String;
+      }
+    }
+    return null;
+  }
+
+  /// Nhãn hiển thị cho giả thuyết — resolve `hypotheses[].id -> text` từ
+  /// config của hoạt động HYPOTHESIS_CHOICE không có sẵn ở đây, nên hiển thị
+  /// id (đủ để học viên nhận ra lựa chọn của mình trong bản preview).
+  List<String> _evidenceGiven(Map<String, dynamic> config) {
+    final prior = config['priorOutputs'];
+    if (prior is! Map) return const [];
+    final source = config['evidenceSource'];
+    if (source is String) {
+      final out = prior[source];
+      final ids = out is Map ? out['selectedEvidenceIds'] : null;
+      return ids is List ? ids.whereType<String>().toList() : const [];
+    }
+    // Snapshot cũ không khai báo evidenceSource: bằng chứng đi kèm output
+    // HYPOTHESIS_CHOICE (legacy contract).
+    for (final out in prior.values) {
+      if (out is Map && out['hypothesisId'] is String) {
+        final ids = out['evidenceIds'];
+        if (ids is List) return ids.whereType<String>().toList();
+      }
+    }
+    return const [];
+  }
+
   @override
   Widget build(BuildContext context) {
     final config = activity.config;
@@ -30,6 +70,8 @@ class VerificationRenderer extends StatelessWidget {
     final sourceIds = configIdList(config, 'visibleSourceIds').isNotEmpty
         ? configIdList(config, 'visibleSourceIds')
         : configIdList(config, 'visibleEvidenceIds');
+    final hypothesisId = _priorHypothesisId(config);
+    final givenIds = _evidenceGiven(config);
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -41,6 +83,27 @@ class VerificationRenderer extends StatelessWidget {
               style: DauVietTypography.bodyMedium.copyWith(height: 1.5),
             ),
           ),
+
+        // Giả thuyết đã chọn ở bước HYPOTHESIS — ngữ cảnh kiểm chứng.
+        if (hypothesisId != null) ...[
+          const SizedBox(height: 10),
+          const SectionLabel('GIẢ THUYẾT ĐÃ CHỌN'),
+          const SizedBox(height: 6),
+          _PickedTile(label: hypothesisId, icon: Icons.lightbulb_outline),
+        ],
+
+        // Bằng chứng đã thu thập trước đó — server dùng chính tập này để chấm.
+        if (givenIds.isNotEmpty) ...[
+          const SizedBox(height: 10),
+          const SectionLabel('BẰNG CHỨNG ĐÃ THU THẬP'),
+          const SizedBox(height: 6),
+          for (final id in givenIds)
+            _PickedTile(
+              label: _evidenceTitle(id),
+              icon: Icons.bookmark_added_outlined,
+            ),
+        ],
+
         if (sourceIds.isNotEmpty) ...[
           const SizedBox(height: 10),
           const SectionLabel('ĐỐI CHIẾU CÁC NGUỒN SAU'),
@@ -49,12 +112,55 @@ class VerificationRenderer extends StatelessWidget {
         ],
         const SizedBox(height: 14),
         SubmitBar(
-          label: 'KIỂM CHỨNG LẠI',
+          label: 'KIỂM CHỨNG',
           enabled: true,
           submitting: submitting,
-          onPressed: () => onSubmit({'revise': true}),
+          onPressed: () => onSubmit({'action': 'verify'}),
         ),
       ],
+    );
+  }
+
+  String _evidenceTitle(String id) {
+    final e = content.evidenceById(id);
+    return (e?['title'] as String?) ?? id;
+  }
+}
+
+/// Ô hiển thị một lựa chọn đã ghi nhận trước đó (read-only).
+class _PickedTile extends StatelessWidget {
+  final String label;
+  final IconData icon;
+
+  const _PickedTile({required this.label, required this.icon});
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 8),
+      child: Container(
+        padding: const EdgeInsets.all(12),
+        decoration: BoxDecoration(
+          color: DauVietColors.cinnabarRed.withValues(alpha: 0.08),
+          borderRadius: BorderRadius.circular(10),
+          border: Border.all(color: DauVietColors.cinnabarRed),
+        ),
+        child: Row(
+          children: [
+            Icon(icon, size: 18, color: DauVietColors.cinnabarRed),
+            const SizedBox(width: 8),
+            Expanded(
+              child: Text(
+                label,
+                style: DauVietTypography.labelMedium.copyWith(
+                  fontWeight: FontWeight.w700,
+                  color: DauVietColors.inkText,
+                ),
+              ),
+            ),
+          ],
+        ),
+      ),
     );
   }
 }

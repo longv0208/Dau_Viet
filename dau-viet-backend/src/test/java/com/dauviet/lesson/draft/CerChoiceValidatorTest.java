@@ -156,6 +156,7 @@ class CerChoiceValidatorTest {
         JsonNode draft = tree(draftBody(
                 "{\"claims\":[{\"id\":\"c1\"},{\"id\":\"c2\"}],"
               + "\"reasoningOptions\":[{\"id\":\"r1\"},{\"id\":\"r2\"}],"
+              + "\"evidenceOptions\":[{\"id\":\"" + ev + "\"}],"
               + "\"acceptedClaims\":[\"c9\"],"
               + "\"acceptedEvidenceIds\":[\"" + ev + "\"],"
               + "\"acceptedReasoningIds\":[\"r9\"]}",
@@ -186,15 +187,30 @@ class CerChoiceValidatorTest {
         JsonNode draft = tree(draftBody(
                 "{\"claims\":[{\"id\":\"c1\"},{\"id\":\"c2\"}],"
               + "\"reasoningOptions\":[{\"id\":\"r1\"},{\"id\":\"r2\"}],"
-              + "\"acceptedClaims\":[\"c1\"],"
-              + "\"acceptedEvidenceIds\":[\"" + ev + "\"],"
-              + "\"acceptedReasoningIds\":[\"r1\"]}"));
+              + "\"evidenceOptions\":[{\"id\":\"" + ev + "\"}],"
+              + "\"acceptedCombos\":[{\"claimId\":\"c1\","
+              + "\"evidenceIds\":[\"" + ev + "\"],\"reasoningId\":\"r1\"}]}"));
         assertThat(codes(validator.validate(draft, EVENT, ValidationLevel.PUBLISH)))
                 .contains("MISSING_FIELD");
     }
 
     @Test
-    void publishLevel_acceptsValidConfig() throws Exception {
+    void publishLevel_acceptsCombosConfig() throws Exception {
+        String ev = UUID.randomUUID().toString();
+        usableEvidence(ev);
+        JsonNode draft = tree(draftBody(
+                "{\"claims\":[{\"id\":\"c1\"},{\"id\":\"c2\"}],"
+              + "\"reasoningOptions\":[{\"id\":\"r1\"},{\"id\":\"r2\"}],"
+              + "\"evidenceOptions\":[{\"id\":\"" + ev + "\"}],"
+              + "\"acceptedCombos\":[{\"claimId\":\"c1\","
+              + "\"evidenceIds\":[\"" + ev + "\"],\"reasoningId\":\"r1\"}],"
+              + "\"maxAttempts\":3}",
+                "{\"COMPLETED\":\"ok\",\"INCORRECT\":\"no\"}"));
+        assertThat(validator.validate(draft, EVENT, ValidationLevel.PUBLISH)).isEmpty();
+    }
+
+    @Test
+    void publishLevel_acceptsLegacyFlatKeys() throws Exception {
         String ev = UUID.randomUUID().toString();
         usableEvidence(ev);
         JsonNode draft = tree(draftBody(
@@ -204,9 +220,42 @@ class CerChoiceValidatorTest {
               + "\"acceptedClaims\":[\"c1\"],"
               + "\"acceptedEvidenceIds\":[\"" + ev + "\"],"
               + "\"acceptedReasoningIds\":[\"r1\"],"
-              + "\"minCorrect\":3,\"maxAttempts\":3}",
+              + "\"maxAttempts\":3}",
                 "{\"COMPLETED\":\"ok\",\"INCORRECT\":\"no\"}"));
         assertThat(validator.validate(draft, EVENT, ValidationLevel.PUBLISH)).isEmpty();
+    }
+
+    @Test
+    void publishLevel_rejectsComboBadRefs() throws Exception {
+        String ev = UUID.randomUUID().toString();
+        usableEvidence(ev);
+        JsonNode draft = tree(draftBody(
+                "{\"claims\":[{\"id\":\"c1\"},{\"id\":\"c2\"}],"
+              + "\"reasoningOptions\":[{\"id\":\"r1\"},{\"id\":\"r2\"}],"
+              + "\"evidenceOptions\":[{\"id\":\"" + ev + "\"}],"
+              + "\"acceptedCombos\":[{\"claimId\":\"c9\","
+              + "\"evidenceIds\":[\"" + ev + "\"],\"reasoningId\":\"r9\"}]}",
+                "{\"COMPLETED\":\"ok\",\"INCORRECT\":\"no\"}"));
+        assertThat(codes(validator.validate(draft, EVENT, ValidationLevel.PUBLISH)))
+                .contains("INVALID_CONFIG");
+    }
+
+    @Test
+    void publishLevel_rejectsMinCorrect() throws Exception {
+        // TASK-0020 §P4: minCorrect used to promote partial picks to full
+        // credit — retired; new drafts cannot reintroduce the promotion.
+        String ev = UUID.randomUUID().toString();
+        usableEvidence(ev);
+        JsonNode draft = tree(draftBody(
+                "{\"claims\":[{\"id\":\"c1\"},{\"id\":\"c2\"}],"
+              + "\"reasoningOptions\":[{\"id\":\"r1\"},{\"id\":\"r2\"}],"
+              + "\"evidenceOptions\":[{\"id\":\"" + ev + "\"}],"
+              + "\"acceptedCombos\":[{\"claimId\":\"c1\","
+              + "\"evidenceIds\":[\"" + ev + "\"],\"reasoningId\":\"r1\"}],"
+              + "\"minCorrect\":2}",
+                "{\"COMPLETED\":\"ok\",\"INCORRECT\":\"no\"}"));
+        assertThat(codes(validator.validate(draft, EVENT, ValidationLevel.PUBLISH)))
+                .contains("INVALID_CONFIG");
     }
 
     /* ---------- graded EVIDENCE_SELECT ---------- */
@@ -309,6 +358,112 @@ class CerChoiceValidatorTest {
               + "\"expectedRelations\":[{\"from\":\"n1\",\"to\":\"n2\",\"relation\":\"causes\"}],"
               + "\"acceptedRelationSets\":[[{\"from\":\"n2\",\"to\":\"n1\",\"relation\":\"causes\"}]]}"));
         assertThat(validator.validate(draft, EVENT, ValidationLevel.PUBLISH)).isEmpty();
+    }
+
+    /* ---------- cross-activity source refs (TASK-0020 §P0/§P5) ---------- */
+
+    /**
+     * EVIDENCE -> VERIFICATION chain with vf1.config.evidenceSource pointing
+     * at the upstream EVIDENCE_SELECT `es`.
+     */
+    private String verificationChainDraft(String vfConfig) {
+        String ev = UUID.randomUUID().toString();
+        usableEvidence(ev);
+        return """
+                {"schemaVersion":1,
+                 "stages":[{"id":"ev","type":"EVIDENCE","required":true,
+                            "activities":[{"id":"es","type":"EVIDENCE_SELECT","required":true,
+                                           "config":{"visibleEvidenceIds":["%s"]}}],
+                            "nextStageIds":["vf"]},
+                           {"id":"vf","type":"VERIFICATION","required":true,
+                            "activities":[{"id":"vf1","type":"VERIFICATION","required":true,
+                                           "config":%s}],
+                            "nextStageIds":[]}],
+                 "completion":{"requireAllRequiredStages":true}}
+                """.formatted(ev, vfConfig);
+    }
+
+    @Test
+    void sourceRef_validUpstreamSelect_accepted() throws Exception {
+        JsonNode draft = tree(verificationChainDraft(
+                "{\"requiredEvidenceIds\":[],\"evidenceSource\":\"es\"}"));
+        assertThat(validator.validate(draft, EVENT, ValidationLevel.PUBLISH)).isEmpty();
+    }
+
+    @Test
+    void sourceRef_unknownActivity_rejectedAtPublish() throws Exception {
+        JsonNode draft = tree(verificationChainDraft(
+                "{\"evidenceSource\":\"ghost\"}"));
+        assertThat(codes(validator.validate(draft, EVENT, ValidationLevel.PUBLISH)))
+                .contains("UNKNOWN_ACTIVITY_ID");
+    }
+
+    @Test
+    void sourceRef_unknownActivity_toleratedAtSave() throws Exception {
+        JsonNode draft = tree(verificationChainDraft(
+                "{\"evidenceSource\":\"ghost\"}"));
+        assertThat(codes(validator.validate(draft, EVENT, ValidationLevel.SAVE)))
+                .doesNotContain("UNKNOWN_ACTIVITY_ID");
+    }
+
+    @Test
+    void sourceRef_wrongType_rejected() throws Exception {
+        // priorEvidenceSource pointing at a READ — only EVIDENCE_SELECT
+        // produces selectable evidence output.
+        String ev = UUID.randomUUID().toString();
+        usableEvidence(ev);
+        JsonNode draft = tree("""
+                {"schemaVersion":1,
+                 "stages":[{"id":"ctx","type":"CONTEXT","required":true,
+                            "activities":[{"id":"rd","type":"READ","required":true,
+                                           "config":{"text":"t"}}],
+                            "nextStageIds":["cc"]},
+                           {"id":"cc","type":"CONCLUSION","required":true,
+                            "activities":[{"id":"cer","type":"CER_CHOICE","required":true,
+                                           "config":{"claims":[{"id":"c1"},{"id":"c2"}],
+                                                     "reasoningOptions":[{"id":"r1"},{"id":"r2"}],
+                                                     "evidenceOptions":[{"id":"%s"}],
+                                                     "priorEvidenceSource":"rd",
+                                                     "acceptedCombos":[{"claimId":"c1",
+                                                       "evidenceIds":["%s"],"reasoningId":"r1"}]},
+                                           "feedback":{"COMPLETED":"ok","INCORRECT":"no"}}],
+                            "nextStageIds":[]}],
+                 "completion":{"requireAllRequiredStages":true}}
+                """.formatted(ev, ev));
+        assertThat(codes(validator.validate(draft, EVENT, ValidationLevel.PUBLISH)))
+                .contains("INVALID_CONFIG");
+    }
+
+    @Test
+    void sourceRef_unreachableStage_rejected() throws Exception {
+        // Source lives on a dead branch: es sits in a stage that can never
+        // execute before cc — the consumer could never see its output.
+        String ev = UUID.randomUUID().toString();
+        usableEvidence(ev);
+        JsonNode draft = tree("""
+                {"schemaVersion":1,
+                 "stages":[{"id":"ctx","type":"CONTEXT","required":true,
+                            "activities":[{"id":"rd","type":"READ","required":true,
+                                           "config":{"text":"t"}}],
+                            "nextStageIds":["cc"]},
+                           {"id":"dead","type":"EVIDENCE","required":false,
+                            "activities":[{"id":"es","type":"EVIDENCE_SELECT",
+                                           "config":{"visibleEvidenceIds":["%s"]}}],
+                            "nextStageIds":[]},
+                           {"id":"cc","type":"CONCLUSION","required":true,
+                            "activities":[{"id":"cer","type":"CER_CHOICE","required":true,
+                                           "config":{"claims":[{"id":"c1"},{"id":"c2"}],
+                                                     "reasoningOptions":[{"id":"r1"},{"id":"r2"}],
+                                                     "evidenceOptions":[{"id":"%s"}],
+                                                     "priorEvidenceSource":"es",
+                                                     "acceptedCombos":[{"claimId":"c1",
+                                                       "evidenceIds":["%s"],"reasoningId":"r1"}]},
+                                           "feedback":{"COMPLETED":"ok","INCORRECT":"no"}}],
+                            "nextStageIds":[]}],
+                 "completion":{"requireAllRequiredStages":true}}
+                """.formatted(ev, ev, ev));
+        assertThat(codes(validator.validate(draft, EVENT, ValidationLevel.PUBLISH)))
+                .contains("UNREACHABLE_SOURCE");
     }
 
     /* ---------- fixture validation (phase-07 AC-9) ---------- */

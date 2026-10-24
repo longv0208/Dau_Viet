@@ -71,26 +71,31 @@ class LearnerAttemptServiceTest {
 
     /**
      * Snapshot: ev(required) -> rs(required) -> cc(required).
-     * es in ev; rc in rs; cer in cc. Re-submitting es wipes rc (depth-1
-     * descendant) but deliberately keeps cer (depth-2, bounded scope).
+     * es in ev; rc in rs; cer in cc with config.priorEvidenceSource:"es".
+     * Re-submitting es now transitively wipes rc AND cer — the conclusion
+     * consumed the revised evidence output, so keeping it would leave stale
+     * credit behind (TASK-0020 §P1 replaces the old depth-1 bound).
+     * "graded":true on es makes it count toward knowledgeScore.
      */
     private static JsonNode snapshotThreeStage() {
         return json("""
                 {"stages":[
                   {"id":"ev","type":"EVIDENCE","required":true,"activities":[
-                    {"id":"es","type":"EVIDENCE_SELECT","required":true}],
+                    {"id":"es","type":"EVIDENCE_SELECT","required":true,
+                     "config":{"graded":true}}],
                    "nextStageIds":["rs"]},
                   {"id":"rs","type":"REASONING","required":true,"activities":[
                     {"id":"rc","type":"REASONING_CONNECT","required":true}],
                    "nextStageIds":["cc"]},
                   {"id":"cc","type":"CONCLUSION","required":true,"activities":[
-                    {"id":"cer","type":"CER_CHOICE","required":true}],
+                    {"id":"cer","type":"CER_CHOICE","required":true,
+                     "config":{"priorEvidenceSource":"es"}}],
                    "nextStageIds":[]}]}
                 """);
     }
 
     @Test
-    void invalidateDependents_wipesLaterSiblingsAndDirectDescendants() {
+    void invalidateDependents_transitivelyWipesDownstreamConsumers() {
         SnapshotModel model = SnapshotModel.parse(snapshotThreeStage());
         AttemptState state = new AttemptState();
         state.markCompleted("es");
@@ -103,29 +108,34 @@ class LearnerAttemptServiceTest {
         ReflectionTestUtils.invokeMethod(service, "invalidateDependents",
                 model, state, "es");
 
+        // Both downstream consumers lose outputs + completion marks —
+        // depth-1 and depth-2 alike (transitive dependency invalidation).
         assertThat(state.isCompleted("rc")).isFalse();
         assertThat(state.outputs().containsKey("rc")).isFalse();
-        // cer sits at depth-2 — bounded invalidation leaves it untouched
-        assertThat(state.isCompleted("cer")).isTrue();
-        assertThat(state.outputs().containsKey("cer")).isTrue();
+        assertThat(state.isCompleted("cer")).isFalse();
+        assertThat(state.outputs().containsKey("cer")).isFalse();
         // Upstream activity itself is untouched
         assertThat(state.isCompleted("es")).isTrue();
         assertThat(state.outputs().containsKey("es")).isTrue();
     }
 
     @Test
-    void invalidateDependents_doesNotCrossBeyondDepthOne() {
-        // es -> rs -> cc: invalidating es wipes rc (direct descendant) but
-        // cc is depth-2 — left alone so a mid-chain revise cannot cascade
-        // a wipe across the whole attempt.
+    void invalidateDependents_taintsDownstreamOrder_preservesSource() {
+        // Parallel branch: opt stage hangs off ev (sibling of the rs->cc
+        // chain). Ordered propagation taints everything reachable after es —
+        // a conservative bound: the runtime cannot prove a later output did
+        // not observe the revised one via priorOutputs.
         JsonNode snap = json("""
                 {"stages":[
                   {"id":"ev","type":"EVIDENCE","required":true,"activities":[
                     {"id":"es","type":"EVIDENCE_SELECT","required":true}],
-                   "nextStageIds":["rs"]},
+                   "nextStageIds":["rs","opt"]},
                   {"id":"rs","type":"REASONING","required":true,"activities":[
                     {"id":"rc","type":"REASONING_CONNECT","required":true}],
                    "nextStageIds":["cc"]},
+                  {"id":"opt","type":"REFLECTION","required":false,"activities":[
+                    {"id":"rf1","type":"REFLECTION_PROMPT"}],
+                   "nextStageIds":[]},
                   {"id":"cc","type":"CONCLUSION","required":true,"activities":[
                     {"id":"cer","type":"CER_CHOICE","required":true}],
                    "nextStageIds":[]}]}
@@ -133,21 +143,31 @@ class LearnerAttemptServiceTest {
         SnapshotModel model = SnapshotModel.parse(snap);
         AttemptState state = new AttemptState();
         state.markCompleted("es");
+        state.recordOutput("es", json("{\"selectedEvidenceIds\":[\"e1\"]}"));
         state.markCompleted("rc");
         state.markCompleted("cer");
+        state.recordOutput("rf1", json("{\"text\":\"x\"}"));
         ReflectionTestUtils.invokeMethod(service, "invalidateDependents",
                 model, state, "es");
-        assertThat(state.isCompleted("cer")).isTrue();
+        // Consumer chain tainted.
+        assertThat(state.isCompleted("rc")).isFalse();
+        assertThat(state.isCompleted("cer")).isFalse();
+        // Ordered propagation also voids rf1 — it ran AFTER es, so the
+        // attempt flow cannot prove its context is unchanged (conservative
+        // taint). The revised activity's own output is preserved.
+        assertThat(state.outputs().containsKey("rf1")).isFalse();
+        assertThat(state.outputs().containsKey("es")).isTrue();
     }
 
     @Test
     void knowledgeScoreOf_usesGradedOutputsOverCompletionMarks() {
         SnapshotModel model = SnapshotModel.parse(snapshotThreeStage());
         AttemptState state = new AttemptState();
-        // es: graded partial score 0.5; rc: correct=true; cer: partsCorrect=3
+        // es: graded partial score 0.5; cer: correct combo (score 1.0).
+        // rc is ungraded — it never enters the denominator.
         state.recordOutput("es", json("{\"score\":0.5}"));
         state.recordOutput("rc", json("{\"correct\":true}"));
-        state.recordOutput("cer", json("{\"partsCorrect\":3,\"correct\":true}"));
+        state.recordOutput("cer", json("{\"partsCorrect\":3,\"correct\":true,\"score\":1.0}"));
         state.markCompleted("es");
         state.markCompleted("rc");
         state.markCompleted("cer");
@@ -155,24 +175,63 @@ class LearnerAttemptServiceTest {
         Object score = ReflectionTestUtils.invokeMethod(service,
                 "knowledgeScoreOf", model, state);
         assertThat(score).isNotNull();
-        // mean of (0.5, 1.0, 1.0) * 100 = 83.33
+        // mean of (0.5, 1.0) over graded-only = 75.00
         assertThat(((java.math.BigDecimal) score).doubleValue())
-                .isBetween(83.0, 84.0);
+                .isBetween(74.0, 76.0);
     }
 
     @Test
-    void knowledgeScoreOf_ungradedCompletionCountsFull() {
+    void knowledgeScoreOf_ungradedCompletionDoesNotCount() {
+        // TASK-0020 §P2: only activities with a real grading rule feed
+        // knowledgeScore. rc is ungraded -> dropped from the denominator;
+        // es score 0.0 and cer correct -> mean(0,1)*100 = 50.
         SnapshotModel model = SnapshotModel.parse(snapshotThreeStage());
         AttemptState state = new AttemptState();
-        // es exhausted with score 0.0; rc/cer completed without outputs
         state.recordOutput("es", json("{\"score\":0.0}"));
+        state.recordOutput("cer", json("{\"correct\":true}"));
         state.markCompleted("rc");
+
+        Object score = ReflectionTestUtils.invokeMethod(service,
+                "knowledgeScoreOf", model, state);
+        assertThat(((java.math.BigDecimal) score).doubleValue())
+                .isBetween(49.0, 51.0);
+    }
+
+    @Test
+    void knowledgeScoreOf_noGradedActivities_returnsZero() {
+        // A lesson whose required work is all ungraded (READ, count-only
+        // EVIDENCE_SELECT) has no measured knowledge — report 0 explicitly
+        // rather than confusing completion with correctness.
+        JsonNode snap = json("""
+                {"stages":[{"id":"ev","type":"EVIDENCE","required":true,
+                  "activities":[
+                    {"id":"es","type":"EVIDENCE_SELECT","required":true}],
+                  "nextStageIds":[]}]}
+                """);
+        SnapshotModel model = SnapshotModel.parse(snap);
+        AttemptState state = new AttemptState();
+        state.markCompleted("es");
+        state.recordOutput("es", json("{\"selectedEvidenceIds\":[\"e1\"]}"));
+        Object score = ReflectionTestUtils.invokeMethod(service,
+                "knowledgeScoreOf", model, state);
+        assertThat(((java.math.BigDecimal) score).doubleValue()).isEqualTo(0.0);
+    }
+
+    @Test
+    void knowledgeScoreOf_exhaustedIncorrectKeepsZeroCredit() {
+        // Exhausted-for-progress cer (correct:false, score 0) contributes 0 —
+        // completing the attempt never converts failed work into credit.
+        SnapshotModel model = SnapshotModel.parse(snapshotThreeStage());
+        AttemptState state = new AttemptState();
+        state.recordOutput("es", json("{\"score\":1.0}"));
+        state.recordOutput("cer", json("{\"correct\":false,\"score\":0.0,\"exhausted\":true}"));
+        state.markCompleted("es");
         state.markCompleted("cer");
 
         Object score = ReflectionTestUtils.invokeMethod(service,
                 "knowledgeScoreOf", model, state);
         assertThat(((java.math.BigDecimal) score).doubleValue())
-                .isBetween(66.0, 67.0);
+                .isBetween(49.0, 51.0);
     }
 
     @Test

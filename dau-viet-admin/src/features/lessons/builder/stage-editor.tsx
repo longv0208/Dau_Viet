@@ -280,6 +280,7 @@ export function StageEditor({
           stage={stage}
           activity={selectedActivity}
           eventId={eventId}
+          draft={draft}
           readOnly={readOnly}
           onChange={(patch) => onUpdateActivity(selectedActivity.id, patch)}
         />

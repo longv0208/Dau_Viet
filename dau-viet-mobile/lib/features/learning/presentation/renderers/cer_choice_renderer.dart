@@ -38,16 +38,42 @@ class _CerChoiceRendererState extends State<CerChoiceRenderer> {
   final Set<String> _evidenceIds = {};
   String? _reasoningId;
   bool _prefilled = false;
+  String _sourceFingerprint = '';
 
   @override
   void didChangeDependencies() {
     super.didChangeDependencies();
-    if (_prefilled) return;
-    _prefilled = true;
+    _syncPrefill();
+  }
+
+  /// TASK-0020 §P5: khi config/attempt content thay đổi (re-fetch sau khi
+  /// upstream EVIDENCE_SELECT bị invalidate hoặc admin republish), prefill
+  /// phải refresh — bằng chứng cũ không còn trong pool của nguồn thì bị gỡ.
+  @override
+  void didUpdateWidget(covariant CerChoiceRenderer oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    _syncPrefill();
+  }
+
+  void _syncPrefill() {
     final prior = _priorEvidenceIds();
-    if (prior.isNotEmpty) {
-      _evidenceIds.addAll(prior);
+    final fingerprint = prior.join('|');
+    if (!_prefilled) {
+      _prefilled = true;
+      _sourceFingerprint = fingerprint;
+      if (prior.isNotEmpty) _evidenceIds.addAll(prior);
+      return;
     }
+    if (fingerprint == _sourceFingerprint) return;
+    _sourceFingerprint = fingerprint;
+    // Source selection changed: sync the prefilled ids with the new pool —
+    // ids no longer collected upstream are dropped, newly collected ids are
+    // added. Manual picks overlap the pool so the union keeps them honest.
+    setState(() {
+      _evidenceIds
+        ..clear()
+        ..addAll(prior);
+    });
   }
 
   /// Evidence ids carried over from the upstream activity named by
@@ -124,7 +150,7 @@ class _CerChoiceRendererState extends State<CerChoiceRenderer> {
           Padding(
             padding: const EdgeInsets.only(top: 4, bottom: 2),
             child: Text(
-              'Đã điền sẵn ${priorEvidenceIds.length} bằng chứng đã chọn ở bước trước.',
+              'Đã điền sẵn ${priorEvidenceIds.length} bằng chứng đã thu thập ở bước trước.',
               style: DauVietTypography.bodySmall.copyWith(
                 fontSize: 11,
                 fontStyle: FontStyle.italic,
@@ -153,6 +179,7 @@ class _CerChoiceRendererState extends State<CerChoiceRenderer> {
                 selected: _evidenceIds.contains(id),
                 multi: true,
                 enabled: !widget.submitting,
+                priorCollected: priorEvidenceIds.contains(id),
                 onTap: () => _toggleEvidence(id),
               );
             }),
@@ -193,6 +220,10 @@ class _PickTile extends StatelessWidget {
   final bool enabled;
   final VoidCallback onTap;
 
+  /// TASK-0020 §P5: đánh dấu bằng chứng đã thu thập ở bước trước — học viên
+  /// thấy rõ đâu là tư liệu đã kiểm chứng trong flow, không phải chọn lại mò.
+  final bool priorCollected;
+
   const _PickTile({
     required this.id,
     required this.label,
@@ -200,6 +231,7 @@ class _PickTile extends StatelessWidget {
     required this.multi,
     required this.enabled,
     required this.onTap,
+    this.priorCollected = false,
   });
 
   @override
@@ -257,6 +289,15 @@ class _PickTile extends StatelessWidget {
                     ),
                   ),
                 ),
+                if (priorCollected)
+                  Padding(
+                    padding: const EdgeInsets.only(left: 8),
+                    child: Icon(
+                      Icons.history_edu_outlined,
+                      size: 16,
+                      color: DauVietColors.inkMuted,
+                    ),
+                  ),
               ],
             ),
           ),

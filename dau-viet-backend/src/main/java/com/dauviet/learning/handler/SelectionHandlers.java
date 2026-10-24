@@ -72,8 +72,10 @@ public final class SelectionHandlers {
 
         /**
          * Opt-in graded mode (config.graded:true + acceptedEvidenceIds key):
-         * exact set match -> COMPLETED; partial overlap -> PARTIAL with a
-         * 0..1 score; no hit -> INCORRECT. Retry budget via config.maxAttempts
+         * exact set match -> COMPLETED. Partial credit = F1 of the selected
+         * set against the accepted set — 2·hits/(|selected|+|accepted|) — so
+         * wrong extra picks always pull the score below 1.0 and select-all
+         * can never farm full credit. Retry budget via config.maxAttempts
          * (default 1); exhaustion completes to avoid soft-lock.
          */
         private ActivityResult evaluateGraded(AttemptContext ctx, JsonNode config,
@@ -82,8 +84,8 @@ public final class SelectionHandlers {
             Set<String> correctHits = new LinkedHashSet<>(selected);
             correctHits.retainAll(accepted);
             int falseCount = selected.size() - correctHits.size();
-            double score = accepted.isEmpty() ? 0.0
-                    : (double) correctHits.size() / accepted.size();
+            double score = accepted.isEmpty() || selected.isEmpty() ? 0.0
+                    : 2.0 * correctHits.size() / (selected.size() + accepted.size());
             boolean right = selected.equals(accepted);
 
             int maxAttempts = config.path("maxAttempts").asInt(1);

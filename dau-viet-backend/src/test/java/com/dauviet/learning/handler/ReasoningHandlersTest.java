@@ -122,7 +122,8 @@ class ReasoningHandlersTest {
                         "{\"relations\":[{\"from\":\"n1\",\"to\":\"n2\",\"relation\":\"causes\"}]}"));
         assertThat(r.outcome()).isEqualTo(ActivityResult.PARTIAL);
         assertThat(r.completed()).isFalse();
-        assertThat(r.output().get("score").asDouble()).isEqualTo(0.5);
+        // F1 = 2·1/(1+2) ≈ 0.667 — partial credit bounded in [0,1].
+        assertThat(r.output().get("score").asDouble()).isEqualTo(2.0 / 3.0);
         assertThat(r.output().get("matchedRelations").asInt()).isEqualTo(1);
     }
 
@@ -252,6 +253,73 @@ class ReasoningHandlersTest {
                 HandlerTestSupport.sub("vf", "{\"acknowledged\":true}"));
         assertThat(r.output().has("requiredEvidenceIds")).isFalse();
         assertThat(r.output().has("expectedHypothesis")).isFalse();
+    }
+
+    /* ---------- evidenceSource (TASK-0020 §P0) ---------- */
+
+    private static JsonNode verificationActivityWithSource() {
+        return HandlerTestSupport.json(
+                "{\"id\":\"vf\",\"type\":\"VERIFICATION\",\"config\":{"
+              + "\"requiredEvidenceIds\":[\"e1\",\"e2\"],"
+              + "\"evidenceSource\":\"es\"}}");
+    }
+
+    @Test
+    void verification_evidenceSource_readsPersistedSelectOutput_supported() {
+        // HYPOTHESIS_CHOICE records only the hypothesis id — the evidence set
+        // comes from the persisted EVIDENCE_SELECT output named by
+        // config.evidenceSource. This was the P0 bug: empty hypothesis
+        // evidenceIds produced PARTIAL even when evidence was collected.
+        Map<String, JsonNode> prior = new LinkedHashMap<>();
+        prior.put("hc", HandlerTestSupport.json("{\"hypothesisId\":\"h-tide\"}"));
+        prior.put("es", HandlerTestSupport.json(
+                "{\"selectedEvidenceIds\":[\"e1\",\"e2\"]}"));
+        ActivityResult r = verification.evaluate(
+                HandlerTestSupport.ctx(verificationActivityWithSource(), snapshot(), prior),
+                HandlerTestSupport.sub("vf", "{\"action\":\"verify\"}"));
+        assertThat(r.outcome()).isEqualTo(ActivityResult.SUPPORTED);
+        assertThat(r.completed()).isTrue();
+    }
+
+    @Test
+    void verification_evidenceSource_missingSourceOutput_partial() {
+        // Authored source but its output is absent (learner never reached the
+        // select, or it was invalidated) — evidence set is empty -> PARTIAL.
+        // The verdict never trusts client-submitted evidence ids.
+        Map<String, JsonNode> prior = new LinkedHashMap<>();
+        prior.put("hc", HandlerTestSupport.json("{\"hypothesisId\":\"h-tide\"}"));
+        ActivityResult r = verification.evaluate(
+                HandlerTestSupport.ctx(verificationActivityWithSource(), snapshot(), prior),
+                HandlerTestSupport.sub("vf",
+                        "{\"action\":\"verify\",\"evidenceIds\":[\"e1\",\"e2\"]}"));
+        assertThat(r.outcome()).isEqualTo(ActivityResult.PARTIAL);
+        assertThat(r.completed()).isFalse();
+    }
+
+    @Test
+    void verification_evidenceSource_clientSubmittedIdsIgnored() {
+        // Tampered answer carries evidence ids that would satisfy the key —
+        // verdict still reads the persisted source output only.
+        Map<String, JsonNode> prior = new LinkedHashMap<>();
+        prior.put("hc", HandlerTestSupport.json("{\"hypothesisId\":\"h-tide\"}"));
+        prior.put("es", HandlerTestSupport.json(
+                "{\"selectedEvidenceIds\":[\"e1\"]}"));
+        ActivityResult r = verification.evaluate(
+                HandlerTestSupport.ctx(verificationActivityWithSource(), snapshot(), prior),
+                HandlerTestSupport.sub("vf",
+                        "{\"action\":\"verify\",\"evidenceIds\":[\"e1\",\"e2\",\"e3\"]}"));
+        assertThat(r.outcome()).isEqualTo(ActivityResult.PARTIAL);
+    }
+
+    @Test
+    void verification_legacyWithoutSource_fallsBackToHypothesisEvidence() {
+        // Snapshots published before evidenceSource: the evidenceIds the
+        // HYPOTHESIS_CHOICE output itself recorded still feed the verdict.
+        ActivityResult r = verification.evaluate(
+                HandlerTestSupport.ctx(verificationActivity(""), snapshot(),
+                        priorHypothesis("h1", "\"e1\",\"e2\"")),
+                HandlerTestSupport.sub("vf", "{\"acknowledged\":true}"));
+        assertThat(r.outcome()).isEqualTo(ActivityResult.SUPPORTED);
     }
 
     @Test

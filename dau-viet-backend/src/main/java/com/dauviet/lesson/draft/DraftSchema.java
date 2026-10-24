@@ -65,7 +65,10 @@ public final class DraftSchema {
             "expectedOrder", "acceptedSequences", "requiredEvidenceIds",
             "expectedHypothesis", "answerKey", "answer", "key", "expected",
             "acceptedClaims", "acceptedEvidenceIds", "acceptedReasoningIds",
-            "expectedRelations", "acceptedRelationSets", "acceptedOptions");
+            "expectedRelations", "acceptedRelationSets", "acceptedOptions",
+            // TASK-0020: CER_CHOICE coherent accepted combinations are the
+            // same answer-key material as the legacy flat arrays.
+            "acceptedCombos");
 
     private DraftSchema() {
     }

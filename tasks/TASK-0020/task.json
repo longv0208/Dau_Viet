@@ -33,13 +33,14 @@
   "dependencies": [],
   "planPath": "plans/261024-learning-flow-2/plan.md",
   "evidenceRefs": [
-    "mvnw test -Dtest='LearnerAttemptServiceTest,LessonCompletionEvaluatorLearningFlow2Test,CerChoiceValidatorTest' -> 26/26 pass",
-    "mvnw test -Dtest='com.dauviet.learning.**.*Test,com.dauviet.lesson.**.*Test' -> 359 run, 0 failures; 47 errors all AbstractPostgresIT/Testcontainers Docker-unavailable (pre-existing, TASK-0019 scope incl. AdminAnimationSceneControllerTest NoSuchBean AnimationHtmlService)",
-    "admin: vitest 204/204 + tsc clean; mobile: flutter test 366/366 + analyze clean",
-    "fixtures: dau-viet-backend/src/test/resources/lessons/bach-dang-938-v2.draft.json, hai-ba-trung-40.draft.json (publish-valid per CerChoiceValidatorTest)"
+    "backend: ./mvnw clean test -> 377/377 pass, 0 failures (incl. new: VerificationHandler evidenceSource contract, CER_CHOICE acceptedCombos/exhaustion/legacy-compat, F1 bounded scoring, transitive invalidateDependents, graded-only knowledgeScore, source-ref publish validation, acceptedCombos in LEARNER_HIDDEN_KEYS)",
+    "admin: tsc --noEmit clean + vitest 204/204 pass (CerChoiceEditor rewritten -> acceptedCombos UI, priorEvidenceSource/evidenceSource dropdowns via evidenceSelectActivities(draft), VerificationActivityView verdict-picker removed -> priorOutputs summary + disabled Kiem chung button)",
+    "mobile: flutter analyze clean (5 pre-existing file_names infos) + flutter test 372/372 pass (answer_payload_test updated: {action:verify} payload, priorOutputs hypothesis+evidence display)",
+    "fixtures: dau-viet-backend/src/test/resources/lessons/bach-dang-938-v2.draft.json (vf1.evidenceSource=es, cer priorEvidenceSource=es + acceptedCombos), hai-ba-trung-40.draft.json (acceptedCombos)",
+    "E2E: LearningFlow2IT + 46 other AbstractPostgresIT BLOCKED — Docker/Testcontainers unavailable on this host (pre-existing constraint, not a regression)"
   ],
   "reviewRefs": [],
-  "nextAction": "All phases implemented. Backend unit suite green (26/26 new tests: CER_CHOICE validator incl. both fixtures, bounded invalidation, knowledgeScore, optional reflection). Admin 204/204 vitest + tsc clean; Flutter 366/366 + analyze clean. Production fix: DraftSchema.ACTIVITY_KEYS now accepts onPartial/onContradicted (pre-existing contract gap — resolver consumed them but publish validator rejected). Remaining: docs-manager sync LEARNING_ENGINE_DESIGN/API_SPEC; Docker-blocked ITs (47 AbstractPostgresIT errors incl. LearningFlow2IT) need Docker host to verify end-to-end.",
+  "nextAction": "Final correctness pass complete: VERIFICATION consumes persisted EVIDENCE_SELECT output via config.evidenceSource (publish-validated source refs, never trusts client ids); CER_CHOICE graded by coherent acceptedCombos with partsCorrect/3 no-promotion + exhausted->completed-for-progress correct=false; legacy flat keys cartesian-compat; minCorrect retired; F1 bounded partial scoring on graded EVIDENCE_SELECT/REASONING_CONNECT; transitive dependency-aware invalidation replaces depth-1; knowledgeScore counts graded activities only. Docs synced (LEARNING_ENGINE_DESIGN §13 + API_SPEC TASK-0020 notes). Remaining: Docker-blocked ITs need a Docker host for end-to-end verification; code-level acceptance PASS.",
   "baseCommit": null,
   "inputFingerprint": null,
   "snapshot": null,

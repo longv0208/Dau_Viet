@@ -51,10 +51,9 @@
               { "id": "${EV2}" }
             ],
             "priorEvidenceSource": "es",
-            "acceptedClaims": ["c-indep"],
-            "acceptedEvidenceIds": ["${EV1}"],
-            "acceptedReasoningIds": ["r-castle"],
-            "minCorrect": 3,
+            "acceptedCombos": [
+              { "claimId": "c-indep", "evidenceIds": ["${EV1}"], "reasoningId": "r-castle" }
+            ],
             "maxAttempts": 3
           },
           "feedback": {

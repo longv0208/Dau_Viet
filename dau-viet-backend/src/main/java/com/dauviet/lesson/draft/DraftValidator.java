@@ -162,6 +162,107 @@ public class DraftValidator {
             validateStageEvidenceRefs(stage, base, ctx, errors);
             validateActivities(stage, st, base, activityIds, ctx, errors);
         }
+        validateActivitySourceRefs(stages, stageById, transitions, ctx, errors);
+    }
+
+    /**
+     * Cross-activity source references (Learning Flow 2.0 §P0/§P5):
+     * config.priorEvidenceSource (CER_CHOICE) and config.evidenceSource
+     * (VERIFICATION) name the upstream activity whose output the consumer
+     * reuses. At PUBLISH each reference must point to a real activity that
+     * (a) produces evidence selections (EVIDENCE_SELECT), and (b) belongs to
+     * a stage reachable strictly before the consumer's stage — an upstream
+     * activity on a dead branch can never produce an output, so the consumer
+     * could never be fully correct.
+     * Reachability follows nextStageIds AND onPartial/onContradicted hop
+     * targets (a revise hop lets the learner revisit earlier stages, but a
+     * source downstream of the consumer still can never precede it).
+     */
+    private void validateActivitySourceRefs(JsonNode stages,
+                                            Map<String, JsonNode> stageById,
+                                            Map<String, List<String>> transitions,
+                                            ValidationContext ctx,
+                                            List<FieldError> errors) {
+        if (stages == null || !stages.isArray()) return;
+        // activity id -> (stage id, type) + stage reachability (edges incl. hops)
+        Map<String, String> activityStage = new HashMap<>();
+        Map<String, String> activityType = new HashMap<>();
+        Map<String, List<String>> edges = new HashMap<>();
+        for (String sid : transitions.keySet()) {
+            edges.computeIfAbsent(sid, k -> new ArrayList<>())
+                    .addAll(transitions.get(sid));
+        }
+        for (int i = 0; i < stages.size(); i++) {
+            JsonNode stage = stages.get(i);
+            if (!stage.isObject()) continue;
+            String sid = stage.path("id").asText(null);
+            if (sid == null) continue;
+            JsonNode acts = stage.get("activities");
+            if (acts != null && acts.isArray()) {
+                for (JsonNode act : acts) {
+                    String aid = act.path("id").asText(null);
+                    if (aid == null) continue;
+                    activityStage.put(aid, sid);
+                    activityType.put(aid, act.path("type").asText(""));
+                    for (String hop : List.of("onPartial", "onContradicted")) {
+                        JsonNode t = act.get(hop);
+                        if (t != null && t.isTextual()) {
+                            edges.computeIfAbsent(sid, k -> new ArrayList<>())
+                                    .add(t.asText());
+                        }
+                    }
+                }
+            }
+        }
+        Map<String, Set<String>> reach = new HashMap<>();
+        for (String sid : stageById.keySet()) {
+            reach.put(sid, reachableFrom(sid, edges));
+        }
+        for (int i = 0; i < stages.size(); i++) {
+            JsonNode stage = stages.get(i);
+            if (!stage.isObject()) continue;
+            String sid = stage.path("id").asText(null);
+            JsonNode acts = stage.get("activities");
+            if (acts == null || !acts.isArray()) continue;
+            for (int j = 0; j < acts.size(); j++) {
+                JsonNode act = acts.get(j);
+                String apath = "stages[id=" + sid + "].activities[" + j + "]";
+                for (String field : List.of("priorEvidenceSource", "evidenceSource")) {
+                    JsonNode src = act.path("config").path(field);
+                    if (!src.isTextual()) continue;
+                    String srcId = src.asText();
+                    String refPath = apath + ".config." + field;
+                    String srcStage = activityStage.get(srcId);
+                    if (srcStage == null) {
+                        if (ctx.isPublish()) {
+                            errors.add(new FieldError(refPath, "UNKNOWN_ACTIVITY_ID",
+                                    field + " '" + srcId + "' does not name an activity"));
+                        }
+                        continue;
+                    }
+                    if (!ActivityType.EVIDENCE_SELECT.name()
+                            .equals(activityType.get(srcId))) {
+                        errors.add(new FieldError(refPath, "INVALID_CONFIG",
+                                field + " must reference an EVIDENCE_SELECT activity"));
+                        continue;
+                    }
+                    Set<String> consumerReach = reach.getOrDefault(sid, Set.of());
+                    Set<String> sourceReach = reach.getOrDefault(srcStage, Set.of());
+                    // Source must be able to precede the consumer: the source
+                    // stage reaches the consumer's stage (forward flow) or the
+                    // consumer stage reaches the source stage via a revise hop
+                    // (redoing upstream work). Same-stage is allowed (siblings
+                    // execute in order).
+                    boolean canPrecede = srcStage.equals(sid)
+                            || sourceReach.contains(sid)
+                            || consumerReach.contains(srcStage);
+                    if (!canPrecede) {
+                        errors.add(new FieldError(refPath, "UNREACHABLE_SOURCE",
+                                field + " '" + srcId + "' cannot execute before this activity"));
+                    }
+                }
+            }
+        }
     }
 
     private void collectTransitions(JsonNode stage, String stageId,

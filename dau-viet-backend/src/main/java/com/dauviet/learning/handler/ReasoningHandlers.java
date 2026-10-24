@@ -109,9 +109,11 @@ public final class ReasoningHandlers {
 
         /**
          * Opt-in graded mode (config.graded:true): the submitted relation set
-         * must exactly equal one accepted set -> COMPLETED; otherwise PARTIAL
-         * credit = |submitted n best accepted| / |best accepted|. Output only
-         * reports counts/score — never the expected relations.
+         * must exactly equal one accepted set -> COMPLETED. Partial credit is
+         * the best F1 across accepted sets — F1 = 2·hits/(|submitted|+|accepted|)
+         * — so extra incorrect relations always lower the score below 1.0
+         * (select-all can never farm full credit). Output only reports
+         * counts/score — never the expected relations.
          */
         private ActivityResult evaluateGraded(AttemptContext ctx, JsonNode config,
                                               Set<String> submitted, ObjectNode out) {
@@ -130,7 +132,8 @@ public final class ReasoningHandlers {
                     bestSize = accepted.size();
                 }
             }
-            double score = bestSize == 0 ? 0.0 : (double) bestMatch / bestSize;
+            double score = bestSize == 0 ? 0.0
+                    : 2.0 * bestMatch / (submitted.size() + bestSize);
 
             int maxAttempts = config.path("maxAttempts").asInt(1);
             int attemptNo = priorAttempts(ctx) + 1;
@@ -181,12 +184,8 @@ public final class ReasoningHandlers {
                 if (expected != null && !expected.equals(chosen)) {
                     outcome = ActivityResult.CONTRADICTED;
                 } else {
-                    Set<String> given = new LinkedHashSet<>();
-                    JsonNode ev = hypothesis.get("evidenceIds");
-                    if (ev != null && ev.isArray()) {
-                        ev.forEach(n -> { if (n.isTextual()) given.add(n.asText()); });
-                    }
-                    outcome = given.containsAll(required)
+                    outcome = evidenceGiven(ctx, config, hypothesis)
+                            .containsAll(required)
                             ? ActivityResult.SUPPORTED : ActivityResult.PARTIAL;
                 }
             }
@@ -197,6 +196,38 @@ public final class ReasoningHandlers {
             boolean completed = ActivityResult.SUPPORTED.equals(outcome);
             return result(outcome, completed, out,
                     feedbackFor(ctx.activity(), outcome));
+        }
+
+        /**
+         * Evidence set the verdict is checked against (Learning Flow 2.0 §P0):
+         * - `config.evidenceSource` names an upstream EVIDENCE_SELECT activity —
+         *   the persisted output's `selectedEvidenceIds` is the authoritative
+         *   evidence set (learners never re-pick the same evidence, and any
+         *   client-submitted ids are ignored entirely).
+         * - Without it (legacy snapshots): fall back to the evidenceIds the
+         *   HYPOTHESIS_CHOICE output itself recorded — old versions unchanged.
+         * When the source was authored but its output is missing or malformed,
+         * the result is an empty set -> PARTIAL (never trust the client).
+         */
+        private Set<String> evidenceGiven(AttemptContext ctx, JsonNode config,
+                                          JsonNode hypothesis) {
+            String source = config != null && config.hasNonNull("evidenceSource")
+                    ? config.get("evidenceSource").asText() : null;
+            JsonNode carrier;
+            String field;
+            if (source != null) {
+                carrier = ctx.priorOutputs().get(source);
+                field = "selectedEvidenceIds";
+            } else {
+                carrier = hypothesis;
+                field = "evidenceIds";
+            }
+            Set<String> given = new LinkedHashSet<>();
+            JsonNode ids = carrier == null ? null : carrier.get(field);
+            if (ids != null && ids.isArray()) {
+                ids.forEach(n -> { if (n.isTextual()) given.add(n.asText()); });
+            }
+            return given;
         }
     }
 

@@ -537,17 +537,22 @@ public class LearnerAttemptService {
 
     /**
      * Knowledge score (0-100) = mean per-activity correctness over REQUIRED
-     * activities only — deliberately separate from `score` (progress %).
-     * Per-activity contribution: graded output `score` (0..1) when present,
-     * else `correct` (1/0), else completed ? 1 : 0 (ungraded required work
-     * counts fully once done). Exhausted-but-incomplete contributes its
-     * partial score, never free credit.
+     * GRADED activities only — deliberately separate from `score` (progress %).
+     * A required activity contributes to the metric only when it carries a
+     * real grading rule (config.graded:true, or a CER_CHOICE conclusion that
+     * is graded by contract); ungraded required work (READ, HYPOTHESIS_CHOICE,
+     * DRAG_ORDER, EXPLORE_MAP, REFLECTION, legacy count-only EVIDENCE_SELECT)
+     * never inflates the denominator. Per-activity contribution: graded output
+     * `score` (0..1) when present, else `correct` (1/0); exhausted work keeps
+     * its partial score — never free credit. A lesson with zero graded
+     * required activities reports 0 — there is no measured knowledge to claim.
      */
     private BigDecimal knowledgeScoreOf(SnapshotModel model, AttemptState state) {
         double sum = 0.0;
         int total = 0;
         for (JsonNode stage : model.stages()) {
             for (JsonNode act : model.requiredActivities(stage.path("id").asText())) {
+                if (!isGradedActivity(act)) continue;
                 total++;
                 String id = act.path("id").asText();
                 JsonNode out = state.outputs().get(id);
@@ -555,14 +560,24 @@ public class LearnerAttemptService {
                     sum += out.get("score").asDouble(0.0);
                 } else if (out != null && out.hasNonNull("correct")) {
                     sum += out.get("correct").asBoolean(false) ? 1.0 : 0.0;
-                } else if (state.isCompleted(id)) {
-                    sum += 1.0;
                 }
             }
         }
         if (total == 0) return BigDecimal.ZERO.setScale(2);
         return BigDecimal.valueOf(sum * 100.0 / total)
                 .setScale(2, RoundingMode.HALF_UP);
+    }
+
+    /**
+     * True when an activity has a real grading rule feeding knowledgeScore:
+     * graded:true opt-in, or a type graded by contract (CER_CHOICE is
+     * per-combo assessed; legacy CER free-text is not auto-graded).
+     */
+    private boolean isGradedActivity(JsonNode act) {
+        String type = act.path("type").asText("");
+        if (ActivityType.CER_CHOICE.name().equals(type)) return true;
+        JsonNode config = act.get("config");
+        return config != null && config.path("graded").asBoolean(false);
     }
 
     private String resultJsonOf(LearnerAttempt a, LessonCompletion verdict,
@@ -632,32 +647,46 @@ public class LearnerAttemptService {
     }
 
     /**
-     * Bounded dependent-output invalidation (Learning Flow 2.0): re-submitting
-     * an upstream activity voids outputs of already-completed activities that
-     * could have consumed the old answer — later siblings in the same stage
-     * and every activity in direct nextStageIds descendant stages. Scope is
-     * deliberately narrow (same stage + depth-1 edges) so revising cannot
-     * cascade a wipe across the whole attempt.
+     * Dependency-aware transitive invalidation (Learning Flow 2.0 §P1):
+     * re-submitting an upstream activity voids outputs + completion marks of
+     * every activity that can consume the revised output — directly or
+     * through a downstream chain — so a revised evidence selection forces
+     * re-verification of dependent Reasoning/Hypothesis/Verification/
+     * Conclusion work instead of leaving stale credit behind.
+     *
+     * Dependency edges (target depends on source):
+     *  - explicit source refs: config.priorEvidenceSource / evidenceSource
+     *    name the exact activity whose output is consumed;
+     *  - REVISE hops: onPartial/onContradicted send the learner back to a
+     *    stage to redo work — redoing that stage's activities must void the
+     *    downstream consumers of its outputs too, so every activity of the
+     *    hop-target stage depends on the hopping activity;
+     *  - ordered propagation: the first activity of a stage depends on the
+     *    previous stage boundary, and each later activity depends on its
+     *    predecessor — priorOutputs can carry any earlier output forward.
+     *
+     * Traversal is BFS over those edges — transitive but bounded by the
+     * snapshot DAG, visited-guarded, and never touches the revised activity
+     * itself or unrelated branches. Activity-attempt history rows are
+     * immutable by design and stay untouched.
      */
     private void invalidateDependents(SnapshotModel model, AttemptState state,
                                       String activityId) {
         String stageId = model.stageIdOf(activityId);
         if (stageId == null) return;
-        java.util.Set<String> dependents = new java.util.LinkedHashSet<>();
-        boolean seenSelf = false;
-        for (JsonNode act : model.activitiesOf(stageId)) {
-            String id = act.path("id").asText(null);
-            if (id == null) continue;
-            if (seenSelf) dependents.add(id);
-            if (id.equals(activityId)) seenSelf = true;
-        }
-        for (String nextStageId : model.nextStageIds(stageId)) {
-            for (JsonNode act : model.activitiesOf(nextStageId)) {
-                String id = act.path("id").asText(null);
-                if (id != null) dependents.add(id);
+
+        java.util.Map<String, java.util.Set<String>> deps = dependencyEdges(model);
+        java.util.Set<String> tainted = new java.util.LinkedHashSet<>();
+        java.util.Deque<String> queue = new java.util.ArrayDeque<>();
+        queue.add(activityId);
+        while (!queue.isEmpty()) {
+            String src = queue.poll();
+            for (String dep : deps.getOrDefault(src, java.util.Set.of())) {
+                if (dep.equals(activityId) || !tainted.add(dep)) continue;
+                queue.add(dep);
             }
         }
-        for (String id : dependents) {
+        for (String id : tainted) {
             if (state.isCompleted(id) || state.outputs().containsKey(id)) {
                 log.info("invalidating dependent output activity={} after re-submit of {}",
                         id, activityId);
@@ -665,6 +694,82 @@ public class LearnerAttemptService {
                 state.removeOutput(id);
             }
         }
+    }
+
+    /**
+     * Build the activity-level dependency edges for a snapshot —
+     * source -> {consumers}:
+     *  (a) explicit refs: config.priorEvidenceSource / config.evidenceSource;
+     *  (b) revise hops: onPartial/onContradicted route learners back to redo
+     *      a stage — all activities of the hop-target stage consume the
+     *      hopping activity's outcome;
+     *  (c) order propagation: stage prev-boundary -> first activity, and
+     *      each activity -> its next sibling.
+     */
+    private java.util.Map<String, java.util.Set<String>> dependencyEdges(SnapshotModel model) {
+        java.util.Map<String, java.util.Set<String>> edges = new java.util.LinkedHashMap<>();
+        java.util.Map<String, String> lastActByStage = new java.util.HashMap<>();
+        for (JsonNode stage : model.stages()) {
+            String sid = stage.path("id").asText(null);
+            if (sid == null) continue;
+            String prevId = null;
+            for (JsonNode act : model.activitiesOf(sid)) {
+                String id = act.path("id").asText(null);
+                if (id == null) continue;
+                if (prevId != null) addEdge(edges, prevId, id);
+                else {
+                    // first declared activity consumes the stage boundary
+                    addEdge(edges, "stage:" + sid, id);
+                }
+                prevId = id;
+            }
+            if (prevId != null) lastActByStage.put(sid, prevId);
+        }
+        // stage boundary pseudo-node: last activity of each predecessor
+        // stage feeds this stage's first activity.
+        for (JsonNode stage : model.stages()) {
+            String sid = stage.path("id").asText(null);
+            if (sid == null) continue;
+            for (JsonNode up : model.stages()) {
+                String upId = up.path("id").asText(null);
+                if (upId == null) continue;
+                if (!model.nextStageIds(upId).contains(sid)) continue;
+                String last = lastActByStage.get(upId);
+                if (last != null) addEdge(edges, last, "stage:" + sid);
+            }
+        }
+        // (a) + (b)
+        for (JsonNode stage : model.stages()) {
+            for (JsonNode act : model.activitiesOf(stage.path("id").asText())) {
+                String id = act.path("id").asText(null);
+                if (id == null) continue;
+                JsonNode config = act.get("config");
+                if (config != null && config.isObject()) {
+                    for (String field : java.util.List.of("priorEvidenceSource", "evidenceSource")) {
+                        JsonNode src = config.get(field);
+                        if (src != null && src.isTextual()
+                                && model.activityById(src.asText()) != null) {
+                            addEdge(edges, src.asText(), id);
+                        }
+                    }
+                }
+                for (String field : java.util.List.of("onPartial", "onContradicted")) {
+                    JsonNode tgt = act.get(field);
+                    if (tgt == null || !tgt.isTextual()) continue;
+                    String targetStage = tgt.asText();
+                    for (JsonNode a : model.activitiesOf(targetStage)) {
+                        String aid = a.path("id").asText(null);
+                        if (aid != null) addEdge(edges, id, aid);
+                    }
+                }
+            }
+        }
+        return edges;
+    }
+
+    private void addEdge(java.util.Map<String, java.util.Set<String>> edges,
+                         String from, String to) {
+        edges.computeIfAbsent(from, k -> new java.util.LinkedHashSet<>()).add(to);
     }
 
     private AttemptProgressResponse.Progress progressOf(SnapshotModel model, AttemptState state) {

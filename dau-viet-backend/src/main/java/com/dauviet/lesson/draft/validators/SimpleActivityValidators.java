@@ -8,6 +8,7 @@ import org.springframework.stereotype.Component;
 import com.fasterxml.jackson.databind.JsonNode;
 
 import com.dauviet.lesson.draft.ActivityType;
+import com.dauviet.lesson.draft.DraftSchema;
 import com.dauviet.lesson.draft.FieldError;
 import com.dauviet.lesson.draft.ValidationContext;
 
@@ -227,6 +228,9 @@ public final class SimpleActivityValidators {
      * VERIFICATION: outcome-driven stage transitions.
      * onPartial/onContradicted reference stage ids; targets checked
      * at the stage-graph level (DraftValidator), here only shape.
+     * config.evidenceSource (TASK-0020 §P0) names the upstream
+     * EVIDENCE_SELECT whose persisted output feeds the verdict —
+     * existence/type/reachability checked by DraftValidator source-ref pass.
      */
     @Component
     public static class VerificationValidator extends AbstractActivityValidator {
@@ -239,6 +243,13 @@ public final class SimpleActivityValidators {
             if (config == null) return;
             checkEvidenceRefs(config, "visibleSourceIds", path, ctx, errors);
             checkEvidenceRefs(config, "requiredEvidenceIds", path, ctx, errors);
+            JsonNode src = config.get("evidenceSource");
+            if (src != null && !src.isNull()
+                    && (!src.isTextual()
+                        || !DraftSchema.ID_PATTERN.matcher(src.asText()).matches())) {
+                errors.add(new FieldError(path + ".config.evidenceSource", "INVALID_ID",
+                        "evidenceSource must be a valid activity id"));
+            }
         }
     }
 

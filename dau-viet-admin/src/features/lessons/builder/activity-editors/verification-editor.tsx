@@ -1,22 +1,60 @@
 "use client";
 
+import { Label } from "@/components/ui/label";
+import { Select } from "@/components/ui/select";
+
 import { EvidenceRefPicker } from "./evidence-ref-picker";
-import { ActivityCommonFields, type EditorProps } from "./shared-fields";
+import {
+  ActivityCommonFields,
+  evidenceSelectActivities,
+  type EditorProps,
+} from "./shared-fields";
 
 /**
  * VERIFICATION — config.visibleSourceIds[] (bằng chứng học viên được xem)
- * + config.requiredEvidenceIds[] (bằng chứng phải dùng khi kiểm chứng).
- * Backend validates shape only; reference existence is checked at publish.
+ * + config.requiredEvidenceIds[] (bằng chứng phải dùng khi kiểm chứng)
+ * + config.evidenceSource (TASK-0020 §P0/§P5: EVIDENCE_SELECT upstream mà
+ * server dùng để lấy bằng chứng đã thu thập — không tin evidence ids từ
+ * client). Backend validates shape only; reference existence is checked
+ * at publish.
  */
 export function VerificationEditor(props: EditorProps) {
-  const { activity, eventId, readOnly, onChange } = props;
+  const { activity, eventId, draft, readOnly, onChange } = props;
   const config = activity.config ?? {};
   const visibleIds = (config.visibleSourceIds as string[] | undefined) ?? [];
   const requiredIds = (config.requiredEvidenceIds as string[] | undefined) ?? [];
+  const evidenceSource = String(config.evidenceSource ?? "");
+  const sourceCandidates = evidenceSelectActivities(draft, activity.id);
 
   return (
     <div className="flex flex-col gap-3 rounded-md border border-border bg-white p-3">
       <ActivityCommonFields {...props} />
+
+      <div className="flex flex-col gap-1.5">
+        <Label htmlFor={`evsrc-${activity.id}`}>Nguồn bằng chứng đã thu thập</Label>
+        <Select
+          id={`evsrc-${activity.id}`}
+          value={evidenceSource}
+          disabled={readOnly}
+          onChange={(e) =>
+            onChange({
+              config: { ...config, evidenceSource: e.target.value || undefined },
+            })
+          }
+        >
+          <option value="">— không dùng (snapshot cũ) —</option>
+          {sourceCandidates.map((c) => (
+            <option key={c.id} value={c.id}>
+              {c.label} ({c.stageId})
+            </option>
+          ))}
+        </Select>
+        <p className="text-xs text-ink-muted">
+          Server chấm kiểm chứng dựa trên bằng chứng học viên đã chọn ở hoạt
+          động EVIDENCE_SELECT này — không tin dữ liệu client gửi. Nguồn phải
+          nằm ở giai đoạn trước (hoặc cùng giai đoạn, đứng trước trong flow).
+        </p>
+      </div>
 
       <EvidenceRefPicker
         label="Bằng chứng học viên được xem"

@@ -149,6 +149,56 @@ class SelectionHandlersTest {
     }
 
     @Test
+    void evidenceSelect_graded_selectAll_neverFullCredit() {
+        // TASK-0020 §P3: select-all used to read correct=false but score=1.0.
+        // F1 bounds the score — extra wrong picks pull it below 1.0 while
+        // still crediting the hits.
+        JsonNode act = HandlerTestSupport.json(
+                "{\"id\":\"es\",\"type\":\"EVIDENCE_SELECT\",\"config\":{"
+              + "\"visibleEvidenceIds\":[\"e1\",\"e2\",\"e3\"],\"graded\":true,"
+              + "\"acceptedEvidenceIds\":[\"e1\",\"e2\"],\"maxAttempts\":3}}");
+        ActivityResult r = evidenceSelect.evaluate(
+                HandlerTestSupport.ctx(act, snapshotWithEvidence()),
+                HandlerTestSupport.sub("es",
+                        "{\"selectedEvidenceIds\":[\"e1\",\"e2\",\"e3\"]}"));
+        assertThat(r.completed()).isFalse();
+        assertThat(r.output().get("correct").asBoolean()).isFalse();
+        // F1 = 2*2 / (3+2) = 0.8 — extras penalised, hits still counted.
+        assertThat(r.output().get("score").asDouble()).isEqualTo(0.8);
+        assertThat(r.outcome()).isEqualTo(ActivityResult.PARTIAL);
+    }
+
+    @Test
+    void evidenceSelect_graded_duplicateIds_noInflation() {
+        // Duplicates must not inflate hits: [e1,e1,e2] dedupes to {e1,e2}
+        // before scoring — exact match, score 1.0.
+        JsonNode act = HandlerTestSupport.json(
+                "{\"id\":\"es\",\"type\":\"EVIDENCE_SELECT\",\"config\":{"
+              + "\"visibleEvidenceIds\":[\"e1\",\"e2\",\"e3\"],\"graded\":true,"
+              + "\"acceptedEvidenceIds\":[\"e1\",\"e2\"],\"maxAttempts\":3}}");
+        ActivityResult r = evidenceSelect.evaluate(
+                HandlerTestSupport.ctx(act, snapshotWithEvidence()),
+                HandlerTestSupport.sub("es",
+                        "{\"selectedEvidenceIds\":[\"e1\",\"e1\",\"e2\"]}"));
+        assertThat(r.completed()).isTrue();
+        assertThat(r.output().get("correct").asBoolean()).isTrue();
+        assertThat(r.output().get("score").asDouble()).isEqualTo(1.0);
+    }
+
+    @Test
+    void evidenceSelect_graded_allWrong_scoreZero() {
+        JsonNode act = HandlerTestSupport.json(
+                "{\"id\":\"es\",\"type\":\"EVIDENCE_SELECT\",\"config\":{"
+              + "\"visibleEvidenceIds\":[\"e1\",\"e2\",\"e3\"],\"graded\":true,"
+              + "\"acceptedEvidenceIds\":[\"e1\"],\"maxAttempts\":3}}");
+        ActivityResult r = evidenceSelect.evaluate(
+                HandlerTestSupport.ctx(act, snapshotWithEvidence()),
+                HandlerTestSupport.sub("es", "{\"selectedEvidenceIds\":[\"e2\",\"e3\"]}"));
+        assertThat(r.output().get("score").asDouble()).isEqualTo(0.0);
+        assertThat(r.outcome()).isEqualTo(ActivityResult.INCORRECT);
+    }
+
+    @Test
     void evidenceSelect_graded_exhausted_completes() {
         JsonNode act = HandlerTestSupport.json(
                 "{\"id\":\"es\",\"type\":\"EVIDENCE_SELECT\",\"config\":{"

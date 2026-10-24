@@ -156,7 +156,8 @@
           "config": {
             "visibleSourceIds": ["${EV1}", "${EV2}"],
             "requiredEvidenceIds": ["${EV1}", "${EV2}"],
-            "expectedHypothesis": "h-tide"
+            "expectedHypothesis": "h-tide",
+            "evidenceSource": "es"
           },
           "onPartial": "hp",
           "onContradicted": "hp",
@@ -194,10 +195,9 @@
               { "id": "${EV3}" }
             ],
             "priorEvidenceSource": "es",
-            "acceptedClaims": ["c-tide"],
-            "acceptedEvidenceIds": ["${EV1}", "${EV2}"],
-            "acceptedReasoningIds": ["r-tide"],
-            "minCorrect": 3,
+            "acceptedCombos": [
+              { "claimId": "c-tide", "evidenceIds": ["${EV1}", "${EV2}"], "reasoningId": "r-tide" }
+            ],
             "maxAttempts": 3
           },
           "feedback": {

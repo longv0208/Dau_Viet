@@ -46,7 +46,9 @@ class LearnerProjectionServiceTest {
                                                      "answerKey":{"a":1},
                                                      "answer":"v",
                                                      "key":"k",
-                                                     "expected":42}}]}]}
+                                                     "expected":42,
+                                                     "acceptedCombos":[{"claimId":"c1",
+                                                       "evidenceIds":["e1"],"reasoningId":"r1"}]}}]}]}
                 """);
         JsonNode config = out.at("/stages/0/activities/0/config");
         // MATCHING transform replaces pairs[] with leftItems/rightItems columns.
@@ -55,7 +57,7 @@ class LearnerProjectionServiceTest {
         assertThat(config.has("rightItems")).isTrue();
         for (String hidden : new String[]{"correctPairs", "correctOrder", "expectedOrder",
                 "requiredEvidenceIds", "expectedHypothesis", "answerKey",
-                "answer", "key", "expected"}) {
+                "answer", "key", "expected", "acceptedCombos"}) {
             assertThat(config.has(hidden)).as("hidden key %s stripped", hidden).isFalse();
         }
     }

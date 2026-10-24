@@ -1,6 +1,6 @@
 "use client";
 
-import type { Activity, Stage } from "../draft-model";
+import type { Activity, Draft, Stage } from "../draft-model";
 import { ACTIVITY_LABELS } from "../labels";
 import { FeedbackPanel } from "./feedback-panel";
 import { Input } from "@/components/ui/input";
@@ -11,6 +11,10 @@ export interface EditorProps {
   activity: Activity;
   /** Event the lesson belongs to — lets pickers default-filter evidence. */
   eventId?: string;
+  /** The whole draft — lets editors offer cross-stage references
+   *  (e.g. upstream EVIDENCE_SELECT dropdowns). Optional: editors that do
+   *  not need it keep working when absent. */
+  draft?: Draft;
   readOnly?: boolean;
   /** Merge patch into the activity (config merges via onChange({config:{...}})). */
   onChange: (patch: Partial<Activity>) => void;
@@ -52,5 +56,21 @@ export function ActivityCommonFields({ stage, activity, readOnly, onChange }: Ed
       </p>
       <FeedbackPanel stage={stage} activity={activity} readOnly={readOnly} onChange={onChange} />
     </div>
+  );
+}
+
+/**
+ * TASK-0020 §P0/§P5: upstream EVIDENCE_SELECT candidates for
+ * config.evidenceSource / config.priorEvidenceSource dropdowns —
+ * every EVIDENCE_SELECT activity in the draft except the consumer itself.
+ * Backend revalidates type + reachability at publish; the dropdown keeps
+ * authors from mistyping ids.
+ */
+export function evidenceSelectActivities(draft: Draft | undefined, excludeId: string) {
+  if (!draft) return [];
+  return draft.stages.flatMap((s) =>
+    s.activities
+      .filter((a) => a.type === "EVIDENCE_SELECT" && a.id !== excludeId)
+      .map((a) => ({ id: a.id, label: a.instruction || a.id, stageId: s.id })),
   );
 }
