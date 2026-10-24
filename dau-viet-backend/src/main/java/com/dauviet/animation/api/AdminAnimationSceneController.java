@@ -39,6 +39,7 @@ import com.dauviet.animation.application.AnimationScenePublishService;
 import com.dauviet.animation.application.AnimationSceneService;
 import com.dauviet.animation.domain.AnimationSceneHtml;
 import com.dauviet.animation.domain.AnimationSceneStatus;
+import com.dauviet.animation.manifest.HtmlSandbox;
 import com.dauviet.auth.domain.AuthenticationFailedException;
 import com.dauviet.common.api.PageResponse;
 
@@ -177,11 +178,7 @@ public class AdminAnimationSceneController {
                 .header("X-Content-Type-Options", "nosniff")
                 .header(org.springframework.http.HttpHeaders.CACHE_CONTROL,
                         "no-store")
-                .header("Content-Security-Policy",
-                        "default-src 'none'; script-src 'unsafe-inline'; "
-                                + "style-src 'unsafe-inline'; img-src data:; "
-                                + "media-src data:; font-src data:; "
-                                + "connect-src 'none'; frame-ancestors 'none'")
+                .header("Content-Security-Policy", HtmlSandbox.CSP)
                 .body(draft.getContent());
     }
 

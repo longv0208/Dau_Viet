@@ -25,6 +25,7 @@ import com.dauviet.animation.infrastructure.persistence.AnimationSceneVersionRep
 import com.dauviet.animation.infrastructure.persistence.AnimationTemplateRepository;
 import com.dauviet.animation.manifest.HtmlDocumentValidator;
 import com.dauviet.animation.manifest.HtmlDocumentValidator.ValidatedHtml;
+import com.dauviet.animation.manifest.HtmlSandbox;
 import com.dauviet.common.error.ResourceNotFoundException;
 import com.dauviet.historicalevent.infrastructure.persistence.HistoricalEventRepository;
 import com.fasterxml.jackson.databind.ObjectMapper;
@@ -101,11 +102,22 @@ public class AnimationHtmlService {
         s.setStatus(AnimationSceneStatus.DRAFT);
         s.setCreatedBy(adminId);
         s.setUpdatedBy(adminId);
-        s.setDraftJson(draftManifest(sceneTitle, html));
         AnimationScene saved = scenes.saveAndFlush(s);
 
-        draftHtml.save(new AnimationSceneHtml(saved.getId(), html.content(),
-                html.sha256(), html.sizeBytes(), html.filename()));
+        // FIX-01B: CSP meta rides INSIDE the document — response-header CSP
+        // doesn't survive loadHtmlString/blob-URL, so the stored bytes must
+        // already carry the policy. sha256/sizeBytes cover the stored form
+        // (with meta injected) so Flutter verifies what it actually renders.
+        String sandboxed = HtmlSandbox.apply(html.content());
+        String storedSha = HtmlDocumentValidator.sha256(
+                sandboxed.getBytes(java.nio.charset.StandardCharsets.UTF_8));
+        long storedSize = sandboxed.getBytes(
+                java.nio.charset.StandardCharsets.UTF_8).length;
+
+        draftHtml.save(new AnimationSceneHtml(saved.getId(), sandboxed,
+                storedSha, storedSize, html.filename()));
+        s.setDraftJson(draftManifest(sceneTitle, sandboxedMeta(html, storedSha, storedSize)));
+        scenes.saveAndFlush(s);
         return mapper.toSceneResponse(saved, template, versions);
     }
 
@@ -125,9 +137,16 @@ public class AnimationHtmlService {
             throw new InvalidStatusTransitionException("archived scene cannot be edited");
         }
         ValidatedHtml html = htmlValidator.validate(file);
-        draftHtml.save(new AnimationSceneHtml(sceneId, html.content(),
-                html.sha256(), html.sizeBytes(), html.filename()));
-        s.setDraftJson(draftManifest(s.getTitle(), html));
+        // FIX-01B: stored bytes carry the injected CSP meta; sha256/sizeBytes
+        // reflect the stored form so published manifests pin what renders.
+        String sandboxed = HtmlSandbox.apply(html.content());
+        String storedSha = HtmlDocumentValidator.sha256(
+                sandboxed.getBytes(java.nio.charset.StandardCharsets.UTF_8));
+        long storedSize = sandboxed.getBytes(
+                java.nio.charset.StandardCharsets.UTF_8).length;
+        draftHtml.save(new AnimationSceneHtml(sceneId, sandboxed,
+                storedSha, storedSize, html.filename()));
+        s.setDraftJson(draftManifest(s.getTitle(), sandboxedMeta(html, storedSha, storedSize)));
         s.setUpdatedBy(adminId);
         AnimationTemplate t = templates.findById(s.getTemplateId()).orElse(null);
         return mapper.toSceneResponse(scenes.saveAndFlush(s), t, versions);
@@ -158,15 +177,46 @@ public class AnimationHtmlService {
     }
 
     /**
-     * Copy published draft html → immutable version row. Called inside the
-     * publish transaction by AnimationScenePublishService.
+     * Copy published draft html → immutable version row, then VERIFY the
+     * manifest's pinned html{sha256,sizeBytes} matches the stored bytes
+     * actually snapshotted. A mismatch means the draft_json metadata was
+     * edited out of band — refuse publish instead of shipping a version
+     * whose manifest checksum Flutter would reject later.
+     *
+     * Called inside the publish transaction by AnimationScenePublishService.
      */
-    public void snapshotHtmlForVersion(UUID sceneId, UUID versionId) {
+    public void snapshotHtmlForVersion(UUID sceneId, UUID versionId,
+                                       com.fasterxml.jackson.databind.JsonNode manifest) {
         AnimationSceneHtml draft = draftHtml.findById(sceneId).orElseThrow(
                 () -> new InvalidStatusTransitionException(
                         "HTML draft missing for scene: " + sceneId));
+
+        String storedSha = HtmlDocumentValidator.sha256(
+                draft.getContent().getBytes(java.nio.charset.StandardCharsets.UTF_8));
+        long storedSize = draft.getContent()
+                .getBytes(java.nio.charset.StandardCharsets.UTF_8).length;
+        // Recompute from BYTES, not the stored sha256 column — the column is
+        // trusted only after an independent rehash proves it still matches.
+        if (!storedSha.equals(draft.getSha256())
+                || storedSize != draft.getSizeBytes()) {
+            throw new InvalidStatusTransitionException(
+                    "HTML draft checksum drift — stored bytes no longer match"
+                            + " the recorded sha256/sizeBytes; re-upload the file");
+        }
+        com.fasterxml.jackson.databind.JsonNode html =
+                manifest == null ? null : manifest.get("html");
+        String pinnedSha = html == null ? null : html.path("sha256").asText(null);
+        Long pinnedSize = html == null || !html.has("sizeBytes")
+                ? null : html.get("sizeBytes").asLong();
+        if (pinnedSha == null || !pinnedSha.equals(storedSha)
+                || pinnedSize == null || pinnedSize != storedSize) {
+            throw new InvalidStatusTransitionException(
+                    "manifest html.sha256/sizeBytes do not match the stored file — "
+                            + "re-upload the HTML instead of editing the checksum");
+        }
+
         versionHtml.save(new AnimationSceneVersionHtml(versionId,
-                draft.getContent(), draft.getSha256(), draft.getSizeBytes(),
+                draft.getContent(), storedSha, storedSize,
                 draft.getOriginalFilename()));
     }
 
@@ -193,6 +243,23 @@ public class AnimationHtmlService {
 
     /** Minimal auto-generated manifest — bytes live in the html side table. */
     private String draftManifest(String title, ValidatedHtml html) {
+        return draftManifest(title, html.filename(), html.sizeBytes(), html.sha256());
+    }
+
+    /** Metadata carrier after sandbox injection (sha256/size change). */
+    private record SandboxedMeta(String filename, long sizeBytes, String sha256) {
+    }
+
+    private SandboxedMeta sandboxedMeta(ValidatedHtml html, String sha, long size) {
+        return new SandboxedMeta(html.filename(), size, sha);
+    }
+
+    private String draftManifest(String title, SandboxedMeta meta) {
+        return draftManifest(title, meta.filename(), meta.sizeBytes(), meta.sha256());
+    }
+
+    private String draftManifest(String title, String filename,
+                                 long sizeBytes, String sha256) {
         try {
             ObjectNode root = objectMapper.createObjectNode();
             root.put("schemaVersion", 2);
@@ -202,9 +269,9 @@ public class AnimationHtmlService {
             root.put("disclaimer", DEFAULT_DISCLAIMER);
             root.putArray("sourceReferences");
             ObjectNode meta = root.putObject("html");
-            if (html.filename() != null) meta.put("filename", html.filename());
-            meta.put("sizeBytes", html.sizeBytes());
-            meta.put("sha256", html.sha256());
+            if (filename != null) meta.put("filename", filename);
+            meta.put("sizeBytes", sizeBytes);
+            meta.put("sha256", sha256);
             return objectMapper.writeValueAsString(root);
         } catch (Exception e) {
             throw new IllegalStateException("draft manifest build failed", e);

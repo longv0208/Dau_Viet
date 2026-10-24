@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:convert';
 
 import 'package:crypto/crypto.dart';
@@ -11,6 +12,7 @@ import 'package:dau_viet_mobile/features/learning/presentation/renderers/read_re
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:webview_flutter/webview_flutter.dart';
 
 /// HTML_WEBVIEW runtime — cùng MỘT runtime phục vụ nhiều file HTML khác
 /// nhau (không code riêng per-file). Test: fetch → sha256 verify →
@@ -88,6 +90,136 @@ void main() {
       )));
       await tester.pumpAndSettle();
       expect(find.text('Thử lại'), findsOneWidget);
+    });
+
+    testWidgets('didUpdateWidget đổi sceneVersionId → invalidate pending + load lại',
+        (tester) async {
+      // Giữ fetch đầu pending — response v1 đến sau khi widget đã đổi sang v2
+      // phải bị generation guard bỏ qua (không mount webview của v1).
+      final completer1 = Completer<List<int>>();
+      final api1 = _FakeLearningApiClient.completer(completer1.future);
+      await tester.pumpWidget(app(HtmlAnimationPlayer(
+        key: const Key('p'),
+        sceneVersionId: 'v1',
+        manifest: htmlManifest(sha256Of(htmlA)),
+        apiOverride: api1,
+        webViewBuilder: (context, controller) =>
+            const SizedBox(key: Key('fake-webview')),
+      )));
+      await tester.pump();
+      // Đổi sang v2 — request mới chạy ngay, v1 vẫn pending.
+      final api2 = _FakeLearningApiClient(utf8.encode(htmlB));
+      await tester.pumpWidget(app(HtmlAnimationPlayer(
+        key: const Key('p'),
+        sceneVersionId: 'v2',
+        manifest: htmlManifest(sha256Of(htmlB)),
+        apiOverride: api2,
+        webViewBuilder: (context, controller) =>
+            const SizedBox(key: Key('fake-webview')),
+      )));
+      await tester.pumpAndSettle();
+      // v2 load xong trước → ready.
+      expect(find.byKey(const Key('fake-webview')), findsOneWidget);
+      // Giờ v1 resolve — tag đã cũ, không được ghi đè state.
+      completer1.complete(utf8.encode(htmlA));
+      await tester.pump();
+      expect(find.byKey(const Key('fake-webview')), findsOneWidget);
+      expect(tester.takeException(), isNull);
+    });
+
+    testWidgets('dispose khi fetch pending → không crash, không setState',
+        (tester) async {
+      final completer = Completer<List<int>>();
+      await tester.pumpWidget(app(HtmlAnimationPlayer(
+        sceneVersionId: 'v1',
+        manifest: htmlManifest(sha256Of(htmlA)),
+        apiOverride: _FakeLearningApiClient.completer(completer.future),
+        webViewBuilder: (context, controller) =>
+            const SizedBox(key: Key('fake-webview')),
+      )));
+      await tester.pump();
+      // Unmount trước khi resolve.
+      await tester.pumpWidget(app(const SizedBox(key: Key('empty'))));
+      completer.complete(utf8.encode(htmlA));
+      await tester.pump();
+      expect(tester.takeException(), isNull);
+    });
+
+    testWidgets('duplicate PLAYBACK_FINISHED chỉ fire onFinished một lần',
+        (tester) async {
+      var finished = 0;
+      await tester.pumpWidget(app(HtmlAnimationPlayer(
+        sceneVersionId: 'v1',
+        manifest: htmlManifest(sha256Of(htmlA)),
+        apiOverride: fakeApi(utf8.encode(htmlA)),
+        webViewBuilder: (context, controller) =>
+            const SizedBox(key: Key('fake-webview')),
+        onFinished: () => finished++,
+      )));
+      await tester.pumpAndSettle();
+      final state = tester.state(find.byType(HtmlAnimationPlayer))
+          as dynamic; // _HtmlAnimationPlayerState
+      // JS gửi FINISHED 3 lần (loop/replay spam) — chỉ 1 callback.
+      state.handleJsMessageForTest(
+          const JavaScriptMessage(message: 'PLAYBACK_FINISHED'));
+      state.handleJsMessageForTest(
+          const JavaScriptMessage(message: 'PLAYBACK_FINISHED'));
+      state.handleJsMessageForTest(
+          const JavaScriptMessage(message: 'PLAYBACK_FINISHED'));
+      await tester.pump();
+      expect(finished, 1);
+    });
+
+    testWidgets('invalid JS messages (type lạ, JSON hỏng, oversize) bị drop',
+        (tester) async {
+      var finished = 0;
+      String? runtimeError;
+      await tester.pumpWidget(app(HtmlAnimationPlayer(
+        sceneVersionId: 'v1',
+        manifest: htmlManifest(sha256Of(htmlA)),
+        apiOverride: fakeApi(utf8.encode(htmlA)),
+        webViewBuilder: (context, controller) =>
+            const SizedBox(key: Key('fake-webview')),
+        onFinished: () => finished++,
+        onRuntimeError: (m) => runtimeError = m,
+      )));
+      await tester.pumpAndSettle();
+      final state = tester.state(find.byType(HtmlAnimationPlayer)) as dynamic;
+      state.handleJsMessageForTest(const JavaScriptMessage(message: 'EXPLOIT'));
+      state.handleJsMessageForTest(
+          const JavaScriptMessage(message: '{"type":"EXPLOIT"}'));
+      state.handleJsMessageForTest(const JavaScriptMessage(
+          message: '{"type":"PLAYBACK_FINISHED","extra":"x"}')); // hợp lệ
+      state.handleJsMessageForTest(
+          const JavaScriptMessage(message: '{broken json'));
+      state.handleJsMessageForTest(
+          JavaScriptMessage(message: 'x' * 20000)); // oversize
+      await tester.pump();
+      expect(finished, 1); // chỉ message hợp lệ được nhận
+      expect(runtimeError, isNull);
+    });
+
+    testWidgets('READY/PLAYBACK_STARTED không fire callback nào',
+        (tester) async {
+      var finished = 0;
+      await tester.pumpWidget(app(HtmlAnimationPlayer(
+        sceneVersionId: 'v1',
+        manifest: htmlManifest(sha256Of(htmlA)),
+        apiOverride: fakeApi(utf8.encode(htmlA)),
+        webViewBuilder: (context, controller) =>
+            const SizedBox(key: Key('fake-webview')),
+        onFinished: () => finished++,
+      )));
+      await tester.pumpAndSettle();
+      final state = tester.state(find.byType(HtmlAnimationPlayer)) as dynamic;
+      state.handleJsMessageForTest(const JavaScriptMessage(message: 'READY'));
+      state.handleJsMessageForTest(
+          const JavaScriptMessage(message: 'PLAYBACK_STARTED'));
+      state.handleJsMessageForTest(
+          const JavaScriptMessage(message: 'PLAYBACK_PAUSED'));
+      await tester.pump();
+      expect(finished, 0);
+      expect(tester.takeException(), isNull);
     });
   });
 
@@ -200,10 +332,22 @@ void main() {
 /// Client giả: trả bytes cấu hình sẵn cho endpoint html; constructor
 /// super cần ApiClient bất kỳ nhưng method đích đã override.
 class _FakeLearningApiClient extends LearningApiClient {
-  final List<int> _bytes;
-  _FakeLearningApiClient(this._bytes)
-      : super(ApiClient.fromConfig(baseUrl: 'http://test'));
+  final List<int>? _bytes;
+  final Future<List<int>>? _pending;
+  _FakeLearningApiClient(List<int> bytes)
+      : _bytes = bytes,
+        _pending = null,
+        super(ApiClient.fromConfig(baseUrl: 'http://test'));
+  _FakeLearningApiClient.completer(Future<List<int>> pending)
+      : _bytes = null,
+        _pending = pending,
+        super(ApiClient.fromConfig(baseUrl: 'http://test'));
 
   @override
-  Future<List<int>> getAnimationHtmlBytes(String versionId) async => _bytes;
+  Future<List<int>> getAnimationHtmlBytes(String versionId) =>
+      _pending ?? Future.value(_bytes ?? const []);
 }
+
+// WebViewController không phải interface → không fake trực tiếp được.
+// JS-message path được test qua `handleJsMessageForTest` trên state thật
+// (xem các test PLAYBACK_FINISHED/READY ở trên).

@@ -28,6 +28,7 @@ import org.springframework.test.web.servlet.MockMvc;
 
 import com.dauviet.animation.api.dto.AnimationDtos.SceneResponse;
 import com.dauviet.animation.api.dto.AnimationDtos.SceneSummaryResponse;
+import com.dauviet.animation.application.AnimationHtmlService;
 import com.dauviet.animation.application.AnimationScenePublishService;
 import com.dauviet.animation.application.AnimationSceneService;
 import com.dauviet.animation.domain.AnimationSceneStatus;
@@ -61,6 +62,9 @@ class AdminAnimationSceneControllerTest {
 
     @MockitoBean
     private AnimationScenePublishService publishService;
+
+    @MockitoBean
+    private AnimationHtmlService htmlService;
 
     // Resource-server beans are absent from the @WebMvcTest slice; mocks keep
     // the security filter chain wiring loadable without a real JwtDecoder.

@@ -7,8 +7,9 @@ import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
 import jakarta.persistence.Id;
 import jakarta.persistence.Table;
-import jakarta.persistence.Lob;
+import org.hibernate.annotations.JdbcTypeCode;
 import org.hibernate.annotations.UpdateTimestamp;
+import org.hibernate.type.SqlTypes;
 
 /**
  * Mutable draft HTML for an HTML_WEBVIEW scene (1:1 with animation_scenes).
@@ -23,9 +24,14 @@ public class AnimationSceneHtml {
     @Column(name = "scene_id", nullable = false, updatable = false)
     private UUID sceneId;
 
-    /** Self-contained UTF-8 HTML document (single file, inline assets). */
-    @Lob
-    @Column(name = "content", nullable = false)
+    /**
+     * Self-contained UTF-8 HTML document (single file, inline assets).
+     * LONGVARCHAR maps straight onto PostgreSQL TEXT — NOT @Lob, which
+     * Hibernate 6 can resolve to LOB/OID and breaks ddl-auto=validate
+     * against a TEXT column.
+     */
+    @JdbcTypeCode(SqlTypes.LONGVARCHAR)
+    @Column(name = "content", nullable = false, columnDefinition = "TEXT")
     private String content;
 
     @Column(name = "sha256", nullable = false, length = 64)

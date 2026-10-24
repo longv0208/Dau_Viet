@@ -57,6 +57,19 @@ export function HtmlSceneEditor({ sceneId }: { sceneId: string }) {
     }
   };
 
+  // FIX-05: sau publish/archive refetch scene để status/rowVersion/
+  // currentVersionNo trên UI khớp server — tránh lần publish/replace kế
+  // tiếp gửi expectedRowVersion cũ (409 giả).
+  const refreshScene = async () => {
+    try {
+      const fresh = await animationApi.getScene(sceneId);
+      setScene(fresh);
+      qc.setQueryData(qk.animationScenes.detail(sceneId), fresh);
+    } catch {
+      // best-effort; publish success banner vẫn đúng
+    }
+  };
+
   useEffect(() => {
     let alive = true;
     animationApi
@@ -225,6 +238,7 @@ export function HtmlSceneEditor({ sceneId }: { sceneId: string }) {
             scene={scene}
             onSaved={() => {
               qc.invalidateQueries({ queryKey: ["animation-scenes"] });
+              void refreshScene();
             }}
           />
         </div>

@@ -177,12 +177,20 @@ DauVietChannel.postMessage(JSON.stringify({ type: 'READY' }));
 ## 6. Tham chieu ky thuat (cho dev)
 
 - Renderer code: `HTML_WEBVIEW`, template: `html-webview`.
-- Draft manifest: `html{filename,sizeBytes,sha256}` — bytes nam trong
-  `animation_scene_html`, khong nam trong `draft_json`.
-- Publish: copy sang `animation_scene_version_html` (immutable, trigger).
+- Draft manifest: `html{filename,sizeBytes,sha256}` — metadata do SERVER
+  so huu, derive tu `animation_scene_html`; PATCH draft_json khong the
+  gia checksum (re-derive), publish re-hash bytes va tu choi mismatch.
+- Sandbox: `HtmlSandbox.apply()` chen `<meta http-equiv="Content-
+  Security-Policy">` vao chinh stored bytes (response header khong ton
+  tai qua `loadHtmlString`/blob URL) — CSP: `default-src 'none'`,
+  `script/style 'unsafe-inline'`, `img/media/font data:`,
+  `connect-src 'none'`, `frame-src/object-src 'none'`.
+- Publish: copy sang `animation_scene_version_html` (immutable, trigger);
+  sha256/sizeBytes pin vao manifest phai khop stored bytes.
 - Learner endpoint: `GET /api/v1/animation-versions/{versionId}/html`.
 - Admin upload: `POST /api/upload/html-scene` (BFF multipart, cap 18 MB),
   `PUT /api/upload/html-scene/{id}` (replace draft).
-- Flutter: `HtmlAnimationPlayer` — fetch Bearer → verify sha256 →
-  `loadHtmlString(baseUrl: about:blank)`, prevent moi navigation,
-  JS channel whitelist 5 message o muc 3.2.
+- Flutter: `HtmlAnimationPlayer` — fetch Bearer qua `withAuth`
+  (refresh 1 lan) → verify sha256 → `loadHtmlString(baseUrl:
+  about:blank)`, prevent moi navigation, JS channel whitelist 5 message
+  o muc 3.2, generation guard chong stale response.

@@ -129,8 +129,11 @@ public class AnimationScenePublishService {
 
         // HTML_WEBVIEW: copy the draft HTML into an immutable version row —
         // the snapshot_json only carries metadata (sha256/size/filename).
+        // snapshotHtmlForVersion re-verifies the pinned metadata against the
+        // actual stored bytes so a tampered draft_json can't ship a version
+        // whose manifest checksum the app would reject on fetch.
         if ("HTML_WEBVIEW".equals(template.getRendererCode())) {
-            htmlService.snapshotHtmlForVersion(sceneId, saved.getId());
+            htmlService.snapshotHtmlForVersion(sceneId, saved.getId(), manifest);
         }
 
         // Record asset references for the ASSET_IN_USE retirement check.

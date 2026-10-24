@@ -24,9 +24,11 @@ import com.dauviet.animation.domain.AnimationExceptions.SceneNotFoundException;
 import com.dauviet.animation.domain.AnimationExceptions.SceneVersionNotFoundException;
 import com.dauviet.animation.domain.AnimationExceptions.TemplateDisabledException;
 import com.dauviet.animation.domain.AnimationScene;
+import com.dauviet.animation.domain.AnimationSceneHtml;
 import com.dauviet.animation.domain.AnimationSceneStatus;
 import com.dauviet.animation.domain.AnimationSceneVersion;
 import com.dauviet.animation.domain.AnimationTemplate;
+import com.dauviet.animation.infrastructure.persistence.AnimationSceneHtmlRepository;
 import com.dauviet.animation.infrastructure.persistence.AnimationSceneRepository;
 import com.dauviet.animation.infrastructure.persistence.AnimationSceneVersionRepository;
 import com.dauviet.animation.infrastructure.persistence.AnimationTemplateRepository;
@@ -35,6 +37,7 @@ import com.dauviet.common.error.ResourceNotFoundException;
 import com.dauviet.historicalevent.infrastructure.persistence.HistoricalEventRepository;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.fasterxml.jackson.databind.node.ObjectNode;
 
 import jakarta.persistence.criteria.Predicate;
 
@@ -52,6 +55,7 @@ public class AnimationSceneService {
     private final HistoricalEventRepository events;
     private final AnimationManifestValidator manifestValidator;
     private final AnimationHtmlService htmlService;
+    private final AnimationSceneHtmlRepository draftHtml;
     private final AnimationMapper mapper;
     private final ObjectMapper objectMapper;
 
@@ -61,6 +65,7 @@ public class AnimationSceneService {
                                  HistoricalEventRepository events,
                                  AnimationManifestValidator manifestValidator,
                                  AnimationHtmlService htmlService,
+                                 AnimationSceneHtmlRepository draftHtml,
                                  AnimationMapper mapper,
                                  ObjectMapper objectMapper) {
         this.scenes = scenes;
@@ -69,6 +74,7 @@ public class AnimationSceneService {
         this.events = events;
         this.manifestValidator = manifestValidator;
         this.htmlService = htmlService;
+        this.draftHtml = draftHtml;
         this.mapper = mapper;
         this.objectMapper = objectMapper;
     }
@@ -152,7 +158,20 @@ public class AnimationSceneService {
             s.setEventId(req.eventId());
         }
         if (req.draftJson() != null) {
-            s.setDraftJson(requireJsonObject(req.draftJson()));
+            String next = requireJsonObject(req.draftJson());
+            // FIX-03: for HTML_WEBVIEW scenes the manifest's html{} block is
+            // server-owned metadata (sha256/sizeBytes of the REAL stored
+            // file). Re-derive it from animation_scene_html rather than
+            // trusting the payload, so PATCH can't fake a checksum.
+            if (isHtmlScene(s)) {
+                next = normalizeHtmlDraftMeta(s, next);
+            }
+            s.setDraftJson(next);
+        }
+        // Title edits resync the display title inside the HTML manifest so
+        // the learner-facing label stays consistent (html{} meta untouched).
+        if (req.title() != null && isHtmlScene(s)) {
+            s.setDraftJson(syncHtmlManifestTitle(s.getDraftJson(), req.title()));
         }
         s.setUpdatedBy(adminId);
         AnimationTemplate t = templates.findById(s.getTemplateId()).orElse(null);
@@ -262,6 +281,54 @@ public class AnimationSceneService {
             throw e;
         } catch (Exception e) {
             throw new IllegalArgumentException("draftJson is not valid JSON");
+        }
+    }
+
+    /* ---------- FIX-03: HTML_WEBVIEW manifest integrity ---------- */
+
+    /** True when the scene's template renders as HTML_WEBVIEW. */
+    private boolean isHtmlScene(AnimationScene s) {
+        return templates.findById(s.getTemplateId())
+                .map(t -> AnimationHtmlService.RENDERER_CODE.equals(t.getRendererCode()))
+                .orElse(false);
+    }
+
+    /**
+     * Re-derive html{} from the stored draft row — PATCH can't spoof
+     * sha256/sizeBytes/filename. Preserves the caller's other keys
+     * (title, disclaimer, learningObjective, sourceReferences).
+     */
+    private String normalizeHtmlDraftMeta(AnimationScene s, String draftJson) {
+        AnimationSceneHtml stored = draftHtml.findById(s.getId()).orElse(null);
+        try {
+            ObjectNode node = (ObjectNode) objectMapper.readTree(draftJson);
+            ObjectNode html = node.putObject("html");
+            if (stored != null) {
+                if (stored.getOriginalFilename() != null) {
+                    html.put("filename", stored.getOriginalFilename());
+                }
+                html.put("sizeBytes", stored.getSizeBytes());
+                html.put("sha256", stored.getSha256());
+            } else {
+                // No stored bytes yet — strip a fabricated html{} entirely
+                // so validation at publish flags it instead of trusting it.
+                node.remove("html");
+            }
+            return objectMapper.writeValueAsString(node);
+        } catch (Exception e) {
+            return draftJson;
+        }
+    }
+
+    /** Keep manifest.title in step with the scene's display title. */
+    private String syncHtmlManifestTitle(String draftJson, String title) {
+        if (draftJson == null || title == null) return draftJson;
+        try {
+            ObjectNode node = (ObjectNode) objectMapper.readTree(draftJson);
+            node.put("title", title);
+            return objectMapper.writeValueAsString(node);
+        } catch (Exception e) {
+            return draftJson;
         }
     }
 

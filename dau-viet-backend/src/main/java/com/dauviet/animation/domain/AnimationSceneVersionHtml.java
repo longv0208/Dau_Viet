@@ -6,7 +6,8 @@ import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
 import jakarta.persistence.Id;
 import jakarta.persistence.Table;
-import jakarta.persistence.Lob;
+import org.hibernate.annotations.JdbcTypeCode;
+import org.hibernate.type.SqlTypes;
 
 /**
  * Immutable published HTML bytes for an HTML_WEBVIEW scene version (1:1 with
@@ -21,8 +22,10 @@ public class AnimationSceneVersionHtml {
     @Column(name = "version_id", nullable = false, updatable = false)
     private UUID versionId;
 
-    @Lob
-    @Column(name = "content", nullable = false, updatable = false)
+    /** LONGVARCHAR → PostgreSQL TEXT (see AnimationSceneHtml). */
+    @JdbcTypeCode(SqlTypes.LONGVARCHAR)
+    @Column(name = "content", nullable = false, updatable = false,
+            columnDefinition = "TEXT")
     private String content;
 
     @Column(name = "sha256", nullable = false, length = 64, updatable = false)

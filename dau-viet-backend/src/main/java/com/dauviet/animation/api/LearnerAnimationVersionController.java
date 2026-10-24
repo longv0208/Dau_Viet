@@ -13,6 +13,7 @@ import org.springframework.web.bind.annotation.RestController;
 
 import com.dauviet.animation.application.AnimationHtmlService;
 import com.dauviet.animation.domain.AnimationSceneVersionHtml;
+import com.dauviet.animation.manifest.HtmlSandbox;
 
 /**
  * Learner-facing HTML animation fetch: serves PUBLISHED version bytes to ANY
@@ -43,11 +44,7 @@ public class LearnerAnimationVersionController {
                 // Published bytes are immutable — safe to cache privately.
                 .cacheControl(CacheControl.maxAge(1, java.util.concurrent.TimeUnit.HOURS)
                         .cachePrivate())
-                .header("Content-Security-Policy",
-                        "default-src 'none'; script-src 'unsafe-inline'; "
-                                + "style-src 'unsafe-inline'; img-src data:; "
-                                + "media-src data:; font-src data:; "
-                                + "connect-src 'none'; frame-ancestors 'none'")
+                .header("Content-Security-Policy", HtmlSandbox.CSP)
                 .body(v.getContent());
     }
 }
