@@ -628,4 +628,92 @@ class DraftValidatorTest {
         assertThat(errors).anyMatch(e -> e.code().equals("DUPLICATE_ID")
                 && e.path().equals("stages[1].activities[0].id"));
     }
+
+    /* ---------- TASK-0020 final: bounded retry-budget validation ---------- */
+
+    private JsonNode evidenceSelectDraft(String config) throws Exception {
+        return tree("""
+                {"stages":[{"id":"ev","type":"EVIDENCE","required":true,
+                            "activities":[{"id":"es","type":"EVIDENCE_SELECT","required":true,
+                                           "config":%s}],
+                            "nextStageIds":[]}]}
+                """.formatted(config));
+    }
+
+    private JsonNode verificationDraft(String config) throws Exception {
+        return tree("""
+                {"stages":[{"id":"ev","type":"EVIDENCE","required":true,
+                            "activities":[{"id":"es","type":"EVIDENCE_SELECT","required":true,
+                                           "config":{"visibleEvidenceIds":["e1"]}}],
+                            "nextStageIds":["vf"]},
+                           {"id":"vf","type":"VERIFICATION","required":true,
+                            "activities":[{"id":"v1","type":"VERIFICATION","required":true,
+                                           "config":%s}],
+                            "nextStageIds":[]}]}
+                """.formatted(config));
+    }
+
+    @Test
+    void evidenceSelect_boundedInt_outOfRange_rejected() throws Exception {
+        // TASK-0020 FIX 2: maxAttempts [1,10], remedialAttempts [0,5].
+        JsonNode draft = evidenceSelectDraft(
+                "{\"visibleEvidenceIds\":[\"e1\"],\"graded\":true,"
+                        + "\"acceptedEvidenceIds\":[\"e1\"],"
+                        + "\"maxAttempts\":0,\"remedialAttempts\":9}");
+        List<FieldError> errors = validator.validate(draft, EVENT, ValidationLevel.SAVE);
+        assertThat(errors).anyMatch(e -> e.code().equals("INVALID_VALUE")
+                && e.path().endsWith("config.maxAttempts"));
+        assertThat(errors).anyMatch(e -> e.code().equals("INVALID_VALUE")
+                && e.path().endsWith("config.remedialAttempts"));
+
+        JsonNode ok = evidenceSelectDraft(
+                "{\"visibleEvidenceIds\":[\"e1\"],\"graded\":true,"
+                        + "\"acceptedEvidenceIds\":[\"e1\"],"
+                        + "\"maxAttempts\":3,\"remedialAttempts\":2}");
+        assertThat(validator.validate(ok, EVENT, ValidationLevel.SAVE))
+                .noneMatch(e -> e.path().contains("maxAttempts")
+                        || e.path().contains("remedialAttempts"));
+    }
+
+    @Test
+    void evidenceSelect_boundedInt_nonInteger_rejected() throws Exception {
+        // "3" textual or 1.5 decimal are not executable budgets.
+        JsonNode draft = evidenceSelectDraft(
+                "{\"visibleEvidenceIds\":[\"e1\"],\"graded\":true,"
+                        + "\"acceptedEvidenceIds\":[\"e1\"],"
+                        + "\"maxAttempts\":\"three\",\"remedialAttempts\":1.5}");
+        List<FieldError> errors = validator.validate(draft, EVENT, ValidationLevel.SAVE);
+        assertThat(errors).anyMatch(e -> e.code().equals("INVALID_TYPE")
+                && e.path().endsWith("config.maxAttempts"));
+        assertThat(errors).anyMatch(e -> e.code().equals("INVALID_TYPE")
+                && e.path().endsWith("config.remedialAttempts"));
+    }
+
+    @Test
+    void evidenceSelect_boundedInt_absent_defaultsPreserved() throws Exception {
+        // Legacy drafts without the fields validate clean — defaults apply.
+        JsonNode draft = evidenceSelectDraft(
+                "{\"visibleEvidenceIds\":[\"e1\"],\"graded\":true,"
+                        + "\"acceptedEvidenceIds\":[\"e1\"]}");
+        assertThat(validator.validate(draft, EVENT, ValidationLevel.SAVE))
+                .noneMatch(e -> e.path().contains("maxAttempts")
+                        || e.path().contains("remedialAttempts"));
+    }
+
+    @Test
+    void verification_boundedInt_outOfRange_rejected() throws Exception {
+        // TASK-0020 FIX 2: verification maxAttempts [1,20], absent = unbounded.
+        JsonNode draft = verificationDraft("{\"maxAttempts\":0}");
+        List<FieldError> errors = validator.validate(draft, EVENT, ValidationLevel.SAVE);
+        assertThat(errors).anyMatch(e -> e.code().equals("INVALID_VALUE")
+                && e.path().endsWith("config.maxAttempts"));
+
+        JsonNode ok = verificationDraft("{\"maxAttempts\":5}");
+        assertThat(validator.validate(ok, EVENT, ValidationLevel.SAVE))
+                .noneMatch(e -> e.path().contains("maxAttempts"));
+
+        JsonNode absent = verificationDraft("{}");
+        assertThat(validator.validate(absent, EVENT, ValidationLevel.SAVE))
+                .noneMatch(e -> e.path().contains("maxAttempts"));
+    }
 }
