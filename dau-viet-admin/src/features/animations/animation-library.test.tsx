@@ -48,7 +48,7 @@ describe("AnimationLibrary — FIX-01 HTML template identification", () => {
     );
   });
 
-  it("không có template chuẩn → hiển thị lỗi rõ ràng, không skeleton mãi", async () => {
+  it("không có template chuẩn → hiển thị ErrorState, không skeleton mãi", async () => {
     authStore.setAccessToken("t", 900);
     server.use(
       http.get("*/api/proxy/admin/animation-templates", () =>
@@ -62,13 +62,18 @@ describe("AnimationLibrary — FIX-01 HTML template identification", () => {
       ),
     );
     renderLibrary();
-    // ErrorState render "Có lỗi xảy ra" + message chứa template code.
+    // ErrorState render "Có lỗi xảy ra" + nút Thử lại.
     await waitFor(() =>
-      expect(screen.getByText(/thiếu template/i)).toBeInTheDocument(),
+      expect(screen.getByText(/có lỗi xảy ra/i)).toBeInTheDocument(),
     );
+    expect(
+      screen.getAllByRole("button").filter((b) => /thử lại/i.test(b.textContent ?? "")),
+    ).not.toHaveLength(0);
+    // Không hiển thị scene (scene query không chạy).
+    expect(screen.queryByText("Hoạt họa HTML mẫu")).toBeNull();
   });
 
-  it("template API trả rỗng → cũng hiển thị lỗi thiếu template", async () => {
+  it("template API trả rỗng → cũng hiển thị ErrorState", async () => {
     authStore.setAccessToken("t", 900);
     server.use(
       http.get("*/api/proxy/admin/animation-templates", () =>
@@ -83,7 +88,7 @@ describe("AnimationLibrary — FIX-01 HTML template identification", () => {
     );
     renderLibrary();
     await waitFor(() =>
-      expect(screen.getByText(/thiếu template/i)).toBeInTheDocument(),
+      expect(screen.getByText(/có lỗi xảy ra/i)).toBeInTheDocument(),
     );
   });
 
@@ -109,8 +114,9 @@ describe("AnimationLibrary — FIX-01 HTML template identification", () => {
       }),
     );
     renderLibrary();
-    await waitFor(() => screen.getByRole("alert"));
-    // Dropzone cũng là role=button — lọc lấy nút "Thử lại" trong ErrorState.
+    await waitFor(() =>
+      expect(screen.getAllByText(/có lỗi xảy ra/i).length).toBeGreaterThan(0),
+    );
     const retryBtns = screen
       .getAllByRole("button")
       .filter((b) => /thử lại/i.test(b.textContent ?? ""));
@@ -156,7 +162,9 @@ describe("AnimationLibrary — FIX-02 retry/error states", () => {
       }),
     );
     renderLibrary();
-    await waitFor(() => screen.getByRole("alert"));
+    await waitFor(() =>
+      expect(screen.getAllByText(/có lỗi xảy ra/i).length).toBeGreaterThan(0),
+    );
     const retryBtns = screen
       .getAllByRole("button")
       .filter((b) => /thử lại/i.test(b.textContent ?? ""));

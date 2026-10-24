@@ -6,6 +6,7 @@ import { useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 
 import { DataTable, type Column } from "@/components/data-table";
+import { ErrorState } from "@/components/error-state";
 import { StatusChip } from "@/components/status-chip";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -103,17 +104,29 @@ export function AnimationLibrary() {
 
   const rows = query.data?.content ?? [];
 
-  // FIX-02: lỗi tải template (API lỗi, hoặc thiếu code chuẩn) → ErrorState
-  // với Retry chạy lại ĐÚNG query template. Lỗi scene → Retry scene.
-  const tableError = templateMissing
-    ? new Error(
-        `Thiếu template '${HTML_TEMPLATE_CODE}' — chạy lại migration V19 trên backend.`,
-      )
-    : (htmlTemplate.error ?? query.error ?? undefined);
-  const handleRetry = () => {
-    if (templateMissing || htmlTemplate.error) void htmlTemplate.refetch();
-    else void query.refetch();
-  };
+  // FIX-02: lỗi template (API lỗi hoặc thiếu code chuẩn) → ErrorState riêng
+  // với Retry chạy lại ĐÚNG template query — ErrorState nuốt message của
+  // Error thuần nên cần render trực tiếp thay vì qua DataTable.
+  if (templateMissing || htmlTemplate.error) {
+    return (
+      <div className="flex flex-col gap-4">
+        <div className="max-w-2xl">
+          <HtmlImportDropzone
+            disabled
+            onFile={() => undefined}
+          />
+        </div>
+        <ErrorState
+          error={htmlTemplate.error ?? new Error(
+            `Thiếu template '${HTML_TEMPLATE_CODE}' — chạy lại migration V19 trên backend.`,
+          )}
+          onRetry={() => void htmlTemplate.refetch()}
+        />
+      </div>
+    );
+  }
+
+  const handleRetry = () => void query.refetch();
 
   const columns: Column<AnimationSceneSummary>[] = [
     {
@@ -246,8 +259,8 @@ export function AnimationLibrary() {
         columns={columns}
         rows={rows}
         rowKey={(r) => r.id}
-        loading={query.isPending || htmlTemplate.isPending}
-        error={tableError}
+        loading={query.isPending}
+        error={query.error ?? undefined}
         onRetry={handleRetry}
         emptyTitle="Chưa có hoạt họa nào"
         emptyDescription="Kéo thả một tệp .html vào vùng tải lên ở trên để tạo hoạt họa đầu tiên."
