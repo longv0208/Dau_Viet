@@ -3,9 +3,11 @@
 import { skipToken, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Eye } from "lucide-react";
 import Link from "next/link";
+import { useSearchParams } from "next/navigation";
 import { useState } from "react";
 
 import { apiFetch } from "@/lib/api-client";
+import { parseReturnTo, withReturnTo } from "@/lib/return-to";
 import type { AdminEventDetail } from "@/lib/dto/event";
 import type { AdminLessonDetail, LessonTemplate } from "@/lib/dto/lesson";
 import type { PublishResponse } from "@/lib/dto/publish";
@@ -38,6 +40,8 @@ function parseObjectives(json: string): string[] {
  */
 export function PublishPage({ lessonId }: { lessonId: string }) {
   const qc = useQueryClient();
+  const searchParams = useSearchParams();
+  const returnTo = parseReturnTo(searchParams.get("return"));
   const [conflict, setConflict] = useState(false);
   const [lastPublished, setLastPublished] = useState<PublishResponse | null>(null);
 
@@ -78,11 +82,16 @@ export function PublishPage({ lessonId }: { lessonId: string }) {
 
   return (
     <div className="flex flex-col gap-5">
+      {returnTo && (
+        <Button asChild variant="secondary" size="sm" className="self-start">
+          <Link href={returnTo}>← Quay lại sự kiện</Link>
+        </Button>
+      )}
       <div className="flex flex-wrap items-center gap-3">
         <StatusChip status={lesson.status} />
         <span className="text-sm font-medium text-ink">{lesson.title}</span>
         <Button asChild variant="secondary" size="sm" className="ml-auto">
-          <Link href={`/lessons/${lesson.id}/preview`}>
+          <Link href={withReturnTo(`/lessons/${lesson.id}/preview`, returnTo)}>
             <Eye className="size-4" /> Xem trước
           </Link>
         </Button>

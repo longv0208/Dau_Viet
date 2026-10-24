@@ -2,11 +2,12 @@
 
 import { zodResolver } from "@hookform/resolvers/zod";
 import { useQuery } from "@tanstack/react-query";
-import { useRouter } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import { useState } from "react";
 import { useForm } from "react-hook-form";
 
 import { apiFetch, toQuery } from "@/lib/api-client";
+import { parseReturnTo } from "@/lib/return-to";
 import type { PageResponse } from "@/lib/dto/common";
 import type { AdminEventSummary } from "@/lib/dto/event";
 import type { AdminAsset, Evidence } from "@/lib/dto/evidence";
@@ -30,9 +31,14 @@ interface Props {
   initial?: Evidence;
 }
 
-/** Create/edit evidence. Shared between /evidence/new and /evidence/[id]. */
+/** Create/edit evidence. Shared between /evidence/new and /evidence/[id].
+ * `?event=<uuid>` pre-fills the event when creating from a workspace;
+ * `?return=<path>` redirects back after save (validated, else /evidence). */
 export function EvidenceForm({ initial }: Props) {
   const router = useRouter();
+  const searchParams = useSearchParams();
+  const presetEventId = searchParams.get("event") ?? "";
+  const returnTo = parseReturnTo(searchParams.get("return"));
   const isEdit = Boolean(initial);
   const [serverError, setServerError] = useState<string | null>(null);
   const [savedTick, setSavedTick] = useState(false);
@@ -78,7 +84,7 @@ export function EvidenceForm({ initial }: Props) {
           relevance: initial.relevance ?? "",
         }
       : {
-          eventId: "",
+          eventId: presetEventId,
           title: "",
           evidenceType: "",
           description: "",
@@ -107,6 +113,10 @@ export function EvidenceForm({ initial }: Props) {
       reset,
       setError,
       onSaved: () => {
+        if (returnTo) {
+          router.push(returnTo);
+          return;
+        }
         setSavedTick(true);
         setTimeout(() => setSavedTick(false), 3000);
       },
@@ -176,7 +186,7 @@ export function EvidenceForm({ initial }: Props) {
           type="button"
           variant="secondary"
           onClick={() => {
-            if (confirmDiscard(formDirty)) router.push("/evidence");
+            if (confirmDiscard(formDirty)) router.push(returnTo ?? "/evidence");
           }}
         >
           Huỷ

@@ -3,13 +3,14 @@
 import { zodResolver } from "@hookform/resolvers/zod";
 import { skipToken, useQuery, useQueryClient } from "@tanstack/react-query";
 import Link from "next/link";
-import { useRouter } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import { useState } from "react";
 import { useFieldArray, useForm } from "react-hook-form";
 import { z } from "zod";
 
 import { apiFetch } from "@/lib/api-client";
 import { ApiClientError, toUserMessage } from "@/lib/api-error";
+import { parseReturnTo, withReturnTo } from "@/lib/return-to";
 import type { AdminEventSummary } from "@/lib/dto/event";
 import type { AdminLessonDetail, LessonTemplate } from "@/lib/dto/lesson";
 import { applyServerFieldErrors } from "@/lib/form-utils";
@@ -53,6 +54,8 @@ function parseObjectives(json: string): { value: string }[] {
 /** A-07 — basic lesson metadata editor. */
 export function LessonBasicEditor({ lessonId }: { lessonId: string }) {
   const router = useRouter();
+  const searchParams = useSearchParams();
+  const returnTo = parseReturnTo(searchParams.get("return"));
   const qc = useQueryClient();
   const [serverError, setServerError] = useState<string | null>(null);
   const [savedTick, setSavedTick] = useState(false);
@@ -145,6 +148,11 @@ export function LessonBasicEditor({ lessonId }: { lessonId: string }) {
 
   return (
     <div className="flex flex-col gap-5">
+      {returnTo && (
+        <Button asChild variant="secondary" className="self-start">
+          <Link href={returnTo}>← Quay lại sự kiện</Link>
+        </Button>
+      )}
       <div className="flex flex-wrap items-center gap-3">
         <StatusChip status={lesson.status} />
         <span className="text-xs text-ink-muted">
@@ -258,7 +266,7 @@ export function LessonBasicEditor({ lessonId }: { lessonId: string }) {
                   type="button"
                   variant="secondary"
                   onClick={() => {
-                    if (confirmDiscard(isDirty)) router.push("/lessons");
+                    if (confirmDiscard(isDirty)) router.push(returnTo ?? "/lessons");
                   }}
                 >
                   Huỷ
@@ -282,14 +290,20 @@ export function LessonBasicEditor({ lessonId }: { lessonId: string }) {
           </p>
           <div className="flex flex-wrap gap-2">
             <Button asChild variant="secondary">
-              <Link href={`/lessons/${lesson.id}/builder`}>Mở trình soạn bài học</Link>
+              <Link href={withReturnTo(`/lessons/${lesson.id}/builder`, returnTo)}>
+                Mở trình soạn bài học
+              </Link>
             </Button>
             <Button asChild variant="secondary">
-              <Link href={`/lessons/${lesson.id}/preview`}>Xem trước</Link>
+              <Link href={withReturnTo(`/lessons/${lesson.id}/preview`, returnTo)}>
+                Xem trước
+              </Link>
             </Button>
             {!archived && (
               <Button asChild>
-                <Link href={`/lessons/${lesson.id}/publish`}>Xuất bản</Link>
+                <Link href={withReturnTo(`/lessons/${lesson.id}/publish`, returnTo)}>
+                  Xuất bản
+                </Link>
               </Button>
             )}
           </div>

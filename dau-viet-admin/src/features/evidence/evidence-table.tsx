@@ -5,6 +5,7 @@ import { useState } from "react";
 import { useQuery, keepPreviousData } from "@tanstack/react-query";
 
 import { apiFetch, toQuery } from "@/lib/api-client";
+import { withReturnTo } from "@/lib/return-to";
 import type { PageResponse } from "@/lib/dto/common";
 import type { AdminEventSummary } from "@/lib/dto/event";
 import type { Evidence, EvidenceStatus } from "@/lib/dto/evidence";
@@ -19,12 +20,24 @@ import { evidenceTypeLabel } from "./evidence-labels";
 
 const PAGE_SIZE = 20;
 
-/** /evidence — real list wired to GET /admin/evidences with q + status + event filters. */
-export function EvidenceTable() {
+/**
+ * /evidence — real list wired to GET /admin/evidences with q + status +
+ * event filters. `lockedEventId` pins the list to one event (workspace
+ * context): the event dropdown + "Sự kiện" column hide and row links get
+ * `?return=<returnTo>`.
+ */
+export function EvidenceTable({
+  lockedEventId,
+  returnTo,
+}: {
+  lockedEventId?: string;
+  returnTo?: string | null;
+}) {
   const [searchInput, setSearchInput] = useState("");
   const [q, setQ] = useState("");
   const [status, setStatus] = useState<EvidenceStatus | "">("");
-  const [eventId, setEventId] = useState("");
+  const [eventIdFilter, setEventIdFilter] = useState("");
+  const eventId = lockedEventId ?? eventIdFilter;
   const [page, setPage] = useState(0);
 
   const eventsQuery = useQuery({
@@ -61,7 +74,10 @@ export function EvidenceTable() {
       key: "title",
       header: "Tiêu đề",
       cell: (r) => (
-        <Link href={`/evidence/${r.id}`} className="font-medium text-ink hover:underline">
+        <Link
+          href={withReturnTo(`/evidence/${r.id}`, returnTo ?? null)}
+          className="font-medium text-ink hover:underline"
+        >
           {r.title}
         </Link>
       ),
@@ -71,15 +87,19 @@ export function EvidenceTable() {
       header: "Loại",
       cell: (r) => <span className="text-sm">{evidenceTypeLabel(r.evidenceType)}</span>,
     },
-    {
-      key: "eventId",
-      header: "Sự kiện",
-      cell: (r) => (
-        <span className="text-xs text-ink-muted">
-          {eventsById.get(r.eventId) ?? "—"}
-        </span>
-      ),
-    },
+    ...(lockedEventId
+      ? []
+      : [
+          {
+            key: "eventId",
+            header: "Sự kiện",
+            cell: (r: Evidence) => (
+              <span className="text-xs text-ink-muted">
+                {eventsById.get(r.eventId) ?? "—"}
+              </span>
+            ),
+          } satisfies Column<Evidence>,
+        ]),
     {
       key: "source",
       header: "Nguồn",
@@ -99,7 +119,10 @@ export function EvidenceTable() {
       key: "actions",
       header: "",
       cell: (r) => (
-        <Link href={`/evidence/${r.id}`} className="text-sm text-primary hover:underline">
+        <Link
+          href={withReturnTo(`/evidence/${r.id}`, returnTo ?? null)}
+          className="text-sm text-primary hover:underline"
+        >
           Sửa
         </Link>
       ),
@@ -129,22 +152,24 @@ export function EvidenceTable() {
             Tìm
           </Button>
         </form>
-        <Select
-          value={eventId}
-          onChange={(e) => {
-            setEventId(e.target.value);
-            setPage(0);
-          }}
-          aria-label="Lọc theo sự kiện"
-          className="w-56"
-        >
-          <option value="">Tất cả sự kiện</option>
-          {(eventsQuery.data?.content ?? []).map((ev) => (
-            <option key={ev.id} value={ev.id}>
-              {ev.title}
-            </option>
-          ))}
-        </Select>
+        {!lockedEventId && (
+          <Select
+            value={eventIdFilter}
+            onChange={(e) => {
+              setEventIdFilter(e.target.value);
+              setPage(0);
+            }}
+            aria-label="Lọc theo sự kiện"
+            className="w-56"
+          >
+            <option value="">Tất cả sự kiện</option>
+            {(eventsQuery.data?.content ?? []).map((ev) => (
+              <option key={ev.id} value={ev.id}>
+                {ev.title}
+              </option>
+            ))}
+          </Select>
+        )}
         <Select
           value={status}
           onChange={(e) => {

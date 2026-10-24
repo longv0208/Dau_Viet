@@ -67,6 +67,7 @@ export const qk = {
       status?: string;
       q?: string;
       templateId?: string;
+      eventId?: string;
     }) => ["animation-scenes", "list", params ?? {}] as const,
     detail: (id: string) => ["animation-scenes", "detail", id] as const,
     versions: (id: string) => ["animation-scenes", "versions", id] as const,

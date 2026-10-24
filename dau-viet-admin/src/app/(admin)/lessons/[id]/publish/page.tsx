@@ -1,5 +1,8 @@
+import { Suspense } from "react";
+
 import { PageHeader } from "@/components/page-header";
 import { PublishPage } from "@/features/lessons/publish/publish-page";
+import { Skeleton } from "@/components/ui/skeleton";
 
 export const metadata = { title: "Xuất bản — Dấu Việt CMS" };
 
@@ -15,7 +18,9 @@ export default async function LessonPublishRoute({
         title="Xuất bản bài học"
         description="Kiểm tra sẵn sàng và phát hành phiên bản mới cho học viên."
       />
-      <PublishPage lessonId={id} />
+      <Suspense fallback={<Skeleton className="h-96 w-full" />}>
+        <PublishPage lessonId={id} />
+      </Suspense>
     </div>
   );
 }

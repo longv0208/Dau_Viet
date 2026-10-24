@@ -1,21 +1,22 @@
-import { PageHeader } from "@/components/page-header";
-import { EventEditorPage } from "@/features/events/event-editor-page";
+import { EventWorkspacePage } from "@/features/events/workspace/event-workspace-page";
+import { parseEventTab } from "@/features/events/workspace/types";
 
-export const metadata = { title: "Chỉnh sửa sự kiện — Dấu Việt CMS" };
+export const metadata = { title: "Sự kiện — Dấu Việt CMS" };
 
+/**
+ * Event Workspace — hub quản lý toàn bộ nội dung của một sự kiện.
+ * Tab điều khiển bởi `?tab=` search param: overview (default) / lessons /
+ * hoc-lieu / info. Giữ URL `/events/[id]` làm điểm vào duy nhất — mọi tab
+ * đều deep-link được và F5 giữ nguyên tab.
+ */
 export default async function EventDetailPage({
   params,
+  searchParams,
 }: {
   params: Promise<{ id: string }>;
+  searchParams: Promise<{ tab?: string }>;
 }) {
   const { id } = await params;
-  return (
-    <div>
-      <PageHeader
-        title="Sự kiện"
-        description="Xem và chỉnh sửa thông tin sự kiện lịch sử."
-      />
-      <EventEditorPage eventId={id} />
-    </div>
-  );
+  const { tab } = await searchParams;
+  return <EventWorkspacePage eventId={id} tab={parseEventTab(tab)} />;
 }

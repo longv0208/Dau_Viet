@@ -26,14 +26,16 @@ import { SessionBootstrap } from "@/features/auth/session-bootstrap";
 
 import { Breadcrumbs } from "./breadcrumbs";
 
+// Sự kiện là điểm vào chính — Event Workspace gom bài học/bằng chứng/hoạt họa
+// theo sự kiện. Các mục còn lại là thư viện dùng chung toàn hệ thống.
 const NAV_ITEMS = [
   { href: "/dashboard", label: "Tổng quan", icon: LayoutDashboard },
   { href: "/events", label: "Sự kiện", icon: Calendar },
-  { href: "/lessons", label: "Bài học", icon: BookOpen },
-  { href: "/evidence", label: "Bằng chứng", icon: FileText },
   { href: "/templates", label: "Mẫu bài học", icon: LayoutTemplate },
   { href: "/assets", label: "Thư viện media", icon: ImageIcon },
   { href: "/animations", label: "Hoạt họa lịch sử", icon: Film },
+  { href: "/lessons", label: "Bài học", icon: BookOpen },
+  { href: "/evidence", label: "Bằng chứng", icon: FileText },
   { href: "/versions", label: "Phiên bản", icon: History },
   { href: "/items", label: "Vật phẩm thưởng", icon: Gift },
 ];

@@ -10,6 +10,7 @@ import { z } from "zod";
 
 import { apiFetch } from "@/lib/api-client";
 import { toUserMessage } from "@/lib/api-error";
+import { parseReturnTo } from "@/lib/return-to";
 import type { PageResponse } from "@/lib/dto/common";
 import type { AdminEventSummary } from "@/lib/dto/event";
 import type { AdminLessonDetail, LessonTemplate } from "@/lib/dto/lesson";
@@ -49,6 +50,7 @@ export function LessonWizard() {
   const presetEvent = searchParams.get("event") ?? undefined;
 
   const presetTemplate = searchParams.get("template") ?? undefined;
+  const returnTo = parseReturnTo(searchParams.get("return"));
 
   const [step, setStep] = useState(1);
   const [eventId, setEventId] = useState<string | undefined>(presetEvent);
@@ -103,7 +105,9 @@ export function LessonWizard() {
         }),
       });
       qc.invalidateQueries({ queryKey: ["lessons"] });
-      router.push(`/lessons/${res.id}`);
+      // Back to the workspace tab that launched the wizard when one was
+      // provided; otherwise open the new lesson as before.
+      router.push(returnTo ?? `/lessons/${res.id}`);
     } catch (err) {
       setServerError(toUserMessage(err));
       setSubmitting(false);

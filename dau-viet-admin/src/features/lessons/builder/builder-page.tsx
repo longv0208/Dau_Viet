@@ -3,10 +3,12 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Eye, Save, UploadCloud } from "lucide-react";
 import Link from "next/link";
+import { useSearchParams } from "next/navigation";
 import { useMemo, useState } from "react";
 
 import { apiFetch } from "@/lib/api-client";
 import { ApiClientError, toUserMessage } from "@/lib/api-error";
+import { parseReturnTo, withReturnTo } from "@/lib/return-to";
 import type { AdminLessonDetail } from "@/lib/dto/lesson";
 import { qk } from "@/lib/query-keys";
 import { Button } from "@/components/ui/button";
@@ -48,6 +50,8 @@ function readServerErrors(err: ApiClientError): FieldError[] {
 
 export function BuilderPage({ lessonId }: { lessonId: string }) {
   const qc = useQueryClient();
+  const searchParams = useSearchParams();
+  const returnTo = parseReturnTo(searchParams.get("return"));
   const [conflict, setConflict] = useState(false);
   const [seedKey, setSeedKey] = useState(0);
 
@@ -99,6 +103,7 @@ export function BuilderPage({ lessonId }: { lessonId: string }) {
       key={`${lesson.id}:${seedKey}`}
       lesson={lesson}
       initialDraft={initialDraft}
+      returnTo={returnTo}
       onConflict={() => setConflict(true)}
       conflict={conflict}
       onReload={async () => {
@@ -113,12 +118,14 @@ export function BuilderPage({ lessonId }: { lessonId: string }) {
 function BuilderInner({
   lesson,
   initialDraft,
+  returnTo,
   conflict,
   onConflict,
   onReload,
 }: {
   lesson: AdminLessonDetail;
   initialDraft: ReturnType<typeof parseDraft>;
+  returnTo: string | null;
   conflict: boolean;
   onConflict: () => void;
   onReload: () => void;
@@ -171,6 +178,11 @@ function BuilderInner({
 
   return (
     <div className="flex flex-col gap-4">
+      {returnTo && (
+        <Button asChild variant="secondary" size="sm" className="self-start">
+          <Link href={returnTo}>← Quay lại sự kiện</Link>
+        </Button>
+      )}
       {/* Thanh trạng thái + lưu */}
       <div className="flex flex-wrap items-center gap-3">
         <StatusChip status={lesson.status} />
@@ -199,13 +211,13 @@ function BuilderInner({
           variant="secondary"
           title={state.dirty ? "Có thay đổi chưa lưu — preview sẽ dùng bản đã lưu gần nhất" : undefined}
         >
-          <Link href={`/lessons/${lesson.id}/preview`}>
+          <Link href={withReturnTo(`/lessons/${lesson.id}/preview`, returnTo)}>
             <Eye className="size-4" />
             {state.dirty ? "Xem trước (bản đã lưu)" : "Xem trước"}
           </Link>
         </Button>
         <Button asChild variant="secondary">
-          <Link href={`/lessons/${lesson.id}/publish`}>
+          <Link href={withReturnTo(`/lessons/${lesson.id}/publish`, returnTo)}>
             <UploadCloud className="size-4" />
             Xuất bản
           </Link>

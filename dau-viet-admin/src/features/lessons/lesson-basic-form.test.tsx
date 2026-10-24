@@ -12,6 +12,7 @@ import { LessonBasicEditor } from "./lesson-basic-form";
 const pushMock = vi.fn();
 vi.mock("next/navigation", () => ({
   useRouter: () => ({ push: pushMock, replace: vi.fn() }),
+  useSearchParams: () => new URLSearchParams(),
 }));
 
 function renderEditor(id = "33333333-3333-3333-3333-333333333333") {

@@ -99,7 +99,7 @@ export function VerificationEditor(props: EditorProps) {
           Để trống = không giới hạn (mặc định cũ). Khi hết lượt ở kết quả
           PARTIAL/CONTRADICTED, hoạt động tính là đã duyệt (exhausted) và học
           viên đi tiếp — kết quả không được nâng thành SUPPORTED; phản hồi
-          "Khi hết lượt thử" ở phần trên sẽ hiển thị cho học viên.
+          &ldquo;Khi hết lượt thử&rdquo; ở phần trên sẽ hiển thị cho học viên.
         </p>
       </div>
     </div>

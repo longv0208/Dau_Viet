@@ -3,10 +3,12 @@
 import { useMutation } from "@tanstack/react-query";
 import { RefreshCw } from "lucide-react";
 import Link from "next/link";
+import { useSearchParams } from "next/navigation";
 import { useEffect, useMemo, useState } from "react";
 
 import { apiFetch } from "@/lib/api-client";
 import { toUserMessage } from "@/lib/api-error";
+import { parseReturnTo, withReturnTo } from "@/lib/return-to";
 import type { LearnerLessonContent } from "@/lib/dto/publish";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -23,6 +25,8 @@ import { StageView } from "./stage-view";
  * scoring, no submission, no attempt records.
  */
 export function PreviewPage({ lessonId }: { lessonId: string }) {
+  const searchParams = useSearchParams();
+  const returnTo = parseReturnTo(searchParams.get("return"));
   const preview = useMutation({
     mutationFn: () =>
       apiFetch<LearnerLessonContent>(`/admin/lessons/${lessonId}/preview`, {
@@ -81,7 +85,9 @@ export function PreviewPage({ lessonId }: { lessonId: string }) {
             Tải lại
           </Button>
           <Button asChild variant="secondary" size="sm">
-            <Link href={`/lessons/${lessonId}/builder`}>Quay lại trình soạn</Link>
+            <Link href={withReturnTo(`/lessons/${lessonId}/builder`, returnTo)}>
+              Quay lại trình soạn
+            </Link>
           </Button>
         </div>
       </div>
@@ -105,7 +111,10 @@ export function PreviewPage({ lessonId }: { lessonId: string }) {
             <div className="rounded-md border border-dashed border-border px-6 py-12 text-center">
               <p className="text-sm text-ink-muted">
                 Bản nháp chưa có giai đoạn nào — quay lại{" "}
-                <Link href={`/lessons/${lessonId}/builder`} className="text-brand hover:underline">
+                <Link
+                  href={withReturnTo(`/lessons/${lessonId}/builder`, returnTo)}
+                  className="text-brand hover:underline"
+                >
                   trình soạn bài học
                 </Link>{" "}
                 để thêm nội dung.

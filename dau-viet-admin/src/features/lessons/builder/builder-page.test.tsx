@@ -13,6 +13,7 @@ const LESSON_ID = "33333333-3333-3333-3333-333333333333";
 
 vi.mock("next/navigation", () => ({
   useRouter: () => ({ push: vi.fn(), replace: vi.fn() }),
+  useSearchParams: () => new URLSearchParams(),
 }));
 
 function renderBuilder(id = LESSON_ID) {

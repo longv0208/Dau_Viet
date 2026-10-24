@@ -14,6 +14,7 @@ const DRAFT_LESSON = "55555555-5555-5555-5555-555555555555";
 
 vi.mock("next/navigation", () => ({
   useRouter: () => ({ push: vi.fn() }),
+  useSearchParams: () => new URLSearchParams(),
 }));
 
 function renderPage(id = LESSON_ID) {

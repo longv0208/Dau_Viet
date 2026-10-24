@@ -5,6 +5,7 @@ import { useState } from "react";
 import { useQuery, keepPreviousData } from "@tanstack/react-query";
 
 import { apiFetch, toQuery } from "@/lib/api-client";
+import { withReturnTo } from "@/lib/return-to";
 import type { PageResponse } from "@/lib/dto/common";
 import type { AdminEventSummary } from "@/lib/dto/event";
 import type { AdminLessonSummary, LessonStatus } from "@/lib/dto/lesson";
@@ -17,12 +18,25 @@ import { Select } from "@/components/ui/select";
 
 const PAGE_SIZE = 20;
 
-/** /lessons — real list wired to GET /admin/lessons with event/status/q filters. */
-export function LessonsTable() {
+/**
+ * /lessons — real list wired to GET /admin/lessons with event/status/q
+ * filters. `lockedEventId` pins the list to one event (workspace context):
+ * the event dropdown + "Sự kiện" column hide, and every row link gets
+ * `?return=<returnTo>` so the admin lands back on the right tab after
+ * editing.
+ */
+export function LessonsTable({
+  lockedEventId,
+  returnTo,
+}: {
+  lockedEventId?: string;
+  returnTo?: string | null;
+}) {
   const [searchInput, setSearchInput] = useState("");
   const [q, setQ] = useState("");
   const [status, setStatus] = useState<LessonStatus | "">("");
-  const [eventId, setEventId] = useState("");
+  const [eventIdFilter, setEventIdFilter] = useState("");
+  const eventId = lockedEventId ?? eventIdFilter;
   const [page, setPage] = useState(0);
 
   const eventsQuery = useQuery({
@@ -59,18 +73,27 @@ export function LessonsTable() {
       key: "title",
       header: "Tiêu đề",
       cell: (r) => (
-        <Link href={`/lessons/${r.id}`} className="font-medium text-ink hover:underline">
+        <Link
+          href={withReturnTo(`/lessons/${r.id}`, returnTo ?? null)}
+          className="font-medium text-ink hover:underline"
+        >
           {r.title}
         </Link>
       ),
     },
-    {
-      key: "eventId",
-      header: "Sự kiện",
-      cell: (r) => (
-        <span className="text-xs text-ink-muted">{eventsById.get(r.eventId) ?? "—"}</span>
-      ),
-    },
+    ...(lockedEventId
+      ? []
+      : [
+          {
+            key: "eventId",
+            header: "Sự kiện",
+            cell: (r: AdminLessonSummary) => (
+              <span className="text-xs text-ink-muted">
+                {eventsById.get(r.eventId) ?? "—"}
+              </span>
+            ),
+          } satisfies Column<AdminLessonSummary>,
+        ]),
     { key: "status", header: "Trạng thái", cell: (r) => <StatusChip status={r.status} /> },
     {
       key: "version",
@@ -87,11 +110,26 @@ export function LessonsTable() {
       header: "",
       cell: (r) => (
         <div className="flex items-center gap-3">
-          <Link href={`/lessons/${r.id}`} className="text-sm text-primary hover:underline">
+          <Link
+            href={withReturnTo(`/lessons/${r.id}`, returnTo ?? null)}
+            className="text-sm text-primary hover:underline"
+          >
             Mở
           </Link>
           <Link
-            href={`/versions?lesson=${r.id}`}
+            href={withReturnTo(`/lessons/${r.id}/preview`, returnTo ?? null)}
+            className="text-sm text-ink-muted hover:underline"
+          >
+            Xem trước
+          </Link>
+          <Link
+            href={withReturnTo(`/lessons/${r.id}/publish`, returnTo ?? null)}
+            className="text-sm text-ink-muted hover:underline"
+          >
+            Xuất bản
+          </Link>
+          <Link
+            href={withReturnTo(`/versions?lesson=${r.id}`, returnTo ?? null)}
             className="text-sm text-ink-muted hover:underline"
           >
             Phiên bản
@@ -124,22 +162,24 @@ export function LessonsTable() {
             Tìm
           </Button>
         </form>
-        <Select
-          value={eventId}
-          onChange={(e) => {
-            setEventId(e.target.value);
-            setPage(0);
-          }}
-          aria-label="Lọc theo sự kiện"
-          className="w-56"
-        >
-          <option value="">Tất cả sự kiện</option>
-          {(eventsQuery.data?.content ?? []).map((ev) => (
-            <option key={ev.id} value={ev.id}>
-              {ev.title}
-            </option>
-          ))}
-        </Select>
+        {!lockedEventId && (
+          <Select
+            value={eventIdFilter}
+            onChange={(e) => {
+              setEventIdFilter(e.target.value);
+              setPage(0);
+            }}
+            aria-label="Lọc theo sự kiện"
+            className="w-56"
+          >
+            <option value="">Tất cả sự kiện</option>
+            {(eventsQuery.data?.content ?? []).map((ev) => (
+              <option key={ev.id} value={ev.id}>
+                {ev.title}
+              </option>
+            ))}
+          </Select>
+        )}
         <Select
           value={status}
           onChange={(e) => {

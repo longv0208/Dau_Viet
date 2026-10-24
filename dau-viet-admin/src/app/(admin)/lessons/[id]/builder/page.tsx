@@ -1,5 +1,8 @@
+import { Suspense } from "react";
+
 import { PageHeader } from "@/components/page-header";
 import { BuilderPage } from "@/features/lessons/builder/builder-page";
+import { Skeleton } from "@/components/ui/skeleton";
 
 export const metadata = { title: "Soạn bài học — Dấu Việt CMS" };
 
@@ -15,7 +18,9 @@ export default async function LessonBuilderRoute({
         title="Soạn giai đoạn & hoạt động"
         description="Xây dựng cấu trúc bài học trực quan — lưu vào bản nháp."
       />
-      <BuilderPage lessonId={id} />
+      <Suspense fallback={<Skeleton className="h-[28rem] w-full" />}>
+        <BuilderPage lessonId={id} />
+      </Suspense>
     </div>
   );
 }

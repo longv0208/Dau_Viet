@@ -22,6 +22,7 @@ export interface SceneListParams {
   status?: string;
   q?: string;
   templateId?: string;
+  eventId?: string;
   sort?: string;
 }
 
