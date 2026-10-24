@@ -8,6 +8,8 @@ import java.util.UUID;
 
 import org.springframework.stereotype.Component;
 
+import jakarta.persistence.EntityManager;
+
 import com.dauviet.collection.infrastructure.persistence.EventCompletionPolicyRepository;
 import com.dauviet.historicalevent.domain.EventStatus;
 import com.dauviet.historicalevent.infrastructure.persistence.HistoricalEventRepository;
@@ -41,15 +43,18 @@ public class ItemConditionValidator {
     private final EventCompletionPolicyRepository policies;
     private final LessonRepository lessons;
     private final EvidenceRepository evidences;
+    private final EntityManager em;
 
     public ItemConditionValidator(HistoricalEventRepository events,
             EventCompletionPolicyRepository policies,
             LessonRepository lessons,
-            EvidenceRepository evidences) {
+            EvidenceRepository evidences,
+            EntityManager em) {
         this.events = events;
         this.policies = policies;
         this.lessons = lessons;
         this.evidences = evidences;
+        this.em = em;
     }
 
     /** Validate toàn bộ AST trước khi insert rule v2. */
@@ -178,6 +183,48 @@ public class ItemConditionValidator {
                         "evidence " + id + " does not belong to event "
                         + leaf.eventId() + " or is not usable");
             }
+            // FIX-6: evidence phải THỰC SỰ collect được — xuất hiện trong
+            // mảng snapshot.evidence[] của một bài học PUBLISHED hiện tại
+            // (snapshot root embed mọi evidence mà draft tham chiếu qua
+            // visibleEvidenceIds / requiredEvidenceIds / acceptedEvidenceIds /
+            // evidenceRefs / evidenceOptions), HOẶC đã từng được learner
+            // collect (user_evidence row tồn tại — evidence lấy từ phiên
+            // bản cũ đã rút vẫn giữ quyền, không mất entitlement). Rule
+            // yêu cầu evidence không ai collect được là cấu hình chết.
+            if (!isCollectible(id)) {
+                throw new ItemRuleException(
+                        "evidence " + id + " is not collectible: absent "
+                        + "from every published lesson snapshot and never "
+                        + "collected before");
+            }
         }
+    }
+
+    /**
+     * Evidence "collect được" khi nằm trong snapshot.evidence[] của ít
+     * nhất một lesson PUBLISHED (current_version), hoặc đã có ít nhất
+     * một learner collect từ phiên bản trước (snapshot cũ đã gỡ nhưng
+     * entitlement phải giữ — rule vẫn có thể đạt cho người đã sưu tầm).
+     * Không suy ra từ title/tag — chỉ đọc cấu trúc đã publish.
+     */
+    private boolean isCollectible(UUID evidenceId) {
+        Number inSnapshot = (Number) em.createNativeQuery("""
+                SELECT COUNT(*) FROM lesson_versions lv
+                JOIN lessons l ON l.current_version_id = lv.id
+                WHERE l.status = 'PUBLISHED'
+                  AND EXISTS (
+                    SELECT 1 FROM jsonb_array_elements(
+                        lv.snapshot_json -> 'evidence') e
+                    WHERE e ->> 'id' = :eid
+                  )
+                """)
+                .setParameter("eid", evidenceId.toString())
+                .getSingleResult();
+        if (inSnapshot.longValue() > 0) return true;
+        Number collected = (Number) em.createNativeQuery(
+                "SELECT COUNT(*) FROM user_evidence WHERE evidence_id = :eid")
+                .setParameter("eid", evidenceId)
+                .getSingleResult();
+        return collected.longValue() > 0;
     }
 }

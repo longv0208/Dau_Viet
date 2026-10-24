@@ -159,13 +159,25 @@ void main() {
 
   group('FIX-2 — countdown chạy thật theo đồng hồ đơn điệu', () {
     int fakeMicros = 0;
+    DateTime? fakeNowUtc;
     void Function()? restore;
+    void Function()? restoreNow;
 
     setUp(() {
       fakeMicros = 0;
+      fakeNowUtc = null;
       restore = debugOverrideEnergyClock(() => fakeMicros);
+      // Ép mốc "device-now" cố định để fallback khi thiếu serverTime có
+      // thể so giây chính xác — không phụ thuộc thời gian thực giữa lúc
+      // tạo mốc next và lúc constructor chạy.
+      restoreNow = debugOverrideEnergyNow(
+        () => fakeNowUtc ?? DateTime.now().toUtc(),
+      );
     });
-    tearDown(() => restore?.call());
+    tearDown(() {
+      restore?.call();
+      restoreNow?.call();
+    });
 
     EnergyStateDto dtoAt({
       required int current,
@@ -231,15 +243,19 @@ void main() {
     });
 
     test('thiếu serverTime → fallback mốc device lúc parse, vẫn đếm', () {
-      final next = DateTime.now().toUtc().add(const Duration(seconds: 30));
+      // Chốt device-now để next − serverNowAtParse = đúng 30s — so giây
+      // trên mốc giả, không trên DateTime.now() thật (inSeconds floor
+      // từng làm CI fail 30 → 29).
+      fakeNowUtc = DateTime.utc(2026, 10, 25, 10, 0);
+      final next = fakeNowUtc!.add(const Duration(seconds: 30));
       final dto = EnergyStateDto(
         current: 50,
         max: 100,
         nextRecoveryAt: next,
-      ); // serverTime null
-      expect(dto.timeUntilNextRecovery()!.inSeconds, 30);
+      ); // serverTime null → serverNowAtParse = fakeNowUtc
+      expect(dto.timeUntilNextRecovery(), const Duration(seconds: 30));
       fakeMicros = const Duration(seconds: 10).inMicroseconds;
-      expect(dto.timeUntilNextRecovery()!.inSeconds, 20);
+      expect(dto.timeUntilNextRecovery(), const Duration(seconds: 20));
     });
   });
 }

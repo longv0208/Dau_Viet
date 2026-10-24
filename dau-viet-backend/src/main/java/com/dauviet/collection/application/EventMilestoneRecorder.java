@@ -16,7 +16,9 @@ import com.dauviet.collection.infrastructure.persistence.EventDossierRepository;
 import com.dauviet.collection.infrastructure.persistence.HistoricalDossierRepository;
 import com.dauviet.collection.infrastructure.persistence.UserDossierUnlockRepository;
 import com.dauviet.collection.infrastructure.persistence.UserEventProgressRepository;
+import com.dauviet.reward.application.ItemUnlockService;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import org.springframework.context.annotation.Lazy;
 
 import jakarta.persistence.EntityManager;
 
@@ -44,6 +46,7 @@ public class EventMilestoneRecorder {
     private final EventDossierRepository eventDossiers;
     private final HistoricalDossierRepository dossiers;
     private final UserDossierUnlockRepository unlocks;
+    private final ItemUnlockService itemUnlocks;
     private final ObjectMapper mapper;
 
     public EventMilestoneRecorder(EntityManager entityManager,
@@ -53,6 +56,7 @@ public class EventMilestoneRecorder {
             EventDossierRepository eventDossiers,
             HistoricalDossierRepository dossiers,
             UserDossierUnlockRepository unlocks,
+            @Lazy ItemUnlockService itemUnlocks,
             ObjectMapper mapper) {
         this.entityManager = entityManager;
         this.policyService = policyService;
@@ -61,6 +65,7 @@ public class EventMilestoneRecorder {
         this.eventDossiers = eventDossiers;
         this.dossiers = dossiers;
         this.unlocks = unlocks;
+        this.itemUnlocks = itemUnlocks;
         this.mapper = mapper;
     }
 
@@ -94,10 +99,12 @@ public class EventMilestoneRecorder {
         Set<UUID> newlyUnlocked = new LinkedHashSet<>();
         boolean completedAlready = progress.exists(userId, eventId,
                 UserEventProgress.Milestone.EVENT_COMPLETED.name());
+        boolean newCompleted = false;
         if (ev.completed() && !completedAlready) {
             progress.insertIgnore(userId, eventId,
                     UserEventProgress.Milestone.EVENT_COMPLETED.name(),
                     policy.getPolicyVersion(), snapshot);
+            newCompleted = true;
         }
         // Fan-out dossier khi (a) mới grant EVENT_COMPLETED, HOẶC (b) đã
         // grant nhưng admin publish/link thêm dossier sau (FIX 4).
@@ -105,12 +112,23 @@ public class EventMilestoneRecorder {
         if (ev.completed() || completedAlready) {
             fanOutDossierUnlocks(userId, eventId, newlyUnlocked);
         }
+        boolean newMastered = false;
         if (ev.mastered()
                 && !progress.exists(userId, eventId,
                         UserEventProgress.Milestone.EVENT_MASTERED.name())) {
             progress.insertIgnore(userId, eventId,
                     UserEventProgress.Milestone.EVENT_MASTERED.name(),
                     policy.getPolicyVersion(), snapshot);
+            newMastered = true;
+        }
+        // GAME-05 FIX-3: milestone MỚI ghi xong → đánh giá item rules ngay
+        // trong cùng tx (realtime doComplete gọi lại sau — insertIgnore +
+        // cause_key làm lần thứ hai no-op, không double-grant). Reconcile
+        // (progressOf/DossierService) qua đây cũng trigger được item unlock
+        // cho learner pre-GAME-05. Chỉ khi milestone MỚI — không đánh giá
+        // thừa mỗi lần đọc lại.
+        if (newCompleted || newMastered) {
+            itemUnlocks.evaluateAfterEventMilestone(userId, eventId);
         }
         return newlyUnlocked;
     }

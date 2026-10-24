@@ -4,6 +4,7 @@ import java.util.Map;
 
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
 import com.dauviet.reward.application.ItemUnlockService;
@@ -39,10 +40,19 @@ public class AdminRewardController {
      * Bù inventory cho learner đã đạt rule ACTIVE theo tiến độ lịch sử
      * (rule được tạo/sửa SAU khi họ hoàn thành). Chỉ cấp thiếu — không
      * revoke, không cấp EXP/History Points, không đụng trạng thái attempt.
+     *
+     * FIX-7: mặc định chạy THEO BATCH (keyset pagination trên user_id —
+     * không load toàn bộ candidate ids vào một tx dài); `batchSize=0`
+     * giữ đường một-lần cũ cho dataset nhỏ. Trả thêm usersScanned/
+     * batches để admin audit được phạm vi quét.
      */
     @PostMapping("/reconcile-unlocks")
-    public Map<String, Object> reconcileUnlocks() {
-        int granted = unlocks.reconcileUnlocks();
-        return Map.of("itemsGranted", granted);
+    public Map<String, Object> reconcileUnlocks(
+            @RequestParam(name = "batchSize", required = false)
+            Integer batchSize) {
+        if (batchSize != null && batchSize == 0) {
+            return Map.of("itemsGranted", unlocks.reconcileUnlocks());
+        }
+        return unlocks.reconcileBatched(batchSize == null ? 200 : batchSize);
     }
 }

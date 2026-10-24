@@ -2,6 +2,8 @@ package com.dauviet.reward.application;
 
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Map;
+import java.util.Set;
 import java.util.UUID;
 
 import org.springframework.stereotype.Component;
@@ -17,12 +19,51 @@ import com.fasterxml.jackson.databind.ObjectMapper;
  * ALL/ANY không được là operator khác (không arbitrary nesting, review
  * được bằng mắt). Mọi JSON lệch grammar → {@link ItemRuleException}
  * (400 tại admin endpoint), không bao giờ len lỏi parse lỏng.
+ *
+ * STRICT SHAPE (GAME-05 FIX-2): không silent-ignore trường thừa —
+ *  - node operator chỉ được đúng một key ("all" XOR "any"): {"all":…,"any":…},
+ *    {"all":…,"type":…} hay {"all":…,"extra":…} đều reject;
+ *  - leaf chỉ chấp nhận các trường THUỘC shape của type (ví dụ
+ *    COLLECTION_COUNT không được có eventId — eventId trước đây bị bỏ
+ *    qua âm thầm làm admin tưởng rule event-scoped);
+ *  - trường bắt buộc phải có mặt + đúng kiểu (phân biệt thiếu/null/sai
+ *    kiểu); field lạ (typo như "threshhold") bị reject thay vì bỏ qua.
  */
 @Component
 public class ItemConditionParser {
 
     /** Root là depth 0; ALL/ANY nằm depth 1 — con của chúng phải là leaf. */
     static final int MAX_DEPTH = 2;
+
+    /**
+     * Trường được phép trên leaf theo từng type (FIX-2). "type" luôn bắt
+     * buộc nên không liệt kê. Trường hợp lệ nhưng không thuộc shape của
+     * type khai báo → reject (không infer eventId cho rule global).
+     */
+    private static final Map<ItemCondition.LeafType, Set<String>>
+            ALLOWED_LEAF_FIELDS = Map.ofEntries(
+            Map.entry(ItemCondition.LeafType.LESSON_COMPLETED,
+                    Set.of("lessonId")),
+            Map.entry(ItemCondition.LeafType.LESSON_MASTERED,
+                    Set.of("lessonId", "threshold")),
+            Map.entry(ItemCondition.LeafType.COLLECTION_COUNT,
+                    Set.of("threshold")),
+            Map.entry(ItemCondition.LeafType.LESSON_COUNT,
+                    Set.of("threshold")),
+            Map.entry(ItemCondition.LeafType.EVENT_COMPLETED,
+                    Set.of("eventId")),
+            Map.entry(ItemCondition.LeafType.EVENT_MASTERED,
+                    Set.of("eventId")),
+            Map.entry(ItemCondition.LeafType.EVENT_EVIDENCE_COUNT,
+                    Set.of("eventId", "threshold")),
+            Map.entry(ItemCondition.LeafType.SPECIFIC_EVIDENCE_SET,
+                    Set.of("eventId", "evidenceIds")),
+            Map.entry(ItemCondition.LeafType.TOTAL_EVENTS_COMPLETED,
+                    Set.of("threshold")),
+            Map.entry(ItemCondition.LeafType.TOTAL_EVENTS_MASTERED,
+                    Set.of("threshold")),
+            Map.entry(ItemCondition.LeafType.LEVEL_AT_LEAST,
+                    Set.of("level")));
 
     private final ObjectMapper mapper;
 
@@ -55,23 +96,38 @@ public class ItemConditionParser {
             throw new ItemRuleException(
                     "condition must be an object at depth " + depth);
         }
-        if (node.has("all")) return parseOperator(node.get("all"), true, depth);
-        if (node.has("any")) return parseOperator(node.get("any"), false, depth);
+        boolean hasAll = node.has("all");
+        boolean hasAny = node.has("any");
+        if (hasAll || hasAny) {
+            return parseOperator(node, hasAll, depth);
+        }
         return parseLeaf(node, depth);
     }
 
-    private ItemCondition parseOperator(JsonNode children, boolean all,
+    /**
+     * Node operator: chỉ được một key duy nhất ("all" hoặc "any") —
+     * mọi key kèm theo (any/all còn lại, "type", hay field lạ) đều làm
+     * JSON mơ hồ → reject thay vì chọn một nhánh bỏ qua phần còn lại.
+     */
+    private ItemCondition parseOperator(JsonNode node, boolean all,
                                         int depth) {
-        if (depth + 1 >= MAX_DEPTH) {
-            // Con của operator depth-1 sẽ ở depth 2 = giới hạn — chỉ leaf.
+        String op = all ? "all" : "any";
+        if (node.size() != 1) {
+            List<String> keys = new ArrayList<>();
+            node.fieldNames().forEachRemaining(keys::add);
+            throw new ItemRuleException(
+                    "operator node must have exactly the '" + op
+                            + "' key — extraneous fields " + keys
+                            + " are not allowed (ambiguous JSON)");
         }
+        JsonNode children = node.get(op);
         if (!children.isArray() || children.isEmpty()) {
             throw new ItemRuleException(
-                    (all ? "all" : "any") + " requires a non-empty array");
+                    op + " requires a non-empty array");
         }
         if (children.size() > 20) {
             throw new ItemRuleException(
-                    (all ? "all" : "any") + " supports at most 20 children");
+                    op + " supports at most 20 children");
         }
         List<ItemCondition> parsed = new ArrayList<>(children.size());
         for (JsonNode child : children) {
@@ -86,6 +142,13 @@ public class ItemConditionParser {
                    : new ItemCondition.Any(parsed);
     }
 
+    /**
+     * Leaf: "type" bắt buộc + textual; sau đó MỌI trường trên node phải
+     * thuộc ALLOWED_LEAF_FIELDS của type (FIX-2) — trường ngoài shape
+     * (eventId trên COLLECTION_COUNT, threshold trên EVENT_COMPLETED,
+     * field lạ bất kỳ) → reject để admin thấy ngay rule đã khai báo sai.
+     * Kiểu của từng trường được chặt qua uuid/positiveInt/uuidList.
+     */
     private ItemCondition.Leaf parseLeaf(JsonNode node, int depth) {
         JsonNode typeNode = node.get("type");
         if (typeNode == null || !typeNode.isTextual()) {
@@ -98,6 +161,22 @@ public class ItemConditionParser {
             throw new ItemRuleException(
                     "unsupported condition type: " + typeNode.asText());
         }
+
+        // Reject mọi trường không thuộc shape của type — kể cả trường
+        // hợp lệ của type khác (ambiguity) lẫn field lạ (typo).
+        Set<String> allowed = ALLOWED_LEAF_FIELDS.get(type);
+        List<String> extra = new ArrayList<>();
+        node.fieldNames().forEachRemaining(name -> {
+            if (!"type".equals(name) && !allowed.contains(name)) {
+                extra.add(name);
+            }
+        });
+        if (!extra.isEmpty()) {
+            throw new ItemRuleException(type
+                    + " does not accept field(s) " + extra
+                    + " — allowed: " + new java.util.TreeSet<>(allowed));
+        }
+
         UUID eventId = uuid(node.get("eventId"), "eventId");
         UUID lessonId = uuid(node.get("lessonId"), "lessonId");
         Integer threshold = positiveInt(node.get("threshold"), "threshold");

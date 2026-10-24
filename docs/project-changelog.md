@@ -2,6 +2,34 @@
 
 > Detailed record of significant changes, features và fixes. Newest first.
 
+## 2026-10-25 — GAME-05 FIX: Rule Engine Integrity & CI
+
+**Scope:** 8 fix trên commit `da4e9cf` — đồng bộ trạng thái UNCONFIGURED, grammar chặt cho condition JSON, trigger item evaluation sau event reconcile, `rule_version` thành revision per-item, chặn ruleType lệch, kiểm chứng evidence collectible, reconcile theo batch, sửa countdown test mobile CI.
+
+**Database**
+- `V26__item_rule_revision_check.sql` — `chk_rule_version` nới `rule_version >= 1` (thay `IN (1,2)`); `chk_unlock_rule_shape` nhánh v2 đòi `rule_version >= 2` (revision per-item, mỗi publish = max+1); `chk_rule_v2_condition` giữ nguyên semantics. Không đụng V24/V25 đã áp dụng, không retro-update.
+
+**Backend**
+- FIX-1 (P1): `ItemUnlockRule.isNeedsMapping(metadata)` static dùng chung — grant path (`ItemUnlockService.blockedByAudit`) và catalog read path (`RewardService.requirement` → `UNCONFIGURED`, `satisfied=false`, children rỗng, description "Điều kiện mở khóa đang được cập nhật"). Không fake satisfied của rule legacy, không progress bar giả, owned giữ Owned, status biến mất khi publish rule v2 hợp lệ.
+- FIX-2 (P1): `ItemConditionParser` rewrite — `ALLOWED_LEAF_FIELDS` per `LeafType`; leaf từ chối field ngoài tập cho phép (bug `eventId` thừa trên `LESSON_COUNT` bị bỏ qua âm thầm); operator node phải đúng 1 key; không all+any đồng thời, không all/any+type; ALL/ANY non-empty depth ≤2. Lỗi → HTTP 400.
+- FIX-3 (P1): `EventMilestoneRecorder` inject `@Lazy ItemUnlockService` — khi reconcile-on-read ghi MỚI milestone `EVENT_COMPLETED`/`EVENT_MASTERED` thì gọi `evaluateAfterEventMilestone` cùng tx. Chỉ trigger trên milestone mới, không vòng lặp, không re-eval thừa.
+- FIX-4 (P2): `rule_version` = revision per-item — `AdminItemService.setRule` tính `findMaxRuleVersion(itemId)+1` (min 2). Provenance `user_inventory.unlock_rule_version` trace đúng lần publish; rule cũ → inactive.
+- FIX-5 (P2): `buildRule` validate `ruleType` trước DB write — condition non-null thì chỉ chấp nhận null/blank/`RULE_V2`, ngược lại 400 "contradicts a v2 condition"; normalize về `RULE_V2`.
+- FIX-6 (P2): `ItemConditionValidator.isCollectible` — `SPECIFIC_EVIDENCE_SET` đòi evidence xuất hiện trong `snapshot.evidence[]` của một lesson PUBLISHED (current version) hoặc đã có `user_evidence` row; không đoán theo title/tag.
+- FIX-7 (P2): `ItemUnlockService.reconcileBatched(batchSize)` — keyset pagination `user_id > cursor` (CAST uuid), mỗi trang `REQUIRES_NEW` qua self-injection `ObjectProvider`; trả `{itemsGranted, usersScanned, batches}`; endpoint `?batchSize=` (default 200, 0 = legacy single-shot). Cùng evaluator + grant path realtime.
+- FIX-8 (P1): `EnergyStateDto.debugOverrideEnergyNow(DateTime)` test hook + `_deviceNowUtc()` helper — countdown test định `fakeNowUtc` cố định, `nextRecoveryAt` dẫn xuất từ fake now → expect đúng `Duration(seconds: 30)`; không đổi gameplay energy.
+
+**Mobile** (`dau-viet-mobile`)
+- `reward_dtos.dart`: `ItemRequirementDto.isUnconfigured` (`status == 'UNCONFIGURED'`) + doc cập nhật enum status.
+- `inventory_screen.dart`: `_RequirementTree` early-return node UNCONFIGURED → row icon tune + text nghiêng muted "Điều kiện mở khóa đang được cập nhật" (hoặc description server).
+- `energy_dto.dart` + `energy_dto_test.dart`: hook override now + test countdown dùng fake now cố định.
+
+**Tests & verification**
+- Backend: `ItemRuleEngineIT` 17/17 (+6 test mới: needs-mapping catalog, event reconcile trigger, rule revision provenance, contradictory ruleType 400, evidence-not-collectible 400, extraneous/ambiguous fields 400), `ItemConditionParserTest` 14/14 (+6 strict-shape), `ItemRuleEvaluatorTest` 13/13. `mvnw verify` **PASS 322/322** (trước đó 316).
+- Mobile: `dart format --set-exit-if-changed` clean, `flutter analyze` 0 issues, `flutter test` **PASS 430/430**.
+
+**Docs updated:** `docs/API_SPEC.md`, `docs/DATABASE_DESIGN.md`, `docs/project-changelog.md`.
+
 ## 2026-10-25 — GAME-05: Item Unlock Rule Engine V2 & Achievement Rules
 
 **Scope:** vật phẩm/huy hiệu chỉ mở khóa khi learner thoả điều kiện cấu hình — AST `condition_json` thay cho 3 rule phẳng V1, event-scoped conditions đọc ledger GAME-04, rule append-only có provenance, API requirement tree cho Flutter.

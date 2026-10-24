@@ -574,6 +574,34 @@ class _RequirementTree extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    // FIX-1: rule đang chờ admin cập nhật (backend audit needs-mapping
+    // chặn grant + báo UNCONFIGURED) — hiển thị thông điệp trung lập,
+    // không progress bar, không "đã đủ" giả, không nhánh con nào.
+    if (node.isUnconfigured) {
+      return Row(
+        children: [
+          const Icon(
+            Icons.tune_rounded,
+            color: DauVietColors.inkMuted,
+            size: 15,
+          ),
+          const SizedBox(width: 6),
+          Expanded(
+            child: Text(
+              node.description != null && node.description!.isNotEmpty
+                  ? node.description!
+                  : 'Điều kiện mở khóa đang được cập nhật',
+              style: DauVietTypography.bodySmall.copyWith(
+                color: DauVietColors.inkMuted,
+                fontSize: 11,
+                fontStyle: FontStyle.italic,
+                height: 1.35,
+              ),
+            ),
+          ),
+        ],
+      );
+    }
     if (node.isOperator) {
       return Column(
         crossAxisAlignment: CrossAxisAlignment.start,

@@ -132,8 +132,10 @@ class ItemRequirementDto {
   final int? required;
   final bool satisfied;
 
-  /// SATISFIED | PENDING | UNSUPPORTED — UNSUPPORTED không bao giờ đạt
-  /// (ví dụ LEVEL_AT_LEAST chờ GAME-07) và không được coi là "sắp xong".
+  /// SATISFIED | PENDING | UNSUPPORTED | UNCONFIGURED — UNSUPPORTED không
+  /// bao giờ đạt (ví dụ LEVEL_AT_LEAST chờ GAME-07); UNCONFIGURED = rule
+  /// đang chờ admin cập nhật (FIX-1 backend chặn grant + báo trạng thái
+  /// này) — không hiển thị progress bar hay "đã đủ điều kiện" giả.
   final String status;
   final String? description;
   final List<ItemRequirementDto> conditions;
@@ -156,6 +158,11 @@ class ItemRequirementDto {
 
   bool get isOperator => operator == 'ALL' || operator == 'ANY';
   bool get isUnsupported => status == 'UNSUPPORTED';
+
+  /// FIX-1: rule bị audit-flag needs-mapping — backend chặn grant và báo
+  /// status này để UI hiển thị trung lập, KHÔNG progress bar, KHÔNG
+  /// "đã đủ" giả. Biến mất ngay khi admin publish rule v2 hợp lệ.
+  bool get isUnconfigured => status == 'UNCONFIGURED';
 
   factory ItemRequirementDto.fromJson(Map<String, dynamic> json) {
     final rawConditions = json['conditions'];

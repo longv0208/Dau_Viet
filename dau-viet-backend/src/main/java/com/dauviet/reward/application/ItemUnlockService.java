@@ -9,6 +9,7 @@ import java.util.stream.Collectors;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Propagation;
 import org.springframework.transaction.annotation.Transactional;
@@ -25,8 +26,6 @@ import com.dauviet.reward.domain.ItemUnlockRule;
 import com.dauviet.reward.infrastructure.persistence.ItemCatalogRepository;
 import com.dauviet.reward.infrastructure.persistence.ItemUnlockRuleRepository;
 import com.dauviet.reward.infrastructure.persistence.UserInventoryRepository;
-import com.fasterxml.jackson.databind.JsonNode;
-import com.fasterxml.jackson.databind.ObjectMapper;
 
 /**
  * Đánh giá + cấp vật phẩm (GAME-05 Rule Engine V2). Chạy TRONG transaction
@@ -67,7 +66,7 @@ public class ItemUnlockService {
     private final LessonResultRepository lessonResults;
     private final ItemConditionParser parser;
     private final ItemRuleEvaluator evaluator;
-    private final ObjectMapper mapper;
+    private final ObjectProvider<ItemUnlockService> selfProvider;
 
     @PersistenceContext
     private EntityManager em;
@@ -81,7 +80,7 @@ public class ItemUnlockService {
                              LessonResultRepository lessonResults,
                              ItemConditionParser parser,
                              ItemRuleEvaluator evaluator,
-                             ObjectMapper mapper) {
+                             ObjectProvider<ItemUnlockService> selfProvider) {
         this.rules = rules;
         this.items = items;
         this.inventory = inventory;
@@ -91,7 +90,7 @@ public class ItemUnlockService {
         this.lessonResults = lessonResults;
         this.parser = parser;
         this.evaluator = evaluator;
-        this.mapper = mapper;
+        this.selfProvider = selfProvider;
     }
 
     /**
@@ -220,16 +219,14 @@ public class ItemUnlockService {
         };
     }
 
-    /** 'needs-mapping' trong rule_metadata.audit = chờ rule v2 event-scoped. */
+    /**
+     * 'needs-mapping' trong rule_metadata.audit = chờ rule v2 event-scoped.
+     * Dùng CHUNG {@link ItemUnlockRule#isNeedsMapping} với catalog read
+     * path (RewardService → status UNCONFIGURED) — grant path và read
+     * path luôn đồng ý một rule có bị chặn hay không (FIX-1).
+     */
     private boolean blockedByAudit(ItemUnlockRule rule) {
-        String meta = rule.getRuleMetadata();
-        if (meta == null || meta.isBlank()) return false;
-        try {
-            JsonNode node = mapper.readTree(meta);
-            return "needs-mapping".equals(node.path("audit").asText());
-        } catch (Exception e) {
-            return false; // metadata hỏng không được chặn grant hợp lệ khác
-        }
+        return ItemUnlockRule.isNeedsMapping(rule.getRuleMetadata());
     }
 
     /** Event đầu tiên xuất hiện trong AST (provenance); null cho global. */
@@ -273,14 +270,119 @@ public class ItemUnlockService {
      */
     @Transactional(propagation = Propagation.REQUIRED)
     public int reconcileUnlocks() {
+        List<ParsedRule> evaluable = evaluableRules();
+        if (evaluable.isEmpty()) return 0;
+        int granted = 0;
+        for (UUID userId : candidateUsers()) {
+            granted += grantSatisfied(userId, evaluable);
+        }
+        if (granted > 0) {
+            log.info("inventory reconcile granted rows={}", granted);
+        }
+        return granted;
+    }
+
+    /**
+     * FIX-7: runner reconcile theo batch — vòng lặp keyset page trên
+     * candidate users, mỗi trang một tx ngắn (REQUIRES_NEW trong
+     * reconcileBatch), không giữ một tx xuyên suốt toàn bộ backfill.
+     * Idempotent + an toàn re-run: chạy lại sau fail tiếp tục từ đầu mà
+     * không double-grant (ON CONFLICT + cause_key). Trả số liệu tổng hợp
+     * cho admin audit.
+     *
+     * @return {itemsGranted, usersScanned, batches}
+     */
+    public Map<String, Object> reconcileBatched(int batchSize) {
+        int size = batchSize <= 0 ? 200 : Math.min(batchSize, 1000);
+        int usersScanned = 0;
+        int itemsGranted = 0;
+        int batches = 0;
+        UUID cursor = null;
+        while (true) {
+            List<UUID> page = candidateUsersPage(cursor, size);
+            if (page.isEmpty()) break;
+            itemsGranted += self().reconcileBatch(page);
+            usersScanned += page.size();
+            batches++;
+            cursor = nextCandidateCursor(page);
+            if (page.size() < size) break;
+        }
+        log.info("inventory reconcile batched users={} batches={} granted={}",
+                usersScanned, batches, itemsGranted);
+        return Map.of("itemsGranted", itemsGranted,
+                "usersScanned", usersScanned, "batches", batches);
+    }
+
+    /**
+     * Self-injection qua ObjectProvider — bắt buộc để lời gọi nội bộ
+     * reconcileBatched → reconcileBatch đi QUA proxy và REQUIRES_NEW
+     * thực sự mở tx mới (self-call trên `this` bỏ qua interceptor).
+     */
+    private ItemUnlockService self() {
+        return selfProvider.getObject();
+    }
+
+    /**
+     * FIX-7: đánh giá MỘT BATCH user (keyset page do runner tải) trong một
+     * transaction ngắn — runner gọi với REQUIRES_NEW nên tx không giữ suốt
+     * toàn bộ backfill. Cùng evaluator + cùng grant path với realtime và
+     * reconcileUnlocks — single source, không nhánh semantics theo đường
+     * chạy. Idempotent nhờ ON CONFLICT (user,item) + cause_key.
+     *
+     * @return số row user_inventory THỰC SỰ insert trong batch
+     */
+    @Transactional(propagation = Propagation.REQUIRES_NEW)
+    public int reconcileBatch(java.util.Collection<UUID> userIds) {
+        List<ParsedRule> evaluable = evaluableRules();
+        if (evaluable.isEmpty()) return 0;
+        int granted = 0;
+        for (UUID userId : userIds) {
+            granted += grantSatisfied(userId, evaluable);
+        }
+        return granted;
+    }
+
+    /**
+     * Trang user ứng viên THEO KEYSET (FIX-7): keyset pagination bằng
+     * `user_id > :after` — không OFFSET scan, không load toàn bộ id vào
+     * bộ nhớ, mỗi trang là một query ngắn. UNION ba footprint rồi
+     * DISTINCT + ORDER BY — an toàn re-run, deterministic.
+     */
+    @SuppressWarnings("unchecked")
+    public List<UUID> candidateUsersPage(UUID after, int limit) {
+        return em.createNativeQuery("""
+                SELECT u.user_id FROM (
+                    SELECT user_id FROM user_evidence
+                    UNION
+                    SELECT a.user_id FROM learner_attempts a
+                    WHERE a.status = 'COMPLETED'
+                    UNION
+                    SELECT p.user_id FROM user_event_progress p
+                ) u
+                WHERE (CAST(:after AS uuid) IS NULL
+                       OR u.user_id > CAST(:after AS uuid))
+                ORDER BY u.user_id
+                LIMIT :limit
+                """)
+                .setParameter("after", after)
+                .setParameter("limit", limit)
+                .getResultList();
+    }
+
+    /** Con trỏ keyset tiếp theo: user_id lớn nhất của trang vừa đọc. */
+    public UUID nextCandidateCursor(List<UUID> page) {
+        if (page.isEmpty()) return null;
+        return page.get(page.size() - 1);
+    }
+
+    /** Lọc rule active còn đánh giá được (parse ok + không bị audit-flag). */
+    private List<ParsedRule> evaluableRules() {
         List<ItemUnlockRule> active = rules.findActiveRules();
-        if (active.isEmpty()) return 0;
+        if (active.isEmpty()) return List.of();
         Map<UUID, ItemCatalog> catalog = items.findAllById(
                 active.stream().map(ItemUnlockRule::getItemId).toList())
                 .stream().collect(Collectors.toMap(
                         ItemCatalog::getId, Function.identity()));
-
-        // Lọc rule parse được + không bị audit-flag TRƯỚC khi quét user.
         List<ParsedRule> evaluable = new ArrayList<>();
         for (ItemUnlockRule rule : active) {
             ItemCatalog item = catalog.get(rule.getItemId());
@@ -295,36 +397,34 @@ public class ItemUnlockService {
                         rule.getId(), e.getMessage());
             }
         }
-        if (evaluable.isEmpty()) return 0;
+        return evaluable;
+    }
 
+    /** Đánh giá + cấp item cho MỘT user trên bộ rule đã lọc sẵn. */
+    private int grantSatisfied(UUID userId, List<ParsedRule> evaluable) {
+        ItemRuleEvaluationContext ctx = new ItemRuleEvaluationContext(
+                userId, userEvidence, eventProgress, attempts,
+                lessonResults);
         int granted = 0;
-        for (UUID userId : candidateUsers()) {
-            ItemRuleEvaluationContext ctx = new ItemRuleEvaluationContext(
-                    userId, userEvidence, eventProgress, attempts,
-                    lessonResults);
-            for (ParsedRule pr : evaluable) {
-                if (!evaluator.satisfied(pr.condition(), ctx)) continue;
-                // Provenance reconcile: rule trỏ một lesson cụ thể → ghi
-                // source_lesson_id + một attempt COMPLETED của learner làm
-                // metadata truy vết (không phải "attempt kích hoạt mới" —
-                // acquisition_source ADMIN_GRANT đã phân biệt, và
-                // findRealtimeUnlocksByAttempt loại ADMIN_GRANT khỏi result
-                // screen). Rule đếm/event-scope → null (điều kiện tích luỹ).
-                UUID backfillLessonId = firstLessonId(pr.condition());
-                UUID backfillAttemptId = backfillLessonId == null ? null
-                        : firstCompletedAttempt(userId, backfillLessonId);
-                int inserted = inventory.insertIgnoreV2(userId,
-                        pr.item().getId(), SOURCE_RECONCILE,
-                        backfillLessonId, backfillAttemptId,
-                        pr.rule().getId(),
-                        pr.rule().getRuleVersion(),
-                        firstEventId(pr.condition(), null),
-                        causeKey(pr.rule(), userId));
-                granted += inserted;
-            }
-        }
-        if (granted > 0) {
-            log.info("inventory reconcile granted rows={}", granted);
+        for (ParsedRule pr : evaluable) {
+            if (!evaluator.satisfied(pr.condition(), ctx)) continue;
+            // Provenance reconcile: rule trỏ một lesson cụ thể → ghi
+            // source_lesson_id + một attempt COMPLETED của learner làm
+            // metadata truy vết (không phải "attempt kích hoạt mới" —
+            // acquisition_source ADMIN_GRANT đã phân biệt, và
+            // findRealtimeUnlocksByAttempt loại ADMIN_GRANT khỏi result
+            // screen). Rule đếm/event-scope → null (điều kiện tích luỹ).
+            UUID backfillLessonId = firstLessonId(pr.condition());
+            UUID backfillAttemptId = backfillLessonId == null ? null
+                    : firstCompletedAttempt(userId, backfillLessonId);
+            int inserted = inventory.insertIgnoreV2(userId,
+                    pr.item().getId(), SOURCE_RECONCILE,
+                    backfillLessonId, backfillAttemptId,
+                    pr.rule().getId(),
+                    pr.rule().getRuleVersion(),
+                    firstEventId(pr.condition(), null),
+                    causeKey(pr.rule(), userId));
+            granted += inserted;
         }
         return granted;
     }
@@ -366,7 +466,8 @@ public class ItemUnlockService {
     /**
      * User có footprint đủ để có thể đạt BẤT KỲ rule nào: đã collect
      * evidence, đã complete attempt, hoặc đã có milestone. Set-based,
-     * không load entity — chỉ id.
+     * không load entity — chỉ id. Giữ nguyên cho reconcileUnlocks() gọi
+     * tường minh (đường V1 nhỏ); runner lớn dùng candidateUsersPage.
      */
     @SuppressWarnings("unchecked")
     private List<UUID> candidateUsers() {

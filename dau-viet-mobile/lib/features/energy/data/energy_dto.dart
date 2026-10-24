@@ -13,6 +13,23 @@ void Function() debugOverrideEnergyClock(int Function() micros) {
   return () => _testElapsedMicrosOverride = null;
 }
 
+/// Cho phép test ép mốc "bây giờ theo thiết bị" — dùng cho
+/// `_deviceNowAtParse` và fallback `_serverNowAtParse` khi server không
+/// trả serverTime. Chỉ dùng trong test — production luôn null.
+DateTime Function()? _testNowUtcOverride;
+
+/// Test-only: cài đồng hồ thiết bị giả. Trả hàm gỡ.
+void Function() debugOverrideEnergyNow(DateTime Function() nowUtc) {
+  _testNowUtcOverride = nowUtc;
+  return () => _testNowUtcOverride = null;
+}
+
+/// "Bây giờ theo thiết bị" (UTC) — một điểm đọc duy nhất để test có thể
+/// chốt mốc tuyệt đối, tránh so giây trên thời gian thực.
+DateTime _deviceNowUtc() => _testNowUtcOverride != null
+    ? _testNowUtcOverride!()
+    : DateTime.now().toUtc();
+
 /// DTO trạng thái Thể lực (GAME-03) — khớp EnergyStateResponse phía backend
 /// (`GET /api/v1/me/energy` và trường `energy` trong SubmitActivityResponse).
 ///
@@ -58,8 +75,8 @@ class EnergyStateDto {
     this.nextRecoveryAt,
     this.serverTime,
     this.canSubmitGraded = true,
-  }) : _deviceNowAtParse = DateTime.now().toUtc(),
-       _serverNowAtParse = serverTime ?? DateTime.now().toUtc(),
+  }) : _deviceNowAtParse = _deviceNowUtc(),
+       _serverNowAtParse = serverTime ?? _deviceNowUtc(),
        _elapsedAtParse = (_testElapsedMicrosOverride ?? _stopwatchNowMicros)();
 
   factory EnergyStateDto.fromJson(Map<String, dynamic> json) {

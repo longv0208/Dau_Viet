@@ -39,4 +39,13 @@ public interface ItemUnlockRuleRepository
     /** Mọi rule active — reconciliation đánh giá toàn bộ cấu hình. */
     @Query("SELECT r FROM ItemUnlockRule r WHERE r.active = true")
     List<ItemUnlockRule> findActiveRules();
+
+    /**
+     * Revision cao nhất đã publish của item (kể cả rule đã inactive) —
+     * setRule dùng +1 làm revision mới (FIX-4: rule_version = policy
+     * revision per item, hai publish phân biệt được trong provenance).
+     */
+    @Query("SELECT COALESCE(MAX(r.ruleVersion), 0) FROM ItemUnlockRule r "
+            + "WHERE r.itemId = :itemId")
+    int findMaxRuleVersion(@Param("itemId") UUID itemId);
 }

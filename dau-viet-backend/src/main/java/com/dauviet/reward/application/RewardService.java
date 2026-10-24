@@ -240,12 +240,22 @@ public class RewardService {
      * tree. Rule v1 đã được V24 normalize sang condition_json tương đương
      * nên đi chung một đường; rule không parse được trả null (client hiển
      * thị "chưa cấu hình").
+     *
+     * FIX-1: rule bị audit-flag 'needs-mapping' (grant path đã chặn qua
+     * cùng {@link ItemUnlockRule#isNeedsMapping}) → trả root status
+     * UNCONFIGURED + satisfied=false + mô tả trung lập — KHÔNG để
+     * evaluator v1 đếm global báo satisfied giả (learner thấy "đã đủ
+     * điều kiện" nhưng không bao giờ được cấp). Khi admin publish rule
+     * v2 hợp lệ, active rule mới không còn flag → status tự biến mất.
      */
     private CatalogItemResponse.Requirement requirement(
             ItemCatalog item, ItemRuleEvaluationContext ctx,
             Map<UUID, String> lessonTitles) {
         return rules.findByItemIdAndActiveTrue(item.getId())
                 .map(r -> {
+                    if (ItemUnlockRule.isNeedsMapping(r.getRuleMetadata())) {
+                        return unconfiguredRequirement();
+                    }
                     try {
                         ItemCondition condition = conditionParser.parse(
                                 r.getConditionJson() != null
@@ -260,6 +270,16 @@ public class RewardService {
                     }
                 })
                 .orElse(null);
+    }
+
+    /** Root UNCONFIGURED — không children, không progress bar giả. */
+    private CatalogItemResponse.Requirement unconfiguredRequirement() {
+        return new CatalogItemResponse.Requirement(
+                null, null, null, null, null, null,
+                null, null, null,
+                false, "UNCONFIGURED",
+                "Điều kiện mở khóa đang được cập nhật",
+                List.of());
     }
 
     /** condition_json null (row v1 ghi tay) → AST tương đương cột phẳng. */

@@ -123,15 +123,36 @@ public class AdminItemService {
     /**
      * Xây rule row từ request: có `condition` → AST v2 (parse + validate
      * nghiêm — ItemRuleException → 400); không có → rule v1 3-loại như cũ.
+     *
+     * FIX-5: ruleType của request chỉ được trống hoặc đúng 'RULE_V2' khi
+     * kèm `condition` — chuỗi lạ (UNKNOWN_RULE, LESSON_COUNT…) đi kèm AST
+     * là mâu thuẫn cấu hình → 400 trước khi chạm DB, không để constraint
+     * flush bắt. rule_type cột là discriminator của hệ thống.
+     *
+     * FIX-4: rule_version = policy revision PER ITEM — publish đầu của
+     * một item vốn có rule v1 → 2; mỗi lần thay tiếp → max(existing)+1.
+     * Hai publish khác nhau luôn phân biệt được trong
+     * user_inventory.unlock_rule_version (provenance truy vết đúng
+     * revision đã cấp; rule id làm khoá chính truy vết).
      */
     private ItemUnlockRule buildRule(UUID itemId, AdminRuleRequest req) {
         if (req.condition() != null && !req.condition().isNull()) {
+            String ruleType = req.ruleType();
+            if (ruleType != null && !ruleType.isBlank()
+                    && !ItemUnlockRule.TYPE_RULE_V2.equals(ruleType)) {
+                throw new IllegalArgumentException(
+                        "ruleType '" + ruleType + "' contradicts a v2 "
+                                + "condition — only 'RULE_V2' (or omitted) "
+                                + "is allowed alongside an AST");
+            }
             ItemCondition condition = conditionParser.parse(req.condition());
             conditionValidator.validate(condition);
-            String ruleType = req.ruleType() == null || req.ruleType().isBlank()
-                    ? "RULE_V2" : req.ruleType();
-            return ItemUnlockRule.v2(itemId, ruleType,
-                    req.condition().toString(), null);
+            int revision = rules.findMaxRuleVersion(itemId) + 1;
+            // Item chưa từng có rule → publish v2 đầu mang revision 2 để
+            // phân biệt rõ "không phải legacy row" trong provenance.
+            if (revision < 2) revision = 2;
+            return ItemUnlockRule.v2(itemId, ItemUnlockRule.TYPE_RULE_V2,
+                    req.condition().toString(), null, revision);
         }
         validateV1(req);
         return switch (req.ruleType()) {

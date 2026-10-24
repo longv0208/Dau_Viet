@@ -6,6 +6,9 @@ import java.util.UUID;
 import org.hibernate.annotations.JdbcTypeCode;
 import org.hibernate.type.SqlTypes;
 
+import com.fasterxml.jackson.databind.JsonNode;
+import com.fasterxml.jackson.databind.ObjectMapper;
+
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
 import jakarta.persistence.Id;
@@ -25,6 +28,9 @@ public class ItemUnlockRule {
     public static final String TYPE_LESSON_COMPLETED = "LESSON_COMPLETED";
     public static final String TYPE_COLLECTION_COUNT = "COLLECTION_COUNT";
     public static final String TYPE_LESSON_COUNT = "LESSON_COUNT";
+    /** Discriminator cho mọi rule AST v2 — rule_type cột KHÔNG phải leaf
+     * type trong condition_json (leaf type nằm trong AST). */
+    public static final String TYPE_RULE_V2 = "RULE_V2";
 
     @Id
     @Column(name = "id", nullable = false, updatable = false)
@@ -43,9 +49,13 @@ public class ItemUnlockRule {
     private Integer threshold;
 
     /**
-     * GAME-05 V24: 1 = rule legacy (3 rule_type cột phẳng — semantics V1,
-     * condition_json chỉ là bản normalize để evaluator đọc chung); 2 = rule
-     * AST đầy đủ viết qua AdminRuleRequest.condition.
+     * GAME-05 V24 + FIX-4: revision của policy MỖI ITEM — 1 = rule legacy
+     * V1 hoặc publish v2 đầu tiên của item vốn có rule v1; mỗi lần admin
+     * publish rule mới, revision = max(existing)+1 nên hai publish khác
+     * nhau luôn phân biệt được (provenance user_inventory.unlock_rule_
+     * version truy vết đúng revision đã cấp). AST format luôn là v2 —
+     * "schema" của grammar không cần cột riêng (parser chỉ có một ngữ
+     * pháp; khi format đổi sẽ là cột/cấu trúc mới, không reuse số này).
      */
     @Column(name = "rule_version", nullable = false, updatable = false)
     private int ruleVersion = 1;
@@ -87,12 +97,17 @@ public class ItemUnlockRule {
         return r;
     }
 
-    /** Rule v2: AST đã parse+validate ở service — chỉ lưu canonical JSON. */
+    /**
+     * Rule v2: AST đã parse+validate ở service — chỉ lưu canonical JSON.
+     * `revision` = rule_version mới (per-item, FIX-4): service tính
+     * max(revision hiện có)+1 khi thay rule; truyền 1 cho publish đầu.
+     */
     public static ItemUnlockRule v2(UUID itemId, String ruleType,
                                     String conditionJson,
-                                    String ruleMetadata) {
+                                    String ruleMetadata,
+                                    int revision) {
         ItemUnlockRule r = base(itemId, ruleType);
-        r.ruleVersion = 2;
+        r.ruleVersion = revision;
         r.conditionJson = conditionJson;
         r.ruleMetadata = ruleMetadata;
         return r;
@@ -119,4 +134,21 @@ public class ItemUnlockRule {
     public Instant getCreatedAt() { return createdAt; }
 
     public void setActive(boolean active) { this.active = active; }
+
+    /**
+     * 'needs-mapping' trong rule_metadata.audit (seed audit V24): rule V1
+     * đếm global cho item event-specific — chờ admin publish rule v2
+     * event-scoped. Grant path + catalog read path dùng CHUNG hàm này
+     * (FIX-1) nên trạng thái UNCONFIGURED khớp với quyết định chặn grant.
+     * Metadata hỏng/không parse được → false: không chặn grant hợp lệ.
+     */
+    public static boolean isNeedsMapping(String ruleMetadata) {
+        if (ruleMetadata == null || ruleMetadata.isBlank()) return false;
+        try {
+            JsonNode node = new ObjectMapper().readTree(ruleMetadata);
+            return "needs-mapping".equals(node.path("audit").asText());
+        } catch (Exception e) {
+            return false;
+        }
+    }
 }
