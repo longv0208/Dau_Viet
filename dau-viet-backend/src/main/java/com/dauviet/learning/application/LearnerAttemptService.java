@@ -317,10 +317,11 @@ public class LearnerAttemptService {
         AttemptContext ctx = new AttemptContext(a.getId(), userId,
                 a.getLessonVersionId(), state.currentStageId(), activityId,
                 state.currentActivityId(),
-                activity, model.root(), state.outputs());
+                activity, model.root(), state.outputs(), state.attemptCounts());
         ActivityResult result = handler.evaluate(ctx,
                 new ActivitySubmission(a.getId(), activityId, answer, idempotencyKey));
 
+        state.bumpAttemptCount(activityId);
         state.recordOutput(activityId, result.output());
         if (result.completed()) {
             state.markCompleted(activityId);

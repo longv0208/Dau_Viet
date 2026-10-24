@@ -15,16 +15,18 @@ import com.fasterxml.jackson.databind.JsonNode;
 
 /**
  * Decides the next executable pointer after a submission.
- * Order: (0) the just-submitted activity is required and not completed ->
- * REVISE hop when its outcome maps through onPartial/onContradicted, else
- * STAY on the same activity so the learner can retry (fixes the advance-
- * past-failure soft-lock); then, for completed or optional submissions:
- * (a) first incomplete required activity after the current one inside
- * the same stage; (b) REVISE hop; (c) first nextStageIds target
- * still holding incomplete required activities (skipping required-free
- * stages recursively, cycle-guarded); (d) first stage in array order with
- * incomplete required activities — deterministic policy for convergent
- * non-linear graphs; (e) null — nothing left, completion evaluator decides.
+ * Order: (-1) REMEDIAL STAY — an exhausted required activity with remedial
+ * budget left keeps the cursor (TASK-0020 round-3); (0) the just-submitted
+ * activity is required and not completed -> REVISE hop when its outcome maps
+ * through onPartial/onContradicted, else STAY so the learner can retry;
+ * then, for completed or optional submissions: (a) first incomplete required
+ * activity after the current one inside the same stage; (b) REVISE hop —
+ * skipped when the activity's retry budget is already spent (exhausted:true),
+ * so a bounded Verification hops back at most while it can still retry;
+ * (c) first nextStageIds target still holding incomplete required activities
+ * (skipping required-free stages recursively, cycle-guarded); (d) first
+ * stage in array order with incomplete required activities — deterministic
+ * policy for convergent non-linear graphs; (e) null — nothing left.
  * Publish-time validation guarantees a DAG; the visited set here only
  * guards hand-edited snapshots.
  */
@@ -84,8 +86,17 @@ public class StageTransitionResolver {
             return Transition.of(toNextActivity(model, stageId, nextInStage));
         }
 
-        // (b) outcome-driven revision hop
-        if (activity != null) {
+        // (b) outcome-driven revision hop — but NOT when the just-submitted
+        // activity exhausted its retry budget: an exhausted VERIFICATION that
+        // still hops back to an exhausted EVIDENCE_SELECT recreates the exact
+        // infinite loop the remedial bound was added to break. Once the
+        // budget is spent the learner must move forward and finish, not be
+        // sent back to redo work that can no longer change the verdict.
+        boolean budgetSpent = activity != null
+                && state.outputs().get(lastActivityId) != null
+                && state.outputs().get(lastActivityId)
+                        .path("exhausted").asBoolean(false);
+        if (activity != null && !budgetSpent) {
             NextStage hop = reviseTarget(model, activity, lastOutcome);
             if (hop != null) {
                 return Transition.of(hop);
@@ -130,7 +141,11 @@ public class StageTransitionResolver {
         JsonNode out = state.outputs().get(activityId);
         if (out == null || !out.path("exhausted").asBoolean(false)) return false;
         int maxAttempts = Math.max(config.path("maxAttempts").asInt(1), 1);
-        int attemptCount = out.path("attemptCount").asInt(0);
+        // Retry budget comes from the ledger (survives output invalidation);
+        // the output's own attemptCount is the legacy fallback.
+        int attemptCount = state.attemptCounts().containsKey(activityId)
+                ? state.attemptCounts().get(activityId)
+                : out.path("attemptCount").asInt(0);
         return attemptCount < maxAttempts + remedialAttempts;
     }
 

@@ -104,12 +104,14 @@ public final class SelectionHandlers {
                     config.path("remedialAttempts").asInt(0), 0);
             int attemptNo = priorAttempts(ctx) + 1;
             boolean exhausted = !right && attemptNo >= maxAttempts;
-            // Remedial retry only counts when the learner was sent back by a
-            // downstream REVISE hop: the activity already completed-for-progress
-            // once (prior output carries exhausted:true) AND the persisted
-            // cursor sits on this activity again. On the forward path a wrong
-            // submission is a normal scored attempt — never remedial, so the
-            // budget can't be farmed for free credit early in the flow.
+            // Remedial retry only counts when the scored budget is already
+            // spent AND the persisted cursor sits on this activity (the
+            // resolver holds it there while remedialAttempts remain). A
+            // correct answer on the remedial try is still the normal
+            // COMPLETED path — the marker is output metadata for audit, not
+            // a different grading rule. On the forward path a wrong
+            // submission is a normal scored attempt — never remedial — so
+            // the budget can't be farmed for free credit early in the flow.
             JsonNode prior = ctx.priorOutputs().get(ctx.activityId());
             boolean wasCompletedByExhaustion = prior != null
                     && prior.path("exhausted").asBoolean(false);
@@ -120,8 +122,7 @@ public final class SelectionHandlers {
             // audit; `stillRetryable` keeps completed=false ONLY while a
             // further remedial try remains — the final remedial attempt
             // completes-for-progress regardless, so the flow terminates.
-            boolean inRemedialWindow = exhausted && wasCompletedByExhaustion
-                    && routedBack;
+            boolean inRemedialWindow = wasCompletedByExhaustion && routedBack;
             boolean remedial = inRemedialWindow
                     && attemptNo <= maxAttempts + remedialAttempts;
             boolean stillRetryable = remedial

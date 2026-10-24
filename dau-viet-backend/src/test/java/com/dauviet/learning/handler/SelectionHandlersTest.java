@@ -216,17 +216,40 @@ class SelectionHandlersTest {
     /* ---------- remedial retry (TASK-0020 round-3 FIX 1) ---------- */
 
     @Test
-    void evidenceSelect_remedial_afterExhaustionAndHopBack_incompleteForRetry() {
+    void evidenceSelect_remedial_afterExhaustionAndHopBack_completesForProgress() {
         // es exhausted (attemptCount>=maxAttempts) then the learner was sent
-        // back by a downstream REVISE hop — cursor sits on es again. A
-        // remedialAttempts>0 budget lets this submission stay incomplete so
-        // the cursor holds for the next remediation try instead of the
-        // exhausted activity advancing and Verification looping forever.
+        // back by a downstream REVISE hop — cursor sits on es again. With
+        // remedialAttempts=1 the single remedial submission is the LAST one:
+        // it carries the remedial marker for audit but must still complete-
+        // for-progress — otherwise the cursor can never leave and the
+        // soft-lock this fix removes returns in the other direction.
         JsonNode act = HandlerTestSupport.json(
                 "{\"id\":\"es\",\"type\":\"EVIDENCE_SELECT\",\"config\":{"
               + "\"visibleEvidenceIds\":[\"e1\",\"e2\",\"e3\"],\"graded\":true,"
               + "\"acceptedEvidenceIds\":[\"e1\",\"e2\"],"
               + "\"maxAttempts\":2,\"remedialAttempts\":1}}");
+        java.util.Map<String, JsonNode> prior = new java.util.LinkedHashMap<>();
+        prior.put("es", HandlerTestSupport.json(
+                "{\"attemptCount\":2,\"exhausted\":true}"));
+        ActivityResult r = evidenceSelect.evaluate(
+                HandlerTestSupport.ctxAtCursor(act, snapshotWithEvidence(),
+                        prior, "es"),
+                HandlerTestSupport.sub("es", "{\"selectedEvidenceIds\":[\"e1\"]}"));
+        assertThat(r.completed()).isTrue();
+        assertThat(r.output().get("remedial").asBoolean()).isTrue();
+        assertThat(r.output().get("attemptCount").asInt()).isEqualTo(3);
+    }
+
+    @Test
+    void evidenceSelect_remedial_budgetLeft_staysIncomplete() {
+        // remedialAttempts=2 -> attempt 3 of (2+2) is NOT the last remedial
+        // try, so completed stays false and the cursor holds for one more
+        // honest remediation attempt.
+        JsonNode act = HandlerTestSupport.json(
+                "{\"id\":\"es\",\"type\":\"EVIDENCE_SELECT\",\"config\":{"
+              + "\"visibleEvidenceIds\":[\"e1\",\"e2\",\"e3\"],\"graded\":true,"
+              + "\"acceptedEvidenceIds\":[\"e1\",\"e2\"],"
+              + "\"maxAttempts\":2,\"remedialAttempts\":2}}");
         java.util.Map<String, JsonNode> prior = new java.util.LinkedHashMap<>();
         prior.put("es", HandlerTestSupport.json(
                 "{\"attemptCount\":2,\"exhausted\":true}"));
@@ -281,6 +304,30 @@ class SelectionHandlersTest {
     @Test
     void evidenceSelect_remedial_wrongOnRemediation_stillHonest() {
         // Remedial miss keeps correct:false + real F1 — no credit inflation.
+        // Budget left (attempt 3 < 2+2) so completed stays false for the
+        // next remedial try.
+        JsonNode act = HandlerTestSupport.json(
+                "{\"id\":\"es\",\"type\":\"EVIDENCE_SELECT\",\"config\":{"
+              + "\"visibleEvidenceIds\":[\"e1\",\"e2\",\"e3\"],\"graded\":true,"
+              + "\"acceptedEvidenceIds\":[\"e1\",\"e2\"],"
+              + "\"maxAttempts\":2,\"remedialAttempts\":2}}");
+        java.util.Map<String, JsonNode> prior = new java.util.LinkedHashMap<>();
+        prior.put("es", HandlerTestSupport.json(
+                "{\"attemptCount\":2,\"exhausted\":true}"));
+        ActivityResult r = evidenceSelect.evaluate(
+                HandlerTestSupport.ctxAtCursor(act, snapshotWithEvidence(),
+                        prior, "es"),
+                HandlerTestSupport.sub("es", "{\"selectedEvidenceIds\":[\"e3\"]}"));
+        assertThat(r.completed()).isFalse();
+        assertThat(r.output().get("correct").asBoolean()).isFalse();
+        assertThat(r.output().get("score").asDouble()).isEqualTo(0.0);
+    }
+
+    @Test
+    void evidenceSelect_remedial_lastRetry_wrong_completesForProgress() {
+        // Last remedial attempt (attemptNo == maxAttempts+remedialAttempts)
+        // must complete-for-progress even when wrong — otherwise the cursor
+        // can never leave and the soft-lock returns. Verdict stays honest.
         JsonNode act = HandlerTestSupport.json(
                 "{\"id\":\"es\",\"type\":\"EVIDENCE_SELECT\",\"config\":{"
               + "\"visibleEvidenceIds\":[\"e1\",\"e2\",\"e3\"],\"graded\":true,"
@@ -293,7 +340,8 @@ class SelectionHandlersTest {
                 HandlerTestSupport.ctxAtCursor(act, snapshotWithEvidence(),
                         prior, "es"),
                 HandlerTestSupport.sub("es", "{\"selectedEvidenceIds\":[\"e3\"]}"));
-        assertThat(r.completed()).isFalse();
+        assertThat(r.completed()).isTrue();
+        assertThat(r.output().get("remedial").asBoolean()).isTrue();
         assertThat(r.output().get("correct").asBoolean()).isFalse();
         assertThat(r.output().get("score").asDouble()).isEqualTo(0.0);
     }

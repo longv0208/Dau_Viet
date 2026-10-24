@@ -303,6 +303,85 @@ class StageTransitionResolverTest {
         assertThat(t.nextStage().stageId()).isEqualTo("ev");
     }
 
+    /* ---- step (-1): remedial retry holds the cursor (TASK-0020 round-3) ---- */
+
+    /** es exhausted but remedialAttempts remain -> cursor must NOT advance. */
+    private static JsonNode remedialSnap() {
+        return json("""
+                {"stages":[
+                  {"id":"ev","type":"EVIDENCE","required":true,"activities":[
+                    {"id":"es","type":"EVIDENCE_SELECT","required":true,
+                     "config":{"maxAttempts":2,"remedialAttempts":1}}],
+                   "nextStageIds":["rs"]},
+                  {"id":"rs","type":"REASONING","required":true,"activities":[
+                    {"id":"rc","type":"REASONING_CONNECT","required":true}],
+                   "nextStageIds":[]}]}
+                """);
+    }
+
+    @Test
+    void remedialRetry_exhaustedWithBudgetLeft_holdsCursor() {
+        SnapshotModel m = SnapshotModel.parse(remedialSnap());
+        AttemptState s = at("ev", "es");
+        s.recordOutput("es", json(
+                "{\"exhausted\":true,\"attemptCount\":2,\"correct\":false}"));
+        s.markCompleted("es");   // exhausted completed-for-progress
+        var t = resolver.resolve(m, s, "es", ActivityResult.INCORRECT);
+        assertThat(t.nextActivity()).isNotNull();
+        assertThat(t.nextActivity().stageId()).isEqualTo("ev");
+        assertThat(t.nextActivity().activityId()).isEqualTo("es");
+    }
+
+    @Test
+    void remedialRetry_budgetSpent_advancesNormally() {
+        // attemptCount == maxAttempts + remedialAttempts -> nothing left
+        SnapshotModel m = SnapshotModel.parse(remedialSnap());
+        AttemptState s = at("ev", "es");
+        s.recordOutput("es", json(
+                "{\"exhausted\":true,\"attemptCount\":3,\"correct\":false}"));
+        s.markCompleted("es");
+        var t = resolver.resolve(m, s, "es", ActivityResult.INCORRECT);
+        assertThat(t.nextStage()).isNotNull();
+        assertThat(t.nextStage().stageId()).isEqualTo("rs");
+    }
+
+    @Test
+    void remedialRetry_noRemedialConfig_advancesNormally() {
+        // legacy snapshots without remedialAttempts keep the old contract:
+        // exhausted -> completed -> advance (bounded by Verification hops).
+        JsonNode snap = json("""
+                {"stages":[
+                  {"id":"ev","type":"EVIDENCE","required":true,"activities":[
+                    {"id":"es","type":"EVIDENCE_SELECT","required":true,
+                     "config":{"maxAttempts":2}}],
+                   "nextStageIds":["rs"]},
+                  {"id":"rs","type":"REASONING","required":true,"activities":[
+                    {"id":"rc","type":"REASONING_CONNECT","required":true}],
+                   "nextStageIds":[]}]}
+                """);
+        SnapshotModel m = SnapshotModel.parse(snap);
+        AttemptState s = at("ev", "es");
+        s.recordOutput("es", json(
+                "{\"exhausted\":true,\"attemptCount\":2,\"correct\":false}"));
+        s.markCompleted("es");
+        var t = resolver.resolve(m, s, "es", ActivityResult.INCORRECT);
+        assertThat(t.nextStage()).isNotNull();
+        assertThat(t.nextStage().stageId()).isEqualTo("rs");
+    }
+
+    @Test
+    void remedialRetry_correctResubmit_advances() {
+        // correct remedial answer -> not exhausted anymore -> normal advance
+        SnapshotModel m = SnapshotModel.parse(remedialSnap());
+        AttemptState s = at("ev", "es");
+        s.recordOutput("es", json(
+                "{\"remedial\":true,\"attemptCount\":3,\"correct\":true}"));
+        s.markCompleted("es");
+        var t = resolver.resolve(m, s, "es", ActivityResult.COMPLETED);
+        assertThat(t.nextStage()).isNotNull();
+        assertThat(t.nextStage().stageId()).isEqualTo("rs");
+    }
+
     @Test
     void requiredFreeStageTraversed_transparently() {
         // stage with NO required activities sits between two real stages

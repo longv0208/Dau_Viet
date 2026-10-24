@@ -81,12 +81,11 @@ public abstract class AbstractActivityHandler implements ActivityHandler {
 
     /**
      * How many times this activity was already submitted in this attempt —
-     * derived from the persisted output's attemptCount (retry budget input).
+     * the retry-budget ledger (survives invalidation), with the persisted
+     * output's attemptCount as legacy fallback for pre-ledger states.
      */
     protected static int priorAttempts(com.dauviet.learning.contract.AttemptContext ctx) {
-        JsonNode prior = ctx.priorOutputs().get(ctx.activityId());
-        return prior != null && prior.isObject()
-                ? prior.path("attemptCount").asInt(0) : 0;
+        return ctx.priorAttemptCount();
     }
 
     protected String feedbackFor(JsonNode activity, String outcomeKey) {

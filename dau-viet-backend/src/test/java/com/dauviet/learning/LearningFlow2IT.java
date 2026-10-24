@@ -9,6 +9,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
 import java.util.List;
+import java.util.Map;
 import java.util.UUID;
 
 import org.junit.jupiter.api.BeforeEach;
@@ -628,12 +629,12 @@ class LearningFlow2IT extends AbstractPostgresIT {
                    {"id":"ctx","type":"CONTEXT","required":true,
                     "activities":[{"id":"intro","type":"READ","required":true,
                                     "config":{"text":"intro"}}],
-                    "nextStageIds":["opt","cc"]},
+                    "nextStageIds":["opt"]},
                    {"id":"opt","type":"EVIDENCE","required":false,
                     "activities":[{"id":"es","type":"EVIDENCE_SELECT",
                                     "config":{"visibleEvidenceIds":["%s"],
                                               "minRequired":1}}],
-                    "nextStageIds":[]},
+                    "nextStageIds":["cc"]},
                    {"id":"cc","type":"CONCLUSION","required":true,
                     "activities":[{"id":"cer","type":"CER_CHOICE","required":true,
                                     "config":{"claims":[{"id":"c1","text":"c"}],
