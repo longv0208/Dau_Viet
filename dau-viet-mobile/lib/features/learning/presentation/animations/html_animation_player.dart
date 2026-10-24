@@ -52,7 +52,7 @@ class HtmlAnimationPlayer extends ConsumerStatefulWidget {
   final LearningApiClient? apiOverride;
   final WebViewController? controllerOverride;
   final Widget Function(BuildContext context, WebViewController? controller)?
-      webViewBuilder;
+  webViewBuilder;
 
   const HtmlAnimationPlayer({
     super.key,
@@ -106,7 +106,8 @@ class _HtmlAnimationPlayerState extends ConsumerState<HtmlAnimationPlayer> {
   String _error = '';
   bool _finishedFired = false;
 
-  WebViewController? get _ctrlOrNull => widget.controllerOverride ?? _controller;
+  WebViewController? get _ctrlOrNull =>
+      widget.controllerOverride ?? _controller;
 
   WebViewController get _ctrl =>
       widget.controllerOverride ?? (_controller ??= _buildController());
@@ -159,11 +160,10 @@ class _HtmlAnimationPlayerState extends ConsumerState<HtmlAnimationPlayer> {
           // thêm ở đây). loadHtmlString không qua delegate này; subresource
           // fetch bị CSP meta chặn ở tầng document.
           onNavigationRequest: (_) => NavigationDecision.prevent,
-          onWebResourceError: (err) {
-            if (err.isForMainFrame ?? false) {
-              _setErrorIfCurrent('Nội dung hoạt họa không tải được.');
-            }
-          },
+          // FIX (stale callback): gắn cùng builtFor guard như JS channel —
+          // error của document phiên cũ không được cập nhật state của
+          // phiên mới (A fail không được làm error B).
+          onWebResourceError: (err) => _onWebResourceError(err, builtFor),
         ),
       )
       ..addJavaScriptChannel(
@@ -177,12 +177,34 @@ class _HtmlAnimationPlayerState extends ConsumerState<HtmlAnimationPlayer> {
     return controller;
   }
 
+  /// NavigationDelegate error callback — guard `builtFor` giống JS
+  /// channel: callback của document phiên cũ không cập nhật state phiên
+  /// mới (A fail không được làm error B); đến sau dispose thì bỏ.
+  void _onWebResourceError(WebResourceError err, int builtFor) {
+    if (builtFor != _controllerGen || !mounted) return;
+    if (err.isForMainFrame ?? false) {
+      _setErrorIfCurrent('Nội dung hoạt họa không tải được.');
+    }
+  }
+
   /// Whitelist + envelope + size check trước khi đụng switch. Message quá
   /// lớn hoặc không parse được type hợp lệ bị drop — HTML không thể flood
   /// hay gửi command lạ. Public-for-test để widget test emit message trực
   /// tiếp mà không cần WebViewPlatform (controller là platform impl).
   @visibleForTesting
   void handleJsMessageForTest(JavaScriptMessage msg) => _onJsMessage(msg);
+
+  /// Mô phỏng error callback của MỘT session cụ thể — widget test gọi
+  /// với `builtFor` cũ để chứng minh stale callback bị drop (không chỉ
+  /// gửi vào state hiện tại).
+  @visibleForTesting
+  void handleWebResourceErrorForTest(WebResourceError err, int builtFor) =>
+      _onWebResourceError(err, builtFor);
+
+  /// Session generation hiện hành của controller — test đọc để đóng vai
+  /// callback của session cũ (builtFor < _controllerGen).
+  @visibleForTesting
+  int get controllerGenerationForTest => _controllerGen;
 
   void _onJsMessage(JavaScriptMessage msg) {
     final text = msg.message;
@@ -225,13 +247,15 @@ class _HtmlAnimationPlayerState extends ConsumerState<HtmlAnimationPlayer> {
   Future<void> _load() async {
     final int gen = ++_generation;
     if (!mounted) return;
+    // Session tag cho callbacks của document — `_controllerGen` đặt
+    // trước, callback nào mang `builtFor` khác bị drop.
+    _controllerGen = gen;
     // Session-scoped controller — document cũ (và JS channel + pending
     // loadHtmlString của nó) detach cùng widget; message sót lại bị
     // `builtFor == _controllerGen` check drop. Chỉ tạo khi sẽ render
     // platform view thật (không webViewBuilder/controllerOverride) —
     // test seam không đụng WebViewPlatform.
     if (widget.controllerOverride == null && widget.webViewBuilder == null) {
-      _controllerGen = gen;
       _controller = _buildController();
     }
     setState(() {
@@ -241,15 +265,16 @@ class _HtmlAnimationPlayerState extends ConsumerState<HtmlAnimationPlayer> {
     try {
       final List<int> bytes;
       if (widget.apiOverride != null) {
-        bytes = await widget.apiOverride!
-            .getAnimationHtmlBytes(widget.sceneVersionId);
+        bytes = await widget.apiOverride!.getAnimationHtmlBytes(
+          widget.sceneVersionId,
+        );
       } else {
         final LearningApiClient api = ref.read(learningApiClientProvider);
         // FIX-04: giống fetchLearningAssetBytes — 401 → refresh 1 lần →
         // retry; không retry vô hạn, 403 lỗi ra UI ngay.
-        bytes = await ref.read(authRepositoryProvider).withAuth(
-              () => api.getAnimationHtmlBytes(widget.sceneVersionId),
-            );
+        bytes = await ref
+            .read(authRepositoryProvider)
+            .withAuth(() => api.getAnimationHtmlBytes(widget.sceneVersionId));
       }
       if (gen != _generation || !mounted) return; // stale session
       if (bytes.isEmpty) {
@@ -319,28 +344,29 @@ class _HtmlAnimationPlayerState extends ConsumerState<HtmlAnimationPlayer> {
           color: DauVietColors.parchmentContainer,
           child: switch (_state) {
             _HtmlLoadState.loading => const Center(
-                child: SizedBox(
-                  width: 28,
-                  height: 28,
-                  child: CircularProgressIndicator(strokeWidth: 2.5),
-                ),
+              child: SizedBox(
+                width: 28,
+                height: 28,
+                child: CircularProgressIndicator(strokeWidth: 2.5),
               ),
+            ),
             _HtmlLoadState.error => _ErrorPane(
-                message: _error,
-                onRetry: () {
-                  _finishedFired = false;
-                  unawaited(_load());
-                },
-              ),
-            _HtmlLoadState.ready => widget.webViewBuilder != null
-                ? widget.webViewBuilder!(context, _ctrlOrNull)
-                // Key theo controller identity → khi session đổi,
-                // platform view cũ bị dispose và document cũ chết theo;
-                // không dùng document phiên trước cho phiên mới.
-                : WebViewWidget(
-                    key: ValueKey<Object>(_ctrlOrNull ?? _ctrl),
-                    controller: _ctrl,
-                  ),
+              message: _error,
+              onRetry: () {
+                _finishedFired = false;
+                unawaited(_load());
+              },
+            ),
+            _HtmlLoadState.ready =>
+              widget.webViewBuilder != null
+                  ? widget.webViewBuilder!(context, _ctrlOrNull)
+                  // Key theo controller identity → khi session đổi,
+                  // platform view cũ bị dispose và document cũ chết theo;
+                  // không dùng document phiên trước cho phiên mới.
+                  : WebViewWidget(
+                      key: ValueKey<Object>(_ctrlOrNull ?? _ctrl),
+                      controller: _ctrl,
+                    ),
           },
         ),
       ),
