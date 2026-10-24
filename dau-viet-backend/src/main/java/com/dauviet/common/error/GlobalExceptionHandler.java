@@ -294,6 +294,21 @@ public class GlobalExceptionHandler {
                 ex.getMessage(), details);
     }
 
+    @ExceptionHandler(com.dauviet.energy.domain.EnergyDepletedException.class)
+    public ResponseEntity<ApiError> handleEnergyDepleted(
+            com.dauviet.energy.domain.EnergyDepletedException ex) {
+        // details mang thời gian server tính — client đồng bộ countdown mà
+        // không cần đoán; không lộ đáp án/rule chấm.
+        Map<String, Object> details = new java.util.HashMap<>();
+        details.put("currentEnergy", 0);
+        details.put("serverTime", ex.getServerTime() == null
+                ? null : ex.getServerTime().toString());
+        details.put("nextRecoveryAt", ex.getNextRecoveryAt() == null
+                ? null : ex.getNextRecoveryAt().toString());
+        return build(HttpStatus.CONFLICT, ErrorCode.ENERGY_DEPLETED,
+                ex.getMessage(), details);
+    }
+
     @ExceptionHandler(com.dauviet.learning.domain.ResultNotFoundException.class)
     public ResponseEntity<ApiError> handleResultNotFound(
             com.dauviet.learning.domain.ResultNotFoundException ex) {

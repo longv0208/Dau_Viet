@@ -11,7 +11,11 @@ public record SubmitActivityResponse(
         boolean activityCompleted,
         AttemptProgressResponse.Progress progress,
         Next next,
-        LessonCompletion completion) {
+        LessonCompletion completion,
+        // GAME-02 additive: số Thể lực vừa bị trừ cho submission này (0 nếu
+        // không phạt/không graded/flag tắt) — client đồng bộ pill mà không
+        // cần gọi lại /me/energy. Idempotent replay trả đúng giá trị đã lưu.
+        int energyDeducted) {
 
     public record Next(String stageId, String activityId, String activityType,
                        JsonNode learnerConfig) {

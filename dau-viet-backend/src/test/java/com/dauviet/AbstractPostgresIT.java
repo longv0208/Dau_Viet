@@ -53,6 +53,10 @@ public abstract class AbstractPostgresIT {
         jdbc.update("delete from animation_templates");
         jdbc.update("delete from user_inventory");
         jdbc.update("delete from reward_transactions");
+        // GAME-02: energy tables — xoá trước learner_attempts/users để FK
+        // không chặn cleanup của IT khác khi nó wipe bảng users.
+        jdbc.update("delete from energy_transactions");
+        jdbc.update("delete from user_energy");
         jdbc.update("delete from map_locations");
         jdbc.update("delete from user_evidence");
         jdbc.update("delete from activity_attempts");

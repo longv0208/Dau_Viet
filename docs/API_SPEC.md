@@ -61,6 +61,7 @@
 | GET | `/me/collection/{evidenceId}` | Chi tiết một bằng chứng đã collect + snapshot immutable + nguồn trích dẫn — **implemented TASK-0022**; 404 nếu không thuộc learner |
 | GET | `/me/collection/types` | Các `evidence_type` learner đã collect trên toàn collection (distinct, ASC) — **implemented TASK-0022**; nguồn filter chips phía client |
 | GET | `/me/progress` | Resume surface: IN_PROGRESS attempts + completed count — **implemented TASK-0012** |
+| GET | `/me/energy` | Thể lực của learner hiện tại (lazy recovery theo server clock) — **implemented GAME-02**; yêu cầu authenticated |
 
 ### Start/resume
 
@@ -125,11 +126,35 @@ Content-Type: application/json
   "progress": {"completedRequired": 3, "totalRequired": 9},
   "next": {"stageId": "stage-reasoning", "activityId": "act-match-01",
            "activityType": "MATCHING", "learnerConfig": {}},
-  "completion": {"complete": false, "reason": "ALL_REQUIRED_STAGES"}
+  "completion": {"complete": false, "reason": "ALL_REQUIRED_STAGES"},
+  "energyDeducted": 0
 }
 ```
 
+`energyDeducted` (GAME-02, additive): số thể lực server vừa trừ cho lượt submit đó (graded `INCORRECT` → `incorrectPenalty`, mặc định 10; clamp về số dư còn lại). Replay `Idempotency-Key` trả nguyên giá trị đã lưu — không trừ lại.
+
 **Không** cho Flutter gửi `correct`, `earnedExp`, `isCompleted`, `nextStageId` với quyền quyết định. Backend tính các dữ liệu đó từ snapshot/rule và state server.
+
+### GET /me/energy — implemented shape (GAME-02)
+
+`GET /api/v1/me/energy` — authenticated; lazy-create `user_energy` nếu chưa có, áp lazy-recovery theo `Clock` server rồi trả trạng thái mới nhất.
+
+```json
+{
+  "current": 70,
+  "max": 100,
+  "recoveryAmount": 5,
+  "recoveryIntervalSeconds": 900,
+  "nextRecoveryAt": "2026-10-25T01:00:00Z",
+  "serverTime": "2026-10-25T00:50:00Z",
+  "canSubmitGraded": true
+}
+```
+
+- `nextRecoveryAt` = `null` khi `current = max` (không còn chu kỳ hồi chờ).
+- `canSubmitGraded` = `current > 0` — client dùng để quyết hiển thị nút submit graded; energy 0 chỉ chặn graded submit, ungraded/read/complete vẫn đi qua.
+- `current`, `nextRecoveryAt`, `serverTime` do server tính tuyệt đối — client không gửi balance, không tự tính chu kỳ hồi.
+- Error `409 ENERGY_DEPLETED` (submit graded khi `current = 0`) mang `details {currentEnergy, nextRecoveryAt, serverTime}` để client hiển thị countdown mà không cần gọi thêm endpoint.
 
 ### GET /events — implemented shape (TASK-0005)
 
@@ -338,7 +363,7 @@ Publish chạy PUBLISH-level `DraftValidator` trong một transaction: `SELECT F
 - Idempotency-Key (TASK-0012): persist trên `idempotency_records`, scope `(user_id, operation, key)` với operation `SUBMIT_ACTIVITY`/`COMPLETE_ATTEMPT`; `request_hash` = SHA-256(`attemptId|activityId|canonical(answer)`) cho submit, `attemptId` cho complete. Cùng key + cùng fingerprint → `200` replay stored response (không re-evaluate, không append row); cùng key + payload khác → `409 IDEMPOTENCY_CONFLICT` — client phải mint key mới cho mỗi action khác nhau (kể cả cùng attempt, activity khác). Concurrent cùng-key serialize trên attempt row lock → loser thấy committed response, không double-write. Claim row + response + activity_attempts commit cùng transaction; business error rollback cả claim nên key không bị burn. TTL mặc định 24h (`app.learning.idempotency-ttl`); record hết hạn bị xoá + reclaim. Không gửi key → execute thẳng, không ghi record.
 - `completion` config (AND-combination): `requireAllRequiredStages` (mọi stage `required:true` xong hết required activities), `requiredStageIds` (subset chỉ định — đếm `required:true` bên trong stage đó, kể cả stage optional), `minScore` (% required activities đã xong trên tổng). Không có config → default `DEFAULT_ALL_REQUIRED`. **`stage.required=false`** → toàn bộ activities bên trong optional (không đếm `totalRequired`, không gate completion, cursor không vào); `activity.required=true` trong optional stage → publish `422 REQUIRED_IN_OPTIONAL_STAGE`. **Config rỗng/không-clause** (`completion:{}`, hoặc chỉ giá trị falsy/empty/null) cũng → `DEFAULT_ALL_REQUIRED` — không bao giờ complete sớm; publish-time reject `completion:{}` (`422 EMPTY_COMPLETION`). Reason enum: `ALL_REQUIRED_STAGES` | `REQUIRED_STAGE_IDS` | `MIN_SCORE` | `DEFAULT_ALL_REQUIRED` | `NOT_COMPLETE`.
 - Evaluation outcomes per handler: `COMPLETED` | `INCORRECT` | `PARTIAL` | `SUPPORTED` | `CONTRADICTED`. MCQ `maxAttempts` (default 1) đạt giới hạn → `exhausted:true` và activity vẫn tính completed cho transition.
-- Error codes mới: `ATTEMPT_NOT_FOUND`(404), `ATTEMPT_NOT_OWNER`(403), `ATTEMPT_NOT_IN_PROGRESS`(409), `ATTEMPT_ALREADY_COMPLETED`(409), `ACTIVITY_NOT_AVAILABLE`(409), `ACTIVITY_ALREADY_SUBMITTED`(409), `SNAPSHOT_INVALID_FOR_ACTIVITY`(422), `LESSON_VERSION_MISMATCH`(422). TASK-0012 thêm: `IDEMPOTENCY_CONFLICT`(409 — cùng key khác payload, hoặc key đang in-flight), `ATTEMPT_NOT_COMPLETE`(409 — complete khi chưa đủ requirements, `details` mang `LessonCompletion.detail`), `RESULT_NOT_FOUND`(404 — `/result` trước khi completed).
+- Error codes mới: `ATTEMPT_NOT_FOUND`(404), `ATTEMPT_NOT_OWNER`(403), `ATTEMPT_NOT_IN_PROGRESS`(409), `ATTEMPT_ALREADY_COMPLETED`(409), `ACTIVITY_NOT_AVAILABLE`(409), `ACTIVITY_ALREADY_SUBMITTED`(409), `SNAPSHOT_INVALID_FOR_ACTIVITY`(422), `LESSON_VERSION_MISMATCH`(422). TASK-0012 thêm: `IDEMPOTENCY_CONFLICT`(409 — cùng key khác payload, hoặc key đang in-flight), `ATTEMPT_NOT_COMPLETE`(409 — complete khi chưa đủ requirements, `details` mang `LessonCompletion.detail`), `RESULT_NOT_FOUND`(404 — `/result` trước khi completed). GAME-02 thêm: `ENERGY_DEPLETED`(409 — submit graded khi `current_energy = 0`, `details` mang `{currentEnergy, nextRecoveryAt, serverTime}`; chỉ phát khi `dauviet.energy.enabled=true` và chỉ trên graded submit).
 
 ### Notes đã chốt TASK-0020 (Learning Flow 2.0)
 

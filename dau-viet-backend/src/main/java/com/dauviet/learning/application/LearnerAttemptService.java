@@ -89,6 +89,8 @@ public class LearnerAttemptService {
     private final com.dauviet.reward.application.RewardGrantService rewardGrants;
     private final com.dauviet.reward.application.ItemUnlockService itemUnlocks;
     private final com.dauviet.reward.application.RewardService rewardService;
+    private final com.dauviet.energy.application.EnergyService energyService;
+    private final GradedActivityClassifier gradedClassifier;
     private final ObjectMapper mapper;
     private final TransactionTemplate txTemplate;
     private final EntityManager entityManager;
@@ -111,6 +113,9 @@ public class LearnerAttemptService {
                                          .ItemUnlockService itemUnlocks,
                                  com.dauviet.reward.application
                                          .RewardService rewardService,
+                                 com.dauviet.energy.application
+                                         .EnergyService energyService,
+                                 GradedActivityClassifier gradedClassifier,
                                  ObjectMapper mapper,
                                  org.springframework.transaction
                                          .PlatformTransactionManager txManager,
@@ -129,6 +134,8 @@ public class LearnerAttemptService {
         this.rewardGrants = rewardGrants;
         this.itemUnlocks = itemUnlocks;
         this.rewardService = rewardService;
+        this.energyService = energyService;
+        this.gradedClassifier = gradedClassifier;
         this.mapper = mapper;
         this.txTemplate = new TransactionTemplate(txManager);
         this.entityManager = entityManager;
@@ -313,6 +320,15 @@ public class LearnerAttemptService {
         }
 
         ActivityType type = ActivityType.valueOf(activity.path("type").asText());
+        // GAME-02: zero-energy gate chỉ áp cho activity có chấm điểm — chạy
+        // sau khi xác định activity hợp lệ + trước evaluate (lazy-recover
+        // đã tính bên trong; replay idempotent không bao giờ tới đây vì
+        // idempotency.execute trả stored response trước). Ungraded/passive
+        // không bao giờ bị chặn.
+        boolean graded = gradedClassifier.isGraded(activity);
+        if (graded) {
+            energyService.gateForGradedSubmit(userId);
+        }
         ActivityHandler handler = handlers.handlerFor(type);
         AttemptContext ctx = new AttemptContext(a.getId(), userId,
                 a.getLessonVersionId(), state.currentStageId(), activityId,
@@ -354,6 +370,15 @@ public class LearnerAttemptService {
         }
         int attemptNo = activityAttempts
                 .countByLearnerAttemptIdAndActivityId(a.getId(), activityId) + 1;
+        // GAME-02: penalty debit TRONG cùng transaction — verdict INCORRECT
+        // của activity có chấm điểm trừ min(penalty, current). cause_key theo
+        // (attempt, activity, attemptNo) nên retry hợp lệ trừ một lần/lần
+        // submit; PARTIAL/CONTRADICTED/payload lỗi (đã throw ở evaluate) và
+        // idempotent replay không trừ. Lỗi ở đây rollback cả submission.
+        int energyDeducted = gradedClassifier.penalizableIncorrect(activity, result)
+                ? energyService.settleAfterSubmission(userId, a.getId(),
+                        activityId, attemptNo)
+                : 0;
         activityAttempts.save(ActivityAttempt.of(a.getId(), activityId, attemptNo,
                 answer == null ? "{}" : answer.toString(), resultJson(result)));
 
@@ -373,7 +398,7 @@ public class LearnerAttemptService {
         LessonCompletion completion = completionEvaluator.evaluate(model, state);
         SubmitActivityResponse.Next next = nextDto(model, state, transition, optionalInStage);
         return new SubmitActivityResponse("ACCEPTED", result, result.completed(),
-                progressOf(model, state), next, completion);
+                progressOf(model, state), next, completion, energyDeducted);
     }
 
     /**
@@ -596,15 +621,7 @@ public class LearnerAttemptService {
      * learner-answer correctness score.
      */
     private boolean isGradedActivity(JsonNode act) {
-        String type = act.path("type").asText("");
-        if (ActivityType.MULTIPLE_CHOICE.name().equals(type)
-                || ActivityType.MATCHING.name().equals(type)
-                || ActivityType.DRAG_ORDER.name().equals(type)
-                || ActivityType.CER_CHOICE.name().equals(type)) {
-            return true;
-        }
-        JsonNode config = act.get("config");
-        return config != null && config.path("graded").asBoolean(false);
+        return gradedClassifier.isGraded(act);
     }
 
     private String resultJsonOf(LearnerAttempt a, LessonCompletion verdict,
