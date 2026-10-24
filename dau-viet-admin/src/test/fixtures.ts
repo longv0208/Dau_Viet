@@ -282,6 +282,104 @@ export const animationScenesPageFixture = {
       rowVersion: 1,
       updatedAt: "2026-01-04T00:00:00Z",
     },
+    // HTML_WEBVIEW scene — templateId khớp animationTemplatesFixture 'html-webview'.
+    {
+      id: "dddddddd-dddd-dddd-dddd-dddddddddddd",
+      templateId: "d7a11000-0000-4000-8000-000000000001",
+      rendererCode: "HTML_WEBVIEW",
+      eventId: null,
+      title: "Hoạt họa HTML mẫu",
+      status: "PUBLISHED",
+      currentVersionId: "vvvvvvvv-vvvv-vvvv-vvvv-vvvvvvvvvvvv",
+      currentVersionNo: 1,
+      rowVersion: 2,
+      updatedAt: "2026-01-05T00:00:00Z",
+      draftJson: JSON.stringify({
+        schemaVersion: 2,
+        rendererCode: "HTML_WEBVIEW",
+        rendererVersion: 1,
+        title: "Hoạt họa HTML mẫu",
+        html: {
+          filename: "hoat-hoa-mau.html",
+          sizeBytes: 8192,
+          sha256: "deadbeefcafe",
+        },
+      }),
+    },
+  ],
+};
+
+/** PageResponse<AnimationTemplateResponse> — animation templates. */
+export const animationTemplatesFixture = {
+  ...emptyPageFixture,
+  totalElements: 4,
+  totalPages: 1,
+  content: [
+    // Template legacy — rendererCode khác HTML_WEBVIEW (test filter).
+    {
+      id: "88888888-8888-8888-8888-888888888888",
+      code: "river-tide",
+      name: "Sông triều",
+      description: null,
+      rendererCode: "RIVER_TIDE",
+      rendererVersion: 1,
+      schemaVersion: 1,
+      capabilitiesJson: null,
+      defaultConfigJson: null,
+      thumbnailAssetId: null,
+      enabled: true,
+      createdAt: "2026-01-01T00:00:00Z",
+      updatedAt: "2026-01-01T00:00:00Z",
+    },
+    {
+      id: "99999999-9999-9999-9999-999999999999",
+      code: "journey-map",
+      name: "Hành trình",
+      description: null,
+      rendererCode: "JOURNEY_MAP",
+      rendererVersion: 1,
+      schemaVersion: 1,
+      capabilitiesJson: null,
+      defaultConfigJson: null,
+      thumbnailAssetId: null,
+      enabled: true,
+      createdAt: "2026-01-01T00:00:00Z",
+      updatedAt: "2026-01-01T00:00:00Z",
+    },
+    // Template HTML dư thừa — code KHÔNG phải chuẩn, xếp trước template
+    // chuẩn để test FIX-01 "nhiều HTML templates, template chuẩn không
+    // đứng đầu".
+    {
+      id: "aaaaaaaa-1111-1111-1111-111111111111",
+      code: "html-custom",
+      name: "HTML tùy biến",
+      description: null,
+      rendererCode: "HTML_WEBVIEW",
+      rendererVersion: 1,
+      schemaVersion: 2,
+      capabilitiesJson: null,
+      defaultConfigJson: null,
+      thumbnailAssetId: null,
+      enabled: true,
+      createdAt: "2026-01-01T00:00:00Z",
+      updatedAt: "2026-01-01T00:00:00Z",
+    },
+    // Template CHUẨN — code 'html-webview' khớp AnimationHtmlService + V19.
+    {
+      id: "d7a11000-0000-4000-8000-000000000001",
+      code: "html-webview",
+      name: "Hoạt họa HTML",
+      description: null,
+      rendererCode: "HTML_WEBVIEW",
+      rendererVersion: 1,
+      schemaVersion: 2,
+      capabilitiesJson: null,
+      defaultConfigJson: null,
+      thumbnailAssetId: null,
+      enabled: true,
+      createdAt: "2026-01-01T00:00:00Z",
+      updatedAt: "2026-01-01T00:00:00Z",
+    },
   ],
 };
 

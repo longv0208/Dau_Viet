@@ -29,6 +29,9 @@ const STATUS_LABELS: Record<string, string> = {
  * templateId của template HTML — KHÔNG lọc client sau khi phân trang,
  * tránh trang rỗng/pagination sai).
  */
+/** Code template chuẩn cho cảnh HTML — khớp AnimationHtmlService.TEMPLATE_CODE + V19. */
+const HTML_TEMPLATE_CODE = "html-webview";
+
 export function AnimationLibrary() {
   const router = useRouter();
   const qc = useQueryClient();
@@ -37,15 +40,23 @@ export function AnimationLibrary() {
   const [page, setPage] = useState(0);
   const importBusy = useRef(false);
 
-  // Xác định template HTML_WEBVIEW để filter server-side — không phân
-  // trang qua tập toàn-scene rồi lọc phía client.
+  // FIX-01: xác định template chuẩn bằng code 'html-webview', KHÔNG lấy
+  // content[0] — backend cho phép nhiều template HTML_WEBVIEW và template
+  // đầu trang chưa chắc là template chuẩn mà HTML import sử dụng.
   const htmlTemplate = useQuery({
     queryKey: qk.animationTemplates.list({ rendererCode: "HTML_WEBVIEW" }),
     queryFn: () =>
-      animationApi.listTemplates({ rendererCode: "HTML_WEBVIEW", size: 1 }),
+      animationApi.listTemplates({ rendererCode: "HTML_WEBVIEW", size: 100 }),
     staleTime: 60_000,
+    retry: false,
   });
-  const htmlTemplateId = htmlTemplate.data?.content?.[0]?.id;
+  const htmlTemplateId: string | undefined =
+    htmlTemplate.data?.content?.find((t) => t.code === HTML_TEMPLATE_CODE)?.id;
+  // Template API chạy xong nhưng không có code chuẩn → lỗi rõ ràng thay
+  // vì skeleton mãi; scene query vẫn disabled — KHÔNG fallback gọi toàn
+  // bộ scene (legacy lẫn HTML) lọc phía client.
+  const templateMissing =
+    htmlTemplate.isSuccess && htmlTemplateId === undefined;
 
   const query = useQuery({
     queryKey: qk.animationScenes.list({
@@ -91,6 +102,18 @@ export function AnimationLibrary() {
   const actionError = duplicate.error ?? archive.error ?? htmlImport.error;
 
   const rows = query.data?.content ?? [];
+
+  // FIX-02: lỗi tải template (API lỗi, hoặc thiếu code chuẩn) → ErrorState
+  // với Retry chạy lại ĐÚNG query template. Lỗi scene → Retry scene.
+  const tableError = templateMissing
+    ? new Error(
+        `Thiếu template '${HTML_TEMPLATE_CODE}' — chạy lại migration V19 trên backend.`,
+      )
+    : (htmlTemplate.error ?? query.error ?? undefined);
+  const handleRetry = () => {
+    if (templateMissing || htmlTemplate.error) void htmlTemplate.refetch();
+    else void query.refetch();
+  };
 
   const columns: Column<AnimationSceneSummary>[] = [
     {
@@ -224,8 +247,8 @@ export function AnimationLibrary() {
         rows={rows}
         rowKey={(r) => r.id}
         loading={query.isPending || htmlTemplate.isPending}
-        error={query.error ?? htmlTemplate.error ?? undefined}
-        onRetry={() => query.refetch()}
+        error={tableError}
+        onRetry={handleRetry}
         emptyTitle="Chưa có hoạt họa nào"
         emptyDescription="Kéo thả một tệp .html vào vùng tải lên ở trên để tạo hoạt họa đầu tiên."
       />

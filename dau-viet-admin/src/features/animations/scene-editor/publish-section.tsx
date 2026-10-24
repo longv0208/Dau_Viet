@@ -17,7 +17,16 @@ import { Section } from "./editor-sections";
  * publish tạo phiên bản bất biến mới. Publish yêu cầu draft đã lưu
  * (expectedRowVersion khớp); xung đột 409 báo tải lại.
  */
-export function PublishSection({ scene, onSaved }: { scene: AnimationSceneDetail; onSaved: () => void }) {
+export function PublishSection({
+  scene,
+  onSaved,
+  onArchived,
+}: {
+  scene: AnimationSceneDetail;
+  onSaved: () => void;
+  /** FIX-03: archive thành công → parent refetch + đồng bộ local scene state. */
+  onArchived?: () => void;
+}) {
   const router = useRouter();
   const qc = useQueryClient();
   const [errors, setErrors] = useState<SceneFieldError[] | null>(null);
@@ -65,7 +74,13 @@ export function PublishSection({ scene, onSaved }: { scene: AnimationSceneDetail
 
   const archive = useMutation({
     mutationFn: () => animationApi.archiveScene(scene.id),
-    onSuccess: () => qc.invalidateQueries({ queryKey: ["animation-scenes"] }),
+    onSuccess: (fresh) => {
+      qc.invalidateQueries({ queryKey: ["animation-scenes"] });
+      // Archive trả về scene detail → setQueryData + callback cho parent
+      // (HtmlSceneEditor giữ scene trong local state, invalidate không đủ).
+      qc.setQueryData(qk.animationScenes.detail(scene.id), fresh);
+      onArchived?.();
+    },
   });
 
   const conflict =
@@ -131,6 +146,13 @@ export function PublishSection({ scene, onSaved }: { scene: AnimationSceneDetail
         )}
         {publish.error && !(publish.error instanceof ApiClientError) && (
           <p role="alert" className="text-xs text-error">{publish.error.message}</p>
+        )}
+        {archive.error && (
+          <p role="alert" className="text-xs text-error">
+            {archive.error instanceof ApiClientError
+              ? archive.error.message
+              : "Không lưu trữ được cảnh."}
+          </p>
         )}
         {publish.isSuccess && (
           <p className="rounded-md border border-emerald-300 bg-emerald-50 px-3 py-2 text-xs text-emerald-800">

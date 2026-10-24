@@ -37,6 +37,9 @@ export function HtmlSceneEditor({ sceneId }: { sceneId: string }) {
   const [title, setTitle] = useState("");
   const [viewport, setViewport] = useState(0);
   const [blobUrl, setBlobUrl] = useState<string | null>(null);
+  // FIX-04: trạng thái loading riêng — giữa replace và fetch xong,
+  // iframe cũ bị gỡ (blobUrl=null), hiển thị "Đang tải" thay vì file cũ.
+  const [previewLoading, setPreviewLoading] = useState(false);
   const [previewError, setPreviewError] = useState<string | null>(null);
   const [previewKey, setPreviewKey] = useState(0);
   const objectUrlRef = useRef<string | null>(null);
@@ -45,14 +48,16 @@ export function HtmlSceneEditor({ sceneId }: { sceneId: string }) {
   // ngay khi resolve (không hiển thị file cũ, không leak object URL).
   const previewSeq = useRef(0);
 
+  // FIX-04: gỡ blob cũ TRƯỚC khi fetch — giữa lúc thay file và load xong
+  // không được hiển thị iframe cũ như thể đó là file hiện tại. Request
+  // hoàn thành sai thứ tự (stale) bị revoke ngay, không ghi đè state mới.
   const loadPreview = async (id: string) => {
     const seq = ++previewSeq.current;
+    setPreviewLoading(true);
     try {
       const blob = await animationApi.fetchHtmlDraft(id);
       const url = URL.createObjectURL(blob);
       if (seq !== previewSeq.current) {
-        // Một fetch mới hơn đã bắt đầu (replace liên tiếp / chuyển scene)
-        // — blob này là của file CŨ: revoke luôn, không gán vào state.
         URL.revokeObjectURL(url);
         return;
       }
@@ -62,16 +67,22 @@ export function HtmlSceneEditor({ sceneId }: { sceneId: string }) {
       setPreviewError(null);
       setPreviewKey((k) => k + 1);
     } catch (e) {
-      if (seq !== previewSeq.current) return; // stale error không đè lỗi mới
+      if (seq !== previewSeq.current) return;
+      // Fetch lỗi → không giữ iframe cũ: blobUrl vẫn null (đã clear trước).
       setPreviewError(
         e instanceof ApiClientError ? e.message : "Không tải được bản nháp HTML.",
       );
+    } finally {
+      if (seq === previewSeq.current) setPreviewLoading(false);
     }
   };
 
   // FIX-05: sau publish/archive refetch scene để status/rowVersion/
   // currentVersionNo trên UI khớp server — tránh lần publish/replace kế
   // tiếp gửi expectedRowVersion cũ (409 giả).
+  // FIX-03+05: sau publish/archive refetch scene để status/rowVersion/
+  // currentVersionNo trên UI khớp server — tránh lần publish/replace kế
+  // tiếp gửi expectedRowVersion cũ (409 giả) và cập nhật file metadata.
   const refreshScene = async () => {
     try {
       const fresh = await animationApi.getScene(sceneId);
@@ -90,6 +101,13 @@ export function HtmlSceneEditor({ sceneId }: { sceneId: string }) {
         if (!alive) return;
         setScene(s);
         setTitle(s.title);
+        // FIX-04: gỡ blob cũ trước khi fetch — màn hình không flash file
+        // của scene trước đó.
+        if (objectUrlRef.current) {
+          URL.revokeObjectURL(objectUrlRef.current);
+          objectUrlRef.current = null;
+        }
+        setBlobUrl(null);
         loadPreview(s.id);
       })
       .catch((e) => {
@@ -128,6 +146,14 @@ export function HtmlSceneEditor({ sceneId }: { sceneId: string }) {
     onSuccess: async (fresh) => {
       setScene(fresh);
       qc.setQueryData(qk.animationScenes.detail(sceneId), fresh);
+      // FIX-04: blob cũ stale ngay — gỡ trước khi fetch file mới để
+      // iframe cũ không hiển thị như "file hiện tại" trong lúc chờ.
+      if (objectUrlRef.current) {
+        URL.revokeObjectURL(objectUrlRef.current);
+        objectUrlRef.current = null;
+      }
+      setBlobUrl(null);
+      setPreviewError(null);
       await loadPreview(fresh.id);
     },
   });
@@ -143,6 +169,20 @@ export function HtmlSceneEditor({ sceneId }: { sceneId: string }) {
     return <p className="text-sm text-ink-muted">Đang tải cảnh…</p>;
   }
   const readOnly = scene.status === "ARCHIVED";
+
+  // FIX-05: metadata file lấy từ draftJson phía server (server-managed,
+  // không phải File object cũ của input). sha256/sizeBytes backend tự
+  // recompute — không hiển thị như trường editable.
+  const htmlMeta = (() => {
+    try {
+      const m = JSON.parse(scene.draftJson) as {
+        html?: { filename?: string; sizeBytes: number; sha256: string };
+      };
+      return m.html ?? null;
+    } catch {
+      return null;
+    }
+  })();
 
   return (
     <div className="flex flex-col gap-4">
@@ -212,6 +252,31 @@ export function HtmlSceneEditor({ sceneId }: { sceneId: string }) {
 
           <Section title="Tệp HTML">
             <div className="flex flex-col gap-3">
+              {/* FIX-05: file info read-only từ server draft metadata. */}
+              {htmlMeta && (
+                <dl className="grid grid-cols-[auto_1fr] gap-x-4 gap-y-1 rounded-md border border-border bg-surface-alt px-3 py-2 text-xs">
+                  {htmlMeta.filename && (
+                    <>
+                      <dt className="text-ink-muted">Tên tệp</dt>
+                      <dd className="font-mono text-ink">{htmlMeta.filename}</dd>
+                    </>
+                  )}
+                  <dt className="text-ink-muted">Kích thước</dt>
+                  <dd className="font-mono text-ink">
+                    {(htmlMeta.sizeBytes / 1024).toFixed(1)} KB
+                  </dd>
+                  {scene.currentVersionNo != null && (
+                    <>
+                      <dt className="text-ink-muted">Đang xuất bản</dt>
+                      <dd className="text-ink">v{scene.currentVersionNo}</dd>
+                    </>
+                  )}
+                  <dt className="text-ink-muted">Bản nháp</dt>
+                  <dd className="text-ink">
+                    <StatusChip status={scene.status} />
+                  </dd>
+                </dl>
+              )}
               <p className="text-xs text-ink-muted">
                 Thay file = cập nhật bản nháp. Phiên bản đã xuất bản giữ
                 nguyên file cũ — muốn phát hành file mới hãy bấm &quot;Xuất bản
@@ -254,6 +319,10 @@ export function HtmlSceneEditor({ sceneId }: { sceneId: string }) {
               qc.invalidateQueries({ queryKey: ["animation-scenes"] });
               void refreshScene();
             }}
+            onArchived={() => {
+              qc.invalidateQueries({ queryKey: ["animation-scenes"] });
+              void refreshScene();
+            }}
           />
         </div>
 
@@ -277,14 +346,25 @@ export function HtmlSceneEditor({ sceneId }: { sceneId: string }) {
                 <Button
                   variant="outline"
                   size="sm"
-                  onClick={() => loadPreview(sceneId)}
+                  disabled={previewLoading}
+                  onClick={() => {
+                    // FIX-04: Retry thủ công — gỡ blob cũ + lỗi trước khi
+                    // fetch lại, không flash file cũ.
+                    if (objectUrlRef.current) {
+                      URL.revokeObjectURL(objectUrlRef.current);
+                      objectUrlRef.current = null;
+                    }
+                    setBlobUrl(null);
+                    setPreviewError(null);
+                    void loadPreview(sceneId);
+                  }}
                 >
-                  Tải lại
+                  {previewLoading ? "Đang tải…" : "Tải lại"}
                 </Button>
               </div>
               {previewError && (
                 <p role="alert" className="text-xs text-error">
-                  {previewError}
+                  {previewError} — bấm &quot;Tải lại&quot; để thử lại.
                 </p>
               )}
               <div className="overflow-auto rounded-lg border border-border bg-surface-alt p-2">
@@ -302,8 +382,14 @@ export function HtmlSceneEditor({ sceneId }: { sceneId: string }) {
                       background: "#fff",
                     }}
                   />
-                ) : (
+                ) : previewLoading ? (
                   <p className="text-xs text-ink-muted">Đang tải bản nháp…</p>
+                ) : previewError ? (
+                  <p className="text-xs text-ink-muted">
+                    Không tải được bản nháp — xem lỗi phía trên.
+                  </p>
+                ) : (
+                  <p className="text-xs text-ink-muted">Chưa có bản xem trước.</p>
                 )}
               </div>
               <p className="text-[11px] text-ink-muted">

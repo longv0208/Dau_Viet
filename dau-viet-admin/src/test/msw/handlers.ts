@@ -3,6 +3,7 @@ import { http, HttpResponse } from "msw";
 import {
   adminUserFixture,
   animationScenesPageFixture,
+  animationTemplatesFixture,
   assetsPageFixture,
   draftFixture,
   emptyPageFixture,
@@ -567,18 +568,36 @@ export const handlers = [
     HttpResponse.json(assetsPageFixture.content[0], { status: 201 }),
   ),
 
+  /* ---------- Animation templates ---------- */
+  http.get("*/api/proxy/admin/animation-templates", ({ request }) => {
+    const url = new URL(request.url);
+    const rendererCode = url.searchParams.get("rendererCode");
+    let content = animationTemplatesFixture.content;
+    if (rendererCode) {
+      content = content.filter((t) => t.rendererCode === rendererCode);
+    }
+    return HttpResponse.json({
+      ...animationTemplatesFixture,
+      content,
+      totalElements: content.length,
+    });
+  }),
+
   /* ---------- Animation scenes (builder picker) ---------- */
   http.get("*/api/proxy/admin/animation-scenes", ({ request }) => {
     const url = new URL(request.url);
     const status = url.searchParams.get("status");
     const q = (url.searchParams.get("q") ?? "").toLowerCase();
+    const templateId = url.searchParams.get("templateId");
     let rows = animationScenesPageFixture.content;
+    if (templateId) rows = rows.filter((s) => s.templateId === templateId);
     if (status) rows = rows.filter((s) => s.status === status);
     if (q) rows = rows.filter((s) => s.title.toLowerCase().includes(q));
     return HttpResponse.json({
       ...animationScenesPageFixture,
       content: rows,
       totalElements: rows.length,
+      totalPages: rows.length > 0 ? 1 : 0,
     });
   }),
   http.get("*/api/proxy/admin/animation-scenes/:id", ({ params }) => {
@@ -591,11 +610,133 @@ export const handlers = [
     }
     return HttpResponse.json({
       ...s,
-      templateCode: s.rendererCode,
-      draftJson: "{}",
+      draftJson:
+        (s as { draftJson?: string }).draftJson ??
+        JSON.stringify({
+          schemaVersion: 2,
+          rendererCode: s.rendererCode,
+          rendererVersion: 1,
+          title: s.title,
+          html: {
+            filename: `${s.title.toLowerCase().replace(/\s+/g, "-")}.html`,
+            sizeBytes: 12345,
+            sha256: "abc123def456",
+          },
+        }),
       createdBy: adminUserFixture.id,
       updatedBy: adminUserFixture.id,
       createdAt: s.updatedAt,
+    });
+  }),
+  http.post("*/api/proxy/admin/animation-scenes/:id/archive", ({ params }) => {
+    const s = animationScenesPageFixture.content.find((x) => x.id === params.id);
+    if (!s) {
+      return HttpResponse.json(
+        { code: "ANIMATION_SCENE_NOT_FOUND", message: "not found" },
+        { status: 404 },
+      );
+    }
+    if (s.status === "ARCHIVED") {
+      return HttpResponse.json(
+        { code: "INVALID_STATUS_TRANSITION", message: "already archived" },
+        { status: 409 },
+      );
+    }
+    return HttpResponse.json({
+      ...s,
+      status: "ARCHIVED",
+      rowVersion: s.rowVersion + 1,
+    });
+  }),
+  http.post("*/api/proxy/admin/animation-scenes/:id/duplicate", ({ params }) => {
+    const s = animationScenesPageFixture.content.find((x) => x.id === params.id);
+    if (!s) {
+      return HttpResponse.json(
+        { code: "ANIMATION_SCENE_NOT_FOUND", message: "not found" },
+        { status: 404 },
+      );
+    }
+    return HttpResponse.json(
+      {
+        ...s,
+        id: "ffffffff-ffff-ffff-ffff-ffffffffffff",
+        title: `${s.title} (bản sao)`,
+        status: "DRAFT",
+        rowVersion: 1,
+      },
+      { status: 201 },
+    );
+  }),
+  http.post("*/api/proxy/admin/animation-scenes/:id/validate", ({ params }) => {
+    const s = animationScenesPageFixture.content.find((x) => x.id === params.id);
+    if (!s) {
+      return HttpResponse.json(
+        { code: "ANIMATION_SCENE_NOT_FOUND", message: "not found" },
+        { status: 404 },
+      );
+    }
+    return HttpResponse.json({ ready: true, errors: [] });
+  }),
+  http.post("*/api/proxy/admin/animation-scenes/:id/publish", ({ params }) => {
+    const s = animationScenesPageFixture.content.find((x) => x.id === params.id);
+    if (!s) {
+      return HttpResponse.json(
+        { code: "ANIMATION_SCENE_NOT_FOUND", message: "not found" },
+        { status: 404 },
+      );
+    }
+    return HttpResponse.json({
+      sceneId: s.id,
+      versionId: `ver-${s.id.slice(0, 8)}`,
+      versionNo: (s.currentVersionNo ?? 0) + 1,
+    });
+  }),
+
+  /* ---------- HTML draft preview blob ---------- */
+  http.get("*/api/proxy/admin/animation-scenes/:id/html-draft", ({ params }) => {
+    const s = animationScenesPageFixture.content.find((x) => x.id === params.id);
+    if (!s) {
+      return HttpResponse.json(
+        { code: "ANIMATION_SCENE_NOT_FOUND", message: "not found" },
+        { status: 404 },
+      );
+    }
+    return new HttpResponse(
+      `<html><body>Scene ${s.title}</body></html>`,
+      { headers: { "Content-Type": "text/html" } },
+    );
+  }),
+
+  /* ---------- HTML import upload ---------- */
+  http.post("*/api/upload/html-scene", () =>
+    HttpResponse.json(
+      {
+        id: "dddddddd-dddd-dddd-dddd-dddddddddddd",
+        templateId: "d7a11000-0000-4000-8000-000000000001",
+        rendererCode: "HTML_WEBVIEW",
+        eventId: null,
+        title: "Hoạt họa HTML",
+        status: "DRAFT",
+        currentVersionId: null,
+        currentVersionNo: null,
+        rowVersion: 1,
+        updatedAt: "2026-01-05T00:00:00Z",
+      },
+      { status: 201 },
+    ),
+  ),
+  http.put("*/api/upload/html-scene/:id", ({ params }) => {
+    const s = animationScenesPageFixture.content.find((x) => x.id === params.id);
+    if (!s) {
+      return HttpResponse.json(
+        { code: "ANIMATION_SCENE_NOT_FOUND", message: "not found" },
+        { status: 404 },
+      );
+    }
+    return HttpResponse.json({
+      ...s,
+      rowVersion: s.rowVersion + 1,
+      updatedAt: "2026-01-05T00:00:00Z",
     });
   }),
 ];
