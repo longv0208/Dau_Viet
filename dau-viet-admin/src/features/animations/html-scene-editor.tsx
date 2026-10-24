@@ -40,17 +40,29 @@ export function HtmlSceneEditor({ sceneId }: { sceneId: string }) {
   const [previewError, setPreviewError] = useState<string | null>(null);
   const [previewKey, setPreviewKey] = useState(0);
   const objectUrlRef = useRef<string | null>(null);
+  // FIX-04: monotonic request seq — replace/unmount/scene-switch làm
+  // mọi fetch trước đó trở thành stale; blob của request cũ bị revoke
+  // ngay khi resolve (không hiển thị file cũ, không leak object URL).
+  const previewSeq = useRef(0);
 
   const loadPreview = async (id: string) => {
+    const seq = ++previewSeq.current;
     try {
       const blob = await animationApi.fetchHtmlDraft(id);
-      if (objectUrlRef.current) URL.revokeObjectURL(objectUrlRef.current);
       const url = URL.createObjectURL(blob);
+      if (seq !== previewSeq.current) {
+        // Một fetch mới hơn đã bắt đầu (replace liên tiếp / chuyển scene)
+        // — blob này là của file CŨ: revoke luôn, không gán vào state.
+        URL.revokeObjectURL(url);
+        return;
+      }
+      if (objectUrlRef.current) URL.revokeObjectURL(objectUrlRef.current);
       objectUrlRef.current = url;
       setBlobUrl(url);
       setPreviewError(null);
       setPreviewKey((k) => k + 1);
     } catch (e) {
+      if (seq !== previewSeq.current) return; // stale error không đè lỗi mới
       setPreviewError(
         e instanceof ApiClientError ? e.message : "Không tải được bản nháp HTML.",
       );
@@ -88,6 +100,7 @@ export function HtmlSceneEditor({ sceneId }: { sceneId: string }) {
       });
     return () => {
       alive = false;
+      previewSeq.current++; // invalidate pending preview fetch khi unmount/đổi scene
       if (objectUrlRef.current) {
         URL.revokeObjectURL(objectUrlRef.current);
         objectUrlRef.current = null;

@@ -94,6 +94,14 @@ class _HtmlAnimationPlayerState extends ConsumerState<HtmlAnimationPlayer> {
   int _generation = 0;
 
   WebViewController? _controller;
+
+  /// FIX-03: session-scoped controller. Mỗi `_load()` tạo controller mới →
+  /// document + JS channel cũ cùng widget cũ bị huỷ khi `WebViewWidget`
+  /// rebuild với controller mới (key đổi). JS message từ document phiên
+  /// trước không thể lẫn vào phiên mới vì handler của channel đó thuộc
+  /// controller đã bị detach; message còn sót lại bị `_msgGen` check loại.
+  int _controllerGen = -1;
+
   _HtmlLoadState _state = _HtmlLoadState.loading;
   String _error = '';
   bool _finishedFired = false;
@@ -135,7 +143,12 @@ class _HtmlAnimationPlayerState extends ConsumerState<HtmlAnimationPlayer> {
     _generation++;
   }
 
+  /// Controller mới cho MỖI load session — document cũ không thể phát
+  /// event vào phiên mới; pending loadHtmlString của document cũ chết
+  /// theo widget cũ. JS handler gắn `_controllerGen` tại build để message
+  /// đến trễ từ document đã bị detach bị drop.
   WebViewController _buildController() {
+    final int builtFor = _controllerGen;
     final controller = WebViewController()
       ..setJavaScriptMode(JavaScriptMode.unrestricted)
       ..setBackgroundColor(DauVietColors.parchmentContainer)
@@ -153,7 +166,14 @@ class _HtmlAnimationPlayerState extends ConsumerState<HtmlAnimationPlayer> {
           },
         ),
       )
-      ..addJavaScriptChannel('DauVietChannel', onMessageReceived: _onJsMessage);
+      ..addJavaScriptChannel(
+        'DauVietChannel',
+        // Chỉ nhận message khi controller này vẫn là của session hiện
+        // hành — message đến trễ từ document đã detach bị drop.
+        onMessageReceived: (msg) {
+          if (builtFor == _controllerGen && mounted) _onJsMessage(msg);
+        },
+      );
     return controller;
   }
 
@@ -205,6 +225,15 @@ class _HtmlAnimationPlayerState extends ConsumerState<HtmlAnimationPlayer> {
   Future<void> _load() async {
     final int gen = ++_generation;
     if (!mounted) return;
+    // Session-scoped controller — document cũ (và JS channel + pending
+    // loadHtmlString của nó) detach cùng widget; message sót lại bị
+    // `builtFor == _controllerGen` check drop. Chỉ tạo khi sẽ render
+    // platform view thật (không webViewBuilder/controllerOverride) —
+    // test seam không đụng WebViewPlatform.
+    if (widget.controllerOverride == null && widget.webViewBuilder == null) {
+      _controllerGen = gen;
+      _controller = _buildController();
+    }
     setState(() {
       _state = _HtmlLoadState.loading;
       _error = '';
@@ -305,7 +334,13 @@ class _HtmlAnimationPlayerState extends ConsumerState<HtmlAnimationPlayer> {
               ),
             _HtmlLoadState.ready => widget.webViewBuilder != null
                 ? widget.webViewBuilder!(context, _ctrlOrNull)
-                : WebViewWidget(controller: _ctrl),
+                // Key theo controller identity → khi session đổi,
+                // platform view cũ bị dispose và document cũ chết theo;
+                // không dùng document phiên trước cho phiên mới.
+                : WebViewWidget(
+                    key: ValueKey<Object>(_ctrlOrNull ?? _ctrl),
+                    controller: _ctrl,
+                  ),
           },
         ),
       ),

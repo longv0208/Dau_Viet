@@ -199,6 +199,52 @@ void main() {
       expect(runtimeError, isNull);
     });
 
+    testWidgets('message từ session cũ (sau khi đổi versionId) bị drop',
+        (tester) async {
+      // FIX-03: controller cũ detach; message sót lại của document A đến
+      // khi B đang load không được fire callback của phiên B.
+      var finished = 0;
+      final completerA = Completer<List<int>>();
+      await tester.pumpWidget(app(HtmlAnimationPlayer(
+        key: const Key('p'),
+        sceneVersionId: 'v1',
+        manifest: htmlManifest(sha256Of(htmlA)),
+        apiOverride: _FakeLearningApiClient.completer(completerA.future),
+        webViewBuilder: (context, controller) =>
+            const SizedBox(key: Key('fake-webview')),
+        onFinished: () => finished++,
+      )));
+      await tester.pump();
+      // Đổi sang v2 trong lúc A còn pending.
+      await tester.pumpWidget(app(HtmlAnimationPlayer(
+        key: const Key('p'),
+        sceneVersionId: 'v2',
+        manifest: htmlManifest(sha256Of(htmlB)),
+        apiOverride: fakeApi(utf8.encode(htmlB)),
+        webViewBuilder: (context, controller) =>
+            const SizedBox(key: Key('fake-webview')),
+        onFinished: () => finished++,
+      )));
+      await tester.pumpAndSettle();
+      expect(find.byKey(const Key('fake-webview')), findsOneWidget);
+      // B ready; FINISHED của phiên B (hợp lệ) fire 1 lần.
+      final state = tester.state(find.byType(HtmlAnimationPlayer)) as dynamic;
+      state.handleJsMessageForTest(
+          const JavaScriptMessage(message: 'PLAYBACK_FINISHED'));
+      await tester.pump();
+      expect(finished, 1);
+      // FINISHED thứ hai (idempotent) — không thêm.
+      state.handleJsMessageForTest(
+          const JavaScriptMessage(message: 'PLAYBACK_FINISHED'));
+      await tester.pump();
+      expect(finished, 1);
+      // A resolve trễ — document cũ không được hiển thị/fire thêm.
+      completerA.complete(utf8.encode(htmlA));
+      await tester.pump();
+      expect(finished, 1);
+      expect(tester.takeException(), isNull);
+    });
+
     testWidgets('READY/PLAYBACK_STARTED không fire callback nào',
         (tester) async {
       var finished = 0;

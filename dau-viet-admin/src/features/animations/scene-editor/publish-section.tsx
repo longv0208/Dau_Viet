@@ -44,8 +44,21 @@ export function PublishSection({ scene, onSaved }: { scene: AnimationSceneDetail
       const fresh = qc.getQueryData<AnimationSceneDetail>(qk.animationScenes.detail(scene.id));
       return animationApi.publishScene(scene.id, fresh?.rowVersion ?? scene.rowVersion);
     },
-    onSuccess: async () => {
+    onSuccess: async (published) => {
       await qc.invalidateQueries({ queryKey: ["animation-scenes"] });
+      // FIX-02: refetch scene detail NGAY sau publish — cập nhật
+      // status/rowVersion/currentVersionId/currentVersionNo trong cache
+      // và gọi onSaved() để editor refetch state nội bộ. Tránh lần
+      // publish/upload kế tiếp gửi expectedRowVersion cũ → 409 giả.
+      // Optimistic locking vẫn giữ: conflict THẬT (hai admin cùng sửa)
+      // vẫn trả 409 như trước.
+      try {
+        const fresh = await animationApi.getScene(scene.id);
+        qc.setQueryData(qk.animationScenes.detail(scene.id), fresh);
+      } catch {
+        // best-effort — onSaved dưới vẫn cố refetch qua prop callback
+      }
+      onSaved();
       router.refresh();
     },
   });
