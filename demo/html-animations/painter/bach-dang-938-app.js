@@ -240,7 +240,7 @@
   }
 
   /* ---------- 7. Vòng lặp + timeline ---------- */
-  var rafId = 0, paused = false, finished = false, destroyed = false;
+  var rafId = 0, paused = false, finished = false, destroyed = false, started = false;
   var tl = null, lastTs = 0;
 
   function buildTimeline() {
@@ -310,7 +310,7 @@
     ensureTimeline();
     if (!tl) return;
     if (finished || P.done) { replay(); return; }
-    paused = false;
+    paused = false; started = true;
     lastTs = 0;
     tl.play();
     btnPlay.textContent = "❚❚";
@@ -332,7 +332,7 @@
     P.camX = 0; P.camY = 0; P.zoom = 1; P.water = 0.30;
     P.mistX = 0; P.mistA = 0.7; P.glow = 0; P.fleetT = 0; P.hanT = 0;
     P.boom = 0; P.shake = 0; P.vietSink = 0; P.captionIdx = -1;
-    finished = false; paused = false; P.done = false;
+    finished = false; paused = false; P.done = false; started = true;
     lastScene = null; lastTs = 0;
     tl.seek(0);
     btnPlay.textContent = "❚❚";
@@ -350,7 +350,7 @@
     btnReplay.removeEventListener("click", replay);
   }
 
-  function onPlayClick() { if (paused || finished) play(); else pause(); }
+  function onPlayClick() { if (!started || paused || finished) play(); else pause(); }
   function onResize() { resize(); }
 
   /* ---------- 9. Khởi động ---------- */
