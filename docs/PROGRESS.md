@@ -1,10 +1,8 @@
 ﻿# Progress
 
-generated: 2026-10-16T04:17:41.6574767+07:00 by scripts/harness/harness.ps1 progress
+generated: 2026-10-24T15:54:18.6920990+07:00 by scripts/harness/harness.ps1 progress
 
 View-only - derived from `tasks/*/task.json`. Do not edit task status here.
-
-> **CẢNH BÁO:** File này là ảnh chụp `task.json` tại thời điểm generate — **KHÔNG phải nguồn trạng thái release hiện tại**. Trạng thái `done`/`reviewing` ở đây là trạng thái task workflow, không đồng nghĩa tính năng đã PASS nghiệm thu người dùng/backend thật. Để biết hiện trạng feature-level, xem `docs/BA_IMPLEMENTATION_TRACEABILITY.md` và `docs/PROJECT_OVERVIEW.md` §6 "Trạng thái đã code".
 
 | Task | Type | Risk | Status | Next action |
 |---|---|---|---|---|
@@ -20,4 +18,11 @@ View-only - derived from `tasks/*/task.json`. Do not edit task status here.
 | TASK-0010 | feature | high-risk | done | Done â€” mvnw verify green (64 unit + 113 IT = 177 tests, 0 failures). Contract fixes: EVENT_NOT_PUBLISHED now blocks publish (AC-2); learner GETs authenticated-only (AC-10), events catalogue stays permitAll; corrupt snapshot_json -> 500 SNAPSHOT_CORRUPT. Ready for TASK-0011 (learning-engine attempts; pin attempts to published version). Open questions deferred: Idempotency-Key on publish deferred; learner attempt pinning deferred to TASK-0011; /events/{id}/lessons unpaginated, ordered by title. Push to origin/main still awaiting user authorization. |
 | TASK-0011 | feature | high-risk | done | TASK-0012: attempt lifecycle finalize (status flip, lesson_results, idempotency_records persist, rewards/EXP). |
 | TASK-0012 | feature | high-risk | done | Commit (auto-commit rule); no push without permission. |
+| TASK-0013 | bootstrap | high-risk | done | Manual smoke against real backend (backend local profile + seeded admin) remains the only un-run gate â€” pwsh harness runner unavailable on this machine (PS 5.1 only). Next task: TASK-0014 lesson builder. |
+| TASK-0014 | feature | high-risk | in_progress | Review verdict APPROVE_WITH_NITS; medium nits addressed (submitted-search, internal-nav dirty guard, skipToken, startYear assertion). Remaining lows deferred (wizard step split, AC-3 template/updatedAt columns need backend summary expansion). Await user sign-off; TASK-0015 = Stage Builder on draftJson. |
+| TASK-0015 | feature | high-risk | completed | TASK-0016: evidence/asset pickers for EVIDENCE_SELECT + requiredEvidenceIds + VIEW_IMAGE upload; editors for remaining ActivityTypes; discuss backend gap on onPartial/onContradicted feedback; one manual smoke test vs real backend when environment available. Post-review bugfixes applied: pending-save revision guard, draft-status label (no rowVersion shown as version), MC/MATCHING/DRAG_ORDER inline hints, duplicateStage internal-ref remap. |
+| TASK-0016 | feature | high-risk | completed | TASK-0017 â€” learner media contract Ä‘Ă£ chá»‘t (GET /api/v1/assets/{id}/content, authenticated, ACTIVE-only); real-backend upload smoke pending Docker/Postgres; EXPLORE_MAP editor khi backend chá»‘t marker schema. |
+| TASK-0017 | feature | high-risk | completed | TASK-0018 â€” Flutter learner screens: consume GET /api/v1/lessons/{id}/content + learner asset content; attempt/submission flow theo LEARNING_ENGINE_DESIGN (idempotent, pinned version); scoring engine backend-side. Smoke test publish journey vs real Spring Boot khi Docker/Postgres sáºµn sĂ ng. |
+| TASK-0018 | feature | high-risk | done | Cho user chay backend that de verify e2e (backend IT CI-only, Docker thieu); manual checklist trong verification report. Khong push/merge. |
+| TASK-0019 | feature | high-risk | in_progress | Báº­t Docker â†’ mvnw verify cho FlywayMigrationIT (V17 clean-DB + checksum), AnimationScenePublishIT, EventSeedServiceIT (linker trĂªn DB tháº­t), asset content endpoint. Admin pin scene bach-dang-938-prod vĂ o lesson + gĂ¡n event náº¿u event_id NULL. Verify visual trĂªn thiáº¿t bá»‹/emulator. |
 
