@@ -1,5 +1,6 @@
 "use client";
 
+import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select } from "@/components/ui/select";
 
@@ -77,6 +78,30 @@ export function VerificationEditor(props: EditorProps) {
         readOnly={readOnly}
         onChange={(next) => onChange({ config: { ...config, requiredEvidenceIds: next } })}
       />
+
+      <div className="flex flex-col gap-1.5">
+        <Label htmlFor={`vfatt-${activity.id}`}>Số lần kiểm chứng tối đa</Label>
+        <Input
+          id={`vfatt-${activity.id}`}
+          inputMode="numeric"
+          className="w-28"
+          value={String((config.maxAttempts as number | undefined) ?? "")}
+          disabled={readOnly}
+          placeholder="Không giới hạn"
+          onChange={(e) => {
+            const n = e.target.value.trim();
+            const v = n === "" ? undefined : Number(n);
+            if (v !== undefined && Number.isNaN(v)) return;
+            onChange({ config: { ...config, maxAttempts: v } });
+          }}
+        />
+        <p className="text-xs text-ink-muted">
+          Để trống = không giới hạn (mặc định cũ). Khi hết lượt ở kết quả
+          PARTIAL/CONTRADICTED, hoạt động tính là đã duyệt (exhausted) và học
+          viên đi tiếp — kết quả không được nâng thành SUPPORTED; phản hồi
+          "Khi hết lượt thử" ở phần trên sẽ hiển thị cho học viên.
+        </p>
+      </div>
     </div>
   );
 }

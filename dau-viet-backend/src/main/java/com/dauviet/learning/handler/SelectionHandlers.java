@@ -104,6 +104,41 @@ public final class SelectionHandlers {
                     config.path("remedialAttempts").asInt(0), 0);
             int attemptNo = priorAttempts(ctx) + 1;
             boolean exhausted = !right && attemptNo >= maxAttempts;
+
+            // Policy B (TASK-0020 final): the scored+remedial budget is a hard
+            // cap on CORRECTNESS. Once spent, any further submission keeps the
+            // activity completed-for-progress and the stored verdict/score —
+            // the learner may still submit (the cursor never 409-soft-locks),
+            // but correctness cannot be upgraded by exceeding the budget.
+            JsonNode prior = ctx.priorOutputs().get(ctx.activityId());
+            boolean overBudget = attemptNo > maxAttempts + remedialAttempts;
+            boolean lockedCorrect = prior != null
+                    && prior.path("correct").asBoolean(false);
+            double lockedScore = prior != null && prior.hasNonNull("score")
+                    ? prior.get("score").asDouble() : score;
+            if (overBudget) {
+                // Keep the LAST accepted selection too — overwriting
+                // selectedEvidenceIds with a now-correct list would let
+                // downstream consumers (Verification evidenceSource) see a
+                // "right" evidence set the locked verdict never earned.
+                if (prior != null && prior.hasNonNull("selectedEvidenceIds")) {
+                    out.set("selectedEvidenceIds",
+                            prior.get("selectedEvidenceIds").deepCopy());
+                    out.put("selectedCount",
+                            prior.path("selectedCount").asInt(
+                                    prior.get("selectedEvidenceIds").size()));
+                }
+                out.put("correct", lockedCorrect);
+                out.put("score", lockedScore);
+                out.put("budgetExhausted", true);
+                out.put("exhausted", true);
+                out.put("attemptCount", attemptNo);
+                out.put("correctCount", correctHits.size());
+                out.put("falseCount", falseCount);
+                return result(ActivityResult.INCORRECT, true, out,
+                        feedbackFor(ctx.activity(), "EXHAUSTED"));
+            }
+
             // Remedial retry only counts when the scored budget is already
             // spent AND the persisted cursor sits on this activity (the
             // resolver holds it there while remedialAttempts remain). A
@@ -112,7 +147,6 @@ public final class SelectionHandlers {
             // a different grading rule. On the forward path a wrong
             // submission is a normal scored attempt — never remedial — so
             // the budget can't be farmed for free credit early in the flow.
-            JsonNode prior = ctx.priorOutputs().get(ctx.activityId());
             boolean wasCompletedByExhaustion = prior != null
                     && prior.path("exhausted").asBoolean(false);
             boolean routedBack = ctx.activityId().equals(ctx.currentActivityId());

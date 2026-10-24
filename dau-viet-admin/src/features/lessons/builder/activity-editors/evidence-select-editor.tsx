@@ -57,7 +57,7 @@ export function EvidenceSelectEditor(props: EditorProps) {
             }
           />
           <div className="flex flex-col gap-1.5">
-            <Label htmlFor={`att-${activity.id}`}>Số lần thử tối đa</Label>
+            <Label htmlFor={`att-${activity.id}`}>Số lần thử tối đa (có chấm)</Label>
             <Input
               id={`att-${activity.id}`}
               inputMode="numeric"
@@ -72,6 +72,32 @@ export function EvidenceSelectEditor(props: EditorProps) {
                 onChange({ config: { ...activity.config, maxAttempts: v } });
               }}
             />
+            <p className="text-xs text-ink-muted">
+              Sau số lần này hoạt động tính là đã duyệt (exhausted) — học viên
+              đi tiếp, kết quả ghi theo lần cuối.
+            </p>
+          </div>
+          <div className="flex flex-col gap-1.5">
+            <Label htmlFor={`rem-${activity.id}`}>Lượt sửa bài bổ sung (remedial)</Label>
+            <Input
+              id={`rem-${activity.id}`}
+              inputMode="numeric"
+              className="w-28"
+              value={String((activity.config?.remedialAttempts as number | undefined) ?? "")}
+              disabled={readOnly}
+              placeholder="0"
+              onChange={(e) => {
+                const n = e.target.value.trim();
+                const v = n === "" ? undefined : Number(n);
+                if (v !== undefined && Number.isNaN(v)) return;
+                onChange({ config: { ...activity.config, remedialAttempts: v } });
+              }}
+            />
+            <p className="text-xs text-ink-muted">
+              Lượt sửa thêm chỉ mở sau khi hết lượt chấm và học viên được đưa
+              quay lại hoạt động này. Sau khi cạn cả hai ngân sách, câu trả lời
+              đúng cũng không thay đổi kết quả đã chốt.
+            </p>
           </div>
         </>
       )}

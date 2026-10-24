@@ -14,6 +14,7 @@ const OUTCOME_FIELDS: { key: string; label: string; hint: string }[] = [
   { key: "PARTIAL", label: "Khi đúng một phần", hint: "Dùng cho hoạt động có nhiều phần (VERIFICATION, MATCHING)." },
   { key: "SUPPORTED", label: "Khi giả thuyết được củng cố", hint: "VERIFICATION — bằng chứng ủng hộ giả thuyết." },
   { key: "CONTRADICTED", label: "Khi giả thuyết bị bác bỏ", hint: "VERIFICATION — bằng chứng phản bác giả thuyết." },
+  { key: "EXHAUSTED", label: "Khi hết lượt thử", hint: "Hiển thị khi retry budget đã cạn — học viên đi tiếp, kết quả được ghi nhận theo lần cuối. Với VERIFICATION nên ghi rõ 'đã hoàn thành lượt học nhưng chưa kiểm chứng thành công' + lời giải thích." },
 ];
 
 /**

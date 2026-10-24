@@ -250,6 +250,9 @@ public final class SimpleActivityValidators {
                 errors.add(new FieldError(path + ".config.evidenceSource", "INVALID_ID",
                         "evidenceSource must be a valid activity id"));
             }
+            // TASK-0020 final: bounded verify budget — absent stays unbounded
+            // (legacy semantics), authored value must be a sane positive int.
+            requireBoundedInt(config, "maxAttempts", path, 1, 20, errors);
         }
     }
 
@@ -283,6 +286,11 @@ public final class SimpleActivityValidators {
                 }
                 checkEvidenceRefs(config, "acceptedEvidenceIds", path, ctx, errors);
             }
+            // TASK-0020 final: retry budgets — maxAttempts >= 1 (scored),
+            // remedialAttempts >= 0 (post-exhaustion window). Absent fields
+            // keep the legacy defaults (1 scored, 0 remedial).
+            requireBoundedInt(config, "maxAttempts", path, 1, 10, errors);
+            requireBoundedInt(config, "remedialAttempts", path, 0, 5, errors);
         }
     }
 

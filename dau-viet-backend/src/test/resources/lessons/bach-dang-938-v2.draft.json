@@ -166,7 +166,8 @@
           "feedback": {
             "SUPPORTED": "Giả thuyết được chứng minh.",
             "PARTIAL": "Thiếu bằng chứng — quay lại rà soát và chọn lại tư liệu.",
-            "CONTRADICTED": "Giả thuyết không khớp bằng chứng — chọn lại."
+            "CONTRADICTED": "Giả thuyết không khớp bằng chứng — chọn lại.",
+            "EXHAUSTED": "Bạn đã hoàn thành lượt học, nhưng chưa kiểm chứng thành công. Thuỷ triều lên che giấu bãi cọc, triều rút khiến thuyền địch mắc kẹt — cần cả hai bằng chứng về bãi cọc và thuỷ triều mới chứng minh được giả thuyết."
           }
         }
       ],

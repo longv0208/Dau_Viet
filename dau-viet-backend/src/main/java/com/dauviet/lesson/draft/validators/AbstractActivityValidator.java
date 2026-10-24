@@ -77,6 +77,23 @@ abstract class AbstractActivityValidator implements ActivityConfigValidator {
         }
     }
 
+    /** Integer field bounded [min, max] — retry budgets, thresholds. */
+    protected void requireBoundedInt(JsonNode config, String field, String path,
+                                     int min, int max, List<FieldError> errors) {
+        if (config == null || !config.hasNonNull(field)) return;
+        JsonNode v = config.get(field);
+        if (!v.isInt() && !v.isLong()) {
+            errors.add(new FieldError(path + ".config." + field, "INVALID_TYPE",
+                    field + " must be an integer"));
+            return;
+        }
+        int n = v.asInt();
+        if (n < min || n > max) {
+            errors.add(new FieldError(path + ".config." + field, "INVALID_VALUE",
+                    field + " must be between " + min + " and " + max));
+        }
+    }
+
     /** Evidence refs usable at publish level. */
     protected void checkEvidenceRefs(JsonNode config, String field, String path,
                                      ValidationContext ctx, List<FieldError> errors) {

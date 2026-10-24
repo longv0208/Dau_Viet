@@ -254,11 +254,28 @@ class _LessonPlayerScreenState extends ConsumerState<LessonPlayerScreen> {
       case 'SUPPORTED':
         return _Feedback(authored ?? 'Chính xác!', _FeedbackTone.success);
       case 'PARTIAL':
+        // Reviewed-exhausted terminal (TASK-0020 final): verification spent
+        // its budget on a non-SUPPORTED verdict → completed-for-progress,
+        // never promoted. Learner finished the lesson; knowledge is partial.
+        if (res.evaluation.output?['exhausted'] == true) {
+          return _Feedback(
+            authored ??
+                'Bạn đã hoàn thành lượt học, nhưng chưa kiểm chứng thành công.',
+            _FeedbackTone.warning,
+          );
+        }
         return _Feedback(
           authored ?? 'Đúng một phần — xem lại rồi thử tiếp.',
           _FeedbackTone.warning,
         );
       case 'CONTRADICTED':
+        if (res.evaluation.output?['exhausted'] == true) {
+          return _Feedback(
+            authored ??
+                'Bạn đã hoàn thành lượt học, nhưng chưa kiểm chứng thành công.',
+            _FeedbackTone.warning,
+          );
+        }
         return _Feedback(
           authored ?? 'Chưa thuyết phục — kiểm tra lại lập luận.',
           _FeedbackTone.warning,

@@ -347,6 +347,61 @@ class SelectionHandlersTest {
     }
 
     @Test
+    void evidenceSelect_overBudget_correctCannotUpgrade() {
+        // TASK-0020 final FIX 1: attempt 4 exceeds maxAttempts(2)+remedial(1)
+        // — even an exact-match answer must NOT rewrite the locked verdict.
+        // The activity stays completed-for-progress (cursor moves on, no
+        // 409 soft-lock) and keeps the last recorded score (0.0).
+        JsonNode act = HandlerTestSupport.json(
+                "{\"id\":\"es\",\"type\":\"EVIDENCE_SELECT\",\"config\":{"
+              + "\"visibleEvidenceIds\":[\"e1\",\"e2\",\"e3\"],\"graded\":true,"
+              + "\"acceptedEvidenceIds\":[\"e1\",\"e2\"],"
+              + "\"maxAttempts\":2,\"remedialAttempts\":1}}");
+        java.util.Map<String, JsonNode> prior = new java.util.LinkedHashMap<>();
+        prior.put("es", HandlerTestSupport.json(
+                "{\"attemptCount\":3,\"exhausted\":true,\"correct\":false,"
+              + "\"score\":0.0}"));
+        java.util.Map<String, Integer> counts = new java.util.LinkedHashMap<>();
+        counts.put("es", 3);
+        ActivityResult r = evidenceSelect.evaluate(
+                HandlerTestSupport.ctxLedger(act, snapshotWithEvidence(),
+                        prior, "es", counts),
+                HandlerTestSupport.sub("es",
+                        "{\"selectedEvidenceIds\":[\"e1\",\"e2\"]}"));
+        assertThat(r.completed()).isTrue();
+        assertThat(r.outcome()).isEqualTo(ActivityResult.INCORRECT);
+        assertThat(r.output().get("correct").asBoolean()).isFalse();
+        assertThat(r.output().get("score").asDouble()).isEqualTo(0.0);
+        assertThat(r.output().get("budgetExhausted").asBoolean()).isTrue();
+        assertThat(r.output().get("attemptCount").asInt()).isEqualTo(4);
+    }
+
+    @Test
+    void evidenceSelect_overBudget_wrong_staysHonest() {
+        // Over-budget + wrong answer: still bounded terminal, no crash.
+        JsonNode act = HandlerTestSupport.json(
+                "{\"id\":\"es\",\"type\":\"EVIDENCE_SELECT\",\"config\":{"
+              + "\"visibleEvidenceIds\":[\"e1\",\"e2\",\"e3\"],\"graded\":true,"
+              + "\"acceptedEvidenceIds\":[\"e1\",\"e2\"],"
+              + "\"maxAttempts\":2,\"remedialAttempts\":1}}");
+        java.util.Map<String, JsonNode> prior = new java.util.LinkedHashMap<>();
+        prior.put("es", HandlerTestSupport.json(
+                "{\"attemptCount\":3,\"exhausted\":true,\"correct\":false,"
+              + "\"score\":0.6666666666666666}"));
+        java.util.Map<String, Integer> counts = new java.util.LinkedHashMap<>();
+        counts.put("es", 3);
+        ActivityResult r = evidenceSelect.evaluate(
+                HandlerTestSupport.ctxLedger(act, snapshotWithEvidence(),
+                        prior, "es", counts),
+                HandlerTestSupport.sub("es", "{\"selectedEvidenceIds\":[\"e3\"]}"));
+        assertThat(r.completed()).isTrue();
+        assertThat(r.output().get("correct").asBoolean()).isFalse();
+        assertThat(r.output().get("score").asDouble())
+                .isEqualTo(0.6666666666666666);
+        assertThat(r.output().get("budgetExhausted").asBoolean()).isTrue();
+    }
+
+    @Test
     void evidenceSelect_remedial_cursorElsewhere_notRemedial() {
         // Cursor NOT on es (learner revisiting from forward path is impossible
         // via the submit guard, but a stale priorOutputs record must not make

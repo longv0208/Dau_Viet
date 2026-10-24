@@ -569,12 +569,21 @@ class LearningFlow2IT extends AbstractPostgresIT {
 
         // es has no scored AND no remedial budget left — resubmission is
         // accepted at the cursor but stays exhausted/completed (bounded).
+        // And even an EXACT-MATCH answer now cannot upgrade the locked
+        // verdict: budget = maxAttempts(2)+remedial(1) = 3, so attempt 4 is
+        // over-budget -> budgetExhausted, correct stays false, score stays
+        // the last recorded value — no free credit past the cap.
         MvcResult es4 = submit(attemptId, "es",
-                "{\"selectedEvidenceIds\":[\"" + ev1 + "\"]}");
-        assertThat(AttemptItFixture.body(om, es4)
-                .get("evaluation").get("completed").asBoolean()).isTrue();
-        assertThat(AttemptItFixture.body(om, es4)
-                .get("next").get("stageId").asText()).isEqualTo("rs");
+                "{\"selectedEvidenceIds\":[\"" + ev1 + "\",\"" + ev2 + "\"]}");
+        JsonNode es4Body = AttemptItFixture.body(om, es4);
+        assertThat(es4Body.get("evaluation").get("completed").asBoolean()).isTrue();
+        assertThat(es4Body.get("evaluation").get("output").get("budgetExhausted")
+                .asBoolean()).isTrue();
+        assertThat(es4Body.get("evaluation").get("output").get("correct")
+                .asBoolean()).isFalse();
+        assertThat(es4Body.get("evaluation").get("output").get("score")
+                .asDouble()).isLessThan(1.0);
+        assertThat(es4Body.get("next").get("stageId").asText()).isEqualTo("rs");
 
         // Walk back to vf1 — downstream were invalidated by the es resubmit.
         submit(attemptId, "rc",

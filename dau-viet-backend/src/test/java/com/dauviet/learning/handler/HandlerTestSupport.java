@@ -42,6 +42,19 @@ final class HandlerTestSupport {
                 activity, snapshot, priorOutputs == null ? Map.of() : priorOutputs);
     }
 
+    /** Cursor + attemptCount ledger — over-budget tests pin both. */
+    static AttemptContext ctxLedger(JsonNode activity, JsonNode snapshot,
+                                    Map<String, JsonNode> priorOutputs,
+                                    String currentActivityId,
+                                    Map<String, Integer> attemptCounts) {
+        return new AttemptContext(UUID.randomUUID(), UUID.randomUUID(),
+                UUID.randomUUID(), "stage-1", activity.path("id").asText("a1"),
+                currentActivityId,
+                activity, snapshot,
+                priorOutputs == null ? Map.of() : priorOutputs,
+                attemptCounts == null ? Map.of() : attemptCounts);
+    }
+
     static AttemptContext ctx(JsonNode activity, JsonNode snapshot) {
         return ctx(activity, snapshot, new LinkedHashMap<>());
     }
