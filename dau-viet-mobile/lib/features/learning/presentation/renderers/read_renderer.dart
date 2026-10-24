@@ -24,7 +24,7 @@ class ReadRenderer extends StatelessWidget {
   /// Test seam: thay player HTML để widget-test không cần WebViewPlatform.
   /// Production để null → `_HtmlSceneSlot` tự dựng `HtmlAnimationPlayer`.
   final Widget Function(String sceneVersionId, AnimationManifestDto manifest)?
-      htmlPlayerFactory;
+  htmlPlayerFactory;
 
   const ReadRenderer({
     super.key,
@@ -94,7 +94,7 @@ class ReadRenderer extends StatelessWidget {
     // envelope. Manifest phải có html.sha256 + envelope có sceneVersionId.
     final bool isHtmlScene =
         manifestDto?.rendererCode == 'HTML_WEBVIEW' &&
-            manifestDto?.html != null;
+        manifestDto?.html != null;
     final manifestRenderer = manifestDto == null
         ? null
         : AnimationRuntimeRegistry.resolve(manifestDto.rendererCode);
@@ -327,7 +327,7 @@ class _HtmlSceneSlot extends StatelessWidget {
   final Map<String, dynamic> config;
   final AnimationManifestDto manifest;
   final Widget Function(String sceneVersionId, AnimationManifestDto manifest)?
-      playerFactory;
+  playerFactory;
 
   const _HtmlSceneSlot({
     super.key,

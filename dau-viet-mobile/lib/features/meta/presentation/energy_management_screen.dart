@@ -23,8 +23,7 @@ class EnergyManagementScreen extends ConsumerStatefulWidget {
       _EnergyManagementScreenState();
 }
 
-class _EnergyManagementScreenState
-    extends ConsumerState<EnergyManagementScreen>
+class _EnergyManagementScreenState extends ConsumerState<EnergyManagementScreen>
     with WidgetsBindingObserver {
   /// Timer 1s CHỈ cập nhật phần hiển thị countdown — không gọi API.
   Timer? _ticker;

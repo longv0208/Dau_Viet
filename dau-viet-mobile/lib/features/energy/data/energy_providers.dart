@@ -49,11 +49,10 @@ Duration? _noRetry(int retryCount, Object error) => null;
 ///   (chống response cũ ghi đè state mới).
 /// - `refresh()` refetch chủ động (resume app, hết countdown, retry lỗi).
 /// KHÔNG auto-poll mỗi giây — countdown chỉ là phần hiển thị phía UI.
-final energyProvider =
-    AsyncNotifierProvider<EnergyController, EnergyStateDto>(
-      EnergyController.new,
-      retry: _noRetry,
-    );
+final energyProvider = AsyncNotifierProvider<EnergyController, EnergyStateDto>(
+  EnergyController.new,
+  retry: _noRetry,
+);
 
 class EnergyController extends AsyncNotifier<EnergyStateDto> {
   /// Phiên mà notifier này đang phục vụ — applySnapshot kiểm để chống
@@ -61,27 +60,57 @@ class EnergyController extends AsyncNotifier<EnergyStateDto> {
   /// có thể chạy lại (invalidateSelf) nên gán lại mỗi lần.
   String _sessionKey = '';
 
-  /// Tăng mỗi khi applySnapshot ghi state trực tiếp — build() đang chờ
-  /// fetch phải nhường snapshot (snapshot đến SAU khi GET bắt đầu nên
-  /// mới hơn dữ liệu GET sắp trả về).
-  int _applySeq = 0;
+  /// Đồng hồ server của state đang hiển thị — nguồn so "mới hơn/cũ hơn"
+  /// (FIX-3). Null khi state hiện tại thiếu serverTime → fallback thứ tự
+  /// đến (arrival).
+  DateTime? _appliedServerTime;
+
+  /// Mốc "độ mới" của một DTO tại lúc nó được tạo (serverTime nếu có,
+  /// deviceNow-lúc-parse nếu không) — bất biến, dùng so stale/fresh.
+  static DateTime _stampOf(EnergyStateDto d) => d.createdAt;
+
+  /// `incoming` có MỚI HƠN state hiện tại không — so theo đồng hồ tại lúc
+  /// mỗi response được tạo (serverTime nếu có, device-fallback nếu không).
+  /// Bằng nhau vẫn áp (thứ tự đến quyết định — tránh kẹt khi trùng mốc).
+  bool _isFresher(EnergyStateDto incoming) {
+    final DateTime? cur = _appliedServerTime;
+    if (cur == null) return true; // chưa có state nào — cái đầu tiên thắng
+    return !_stampOf(incoming).isBefore(cur);
+  }
+
+  /// Áp `dto` vào state nếu nó không cũ hơn state hiện tại. Trả true khi
+  /// đã ghi.
+  bool _applyIfFresher(EnergyStateDto dto) {
+    if (!_isFresher(dto)) return false;
+    _appliedServerTime = _stampOf(dto);
+    state = AsyncData(dto);
+    return true;
+  }
 
   @override
   Future<EnergyStateDto> build() async {
     _sessionKey = _energySessionKey(ref.watch(authSessionProvider));
     final repo = ref.watch(energyRepositoryProvider);
-    final int seq = _applySeq;
+    final String sess = _sessionKey;
     final EnergyStateDto dto;
     if (ApiConfig.useMock) {
       dto = await repo.getMyEnergy();
     } else {
       dto = await ref.read(authRepositoryProvider).withAuth(repo.getMyEnergy);
     }
-    // Snapshot tay (submit/409) đã ghi trong lúc fetch → nó MỚI HƠN dữ
-    // liệu GET này; trả lại snapshot thay vì ghi đè bằng dữ liệu cũ.
-    if (_applySeq != seq && state is AsyncData<EnergyStateDto>) {
+    // Phiên đã đổi trong lúc fetch → response thuộc account cũ: KHÔNG áp,
+    // trả state hiện tại (build của phiên mới sẽ fetch riêng).
+    if (sess != _energySessionKey(ref.read(authSessionProvider))) {
+      final cur = state;
+      if (cur is AsyncData<EnergyStateDto>) return cur.value;
+      return dto; // chưa có state — trả nhưng không chiếm mốc so.
+    }
+    // State hiện tại MỚI HƠN response GET này (snapshot tay hoặc GET khác
+    // về trước) → nhường: giữ state, không ghi đè bằng dữ liệu cũ.
+    if (!_isFresher(dto) && state is AsyncData<EnergyStateDto>) {
       return (state as AsyncData<EnergyStateDto>).value;
     }
+    _appliedServerTime = _stampOf(dto);
     return dto;
   }
 
@@ -89,7 +118,9 @@ class EnergyController extends AsyncNotifier<EnergyStateDto> {
       _energySessionKey(ref.read(authSessionProvider)) == _sessionKey;
 
   /// Ghi snapshot từ response server (submit/409 details). Snapshot được coi
-  /// authoritative ngay lúc đó — không cần refetch. Bỏ qua khi phiên đổi.
+  /// authoritative ngay lúc đó — không cần refetch.
+  /// Bỏ qua khi: phiên đổi, HOẶC snapshot cũ hơn state hiện tại (serverTime
+  /// nhỏ hơn) — response của submission cũ về muộn không được lùi balance.
   void applySnapshot(EnergyStateDto snapshot) {
     // build() có thể chưa chạy (provider vừa được tạo bởi read(.notifier))
     // → _sessionKey còn rỗng: gán key phiên hiện tại — snapshot này sinh
@@ -98,8 +129,7 @@ class EnergyController extends AsyncNotifier<EnergyStateDto> {
       _sessionKey = _energySessionKey(ref.read(authSessionProvider));
     }
     if (!_sessionAlive) return;
-    _applySeq++;
-    state = AsyncData(snapshot);
+    _applyIfFresher(snapshot);
   }
 
   /// Refetch chủ động — app resume, countdown chạm 0, retry sau lỗi.

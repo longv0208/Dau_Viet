@@ -1,21 +1,24 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import '../../../core/theme/dau_viet_colors.dart';
 import '../../../core/theme/dau_viet_typography.dart';
 import '../../../core/widgets/dong_son_button.dart';
 import '../../../core/widgets/energy_pill.dart';
 import '../../../core/widgets/parchment_card.dart';
+import '../../energy/data/energy_providers.dart';
 
 /// Màn hình M-22: Bản Đồ Đảo Di Sản Cá Nhân 2.5D (Heritage Island Screen)
 /// Khớp 100% với đặc tả trong MOBILE_SCREEN_DESIGN.md & UI_COMPONENT_SPEC.md
-class HeritageIslandScreen extends StatefulWidget {
+class HeritageIslandScreen extends ConsumerStatefulWidget {
   const HeritageIslandScreen({super.key});
 
   @override
-  State<HeritageIslandScreen> createState() => _HeritageIslandScreenState();
+  ConsumerState<HeritageIslandScreen> createState() =>
+      _HeritageIslandScreenState();
 }
 
-class _HeritageIslandScreenState extends State<HeritageIslandScreen> {
+class _HeritageIslandScreenState extends ConsumerState<HeritageIslandScreen> {
   int _selectedSlot = 1;
 
   final List<Map<String, dynamic>> _islandSlots = [
@@ -503,12 +506,20 @@ class _HeritageIslandScreenState extends State<HeritageIslandScreen> {
           _buildEconomyItem(
             icon: Icons.bolt_rounded,
             color: DauVietColors.natureGreen,
-            value: '100/100',
+            value: _energyLabel(),
             label: 'Thể Lực',
           ),
         ],
       ),
     );
+  }
+
+  /// Thể lực trên economy bar đọc cùng `energyProvider` với EnergyPill —
+  /// không hard-code. Loading/error → '—' thay vì số giả.
+  String _energyLabel() {
+    final dto = ref.watch(energyProvider).value;
+    if (dto == null) return '—';
+    return '${dto.current}/${dto.max}';
   }
 
   Widget _buildEconomyItem({

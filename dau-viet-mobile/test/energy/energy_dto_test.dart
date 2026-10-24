@@ -96,7 +96,9 @@ void main() {
     });
 
     test('thiếu cả hai trường (legacy) → deducted=0, energy=null', () {
-      final json = submitJson()..remove('energy')..remove('energyDeducted');
+      final json = submitJson()
+        ..remove('energy')
+        ..remove('energyDeducted');
       final dto = SubmitResultDto.fromJson(json);
       expect(dto.energyDeducted, 0);
       expect(dto.energy, isNull);
@@ -131,8 +133,16 @@ void main() {
         nextRecoveryAt: now.subtract(const Duration(minutes: 5)),
       );
       final remain = dto.timeUntilNextRecovery()!;
-      // offset = -10m → serverNow = now-10m → remain ≈ 5m.
-      expect(remain.inMinutes, 5);
+      // offset = -10m → serverNow = now-10m → remain ≈ 5m (± vài giây
+      // vì có thời gian thực trôi giữa parse và đọc).
+      expect(
+        remain.inMilliseconds,
+        greaterThan(const Duration(minutes: 4, seconds: 55).inMilliseconds),
+      );
+      expect(
+        remain.inMilliseconds,
+        lessThanOrEqualTo(const Duration(minutes: 5).inMilliseconds),
+      );
     });
 
     test('remain âm → clamp về 0 (mốc đã qua)', () {
@@ -144,6 +154,92 @@ void main() {
         nextRecoveryAt: now.subtract(const Duration(seconds: 5)),
       );
       expect(dto.timeUntilNextRecovery(), Duration.zero);
+    });
+  });
+
+  group('FIX-2 — countdown chạy thật theo đồng hồ đơn điệu', () {
+    int fakeMicros = 0;
+    void Function()? restore;
+
+    setUp(() {
+      fakeMicros = 0;
+      restore = debugOverrideEnergyClock(() => fakeMicros);
+    });
+    tearDown(() => restore?.call());
+
+    EnergyStateDto dtoAt({
+      required int current,
+      required DateTime serverTime,
+      DateTime? nextRecovery,
+    }) => EnergyStateDto(
+      current: current,
+      max: 100,
+      recoveryAmount: 5,
+      recoveryIntervalSeconds: 900,
+      serverTime: serverTime,
+      nextRecoveryAt: nextRecovery,
+    );
+
+    test('đếm ngược giảm đúng: 08:42 → 07:42 → 00:00', () {
+      final t0 = DateTime.utc(2026, 10, 25, 10, 0);
+      final dto = dtoAt(
+        current: 50,
+        serverTime: t0,
+        nextRecovery: t0.add(const Duration(minutes: 8, seconds: 42)),
+      );
+      expect(
+        dto.timeUntilNextRecovery(),
+        const Duration(minutes: 8, seconds: 42),
+      );
+
+      fakeMicros = const Duration(seconds: 60).inMicroseconds;
+      expect(
+        dto.timeUntilNextRecovery(),
+        const Duration(minutes: 7, seconds: 42),
+      );
+
+      fakeMicros = const Duration(minutes: 8, seconds: 42).inMicroseconds;
+      expect(dto.timeUntilNextRecovery(), Duration.zero);
+
+      // Quá mốc — không âm, không hồi sớm.
+      fakeMicros = const Duration(minutes: 9).inMicroseconds;
+      expect(dto.timeUntilNextRecovery(), Duration.zero);
+    });
+
+    test('clock skew: server chậm device 2h — vẫn đếm đúng theo server', () {
+      // serverTime lệch device nhiều giờ; mốc hồi là giờ server.
+      final serverNow = DateTime.utc(2026, 10, 25, 8, 0); // server
+      final dto = dtoAt(
+        current: 50,
+        serverTime: serverNow,
+        nextRecovery: serverNow.add(const Duration(minutes: 5)),
+      );
+      expect(dto.timeUntilNextRecovery(), const Duration(minutes: 5));
+      fakeMicros = const Duration(minutes: 2).inMicroseconds;
+      expect(dto.timeUntilNextRecovery(), const Duration(minutes: 3));
+    });
+
+    test('đầy (nextRecoveryAt=null) → luôn null, không phụ thuộc clock', () {
+      final dto = dtoAt(
+        current: 100,
+        serverTime: DateTime.utc(2026, 10, 25),
+        nextRecovery: null,
+      );
+      expect(dto.timeUntilNextRecovery(), isNull);
+      fakeMicros = const Duration(hours: 1).inMicroseconds;
+      expect(dto.timeUntilNextRecovery(), isNull);
+    });
+
+    test('thiếu serverTime → fallback mốc device lúc parse, vẫn đếm', () {
+      final next = DateTime.now().toUtc().add(const Duration(seconds: 30));
+      final dto = EnergyStateDto(
+        current: 50,
+        max: 100,
+        nextRecoveryAt: next,
+      ); // serverTime null
+      expect(dto.timeUntilNextRecovery()!.inSeconds, 30);
+      fakeMicros = const Duration(seconds: 10).inMicroseconds;
+      expect(dto.timeUntilNextRecovery()!.inSeconds, 20);
     });
   });
 }

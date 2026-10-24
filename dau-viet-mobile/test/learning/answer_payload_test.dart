@@ -201,60 +201,61 @@ void main() {
       expect(payload, {'action': 'verify'});
     });
 
-    testWidgets('VERIFICATION hiển thị giả thuyết + bằng chứng từ priorOutputs', (
-      tester,
-    ) async {
-      Map<String, dynamic>? captured;
-      final activity = ActivityRefDto.fromJson({
-        'id': 'vf1',
-        'type': 'VERIFICATION',
-        'config': {
-          'evidenceSource': 'es',
-          'priorOutputs': {
-            'hy1': {'hypothesisId': 'h-tide'},
-            'es': {
-              'selectedEvidenceIds': ['e1', 'e2'],
+    testWidgets(
+      'VERIFICATION hiển thị giả thuyết + bằng chứng từ priorOutputs',
+      (tester) async {
+        Map<String, dynamic>? captured;
+        final activity = ActivityRefDto.fromJson({
+          'id': 'vf1',
+          'type': 'VERIFICATION',
+          'config': {
+            'evidenceSource': 'es',
+            'priorOutputs': {
+              'hy1': {'hypothesisId': 'h-tide'},
+              'es': {
+                'selectedEvidenceIds': ['e1', 'e2'],
+              },
             },
           },
-        },
-      });
-      const content = LessonContentDto(
-        lessonId: 'l',
-        lessonVersionId: 'v',
-        content: {
-          'evidence': [
-            {'id': 'e1', 'title': 'Sử thần ghi triều'},
-            {'id': 'e2', 'title': 'Khảo cổ cọc'},
-          ],
-          'assets': [],
-        },
-      );
-      await tester.pumpWidget(
-        ProviderScope(
-          child: MaterialApp(
-            home: Scaffold(
-              body: SingleChildScrollView(
-                child: ActivityRenderer(
-                  activity: activity,
-                  content: content,
-                  submitting: false,
-                  onSubmit: (a) async => captured = a,
+        });
+        const content = LessonContentDto(
+          lessonId: 'l',
+          lessonVersionId: 'v',
+          content: {
+            'evidence': [
+              {'id': 'e1', 'title': 'Sử thần ghi triều'},
+              {'id': 'e2', 'title': 'Khảo cổ cọc'},
+            ],
+            'assets': [],
+          },
+        );
+        await tester.pumpWidget(
+          ProviderScope(
+            child: MaterialApp(
+              home: Scaffold(
+                body: SingleChildScrollView(
+                  child: ActivityRenderer(
+                    activity: activity,
+                    content: content,
+                    submitting: false,
+                    onSubmit: (a) async => captured = a,
+                  ),
                 ),
               ),
             ),
           ),
-        ),
-      );
-      await tester.pumpAndSettle();
-      expect(find.text('GIẢ THUYẾT ĐÃ CHỌN'), findsOneWidget);
-      expect(find.text('h-tide'), findsOneWidget);
-      expect(find.text('BẰNG CHỨNG ĐÃ THU THẬP'), findsOneWidget);
-      expect(find.text('Sử thần ghi triều'), findsOneWidget);
-      expect(find.text('Khảo cổ cọc'), findsOneWidget);
-      await tester.tap(find.text('KIỂM CHỨNG'));
-      await tester.pump();
-      expect(captured, {'action': 'verify'});
-    });
+        );
+        await tester.pumpAndSettle();
+        expect(find.text('GIẢ THUYẾT ĐÃ CHỌN'), findsOneWidget);
+        expect(find.text('h-tide'), findsOneWidget);
+        expect(find.text('BẰNG CHỨNG ĐÃ THU THẬP'), findsOneWidget);
+        expect(find.text('Sử thần ghi triều'), findsOneWidget);
+        expect(find.text('Khảo cổ cọc'), findsOneWidget);
+        await tester.tap(find.text('KIỂM CHỨNG'));
+        await tester.pump();
+        expect(captured, {'action': 'verify'});
+      },
+    );
 
     testWidgets('VIEW_IMAGE không asset → submit {}', (tester) async {
       final payload = await submitFrom(tester, {

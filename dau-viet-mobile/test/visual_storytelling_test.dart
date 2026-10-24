@@ -128,9 +128,7 @@ void main() {
       await tester.pumpWidget(
         ProviderScope(
           overrides: [
-            energyRepositoryProvider.overrideWithValue(
-              FakeEnergyRepository(),
-            ),
+            energyRepositoryProvider.overrideWithValue(FakeEnergyRepository()),
             // EnergyPill watch rewardSummaryProvider — trả giá trị tĩnh
             // để không gọi HTTP thật trong widget test.
             rewardSummaryProvider.overrideWith(

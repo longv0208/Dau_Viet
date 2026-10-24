@@ -1,11 +1,11 @@
-import 'package:dau_viet_mobile/features/energy/data/energy_dto.dart';
+﻿import 'package:dau_viet_mobile/features/energy/data/energy_dto.dart';
 import 'package:dau_viet_mobile/features/energy/data/energy_repository.dart';
 
 /// Scripted repo cho provider/widget test — KHÔNG phải MockEnergyRepository
 /// của app (mock chỉ phục vụ USE_MOCK). Đếm số lần fetch để test không
 /// vô tình poll API.
 class FakeEnergyRepository implements EnergyRepository {
-  EnergyStateDto next = const EnergyStateDto(
+  EnergyStateDto next = EnergyStateDto(
     current: 50,
     max: 100,
     recoveryAmount: 5,

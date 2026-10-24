@@ -169,20 +169,22 @@ class _CerChoiceRendererState extends State<CerChoiceRenderer> {
           )
         else
           for (final e in evidenceOptions)
-            Builder(builder: (ctx) {
-              final id = e['id'] as String? ?? '';
-              final doc = widget.content.evidenceById(id);
-              final label = (doc?['title'] as String?) ?? id;
-              return _PickTile(
-                id: id,
-                label: label,
-                selected: _evidenceIds.contains(id),
-                multi: true,
-                enabled: !widget.submitting,
-                priorCollected: priorEvidenceIds.contains(id),
-                onTap: () => _toggleEvidence(id),
-              );
-            }),
+            Builder(
+              builder: (ctx) {
+                final id = e['id'] as String? ?? '';
+                final doc = widget.content.evidenceById(id);
+                final label = (doc?['title'] as String?) ?? id;
+                return _PickTile(
+                  id: id,
+                  label: label,
+                  selected: _evidenceIds.contains(id),
+                  multi: true,
+                  enabled: !widget.submitting,
+                  priorCollected: priorEvidenceIds.contains(id),
+                  onTap: () => _toggleEvidence(id),
+                );
+              },
+            ),
         const SizedBox(height: 12),
 
         // Card 3 — Reasoning
@@ -236,8 +238,7 @@ class _PickTile extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final reduceMotion =
-        MediaQuery.maybeDisableAnimationsOf(context) ?? false;
+    final reduceMotion = MediaQuery.maybeDisableAnimationsOf(context) ?? false;
     return Padding(
       padding: const EdgeInsets.only(bottom: 8),
       child: Material(
@@ -246,8 +247,9 @@ class _PickTile extends StatelessWidget {
           borderRadius: BorderRadius.circular(12),
           onTap: enabled ? onTap : null,
           child: AnimatedContainer(
-            duration:
-                reduceMotion ? Duration.zero : const Duration(milliseconds: 150),
+            duration: reduceMotion
+                ? Duration.zero
+                : const Duration(milliseconds: 150),
             constraints: const BoxConstraints(minHeight: 50),
             padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
             decoration: BoxDecoration(
@@ -267,11 +269,11 @@ class _PickTile extends StatelessWidget {
                 Icon(
                   multi
                       ? (selected
-                          ? Icons.check_box
-                          : Icons.check_box_outline_blank)
+                            ? Icons.check_box
+                            : Icons.check_box_outline_blank)
                       : (selected
-                          ? Icons.radio_button_checked
-                          : Icons.radio_button_off),
+                            ? Icons.radio_button_checked
+                            : Icons.radio_button_off),
                   size: 21,
                   color: selected
                       ? DauVietColors.cinnabarRed

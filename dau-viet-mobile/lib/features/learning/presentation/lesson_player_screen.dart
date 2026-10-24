@@ -241,23 +241,39 @@ class _LessonPlayerScreenState extends ConsumerState<LessonPlayerScreen> {
   void _handleEnergyDepleted(ApiException e) {
     _needsFreshKey = true;
     final details = e.error.details;
+    final prev = ref.read(energyProvider).value;
+    bool hasDetails = false;
     if (details is Map) {
       final m = details.cast<String, dynamic>();
       if (m['currentEnergy'] is num) {
-        ref.read(energyProvider.notifier).applySnapshot(
-          EnergyStateDto(
-            current: (m['currentEnergy'] as num).toInt(),
-            max: ref.read(energyProvider).value?.max ?? 100,
-            nextRecoveryAt: m['nextRecoveryAt'] is String
-                ? DateTime.tryParse(m['nextRecoveryAt'] as String)
-                : null,
-            serverTime: m['serverTime'] is String
-                ? DateTime.tryParse(m['serverTime'] as String)
-                : null,
-            canSubmitGraded: false,
-          ),
-        );
+        hasDetails = true;
+        // FIX-5: giữ metadata đã biết từ state hiện tại — 409 details chỉ
+        // xác nhận current/nextRecoveryAt/serverTime, KHÔNG xác nhận
+        // max/recovery*. Chỉ dùng default khi chưa từng có state.
+        ref
+            .read(energyProvider.notifier)
+            .applySnapshot(
+              EnergyStateDto(
+                current: (m['currentEnergy'] as num).toInt(),
+                max: prev?.max ?? 100,
+                recoveryAmount: prev?.recoveryAmount ?? 0,
+                recoveryIntervalSeconds: prev?.recoveryIntervalSeconds ?? 0,
+                nextRecoveryAt: m['nextRecoveryAt'] is String
+                    ? DateTime.tryParse(m['nextRecoveryAt'] as String)
+                    : null,
+                serverTime: m['serverTime'] is String
+                    ? DateTime.tryParse(m['serverTime'] as String)
+                    : null,
+                canSubmitGraded: false,
+              ),
+            );
       }
+    }
+    // Provider chưa từng có state VÀ details thiếu/trống → không tự bịa
+    // số: refresh GET /me/energy lấy trạng thái authoritative. Lỗi đã
+    // nằm trong AsyncError (refresh swallow) — UI pill/screen tự hiển thị.
+    if (prev == null && !hasDetails) {
+      ref.read(energyProvider.notifier).refresh();
     }
     setState(() {
       _state = _state!.copyWith(submitting: false);

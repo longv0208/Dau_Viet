@@ -11,7 +11,7 @@ void main() {
   group('EnergyPill', () {
     testWidgets('hiển thị số Thể lực thật từ provider', (tester) async {
       final repo = FakeEnergyRepository()
-        ..next = const EnergyStateDto(current: 75, max: 100);
+        ..next = EnergyStateDto(current: 75, max: 100);
       await tester.pumpWidget(
         ProviderScope(
           overrides: [energyRepositoryProvider.overrideWithValue(repo)],
@@ -25,14 +25,11 @@ void main() {
       expect(find.byIcon(Icons.bolt_rounded), findsOneWidget);
     });
 
-    testWidgets('energy=0 → text 0/100 màu cảnh báo (vẫn là số thật)',
-        (tester) async {
+    testWidgets('energy=0 → text 0/100 màu cảnh báo (vẫn là số thật)', (
+      tester,
+    ) async {
       final repo = FakeEnergyRepository()
-        ..next = const EnergyStateDto(
-            current: 0,
-            max: 100,
-            canSubmitGraded: false,
-          );
+        ..next = EnergyStateDto(current: 0, max: 100, canSubmitGraded: false);
       await tester.pumpWidget(
         ProviderScope(
           overrides: [energyRepositoryProvider.overrideWithValue(repo)],
@@ -45,11 +42,8 @@ void main() {
       expect(find.text('0/100'), findsOneWidget);
     });
 
-    testWidgets('API lỗi → icon retry, KHÔNG hiện 100/100 giả', (
-      tester,
-    ) async {
-      final repo = FakeEnergyRepository()
-        ..error = Exception('network down');
+    testWidgets('API lỗi → icon retry, KHÔNG hiện 100/100 giả', (tester) async {
+      final repo = FakeEnergyRepository()..error = Exception('network down');
       await tester.pumpWidget(
         ProviderScope(
           overrides: [energyRepositoryProvider.overrideWithValue(repo)],
@@ -68,8 +62,9 @@ void main() {
       expect(repo.calls, greaterThan(before));
     });
 
-    testWidgets('tap vào pill gọi onEnergyTap (điều hướng Viện Thái Y)',
-        (tester) async {
+    testWidgets('tap vào pill gọi onEnergyTap (điều hướng Viện Thái Y)', (
+      tester,
+    ) async {
       var tapped = false;
       final repo = FakeEnergyRepository();
       await tester.pumpWidget(
@@ -77,9 +72,7 @@ void main() {
           overrides: [energyRepositoryProvider.overrideWithValue(repo)],
           child: MaterialApp(
             home: Scaffold(
-              body: Center(
-                child: EnergyPill(onEnergyTap: () => tapped = true),
-              ),
+              body: Center(child: EnergyPill(onEnergyTap: () => tapped = true)),
             ),
           ),
         ),
