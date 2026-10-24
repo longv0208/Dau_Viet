@@ -1,0 +1,83 @@
+/* Bạch Đằng 938 — overlay UI trên canvas */
+html, body { margin: 0; padding: 0; height: 100%; overflow: hidden; }
+body {
+  background: #0c1418;
+  font-family: "Segoe UI", system-ui, -apple-system, sans-serif;
+  color: #f6ecda;
+}
+#dv-root { position: fixed; inset: 0; overflow: hidden; }
+#dv-stage { position: absolute; inset: 0; display: block; }
+
+/* ---------- Chữ & khung ---------- */
+.dv-hud {
+  position: absolute; left: 0; right: 0; top: 0;
+  padding: 18px 22px 0;
+  pointer-events: none;
+  display: flex; flex-direction: column; gap: 4px;
+  text-shadow: 0 1px 12px rgba(8, 12, 14, 0.85);
+}
+#dv-scene {
+  font-size: 11px; letter-spacing: 0.16em; text-transform: uppercase;
+  color: #e7b451; font-weight: 600;
+}
+#dv-title {
+  font-family: "Noto Serif", Georgia, serif;
+  font-size: 30px; line-height: 1.1; font-weight: 700;
+  color: #fff1d5;
+}
+#dv-sub { font-size: 13px; color: rgba(246, 236, 218, 0.9); }
+
+/* Caption dưới — an toàn ở dọc lẫn ngang */
+.dv-cap-wrap {
+  position: absolute; left: 0; right: 0; bottom: 0;
+  padding: 0 18px calc(16px + env(safe-area-inset-bottom, 0px));
+  pointer-events: none;
+  display: flex; flex-direction: column; gap: 8px;
+}
+#dv-caption {
+  font-size: 15px; line-height: 1.5;
+  color: #fffbf4; max-width: 640px;
+  text-shadow: 0 1px 10px rgba(8, 12, 14, 0.9);
+}
+#dv-note {
+  font-size: 11.5px; color: rgba(246, 236, 218, 0.78);
+  font-style: italic; min-height: 16px;
+}
+#dv-track {
+  height: 3px; background: rgba(246, 236, 218, 0.18);
+  border-radius: 2px; overflow: hidden;
+}
+#dv-bar {
+  height: 100%; width: 0%;
+  background: linear-gradient(90deg, #e7b451, #ffdf9a);
+  border-radius: 2px;
+  transition: width 0.15s linear;
+}
+
+/* ---------- Nút ---------- */
+.dv-ctl {
+  position: absolute; right: 16px; bottom: calc(16px + env(safe-area-inset-bottom, 0px));
+  display: flex; gap: 10px; pointer-events: auto;
+}
+.dv-ctl button {
+  min-width: 44px; min-height: 44px;
+  border: 1px solid rgba(246, 236, 218, 0.4);
+  background: rgba(12, 20, 24, 0.55);
+  color: #fff1d5; font-size: 18px; border-radius: 10px;
+  cursor: pointer; backdrop-filter: blur(4px);
+}
+.dv-ctl button:active { transform: scale(0.94); }
+.dv-ctl button:focus-visible { outline: 2px solid #e7b451; outline-offset: 2px; }
+
+/* ---------- Lỗi ---------- */
+#dv-error {
+  position: absolute; inset: 0; display: none;
+  align-items: center; justify-content: center;
+  background: rgba(12, 20, 24, 0.92); color: #ffb4a0;
+  font-size: 15px; padding: 24px; text-align: center;
+}
+
+/* ---------- Dọc: caption trên, nút vẫn ở góc phải ---------- */
+.dv-portrait #dv-title { font-size: 24px; }
+.dv-portrait #dv-caption { font-size: 14px; }
+.dv-portrait .dv-hud { padding: 14px 16px 0; }
