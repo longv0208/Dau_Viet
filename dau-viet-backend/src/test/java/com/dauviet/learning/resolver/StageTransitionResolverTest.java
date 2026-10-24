@@ -383,6 +383,64 @@ class StageTransitionResolverTest {
     }
 
     @Test
+    void exhaustedVerification_partial_doesNotHop_advancesForward() {
+        // TASK-0020 round-3: a bounded VERIFICATION that spent its budget
+        // (output exhausted:true, outcome still PARTIAL) must NOT take the
+        // onPartial hop — hopping back to an upstream activity that can no
+        // longer change its output is the second soft-lock shape.
+        JsonNode snap = json("""
+                {"stages":[
+                  {"id":"ev","type":"EVIDENCE","required":true,"activities":[
+                    {"id":"es","type":"EVIDENCE_SELECT","required":true}],
+                   "nextStageIds":["vf"]},
+                  {"id":"vf","type":"VERIFICATION","required":true,"activities":[
+                    {"id":"vf1","type":"VERIFICATION","required":true,
+                     "onPartial":"ev","config":{"maxAttempts":2}}],
+                   "nextStageIds":["cc"]},
+                  {"id":"cc","type":"CONCLUSION","required":true,"activities":[
+                    {"id":"cer","type":"CER_CHOICE","required":true}],
+                   "nextStageIds":[]}]}
+                """);
+        SnapshotModel m = SnapshotModel.parse(snap);
+        AttemptState s = at("vf", "vf1");
+        s.markCompleted("es");
+        s.recordOutput("vf1", json(
+                "{\"verification\":\"PARTIAL\",\"attemptCount\":2,\"exhausted\":true}"));
+        s.markCompleted("vf1");
+        var t = resolver.resolve(m, s, "vf1", ActivityResult.PARTIAL);
+        assertThat(t.nextStage()).isNotNull();
+        assertThat(t.nextStage().stageId()).isEqualTo("cc");
+        assertThat(t.nextStage().reason()).isEqualTo(NextStage.FORWARD);
+    }
+
+    @Test
+    void unexhaustedVerification_partial_stillHops() {
+        // Same shape but budget not yet spent -> the REVISE hop still fires.
+        JsonNode snap = json("""
+                {"stages":[
+                  {"id":"ev","type":"EVIDENCE","required":true,"activities":[
+                    {"id":"es","type":"EVIDENCE_SELECT","required":true}],
+                   "nextStageIds":["vf"]},
+                  {"id":"vf","type":"VERIFICATION","required":true,"activities":[
+                    {"id":"vf1","type":"VERIFICATION","required":true,
+                     "onPartial":"ev","config":{"maxAttempts":2}}],
+                   "nextStageIds":["cc"]},
+                  {"id":"cc","type":"CONCLUSION","required":true,"activities":[
+                    {"id":"cer","type":"CER_CHOICE","required":true}],
+                   "nextStageIds":[]}]}
+                """);
+        SnapshotModel m = SnapshotModel.parse(snap);
+        AttemptState s = at("vf", "vf1");
+        s.markCompleted("es");
+        s.recordOutput("vf1", json(
+                "{\"verification\":\"PARTIAL\",\"attemptCount\":1}"));
+        var t = resolver.resolve(m, s, "vf1", ActivityResult.PARTIAL);
+        assertThat(t.nextStage()).isNotNull();
+        assertThat(t.nextStage().stageId()).isEqualTo("ev");
+        assertThat(t.nextStage().reason()).isEqualTo(NextStage.REVISE);
+    }
+
+    @Test
     void requiredFreeStageTraversed_transparently() {
         // stage with NO required activities sits between two real stages
         JsonNode snap = json("""

@@ -38,10 +38,12 @@
     "admin: tsc --noEmit clean + vitest 204/204 pass (CerChoiceEditor rewritten -> acceptedCombos UI, priorEvidenceSource/evidenceSource dropdowns via evidenceSelectActivities(draft), VerificationActivityView verdict-picker removed -> priorOutputs summary + disabled Kiem chung button)",
     "mobile: flutter analyze clean (5 pre-existing file_names infos) + flutter test 372/372 pass (answer_payload_test updated: {action:verify} payload, priorOutputs hypothesis+evidence display)",
     "fixtures: dau-viet-backend/src/test/resources/lessons/bach-dang-938-v2.draft.json (vf1.evidenceSource=es + onPartial/onContradicted->hp, cer priorEvidenceSource=es + acceptedCombos), hai-ba-trung-40.draft.json (acceptedCombos)",
-    "pre-existing test bugs fixed this round: LearningFlow2IT result->resultJson/totalRequired 6->7/content->stages path; AnimationScenePublishIT publishLesson get(versionId)->get(lessonVersionId) matching PublishResponse DTO"
+    "pre-existing test bugs fixed this round: LearningFlow2IT result->resultJson/totalRequired 6->7/content->stages path; AnimationScenePublishIT publishLesson get(versionId)->get(lessonVersionId) matching PublishResponse DTO",
+    "round-3: ./mvnw test -> 414/414 pass incl. LearningFlow2IT 12/12 on real Postgres Testcontainers (Docker live). New ITs: exhaustedEvidence_remedialRetry_recoversAndCompletes (es 2x wrong -> exhausted -> remedial es3 correct -> invalidate -> redo chain -> vf1 SUPPORTED -> COMPLETE, knowledgeScore honest), exhaustedEvidence_failedRemediation_reviewedTerminal (es remedial wrong -> completed-for-progress -> vf1 PARTIAL hop -> es resubmit bounded -> vf1 2nd PARTIAL exhausted -> cc -> cer -> COMPLETE, verdict never promoted, knowledgeScore<100), publish_rejectsRequiredConsumer_onOptionalStageSource (422 UNGUARANTEED_SOURCE)",
+    "round-3 mechanism: AttemptState.attemptCounts ledger survives dependent-output invalidation (prevents retry-budget refund -> infinite loop); EvidenceSelect remedial window = prior.exhausted && cursor-on-activity, marker remedial:true, last remedial completes-for-progress; VerificationHandler config.maxAttempts bound -> exhausted completed-for-progress without promoting PARTIAL/CONTRADICTED; resolver rule (-1) remedial-stay + rule (b) revise-hop blocked when exhausted:true"
   ],
   "reviewRefs": [],
-  "nextAction": "Round-2 correctness fixes complete and verified: FIX 1 removed onPartial/onContradicted revision hops from dependencyEdges (navigation != data dependency — killed hc->do->vf1->hc cycle); FIX 2 doSubmit removes completion mark on completed=false resubmit (real submit()-driven tests, keeps exhausted-still-completed distinction); FIX 3 isGradedActivity includes MULTIPLE_CHOICE/MATCHING/DRAG_ORDER/CER_CHOICE contract-graded types; FIX 4 ReasoningConnect evaluateGraded computes F1 independently per accepted set and uses max (was max-hit-count); FIX 5 DraftValidator source refs require same-stage EARLIER position + forward nextStageIds only (hop reachability removed); FIX 6 LearningFlow2IT strengthened with per-stage integrity + revision + evidence-revision transitive paths. E2E PASS on real Postgres (Docker available). Docs synced (LEARNING_ENGINE_DESIGN §13 + API_SPEC TASK-0020 notes). No remaining blockers; ready for commit/push per user authorization.",
+  "nextAction": "Round-3 remediation & no-soft-lock complete and verified on real Postgres (414/414). FIX 1: remedialAttempts budget on EVIDENCE_SELECT + maxAttempts bound on VERIFICATION + attemptCounts ledger immune to invalidation + resolver remedial-stay (-1) and exhausted-hop block (b) — both soft-lock shapes closed, verdicts stay honest, no free credit. FIX 2: UNGUARANTEED_SOURCE publish check + admin picker parity. FIX 3: LearningFlow2IT covers recover + reviewed-terminal + publish-reject paths end-to-end. Docs synced. User self-committed most round-3 code in 56d3aef+2070319; StageTransitionResolverTest additions staged, docs unstaged — awaiting user authorization for remaining commit.",
   "baseCommit": null,
   "inputFingerprint": null,
   "snapshot": null,
@@ -50,5 +52,5 @@
   "resumeFrom": null,
   "handoffRef": null,
   "createdAt": "2026-10-24T16:45:00+07:00",
-  "updatedAt": "2026-10-24T18:15:00+07:00"
+  "updatedAt": "2026-10-24T19:05:00+07:00"
 }
