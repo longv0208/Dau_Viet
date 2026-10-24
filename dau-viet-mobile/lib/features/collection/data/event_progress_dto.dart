@@ -43,6 +43,11 @@ class EventProgressDto {
   final List<RequiredLessonProgressDto> requiredLessons;
   final int unlockedDossiersCount;
 
+  /// Policy version đã cấp milestone (FIX 7). Khi admin publish v2 sau khi
+  /// learner đã completed v1 → earnedPolicyVersion < policyVersion; UI giải
+  /// thích "đã hoàn thành phiên bản trước, còn bài mới để khám phá".
+  final int? earnedPolicyVersion;
+
   const EventProgressDto({
     required this.eventId,
     required this.status,
@@ -54,6 +59,7 @@ class EventProgressDto {
     this.masteryThreshold,
     this.requiredLessons = const [],
     this.unlockedDossiersCount = 0,
+    this.earnedPolicyVersion,
   });
 
   /// Tỉ lệ 0..1 cho progress bar — null khi NOT_CONFIGURED.
@@ -82,5 +88,6 @@ class EventProgressDto {
             .toList(),
         unlockedDossiersCount:
             (json['unlockedDossiersCount'] as num?)?.toInt() ?? 0,
+        earnedPolicyVersion: (json['earnedPolicyVersion'] as num?)?.toInt(),
       );
 }

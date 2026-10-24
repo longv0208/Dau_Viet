@@ -691,10 +691,514 @@ class EventCompletionIT extends AbstractPostgresIT {
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.status").value("EVENT_COMPLETED"))
                 .andExpect(jsonPath("$.eventMastered").value(false))
-                .andExpect(jsonPath("$.policyVersion").value(2));
+                .andExpect(jsonPath("$.policyVersion").value(2))
+                // FIX 7: earnedPolicyVersion = 1 (milestone cấp theo v1).
+                .andExpect(jsonPath("$.earnedPolicyVersion").value(1));
 
         // Grant cũ vẫn tồn tại (entitlement không thu hồi).
         assertThat(progressCount(learnerId, eventId, "EVENT_COMPLETED")).isEqualTo(1);
         assertThat(progressCount(learnerId, eventId, "EVENT_MASTERED")).isZero();
+    }
+
+    /* ---------- FIX 1: policy nhiều required lessons ---------- */
+
+    @Test
+    void multiRequiredLesson_partialCompletion_notCompleted() throws Exception {
+        String lesson1 = publish();
+        String lesson2 = publish();
+        String lesson3 = publish();
+        newPolicy(1, new String[]{lesson1, lesson2, lesson3}, 70);
+
+        // 1/3 → IN_PROGRESS, không milestone.
+        String a1 = completableAttempt(learnerToken, lesson1);
+        complete(learnerToken, a1, null);
+        mvc.perform(get("/api/v1/me/events/" + eventId + "/progress")
+                        .header("Authorization", learnerToken))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.status").value("IN_PROGRESS"))
+                .andExpect(jsonPath("$.eventCompleted").value(false));
+        assertThat(progressCount(learnerId, eventId, "EVENT_COMPLETED")).isZero();
+
+        // 2/3 → vẫn IN_PROGRESS.
+        String a2 = completableAttempt(learnerToken, lesson2);
+        complete(learnerToken, a2, null);
+        mvc.perform(get("/api/v1/me/events/" + eventId + "/progress")
+                        .header("Authorization", learnerToken))
+                .andExpect(jsonPath("$.status").value("IN_PROGRESS"))
+                .andExpect(jsonPath("$.requiredLessonsCompleted").value(2));
+        assertThat(progressCount(learnerId, eventId, "EVENT_COMPLETED")).isZero();
+
+        // 3/3 → EVENT_COMPLETED (+ MASTERED vì cả 3 đều pass mc đúng).
+        String a3 = completableAttempt(learnerToken, lesson3);
+        complete(learnerToken, a3, null);
+        mvc.perform(get("/api/v1/me/events/" + eventId + "/progress")
+                        .header("Authorization", learnerToken))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.status").value("EVENT_MASTERED"))
+                .andExpect(jsonPath("$.requiredLessonsCompleted").value(3));
+        assertThat(progressCount(learnerId, eventId, "EVENT_COMPLETED")).isEqualTo(1);
+    }
+
+    @Test
+    void optionalLesson_doesNotBlockCompletion() throws Exception {
+        // lesson2 là optional — không cần hoàn thành.
+        String lesson1 = publish();
+        String lesson2 = publish();
+        String dos1 = newDossier("ngo-quyen", "PERSON", "Ngô Quyền", "PUBLISHED");
+        linkDossier(dos1, 1);
+        jdbc.update("""
+                insert into event_completion_policies
+                    (id, event_id, policy_version, status, required_lesson_ids,
+                     optional_lesson_ids, mastery_threshold, published_at)
+                values (?::uuid, ?::uuid, 1, 'PUBLISHED', ?::jsonb,
+                        ?::jsonb, 70, now())
+                """, UUID.randomUUID().toString(), eventId,
+                "[\"" + lesson1 + "\"]", "[\"" + lesson2 + "\"]");
+
+        String attemptId = completableAttempt(learnerToken, lesson1);
+        complete(learnerToken, attemptId, null);
+
+        // eventCompleted dù lesson2 optional chưa học — optional không gate.
+        mvc.perform(get("/api/v1/me/events/" + eventId + "/progress")
+                        .header("Authorization", learnerToken))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.eventCompleted").value(true))
+                .andExpect(jsonPath("$.requiredLessonsTotal").value(1));
+        assertThat(unlockExists(learnerId, dos1)).isTrue();
+    }
+
+    @Test
+    void createdAtOrder_doesNotAffectRequiredSet() throws Exception {
+        // Tạo 3 lesson với created_at khác nhau — required set = cả 3,
+        // không phải lesson "đầu tiên theo thời gian".
+        String lesson1 = publish();
+        String lesson2 = publish();
+        String lesson3 = publish();
+        newPolicy(1, new String[]{lesson1, lesson2, lesson3}, 70);
+
+        // Chỉ complete lesson2 (không phải "đầu tiên") → chưa completed.
+        String a2 = completableAttempt(learnerToken, lesson2);
+        complete(learnerToken, a2, null);
+        mvc.perform(get("/api/v1/me/events/" + eventId + "/progress")
+                        .header("Authorization", learnerToken))
+                .andExpect(jsonPath("$.status").value("IN_PROGRESS"))
+                .andExpect(jsonPath("$.eventCompleted").value(false));
+        assertThat(progressCount(learnerId, eventId, "EVENT_COMPLETED")).isZero();
+    }
+
+    /* ---------- FIX 2: shared dossier giữa 2 events ---------- */
+
+    @Test
+    void sharedDossier_twoEvents_countedOnBoth() throws Exception {
+        // Event 2 cùng dossier.
+        String event2Id = AttemptItFixture.newEvent(jdbc, "e-g4-b");
+        // Evidence riêng cho event2 — publish validation check
+        // requiredEvidenceIds thuộc đúng event.
+        String ev2Id = AttemptItFixture.newEvidence(jdbc, event2Id);
+        String lesson1 = publish(); // event gốc
+        // Tạo lesson cho event2 (cùng template).
+        String lesson2 = AttemptItFixture.publishLesson(mvc, om, adminToken,
+                event2Id, tplId, AttemptItFixture.draftTwoStage(ev2Id, MC_CONFIG));
+
+        String dosShared = newDossier("ngo-quyen", "PERSON", "Ngô Quyền",
+                "PUBLISHED");
+        linkDossier(dosShared, 1); // event gốc
+        // Link vào event2.
+        jdbc.update("""
+                insert into event_dossiers (event_id, dossier_id, unlock_on,
+                                            sort_order)
+                values (?::uuid, ?::uuid, 'EVENT_COMPLETED', 1)
+                """, event2Id, dosShared);
+        newPolicy(1, new String[]{lesson1}, 70);
+        // Policy riêng cho event2.
+        jdbc.update("""
+                insert into event_completion_policies
+                    (id, event_id, policy_version, status, required_lesson_ids,
+                     optional_lesson_ids, mastery_threshold, published_at)
+                values (?::uuid, ?::uuid, 1, 'PUBLISHED', ?::jsonb,
+                        '[]'::jsonb, 70, now())
+                """, UUID.randomUUID().toString(), event2Id,
+                "[\"" + lesson2 + "\"]");
+
+        // Complete event1 → unlock, provenance = event1.
+        String a1 = completableAttempt(learnerToken, lesson1);
+        complete(learnerToken, a1, null);
+        mvc.perform(get("/api/v1/me/events/" + eventId + "/progress")
+                        .header("Authorization", learnerToken))
+                .andExpect(jsonPath("$.unlockedDossiersCount").value(1));
+
+        // Complete event2 → dossier đã owned, không insert lại nhưng
+        // count trên event2 vẫn đúng (FIX 2: join event_dossiers).
+        String a2 = completableAttempt(learnerToken, lesson2);
+        complete(learnerToken, a2, null);
+        mvc.perform(get("/api/v1/me/events/" + event2Id + "/progress")
+                        .header("Authorization", learnerToken))
+                .andExpect(jsonPath("$.unlockedDossiersCount").value(1));
+
+        // Inventory vẫn một row.
+        assertThat(unlockCount(learnerId)).isEqualTo(1);
+        assertThat(unlockExists(learnerId, dosShared)).isTrue();
+    }
+
+    /* ---------- FIX 3: lazy reconcile khi mở Collection trực tiếp ---------- */
+
+    @Test
+    void dossierList_lazyReconcile_unlocksWithoutOpeningProgress()
+            throws Exception {
+        String lessonId = publish();
+        String dos1 = newDossier("ngo-quyen", "PERSON", "Ngô Quyền", "PUBLISHED");
+        linkDossier(dos1, 1);
+        newPolicy(1, new String[]{lessonId}, 70);
+
+        // Complete lesson TRƯỚC khi policy reconcile (policy đã tồn tại
+        // nhưng learner chưa mở progress page).
+        String attemptId = completableAttempt(learnerToken, lessonId);
+        complete(learnerToken, attemptId, null);
+        // complete → recorder đã ghi milestone. Giờ giả lập learner cũ
+        // chưa qua progress: xoá milestone + unlock để mô phỏng pre-GAME-04.
+        jdbc.update("delete from user_event_progress where user_id = ?::uuid",
+                learnerId);
+        jdbc.update("delete from user_dossier_unlocks where user_id = ?::uuid",
+                learnerId);
+
+        // Mở Collection trực tiếp — không qua progress endpoint.
+        // DossierService.list reconcile lazy → milestone + unlock được ghi.
+        mvc.perform(get("/api/v1/me/collection/dossiers")
+                        .header("Authorization", learnerToken))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.content[0].unlocked").value(true))
+                .andExpect(jsonPath("$.content[0].preview").value(false));
+
+        // Milestone đã được reconcile-ghi.
+        assertThat(progressCount(learnerId, eventId, "EVENT_COMPLETED")).isEqualTo(1);
+        assertThat(unlockExists(learnerId, dos1)).isTrue();
+    }
+
+    @Test
+    void dossierDetail_lazyReconcile_unlocksOnDirectAccess()
+            throws Exception {
+        String lessonId = publish();
+        String dos1 = newDossier("ngo-quyen", "PERSON", "Ngô Quyền", "PUBLISHED");
+        linkDossier(dos1, 1);
+        newPolicy(1, new String[]{lessonId}, 70);
+
+        String attemptId = completableAttempt(learnerToken, lessonId);
+        complete(learnerToken, attemptId, null);
+        jdbc.update("delete from user_event_progress where user_id = ?::uuid",
+                learnerId);
+        jdbc.update("delete from user_dossier_unlocks where user_id = ?::uuid",
+                learnerId);
+
+        // Detail trực tiếp → reconcile, unlock, full content.
+        mvc.perform(get("/api/v1/me/collection/dossiers/" + dos1)
+                        .header("Authorization", learnerToken))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.unlocked").value(true))
+                .andExpect(jsonPath("$.preview").value(false))
+                .andExpect(jsonPath("$.description").isNotEmpty());
+
+        assertThat(progressCount(learnerId, eventId, "EVENT_COMPLETED")).isEqualTo(1);
+    }
+
+    /* ---------- FIX 4: fan-out dossier publish sau completed ---------- */
+
+    @Test
+    void lateLinkedDossier_grantedOnReconcile() throws Exception {
+        String lessonId = publish();
+        String dos1 = newDossier("ngo-quyen", "PERSON", "Ngô Quyền", "PUBLISHED");
+        linkDossier(dos1, 1);
+        newPolicy(1, new String[]{lessonId}, 70);
+
+        String attemptId = completableAttempt(learnerToken, lessonId);
+        complete(learnerToken, attemptId, null);
+        assertThat(unlockCount(learnerId)).isEqualTo(1);
+
+        // Admin publish dossier MỚI link vào event sau khi learner completed.
+        String dos2 = newDossier("song-bach-dang", "LOCATION",
+                "Sông Bạch Đằng", "PUBLISHED");
+        linkDossier(dos2, 2);
+
+        // Mở progress → reconcile → fan-out dossier mới (không cần học lại).
+        mvc.perform(get("/api/v1/me/events/" + eventId + "/progress")
+                        .header("Authorization", learnerToken))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.unlockedDossiersCount").value(2));
+        assertThat(unlockExists(learnerId, dos2)).isTrue();
+        // Milestone không bị ghi lại.
+        assertThat(progressCount(learnerId, eventId, "EVENT_COMPLETED")).isEqualTo(1);
+    }
+
+    /* ---------- FIX 6: graded semantics sync với classifier ---------- */
+
+    /**
+     * Lesson có REASONING_CONNECT required graded:true + acceptedRelationSets
+     * hợp lệ → CÓ graded activity. Submit đúng set → score 100 → MASTERED.
+     */
+    private String publishReasoningGraded(String[] nodeIds,
+                                          String[][] expected,
+                                          String[][][] altSets) throws Exception {
+        // nodes[] = object array — handler/validator đọc node.id.
+        StringBuilder nodes = new StringBuilder("[");
+        for (int i = 0; i < nodeIds.length; i++) {
+            if (i > 0) nodes.append(',');
+            nodes.append("{\"id\":\"").append(nodeIds[i]).append("\"}");
+        }
+        nodes.append(']');
+        StringBuilder expectedJson = new StringBuilder("[");
+        for (int i = 0; i < expected.length; i++) {
+            if (i > 0) expectedJson.append(',');
+            expectedJson.append("{\"from\":\"").append(expected[i][0])
+                    .append("\",\"relation\":\"").append(expected[i][1])
+                    .append("\",\"to\":\"").append(expected[i][2]).append("\"}");
+        }
+        expectedJson.append(']');
+        StringBuilder altsJson = new StringBuilder("[");
+        for (int i = 0; i < altSets.length; i++) {
+            if (i > 0) altsJson.append(',');
+            altsJson.append('[');
+            for (int j = 0; j < altSets[i].length; j++) {
+                if (j > 0) altsJson.append(',');
+                altsJson.append("{\"from\":\"").append(altSets[i][j][0])
+                        .append("\",\"relation\":\"").append(altSets[i][j][1])
+                        .append("\",\"to\":\"").append(altSets[i][j][2]).append("\"}");
+            }
+            altsJson.append(']');
+        }
+        altsJson.append(']');
+        String draft = """
+                {"schemaVersion":1,
+                 "stages":[
+                   {"id":"ctx","type":"CONTEXT","required":true,
+                    "activities":[{"id":"r1","type":"READ","required":true,
+                                    "config":{"text":"intro"}}],
+                    "nextStageIds":["re"]},
+                   {"id":"re","type":"REASONING","required":true,
+                    "activities":[{"id":"rc","type":"REASONING_CONNECT",
+                                    "required":true,
+                                    "config":{"nodes":%s,
+                                              "allowedRelations":["causes","leads_to"],
+                                              "graded":true,
+                                              "expectedRelations":%s,
+                                              "acceptedRelationSets":%s}}],
+                    "nextStageIds":[]}],
+                 "completion":{"requireAllRequiredStages":true}}
+                """.formatted(nodes, expectedJson, altsJson);
+        return AttemptItFixture.publishLesson(mvc, om, adminToken, eventId,
+                tplId, draft);
+    }
+
+    @Test
+    void reasoningConnect_validAcceptedSet_isGradedAndMastered()
+            throws Exception {
+        String lessonId = publishReasoningGraded(
+                new String[]{"ngo-quyen", "bach-dang", "song-hong"},
+                new String[][]{{"ngo-quyen", "causes", "bach-dang"}},
+                new String[][][]{});
+        newPolicy(1, new String[]{lessonId}, 70);
+
+        String attemptId = AttemptItFixture.startAttempt(mvc, om,
+                learnerToken, lessonId);
+        submit(learnerToken, attemptId, "r1", "{}");
+        // Submit đúng expected set → correct → score 1.0 → knowledgeScore=100.
+        MvcResult rc = submit(learnerToken, attemptId, "rc",
+                "{\"relations\":[{\"from\":\"ngo-quyen\","
+              + "\"relation\":\"causes\",\"to\":\"bach-dang\"}]}");
+        assertThat(rc.getResponse().getStatus()).as("rc submit: %s",
+                rc.getResponse().getContentAsString()).isEqualTo(200);
+        MvcResult done = complete(learnerToken, attemptId, null);
+        assertThat(done.getResponse().getStatus()).as("complete: %s",
+                done.getResponse().getContentAsString()).isEqualTo(200);
+
+        mvc.perform(get("/api/v1/me/events/" + eventId + "/progress")
+                        .header("Authorization", learnerToken))
+                .andExpect(status().isOk())
+                // FIX 6: SQL nhận REASONING_CONNECT graded+valid set → graded.
+                .andExpect(jsonPath("$.status").value("EVENT_MASTERED"))
+                .andExpect(jsonPath("$.requiredLessons[0].masteryStatus")
+                        .value("MASTERED"));
+        assertThat(progressCount(learnerId, eventId, "EVENT_MASTERED")).isEqualTo(1);
+    }
+
+    /**
+     * FIX 6: REASONING_CONNECT graded:true nhưng không có accepted set hợp
+     * lệ → classifier coi là KHÔNG graded. Snapshot "legacy" (trước khi
+     * publish validation siết) được mô phỏng bằng lesson_versions insert
+     * trực tiếp + attempt/result COMPLETED — lesson_versions immutable sau
+     * publish nên không UPDATE được.
+     */
+    @Test
+    void reasoningConnect_noAcceptedSet_notAssessed() throws Exception {
+        String lessonId = publish(); // lesson logic (bất kỳ snapshot nào)
+        String versionId = jdbc.queryForObject(
+                "select id from lesson_versions where lesson_id = ?::uuid",
+                String.class, lessonId);
+        // Snapshot legacy: rc graded:true nhưng expectedRelations + alt
+        // sets đều rỗng → classifier KHÔNG graded → NOT_ASSESSED.
+        String legacySnapshot = """
+                {"schemaVersion":1,
+                 "stages":[
+                   {"id":"re","type":"REASONING","required":true,
+                    "activities":[{"id":"rc","type":"REASONING_CONNECT",
+                                    "required":true,
+                                    "config":{"nodes":[{"id":"a"},{"id":"b"}],
+                                              "allowedRelations":["causes"],
+                                              "graded":true,
+                                              "expectedRelations":[],
+                                              "acceptedRelationSets":[]}}],
+                    "nextStageIds":[]}],
+                 "completion":{"requireAllRequiredStages":true}}
+                """;
+        // Insert attempt COMPLETED trực tiếp trên pinned version (bypass
+        // runtime API — mô phỏng dữ liệu learner cũ trước GAME-04).
+        String attemptUuid = UUID.randomUUID().toString();
+        jdbc.update("""
+                insert into learner_attempts
+                    (id, user_id, lesson_version_id, status, completed_at)
+                values (?::uuid, ?::uuid, ?::uuid, 'COMPLETED', now())
+                """, attemptUuid, learnerId, versionId);
+        jdbc.update("""
+                insert into lesson_results
+                    (id, learner_attempt_id, score, result_json)
+                values (?::uuid, ?::uuid, 100,
+                        '{"knowledgeScore":0}'::jsonb)
+                """, UUID.randomUUID().toString(), attemptUuid);
+        // Ghi đè snapshot bằng INSERT version mới — lesson_versions
+        // immutable nên phải tạo bản khác và chuyển attempt sang nó.
+        String adminId = userIdByEmail("a@g4.vn");
+        String v2 = UUID.randomUUID().toString();
+        jdbc.update("""
+                insert into lesson_versions (id, lesson_id, version_no,
+                                             schema_version, snapshot_json,
+                                             published_by)
+                values (?::uuid, ?::uuid, 2, 1, ?::jsonb, ?::uuid)
+                """, v2, lessonId, legacySnapshot, adminId);
+        jdbc.update("update learner_attempts set lesson_version_id = ?::uuid "
+                  + "where id = ?::uuid", v2, attemptUuid);
+        newPolicy(1, new String[]{lessonId}, 70);
+
+        mvc.perform(get("/api/v1/me/events/" + eventId + "/progress")
+                        .header("Authorization", learnerToken))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.status").value("EVENT_COMPLETED"))
+                .andExpect(jsonPath("$.eventMastered").value(false))
+                .andExpect(jsonPath("$.requiredLessons[0].masteryStatus")
+                        .value("NOT_ASSESSED"))
+                .andExpect(jsonPath("$.requiredLessons[0].bestKnowledgeScore")
+                        .doesNotExist());
+        assertThat(progressCount(learnerId, eventId, "EVENT_MASTERED")).isZero();
+    }
+
+    /**
+     * FIX 6: activity required nhưng nằm trong OPTIONAL stage → Learning
+     * Engine không score (requiredActivities(stage) trả EMPTY); SQL phải
+     * loại khỏi "graded lesson" → NOT_ASSESSED. Snapshot legacy qua
+     * version insert trực tiếp (validation hiện chặn case này).
+     */
+    @Test
+    void gradedActivity_inOptionalStage_notAssessed() throws Exception {
+        String lessonId = publish(); // lesson logic + version 1 (hợp lệ)
+        // Version 2 snapshot: stage EVIDENCE required:false chứa mc
+        // required → REQUIRED_IN_OPTIONAL_STAGE (publish validation hiện
+        // chặn; legacy snapshot từ trước khi siết vẫn còn trên prod).
+        String legacySnapshot = """
+                {"schemaVersion":1,
+                 "stages":[
+                   {"id":"ctx","type":"CONTEXT","required":true,
+                    "activities":[{"id":"r1","type":"READ","required":true,
+                                    "config":{"text":"intro"}}],
+                    "nextStageIds":["opt"]},
+                   {"id":"opt","type":"EVIDENCE","required":false,
+                    "activities":[{"id":"mc","type":"MULTIPLE_CHOICE",
+                                    "required":true,
+                                    "config":{"question":"q",
+                                              "options":[{"id":"o1"},
+                                                         {"id":"o2"}],
+                                              "correctOptionIds":["o1"]}}],
+                    "requiredEvidenceIds":["%s"],
+                    "nextStageIds":[]}],
+                 "completion":{"requireAllRequiredStages":true}}
+                """.formatted(evId);
+        String adminId = userIdByEmail("a@g4.vn");
+        String v2 = UUID.randomUUID().toString();
+        jdbc.update("""
+                insert into lesson_versions (id, lesson_id, version_no,
+                                             schema_version, snapshot_json,
+                                             published_by)
+                values (?::uuid, ?::uuid, 2, 1, ?::jsonb, ?::uuid)
+                """, v2, lessonId, legacySnapshot, adminId);
+        // Attempt COMPLETED trên v2 — pinned snapshot có mc required trong
+        // optional stage.
+        String attemptUuid = UUID.randomUUID().toString();
+        jdbc.update("""
+                insert into learner_attempts
+                    (id, user_id, lesson_version_id, status, completed_at)
+                values (?::uuid, ?::uuid, ?::uuid, 'COMPLETED', now())
+                """, attemptUuid, learnerId, v2);
+        jdbc.update("""
+                insert into lesson_results
+                    (id, learner_attempt_id, score, result_json)
+                values (?::uuid, ?::uuid, 100,
+                        '{"knowledgeScore":100}'::jsonb)
+                """, UUID.randomUUID().toString(), attemptUuid);
+        newPolicy(1, new String[]{lessonId}, 70);
+
+        mvc.perform(get("/api/v1/me/events/" + eventId + "/progress")
+                        .header("Authorization", learnerToken))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.status").value("EVENT_COMPLETED"))
+                .andExpect(jsonPath("$.eventMastered").value(false))
+                .andExpect(jsonPath("$.requiredLessons[0].masteryStatus")
+                        .value("NOT_ASSESSED"))
+                // knowledgeScore=100 tồn tại trong result_json nhưng
+                // lesson không có graded activity → không lộ score.
+                .andExpect(jsonPath("$.requiredLessons[0].bestKnowledgeScore")
+                        .doesNotExist());
+        assertThat(progressCount(learnerId, eventId, "EVENT_MASTERED")).isZero();
+    }
+
+    /* ---------- FIX 5: dossier version pinned ---------- */
+
+    @Test
+    void dossierDetail_unlocked_returnsPinnedVersion() throws Exception {
+        String lessonId = publish();
+        String dos1 = newDossier("ngo-quyen", "PERSON", "Ngô Quyền", "PUBLISHED");
+        linkDossier(dos1, 1);
+        newPolicy(1, new String[]{lessonId}, 70);
+
+        String attemptId = completableAttempt(learnerToken, lessonId);
+        complete(learnerToken, attemptId, null);
+
+        // Admin bump catalog version lên 2 sau khi learner đã unlock v1.
+        jdbc.update("update historical_dossiers set dossier_version = 2 "
+                  + "where id = ?::uuid", dos1);
+
+        mvc.perform(get("/api/v1/me/collection/dossiers/" + dos1)
+                        .header("Authorization", learnerToken))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.unlocked").value(true))
+                // dossierVersion = entitlement pinned (v1), catalogVersion = 2.
+                .andExpect(jsonPath("$.dossierVersion").value(1))
+                .andExpect(jsonPath("$.catalogVersion").value(2));
+    }
+
+    @Test
+    void dossierDetail_archived_unlocked_stillAccessible() throws Exception {
+        String lessonId = publish();
+        String dos1 = newDossier("ngo-quyen", "PERSON", "Ngô Quyền", "PUBLISHED");
+        linkDossier(dos1, 1);
+        newPolicy(1, new String[]{lessonId}, 70);
+
+        String attemptId = completableAttempt(learnerToken, lessonId);
+        complete(learnerToken, attemptId, null);
+
+        // Archive sau khi unlock — quyền không bị thu hồi (FIX 5 §7).
+        jdbc.update("update historical_dossiers set status = 'ARCHIVED' "
+                  + "where id = ?::uuid", dos1);
+
+        mvc.perform(get("/api/v1/me/collection/dossiers/" + dos1)
+                        .header("Authorization", learnerToken))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.unlocked").value(true))
+                .andExpect(jsonPath("$.preview").value(false));
     }
 }

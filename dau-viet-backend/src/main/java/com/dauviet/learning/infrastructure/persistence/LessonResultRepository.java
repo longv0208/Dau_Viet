@@ -53,11 +53,18 @@ public interface LessonResultRepository extends JpaRepository<LessonResult, UUID
                                                java.util.List<UUID> lessonIds);
 
     /**
-     * GAME-04 NOT_ASSESSED: lesson "có graded activity" = có attempt
-     * COMPLETED của learner mà pinned snapshot_json chứa ≥1 activity
-     * required thuộc loại chấm điểm (hoặc config.graded:true trên
-     * EVIDENCE_SELECT/REASONING_CONNECT). Trả tập lesson_id thoả — phần
-     * còn lại trong required set là NOT_ASSESSED (vẫn phải completed).
+     * GAME-04 NOT_ASSESSED (FIX 6 — sync với GradedActivityClassifier):
+     * lesson "có graded activity" = có attempt COMPLETED mà pinned snapshot
+     * chứa ≥1 REQUIRED activity trong REQUIRED stage thuộc loại chấm điểm.
+     *
+     * Đồng bộ classifier Java (không duy trì bảng song song):
+     *  - contract-graded: MULTIPLE_CHOICE/MATCHING/DRAG_ORDER/CER_CHOICE;
+     *  - EVIDENCE_SELECT: config.graded:true AND acceptedEvidenceIds non-empty;
+     *  - REASONING_CONNECT: config.graded:true AND (expectedRelations non-empty
+     *    OR acceptedRelationSets[] có ≥1 set có phần tử hợp lệ — mirror
+     *    acceptedSets của handler).
+     *  - stage.required=true bắt buộc: activity required trong OPTIONAL stage
+     *    không tính (Learning Engine chỉ score required-in-required).
      */
     @Query(value = """
             SELECT DISTINCT v.lesson_id
@@ -69,7 +76,8 @@ public interface LessonResultRepository extends JpaRepository<LessonResult, UUID
                 SELECT 1
                 FROM jsonb_array_elements(v.snapshot_json->'stages') st,
                      jsonb_array_elements(st->'activities') act
-                WHERE act->>'required' = 'true'
+                WHERE (st->>'required')::boolean = true
+                  AND act->>'required' = 'true'
                   AND (
                     act->>'type' IN
                       ('MULTIPLE_CHOICE','MATCHING','DRAG_ORDER','CER_CHOICE')
@@ -79,7 +87,21 @@ public interface LessonResultRepository extends JpaRepository<LessonResult, UUID
                             COALESCE(act->'config'->'acceptedEvidenceIds',
                                      '[]'::jsonb)) > 0)
                     OR (act->>'type' = 'REASONING_CONNECT'
-                        AND (act->'config'->>'graded')::boolean = true)
+                        AND (act->'config'->>'graded')::boolean = true
+                        AND (
+                          jsonb_array_length(
+                            COALESCE(act->'config'->'expectedRelations',
+                                     '[]'::jsonb)) > 0
+                          OR EXISTS (
+                            SELECT 1
+                            FROM jsonb_array_elements(
+                                COALESCE(act->'config'
+                                         ->'acceptedRelationSets',
+                                         '[]'::jsonb)) alt
+                            WHERE jsonb_array_length(alt) > 0
+                          )
+                        )
+                      )
                   )
               )
             """, nativeQuery = true)

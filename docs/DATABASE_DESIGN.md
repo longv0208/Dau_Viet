@@ -91,6 +91,27 @@ erDiagram
 - Learner chỉ thấy `map_locations.status='PUBLISHED'` của `historical_events.status='PUBLISHED'` (join qua `event_id`).
 - Index: `(event_id, status, display_order)` cho admin list; `(unlock_lesson_id)` cho FK lookup.
 
+### Bổ sung V22 — Event completion & historical dossiers (GAME-04)
+
+- Năm bảng mới, không đụng bảng cũ; migration `V22__event_completion_dossiers.sql` idempotent (mọi seed `ON CONFLICT DO NOTHING`).
+- Seed resolve events **theo slug** (`bach-dang-938`, `hai-ba-trung-40`, `ly-thai-to-1010`) — không phụ thuộc UUID cố định, kể cả khi `EventSeedRunner` đã tạo row với UUID khác V20.
+- Policy seed `PUBLISHED` v1 cho mỗi event có ít nhất một lesson `PUBLISHED` (demo 1 required lesson/event — không phải quy tắc mặc định; service đọc thẳng từ bảng). `required_lesson_ids` snapshot đóng băng tại publish: admin thêm lesson mới không retro-sửa policy — phải publish `policy_version+1`.
+- `user_event_progress` là ledger append-only; milestone `EVENT_COMPLETED`/`EVENT_MASTERED` mỗi cái chỉ ghi một lần (PK + `insertIgnore`). Republish policy không revoke; `policy_version` + `required_snapshot` giữ audit.
+- `historical_dossiers.canonical_code` unique toàn cục — một nhân vật xuất hiện ở hai sự kiện vẫn chỉ một dossier. `source_json` giữ `{source:{title,author,citation,url,reliability}}`; seed chỉ ghi dossier có citation thật (ĐVSKTT, Bảo tàng LSQG, Ban quản lý di tích Mê Linh, Viện Hàn lâm KHXH&NV) — không bịa trích dẫn.
+- `user_dossier_unlocks` PK `(user_id, dossier_id)` — dossier link hai event không double-count ownership; `event_id` ghi nguồn mở **đầu tiên**, `dossier_version` giữ provenance khi nội dung sau bị sửa/archive.
+- Seed dossiers: 4 PERSON (Ngô Quyền, Trưng Trắc, Trưng Nhị, Lý Thái Tổ), 3 LOCATION (Sông Bạch Đằng, Mê Linh–Luy Lâu, Hoa Lư–Đại La), 1 ARTIFACT (Bãi cọc gỗ Bạch Đằng). Link: Bạch Đằng→3, Hai Bà Trưng→3, Lý Thái Tổ→2, `unlock_on='EVENT_COMPLETED'`.
+- Concurrency: `EventMilestoneRecorder.recordIfEarned` mở `pg_advisory_xact_lock(hashtextextended(userId|eventId))` trong cùng tx `doComplete` — serialize hai completion song song của hai required lesson cuối; loser của lock re-evaluate trên trạng thái winner đã commit, `insertIgnore` chặn duplicate.
+- Reconcile-on-read: `EventProgressQueryService.progressOf` gọi `recordIfEarned` khi thiếu `EVENT_COMPLETED` — completed attempts trước khi policy tồn tại được ghi milestone lần đọc đầu tiên (idempotent, cùng evaluator/recorder path).
+
+### Bổ sung V23 — Policy v2 seed audit (GAME-04 FIX)
+
+- Migration `V23__policy_v2_seed_audit.sql` audit lại policy v1 do V22 seed (V22 chọn required lesson bằng `ORDER BY created_at LIMIT 1` — tùy timing seed có thể thiếu lesson); **không sửa V22** đã áp dụng.
+- Mỗi event có ≥1 lesson `PUBLISHED`: nếu policy PUBLISHED hiện có `required_lesson_ids` ngắn hơn tập lesson PUBLISHED thực tế → ARCHIVE v1 đó, insert `policy_version=2` PUBLISHED với **toàn bộ** lesson PUBLISHED (deterministic, không theo created_at). Nếu event chưa có policy nào → insert v1 đủ bộ. Event không có lesson PUBLISHED → bỏ qua (không tạo PUBLISHED policy trống).
+- Không xóa milestone/unlock đã cấp — entitlement giữ nguyên; learner completed v1 được `earnedPolicyVersion=1` phân biệt với `policyVersion=2` hiện tại.
+- `user_dossier_unlocks.dossier_version` (đã có từ V22) giờ được API trả ra: `DossierDetailResponse.dossierVersion` = pinned entitlement version, `catalogVersion` = version catalog hiện tại — phân biệt khi admin sửa nội dung sau unlock.
+- Lazy reconcile trong `DossierService.list/detail` (qua `EventReconcileService`) — dossier list mở thẳng không qua progress endpoint vẫn grant milestone/unlock cho learner cũ (hoàn thành trước GAME-04); scoped theo `visibleEventIdsOf(userId)`, không quét toàn bộ.
+- Fan-out trong `EventMilestoneRecorder` chạy khi `completed || completedAlready` — dossier admin publish/link sau khi learner đã completed được cấp ở lần reconcile kế (không cần học lại).
+
 ## 4. Contract snapshot bài học
 
 ```json

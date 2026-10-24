@@ -8,10 +8,16 @@ import '../../../../core/widgets/parchment_card.dart';
 import '../../../collection/data/dossier_providers.dart';
 import '../../../collection/data/event_progress_dto.dart';
 
-/// Section tiến độ event trong Campaign Detail (GAME-04 §15). States:
-/// NOT_CONFIGURED → neutral "chưa cấu hình mục tiêu"; IN_PROGRESS →
-/// "Hoàn thành x/y bài bắt buộc" + progress bar; COMPLETED/MASTERED →
-/// trạng thái + số dossier đã mở + CTA xem collection.
+/// Section tiến độ event trong Campaign Detail (GAME-04 §15 + FIX 7/8).
+/// States:
+///   loading     → placeholder gọn (không SizedBox.shrink — learner thấy
+///                 rõ đang tải).
+///   error       → thông báo nhỏ + nút Thử lại (không ẩn lỗi mạng).
+///   NOT_CONFIGURED → neutral "chưa có mục tiêu".
+///   IN_PROGRESS → progress bar x/y bài bắt buộc.
+///   COMPLETED/MASTERED → trạng thái + dossier đã mở + CTA collection.
+///   FIX 7: earnedPolicyVersion < policyVersion → learner đã hoàn thành
+///   bản cũ, còn bài mới — banner nhỏ giải thích.
 class EventProgressSection extends ConsumerWidget {
   final String eventId;
 
@@ -21,8 +27,9 @@ class EventProgressSection extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final async = ref.watch(eventProgressProvider(eventId));
     return async.when(
-      loading: () => const SizedBox.shrink(),
-      error: (_, _) => const SizedBox.shrink(),
+      loading: () => const _Loading(),
+      error: (e, _) =>
+          _Error(onRetry: () => ref.invalidate(eventProgressProvider(eventId))),
       data: (p) => _build(context, p),
     );
   }
@@ -55,6 +62,12 @@ class EventProgressSection extends ConsumerWidget {
 
     final done = p.eventCompleted;
     final mastered = p.eventMastered;
+    // FIX 7: milestone cấp theo policy cũ — còn bài mới theo policy hiện tại.
+    final earnedOlder =
+        done &&
+        p.earnedPolicyVersion != null &&
+        p.policyVersion != null &&
+        p.earnedPolicyVersion! < p.policyVersion!;
     return ParchmentCard(
       padding: const EdgeInsets.all(14),
       child: Column(
@@ -114,6 +127,18 @@ class EventProgressSection extends ConsumerWidget {
               color: DauVietColors.inkMuted,
             ),
           ),
+          // FIX 7: thông báo nhẹ khi milestone cấp theo policy cũ.
+          if (earnedOlder) ...[
+            const SizedBox(height: 6),
+            Text(
+              'Bạn đã hoàn thành phiên bản trước — chính sách mới bổ sung '
+              'bài học để khám phá thêm.',
+              style: DauVietTypography.bodySmall.copyWith(
+                color: DauVietColors.inkMuted,
+                fontStyle: FontStyle.italic,
+              ),
+            ),
+          ],
           if (p.unlockedDossiersCount > 0) ...[
             const SizedBox(height: 8),
             Row(
@@ -148,6 +173,73 @@ class EventProgressSection extends ConsumerWidget {
               ],
             ),
           ],
+        ],
+      ),
+    );
+  }
+}
+
+/// Loading placeholder — gọn, không mở rộng layout.
+class _Loading extends StatelessWidget {
+  const _Loading();
+
+  @override
+  Widget build(BuildContext context) {
+    return const ParchmentCard(
+      padding: EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+      child: Row(
+        children: [
+          SizedBox(
+            width: 16,
+            height: 16,
+            child: CircularProgressIndicator(strokeWidth: 2),
+          ),
+          SizedBox(width: 10),
+          Text('Đang tải tiến độ sự kiện…', style: TextStyle(fontSize: 12)),
+        ],
+      ),
+    );
+  }
+}
+
+/// Error nhỏ gọn + retry — không ẩn lỗi mạng khỏi learner.
+class _Error extends StatelessWidget {
+  final VoidCallback onRetry;
+
+  const _Error({required this.onRetry});
+
+  @override
+  Widget build(BuildContext context) {
+    return ParchmentCard(
+      padding: const EdgeInsets.all(14),
+      child: Row(
+        children: [
+          const Icon(
+            Icons.wifi_off_rounded,
+            size: 16,
+            color: DauVietColors.inkMuted,
+          ),
+          const SizedBox(width: 8),
+          Expanded(
+            child: Text(
+              'Không tải được tiến độ',
+              style: DauVietTypography.bodySmall.copyWith(
+                color: DauVietColors.inkMuted,
+              ),
+            ),
+          ),
+          TextButton(
+            onPressed: onRetry,
+            style: TextButton.styleFrom(
+              foregroundColor: DauVietColors.cinnabarRed,
+              padding: EdgeInsets.zero,
+              minimumSize: const Size(0, 32),
+              textStyle: DauVietTypography.labelSmall.copyWith(
+                fontWeight: FontWeight.w800,
+              ),
+            ),
+            child: const Text('THỬ LẠI'),
+          ),
         ],
       ),
     );

@@ -6,7 +6,7 @@ import '../../../core/api/api_config.dart';
 import '../../../core/theme/dau_viet_colors.dart';
 import '../../../core/theme/dau_viet_typography.dart';
 import '../../../core/widgets/dong_son_button.dart';
-import '../../../core/widgets/main-bottom-nav.dart';
+import '../../../core/widgets/main_bottom_nav.dart';
 import '../../../core/widgets/parchment_card.dart';
 import '../../auth/data/auth_api_client.dart';
 import '../../auth/data/auth_state.dart';

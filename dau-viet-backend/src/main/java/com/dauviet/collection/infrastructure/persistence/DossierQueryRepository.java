@@ -23,7 +23,12 @@ public class DossierQueryRepository {
     @PersistenceContext
     private EntityManager em;
 
-    /** Row dossier + unlock metadata của learner (null khi chưa mở). */
+    /**
+     * Row dossier + unlock metadata của learner (null khi chưa mở).
+     * FIX 5: thêm `unlockedVersion` = version được pin trong entitlement
+     * (u.dossier_version); `dossierVersion` = version hiện tại trong catalog
+     * (d.dossier_version). Hai giá trị khác nhau khi admin edit sau unlock.
+     */
     public record Row(
             UUID id,
             String canonicalCode,
@@ -36,7 +41,8 @@ public class DossierQueryRepository {
             String status,
             Integer dossierVersion,
             UUID unlockEventId,
-            java.time.Instant grantedAt) {
+            java.time.Instant grantedAt,
+            Integer unlockedVersion) {
     }
 
     /**
@@ -49,7 +55,8 @@ public class DossierQueryRepository {
         StringBuilder sql = new StringBuilder("""
                 SELECT d.id, d.canonical_code, d.dossier_type, d.title,
                        d.summary, d.description, d.source_json, d.asset_id,
-                       d.status, d.dossier_version, u.event_id, u.granted_at
+                       d.status, d.dossier_version, u.event_id, u.granted_at,
+                       u.dossier_version
                 FROM historical_dossiers d
                 LEFT JOIN user_dossier_unlocks u
                   ON u.dossier_id = d.id AND u.user_id = :userId
@@ -110,13 +117,18 @@ public class DossierQueryRepository {
         return ((Number) q.getSingleResult()).longValue();
     }
 
-    /** Một dossier + unlock của learner; null nếu không tồn tại/DRAFT. */
+    /**
+     * Một dossier + unlock của learner; null nếu không tồn tại/DRAFT.
+     * FIX 5: trả thêm u.dossier_version (entitlement pinned) để service
+     * phân biệt catalog current vs version đã mở.
+     */
     @Transactional(readOnly = true)
     public Row detail(UUID userId, UUID dossierId) {
         var rows = em.createNativeQuery("""
                 SELECT d.id, d.canonical_code, d.dossier_type, d.title,
                        d.summary, d.description, d.source_json, d.asset_id,
-                       d.status, d.dossier_version, u.event_id, u.granted_at
+                       d.status, d.dossier_version, u.event_id, u.granted_at,
+                       u.dossier_version
                 FROM historical_dossiers d
                 LEFT JOIN user_dossier_unlocks u
                   ON u.dossier_id = d.id AND u.user_id = :userId
@@ -126,6 +138,27 @@ public class DossierQueryRepository {
                 .setParameter("dossierId", dossierId)
                 .getResultList();
         return rows.isEmpty() ? null : mapRow((Object[]) rows.get(0));
+    }
+
+    /**
+     * EventIds của dossiers learner thấy được — phạm vi reconcile lazy
+     * (FIX 3): chỉ event có ≥1 dossier visible cho learner (PUBLISHED, hoặc
+     * ARCHIVED đã unlock).
+     */
+    @Transactional(readOnly = true)
+    public List<UUID> visibleEventIdsOf(UUID userId) {
+        var rows = em.createNativeQuery("""
+                SELECT DISTINCT ed.event_id
+                  FROM event_dossiers ed
+                  JOIN historical_dossiers d ON d.id = ed.dossier_id
+                  LEFT JOIN user_dossier_unlocks u
+                    ON u.dossier_id = d.id AND u.user_id = :userId
+                 WHERE (d.status = 'PUBLISHED' OR u.dossier_id IS NOT NULL)
+                 ORDER BY ed.event_id
+                """)
+                .setParameter("userId", userId)
+                .getResultList();
+        return rows.stream().map(o -> (UUID) o).toList();
     }
 
     /** eventIds của một tập dossier — batch cho list/detail. */
@@ -159,7 +192,8 @@ public class DossierQueryRepository {
                 (UUID) r[0], (String) r[1], (String) r[2], (String) r[3],
                 (String) r[4], (String) r[5], (String) r[6], (UUID) r[7],
                 (String) r[8], (Integer) r[9], (UUID) r[10],
-                toInstant(r[11]));
+                toInstant(r[11]),
+                r.length > 12 ? (Integer) r[12] : null);
     }
 
     private static java.time.Instant toInstant(Object ts) {

@@ -92,12 +92,17 @@ public class EventMilestoneRecorder {
         String snapshot = policy.getRequiredLessonIdsJson();
 
         Set<UUID> newlyUnlocked = new LinkedHashSet<>();
-        if (ev.completed()
-                && !progress.exists(userId, eventId,
-                        UserEventProgress.Milestone.EVENT_COMPLETED.name())) {
+        boolean completedAlready = progress.exists(userId, eventId,
+                UserEventProgress.Milestone.EVENT_COMPLETED.name());
+        if (ev.completed() && !completedAlready) {
             progress.insertIgnore(userId, eventId,
                     UserEventProgress.Milestone.EVENT_COMPLETED.name(),
                     policy.getPolicyVersion(), snapshot);
+        }
+        // Fan-out dossier khi (a) mới grant EVENT_COMPLETED, HOẶC (b) đã
+        // grant nhưng admin publish/link thêm dossier sau (FIX 4).
+        // insertIgnore trả 0 khi đã có → newlyUnlocked chỉ chứa grant MỚI.
+        if (ev.completed() || completedAlready) {
             fanOutDossierUnlocks(userId, eventId, newlyUnlocked);
         }
         if (ev.mastered()

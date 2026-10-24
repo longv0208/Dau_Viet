@@ -24,7 +24,7 @@ import '../data/attempt_repository.dart';
 import '../data/learning_dtos.dart';
 import '../data/learning_providers.dart';
 import 'renderers/activity_renderer.dart';
-import 'stage-guidance.dart';
+import 'stage_guidance.dart';
 
 /// Mức độ feedback sau submit — map đúng outcome backend trả về.
 enum _FeedbackTone { success, info, warning, error }

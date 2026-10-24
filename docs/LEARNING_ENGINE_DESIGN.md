@@ -325,6 +325,14 @@ Phần này ghi lại các quyết định semantic cho những điểm BA chưa
 
 **Vẫn mở**: retention policy 24h là config mặc định (PO xác nhận nếu cần khác); `result_json` shape `{attemptId,lessonVersionId,reason,score,completedRequired,totalRequired,detail}` chưa có field reward/EXP; **reward grant thật chưa được code** — `reward_transactions` chỉ là schema (V4), không có service/endpoint nào ghi row (xem `docs/MAP_COLLECTION_REWARDS_ISLAND.md`).
 
+### GAME-04 — event milestones + dossier unlock trong `doComplete()` (đã chốt 2026-10-25)
+
+`LearnerAttemptService.doComplete()` chạy `EventMilestoneRecorder.recordIfEarned(userId, eventId)` **bên trong cùng transaction** với flip `COMPLETED` + `lesson_results` + first-completion rewards + item unlocks (sau `rewardGrants.grantFirstCompletion` và `itemUnlocks.evaluateAfterLessonCompletion`). Ngoại lệ bất kỳ trong recorder rollback cả completion — không có trạng thái "lesson xong nhưng milestone/dossier mất" (Scenario J). `eventId` resolve từ `Lesson.eventId` của pinned version; lesson không gắn event → bỏ qua lặng lẽ.
+
+Concurrency: `pg_advisory_xact_lock(hashtextextended(userId|eventId))` serialize evaluation theo cặp (user, event) — hai completion song song của hai required lesson cuối không mất milestone; loser re-evaluate trên trạng thái winner đã commit, `insertIgnore` PK `(user_id,event_id,milestone)`/`(user_id,dossier_id)` chặn duplicate. Event không có policy `PUBLISHED` → `NOT_CONFIGURED`, không ghi gì.
+
+Reconcile-on-read: `EventProgressQueryService.progressOf` gọi cùng `recordIfEarned` khi `EVENT_COMPLETED` chưa tồn tại — completed attempts trước khi policy được publish vẫn nhận milestone lần đọc đầu (idempotent, không backfill thủ công). Response `CompleteAttemptResponse` mang `newlyUnlockedDossiers` (additive) cho cue một lần; replay/alreadyCompleted trả rỗng.
+
 ### TASK-0020 — Learning Flow 2.0 (đã chốt 2026-10-24)
 
 Mục tiêu: meaningful learning + automatic assessment — kết luận có cấu trúc chấm được, không còn bắt buộc free-text CER; evidence/reasoning chấm theo nội dung thay vì chỉ đếm; output giữa các activity nối mạch; progress tách khỏi knowledge score.

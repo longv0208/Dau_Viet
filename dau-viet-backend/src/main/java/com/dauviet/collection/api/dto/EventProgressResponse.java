@@ -20,7 +20,9 @@ public record EventProgressResponse(
         boolean eventMastered,
         Integer masteryThreshold,
         List<RequiredLessonProgress> requiredLessons,
-        int unlockedDossiersCount) {
+        int unlockedDossiersCount,
+        /** Policy version đã cấp milestone (null = chưa grant / NOT_CONFIGURED). */
+        Integer earnedPolicyVersion) {
 
     /** Một required lesson trong tiến độ event. */
     public record RequiredLessonProgress(

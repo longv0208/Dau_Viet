@@ -57,15 +57,14 @@ public class EventProgressQueryService {
         if (policyOpt.isEmpty()) {
             return new EventProgressResponse(eventId, "NOT_CONFIGURED",
                     null, 0, 0, false, false, null, List.of(),
-                    (int) progress.countUnlockedDossiersForEvent(userId, eventId));
+                    (int) progress.countUnlockedDossiersForEvent(userId, eventId),
+                    null);
         }
         EventCompletionPolicy policy = policyOpt.get();
 
-        // Reconcile: completion cũ trước policy — evaluate + ghi nếu đã đạt.
-        if (!progress.exists(userId, eventId,
-                UserEventProgress.Milestone.EVENT_COMPLETED.name())) {
-            recorder.recordIfEarned(userId, eventId);
-        }
+        // FIX 3: reconcile luôn qua recorder (idempotent) — kể cả khi đã có
+        // EVENT_COMPLETED để fan-out dossier admin vừa publish (FIX 4).
+        recorder.recordIfEarned(userId, eventId);
 
         EventProgressEvaluator.Evaluation ev = evaluator.evaluate(userId, policy);
         boolean completed = ev.completed() || progress.exists(userId, eventId,
@@ -91,11 +90,14 @@ public class EventProgressQueryService {
                 }).collect(Collectors.toList());
 
         int unlocked = (int) progress.countUnlockedDossiersForEvent(userId, eventId);
+        // FIX 7: policyVersion mà milestone được cấp theo — UI phân biệt
+        // "đã completed policy cũ" vs "đang theo policy hiện tại".
+        Integer earnedVersion = progress.earnedPolicyVersion(userId, eventId);
         return new EventProgressResponse(eventId, status,
                 policy.getPolicyVersion(),
                 ev.requiredLessonIds().size(), ev.completedLessonIds().size(),
                 completed, mastered, policy.getMasteryThreshold(),
-                lessonDtos, unlocked);
+                lessonDtos, unlocked, earnedVersion);
     }
 
     private Map<UUID, BigDecimal> bestScores(UUID userId, List<UUID> required) {

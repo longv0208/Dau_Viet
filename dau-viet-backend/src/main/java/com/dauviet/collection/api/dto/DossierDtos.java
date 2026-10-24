@@ -27,7 +27,9 @@ public final class DossierDtos {
             Instant grantedAt,
             UUID unlockEventId,
             /** true = chỉ đang trả preview (locked PUBLISHED). */
-            boolean preview) {
+            boolean preview,
+            /** Version được pin trong entitlement (null = chưa mở). */
+            Integer dossierVersion) {
     }
 
     /** Citation nguồn của dossier — chỉ trả khi unlocked. */
@@ -53,7 +55,10 @@ public final class DossierDtos {
             boolean unlocked,
             Instant grantedAt,
             UUID unlockEventId,
+            /** Version entitlement pinned (≠ catalog current khi admin edit). */
             Integer dossierVersion,
+            /** Version hiện tại trong catalog — để admin/compare. */
+            Integer catalogVersion,
             boolean preview) {
     }
 }

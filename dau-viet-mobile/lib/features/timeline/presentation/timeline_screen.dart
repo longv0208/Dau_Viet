@@ -5,7 +5,7 @@ import '../../../core/theme/dau_viet_colors.dart';
 import '../../../core/theme/dau_viet_typography.dart';
 import '../../../core/widgets/async_state_view.dart';
 import '../../../core/widgets/dong_son_button.dart';
-import '../../../core/widgets/main-bottom-nav.dart';
+import '../../../core/widgets/main_bottom_nav.dart';
 import '../../../core/widgets/parchment_card.dart';
 import '../../../mock/models/timeline_models.dart';
 import '../../events/data/events_providers.dart';
