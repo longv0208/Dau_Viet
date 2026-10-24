@@ -109,12 +109,15 @@ function Shell({ user, children }: { user: UserProfileDto; children: React.React
           collapsed ? "w-16" : "w-60",
         )}
       >
-        <div className="flex h-14 items-center justify-between border-b border-border px-3">
+        <div className={cn("flex h-14 items-center border-b border-border", collapsed ? "justify-center px-2" : "justify-between px-3")}>
+          <Link href="/dashboard" className="flex min-w-0 items-center gap-2" title="Dấu Việt — trang quản trị">
+            {/* eslint-disable-next-line @next/next/no-img-element -- logo là file tĩnh trong /public */}
+            <img src="/logo.svg" alt="Dấu Việt" className="size-8 shrink-0 rounded-full object-cover" />
+            {!collapsed && (
+              <span className="truncate font-display text-lg font-bold text-brand">Dấu Việt</span>
+            )}
+          </Link>
           {!collapsed && (
-            <Link href="/dashboard" className="font-display text-lg font-bold text-brand">
-              Dấu Việt
-            </Link>
-          )}
           <button
             type="button"
             onClick={() => setCollapsed((c) => !c)}
@@ -128,6 +131,7 @@ function Shell({ user, children }: { user: UserProfileDto; children: React.React
               <PanelLeftClose className="size-5" aria-hidden />
             )}
           </button>
+          )}
         </div>
         <div className="flex-1 overflow-y-auto">
           <NavLinks collapsed={collapsed} />
@@ -157,7 +161,9 @@ function Shell({ user, children }: { user: UserProfileDto; children: React.React
             aria-hidden
           />
           <div className="absolute left-0 top-0 flex h-full w-64 flex-col bg-white shadow-lg">
-            <div className="flex h-14 items-center border-b border-border px-4">
+            <div className="flex h-14 items-center gap-2 border-b border-border px-4">
+              {/* eslint-disable-next-line @next/next/no-img-element -- logo là file tĩnh trong /public */}
+              <img src="/logo.svg" alt="" className="size-8 rounded-full object-cover" />
               <span className="font-display text-lg font-bold text-brand">Dấu Việt</span>
             </div>
             <div className="flex-1 overflow-y-auto">

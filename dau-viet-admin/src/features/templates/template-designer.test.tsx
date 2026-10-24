@@ -158,6 +158,23 @@ describe("TemplateDesigner", () => {
     expect(screen.queryByRole("heading", { name: "Khám phá" })).not.toBeInTheDocument();
   });
 
+  it("a quick-nav chip filters the library down to that stage only", async () => {
+    renderDesigner([]);
+    await userEvent.click(screen.getByRole("button", { name: "Khám phá" }));
+    // Only the picked stage card stays — the other 8 are filtered out.
+    expect(screen.getByRole("heading", { name: "Khám phá" })).toBeInTheDocument();
+    for (const t of STAGE_TYPES.filter((s) => s !== "DISCOVERY")) {
+      expect(
+        screen.queryByRole("heading", { name: STAGE_LABELS[t].label }),
+      ).not.toBeInTheDocument();
+    }
+    // Bấm lại chip đang chọn → hiện lại toàn bộ thư viện.
+    await userEvent.click(screen.getByRole("button", { name: "Khám phá" }));
+    for (const t of STAGE_TYPES) {
+      expect(screen.getByRole("heading", { name: STAGE_LABELS[t].label })).toBeInTheDocument();
+    }
+  });
+
   it("adds a stage from the library card into the canvas", async () => {
     const { getStages } = renderDesigner([]);
     await userEvent.click(

@@ -310,6 +310,8 @@ export interface TemplateDesignerProps {
 
 export function TemplateDesigner({ stages, onChange, sourceDraft, onPreview }: TemplateDesignerProps) {
   const [query, setQuery] = useState("");
+  /** Chip-filtered stage type — the library shows only this card while set. */
+  const [focusType, setFocusType] = useState<StageType | null>(null);
   const [selectedStageId, setSelectedStageId] = useState<string | null>(null);
   const [pendingPick, setPendingPick] = useState<{
     stageType: StageType;
@@ -337,10 +339,12 @@ export function TemplateDesigner({ stages, onChange, sourceDraft, onPreview }: T
 
   const visibleStageTypes = useMemo(
     () =>
-      STAGE_TYPES.filter((t) =>
-        stageMatches(t, query.trim(), STAGE_LABELS[t], (a) => ACTIVITY_LABELS[a]),
+      STAGE_TYPES.filter(
+        (t) =>
+          (!focusType || t === focusType) &&
+          stageMatches(t, query.trim(), STAGE_LABELS[t], (a) => ACTIVITY_LABELS[a]),
       ),
-    [query],
+    [query, focusType],
   );
 
   const scrollToStage = (stageId: string) => {
@@ -467,20 +471,30 @@ export function TemplateDesigner({ stages, onChange, sourceDraft, onPreview }: T
           />
         </div>
         <nav aria-label="Điều hướng nhanh giai đoạn" className="flex flex-wrap gap-1">
-          {STAGE_TYPES.map((t) => (
-            <button
-              key={t}
-              type="button"
-              onClick={() => {
-                libraryRef.current
-                  ?.querySelector(`#lib-stage-${t}`)
-                  ?.scrollIntoView?.({ behavior: "smooth", block: "start" });
-              }}
-              className="rounded-full border border-border bg-white px-2 py-0.5 text-xs text-ink hover:border-brand hover:text-brand"
-            >
-              {STAGE_LABELS[t].label}
-            </button>
-          ))}
+          {STAGE_TYPES.map((t) => {
+            const active = focusType === t;
+            return (
+              <button
+                key={t}
+                type="button"
+                aria-pressed={active}
+                onClick={() => {
+                  // Toggle: bấm chip đang chọn để hiện lại toàn bộ thư viện.
+                  setFocusType(active ? null : t);
+                  if (!active) {
+                    libraryRef.current?.scrollTo?.({ top: 0, behavior: "smooth" });
+                  }
+                }}
+                className={`rounded-full border px-2 py-0.5 text-xs ${
+                  active
+                    ? "border-brand bg-brand text-white"
+                    : "border-border bg-white text-ink hover:border-brand hover:text-brand"
+                }`}
+              >
+                {STAGE_LABELS[t].label}
+              </button>
+            );
+          })}
           <button
             type="button"
             onClick={() => libraryRef.current?.scrollTo({ top: 0, behavior: "smooth" })}

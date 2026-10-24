@@ -10,7 +10,11 @@ export function MobileFrame({ children }: { children: ReactNode }) {
     <div className="mx-auto w-full max-w-[390px] overflow-hidden rounded-3xl border border-border bg-white shadow-sm">
       <div className="flex items-center justify-between bg-ink px-5 py-1.5 text-[10px] font-medium text-white">
         <span>9:41</span>
-        <span className="tracking-wide">Dấu Việt — Xem trước</span>
+        <span className="flex items-center gap-1 tracking-wide">
+          {/* eslint-disable-next-line @next/next/no-img-element -- logo là file tĩnh trong /public */}
+          <img src="/logo.svg" alt="" className="size-3.5 rounded-full object-cover" />
+          Dấu Việt — Xem trước
+        </span>
         <span aria-hidden>●●●</span>
       </div>
       <div className="max-h-[72vh] overflow-y-auto p-4">{children}</div>
