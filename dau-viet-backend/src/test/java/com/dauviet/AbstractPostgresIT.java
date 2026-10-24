@@ -58,6 +58,12 @@ public abstract class AbstractPostgresIT {
         jdbc.update("delete from energy_transactions");
         jdbc.update("delete from user_energy");
         jdbc.update("delete from map_locations");
+        // GAME-04: dossier/event-progress tables — trước users/events wipe.
+        jdbc.update("delete from user_dossier_unlocks");
+        jdbc.update("delete from event_dossiers");
+        jdbc.update("delete from user_event_progress");
+        jdbc.update("delete from historical_dossiers");
+        jdbc.update("delete from event_completion_policies");
         jdbc.update("delete from user_evidence");
         jdbc.update("delete from activity_attempts");
         jdbc.update("delete from lesson_results");

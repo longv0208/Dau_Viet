@@ -8,6 +8,8 @@ import 'package:dau_viet_mobile/features/auth/data/auth_state.dart';
 import 'package:dau_viet_mobile/features/collection/data/collection_dto.dart';
 import 'package:dau_viet_mobile/features/collection/data/collection_providers.dart';
 import 'package:dau_viet_mobile/features/collection/data/collection_repository.dart';
+import 'package:dau_viet_mobile/features/collection/data/dossier_dto.dart';
+import 'package:dau_viet_mobile/features/collection/data/event_progress_dto.dart';
 import 'package:dau_viet_mobile/features/collection/presentation/collection_screen.dart';
 import 'package:dau_viet_mobile/features/learning/data/learning_providers.dart';
 import 'package:flutter/material.dart';
@@ -80,6 +82,55 @@ class _FakeCollectionRepository implements CollectionRepository {
         message: 'Không tìm thấy mục.',
       ),
       statusCode: 404,
+    );
+  }
+
+  // GAME-04 — dossier/progress endpoints; màn này test tab Dấu nên mặc
+  // định trả rỗng, test riêng cho dossier tab sẽ override.
+  List<DossierSummaryDto> dossierItems = const [];
+
+  @override
+  Future<DossierPageDto> listDossiers({
+    String? type,
+    String? eventId,
+    bool? unlocked,
+    int page = 0,
+    int size = 20,
+  }) async {
+    if (error != null) throw error!;
+    final filtered = dossierItems
+        .where((d) => type == null || d.dossierType == type)
+        .toList();
+    return DossierPageDto(
+      content: filtered,
+      page: page,
+      size: size,
+      totalElements: filtered.length,
+      totalPages: 1,
+    );
+  }
+
+  @override
+  Future<DossierDetailDto> dossierDetail(String dossierId) async {
+    if (error != null) throw error!;
+    throw const ApiException(
+      ApiError(code: 'DOSSIER_NOT_FOUND', message: 'Không tìm thấy hồ sơ.'),
+      statusCode: 404,
+    );
+  }
+
+  @override
+  Future<EventProgressDto> eventProgress(String eventId) async {
+    if (error != null) throw error!;
+    return const EventProgressDto(
+      eventId: '',
+      status: 'NOT_CONFIGURED',
+      requiredLessonsTotal: 0,
+      requiredLessonsCompleted: 0,
+      eventCompleted: false,
+      eventMastered: false,
+      requiredLessons: [],
+      unlockedDossiersCount: 0,
     );
   }
 }

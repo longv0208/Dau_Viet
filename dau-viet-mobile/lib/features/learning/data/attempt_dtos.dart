@@ -262,6 +262,10 @@ class CompleteResultDto {
   final CompletionVerdictDto completion;
   final AttemptProgressDto progress;
 
+  /// GAME-04 additive: dossier ids mở MỚI trong lần complete này — rỗng
+  /// khi replay/đã grant. Client hiện cue một lần, không re-show.
+  final List<String> newlyUnlockedDossiers;
+
   const CompleteResultDto({
     required this.attemptId,
     required this.status,
@@ -269,6 +273,7 @@ class CompleteResultDto {
     this.completedAt,
     required this.completion,
     required this.progress,
+    this.newlyUnlockedDossiers = const [],
   });
 
   factory CompleteResultDto.fromJson(Map<String, dynamic> json) =>
@@ -283,6 +288,10 @@ class CompleteResultDto {
         progress: AttemptProgressDto.fromJson(
           (json['progress'] as Map?)?.cast<String, dynamic>(),
         ),
+        newlyUnlockedDossiers:
+            (json['newlyUnlockedDossiers'] as List? ?? const [])
+                .whereType<String>()
+                .toList(),
       );
 }
 
@@ -303,6 +312,10 @@ class LessonResultDto {
   /// Vật phẩm mở khóa được ghi nhận bởi attempt này (source_attempt_id).
   final List<InventoryItemDto> itemsUnlocked;
 
+  /// GAME-04 additive: dossier ids mở MỚI trong lần complete (chỉ request
+  /// complete trả; getResult không có — rỗng khi deep-link/reload).
+  final List<String> newlyUnlockedDossiers;
+
   const LessonResultDto({
     required this.attemptId,
     required this.lessonVersionId,
@@ -313,28 +326,31 @@ class LessonResultDto {
     this.startedAt,
     this.rewards = const [],
     this.itemsUnlocked = const [],
+    this.newlyUnlockedDossiers = const [],
   });
 
-  factory LessonResultDto.fromJson(Map<String, dynamic> json) =>
-      LessonResultDto(
-        attemptId: json['attemptId'] as String? ?? '',
-        lessonVersionId: json['lessonVersionId'] as String? ?? '',
-        status: json['status'] as String? ?? '',
-        score: (json['score'] as num?)?.toDouble(),
-        result: (json['result'] as Map?)?.cast<String, dynamic>() ?? const {},
-        completedAt: json['completedAt'] as String?,
-        startedAt: json['startedAt'] as String?,
-        rewards: (json['rewards'] as List? ?? const [])
-            .whereType<Map>()
-            .map(
-              (e) => RewardTransactionDto.fromJson(e.cast<String, dynamic>()),
-            )
-            .toList(),
-        itemsUnlocked: (json['itemsUnlocked'] as List? ?? const [])
-            .whereType<Map>()
-            .map((e) => InventoryItemDto.fromJson(e.cast<String, dynamic>()))
-            .toList(),
-      );
+  factory LessonResultDto.fromJson(
+    Map<String, dynamic> json,
+  ) => LessonResultDto(
+    attemptId: json['attemptId'] as String? ?? '',
+    lessonVersionId: json['lessonVersionId'] as String? ?? '',
+    status: json['status'] as String? ?? '',
+    score: (json['score'] as num?)?.toDouble(),
+    result: (json['result'] as Map?)?.cast<String, dynamic>() ?? const {},
+    completedAt: json['completedAt'] as String?,
+    startedAt: json['startedAt'] as String?,
+    rewards: (json['rewards'] as List? ?? const [])
+        .whereType<Map>()
+        .map((e) => RewardTransactionDto.fromJson(e.cast<String, dynamic>()))
+        .toList(),
+    itemsUnlocked: (json['itemsUnlocked'] as List? ?? const [])
+        .whereType<Map>()
+        .map((e) => InventoryItemDto.fromJson(e.cast<String, dynamic>()))
+        .toList(),
+    newlyUnlockedDossiers: (json['newlyUnlockedDossiers'] as List? ?? const [])
+        .whereType<String>()
+        .toList(),
+  );
 }
 
 class AttemptSummaryDto {

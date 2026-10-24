@@ -7,6 +7,7 @@ import '../features/auth/presentation/splash_screen.dart';
 import '../features/campaign/presentation/campaign_detail_screen.dart';
 import '../features/collection/presentation/collection_detail_screen.dart';
 import '../features/collection/presentation/collection_screen.dart';
+import '../features/collection/presentation/dossier_detail_screen.dart';
 import '../features/dashboard/presentation/learner_dashboard_screen.dart';
 import '../features/demo/presentation/theme_showcase_screen.dart';
 import '../features/learning/data/attempt_dtos.dart';
@@ -278,6 +279,14 @@ final appRouter = GoRouter(
       path: '/collection',
       name: 'collection',
       builder: (context, state) => const CollectionScreen(),
+    ),
+    // GAME-04: dossier route phải đứng TRƯỚC /collection/:evidenceId —
+    // GoRouter match theo thứ tự, ':evidenceId' sẽ nuốt 'dossiers'.
+    GoRoute(
+      path: '/collection/dossiers/:dossierId',
+      name: 'dossier_detail',
+      builder: (context, state) =>
+          DossierDetailScreen(dossierId: state.pathParameters['dossierId']!),
     ),
     GoRoute(
       path: '/collection/:evidenceId',

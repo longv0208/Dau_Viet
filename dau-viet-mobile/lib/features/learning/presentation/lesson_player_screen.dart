@@ -14,6 +14,7 @@ import '../../../core/widgets/parchment_card.dart';
 import '../../../core/widgets/shimmer_progress_bar.dart';
 import '../../../core/widgets/sound_toggle_button.dart';
 import '../../collection/data/collection_providers.dart';
+import '../../collection/data/dossier_providers.dart';
 import '../../energy/data/energy_dto.dart';
 import '../../energy/data/energy_providers.dart';
 import '../../map/data/map_providers.dart';
@@ -116,6 +117,14 @@ class _LessonPlayerScreenState extends ConsumerState<LessonPlayerScreen> {
   /// Phase-2 gate: đang fetch GET /result — chặn retry trùng lặp.
   bool _fetchingResult = false;
 
+  /// GAME-04: dossier ids mở MỚI từ response complete của LẦN này —
+  /// truyền vào result screen để hiện cue đúng một lần. Không reset.
+  List<String> _newlyUnlockedDossiers = const [];
+
+  /// Event của lesson đang chơi — resolve lúc _load để invalidate đúng
+  /// eventProgressProvider sau complete (null = lesson không gắn event).
+  String? _lessonEventId;
+
   /// Renderer báo input thay đổi — chỉ nhận khi còn được phép sửa.
   /// setState để PopScope rebuild và cập nhật canPop; sau khi server đã
   /// ghi nhận answer, edit mới sẽ bật dirty trở lại.
@@ -137,6 +146,17 @@ class _LessonPlayerScreenState extends ConsumerState<LessonPlayerScreen> {
   Future<T> _call<T>(Future<T> Function() c) =>
       ApiConfig.useMock ? c() : ref.read(authRepositoryProvider).withAuth(c);
 
+  /// Event chứa lesson — resolve một lần lúc load (không block UI).
+  Future<String?> _resolveEventId(String lessonId) async {
+    if (lessonId.isEmpty) return null;
+    try {
+      final meta = await _call(() => _repo.getLessonMetadata(lessonId));
+      return meta.eventId.isEmpty ? null : meta.eventId;
+    } catch (_) {
+      return null;
+    }
+  }
+
   Future<void> _load() async {
     try {
       final results = await Future.wait([
@@ -144,10 +164,13 @@ class _LessonPlayerScreenState extends ConsumerState<LessonPlayerScreen> {
         _call(() => _repo.getAttemptContent(widget.attemptId)),
       ]);
       if (!mounted) return;
+      final content = results[1] as LessonContentDto;
+      // Resolve event từ lesson metadata (không block load — lỗi → null).
+      _lessonEventId = await _resolveEventId(content.lessonId);
       setState(() {
         _state = _PlayerState(
           current: results[0] as CurrentActivityDto,
-          content: results[1] as LessonContentDto,
+          content: content,
         );
         _loadError = null;
       });
@@ -498,7 +521,7 @@ class _LessonPlayerScreenState extends ConsumerState<LessonPlayerScreen> {
     }
     setState(() => _completing = true);
     try {
-      await _call(
+      final complete = await _call(
         () => _repo.complete(widget.attemptId, idempotencyKey: _submissionKey),
       );
       if (!mounted) return;
@@ -522,6 +545,20 @@ class _LessonPlayerScreenState extends ConsumerState<LessonPlayerScreen> {
       ref.invalidate(inventoryCatalogProvider);
       ref.invalidate(inventoryItemsProvider);
       ref.invalidate(rewardTransactionsProvider);
+      // GAME-04: dossier + event progress có thể vừa mở trong cùng tx —
+      // invalidate mọi family instance để lần mở /collection hoặc campaign
+      // sau refetch đúng trạng thái mới.
+      ref.invalidate(dossierListProvider);
+      ref.invalidate(dossierDetailProvider);
+      if (_lessonEventId != null) {
+        ref.invalidate(eventProgressProvider(_lessonEventId!));
+      }
+      // Cue một lần: chỉ khi response complete có dossier MỚI (replay
+      // trả rỗng → không re-show). Lưu vào state để _fetchResult truyền
+      // tiếp cho LessonResultScreen qua extra.
+      if (complete.newlyUnlockedDossiers.isNotEmpty) {
+        _newlyUnlockedDossiers = complete.newlyUnlockedDossiers;
+      }
       await _fetchResult();
     } on ApiException catch (e) {
       if (!mounted) return;
@@ -545,9 +582,23 @@ class _LessonPlayerScreenState extends ConsumerState<LessonPlayerScreen> {
         () => _repo.getResult(widget.attemptId),
       );
       if (!mounted) return;
+      // GAME-04: truyền dossier mới mở qua result object — LessonResultScreen
+      // hiện cue đúng một lần, deep-link/reload (extra null) không re-show.
+      final enriched = LessonResultDto(
+        attemptId: result.attemptId,
+        lessonVersionId: result.lessonVersionId,
+        status: result.status,
+        score: result.score,
+        result: result.result,
+        completedAt: result.completedAt,
+        startedAt: result.startedAt,
+        rewards: result.rewards,
+        itemsUnlocked: result.itemsUnlocked,
+        newlyUnlockedDossiers: _newlyUnlockedDossiers,
+      );
       context.pushReplacement(
         '/learning/result/${widget.attemptId}',
-        extra: result,
+        extra: enriched,
       );
     } on ApiException {
       if (!mounted) return;

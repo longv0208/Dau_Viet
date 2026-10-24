@@ -10,6 +10,7 @@ import '../../../core/widgets/parchment_card.dart';
 import '../../learning/presentation/renderers/learning_asset_image.dart';
 import '../data/collection_dto.dart';
 import '../data/collection_providers.dart';
+import 'dossier_tab_view.dart';
 
 /// FR-40 — Màn "Bộ Sưu Tập Dấu Việt": danh sách bằng chứng lịch sử đã
 /// thu thập qua học tập thật (EVIDENCE_SELECT hoàn thành). Nguồn duy nhất
@@ -48,33 +49,58 @@ class _CollectionScreenState extends ConsumerState<CollectionScreen> {
   @override
   Widget build(BuildContext context) {
     final async = ref.watch(collectionListProvider(_typeFilter));
-    return Scaffold(
-      backgroundColor: DauVietColors.parchmentSurface,
-      appBar: AppBar(
+    return DefaultTabController(
+      length: 4,
+      child: Scaffold(
         backgroundColor: DauVietColors.parchmentSurface,
-        elevation: 0,
-        leading: IconButton(
-          icon: const Icon(Icons.arrow_back_ios_new_rounded, size: 20),
-          color: DauVietColors.inkText,
-          onPressed: () =>
-              context.canPop() ? context.pop() : context.go('/dashboard'),
-        ),
-        title: Text(
-          'Bộ Sưu Tập Dấu Việt',
-          style: DauVietTypography.headlineSmall.copyWith(
-            color: DauVietColors.cinnabarRed,
+        appBar: AppBar(
+          backgroundColor: DauVietColors.parchmentSurface,
+          elevation: 0,
+          leading: IconButton(
+            icon: const Icon(Icons.arrow_back_ios_new_rounded, size: 20),
+            color: DauVietColors.inkText,
+            onPressed: () =>
+                context.canPop() ? context.pop() : context.go('/dashboard'),
+          ),
+          title: Text(
+            'Bộ Sưu Tập Dấu Việt',
+            style: DauVietTypography.headlineSmall.copyWith(
+              color: DauVietColors.cinnabarRed,
+            ),
+          ),
+          centerTitle: false,
+          bottom: TabBar(
+            labelColor: DauVietColors.cinnabarRed,
+            unselectedLabelColor: DauVietColors.inkMuted,
+            indicatorColor: DauVietColors.cinnabarRed,
+            labelStyle: DauVietTypography.labelSmall.copyWith(
+              fontWeight: FontWeight.w800,
+            ),
+            tabs: const [
+              Tab(text: 'Dấu'),
+              Tab(text: 'Nhân vật'),
+              Tab(text: 'Địa điểm'),
+              Tab(text: 'Hiện vật'),
+            ],
           ),
         ),
-        centerTitle: false,
+        body: TabBarView(
+          children: [
+            // Tab 1: bằng chứng đã thu thập (UI cũ, giữ nguyên).
+            Column(
+              children: [
+                _buildHeader(async),
+                _buildFilterRow(async),
+                Expanded(child: _buildBody(async)),
+              ],
+            ),
+            const DossierTabView(dossierType: 'PERSON'),
+            const DossierTabView(dossierType: 'LOCATION'),
+            const DossierTabView(dossierType: 'ARTIFACT'),
+          ],
+        ),
+        bottomNavigationBar: const MainBottomNav(),
       ),
-      body: Column(
-        children: [
-          _buildHeader(async),
-          _buildFilterRow(async),
-          Expanded(child: _buildBody(async)),
-        ],
-      ),
-      bottomNavigationBar: const MainBottomNav(),
     );
   }
 

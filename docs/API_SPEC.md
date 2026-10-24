@@ -60,6 +60,9 @@
 | GET | `/me/collection` | Bộ sưu tập bằng chứng của learner hiện tại — **implemented TASK-0022**; `?type=&eventId=&page=&size=` (size ≤ 50, newest first); owner-only qua JWT |
 | GET | `/me/collection/{evidenceId}` | Chi tiết một bằng chứng đã collect + snapshot immutable + nguồn trích dẫn — **implemented TASK-0022**; 404 nếu không thuộc learner |
 | GET | `/me/collection/types` | Các `evidence_type` learner đã collect trên toàn collection (distinct, ASC) — **implemented TASK-0022**; nguồn filter chips phía client |
+| GET | `/me/collection/dossiers` | List hồ sơ lịch sử (GAME-04 dossiers) — **implemented GAME-04**; `?type=&eventId=&unlocked=&page=&size=` (size ≤ 50, sort `title,id`); DRAFT ẩn, ARCHIVED chỉ hiện nếu đã unlock, locked PUBLISHED → `preview=true` |
+| GET | `/me/collection/dossiers/{dossierId}` | Chi tiết dossier — **implemented GAME-04**; DRAFT hoặc ARCHIVED chưa unlock → 404 `DOSSIER_NOT_FOUND`; locked PUBLISHED → preview (không description/source/dossierVersion); unlocked → full |
+| GET | `/me/events/{eventId}/progress` | Tiến độ hoàn thành event của learner — **implemented GAME-04**; 404 khi event không tồn tại, `NOT_CONFIGURED` khi chưa có published policy |
 | GET | `/me/progress` | Resume surface: IN_PROGRESS attempts + completed count — **implemented TASK-0012** |
 | GET | `/me/energy` | Thể lực của learner hiện tại (lazy recovery theo server clock) — **implemented GAME-02**; yêu cầu authenticated |
 
@@ -477,6 +480,32 @@ Publish chạy PUBLISH-level `DraftValidator` trong một transaction: `SELECT F
 | Mobile | Format | `dart format --output=none --set-exit-if-changed lib test` | **PASS** |
 | Mobile | Analyze | `flutter analyze` | **PASS** — 0 issues |
 | Mobile | Unit + widget | `flutter test` | **PASS** — 164/164 |
+
+### Notes đã chốt GAME-04 (Event Completion & Historical Dossier — 2026-10-25)
+
+- **`GET /api/v1/me/events/{eventId}/progress`** — authenticated, owner-scoped qua JWT `sub`. `404` khi event không tồn tại (uniform, không lộ). `NOT_CONFIGURED` khi event chưa có policy `PUBLISHED` (mọi field số/milestone trả rỗng/false, `policyVersion`/`masteryThreshold` null). Khi có policy: reconcile-on-read ghi `EVENT_COMPLETED`/`EVENT_MASTERED` nếu đã đạt từ completed attempts cũ (idempotent). `status` precedence `EVENT_MASTERED > EVENT_COMPLETED > IN_PROGRESS`.
+  ```json
+  {
+    "eventId": "uuid",
+    "status": "EVENT_COMPLETED",
+    "policyVersion": 1,
+    "requiredLessonsTotal": 1,
+    "requiredLessonsCompleted": 1,
+    "eventCompleted": true,
+    "eventMastered": false,
+    "masteryThreshold": 70,
+    "requiredLessons": [
+      {"lessonId": "uuid", "title": "...", "completed": true,
+       "masteryStatus": "BELOW_THRESHOLD", "bestKnowledgeScore": 55}
+    ],
+    "unlockedDossiersCount": 3
+  }
+  ```
+  `masteryStatus` ∈ `NOT_COMPLETED | NOT_ASSESSED | BELOW_THRESHOLD | MASTERED`; `bestKnowledgeScore` null khi `NOT_ASSESSED`/`NOT_COMPLETED` (không lộ điểm bài không đo được). `unlockedDossiersCount` = số dossier learner đã unlock có link tới event.
+- **`GET /api/v1/me/collection/dossiers`** — authenticated. Query: `type ∈ PERSON|LOCATION|ARTIFACT|CONTEXT`, `eventId`, `unlocked` (true=chỉ đã mở, false=chỉ preview/locked), `page`, `size` (cap 50), sort cố định `title,id`. Trả `PageResponse<DossierSummaryResponse>` `{content, page, size, totalElements, totalPages}`; mỗi item `{dossierId, canonicalCode, dossierType, title, summary, assetId, eventIds[], unlocked, grantedAt, unlockEventId, preview}` — `preview=true` nghĩa là chỉ metadata title-level được trả (locked PUBLISHED). Visibility: `DRAFT` không bao giờ xuất hiện; `ARCHIVED` chỉ hiện nếu learner đã unlock trước đó; locked `PUBLISHED` → `preview=true`.
+- **`GET /api/v1/me/collection/dossiers/{dossierId}`** — `DossierDetailResponse` thêm `description`, `source{title,author,citation,url,reliability}`, `dossierVersion` chỉ khi `unlocked=true`. `DRAFT` → `404 DOSSIER_NOT_FOUND`; `ARCHIVED` chưa unlock → `404 DOSSIER_NOT_FOUND` (không mở mới archive); locked `PUBLISHED` → `preview=true` (không `description`/`source`/`dossierVersion`).
+- **`POST /api/v1/attempts/{attemptId}/complete`** — response thêm field additive `newlyUnlockedDossiers: UUID[]` (GAME-04). Rỗng khi replay cùng `Idempotency-Key`, `alreadyCompleted=true`, event `NOT_CONFIGURED`, hoặc milestone đã grant trước đó — client dùng cho cue "vừa mở khóa" một lần, không nhầm với toàn bộ dossier đã sở hữu. Milestone + dossier unlock ghi trong **cùng transaction** với flip `COMPLETED` và reward/item grants; lỗi dossier rollback cả completion.
+- Route `/me/collection/dossiers/**` không đụng `/me/collection/{evidenceId}` — literal `/dossiers` thắng path variable trong cùng base path.
 
 ## Admin client implementation note
 

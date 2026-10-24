@@ -72,9 +72,11 @@ class FlywayMigrationIT extends AbstractPostgresIT {
               + "WHERE table_name IN ('users','auth_refresh_tokens','assets',"
               + "'evidences','lesson_templates','lessons','lesson_versions',"
               + "'learner_attempts','activity_attempts','idempotency_records',"
-              + "'lesson_results','user_evidence','reward_transactions')",
+              + "'lesson_results','user_evidence','reward_transactions',"
+              + "'event_completion_policies','user_event_progress',"
+              + "'historical_dossiers','event_dossiers','user_dossier_unlocks')",
                 Integer.class);
-        assertThat(count).isEqualTo(13);
+        assertThat(count).isEqualTo(18);
     }
 
     @Test

@@ -86,6 +86,7 @@ public class LearnerAttemptService {
     private final LearnerProjectionService projection;
     private final IdempotencyService idempotency;
     private final com.dauviet.collection.application.EvidenceCollectionRecorder collectionRecorder;
+    private final com.dauviet.collection.application.EventMilestoneRecorder eventMilestones;
     private final com.dauviet.reward.application.RewardGrantService rewardGrants;
     private final com.dauviet.reward.application.ItemUnlockService itemUnlocks;
     private final com.dauviet.reward.application.RewardService rewardService;
@@ -107,6 +108,8 @@ public class LearnerAttemptService {
                                  IdempotencyService idempotency,
                                  com.dauviet.collection.application
                                          .EvidenceCollectionRecorder collectionRecorder,
+                                 com.dauviet.collection.application
+                                         .EventMilestoneRecorder eventMilestones,
                                  com.dauviet.reward.application
                                          .RewardGrantService rewardGrants,
                                  com.dauviet.reward.application
@@ -131,6 +134,7 @@ public class LearnerAttemptService {
         this.projection = projection;
         this.idempotency = idempotency;
         this.collectionRecorder = collectionRecorder;
+        this.eventMilestones = eventMilestones;
         this.rewardGrants = rewardGrants;
         this.itemUnlocks = itemUnlocks;
         this.rewardService = rewardService;
@@ -436,7 +440,7 @@ public class LearnerAttemptService {
         if (a.getStatus() == LearnerAttemptStatus.COMPLETED) {
             // Idempotent repeat: return the stored facts, never rewrite.
             LessonCompletion verdict = completionEvaluator.evaluate(model, state);
-            return new CompleteAttemptResponse(a.getId(), a.getStatus().name(),
+            return CompleteAttemptResponse.of(a.getId(), a.getStatus().name(),
                     true, a.getCompletedAt(), verdict, progress);
         }
         if (a.getStatus() != LearnerAttemptStatus.IN_PROGRESS) {
@@ -464,14 +468,25 @@ public class LearnerAttemptService {
         // trên, không chạm tới đây; cause_key/UNIQUE(user,item) chặn race.
         LessonVersion completedVersion = versions.findById(a.getLessonVersionId())
                 .orElse(null);
+        java.util.Set<UUID> newlyUnlockedDossiers = java.util.Set.of();
         if (completedVersion != null) {
             UUID lessonId = completedVersion.getLessonId();
             rewardGrants.grantFirstCompletion(userId, lessonId, a.getId());
             itemUnlocks.evaluateAfterLessonCompletion(userId, lessonId,
                     a.getId());
+            // GAME-04: milestone event + mở hồ sơ — cùng tx, exception làm
+            // rollback cả completion (atomic, scenario J). Lesson không gắn
+            // event → bỏ qua lặng lẽ.
+            UUID eventId = lessons.findById(lessonId)
+                    .map(Lesson::getEventId).orElse(null);
+            if (eventId != null) {
+                newlyUnlockedDossiers =
+                        eventMilestones.recordIfEarned(userId, eventId);
+            }
         }
         return new CompleteAttemptResponse(a.getId(), a.getStatus().name(),
-                false, a.getCompletedAt(), verdict, progress);
+                false, a.getCompletedAt(), verdict, progress,
+                List.copyOf(newlyUnlockedDossiers));
     }
 
     /**

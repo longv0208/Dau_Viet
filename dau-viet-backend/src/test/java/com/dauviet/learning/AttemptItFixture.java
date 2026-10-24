@@ -25,12 +25,12 @@ import com.fasterxml.jackson.databind.ObjectMapper;
  * lesson via the admin API, and attempt start. Keeps the ITs focused on
  * behavior instead of repeating insert/publish boilerplate.
  */
-final class AttemptItFixture {
+public final class AttemptItFixture {
 
     private AttemptItFixture() {
     }
 
-    static String token(UserRepository users, JwtTokenService jwt,
+    public static String token(UserRepository users, JwtTokenService jwt,
                         String email, UserRole role) {
         User u = new User();
         u.setId(UUID.randomUUID());
@@ -42,21 +42,21 @@ final class AttemptItFixture {
         return "Bearer " + jwt.createAccessToken(u);
     }
 
-    static String newEvent(JdbcTemplate jdbc, String slug) {
+    public static String newEvent(JdbcTemplate jdbc, String slug) {
         String id = UUID.randomUUID().toString();
         jdbc.update("insert into historical_events (id, slug, title, summary, status) "
                   + "values (?::uuid, ?, 'E', 's', 'PUBLISHED')", id, slug);
         return id;
     }
 
-    static String newTemplate(JdbcTemplate jdbc, String code) {
+    public static String newTemplate(JdbcTemplate jdbc, String code) {
         String id = UUID.randomUUID().toString();
         jdbc.update("insert into lesson_templates (id, code, name, schema_version, preset_json, enabled) "
                   + "values (?::uuid, ?, 'T', 1, '{}'::jsonb, true)", id, code);
         return id;
     }
 
-    static String newEvidence(JdbcTemplate jdbc, String eventId) {
+    public static String newEvidence(JdbcTemplate jdbc, String eventId) {
         String id = UUID.randomUUID().toString();
         jdbc.update("insert into evidences (id, event_id, title, evidence_type, source_title, status) "
                   + "values (?::uuid, ?::uuid, 'EV', 'DOC', 'src', 'APPROVED')", id, eventId);
@@ -68,7 +68,7 @@ final class AttemptItFixture {
      * `mcConfig` carries the hidden keys; evidence stage lists requiredEvidenceIds
      * so publish validation passes when evidence ids are referenced.
      */
-    static String draftTwoStage(String evId, String mcConfig) {
+    public static String draftTwoStage(String evId, String mcConfig) {
         return """
                 {"schemaVersion":1,
                  "stages":[
@@ -92,7 +92,7 @@ final class AttemptItFixture {
      *    (caller controls maxAttempts).
      * totalRequired = 2 (r1 + mc); optional activities never gate progress.
      */
-    static String draftWithOptional(String evId, String mcConfig) {
+    public static String draftWithOptional(String evId, String mcConfig) {
         return """
                 {"schemaVersion":1,
                  "stages":[
@@ -116,7 +116,7 @@ final class AttemptItFixture {
     }
 
     /** Full pipeline: create lesson -> PUT draft -> publish. Returns lessonId. */
-    static String publishLesson(MockMvc mvc, ObjectMapper om, String adminToken,
+    public static String publishLesson(MockMvc mvc, ObjectMapper om, String adminToken,
                                 String eventId, String tplId, String draftJson)
             throws Exception {
         Map<String, Object> req = new LinkedHashMap<>();
@@ -143,7 +143,7 @@ final class AttemptItFixture {
         return lessonId;
     }
 
-    static String startAttempt(MockMvc mvc, ObjectMapper om, String learnerToken,
+    public static String startAttempt(MockMvc mvc, ObjectMapper om, String learnerToken,
                                String lessonId) throws Exception {
         MvcResult res = mvc.perform(post("/api/v1/lessons/" + lessonId + "/attempts")
                         .header("Authorization", learnerToken))
@@ -152,7 +152,7 @@ final class AttemptItFixture {
                 .get("attemptId").asText();
     }
 
-    static JsonNode body(ObjectMapper om, MvcResult res) throws Exception {
+    public static JsonNode body(ObjectMapper om, MvcResult res) throws Exception {
         return om.readTree(res.getResponse().getContentAsString());
     }
 }

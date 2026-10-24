@@ -162,6 +162,15 @@ class _ResultView extends StatelessWidget {
                   const SizedBox(height: 12),
                   _RewardsSection(result: result),
                 ],
+                // GAME-04: cue một lần — chỉ render khi player truyền
+                // `newlyUnlockedDossiers` qua extra (deep-link/reload có
+                // list rỗng → không re-show). Điều hướng tới Bộ Sưu Tập.
+                if (result.newlyUnlockedDossiers.isNotEmpty) ...[
+                  const SizedBox(height: 12),
+                  _DossierUnlockBanner(
+                    count: result.newlyUnlockedDossiers.length,
+                  ),
+                ],
                 // Recap lịch sử — chỉ render khi pinned content có dữ liệu
                 // đáng kể; thiếu → giữ nguyên result-only view.
                 if (recapContent != null) ...[
@@ -301,6 +310,70 @@ class _RewardsSection extends StatelessWidget {
             ),
           ],
         ],
+      ),
+    );
+  }
+}
+
+/// GAME-04: banner báo hồ sơ lịch sử vừa mở khoá — tappable, dẫn tới
+/// màn Bộ Sưu Tập (/collection, tab dossier). Chỉ hiện một lần trong phiên
+/// vì nguồn là field additive trên complete-response, không phải state bền.
+class _DossierUnlockBanner extends StatelessWidget {
+  final int count;
+  const _DossierUnlockBanner({required this.count});
+
+  @override
+  Widget build(BuildContext context) {
+    return Material(
+      color: Colors.transparent,
+      child: InkWell(
+        onTap: () => context.go('/collection'),
+        borderRadius: BorderRadius.circular(12),
+        child: Ink(
+          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+          decoration: BoxDecoration(
+            color: DauVietColors.imperialGold.withValues(alpha: 0.12),
+            borderRadius: BorderRadius.circular(12),
+            border: Border.all(color: DauVietColors.imperialGold, width: 1.4),
+          ),
+          child: Row(
+            children: [
+              const Icon(
+                Icons.menu_book_rounded,
+                size: 22,
+                color: DauVietColors.imperialGold,
+              ),
+              const SizedBox(width: 10),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      'ĐÃ MỞ KHÓA $count HỒ SƠ LỊCH SỬ',
+                      style: DauVietTypography.labelSmall.copyWith(
+                        color: DauVietColors.inkText,
+                        fontWeight: FontWeight.w800,
+                        letterSpacing: 0.6,
+                      ),
+                    ),
+                    const SizedBox(height: 2),
+                    Text(
+                      'Xem trong Bộ Sưu Tập của bạn',
+                      style: DauVietTypography.bodySmall.copyWith(
+                        color: DauVietColors.inkMuted,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              const Icon(
+                Icons.chevron_right_rounded,
+                size: 20,
+                color: DauVietColors.imperialGold,
+              ),
+            ],
+          ),
+        ),
       ),
     );
   }

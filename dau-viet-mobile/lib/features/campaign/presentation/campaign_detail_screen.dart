@@ -13,6 +13,7 @@ import '../../../mock/data/mock_bach_dang_data.dart';
 import '../../../mock/models/lesson_models.dart';
 import '../../events/data/events_providers.dart';
 import '../../learning/presentation/lesson_list_section.dart';
+import 'widgets/event_progress_section.dart';
 
 /// Màn hình M-07: Chi Tiết Chiến Dịch Lịch Sử (Campaign Detail Screen - Bạch Đằng 938)
 /// Khớp 100% với đặc tả trong MOBILE_SCREEN_DESIGN.md & ART_DIRECTION.md
@@ -96,6 +97,11 @@ class CampaignDetailScreen extends ConsumerWidget {
               _buildFourTracesOverview(),
               const SizedBox(height: 24),
             ],
+
+            // 6a. Tiến độ event của learner (GAME-04) — ẩn khi chưa cấu
+            // hình policy; progress bar + dossier count khi có.
+            EventProgressSection(eventId: eventId),
+            const SizedBox(height: 16),
 
             // 6b. Bài học published của sự kiện (real backend / demo repo)
             LessonListSection(eventId: eventId),

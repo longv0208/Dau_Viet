@@ -323,6 +323,13 @@ public class GlobalExceptionHandler {
                 ex.getMessage(), Map.of());
     }
 
+    @ExceptionHandler(com.dauviet.collection.domain.DossierNotFoundException.class)
+    public ResponseEntity<ApiError> handleDossierNotFound(
+            com.dauviet.collection.domain.DossierNotFoundException ex) {
+        return build(HttpStatus.NOT_FOUND, ErrorCode.DOSSIER_NOT_FOUND,
+                ex.getMessage(), Map.of());
+    }
+
     /* ---------- animation engine ---------- */
 
     @ExceptionHandler(com.dauviet.animation.domain.AnimationExceptions.TemplateNotFoundException.class)
