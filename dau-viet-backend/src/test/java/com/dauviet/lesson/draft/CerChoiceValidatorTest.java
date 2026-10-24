@@ -72,15 +72,30 @@ class CerChoiceValidatorTest {
         when(assets.findActiveIds()).thenReturn(List.of());
     }
 
+    /**
+     * Wraps a CER_CHOICE config inside a publishable two-stage draft:
+     * CONTEXT(READ required) -> CONCLUSION(cer required) so the graph has
+     * an entry + reachable terminal and a required non-READ activity.
+     * `feedback` lives at activity level (not inside config).
+     */
     private String draftBody(String activityConfig) {
+        return draftBody(activityConfig, null);
+    }
+
+    private String draftBody(String activityConfig, String feedbackJson) {
+        String fb = feedbackJson == null ? "" : ",\"feedback\":" + feedbackJson;
         return """
                 {"schemaVersion":1,
-                 "stages":[{"id":"cc","type":"CONCLUSION","required":true,
-                            "activities":[{"id":"cer","type":"CER_CHOICE","required":true,
+                 "stages":[{"id":"ctx","type":"CONTEXT","required":true,
+                            "activities":[{"id":"r1","type":"READ","required":true,
+                                           "config":{"text":"intro"}}],
+                            "nextStageIds":["cc"]},
+                           {"id":"cc","type":"CONCLUSION","required":true,
+                            "activities":[{"id":"cer","type":"CER_CHOICE","required":true%s,
                                            "config":%s}],
                             "nextStageIds":[]}],
                  "completion":{"requireAllRequiredStages":true}}
-                """.formatted(activityConfig);
+                """.formatted(fb, activityConfig);
     }
 
     /* ---------- SAVE level ---------- */
@@ -143,8 +158,8 @@ class CerChoiceValidatorTest {
               + "\"reasoningOptions\":[{\"id\":\"r1\"},{\"id\":\"r2\"}],"
               + "\"acceptedClaims\":[\"c9\"],"
               + "\"acceptedEvidenceIds\":[\"" + ev + "\"],"
-              + "\"acceptedReasoningIds\":[\"r9\"],"
-              + "\"feedback\":{\"COMPLETED\":\"ok\",\"INCORRECT\":\"no\"}}"));
+              + "\"acceptedReasoningIds\":[\"r9\"]}",
+                "{\"COMPLETED\":\"ok\",\"INCORRECT\":\"no\"}"));
         assertThat(codes(validator.validate(draft, EVENT, ValidationLevel.PUBLISH)))
                 .contains("INVALID_CONFIG");
     }
@@ -157,8 +172,8 @@ class CerChoiceValidatorTest {
                 "{\"claims\":[{\"id\":\"c1\"},{\"id\":\"c2\"}],"
               + "\"reasoningOptions\":[{\"id\":\"r1\"},{\"id\":\"r2\"}],"
               + "\"acceptedClaims\":[\"c1\"],"
-              + "\"acceptedReasoningIds\":[\"r1\"],"
-              + "\"feedback\":{\"COMPLETED\":\"ok\",\"INCORRECT\":\"no\"}}"));
+              + "\"acceptedReasoningIds\":[\"r1\"]}",
+                "{\"COMPLETED\":\"ok\",\"INCORRECT\":\"no\"}"));
         assertThat(codes(validator.validate(draft, EVENT, ValidationLevel.PUBLISH)))
                 .contains("MISSING_FIELD");
     }
@@ -188,8 +203,8 @@ class CerChoiceValidatorTest {
               + "\"acceptedClaims\":[\"c1\"],"
               + "\"acceptedEvidenceIds\":[\"" + ev + "\"],"
               + "\"acceptedReasoningIds\":[\"r1\"],"
-              + "\"minCorrect\":3,\"maxAttempts\":3,"
-              + "\"feedback\":{\"COMPLETED\":\"ok\",\"INCORRECT\":\"no\"}}"));
+              + "\"minCorrect\":3,\"maxAttempts\":3}",
+                "{\"COMPLETED\":\"ok\",\"INCORRECT\":\"no\"}"));
         assertThat(validator.validate(draft, EVENT, ValidationLevel.PUBLISH)).isEmpty();
     }
 
@@ -297,6 +312,28 @@ class CerChoiceValidatorTest {
 
     /* ---------- fixture validation (phase-07 AC-9) ---------- */
 
+    /**
+     * Replaces every ${EVn} placeholder with a fresh UUID that the mocked
+     * evidence repository reports as usable — validates fixture shape +
+     * hidden-key-free authoring without a live DB.
+     */
+    private String fillFixture(String resource) throws Exception {
+        String json = new String(getClass().getResourceAsStream(resource)
+                .readAllBytes(), java.nio.charset.StandardCharsets.UTF_8);
+        java.util.Set<String> evIds = new java.util.LinkedHashSet<>();
+        java.util.regex.Matcher m = java.util.regex.Pattern
+                .compile("\\$\\{EV(\\d+)\\}").matcher(json);
+        while (m.find()) evIds.add(m.group(1));
+        java.util.Map<String, String> uuids = new java.util.HashMap<>();
+        for (String n : evIds) uuids.put(n, UUID.randomUUID().toString());
+        usableAllEvidence(uuids.values());
+        String resolved = json;
+        for (var e : uuids.entrySet()) {
+            resolved = resolved.replace("${EV" + e.getKey() + "}", e.getValue());
+        }
+        return resolved;
+    }
+
     private void usableAllEvidence(java.util.Collection<String> ids) {
         List<UUID> uuids = ids.stream().map(UUID::fromString).toList();
         when(evidences.findIdsByEventIdAndStatusIn(any(), anyCollection()))
@@ -306,41 +343,13 @@ class CerChoiceValidatorTest {
 
     @Test
     void bachDangV2Fixture_publishValid() throws Exception {
-        String json = new String(getClass().getResourceAsStream(
-                "/lessons/bach-dang-938-v2.draft.json").readAllBytes(),
-                java.nio.charset.StandardCharsets.UTF_8);
-        // Collect every evidence UUID the fixture references so the mock
-        // repository can answer usable for all of them.
-        java.util.Set<String> refs = new java.util.HashSet<>();
-        java.util.regex.Matcher m = java.util.regex.Pattern
-                .compile("\\$\\{EV\\d+\\}").matcher(json);
-        while (m.find()) refs.add(UUID.randomUUID().toString());
-        java.util.List<String> evIds = refs.stream().toList();
-        usableAllEvidence(evIds);
-        int i = 0;
-        for (String evId : evIds) {
-            json = json.replaceFirst("\\$\\{EV\\d+\\}", java.util.regex.Matcher.quoteReplacement(evId));
-            i++;
-        }
-        JsonNode draft = tree(json);
+        JsonNode draft = tree(fillFixture("/lessons/bach-dang-938-v2.draft.json"));
         assertThat(validator.validate(draft, EVENT, ValidationLevel.PUBLISH)).isEmpty();
     }
 
     @Test
     void haiBaTrungFixture_publishValid() throws Exception {
-        String json = new String(getClass().getResourceAsStream(
-                "/lessons/hai-ba-trung-40.draft.json").readAllBytes(),
-                java.nio.charset.StandardCharsets.UTF_8);
-        java.util.Set<String> refs = new java.util.HashSet<>();
-        java.util.regex.Matcher m = java.util.regex.Pattern
-                .compile("\\$\\{EV\\d+\\}").matcher(json);
-        while (m.find()) refs.add(UUID.randomUUID().toString());
-        java.util.List<String> evIds = refs.stream().toList();
-        usableAllEvidence(evIds);
-        for (String evId : evIds) {
-            json = json.replaceFirst("\\$\\{EV\\d+\\}", java.util.regex.Matcher.quoteReplacement(evId));
-        }
-        JsonNode draft = tree(json);
+        JsonNode draft = tree(fillFixture("/lessons/hai-ba-trung-40.draft.json"));
         assertThat(validator.validate(draft, EVENT, ValidationLevel.PUBLISH)).isEmpty();
     }
 }

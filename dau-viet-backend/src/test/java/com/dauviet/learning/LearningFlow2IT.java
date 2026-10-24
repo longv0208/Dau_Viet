@@ -142,7 +142,7 @@ class LearningFlow2IT extends AbstractPostgresIT {
 
         // DRAG_ORDER correct order
         MvcResult order = submit(attemptId, "do",
-                "{\"orderedItemIds\":[\"step-dong-coc\",\"step-du-dich\",\"step-trieu-len\","
+                "{\"orderedIds\":[\"step-dong-coc\",\"step-du-dich\",\"step-trieu-len\","
                         + "\"step-phuc-kich\",\"step-trieu-xuong\",\"step-tan-vo\"]}");
         assertThat(AttemptItFixture.body(om, order)
                 .get("evaluation").get("outcome").asText()).isEqualTo("COMPLETED");
@@ -195,7 +195,7 @@ class LearningFlow2IT extends AbstractPostgresIT {
                         + "{\"from\":\"bai-coc\",\"to\":\"nam-han\",\"relation\":\"dan-den\"}]}");
         submit(attemptId, "hc", "{\"hypothesisId\":\"h-tide\"}");
         submit(attemptId, "do",
-                "{\"orderedItemIds\":[\"step-dong-coc\",\"step-du-dich\",\"step-trieu-len\","
+                "{\"orderedIds\":[\"step-dong-coc\",\"step-du-dich\",\"step-trieu-len\","
                         + "\"step-phuc-kich\",\"step-trieu-xuong\",\"step-tan-vo\"]}");
         submit(attemptId, "vf1", "{\"verdict\":\"SUPPORTED\"}");
 
@@ -241,39 +241,19 @@ class LearningFlow2IT extends AbstractPostgresIT {
                         + "{\"from\":\"bai-coc\",\"to\":\"nam-han\",\"relation\":\"dan-den\"}]}");
         submit(attemptId, "hc", "{\"hypothesisId\":\"h-tide\"}");
         submit(attemptId, "do",
-                "{\"orderedItemIds\":[\"step-dong-coc\",\"step-du-dich\",\"step-trieu-len\","
+                "{\"orderedIds\":[\"step-dong-coc\",\"step-du-dich\",\"step-trieu-len\","
                         + "\"step-phuc-kich\",\"step-trieu-xuong\",\"step-tan-vo\"]}");
         submit(attemptId, "vf1", "{\"verdict\":\"SUPPORTED\"}");
         submit(attemptId, "cer",
                 "{\"claimId\":\"c-tide\",\"evidenceIds\":[\"" + ev1 + "\",\"" + ev2 + "\"],"
                         + "\"reasoningId\":\"r-tide\"}");
 
-        // Re-submit es with a different (still correct) answer -> invalidates
-        // every dependent completed activity in the same stage + direct
-        // nextStageIds descendants. Since the cursor already advanced past es,
-        // we must re-select it via a fresh submit while cursor sits at cer.
-        // The engine's invalidation is bounded: only later siblings of es
-        // inside stage "ev" and activities in ev's nextStageIds get wiped.
-        // Direct submit on es is stale (cursor at cer) -> 409, so we verify
-        // invalidation by driving a second attempt and checking state after
-        // an upstream change via the attempt's stored state instead.
-        //
-        // Simpler deterministic check: resubmitting es while cursor is at
-        // cer returns ACTIVITY_NOT_AVAILABLE (cursor already past it), so
-        // we assert that the es output still exists in the attempt's state
-        // and that dependent invalidation was exercised through the cursor
-        // path: after re-submitting an activity that consumed prior output,
-        // later completed activities lose their completion marks.
-        //
-        // To observe invalidation through the API we use a fresh attempt and
-        // re-submit es after completing rc — but es is no longer the cursor.
-        // Therefore we validate the bounded invalidation invariant at the
-        // state level: outputs map keeps only what the engine actually wrote.
-        JsonNode stateJson = jdbc.queryForObject(
+        // After the full chain, all required activities are marked completed
+        // and the attempt carries per-activity outputs for knowledge scoring.
+        String stateJson = jdbc.queryForObject(
                 "select state_json::text from learner_attempts where id=?::uuid",
                 String.class, attemptId);
         JsonNode state = om.readTree(stateJson);
-        // After the full chain, all required activities are marked completed.
         assertThat(state.get("completedActivityIds").size()).isGreaterThanOrEqualTo(5);
         assertThat(state.get("outputs").has("cer")).isTrue();
     }
@@ -293,7 +273,7 @@ class LearningFlow2IT extends AbstractPostgresIT {
                         + "{\"from\":\"bai-coc\",\"to\":\"nam-han\",\"relation\":\"dan-den\"}]}");
         submit(attemptId, "hc", "{\"hypothesisId\":\"h-tide\"}");
         submit(attemptId, "do",
-                "{\"orderedItemIds\":[\"step-dong-coc\",\"step-du-dich\",\"step-trieu-len\","
+                "{\"orderedIds\":[\"step-dong-coc\",\"step-du-dich\",\"step-trieu-len\","
                         + "\"step-phuc-kich\",\"step-trieu-xuong\",\"step-tan-vo\"]}");
         submit(attemptId, "vf1", "{\"verdict\":\"SUPPORTED\"}");
         submit(attemptId, "cer",
@@ -322,7 +302,7 @@ class LearningFlow2IT extends AbstractPostgresIT {
                         + "{\"from\":\"bai-coc\",\"to\":\"nam-han\",\"relation\":\"dan-den\"}]}");
         submit(attemptId, "hc", "{\"hypothesisId\":\"h-tide\"}");
         submit(attemptId, "do",
-                "{\"orderedItemIds\":[\"step-dong-coc\",\"step-du-dich\",\"step-trieu-len\","
+                "{\"orderedIds\":[\"step-dong-coc\",\"step-du-dich\",\"step-trieu-len\","
                         + "\"step-phuc-kich\",\"step-trieu-xuong\",\"step-tan-vo\"]}");
         submit(attemptId, "vf1", "{\"verdict\":\"SUPPORTED\"}");
 
