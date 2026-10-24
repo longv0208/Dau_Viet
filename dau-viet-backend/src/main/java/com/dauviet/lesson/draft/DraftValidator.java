@@ -170,13 +170,20 @@ public class DraftValidator {
      * config.priorEvidenceSource (CER_CHOICE) and config.evidenceSource
      * (VERIFICATION) name the upstream activity whose output the consumer
      * reuses. At PUBLISH each reference must point to a real activity that
-     * (a) produces evidence selections (EVIDENCE_SELECT), and (b) belongs to
-     * a stage reachable strictly before the consumer's stage — an upstream
-     * activity on a dead branch can never produce an output, so the consumer
-     * could never be fully correct.
-     * Reachability follows nextStageIds AND onPartial/onContradicted hop
-     * targets (a revise hop lets the learner revisit earlier stages, but a
-     * source downstream of the consumer still can never precede it).
+     * (a) produces evidence selections (EVIDENCE_SELECT), and (b) is
+     * guaranteed to execute BEFORE the consumer on the forward learning
+     * path:
+     *  - same stage: the source must be declared earlier in the activities
+     *    array (siblings execute in order — a source listed after the
+     *    consumer has not run yet when the consumer is evaluated);
+     *  - different stage: the source stage must reach the consumer's stage
+     *    via nextStageIds only.
+     * Revision hops (onPartial/onContradicted) are navigation — reaching the
+     * source stage backwards does NOT mean the source's output already
+     * exists when the consumer runs, so hop edges never justify a
+     * reference. Optional stages sit outside the required path, but a
+     * forward edge is still required: referencing an unreachable sibling
+     * branch is rejected rather than silently grading against an empty set.
      */
     private void validateActivitySourceRefs(JsonNode stages,
                                             Map<String, JsonNode> stageById,
@@ -184,14 +191,10 @@ public class DraftValidator {
                                             ValidationContext ctx,
                                             List<FieldError> errors) {
         if (stages == null || !stages.isArray()) return;
-        // activity id -> (stage id, type) + stage reachability (edges incl. hops)
+        // activity id -> (stage id, type) + within-stage order index
         Map<String, String> activityStage = new HashMap<>();
         Map<String, String> activityType = new HashMap<>();
-        Map<String, List<String>> edges = new HashMap<>();
-        for (String sid : transitions.keySet()) {
-            edges.computeIfAbsent(sid, k -> new ArrayList<>())
-                    .addAll(transitions.get(sid));
-        }
+        Map<String, Integer> activityIndex = new HashMap<>();
         for (int i = 0; i < stages.size(); i++) {
             JsonNode stage = stages.get(i);
             if (!stage.isObject()) continue;
@@ -199,24 +202,22 @@ public class DraftValidator {
             if (sid == null) continue;
             JsonNode acts = stage.get("activities");
             if (acts != null && acts.isArray()) {
-                for (JsonNode act : acts) {
+                for (int j = 0; j < acts.size(); j++) {
+                    JsonNode act = acts.get(j);
                     String aid = act.path("id").asText(null);
                     if (aid == null) continue;
                     activityStage.put(aid, sid);
                     activityType.put(aid, act.path("type").asText(""));
-                    for (String hop : List.of("onPartial", "onContradicted")) {
-                        JsonNode t = act.get(hop);
-                        if (t != null && t.isTextual()) {
-                            edges.computeIfAbsent(sid, k -> new ArrayList<>())
-                                    .add(t.asText());
-                        }
-                    }
+                    activityIndex.put(aid, j);
                 }
             }
         }
+        // Forward-only reachability: nextStageIds edges exclusively —
+        // revision hops are deliberately excluded (navigation, not proof
+        // the source already produced an output).
         Map<String, Set<String>> reach = new HashMap<>();
         for (String sid : stageById.keySet()) {
-            reach.put(sid, reachableFrom(sid, edges));
+            reach.put(sid, reachableFrom(sid, transitions));
         }
         for (int i = 0; i < stages.size(); i++) {
             JsonNode stage = stages.get(i);
@@ -246,19 +247,21 @@ public class DraftValidator {
                                 field + " must reference an EVIDENCE_SELECT activity"));
                         continue;
                     }
-                    Set<String> consumerReach = reach.getOrDefault(sid, Set.of());
-                    Set<String> sourceReach = reach.getOrDefault(srcStage, Set.of());
-                    // Source must be able to precede the consumer: the source
-                    // stage reaches the consumer's stage (forward flow) or the
-                    // consumer stage reaches the source stage via a revise hop
-                    // (redoing upstream work). Same-stage is allowed (siblings
-                    // execute in order).
-                    boolean canPrecede = srcStage.equals(sid)
-                            || sourceReach.contains(sid)
-                            || consumerReach.contains(srcStage);
+                    boolean canPrecede;
+                    if (srcStage.equals(sid)) {
+                        // Siblings run in declaration order — the source must
+                        // sit strictly before the consumer.
+                        Integer srcIdx = activityIndex.get(srcId);
+                        canPrecede = srcIdx != null && srcIdx < j;
+                    } else {
+                        // Cross-stage: forward nextStageIds path only.
+                        canPrecede = reach.getOrDefault(srcStage, Set.of())
+                                .contains(sid);
+                    }
                     if (!canPrecede) {
                         errors.add(new FieldError(refPath, "UNREACHABLE_SOURCE",
-                                field + " '" + srcId + "' cannot execute before this activity"));
+                                field + " '" + srcId
+                                        + "' cannot execute before this activity"));
                     }
                 }
             }

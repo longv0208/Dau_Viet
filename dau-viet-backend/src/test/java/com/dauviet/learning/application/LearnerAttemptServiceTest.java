@@ -159,6 +159,359 @@ class LearnerAttemptServiceTest {
         assertThat(state.outputs().containsKey("es")).isTrue();
     }
 
+    /* ---------- FIX 1: revision hops are not dependency edges ---------- */
+
+    /**
+     * The REAL Bạch Đằng chain: hp(hc) -> re(do) -> vf(vf1) with
+     * vf1.onPartial/onContradicted -> hp, plus cc(cer) after vf.
+     * Revision hops must NOT create data-dependency edges — otherwise
+     * hc -> do -> vf1 -> hc is a cycle and resubmitting `do` or `vf1`
+     * would void the hypothesis they consume.
+     */
+    private static JsonNode bachDangChain() {
+        return json("""
+                {"stages":[
+                  {"id":"hp","type":"HYPOTHESIS","required":true,"activities":[
+                    {"id":"hc","type":"HYPOTHESIS_CHOICE","required":true}],
+                   "nextStageIds":["re"]},
+                  {"id":"re","type":"RECONSTRUCTION","required":true,"activities":[
+                    {"id":"do","type":"DRAG_ORDER","required":true}],
+                   "nextStageIds":["vf"]},
+                  {"id":"vf","type":"VERIFICATION","required":true,"activities":[
+                    {"id":"vf1","type":"VERIFICATION","required":true,
+                     "onPartial":"hp","onContradicted":"hp"}],
+                   "nextStageIds":["cc"]},
+                  {"id":"cc","type":"CONCLUSION","required":true,"activities":[
+                    {"id":"cer","type":"CER_CHOICE","required":true}],
+                   "nextStageIds":[]}]}
+                """);
+    }
+
+    @Test
+    void invalidateDependents_resubmitDo_keepsHypothesisAndVerification() {
+        // Resubmitting `do` (e.g. retry after revision) must NOT invalidate
+        // hc — the hypothesis output is upstream of `do`, and vf1's revise
+        // hop back to hp is navigation, not a data edge.
+        SnapshotModel model = SnapshotModel.parse(bachDangChain());
+        AttemptState state = new AttemptState();
+        state.markCompleted("hc");
+        state.recordOutput("hc", json("{\"hypothesisId\":\"h-tide\"}"));
+        state.markCompleted("do");
+        state.recordOutput("do", json("{\"correct\":true}"));
+
+        ReflectionTestUtils.invokeMethod(service, "invalidateDependents",
+                model, state, "do");
+
+        assertThat(state.isCompleted("hc")).isTrue();
+        assertThat(state.outputs().containsKey("hc")).isTrue();
+        // vf1/cer are downstream of do — tainted as before.
+        assertThat(state.isCompleted("do")).isTrue();
+    }
+
+    @Test
+    void invalidateDependents_resubmitVerification_keepsHypothesis() {
+        // Submitting vf1 must never wipe hc — vf1 consumes hc's output;
+        // a dependency edge vf1->hc via the hop would be backwards.
+        SnapshotModel model = SnapshotModel.parse(bachDangChain());
+        AttemptState state = new AttemptState();
+        state.markCompleted("hc");
+        state.recordOutput("hc", json("{\"hypothesisId\":\"h-tide\"}"));
+        state.markCompleted("do");
+        state.recordOutput("do", json("{\"correct\":true}"));
+        state.markCompleted("vf1");
+        state.recordOutput("vf1", json("{\"verification\":\"SUPPORTED\"}"));
+
+        ReflectionTestUtils.invokeMethod(service, "invalidateDependents",
+                model, state, "vf1");
+
+        assertThat(state.isCompleted("hc")).isTrue();
+        assertThat(state.isCompleted("do")).isTrue();
+        assertThat(state.outputs().containsKey("hc")).isTrue();
+        assertThat(state.outputs().containsKey("do")).isTrue();
+        // cer is downstream of vf1 — tainted.
+        assertThat(state.isCompleted("vf1")).isTrue();
+    }
+
+    @Test
+    void invalidateDependents_revisedEvidence_wipesVerificationAndConclusion() {
+        // Evidence revision must still invalidate real consumers: vf1 reads
+        // es's output via config.evidenceSource; cer via priorEvidenceSource.
+        JsonNode snap = json("""
+                {"stages":[
+                  {"id":"ev","type":"EVIDENCE","required":true,"activities":[
+                    {"id":"es","type":"EVIDENCE_SELECT","required":true}],
+                   "nextStageIds":["vf"]},
+                  {"id":"vf","type":"VERIFICATION","required":true,"activities":[
+                    {"id":"vf1","type":"VERIFICATION","required":true,
+                     "config":{"evidenceSource":"es"},
+                     "onPartial":"ev","onContradicted":"ev"}],
+                   "nextStageIds":["cc"]},
+                  {"id":"cc","type":"CONCLUSION","required":true,"activities":[
+                    {"id":"cer","type":"CER_CHOICE","required":true,
+                     "config":{"priorEvidenceSource":"es"}}],
+                   "nextStageIds":[]}]}
+                """);
+        SnapshotModel model = SnapshotModel.parse(snap);
+        AttemptState state = new AttemptState();
+        state.markCompleted("es");
+        state.recordOutput("es", json("{\"selectedEvidenceIds\":[\"e1\"]}"));
+        state.markCompleted("vf1");
+        state.recordOutput("vf1", json("{\"verification\":\"SUPPORTED\"}"));
+        state.markCompleted("cer");
+        state.recordOutput("cer", json("{\"correct\":true}"));
+
+        ReflectionTestUtils.invokeMethod(service, "invalidateDependents",
+                model, state, "es");
+
+        assertThat(state.isCompleted("es")).isTrue();
+        assertThat(state.outputs().containsKey("es")).isTrue();
+        assertThat(state.isCompleted("vf1")).isFalse();
+        assertThat(state.outputs().containsKey("vf1")).isFalse();
+        assertThat(state.isCompleted("cer")).isFalse();
+        assertThat(state.outputs().containsKey("cer")).isFalse();
+    }
+
+    @Test
+    void invalidateDependents_noCycleOnHopBackGraph() {
+        // Even a hand-built snapshot whose hop creates a loop must terminate:
+        // BFS is visited-guarded; the revised activity is never re-tainted.
+        JsonNode snap = json("""
+                {"stages":[
+                  {"id":"a","type":"REASONING","required":true,"activities":[
+                    {"id":"a1","type":"REASONING_CONNECT","required":true,
+                     "onContradicted":"b"}],
+                   "nextStageIds":["b"]},
+                  {"id":"b","type":"REASONING","required":true,"activities":[
+                    {"id":"b1","type":"REASONING_CONNECT","required":true,
+                     "onContradicted":"a"}],
+                   "nextStageIds":[]}]}
+                """);
+        SnapshotModel model = SnapshotModel.parse(snap);
+        AttemptState state = new AttemptState();
+        state.markCompleted("a1");
+        state.markCompleted("b1");
+        state.recordOutput("a1", json("{}"));
+        state.recordOutput("b1", json("{}"));
+
+        ReflectionTestUtils.invokeMethod(service, "invalidateDependents",
+                model, state, "a1");
+        // Terminated without hanging; a1 itself preserved.
+        assertThat(state.isCompleted("a1")).isTrue();
+    }
+
+    /* ---------- FIX 2: resubmit updates completion both ways ---------- */
+
+    /**
+     * Wire a real submit() through mocked repos + a real handler registry so
+     * the actual recordOutput/mark/remove sequence inside doSubmit is
+     * exercised — not a re-enactment. The idempotency mock passes the
+     * executor straight through (null key -> direct execution path).
+     */
+    private LearnerAttemptService wiredService(
+            com.dauviet.learning.handler.ActivityHandlerRegistry registry,
+            IdempotencyService idem) {
+        return new LearnerAttemptService(attempts, activityAttempts, lessonResults,
+                lessons, versions, registry,
+                new StageTransitionResolver(), new LessonCompletionEvaluator(),
+                projection, idem,
+                mock(com.dauviet.collection.application.EvidenceCollectionRecorder.class),
+                mock(com.dauviet.reward.application.RewardGrantService.class),
+                mock(com.dauviet.reward.application.ItemUnlockService.class),
+                mock(com.dauviet.reward.application.RewardService.class),
+                OM, mock(org.springframework.transaction.PlatformTransactionManager.class),
+                mock(jakarta.persistence.EntityManager.class));
+    }
+
+    private IdempotencyService passthroughIdempotency() {
+        IdempotencyService idem = mock(IdempotencyService.class);
+        when(idem.canonical(any())).thenReturn("fp");
+        when(idem.execute(any(), anyString(), any(), anyString(), any(), any()))
+                .thenAnswer(inv -> ((java.util.function.Supplier<?>) inv.getArgument(4)).get());
+        return idem;
+    }
+
+    private LearnerAttempt wiredAttempt(JsonNode snapshot, AttemptState state,
+                                        String currentStage, String currentActivity) {
+        UUID versionId = UUID.randomUUID();
+        LessonVersion v = new LessonVersion();
+        v.setId(versionId);
+        v.setLessonId(UUID.randomUUID());
+        v.setVersionNo(1);
+        v.setSnapshotJson(snapshot.toString());
+        when(versions.findById(versionId)).thenReturn(Optional.of(v));
+
+        UUID userId = UUID.randomUUID();
+        LearnerAttempt a = LearnerAttempt.start(userId, versionId);
+        state.setCurrentStageId(currentStage);
+        state.setCurrentActivityId(currentActivity);
+        a.recordProgress(state);
+        when(attempts.findForUpdate(a.getId())).thenReturn(Optional.of(a));
+        return a;
+    }
+
+    @Test
+    void submit_correctThenIncorrectBeforeExhaustion_dropsCompletionMark() {
+        // MCQ maxAttempts=2: first submit right -> completed. Re-submit wrong
+        // (attempt 2 < max? no: attemptNo=2 >= maxAttempts=2 -> exhausted,
+        // still completed:true). Use maxAttempts=3 so attempt 2 is a plain
+        // incorrect that must DROP the stale completion mark (FIX 2).
+        JsonNode snap = json("""
+                {"stages":[{"id":"q","type":"REASONING","required":true,
+                  "activities":[{"id":"mcq","type":"MULTIPLE_CHOICE","required":true,
+                                 "config":{"options":[{"id":"o1"},{"id":"o2"}],
+                                           "correctOptionIds":["o1"],"maxAttempts":3}}],
+                  "nextStageIds":[]}]}
+                """);
+        AttemptState state = new AttemptState();
+        LearnerAttempt a = wiredAttempt(snap, state, "q", "mcq");
+
+        var registry = mock(com.dauviet.learning.handler.ActivityHandlerRegistry.class);
+        when(registry.handlerFor(com.dauviet.lesson.draft.ActivityType.MULTIPLE_CHOICE))
+                .thenReturn(new com.dauviet.learning.handler.ScoredHandlers.MultipleChoiceHandler());
+        LearnerAttemptService svc = wiredService(registry, passthroughIdempotency());
+        when(activityAttempts.countByLearnerAttemptIdAndActivityId(any(), anyString()))
+                .thenReturn(0).thenReturn(1);
+
+        // Submit 1: correct -> completed mark set.
+        svc.submit(a.getUserId(), a.getId(), "mcq",
+                json("{\"selectedOptionIds\":[\"o1\"]}"), null);
+        AttemptState after1 = AttemptState.fromJson(json(a.getStateJson()));
+        assertThat(after1.isCompleted("mcq")).isTrue();
+
+        // Submit 2: WRONG answer — attemptNo=2 < maxAttempts=3 -> completed=false.
+        // The stale mark must be removed (FIX 2), not left referring to the
+        // overwritten output.
+        svc.submit(a.getUserId(), a.getId(), "mcq",
+                json("{\"selectedOptionIds\":[\"o2\"]}"), null);
+        AttemptState after2 = AttemptState.fromJson(json(a.getStateJson()));
+        assertThat(after2.isCompleted("mcq")).isFalse();
+        assertThat(after2.outputs().get("mcq").get("correct").asBoolean()).isFalse();
+    }
+
+    @Test
+    void submit_correctThenPartial_dropsCompletionMark() {
+        // Graded EVIDENCE_SELECT: exact set -> completed; partial overlap ->
+        // completed=false -> stale mark must drop.
+        JsonNode snap = json("""
+                {"evidence":[{"id":"e1"},{"id":"e2"},{"id":"e3"}],
+                 "stages":[{"id":"ev","type":"EVIDENCE","required":true,
+                  "activities":[{"id":"es","type":"EVIDENCE_SELECT","required":true,
+                                 "config":{"graded":true,
+                                           "visibleEvidenceIds":["e1","e2","e3"],
+                                           "acceptedEvidenceIds":["e1","e2"],
+                                           "maxAttempts":3}}],
+                  "nextStageIds":[]}]}
+                """);
+        AttemptState state = new AttemptState();
+        LearnerAttempt a = wiredAttempt(snap, state, "ev", "es");
+        var registry = mock(com.dauviet.learning.handler.ActivityHandlerRegistry.class);
+        when(registry.handlerFor(com.dauviet.lesson.draft.ActivityType.EVIDENCE_SELECT))
+                .thenReturn(new com.dauviet.learning.handler.SelectionHandlers.EvidenceSelectHandler());
+        LearnerAttemptService svc = wiredService(registry, passthroughIdempotency());
+        when(activityAttempts.countByLearnerAttemptIdAndActivityId(any(), anyString()))
+                .thenReturn(0).thenReturn(1);
+
+        svc.submit(a.getUserId(), a.getId(), "es",
+                json("{\"selectedEvidenceIds\":[\"e1\",\"e2\"]}"), null);
+        assertThat(AttemptState.fromJson(json(a.getStateJson())).isCompleted("es")).isTrue();
+
+        svc.submit(a.getUserId(), a.getId(), "es",
+                json("{\"selectedEvidenceIds\":[\"e1\"]}"), null);
+        AttemptState after = AttemptState.fromJson(json(a.getStateJson()));
+        assertThat(after.isCompleted("es")).isFalse();
+    }
+
+    @Test
+    void submit_incorrectRetryThenCorrect_restoresCompletionMark() {
+        // The reverse direction must also work: incorrect first (no mark),
+        // then correct -> mark set.
+        JsonNode snap = json("""
+                {"stages":[{"id":"q","type":"REASONING","required":true,
+                  "activities":[{"id":"mcq","type":"MULTIPLE_CHOICE","required":true,
+                                 "config":{"options":[{"id":"o1"},{"id":"o2"}],
+                                           "correctOptionIds":["o1"],"maxAttempts":3}}],
+                  "nextStageIds":[]}]}
+                """);
+        AttemptState state = new AttemptState();
+        LearnerAttempt a = wiredAttempt(snap, state, "q", "mcq");
+        var registry = mock(com.dauviet.learning.handler.ActivityHandlerRegistry.class);
+        when(registry.handlerFor(com.dauviet.lesson.draft.ActivityType.MULTIPLE_CHOICE))
+                .thenReturn(new com.dauviet.learning.handler.ScoredHandlers.MultipleChoiceHandler());
+        LearnerAttemptService svc = wiredService(registry, passthroughIdempotency());
+        when(activityAttempts.countByLearnerAttemptIdAndActivityId(any(), anyString()))
+                .thenReturn(0).thenReturn(1);
+
+        svc.submit(a.getUserId(), a.getId(), "mcq",
+                json("{\"selectedOptionIds\":[\"o2\"]}"), null);
+        assertThat(AttemptState.fromJson(json(a.getStateJson())).isCompleted("mcq")).isFalse();
+
+        svc.submit(a.getUserId(), a.getId(), "mcq",
+                json("{\"selectedOptionIds\":[\"o1\"]}"), null);
+        assertThat(AttemptState.fromJson(json(a.getStateJson())).isCompleted("mcq")).isTrue();
+    }
+
+    @Test
+    void knowledgeScoreOf_includesMpqMatchingDragOrder() {
+        // FIX 3: contract-graded types now feed knowledgeScore without
+        // needing config.graded:true.
+        JsonNode snap = json("""
+                {"stages":[{"id":"q","type":"REASONING","required":true,
+                  "activities":[
+                    {"id":"mcq","type":"MULTIPLE_CHOICE","required":true},
+                    {"id":"mt","type":"MATCHING","required":true},
+                    {"id":"do","type":"DRAG_ORDER","required":true},
+                    {"id":"rd","type":"READ","required":true}],
+                  "nextStageIds":[]}]}
+                """);
+        SnapshotModel model = SnapshotModel.parse(snap);
+        AttemptState state = new AttemptState();
+        // mcq correct(1), matching correct(1), drag_order wrong(0), read done.
+        state.recordOutput("mcq", json("{\"correct\":true}"));
+        state.recordOutput("mt", json("{\"correct\":true}"));
+        state.recordOutput("do", json("{\"correct\":false}"));
+        state.recordOutput("rd", json("{\"viewed\":true}"));
+        state.markCompleted("mcq");
+        state.markCompleted("mt");
+        state.markCompleted("rd");
+
+        Object score = ReflectionTestUtils.invokeMethod(service,
+                "knowledgeScoreOf", model, state);
+        // graded: mcq 1 + mt 1 + do 0 -> mean 2/3*100 = 66.67; rd excluded.
+        assertThat(((java.math.BigDecimal) score).doubleValue())
+                .isBetween(66.0, 67.0);
+    }
+
+    @Test
+    void knowledgeScoreOf_mcqOnly() {
+        JsonNode snap = json("""
+                {"stages":[{"id":"q","type":"REASONING","required":true,
+                  "activities":[{"id":"mcq","type":"MULTIPLE_CHOICE","required":true}],
+                  "nextStageIds":[]}]}
+                """);
+        SnapshotModel model = SnapshotModel.parse(snap);
+        AttemptState state = new AttemptState();
+        state.recordOutput("mcq", json("{\"correct\":true}"));
+        Object score = ReflectionTestUtils.invokeMethod(service,
+                "knowledgeScoreOf", model, state);
+        assertThat(((java.math.BigDecimal) score).doubleValue()).isEqualTo(100.0);
+    }
+
+    @Test
+    void knowledgeScoreOf_boundedZeroToHundred() {
+        JsonNode snap = json("""
+                {"stages":[{"id":"q","type":"REASONING","required":true,
+                  "activities":[{"id":"mcq","type":"MULTIPLE_CHOICE","required":true}],
+                  "nextStageIds":[]}]}
+                """);
+        SnapshotModel model = SnapshotModel.parse(snap);
+        AttemptState state = new AttemptState();
+        state.recordOutput("mcq", json("{\"correct\":false}"));
+        Object score = ReflectionTestUtils.invokeMethod(service,
+                "knowledgeScoreOf", model, state);
+        double v = ((java.math.BigDecimal) score).doubleValue();
+        assertThat(v).isBetween(0.0, 100.0);
+    }
+
     @Test
     void knowledgeScoreOf_usesGradedOutputsOverCompletionMarks() {
         SnapshotModel model = SnapshotModel.parse(snapshotThreeStage());

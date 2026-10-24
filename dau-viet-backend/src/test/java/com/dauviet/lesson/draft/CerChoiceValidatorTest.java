@@ -466,6 +466,101 @@ class CerChoiceValidatorTest {
                 .contains("UNREACHABLE_SOURCE");
     }
 
+    @Test
+    void sourceRef_sameStageEarlier_accepted() throws Exception {
+        // es declared BEFORE a consumer in the same stage — siblings run in
+        // order, so the source output already exists when mcq is evaluated.
+        // Stage EVIDENCE hosts both EVIDENCE_SELECT and MULTIPLE_CHOICE; mcq
+        // reads the source via config.evidenceSource (same index rule as
+        // priorEvidenceSource — the FIX 5 ordering check is field-agnostic).
+        String ev = UUID.randomUUID().toString();
+        usableEvidence(ev);
+        JsonNode draft = tree("""
+                {"schemaVersion":1,
+                 "stages":[{"id":"ev","type":"EVIDENCE","required":true,
+                            "activities":[{"id":"es","type":"EVIDENCE_SELECT","required":true,
+                                           "config":{"visibleEvidenceIds":["%s"]}},
+                                          {"id":"mcq","type":"MULTIPLE_CHOICE","required":true,
+                                           "config":{"evidenceSource":"es",
+                                                     "question":"q?",
+                                                     "options":[{"id":"o1"},{"id":"o2"}],
+                                                     "correctOptionIds":["o1"]},
+                                           "feedback":{"COMPLETED":"ok","INCORRECT":"no"}}],
+                            "nextStageIds":[]}],
+                 "completion":{"requireAllRequiredStages":true}}
+                """.formatted(ev));
+        assertThat(validator.validate(draft, EVENT, ValidationLevel.PUBLISH)).isEmpty();
+    }
+
+    @Test
+    void sourceRef_sameStageLater_rejected() throws Exception {
+        // mcq references es declared AFTER it in the same stage — the source
+        // has not run yet when the consumer executes (FIX 5).
+        String ev = UUID.randomUUID().toString();
+        usableEvidence(ev);
+        JsonNode draft = tree("""
+                {"schemaVersion":1,
+                 "stages":[{"id":"ev","type":"EVIDENCE","required":true,
+                            "activities":[{"id":"mcq","type":"MULTIPLE_CHOICE","required":true,
+                                           "config":{"evidenceSource":"es",
+                                                     "question":"q?",
+                                                     "options":[{"id":"o1"},{"id":"o2"}],
+                                                     "correctOptionIds":["o1"]},
+                                           "feedback":{"COMPLETED":"ok","INCORRECT":"no"}},
+                                          {"id":"es","type":"EVIDENCE_SELECT","required":true,
+                                           "config":{"visibleEvidenceIds":["%s"]}}],
+                            "nextStageIds":[]}],
+                 "completion":{"requireAllRequiredStages":true}}
+                """.formatted(ev));
+        assertThat(codes(validator.validate(draft, EVENT, ValidationLevel.PUBLISH)))
+                .contains("UNREACHABLE_SOURCE");
+    }
+
+    @Test
+    void sourceRef_revisionHopOnlyReachability_rejected() throws Exception {
+        // A revision hop (onPartial/onContradicted) is navigation, not proof
+        // the source output exists before the consumer runs — source-ref
+        // reachability must be FORWARD nextStageIds only (FIX 5).
+        String ev = UUID.randomUUID().toString();
+        usableEvidence(ev);
+        // Hop-only: vf1.onContradicted hops back to ev, but vf never reaches
+        // ev through nextStageIds — the ref cannot be justified by the hop.
+        JsonNode hopOnly = tree("""
+                {"schemaVersion":1,
+                 "stages":[{"id":"vf","type":"VERIFICATION","required":true,
+                            "activities":[{"id":"vf1","type":"VERIFICATION","required":true,
+                                           "config":{"requiredEvidenceIds":[],
+                                                     "evidenceSource":"es"},
+                                           "onContradicted":"ev"}],
+                            "nextStageIds":[]},
+                           {"id":"ev","type":"EVIDENCE","required":true,
+                            "activities":[{"id":"es","type":"EVIDENCE_SELECT","required":true,
+                                           "config":{"visibleEvidenceIds":["%s"]}}],
+                            "nextStageIds":[]}],
+                 "completion":{"requireAllRequiredStages":true}}
+                """.formatted(ev));
+        assertThat(codes(validator.validate(hopOnly, EVENT, ValidationLevel.PUBLISH)))
+                .contains("UNREACHABLE_SOURCE");
+        // Forward-reachable twin: ev -> vf in nextStageIds, so the same
+        // evidenceSource publishes clean (ev still hops back onContradicted,
+        // which is allowed — hops are navigation, not availability proof).
+        JsonNode forward = tree("""
+                {"schemaVersion":1,
+                 "stages":[{"id":"ev","type":"EVIDENCE","required":true,
+                            "activities":[{"id":"es","type":"EVIDENCE_SELECT","required":true,
+                                           "config":{"visibleEvidenceIds":["%s"]}}],
+                            "nextStageIds":["vf"]},
+                           {"id":"vf","type":"VERIFICATION","required":true,
+                            "activities":[{"id":"vf1","type":"VERIFICATION","required":true,
+                                           "config":{"requiredEvidenceIds":[],
+                                                     "evidenceSource":"es"},
+                                           "onContradicted":"ev"}],
+                            "nextStageIds":[]}],
+                 "completion":{"requireAllRequiredStages":true}}
+                """.formatted(ev));
+        assertThat(validator.validate(forward, EVENT, ValidationLevel.PUBLISH)).isEmpty();
+    }
+
     /* ---------- fixture validation (phase-07 AC-9) ---------- */
 
     /**

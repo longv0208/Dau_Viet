@@ -110,30 +110,32 @@ public final class ReasoningHandlers {
         /**
          * Opt-in graded mode (config.graded:true): the submitted relation set
          * must exactly equal one accepted set -> COMPLETED. Partial credit is
-         * the best F1 across accepted sets — F1 = 2·hits/(|submitted|+|accepted|)
-         * — so extra incorrect relations always lower the score below 1.0
-         * (select-all can never farm full credit). Output only reports
-         * counts/score — never the expected relations.
+         * the MAXIMUM F1 computed independently against every accepted set —
+         * F1 = 2·hits/(|submitted|+|accepted|) — so alternative answer sets
+         * of different sizes each get their own score and the best wins
+         * (previously the set was chosen by max hit COUNT, which could pick
+         * a larger, worse-F1 interpretation). Extra incorrect relations
+         * always lower the score below 1.0; an exact match on ANY accepted
+         * set scores 1.0. Output only reports counts/score — never the
+         * expected relations.
          */
         private ActivityResult evaluateGraded(AttemptContext ctx, JsonNode config,
                                               Set<String> submitted, ObjectNode out) {
             List<Set<String>> acceptedSets = acceptedSets(config);
             boolean right = acceptedSets.stream().anyMatch(submitted::equals);
 
+            double score = 0.0;
             int bestMatch = 0;
-            int bestSize = 0;
             for (Set<String> accepted : acceptedSets) {
                 Set<String> hit = new LinkedHashSet<>(submitted);
                 hit.retainAll(accepted);
-                if (hit.size() > bestMatch) {
+                double f1 = accepted.isEmpty() ? 0.0
+                        : 2.0 * hit.size() / (submitted.size() + accepted.size());
+                if (f1 > score) {
+                    score = f1;
                     bestMatch = hit.size();
-                    bestSize = accepted.size();
-                } else if (hit.size() == bestMatch && accepted.size() > bestSize) {
-                    bestSize = accepted.size();
                 }
             }
-            double score = bestSize == 0 ? 0.0
-                    : 2.0 * bestMatch / (submitted.size() + bestSize);
 
             int maxAttempts = config.path("maxAttempts").asInt(1);
             int attemptNo = priorAttempts(ctx) + 1;

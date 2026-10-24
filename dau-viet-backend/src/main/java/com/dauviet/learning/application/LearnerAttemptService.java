@@ -323,6 +323,15 @@ public class LearnerAttemptService {
         state.recordOutput(activityId, result.output());
         if (result.completed()) {
             state.markCompleted(activityId);
+        } else {
+            // FIX 2 (TASK-0020): a re-submission graded incomplete must drop
+            // the stale completion mark — a completed flag referring to a
+            // since-overwritten output is a correctness leak (lesson could
+            // complete while required work is actually unfinished).
+            // Incorrect-but-exhausted still reports completed=true via the
+            // handler contract, so this branch only fires for genuinely
+            // incomplete evaluations.
+            state.removeCompleted(activityId);
         }
         invalidateDependents(model, state, activityId);
         // TASK-0022: collect evidence đã chọn & validate sau khi submission
@@ -569,13 +578,29 @@ public class LearnerAttemptService {
     }
 
     /**
-     * True when an activity has a real grading rule feeding knowledgeScore:
-     * graded:true opt-in, or a type graded by contract (CER_CHOICE is
-     * per-combo assessed; legacy CER free-text is not auto-graded).
+     * True when an activity has a real grading rule feeding knowledgeScore.
+     * Two classes (FIX 3, TASK-0020):
+     *  - contract-graded types whose evaluation contract emits a `correct`
+     *    verdict on every submission: MULTIPLE_CHOICE (vs correctOptionIds),
+     *    MATCHING (vs correctPairs), DRAG_ORDER (vs expectedOrder/accepted
+     *    sequences), CER_CHOICE (vs acceptedCombos);
+     *  - opt-in graded mode: config.graded:true (EVIDENCE_SELECT,
+     *    REASONING_CONNECT — the flag is what turns their evaluation into a
+     *    correctness judgement; ungraded they stay count-/syntax-only).
+     * Excluded: READ/VIEW_IMAGE/EXPLORE_MAP/HYPOTHESIS_CHOICE/
+     * REFLECTION_PROMPT (no correctness), legacy CER (length-only), and
+     * VERIFICATION — it emits a hypothesis-support verdict
+     * (SUPPORTED/PARTIAL/CONTRADICTED) against requiredEvidenceIds, not a
+     * learner-answer correctness score.
      */
     private boolean isGradedActivity(JsonNode act) {
         String type = act.path("type").asText("");
-        if (ActivityType.CER_CHOICE.name().equals(type)) return true;
+        if (ActivityType.MULTIPLE_CHOICE.name().equals(type)
+                || ActivityType.MATCHING.name().equals(type)
+                || ActivityType.DRAG_ORDER.name().equals(type)
+                || ActivityType.CER_CHOICE.name().equals(type)) {
+            return true;
+        }
         JsonNode config = act.get("config");
         return config != null && config.path("graded").asBoolean(false);
     }
@@ -657,18 +682,20 @@ public class LearnerAttemptService {
      * Dependency edges (target depends on source):
      *  - explicit source refs: config.priorEvidenceSource / evidenceSource
      *    name the exact activity whose output is consumed;
-     *  - REVISE hops: onPartial/onContradicted send the learner back to a
-     *    stage to redo work — redoing that stage's activities must void the
-     *    downstream consumers of its outputs too, so every activity of the
-     *    hop-target stage depends on the hopping activity;
      *  - ordered propagation: the first activity of a stage depends on the
      *    previous stage boundary, and each later activity depends on its
      *    predecessor — priorOutputs can carry any earlier output forward.
      *
-     * Traversal is BFS over those edges — transitive but bounded by the
-     * snapshot DAG, visited-guarded, and never touches the revised activity
-     * itself or unrelated branches. Activity-attempt history rows are
-     * immutable by design and stay untouched.
+     * REVISION hops (onPartial/onContradicted) are deliberately NOT edges:
+     * they are navigation transitions, not data dependencies — treating
+     * "learner may go back and redo stage X" as "X consumes my output"
+     * creates a cycle (hc → do → vf1 → hc) where resubmitting downstream
+     * work voids the earlier answers that work depends on.
+     *
+     * Traversal is BFS over those edges — transitive, visited-guarded
+     * (cycle-safe even on hand-edited snapshots), and never touches the
+     * revised activity itself. Activity-attempt history rows are immutable
+     * by design and stay untouched.
      */
     private void invalidateDependents(SnapshotModel model, AttemptState state,
                                       String activityId) {
@@ -700,11 +727,10 @@ public class LearnerAttemptService {
      * Build the activity-level dependency edges for a snapshot —
      * source -> {consumers}:
      *  (a) explicit refs: config.priorEvidenceSource / config.evidenceSource;
-     *  (b) revise hops: onPartial/onContradicted route learners back to redo
-     *      a stage — all activities of the hop-target stage consume the
-     *      hopping activity's outcome;
-     *  (c) order propagation: stage prev-boundary -> first activity, and
+     *  (b) order propagation: stage prev-boundary -> first activity, and
      *      each activity -> its next sibling.
+     * onPartial/onContradicted are navigation-only and never become edges
+     * (see invalidateDependents javadoc — they must not form cycles).
      */
     private java.util.Map<String, java.util.Set<String>> dependencyEdges(SnapshotModel model) {
         java.util.Map<String, java.util.Set<String>> edges = new java.util.LinkedHashMap<>();
@@ -738,7 +764,10 @@ public class LearnerAttemptService {
                 if (last != null) addEdge(edges, last, "stage:" + sid);
             }
         }
-        // (a) + (b)
+        // (a) explicit source refs only — revision hops (onPartial/
+        // onContradicted) are navigation, NOT data dependencies; adding them
+        // would turn hc → do → vf1 → hp hop into a dependency cycle that
+        // voids the hypothesis whenever downstream work is resubmitted.
         for (JsonNode stage : model.stages()) {
             for (JsonNode act : model.activitiesOf(stage.path("id").asText())) {
                 String id = act.path("id").asText(null);
@@ -751,15 +780,6 @@ public class LearnerAttemptService {
                                 && model.activityById(src.asText()) != null) {
                             addEdge(edges, src.asText(), id);
                         }
-                    }
-                }
-                for (String field : java.util.List.of("onPartial", "onContradicted")) {
-                    JsonNode tgt = act.get(field);
-                    if (tgt == null || !tgt.isTextual()) continue;
-                    String targetStage = tgt.asText();
-                    for (JsonNode a : model.activitiesOf(targetStage)) {
-                        String aid = a.path("id").asText(null);
-                        if (aid != null) addEdge(edges, id, aid);
                     }
                 }
             }
