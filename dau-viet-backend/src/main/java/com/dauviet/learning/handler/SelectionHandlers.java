@@ -75,8 +75,19 @@ public final class SelectionHandlers {
          * exact set match -> COMPLETED. Partial credit = F1 of the selected
          * set against the accepted set — 2·hits/(|selected|+|accepted|) — so
          * wrong extra picks always pull the score below 1.0 and select-all
-         * can never farm full credit. Retry budget via config.maxAttempts
-         * (default 1); exhaustion completes to avoid soft-lock.
+         * can never farm full credit.
+         *
+         * Retry budget: config.maxAttempts scored attempts (default 1);
+         * exhaustion still completes for progress (never a soft-lock by
+         * itself). config.remedialAttempts adds a SMALL remediation budget
+         * that only unlocks once the learner has exhausted the scored budget
+         * AND was routed back here by a downstream REVISE hop (cursor-based,
+         * not a standing free retry) — an exhausted activity re-submitted
+         * from a later stage stays exhausted instead of looping forever on a
+         * Verification PARTIAL it can never satisfy. Correctness is still
+         * exact-match only: a remedial submission that misses keeps
+         * correct:false and its real F1 score — no credit inflation, no
+         * reward exploit (remedial attempts are capped like scored ones).
          */
         private ActivityResult evaluateGraded(AttemptContext ctx, JsonNode config,
                                               Set<String> selected, Set<String> accepted,
@@ -88,10 +99,35 @@ public final class SelectionHandlers {
                     : 2.0 * correctHits.size() / (selected.size() + accepted.size());
             boolean right = selected.equals(accepted);
 
-            int maxAttempts = config.path("maxAttempts").asInt(1);
+            int maxAttempts = Math.max(config.path("maxAttempts").asInt(1), 1);
+            int remedialAttempts = Math.max(
+                    config.path("remedialAttempts").asInt(0), 0);
             int attemptNo = priorAttempts(ctx) + 1;
-            boolean exhausted = !right && attemptNo >= Math.max(maxAttempts, 1);
-            boolean completed = right || exhausted;
+            boolean exhausted = !right && attemptNo >= maxAttempts;
+            // Remedial retry only counts when the learner was sent back by a
+            // downstream REVISE hop: the activity already completed-for-progress
+            // once (prior output carries exhausted:true) AND the persisted
+            // cursor sits on this activity again. On the forward path a wrong
+            // submission is a normal scored attempt — never remedial, so the
+            // budget can't be farmed for free credit early in the flow.
+            JsonNode prior = ctx.priorOutputs().get(ctx.activityId());
+            boolean wasCompletedByExhaustion = prior != null
+                    && prior.path("exhausted").asBoolean(false);
+            boolean routedBack = ctx.activityId().equals(ctx.currentActivityId());
+            // In the remedial window once the scored budget is spent and the
+            // learner was routed back (cursor on this activity again after
+            // completing-for-progress). `remedial` marks the attempt for
+            // audit; `stillRetryable` keeps completed=false ONLY while a
+            // further remedial try remains — the final remedial attempt
+            // completes-for-progress regardless, so the flow terminates.
+            boolean inRemedialWindow = exhausted && wasCompletedByExhaustion
+                    && routedBack;
+            boolean remedial = inRemedialWindow
+                    && attemptNo <= maxAttempts + remedialAttempts;
+            boolean stillRetryable = remedial
+                    && attemptNo < maxAttempts + remedialAttempts;
+            if (remedial) out.put("remedial", true);
+            boolean completed = right || (exhausted && !stillRetryable);
 
             out.put("correct", right);
             out.put("score", score);

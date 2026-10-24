@@ -33,7 +33,8 @@
             "visibleEvidenceIds": ["${EV1}", "${EV2}", "${EV3}"],
             "acceptedEvidenceIds": ["${EV1}", "${EV2}"],
             "minRequired": 1,
-            "maxAttempts": 2
+            "maxAttempts": 2,
+            "remedialAttempts": 1
           },
           "feedback": {
             "COMPLETED": "Đúng — hai tư liệu cốt lõi về bãi cọc và thuỷ triều.",
@@ -157,13 +158,14 @@
             "visibleSourceIds": ["${EV1}", "${EV2}"],
             "requiredEvidenceIds": ["${EV1}", "${EV2}"],
             "expectedHypothesis": "h-tide",
-            "evidenceSource": "es"
+            "evidenceSource": "es",
+            "maxAttempts": 2
           },
-          "onPartial": "hp",
+          "onPartial": "ev",
           "onContradicted": "hp",
           "feedback": {
             "SUPPORTED": "Giả thuyết được chứng minh.",
-            "PARTIAL": "Thiếu bằng chứng — quay lại chọn giả thuyết.",
+            "PARTIAL": "Thiếu bằng chứng — quay lại rà soát và chọn lại tư liệu.",
             "CONTRADICTED": "Giả thuyết không khớp bằng chứng — chọn lại."
           }
         }

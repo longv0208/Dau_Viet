@@ -66,7 +66,7 @@ function readCombos(config: Record<string, unknown> | undefined): Combo[] {
  * `graded:true` implied by the type itself.
  */
 export function CerChoiceEditor(props: EditorProps) {
-  const { activity, eventId, draft, readOnly, onChange } = props;
+  const { activity, stage, eventId, draft, readOnly, onChange } = props;
   const config = activity.config ?? {};
   const claims = readOptions(config, "claims");
   const reasoning = readOptions(config, "reasoningOptions");
@@ -74,7 +74,11 @@ export function CerChoiceEditor(props: EditorProps) {
   const combos = readCombos(config);
   const maxAttempts = (config.maxAttempts as number | undefined) ?? 3;
   const priorSource = String(config.priorEvidenceSource ?? "");
-  const sourceCandidates = evidenceSelectActivities(draft, activity.id);
+  const sourceCandidates = evidenceSelectActivities(draft, activity.id, {
+    stageId: stage.id,
+    activityId: activity.id,
+    required: activity.required,
+  });
 
   function write(patch: Record<string, unknown>) {
     onChange({ config: { ...config, ...patch } });

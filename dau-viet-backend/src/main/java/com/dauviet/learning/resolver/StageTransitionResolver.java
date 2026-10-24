@@ -47,10 +47,25 @@ public class StageTransitionResolver {
             return null;
         }
 
+        JsonNode activity = model.activityById(lastActivityId);
+
+        // (-1) Remedial routing: an activity that just exhausted its scored
+        // retry budget but still carries remedial attempts — and was sent
+        // back here by a downstream REVISE hop — keeps the cursor so the
+        // learner can retry the remediation instead of the lesson looping
+        // forever on a Verification PARTIAL it can never satisfy. Without
+        // this the exhausted activity reported completed=true, the cursor
+        // advanced, and Verification kept sending the learner back to
+        // Hypothesis — a deterministic soft-lock (TASK-0020 round-3).
+        if (activity != null
+                && activity.path("required").asBoolean(false)
+                && isRemedialRetry(model, state, lastActivityId)) {
+            return Transition.of(toNextActivity(model, stageId, lastActivityId));
+        }
+
         // (0) incomplete REQUIRED submission: retry, or revise when authored.
         // Without this the cursor advanced past failed required work and the
         // submit guard locked every later retry (soft-lock).
-        JsonNode activity = model.activityById(lastActivityId);
         boolean lastRequiredIncomplete = activity != null
                 && activity.path("required").asBoolean(false)
                 && !state.isCompleted(lastActivityId);
@@ -95,6 +110,28 @@ public class StageTransitionResolver {
             }
         }
         return null;
+    }
+
+    /**
+     * The cursor activity is an exhausted graded activity that still has
+     * remedial attempts left AND was routed back by a downstream REVISE hop
+     * (its persisted output already carries exhausted:true — it completed
+     * for progress once, then the learner returned). The handler keeps
+     * completed=false on a remedial miss, so the resolver must hold the
+     * cursor for the next remediation try instead of advancing past it.
+     */
+    private boolean isRemedialRetry(SnapshotModel model, AttemptState state,
+                                    String activityId) {
+        JsonNode act = model.activityById(activityId);
+        JsonNode config = act == null ? null : act.get("config");
+        if (config == null) return false;
+        int remedialAttempts = config.path("remedialAttempts").asInt(0);
+        if (remedialAttempts <= 0) return false;
+        JsonNode out = state.outputs().get(activityId);
+        if (out == null || !out.path("exhausted").asBoolean(false)) return false;
+        int maxAttempts = Math.max(config.path("maxAttempts").asInt(1), 1);
+        int attemptCount = out.path("attemptCount").asInt(0);
+        return attemptCount < maxAttempts + remedialAttempts;
     }
 
     /**

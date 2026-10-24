@@ -447,6 +447,225 @@ class LearningFlow2IT extends AbstractPostgresIT {
         assertCompleted(after, "intro", "rc", "hc", "do");
     }
 
+    /* ---------- TASK-0020 round-3: remedial retry after exhaustion ---------- */
+
+    /**
+     * Case B+C combined: es wrong twice -> scored budget exhausted but
+     * remedialAttempts=1 keeps the cursor on es (no forward advance while
+     * remediation remains) -> one honest remedial retry -> correct -> whole
+     * invalidated downstream chain re-executed -> vf1 SUPPORTED -> COMPLETE.
+     * Asserts: cursor never loops, es output carries the real F1 then the
+     * correct remedial result, knowledgeScore stays honest (es contributes
+     * its final score, nothing inflated), progress reaches 7/7 exactly once.
+     */
+    @Test
+    void exhaustedEvidence_remedialRetry_recoversAndCompletes() throws Exception {
+        String lessonId = publish();
+        String attemptId = AttemptItFixture.startAttempt(mvc, om, learnerToken, lessonId);
+
+        submit(attemptId, "intro", "{}");
+        // 1st wrong pick -> PARTIAL (1/2 hits, attempt 1 of 2)
+        MvcResult es1 = submit(attemptId, "es",
+                "{\"selectedEvidenceIds\":[\"" + ev1 + "\"]}");
+        assertThat(AttemptItFixture.body(om, es1)
+                .get("evaluation").get("outcome").asText()).isEqualTo("PARTIAL");
+        // 2nd wrong pick -> scored budget exhausted -> completed-for-progress
+        // BUT remedialAttempts=1 remains, so the resolver holds the cursor on
+        // es instead of advancing into an unfixable Verification loop.
+        MvcResult es2 = submit(attemptId, "es",
+                "{\"selectedEvidenceIds\":[\"" + ev3 + "\"]}");
+        JsonNode es2Body = AttemptItFixture.body(om, es2);
+        assertThat(es2Body.get("evaluation").get("output").get("exhausted")
+                .asBoolean()).isTrue();
+        JsonNode sAfterEs = stateOf(attemptId);
+        assertThat(sAfterEs.get("currentStageId").asText()).isEqualTo("ev");
+        assertThat(sAfterEs.get("currentActivityId").asText()).isEqualTo("es");
+
+        // The single remedial attempt: correct this time -> completed for
+        // real, downstream dependents (none submitted yet here) unaffected.
+        MvcResult es3 = submit(attemptId, "es",
+                "{\"selectedEvidenceIds\":[\"" + ev1 + "\",\"" + ev2 + "\"]}");
+        JsonNode es3Body = AttemptItFixture.body(om, es3);
+        assertThat(es3Body.get("evaluation").get("outcome").asText())
+                .isEqualTo("COMPLETED");
+        assertThat(es3Body.get("evaluation").get("output").get("remedial")
+                .asBoolean()).isTrue();
+        assertThat(es3Body.get("evaluation").get("output").get("correct")
+                .asBoolean()).isTrue();
+        assertThat(es3Body.get("next").get("stageId").asText()).isEqualTo("rs");
+
+        // Normal forward chain — the remediated es output now satisfies vf1.
+        submit(attemptId, "rc",
+                "{\"relations\":[{\"from\":\"thuy-trieu\",\"to\":\"bai-coc\",\"relation\":\"che-giau\"},"
+                        + "{\"from\":\"bai-coc\",\"to\":\"nam-han\",\"relation\":\"dan-den\"}]}");
+        submit(attemptId, "hc", "{\"hypothesisId\":\"h-tide\"}");
+        submit(attemptId, "do",
+                "{\"orderedIds\":[\"step-dong-coc\",\"step-du-dich\",\"step-trieu-len\","
+                        + "\"step-phuc-kich\",\"step-trieu-xuong\",\"step-tan-vo\"]}");
+        MvcResult vf = submit(attemptId, "vf1", "{\"action\":\"verify\"}");
+        assertThat(AttemptItFixture.body(om, vf)
+                .get("evaluation").get("outcome").asText()).isEqualTo("SUPPORTED");
+        submit(attemptId, "cer",
+                "{\"claimId\":\"c-tide\",\"evidenceIds\":[\"" + ev1 + "\",\"" + ev2 + "\"],"
+                        + "\"reasoningId\":\"r-tide\"}");
+
+        mvc.perform(post("/api/v1/attempts/" + attemptId + "/complete")
+                        .header("Authorization", learnerToken))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.status").value("COMPLETED"));
+
+        JsonNode result = resultOf(attemptId);
+        assertThat(result.get("result").get("score").asDouble()).isEqualTo(100.0);
+        // knowledgeScore honest: es=1.0 (remediated), rc=1.0, cer=1.0,
+        // do/vf1/hc ungraded -> mean over graded = 100.
+        assertThat(result.get("result").get("knowledgeScore").asDouble())
+                .isBetween(0.0, 100.0);
+    }
+
+    /**
+     * Case B terminal variant: es wrong twice -> remedial retry also wrong ->
+     * last remedial completes-for-progress (bounded) -> vf1 PARTIAL hops to
+     * ev -> es resubmits (exhausted, no budget left -> stays completed) ->
+     * vf1 second PARTIAL exhausts ITS maxAttempts -> completes-for-progress
+     * (verdict stays PARTIAL, never SUPPORTED) -> cc -> cer -> COMPLETE with
+     * honest knowledgeScore. No infinite cursor loop anywhere.
+     */
+    @Test
+    void exhaustedEvidence_failedRemediation_reviewedTerminal() throws Exception {
+        String lessonId = publish();
+        String attemptId = AttemptItFixture.startAttempt(mvc, om, learnerToken, lessonId);
+
+        submit(attemptId, "intro", "{}");
+        submit(attemptId, "es", "{\"selectedEvidenceIds\":[\"" + ev1 + "\"]}");
+        submit(attemptId, "es", "{\"selectedEvidenceIds\":[\"" + ev3 + "\"]}");
+        // remedial retry: still wrong (missing ev2) -> final remedial attempt
+        // completes-for-progress, output honestly incorrect.
+        MvcResult es3 = submit(attemptId, "es",
+                "{\"selectedEvidenceIds\":[\"" + ev1 + "\"]}");
+        JsonNode es3Body = AttemptItFixture.body(om, es3);
+        assertThat(es3Body.get("evaluation").get("output").get("remedial")
+                .asBoolean()).isTrue();
+        assertThat(es3Body.get("evaluation").get("completed").asBoolean()).isTrue();
+        assertThat(es3Body.get("evaluation").get("output").get("correct")
+                .asBoolean()).isFalse();
+        assertThat(es3Body.get("next").get("stageId").asText()).isEqualTo("rs");
+
+        submit(attemptId, "rc",
+                "{\"relations\":[{\"from\":\"thuy-trieu\",\"to\":\"bai-coc\",\"relation\":\"che-giau\"},"
+                        + "{\"from\":\"bai-coc\",\"to\":\"nam-han\",\"relation\":\"dan-den\"}]}");
+        submit(attemptId, "hc", "{\"hypothesisId\":\"h-tide\"}");
+        submit(attemptId, "do",
+                "{\"orderedIds\":[\"step-dong-coc\",\"step-du-dich\",\"step-trieu-len\","
+                        + "\"step-phuc-kich\",\"step-trieu-xuong\",\"step-tan-vo\"]}");
+
+        // vf1 attempt 1: es output lacks ev2 -> PARTIAL, hop -> ev/es.
+        MvcResult vf1 = submit(attemptId, "vf1", "{\"action\":\"verify\"}");
+        JsonNode vf1Body = AttemptItFixture.body(om, vf1);
+        assertThat(vf1Body.get("evaluation").get("outcome").asText())
+                .isEqualTo("PARTIAL");
+        assertThat(vf1Body.get("next").get("stageId").asText()).isEqualTo("ev");
+        assertThat(vf1Body.get("next").get("activityId").asText()).isEqualTo("es");
+
+        // es has no scored AND no remedial budget left — resubmission is
+        // accepted at the cursor but stays exhausted/completed (bounded).
+        MvcResult es4 = submit(attemptId, "es",
+                "{\"selectedEvidenceIds\":[\"" + ev1 + "\"]}");
+        assertThat(AttemptItFixture.body(om, es4)
+                .get("evaluation").get("completed").asBoolean()).isTrue();
+        assertThat(AttemptItFixture.body(om, es4)
+                .get("next").get("stageId").asText()).isEqualTo("rs");
+
+        // Walk back to vf1 — downstream were invalidated by the es resubmit.
+        submit(attemptId, "rc",
+                "{\"relations\":[{\"from\":\"thuy-trieu\",\"to\":\"bai-coc\",\"relation\":\"che-giau\"},"
+                        + "{\"from\":\"bai-coc\",\"to\":\"nam-han\",\"relation\":\"dan-den\"}]}");
+        submit(attemptId, "hc", "{\"hypothesisId\":\"h-tide\"}");
+        submit(attemptId, "do",
+                "{\"orderedIds\":[\"step-dong-coc\",\"step-du-dich\",\"step-trieu-len\","
+                        + "\"step-phuc-kich\",\"step-trieu-xuong\",\"step-tan-vo\"]}");
+        // vf1 attempt 2 = maxAttempts -> completes-for-progress even though
+        // the verdict is still PARTIAL — the reviewed terminal path, not a
+        // promotion to SUPPORTED.
+        MvcResult vf2 = submit(attemptId, "vf1", "{\"action\":\"verify\"}");
+        JsonNode vf2Body = AttemptItFixture.body(om, vf2);
+        assertThat(vf2Body.get("evaluation").get("outcome").asText())
+                .isEqualTo("PARTIAL");
+        assertThat(vf2Body.get("evaluation").get("output").get("exhausted")
+                .asBoolean()).isTrue();
+        assertThat(vf2Body.get("evaluation").get("completed").asBoolean()).isTrue();
+        assertThat(vf2Body.get("next").get("stageId").asText()).isEqualTo("cc");
+
+        submit(attemptId, "cer",
+                "{\"claimId\":\"c-tide\",\"evidenceIds\":[\"" + ev1 + "\",\"" + ev2 + "\"],"
+                        + "\"reasoningId\":\"r-tide\"}");
+
+        // Terminal state reached — no infinite loop, completion is real.
+        mvc.perform(post("/api/v1/attempts/" + attemptId + "/complete")
+                        .header("Authorization", learnerToken))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.status").value("COMPLETED"));
+
+        JsonNode result = resultOf(attemptId);
+        assertThat(result.get("result").get("score").asDouble()).isEqualTo(100.0);
+        // Honest knowledge: es remedial-final score = F1({e1}) vs {e1,e2}
+        // = 2/3, rc=1.0, cer=1.0 -> mean over graded (es,rc,cer) = 8/9*100.
+        assertThat(result.get("result").get("knowledgeScore").asDouble())
+                .isLessThan(100.0);
+    }
+
+    /* ---------- TASK-0020 round-3 FIX 2: unguaranteed source at publish ---------- */
+
+    /**
+     * Case E: a REQUIRED consumer whose evidenceSource lives in an optional
+     * stage (required=false) can never be guaranteed to run — the draft must
+     * be rejected at publish, not silently graded against an empty set.
+     */
+    @Test
+    void publish_rejectsRequiredConsumer_onOptionalStageSource() throws Exception {
+        String draft = """
+                {"schemaVersion":1,
+                 "stages":[
+                   {"id":"ctx","type":"CONTEXT","required":true,
+                    "activities":[{"id":"intro","type":"READ","required":true,
+                                    "config":{"text":"intro"}}],
+                    "nextStageIds":["opt","cc"]},
+                   {"id":"opt","type":"EVIDENCE","required":false,
+                    "activities":[{"id":"es","type":"EVIDENCE_SELECT",
+                                    "config":{"visibleEvidenceIds":["%s"],
+                                              "minRequired":1}}],
+                    "nextStageIds":[]},
+                   {"id":"cc","type":"CONCLUSION","required":true,
+                    "activities":[{"id":"cer","type":"CER_CHOICE","required":true,
+                                    "config":{"claims":[{"id":"c1","text":"c"}],
+                                       "reasoningOptions":[{"id":"r1","text":"r"}],
+                                       "priorEvidenceSource":"es",
+                                       "acceptedCombos":[{"claimId":"c1",
+                                        "evidenceIds":["%s"],"reasoningId":"r1"}]}}],
+                    "nextStageIds":[]}],
+                 "completion":{"requireAllRequiredStages":true}}
+                """.formatted(ev1, ev1);
+        Map<String, Object> req = new java.util.LinkedHashMap<>();
+        req.put("eventId", eventId);
+        req.put("templateId", tplId);
+        req.put("title", "L");
+        req.put("centralQuestion", "Q?");
+        req.put("draftJson", draft);
+        MvcResult created = mvc.perform(post("/api/v1/admin/lessons")
+                        .header("Authorization", adminToken)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(om.writeValueAsString(req)))
+                .andExpect(status().isCreated()).andReturn();
+        String lessonId = om.readTree(created.getResponse().getContentAsString())
+                .get("id").asText();
+        // Publish must fail — optional-stage source feeding a required consumer.
+        MvcResult pub = mvc.perform(post("/api/v1/admin/lessons/" + lessonId + "/publish")
+                        .header("Authorization", adminToken))
+                .andReturn();
+        assertThat(pub.getResponse().getStatus()).isEqualTo(422);
+        assertThat(pub.getResponse().getContentAsString())
+                .contains("UNGUARANTEED_SOURCE");
+    }
+
     /* ---------- REFLECTION optional ---------- */
 
     @Test

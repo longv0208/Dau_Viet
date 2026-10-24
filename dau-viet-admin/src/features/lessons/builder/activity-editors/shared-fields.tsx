@@ -60,17 +60,40 @@ export function ActivityCommonFields({ stage, activity, readOnly, onChange }: Ed
 }
 
 /**
- * TASK-0020 §P0/§P5: upstream EVIDENCE_SELECT candidates for
- * config.evidenceSource / config.priorEvidenceSource dropdowns —
- * every EVIDENCE_SELECT activity in the draft except the consumer itself.
- * Backend revalidates type + reachability at publish; the dropdown keeps
- * authors from mistyping ids.
+ * TASK-0020 §P0/§P5 + round-3 FIX 2: upstream EVIDENCE_SELECT candidates for
+ * config.evidenceSource / config.priorEvidenceSource dropdowns.
+ * A REQUIRED consumer may only depend on a source that is guaranteed to run:
+ *  - the source's stage must be required:true (optional stages are skippable),
+ *  - the source activity itself must be required:true (optional siblings are
+ *    skippable inside a required stage),
+ *  - a same-stage source must be declared EARLIER than the consumer
+ *    (siblings execute in array order).
+ * Backend revalidates all of this at publish (UNGUARANTEED_SOURCE /
+ * UNREACHABLE_SOURCE); the dropdown keeps authors from mistyping ids.
  */
-export function evidenceSelectActivities(draft: Draft | undefined, excludeId: string) {
+export function evidenceSelectActivities(
+  draft: Draft | undefined,
+  excludeId: string,
+  consumer?: { stageId: string; activityId: string; required?: boolean },
+) {
   if (!draft) return [];
   return draft.stages.flatMap((s) =>
     s.activities
-      .filter((a) => a.type === "EVIDENCE_SELECT" && a.id !== excludeId)
+      .filter((a) => {
+        if (a.type !== "EVIDENCE_SELECT" || a.id === excludeId) return false;
+        // A required consumer can only depend on a guaranteed source;
+        // optional consumers keep the looser list (backend still revalidates).
+        if (consumer?.required) {
+          if (!(s.required ?? false)) return false;
+          if (!(a.required ?? false)) return false;
+          if (s.id === consumer.stageId) {
+            const srcIdx = s.activities.findIndex((x) => x.id === a.id);
+            const consIdx = s.activities.findIndex((x) => x.id === consumer.activityId);
+            if (srcIdx < 0 || consIdx < 0 || srcIdx >= consIdx) return false;
+          }
+        }
+        return true;
+      })
       .map((a) => ({ id: a.id, label: a.instruction || a.id, stageId: s.id })),
   );
 }

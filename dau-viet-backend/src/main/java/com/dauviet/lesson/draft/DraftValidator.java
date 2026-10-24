@@ -219,6 +219,25 @@ public class DraftValidator {
         for (String sid : stageById.keySet()) {
             reach.put(sid, reachableFrom(sid, transitions));
         }
+        // activity id -> required flag (for guaranteed-source checks)
+        Map<String, Boolean> activityRequired = new HashMap<>();
+        Map<String, Boolean> stageRequired = new HashMap<>();
+        for (int i = 0; i < stages.size(); i++) {
+            JsonNode stage = stages.get(i);
+            if (!stage.isObject()) continue;
+            String sid = stage.path("id").asText(null);
+            if (sid == null) continue;
+            stageRequired.put(sid, stage.path("required").asBoolean(false));
+            JsonNode acts = stage.get("activities");
+            if (acts != null && acts.isArray()) {
+                for (JsonNode act : acts) {
+                    String aid = act.path("id").asText(null);
+                    if (aid == null) continue;
+                    activityRequired.put(aid,
+                            act.path("required").asBoolean(false));
+                }
+            }
+        }
         for (int i = 0; i < stages.size(); i++) {
             JsonNode stage = stages.get(i);
             if (!stage.isObject()) continue;
@@ -262,6 +281,29 @@ public class DraftValidator {
                         errors.add(new FieldError(refPath, "UNREACHABLE_SOURCE",
                                 field + " '" + srcId
                                         + "' cannot execute before this activity"));
+                        continue;
+                    }
+                    // TASK-0020 round-3 FIX 2: reachability ≠ guaranteed
+                    // execution. A REQUIRED consumer that declares an
+                    // upstream evidence source must be able to rely on that
+                    // source actually running — an optional-flagged source
+                    // activity, or one inside an optional/skippable stage,
+                    // can be skipped entirely and leaves the consumer's
+                    // verification/conclusion unsolvable. Reject the draft
+                    // rather than silently grade against an empty set.
+                    if (ctx.isPublish()
+                            && activityRequired.getOrDefault(act.path("id").asText(), false)) {
+                        if (!Boolean.TRUE.equals(stageRequired.get(srcStage))) {
+                            errors.add(new FieldError(refPath, "UNGUARANTEED_SOURCE",
+                                    field + " '" + srcId
+                                            + "' sits in an optional stage '"
+                                            + srcStage
+                                            + "' and may never run — a required consumer cannot depend on it"));
+                        } else if (!activityRequired.getOrDefault(srcId, false)) {
+                            errors.add(new FieldError(refPath, "UNGUARANTEED_SOURCE",
+                                    field + " '" + srcId
+                                            + "' is not required and may be skipped — a required consumer cannot depend on it"));
+                        }
                     }
                 }
             }

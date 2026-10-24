@@ -19,12 +19,16 @@ import {
  * at publish.
  */
 export function VerificationEditor(props: EditorProps) {
-  const { activity, eventId, draft, readOnly, onChange } = props;
+  const { activity, stage, eventId, draft, readOnly, onChange } = props;
   const config = activity.config ?? {};
   const visibleIds = (config.visibleSourceIds as string[] | undefined) ?? [];
   const requiredIds = (config.requiredEvidenceIds as string[] | undefined) ?? [];
   const evidenceSource = String(config.evidenceSource ?? "");
-  const sourceCandidates = evidenceSelectActivities(draft, activity.id);
+  const sourceCandidates = evidenceSelectActivities(draft, activity.id, {
+    stageId: stage.id,
+    activityId: activity.id,
+    required: activity.required,
+  });
 
   return (
     <div className="flex flex-col gap-3 rounded-md border border-border bg-white p-3">

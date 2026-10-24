@@ -213,6 +213,111 @@ class SelectionHandlersTest {
         assertThat(r.output().get("exhausted").asBoolean()).isTrue();
     }
 
+    /* ---------- remedial retry (TASK-0020 round-3 FIX 1) ---------- */
+
+    @Test
+    void evidenceSelect_remedial_afterExhaustionAndHopBack_incompleteForRetry() {
+        // es exhausted (attemptCount>=maxAttempts) then the learner was sent
+        // back by a downstream REVISE hop — cursor sits on es again. A
+        // remedialAttempts>0 budget lets this submission stay incomplete so
+        // the cursor holds for the next remediation try instead of the
+        // exhausted activity advancing and Verification looping forever.
+        JsonNode act = HandlerTestSupport.json(
+                "{\"id\":\"es\",\"type\":\"EVIDENCE_SELECT\",\"config\":{"
+              + "\"visibleEvidenceIds\":[\"e1\",\"e2\",\"e3\"],\"graded\":true,"
+              + "\"acceptedEvidenceIds\":[\"e1\",\"e2\"],"
+              + "\"maxAttempts\":2,\"remedialAttempts\":1}}");
+        java.util.Map<String, JsonNode> prior = new java.util.LinkedHashMap<>();
+        prior.put("es", HandlerTestSupport.json(
+                "{\"attemptCount\":2,\"exhausted\":true}"));
+        ActivityResult r = evidenceSelect.evaluate(
+                HandlerTestSupport.ctxAtCursor(act, snapshotWithEvidence(),
+                        prior, "es"),
+                HandlerTestSupport.sub("es", "{\"selectedEvidenceIds\":[\"e1\"]}"));
+        assertThat(r.completed()).isFalse();
+        assertThat(r.output().get("remedial").asBoolean()).isTrue();
+        assertThat(r.output().get("attemptCount").asInt()).isEqualTo(3);
+    }
+
+    @Test
+    void evidenceSelect_remedial_correctOnRemediation_completes() {
+        JsonNode act = HandlerTestSupport.json(
+                "{\"id\":\"es\",\"type\":\"EVIDENCE_SELECT\",\"config\":{"
+              + "\"visibleEvidenceIds\":[\"e1\",\"e2\",\"e3\"],\"graded\":true,"
+              + "\"acceptedEvidenceIds\":[\"e1\",\"e2\"],"
+              + "\"maxAttempts\":2,\"remedialAttempts\":1}}");
+        java.util.Map<String, JsonNode> prior = new java.util.LinkedHashMap<>();
+        prior.put("es", HandlerTestSupport.json(
+                "{\"attemptCount\":2,\"exhausted\":true}"));
+        ActivityResult r = evidenceSelect.evaluate(
+                HandlerTestSupport.ctxAtCursor(act, snapshotWithEvidence(),
+                        prior, "es"),
+                HandlerTestSupport.sub("es",
+                        "{\"selectedEvidenceIds\":[\"e1\",\"e2\"]}"));
+        assertThat(r.completed()).isTrue();
+        assertThat(r.outcome()).isEqualTo(ActivityResult.COMPLETED);
+        assertThat(r.output().get("correct").asBoolean()).isTrue();
+    }
+
+    @Test
+    void evidenceSelect_remedial_noBudget_exhaustedStaysCompleted() {
+        // No remedialAttempts configured -> exhausted stays completed (the
+        // legacy soft-lock-avoidance contract); remediation is opt-in.
+        JsonNode act = HandlerTestSupport.json(
+                "{\"id\":\"es\",\"type\":\"EVIDENCE_SELECT\",\"config\":{"
+              + "\"visibleEvidenceIds\":[\"e1\",\"e2\",\"e3\"],\"graded\":true,"
+              + "\"acceptedEvidenceIds\":[\"e1\",\"e2\"],\"maxAttempts\":2}}");
+        java.util.Map<String, JsonNode> prior = new java.util.LinkedHashMap<>();
+        prior.put("es", HandlerTestSupport.json(
+                "{\"attemptCount\":2,\"exhausted\":true}"));
+        ActivityResult r = evidenceSelect.evaluate(
+                HandlerTestSupport.ctxAtCursor(act, snapshotWithEvidence(),
+                        prior, "es"),
+                HandlerTestSupport.sub("es", "{\"selectedEvidenceIds\":[\"e1\"]}"));
+        assertThat(r.completed()).isTrue();
+        assertThat(r.output().has("remedial")).isFalse();
+    }
+
+    @Test
+    void evidenceSelect_remedial_wrongOnRemediation_stillHonest() {
+        // Remedial miss keeps correct:false + real F1 — no credit inflation.
+        JsonNode act = HandlerTestSupport.json(
+                "{\"id\":\"es\",\"type\":\"EVIDENCE_SELECT\",\"config\":{"
+              + "\"visibleEvidenceIds\":[\"e1\",\"e2\",\"e3\"],\"graded\":true,"
+              + "\"acceptedEvidenceIds\":[\"e1\",\"e2\"],"
+              + "\"maxAttempts\":2,\"remedialAttempts\":1}}");
+        java.util.Map<String, JsonNode> prior = new java.util.LinkedHashMap<>();
+        prior.put("es", HandlerTestSupport.json(
+                "{\"attemptCount\":2,\"exhausted\":true}"));
+        ActivityResult r = evidenceSelect.evaluate(
+                HandlerTestSupport.ctxAtCursor(act, snapshotWithEvidence(),
+                        prior, "es"),
+                HandlerTestSupport.sub("es", "{\"selectedEvidenceIds\":[\"e3\"]}"));
+        assertThat(r.completed()).isFalse();
+        assertThat(r.output().get("correct").asBoolean()).isFalse();
+        assertThat(r.output().get("score").asDouble()).isEqualTo(0.0);
+    }
+
+    @Test
+    void evidenceSelect_remedial_cursorElsewhere_notRemedial() {
+        // Cursor NOT on es (learner revisiting from forward path is impossible
+        // via the submit guard, but a stale priorOutputs record must not make
+        // this submission remedial — completed stays true).
+        JsonNode act = HandlerTestSupport.json(
+                "{\"id\":\"es\",\"type\":\"EVIDENCE_SELECT\",\"config\":{"
+              + "\"visibleEvidenceIds\":[\"e1\",\"e2\",\"e3\"],\"graded\":true,"
+              + "\"acceptedEvidenceIds\":[\"e1\",\"e2\"],"
+              + "\"maxAttempts\":2,\"remedialAttempts\":1}}");
+        java.util.Map<String, JsonNode> prior = new java.util.LinkedHashMap<>();
+        prior.put("es", HandlerTestSupport.json(
+                "{\"attemptCount\":2,\"exhausted\":true}"));
+        ActivityResult r = evidenceSelect.evaluate(
+                HandlerTestSupport.ctxAtCursor(act, snapshotWithEvidence(),
+                        prior, "vf1"),
+                HandlerTestSupport.sub("es", "{\"selectedEvidenceIds\":[\"e1\"]}"));
+        assertThat(r.output().has("remedial")).isFalse();
+    }
+
     @Test
     void evidenceSelect_graded_noKey_fallsBackToLegacy() {
         // graded flag set but no acceptedEvidenceIds → legacy count path.

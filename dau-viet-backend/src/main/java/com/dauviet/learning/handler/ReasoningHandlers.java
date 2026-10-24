@@ -161,6 +161,16 @@ public final class ReasoningHandlers {
     public static class VerificationHandler extends AbstractActivityHandler {
         @Override public ActivityType supports() { return ActivityType.VERIFICATION; }
 
+        /**
+         * config.maxAttempts (TASK-0020 round-3 FIX 1): bounds how many times
+         * a learner may re-attempt verification. When the budget is spent on a
+         * non-SUPPORTED outcome the activity completes-for-progress anyway —
+         * the recorded verdict stays PARTIAL/CONTRADICTED (never promoted to
+         * SUPPORTED), the review hop fires on the way there, and the lesson
+         * can reach a deliberate terminal state instead of looping forever
+         * between Verification and an upstream activity that can no longer
+         * change its output. Default 0 keeps legacy snapshots unbounded.
+         */
         @Override
         public ActivityResult evaluate(AttemptContext ctx, ActivitySubmission sub) {
             JsonNode config = config(ctx.activity());
@@ -195,7 +205,15 @@ public final class ReasoningHandlers {
             JsonNodeFactory f = JsonNodeFactory.instance;
             ObjectNode out = f.objectNode();
             out.put("verification", outcome);
-            boolean completed = ActivityResult.SUPPORTED.equals(outcome);
+            int attemptNo = priorAttempts(ctx) + 1;
+            out.put("attemptCount", attemptNo);
+            int maxAttempts = config == null ? 0
+                    : config.path("maxAttempts").asInt(0);
+            boolean completed = ActivityResult.SUPPORTED.equals(outcome)
+                    || (maxAttempts > 0 && attemptNo >= maxAttempts);
+            if (completed && !ActivityResult.SUPPORTED.equals(outcome)) {
+                out.put("exhausted", true);
+            }
             return result(outcome, completed, out,
                     feedbackFor(ctx.activity(), outcome));
         }

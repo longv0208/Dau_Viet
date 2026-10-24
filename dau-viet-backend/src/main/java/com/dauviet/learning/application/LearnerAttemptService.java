@@ -316,6 +316,7 @@ public class LearnerAttemptService {
         ActivityHandler handler = handlers.handlerFor(type);
         AttemptContext ctx = new AttemptContext(a.getId(), userId,
                 a.getLessonVersionId(), state.currentStageId(), activityId,
+                state.currentActivityId(),
                 activity, model.root(), state.outputs());
         ActivityResult result = handler.evaluate(ctx,
                 new ActivitySubmission(a.getId(), activityId, answer, idempotencyKey));

@@ -32,6 +32,16 @@ final class HandlerTestSupport {
                 activity, snapshot, priorOutputs == null ? Map.of() : priorOutputs);
     }
 
+    /** Cursor-aware ctx — remedial-retry tests pin the cursor on the activity. */
+    static AttemptContext ctxAtCursor(JsonNode activity, JsonNode snapshot,
+                                      Map<String, JsonNode> priorOutputs,
+                                      String currentActivityId) {
+        return new AttemptContext(UUID.randomUUID(), UUID.randomUUID(),
+                UUID.randomUUID(), "stage-1", activity.path("id").asText("a1"),
+                currentActivityId,
+                activity, snapshot, priorOutputs == null ? Map.of() : priorOutputs);
+    }
+
     static AttemptContext ctx(JsonNode activity, JsonNode snapshot) {
         return ctx(activity, snapshot, new LinkedHashMap<>());
     }
