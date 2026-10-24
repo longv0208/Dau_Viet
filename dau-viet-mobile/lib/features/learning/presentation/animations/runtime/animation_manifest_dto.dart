@@ -70,6 +70,12 @@ class AnimationManifestDto {
   /// Evaluator dựng sẵn từ manifest — player consume trực tiếp.
   final CinematicEvaluator cinematic;
 
+  /// HTML_WEBVIEW — metadata file tải lên `{filename?, sizeBytes, sha256}`.
+  /// Bytes HTML KHÔNG nằm trong manifest/snapshot — Flutter fetch qua
+  /// endpoint learner `/api/v1/animation-versions/{sceneVersionId}/html`
+  /// rồi verify sha256 trước khi load vào WebView.
+  final HtmlMetaDto? html;
+
   const AnimationManifestDto({
     required this.schemaVersion,
     required this.rendererCode,
@@ -97,6 +103,7 @@ class AnimationManifestDto {
     this.audioCues = const [],
     this.environment = const EnvironmentDto(),
     this.cinematic = const CinematicEvaluator(),
+    this.html,
   });
 
   /// altText của assetId (từ metadata embed trong snapshot); null khi
@@ -198,6 +205,9 @@ class AnimationManifestDto {
           if (a is Map) AudioCueDto.fromJson(a),
       ],
       environment: EnvironmentDto.fromJson(json['environment']),
+      html: json['html'] is Map
+          ? HtmlMetaDto.fromJson(json['html'] as Map)
+          : null,
       cinematic: CinematicEvaluator(
         cameraInitial: camera.initial,
         cameraSteps: camera.steps,
@@ -815,6 +825,28 @@ extension AnimationManifestToDefinition on AnimationManifestDto {
     }
     return null;
   }
+}
+
+/// HTML_WEBVIEW — metadata của file HTML pin trong manifest:
+/// `{filename?, sizeBytes, sha256}`. sha256 (64-hex) là checksum của
+/// bytes nguyên file — runtime verify sau khi fetch, trước khi
+/// loadHtmlString, chống payload bị đổi sau publish.
+class HtmlMetaDto {
+  final String? filename;
+  final int sizeBytes;
+  final String sha256;
+
+  const HtmlMetaDto({
+    this.filename,
+    required this.sizeBytes,
+    required this.sha256,
+  });
+
+  factory HtmlMetaDto.fromJson(Map json) => HtmlMetaDto(
+    filename: json['filename'] as String?,
+    sizeBytes: _int(json['sizeBytes'], 0),
+    sha256: '${json['sha256'] ?? ''}',
+  );
 }
 
 Map<String, double> _numMap(Object? raw) => {

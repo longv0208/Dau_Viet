@@ -1,4 +1,7 @@
+import { ApiClientError } from "@/lib/api-error";
 import { apiFetch, toQuery } from "@/lib/api-client";
+import { authStore } from "@/features/auth/auth-store";
+import { coordinatedRefresh } from "@/features/auth/refresh-coordinator";
 import type { PageResponse } from "@/lib/dto/common";
 
 import type {
@@ -68,4 +71,65 @@ export const animationApi = {
   listVersions: (id: string) => apiFetch<SceneVersionSummary[]>(`${SCN}/${id}/versions`),
   getVersion: (id: string, versionId: string) =>
     apiFetch<SceneVersionDetail>(`${SCN}/${id}/versions/${versionId}`),
+
+  /* ---------- HTML_WEBVIEW import ---------- */
+  importHtmlScene: (file: File, opts?: { title?: string; eventId?: string }) =>
+    htmlUpload<AnimationSceneDetail>(`/api/upload/html-scene${toQuery({
+      title: opts?.title,
+      eventId: opts?.eventId,
+    })}`, "POST", file),
+  replaceHtmlScene: (id: string, file: File, expectedRowVersion?: number) =>
+    htmlUpload<AnimationSceneDetail>(
+      `/api/upload/html-scene/${id}${toQuery({ expectedRowVersion })}`,
+      "PUT",
+      file,
+    ),
+  /**
+   * Lấy HTML nháp để hiển thị trong iframe sandbox: fetch bằng Bearer qua
+   * /api/proxy (JSON cap chỉ giới request body, response text/html không bị
+   * giới hạn) → caller bọc blob URL. Không bao giờ điều hướng iframe tới URL
+   * backend trực tiếp — session cookie/JWT không được rò rỉ vào document.
+   */
+  fetchHtmlDraft: async (id: string): Promise<Blob> => {
+    const token = authStore.getAccessToken();
+    const res = await fetch(`/api/proxy${SCN}/${id}/html-draft`, {
+      headers: token ? { authorization: `Bearer ${token}` } : undefined,
+      cache: "no-store",
+    });
+    if (!res.ok) {
+      const body = await res.json().catch(() => null);
+      throw ApiClientError.from(body, res.status);
+    }
+    return res.blob();
+  },
 };
+
+/**
+ * Multipart upload qua /api/upload/* (không phải /api/proxy — cap JSON 2MiB
+ * quá nhỏ cho file HTML 15MB). Gắn access token từ authStore + 1 lần
+ * refresh-retry như apiFetch.
+ */
+async function htmlUpload<T>(path: string, method: string, file: File): Promise<T> {
+  const send = async (): Promise<Response> => {
+    const token = authStore.getAccessToken();
+    const fd = new FormData();
+    fd.append("file", file, file.name);
+    return fetch(path, {
+      method,
+      headers: token ? { authorization: `Bearer ${token}` } : undefined,
+      body: fd,
+    });
+  };
+  let res = await send();
+  if (res.status === 401) {
+    const refreshed = await coordinatedRefresh();
+    if (refreshed) res = await send();
+    else {
+      authStore.clear();
+      if (typeof window !== "undefined") window.location.assign("/login");
+    }
+  }
+  const body = await res.json().catch(() => null);
+  if (!res.ok) throw ApiClientError.from(body, res.status);
+  return body as T;
+}

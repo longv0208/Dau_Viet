@@ -361,6 +361,16 @@ public class GlobalExceptionHandler {
                 "Animation manifest validation failed", details);
     }
 
+    @ExceptionHandler(com.dauviet.animation.domain.AnimationExceptions.HtmlValidationException.class)
+    public ResponseEntity<ApiError> handleHtmlValidation(
+            com.dauviet.animation.domain.AnimationExceptions.HtmlValidationException ex) {
+        Map<String, Object> details = Map.of("errors", ex.getErrors().stream()
+                .map(e -> Map.of("path", e.path(), "code", e.code(), "message", e.message()))
+                .toList());
+        return build(HttpStatus.UNPROCESSABLE_ENTITY, ErrorCode.ANIMATION_HTML_INVALID,
+                "Uploaded HTML is not a valid self-contained animation", details);
+    }
+
     @ExceptionHandler(com.dauviet.animation.domain.AnimationExceptions.AssetInUseException.class)
     public ResponseEntity<ApiError> handleAnimationAssetInUse(
             com.dauviet.animation.domain.AnimationExceptions.AssetInUseException ex) {

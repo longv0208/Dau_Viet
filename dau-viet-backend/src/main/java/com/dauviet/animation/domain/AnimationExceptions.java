@@ -61,6 +61,21 @@ public final class AnimationExceptions {
     public record ManifestFieldError(String path, String code, String message) {
     }
 
+    /**
+     * 422 — uploaded HTML document validation failures. Same structured
+     * {path, code, message} shape as ManifestValidationException.
+     */
+    public static class HtmlValidationException extends RuntimeException {
+        private final List<ManifestFieldError> errors;
+
+        public HtmlValidationException(List<ManifestFieldError> errors) {
+            super("HTML validation failed (" + errors.size() + " errors)");
+            this.errors = List.copyOf(errors);
+        }
+
+        public List<ManifestFieldError> getErrors() { return errors; }
+    }
+
     /** 409 — asset still referenced by a published animation manifest. */
     public static class AssetInUseException extends RuntimeException {
         private final List<UUID> sceneVersionIds;

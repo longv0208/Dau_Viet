@@ -28,12 +28,23 @@ import { TimelineSection } from "./scene-editor/timeline-section";
 import { JourneyMapEditor, MapStateFields, RiverStakesEditor, RiverStateFields } from "./scene-editor/renderer-editors";
 import { PublishSection } from "./scene-editor/publish-section";
 import { ScenePreview } from "./scene-editor/scene-preview";
+import { HtmlSceneEditor } from "./html-scene-editor";
 
 /**
  * Screen C — Scene Editor: bố cục 2 cột (form trái, preview phải sticky),
  * 8 section gấp gọn + thanh lưu. Lưu tay qua PATCH kèm expectedRowVersion;
  * 409 báo tải lại. ARCHIVED → toàn bộ readOnly.
  */
+/** Đọc rendererCode từ draftJson (không cần full manifest hợp lệ). */
+function parseDraftRenderer(scene: { draftJson: string }): string | null {
+  try {
+    const parsed = JSON.parse(scene.draftJson) as { rendererCode?: string };
+    return parsed?.rendererCode ?? null;
+  } catch {
+    return null;
+  }
+}
+
 export function SceneEditor({ sceneId }: { sceneId: string }) {
   const router = useRouter();
   const ed = useSceneEditor(sceneId);
@@ -49,6 +60,10 @@ export function SceneEditor({ sceneId }: { sceneId: string }) {
   }, [ed.dirty]);
 
   if (ed.loading) return <p className="text-sm text-ink-muted">Đang tải cảnh…</p>;
+  // HTML_WEBVIEW: giao diện riêng — file tự chứa, không có sections manifest.
+  if (ed.scene && parseDraftRenderer(ed.scene) === "HTML_WEBVIEW") {
+    return <HtmlSceneEditor sceneId={sceneId} />;
+  }
   if (ed.error || !ed.scene) {
     return (
       <p role="alert" className="text-sm text-error">

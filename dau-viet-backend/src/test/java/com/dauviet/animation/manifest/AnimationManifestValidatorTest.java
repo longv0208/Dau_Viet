@@ -525,4 +525,112 @@ class AnimationManifestValidatorTest {
         assertTrue(errs.isEmpty(),
                 () -> "ly_thai_to_1010_cinematic must validate cleanly: " + errs);
     }
+
+    /* ---------- HTML_WEBVIEW ---------- */
+
+    private AnimationTemplate htmlTemplate() {
+        AnimationTemplate t = new AnimationTemplate();
+        t.setId(UUID.randomUUID());
+        t.setCode("html-webview");
+        t.setRendererCode("HTML_WEBVIEW");
+        t.setRendererVersion(1);
+        t.setSchemaVersion(2);
+        return t;
+    }
+
+    private String htmlManifest(String sha) {
+        return """
+            {
+              "schemaVersion": 2, "rendererCode": "HTML_WEBVIEW",
+              "rendererVersion": 1, "title": "Bạch Đằng HTML",
+              "disclaimer": "Nội dung do tác giả HTML chịu trách nhiệm.",
+              "sourceReferences": [],
+              "html": {"filename": "bd.html", "sizeBytes": 12345, "sha256": "%s"}
+            }
+            """.formatted(sha);
+    }
+
+    private static final String SHA = "a".repeat(64);
+
+    private String htmlNoSection() {
+        return """
+            {
+              "schemaVersion": 2, "rendererCode": "HTML_WEBVIEW",
+              "rendererVersion": 1, "title": "Bạch Đằng HTML",
+              "disclaimer": "Nội dung do tác giả HTML chịu trách nhiệm.",
+              "sourceReferences": []
+            }
+            """;
+    }
+
+    private String htmlNoDisclaimer() {
+        return """
+            {
+              "schemaVersion": 2, "rendererCode": "HTML_WEBVIEW",
+              "rendererVersion": 1, "title": "Bạch Đằng HTML",
+              "sourceReferences": [],
+              "html": {"filename": "bd.html", "sizeBytes": 12345, "sha256": "%s"}
+            }
+            """.formatted(SHA);
+    }
+
+    private String htmlWithSteps() {
+        return """
+            {
+              "schemaVersion": 2, "rendererCode": "HTML_WEBVIEW",
+              "rendererVersion": 1, "title": "Bạch Đằng HTML",
+              "disclaimer": "Nội dung do tác giả HTML chịu trách nhiệm.",
+              "sourceReferences": [],
+              "html": {"filename": "bd.html", "sizeBytes": 12345, "sha256": "%s"},
+              "steps": [{"id": "s1", "title": "x"}]
+            }
+            """.formatted(SHA);
+    }
+
+    @Test
+    void htmlWebviewValidatesCleanly() {
+        var errs = run(htmlManifest(SHA), htmlTemplate());
+        assertTrue(errs.isEmpty(), () -> "html manifest must validate: " + errs);
+    }
+
+    @Test
+    void htmlWebviewRejectsMissingHtmlSection() {
+        var errs = run(htmlNoSection(), htmlTemplate());
+        assertTrue(errs.stream().anyMatch(
+                e -> e.path().contains("html") && e.code().equals("MISSING_FIELD")),
+                () -> "expected html MISSING_FIELD, got: " + errs);
+    }
+
+    @Test
+    void htmlWebviewRejectsBadSha256() {
+        var errs = run(htmlManifest("nothex"), htmlTemplate());
+        assertTrue(errs.stream().anyMatch(
+                e -> e.path().contains("sha256")),
+                () -> "expected sha256 error, got: " + errs);
+    }
+
+    @Test
+    void htmlWebviewRejectsManifestSteps() {
+        var errs = run(htmlWithSteps(), htmlTemplate());
+        assertTrue(errs.stream().anyMatch(
+                e -> e.code().equals("UNKNOWN_FIELD")),
+                () -> "expected UNKNOWN_FIELD for steps, got: " + errs);
+    }
+
+    @Test
+    void htmlWebviewRejectsMissingDisclaimer() {
+        var errs = run(htmlNoDisclaimer(), htmlTemplate());
+        assertTrue(errs.stream().anyMatch(
+                e -> e.path().contains("disclaimer")),
+                () -> "expected disclaimer error, got: " + errs);
+    }
+
+    @Test
+    void htmlWebviewEmptySourceReferencesAllowed() {
+        var errs = run(htmlManifest(SHA), htmlTemplate());
+        // Unlike generic renderers, empty sourceReferences is allowed.
+        assertTrue(errs.stream().noneMatch(
+                e -> e.path().contains("sourceReferences")),
+                () -> "empty sourceReferences must not error for HTML: " + errs);
+    }
 }

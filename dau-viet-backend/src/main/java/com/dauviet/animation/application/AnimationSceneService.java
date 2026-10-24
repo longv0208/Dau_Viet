@@ -51,6 +51,7 @@ public class AnimationSceneService {
     private final AnimationSceneVersionRepository versions;
     private final HistoricalEventRepository events;
     private final AnimationManifestValidator manifestValidator;
+    private final AnimationHtmlService htmlService;
     private final AnimationMapper mapper;
     private final ObjectMapper objectMapper;
 
@@ -59,6 +60,7 @@ public class AnimationSceneService {
                                  AnimationSceneVersionRepository versions,
                                  HistoricalEventRepository events,
                                  AnimationManifestValidator manifestValidator,
+                                 AnimationHtmlService htmlService,
                                  AnimationMapper mapper,
                                  ObjectMapper objectMapper) {
         this.scenes = scenes;
@@ -66,6 +68,7 @@ public class AnimationSceneService {
         this.versions = versions;
         this.events = events;
         this.manifestValidator = manifestValidator;
+        this.htmlService = htmlService;
         this.mapper = mapper;
         this.objectMapper = objectMapper;
     }
@@ -173,7 +176,11 @@ public class AnimationSceneService {
         copy.setCreatedBy(adminId);
         copy.setUpdatedBy(adminId);
         AnimationTemplate t = templates.findById(src.getTemplateId()).orElse(null);
-        return mapper.toSceneResponse(scenes.saveAndFlush(copy), t, versions);
+        AnimationScene saved = scenes.saveAndFlush(copy);
+        // HTML_WEBVIEW: fork the draft html row too — duplicated scenes must
+        // never share one mutable draft document.
+        htmlService.copyDraftHtml(id, saved.getId());
+        return mapper.toSceneResponse(saved, t, versions);
     }
 
     @Transactional

@@ -53,6 +53,7 @@ public class AnimationScenePublishService {
     private final AssetRepository assets;
     private final AnimationManifestValidator validator;
     private final ObjectMapper objectMapper;
+    private final AnimationHtmlService htmlService;
 
     public AnimationScenePublishService(AnimationSceneRepository scenes,
                                         AnimationTemplateRepository templates,
@@ -60,7 +61,8 @@ public class AnimationScenePublishService {
                                         AnimationSceneAssetRefRepository assetRefs,
                                         AssetRepository assets,
                                         AnimationManifestValidator validator,
-                                        ObjectMapper objectMapper) {
+                                        ObjectMapper objectMapper,
+                                        AnimationHtmlService htmlService) {
         this.scenes = scenes;
         this.templates = templates;
         this.versions = versions;
@@ -68,6 +70,7 @@ public class AnimationScenePublishService {
         this.assets = assets;
         this.validator = validator;
         this.objectMapper = objectMapper;
+        this.htmlService = htmlService;
     }
 
     /** Publish the current draft as a new immutable version. */
@@ -123,6 +126,12 @@ public class AnimationScenePublishService {
         version.setPublishedAt(Instant.now());
         version.setPublishedBy(adminId);
         AnimationSceneVersion saved = versions.saveAndFlush(version);
+
+        // HTML_WEBVIEW: copy the draft HTML into an immutable version row —
+        // the snapshot_json only carries metadata (sha256/size/filename).
+        if ("HTML_WEBVIEW".equals(template.getRendererCode())) {
+            htmlService.snapshotHtmlForVersion(sceneId, saved.getId());
+        }
 
         // Record asset references for the ASSET_IN_USE retirement check.
         for (AssetRef ref : collectAssetRefs(manifest)) {

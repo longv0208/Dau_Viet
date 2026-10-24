@@ -69,7 +69,7 @@ export interface SceneValidationResult {
 /* ---------- Manifest (draftJson) ---------- */
 
 /** Whitelisted values — khớp AnimationManifestSchema backend. */
-export const RENDERER_CODES = ["RIVER_TIDE", "JOURNEY_MAP"] as const;
+export const RENDERER_CODES = ["RIVER_TIDE", "JOURNEY_MAP", "HTML_WEBVIEW"] as const;
 export const EASINGS = ["linear", "easeIn", "easeOut", "easeInOut", "easeInOutCubic"] as const;
 export const EFFECTS = ["HIGHLIGHT", "PULSE", "SHAKE", "FADE_IN", "FADE_OUT", "SHOW_SEQUENCE_SUMMARY", "REVEAL"] as const;
 export const INTERACTION_CODES = ["WATER_LEVEL_CONTROL", "TAP_TO_EXPLORE", "PREDICTION"] as const;
@@ -241,6 +241,8 @@ export interface AnimationManifest {
   effects?: SceneEffect[];
   audio?: AudioCue[];
   environment?: EnvironmentConfig;
+  /** HTML_WEBVIEW — metadata file tải lên; bytes không nằm trong manifest. */
+  html?: { filename?: string; sizeBytes: number; sha256: string };
 }
 
 /** Kiểm tra manifest có v2 keys — validator backend bắt schemaVersion>=2. */

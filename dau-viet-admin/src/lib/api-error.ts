@@ -66,6 +66,8 @@ export function toUserMessage(err: unknown): string {
         return "Dữ liệu đã bị sửa đồng thời — tải lại để lấy bản mới nhất";
       case "DRAFT_SCHEMA_INVALID":
         return "Bản nháp chưa hợp lệ — xem danh sách lỗi chi tiết";
+      case "ANIMATION_HTML_INVALID":
+        return "Tệp HTML không hợp lệ — xem chi tiết lỗi trong thông báo";
       case "LESSON_NOT_PUBLISHED":
         return "Bài học chưa được xuất bản";
       default:

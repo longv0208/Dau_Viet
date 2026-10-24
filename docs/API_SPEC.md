@@ -243,6 +243,10 @@ Access token: JWT HS256 (sub = user UUID, claim `role`); access TTL mặc địn
 | POST | `/admin/animation-scenes/{id}/archive` | →ARCHIVED (giữ version cũ, không republish) — **implemented** |
 | GET | `/admin/animation-scenes/{id}/versions` | List `SceneVersionSummary[]` non-paginated — **implemented** |
 | GET | `/admin/animation-scenes/{id}/versions/{versionId}` | Version detail + `snapshotJson` — **implemented** |
+| POST | `/admin/animation-scenes/html-import` | `multipart/form-data` field `file` (`.html`, ≤15MB default) + query `title?`, `eventId?` → tạo scene `HTML_WEBVIEW` DRAFT; 422 `ANIMATION_HTML_INVALID` kèm `details.errors[]` khi file vi phạm — **implemented (V19)** |
+| PUT | `/admin/animation-scenes/{id}/html-draft` | `multipart/form-data` `file` + `expectedRowVersion` → thay draft HTML của scene `HTML_WEBVIEW`; 409 stale row, 400 scene sai loại — **implemented (V19)** |
+| GET | `/admin/animation-scenes/{id}/html-draft` | Trả `text/html` bytes draft (preview admin; scene `HTML_WEBVIEW` only, 404 khi chưa có draft) — **implemented (V19)** |
+| GET | `/api/v1/animation-versions/{versionId}/html` | Learner fetch HTML đã publish: `text/html; charset=utf-8`, `X-Content-Type-Options: nosniff`, CSP `default-src 'none'; script-src 'unsafe-inline'; style-src 'unsafe-inline'; img-src data:; media-src data:; font-src data:`, `Cache-Control: private, max-age=3600` — **implemented (V19)** |
 
 ### Notes đã chốt — Animation Engine (TASK mới 2026-10-23)
 
@@ -262,6 +266,7 @@ Access token: JWT HS256 (sub = user UUID, claim `role`); access TTL mặc địn
 - `READ.config`: `animationSceneId` + `animationSceneVersionId` + `playbackMode ∈ {AUTO,STEPPED,INTERACTIVE}` — loại trừ lẫn nhau với legacy `animationKey` (`INVALID_TYPE` khi cả hai cùng tồn tại); `animationSceneId`/`animationSceneVersionId` phải là UUID (`INVALID_ID`), `animationSceneVersionId` phải tồn tại và thuộc cùng scene (`ANIMATION_SCENE_VERSION_MISMATCH`), `animationSceneId` phải trỏ scene `PUBLISHED` (`ANIMATION_SCENE_NOT_PUBLISHED`).
 - `POST /{id}/validate` luôn 200 `{ready,errors:[{path,code,message}]}`; `POST /{id}/publish` validate rồi ghi version mới (pessimistic lock trên scene + `UNIQUE(scene_id,version_no)` backstop); `PATCH` cần `expectedRowVersion` khớp → 409 `OPTIMISTIC_LOCK_CONFLICT`.
 - Scene ARCHIVED → publish/update bị chặn `INVALID_STATUS_TRANSITION`; version cũ vẫn đọc được qua `/{id}/versions/{versionId}`.
+- **HTML_WEBVIEW (V19, kèm `docs/HTML_ANIMATION_GUIDE.md`)**: rendererCode thứ ba; `draft_json` chỉ mang `{schemaVersion:2, rendererCode:'HTML_WEBVIEW', title, disclaimer, sourceReferences[], html{filename,sizeBytes,sha256}}` — bytes trong `animation_scene_html`/`animation_scene_version_html`, KHÔNG trong JSONB. `HtmlDocumentValidator` chặn external refs (`script/link/img src http|./`, `fetch`, `XHR`, `import()`, `WebSocket`, `sendBeacon`, `window.open`, `meta refresh`, iframe ngoài) — 422 `ANIMATION_HTML_INVALID` `details.errors[]` (path/code/message + số dòng). Publish copy draft→version TX; learner endpoint serve bytes từ version table (immutable trigger).
 
 ### Notes đã chốt TASK-0008
 

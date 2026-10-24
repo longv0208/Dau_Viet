@@ -111,4 +111,10 @@ class LearningApiClient {
   /// GET /api/v1/assets/{id}/content — bytes ảnh có Bearer.
   Future<List<int>> getAssetBytes(String assetId) =>
       _client.getBytes('/api/v1/assets/$assetId/content');
+
+  /// GET /api/v1/animation-versions/{versionId}/html — bytes HTML của
+  /// scene version đã publish (Bearer trong header — WebView không bao
+  /// giờ thấy token; bytes đi qua Dart rồi loadHtmlString).
+  Future<List<int>> getAnimationHtmlBytes(String versionId) =>
+      _client.getBytes('/api/v1/animation-versions/$versionId/html');
 }

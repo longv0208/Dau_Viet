@@ -34,8 +34,10 @@ import com.dauviet.animation.api.dto.AnimationDtos.SceneUpdateRequest;
 import com.dauviet.animation.api.dto.AnimationDtos.SceneValidationResponse;
 import com.dauviet.animation.api.dto.AnimationDtos.SceneVersionDetail;
 import com.dauviet.animation.api.dto.AnimationDtos.SceneVersionSummary;
+import com.dauviet.animation.application.AnimationHtmlService;
 import com.dauviet.animation.application.AnimationScenePublishService;
 import com.dauviet.animation.application.AnimationSceneService;
+import com.dauviet.animation.domain.AnimationSceneHtml;
 import com.dauviet.animation.domain.AnimationSceneStatus;
 import com.dauviet.auth.domain.AuthenticationFailedException;
 import com.dauviet.common.api.PageResponse;
@@ -56,11 +58,14 @@ public class AdminAnimationSceneController {
 
     private final AnimationSceneService service;
     private final AnimationScenePublishService publishService;
+    private final AnimationHtmlService htmlService;
 
     public AdminAnimationSceneController(AnimationSceneService service,
-                                         AnimationScenePublishService publishService) {
+                                         AnimationScenePublishService publishService,
+                                         AnimationHtmlService htmlService) {
         this.service = service;
         this.publishService = publishService;
+        this.htmlService = htmlService;
     }
 
     @PostMapping
@@ -121,6 +126,63 @@ public class AdminAnimationSceneController {
                                    @AuthenticationPrincipal Jwt jwt) {
         Long expected = req == null ? null : req.expectedRowVersion();
         return publishService.publish(id, expected, adminId(jwt));
+    }
+
+    /* ---------- HTML_WEBVIEW import/draft ---------- */
+
+    /**
+     * One-file import: upload a self-contained .html and get a new
+     * HTML_WEBVIEW scene in DRAFT status. No template/manifest/camera
+     * forms — the file IS the animation.
+     */
+    @PostMapping(path = "/html-import",
+            consumes = org.springframework.http.MediaType.MULTIPART_FORM_DATA_VALUE)
+    @ResponseStatus(HttpStatus.CREATED)
+    public SceneResponse importHtml(
+            @org.springframework.web.bind.annotation.RequestPart("file")
+            org.springframework.web.multipart.MultipartFile file,
+            @RequestParam(required = false) String title,
+            @RequestParam(required = false) UUID eventId,
+            @AuthenticationPrincipal Jwt jwt) {
+        return htmlService.importHtml(file, title, eventId, adminId(jwt));
+    }
+
+    /** Replace the draft HTML (published versions stay immutable). */
+    @org.springframework.web.bind.annotation.PutMapping(
+            path = "/{id}/html-draft",
+            consumes = org.springframework.http.MediaType.MULTIPART_FORM_DATA_VALUE)
+    public SceneResponse replaceHtmlDraft(
+            @PathVariable UUID id,
+            @org.springframework.web.bind.annotation.RequestPart("file")
+            org.springframework.web.multipart.MultipartFile file,
+            @RequestParam(required = false) Long expectedRowVersion,
+            @AuthenticationPrincipal Jwt jwt) {
+        return htmlService.replaceHtmlDraft(id, file, expectedRowVersion, adminId(jwt));
+    }
+
+    /**
+     * Draft HTML for the admin sandboxed preview iframe. Served as data —
+     * restrictive CSP + nosniff; the iframe sandbox attribute does the
+     * actual isolation.
+     */
+    @GetMapping("/{id}/html-draft")
+    public org.springframework.http.ResponseEntity<String> draftHtml(
+            @PathVariable UUID id) {
+        AnimationSceneHtml draft = htmlService.getDraftHtml(id);
+        return org.springframework.http.ResponseEntity.ok()
+                .contentType(org.springframework.http.MediaType.parseMediaType(
+                        "text/html; charset=utf-8"))
+                .header(org.springframework.http.HttpHeaders.CONTENT_DISPOSITION,
+                        "inline")
+                .header("X-Content-Type-Options", "nosniff")
+                .header(org.springframework.http.HttpHeaders.CACHE_CONTROL,
+                        "no-store")
+                .header("Content-Security-Policy",
+                        "default-src 'none'; script-src 'unsafe-inline'; "
+                                + "style-src 'unsafe-inline'; img-src data:; "
+                                + "media-src data:; font-src data:; "
+                                + "connect-src 'none'; frame-ancestors 'none'")
+                .body(draft.getContent());
     }
 
     @GetMapping("/{id}/versions")

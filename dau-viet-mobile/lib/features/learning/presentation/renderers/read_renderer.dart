@@ -6,6 +6,7 @@ import '../../data/attempt_dtos.dart';
 import '../animations/historical_animation_definition.dart';
 import '../animations/historical_animation_player.dart';
 import '../animations/historical_animation_registry.dart';
+import '../animations/html_animation_player.dart';
 import '../animations/runtime/animation_manifest_dto.dart';
 import '../animations/runtime/animation_runtime_registry.dart';
 import '../animations/runtime/cinematic_state.dart';
@@ -20,11 +21,17 @@ class ReadRenderer extends StatelessWidget {
   final bool submitting;
   final Future<void> Function(Map<String, dynamic>) onSubmit;
 
+  /// Test seam: thay player HTML để widget-test không cần WebViewPlatform.
+  /// Production để null → `_HtmlSceneSlot` tự dựng `HtmlAnimationPlayer`.
+  final Widget Function(String sceneVersionId, AnimationManifestDto manifest)?
+      htmlPlayerFactory;
+
   const ReadRenderer({
     super.key,
     required this.activity,
     required this.submitting,
     required this.onSubmit,
+    this.htmlPlayerFactory,
   });
 
   @override
@@ -80,6 +87,14 @@ class ReadRenderer extends StatelessWidget {
       config['animationManifest'],
     );
     final manifestDto = parseRes.dto;
+
+    // HTML_WEBVIEW — nhánh riêng trước runtime registry: scene HTML không
+    // build thành HistoricalAnimationDefinition (không steps/painter);
+    // player là WebView fetch bytes theo sceneVersionId pin trong
+    // envelope. Manifest phải có html.sha256 + envelope có sceneVersionId.
+    final bool isHtmlScene =
+        manifestDto?.rendererCode == 'HTML_WEBVIEW' &&
+            manifestDto?.html != null;
     final manifestRenderer = manifestDto == null
         ? null
         : AnimationRuntimeRegistry.resolve(manifestDto.rendererCode);
@@ -113,7 +128,15 @@ class ReadRenderer extends StatelessWidget {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
-        if (animation != null) ...[
+        if (isHtmlScene) ...[
+          _HtmlSceneSlot(
+            key: ValueKey('html_anim_${activity.id}'),
+            config: config,
+            manifest: manifestDto!,
+            playerFactory: htmlPlayerFactory,
+          ),
+          const SizedBox(height: 14),
+        ] else if (animation != null) ...[
           // Keyed theo animationKey + activity id: đổi activity → dispose
           // controller cũ, không rò state giữa các bài.
           //
@@ -292,6 +315,45 @@ class _UnsupportedAnimationNotice extends StatelessWidget {
           ),
         ],
       ),
+    );
+  }
+}
+
+/// Đọc sceneVersionId từ envelope `config.animationManifest` (do
+/// SnapshotBuilder embed: {manifest, sceneVersionId, versionNo, ...})
+/// rồi mount HtmlAnimationPlayer. Thiếu versionId → notice an toàn
+/// thay vì fetch mù.
+class _HtmlSceneSlot extends StatelessWidget {
+  final Map<String, dynamic> config;
+  final AnimationManifestDto manifest;
+  final Widget Function(String sceneVersionId, AnimationManifestDto manifest)?
+      playerFactory;
+
+  const _HtmlSceneSlot({
+    super.key,
+    required this.config,
+    required this.manifest,
+    this.playerFactory,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final Object? envelope = config['animationManifest'];
+    final String? versionId = envelope is Map
+        ? envelope['sceneVersionId'] as String?
+        : null;
+    if (versionId == null || versionId.isEmpty) {
+      return _UnsupportedAnimationNotice(title: manifest.title);
+    }
+    if (playerFactory != null) {
+      return playerFactory!(versionId, manifest);
+    }
+    return HtmlAnimationPlayer(
+      sceneVersionId: versionId,
+      manifest: manifest,
+      aspectRatio: manifest.canvasAspectRatio > 0
+          ? manifest.canvasAspectRatio
+          : 16 / 10,
     );
   }
 }

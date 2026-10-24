@@ -2,7 +2,7 @@
 
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import Link from "next/link";
-import { useState } from "react";
+import { useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 
 import { DataTable, type Column } from "@/components/data-table";
@@ -13,6 +13,7 @@ import { Select } from "@/components/ui/select";
 import { qk } from "@/lib/query-keys";
 
 import { animationApi } from "./animation-api";
+import { HtmlImportDropzone } from "./html-import-dropzone";
 import type { AnimationSceneSummary } from "./animation-types";
 
 const STATUS_LABELS: Record<string, string> = {
@@ -25,6 +26,7 @@ const STATUS_LABELS: Record<string, string> = {
 const RENDERER_LABELS: Record<string, string> = {
   RIVER_TIDE: "Sông & thủy triều",
   JOURNEY_MAP: "Hành trình bản đồ",
+  HTML_WEBVIEW: "Hoạt họa HTML",
 };
 
 /**
@@ -37,6 +39,8 @@ export function AnimationLibrary() {
   const [q, setQ] = useState("");
   const [status, setStatus] = useState("");
   const [page, setPage] = useState(0);
+  const [importOpen, setImportOpen] = useState(false);
+  const importBusy = useRef(false);
 
   const query = useQuery({
     queryKey: qk.animationScenes.list({ page, size: 20, status, q }),
@@ -64,7 +68,15 @@ export function AnimationLibrary() {
     mutationFn: (id: string) => animationApi.archiveScene(id),
     onSuccess: invalidate,
   });
-  const actionError = duplicate.error ?? archive.error;
+  const htmlImport = useMutation({
+    mutationFn: (file: File) => animationApi.importHtmlScene(file),
+    onSuccess: (scene) => {
+      invalidate();
+      setImportOpen(false);
+      router.push(`/animations/${scene.id}/edit`);
+    },
+  });
+  const actionError = duplicate.error ?? archive.error ?? htmlImport.error;
 
   const rows = query.data?.content ?? [];
 
@@ -177,7 +189,36 @@ export function AnimationLibrary() {
             </option>
           ))}
         </Select>
+        <Button
+          variant="outline"
+          size="sm"
+          onClick={() => setImportOpen((v) => !v)}
+        >
+          {importOpen ? "Đóng tải HTML" : "Tải hoạt họa HTML lên"}
+        </Button>
       </div>
+
+      {importOpen && (
+        <div className="max-w-xl">
+          <HtmlImportDropzone
+            disabled={htmlImport.isPending}
+            onFile={(file) => {
+              if (importBusy.current) return;
+              importBusy.current = true;
+              htmlImport.mutate(file, {
+                onSettled: () => {
+                  importBusy.current = false;
+                },
+              });
+            }}
+          />
+          {htmlImport.isPending && (
+            <p className="mt-2 text-xs text-ink-muted">
+              Đang tải lên và kiểm tra tệp…
+            </p>
+          )}
+        </div>
+      )}
 
       {actionError && (
         <p role="alert" className="rounded-md border border-error/40 bg-error/5 px-3 py-2 text-xs text-error">

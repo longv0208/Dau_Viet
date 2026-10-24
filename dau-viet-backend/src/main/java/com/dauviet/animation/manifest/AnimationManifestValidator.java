@@ -28,6 +28,8 @@ public class AnimationManifestValidator {
 
     private static final Pattern ID_PATTERN =
             Pattern.compile("[a-z0-9][a-z0-9-]{0,63}");
+    private static final Pattern SHA256_PATTERN =
+            Pattern.compile("[0-9a-f]{64}");
 
     private final AssetRepository assets;
 
@@ -111,6 +113,14 @@ public class AnimationManifestValidator {
         } else if (text(manifest, "title").length() > MAX_TITLE) {
             errors.add(err("manifest.title", "TOO_LONG",
                     "title exceeds " + MAX_TITLE + " chars"));
+        }
+
+        // (5b) HTML_WEBVIEW — self-contained document; the manifest only
+        // carries metadata. No steps/assets/objects/river/map — skip the
+        // whole generic section pipeline below.
+        if ("HTML_WEBVIEW".equals(rendererCode)) {
+            validateHtmlManifest(manifest, errors);
+            return errors;
         }
 
         // (6) canvas — optional; when present requires aspect ratio or dims.
@@ -354,6 +364,60 @@ public class AnimationManifestValidator {
         }
 
         return errors;
+    }
+
+    /* ---------- HTML_WEBVIEW ---------- */
+
+    /**
+     * HTML manifest = metadata only; html{} pins the uploaded file by
+     * sha256. Stricter top-level whitelist than generic renderers —
+     * steps/assets/objects/river/map are meaningless here. sourceReferences
+     * may be empty (provenance lives in the file itself); disclaimer stays
+     * required.
+     */
+    private void validateHtmlManifest(JsonNode manifest,
+                                      List<ManifestFieldError> errors) {
+        Set<String> htmlKeys = Set.of("schemaVersion", "rendererCode",
+                "rendererVersion", "title", "learningObjective", "disclaimer",
+                "sourceReferences", "html");
+        for (var it = manifest.fieldNames(); it.hasNext();) {
+            String key = it.next();
+            if (!htmlKeys.contains(key)) {
+                errors.add(err("manifest." + key, "UNKNOWN_FIELD",
+                        "field '" + key + "' is not allowed for HTML_WEBVIEW"));
+            }
+        }
+        JsonNode refs = manifest.get("sourceReferences");
+        if (refs != null && !refs.isArray()) {
+            errors.add(err("manifest.sourceReferences", "INVALID_TYPE",
+                    "sourceReferences must be an array"));
+        }
+        if (text(manifest, "disclaimer") == null
+                || text(manifest, "disclaimer").isBlank()) {
+            errors.add(err("manifest.disclaimer", "MISSING_FIELD",
+                    "disclaimer is required"));
+        }
+        checkLen(manifest, "disclaimer", "manifest.disclaimer", MAX_TEXT, errors);
+        JsonNode html = manifest.get("html");
+        if (html == null || !html.isObject()) {
+            errors.add(err("manifest.html", "MISSING_FIELD",
+                    "html section {filename,sizeBytes,sha256} is required"));
+            return;
+        }
+        JsonNode size = html.get("sizeBytes");
+        if (size == null || !size.isIntegralNumber() || size.asLong() <= 0) {
+            errors.add(err("manifest.html.sizeBytes", "INVALID_VALUE",
+                    "html.sizeBytes must be a positive integer"));
+        }
+        String sha = text(html, "sha256");
+        if (sha == null || !SHA256_PATTERN.matcher(sha).matches()) {
+            errors.add(err("manifest.html.sha256", "INVALID_VALUE",
+                    "html.sha256 must be a 64-char hex string"));
+        }
+        if (html.has("filename") && !html.get("filename").isTextual()) {
+            errors.add(err("manifest.html.filename", "INVALID_TYPE",
+                    "html.filename must be a string"));
+        }
     }
 
     /* ---------- v2: camera ---------- */

@@ -3,8 +3,10 @@ server:
 spring:
   servlet:
     multipart:
-      max-file-size: 10MB
-      max-request-size: 12MB
+      # 16/18MB — self-contained HTML animation files cap at ~15MB (with
+      # inline data-URI media), so the generic 10MB multipart cap is too small.
+      max-file-size: 16MB
+      max-request-size: 18MB
   application:
     name: dau-viet-backend
   jpa:
@@ -44,3 +46,7 @@ dauviet:
   assets:
     # Local-dev upload dir; production swaps to object storage behind the same contentUrl.
     dir: ${DAUVIET_ASSETS_DIR:data/assets}
+  animations:
+    html:
+      # Hard cap for self-contained .html uploads (15MB default).
+      max-bytes: ${DAUVIET_ANIMATION_HTML_MAX_BYTES:15728640}

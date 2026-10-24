@@ -22,7 +22,8 @@ public final class AnimationManifestSchema {
     public static final int CURRENT_SCHEMA_VERSION = 2;
 
     /** Renderers this backend + the mobile runtime both support. */
-    public static final Set<String> RENDERER_CODES = Set.of("RIVER_TIDE", "JOURNEY_MAP");
+    public static final Set<String> RENDERER_CODES = Set.of(
+            "RIVER_TIDE", "JOURNEY_MAP", "HTML_WEBVIEW");
 
     /** Whitelisted object types inside manifest.objects[]. */
     public static final Set<String> OBJECT_TYPES = Set.of(
@@ -70,7 +71,8 @@ public final class AnimationManifestSchema {
             "learningObjective", "canvas", "assets", "objects", "initialState",
             "steps", "interactions", "narration", "prediction",
             "sourceReferences", "disclaimer", "river", "map",
-            "camera", "tracks", "effects", "audio", "environment");
+            "camera", "tracks", "effects", "audio", "environment",
+            "html");
 
     /** Keys that mark a manifest as v2 — presence requires schemaVersion >= 2. */
     public static final Set<String> V2_KEYS = Set.of(

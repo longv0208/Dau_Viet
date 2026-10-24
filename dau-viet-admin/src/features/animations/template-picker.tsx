@@ -16,6 +16,7 @@ import { RENDERER_CODES, emptyManifest, type AnimationTemplateDto } from "./anim
 const RENDERER_LABELS: Record<string, string> = {
   RIVER_TIDE: "Sông & thủy triều",
   JOURNEY_MAP: "Hành trình bản đồ",
+  HTML_WEBVIEW: "Hoạt họa HTML",
 };
 
 const RENDERER_DESCRIPTIONS: Record<string, string> = {
@@ -36,8 +37,12 @@ export function TemplatePicker() {
     queryKey: qk.animationTemplates.list({ enabled: true }),
     queryFn: () => animationApi.listTemplates({ enabled: true, size: 100 }),
     select: (page) =>
-      page.content.filter((t) =>
-        (RENDERER_CODES as readonly string[]).includes(t.rendererCode),
+      page.content.filter(
+        (t) =>
+          (RENDERER_CODES as readonly string[]).includes(t.rendererCode) &&
+          // HTML_WEBVIEW không qua luồng "tạo cảnh rỗng" — scene được sinh ra
+          // từ file tải lên (nút "Tải hoạt họa HTML lên" trong thư viện).
+          t.rendererCode !== "HTML_WEBVIEW",
       ),
   });
 

@@ -1,4 +1,4 @@
-import type { NextRequest } from "next/server";
+﻿import type { NextRequest } from "next/server";
 import { NextResponse } from "next/server";
 
 import { REFRESH_COOKIE } from "@/lib/server/refresh-cookie";
@@ -6,7 +6,7 @@ import { REFRESH_COOKIE } from "@/lib/server/refresh-cookie";
 /**
  * Presence-only guard: without the dv_refresh cookie there is no session at
  * all, so protected paths bounce to /login. Role enforcement happens
- * server-side in the backend and in (admin)/layout.tsx — never decode JWT here.
+ * server-side in the backend and in (admin)/layout.tsx â€” never decode JWT here.
  */
 export function middleware(req: NextRequest) {
   if (req.cookies.has(REFRESH_COOKIE)) return NextResponse.next();
@@ -19,5 +19,5 @@ export function middleware(req: NextRequest) {
 }
 
 export const config = {
-  matcher: ["/dashboard/:path*", "/events/:path*", "/lessons/:path*", "/templates/:path*", "/assets/:path*", "/versions/:path*"],
+  matcher: ["/dashboard/:path*", "/events/:path*", "/lessons/:path*", "/templates/:path*", "/assets/:path*", "/versions/:path*", "/animations/:path*"],
 };
