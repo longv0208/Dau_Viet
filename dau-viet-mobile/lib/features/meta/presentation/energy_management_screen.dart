@@ -1,25 +1,106 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
+
 import '../../../core/theme/dau_viet_colors.dart';
 import '../../../core/theme/dau_viet_typography.dart';
+import '../../../core/widgets/async_state_view.dart';
 import '../../../core/widgets/dong_son_button.dart';
 import '../../../core/widgets/parchment_card.dart';
+import '../../energy/data/energy_dto.dart';
+import '../../energy/data/energy_providers.dart';
 
-/// Màn hình M-28: Quản Lý Năng Lượng & Viện Thái Y (Energy Management Screen)
-/// Khớp 100% với đặc tả trong MOBILE_SCREEN_DESIGN.md & UI_COMPONENT_SPEC.md
-class EnergyManagementScreen extends StatefulWidget {
+/// Màn hình M-28: Quản Lý Năng Lượng & Viện Thái Y (Energy Management)
+/// GAME-03: toàn bộ số liệu đến từ GET /me/energy — không còn state giả;
+/// countdown tính theo serverTime (bù clock skew), chỉ refresh khi chạm 0.
+class EnergyManagementScreen extends ConsumerStatefulWidget {
   const EnergyManagementScreen({super.key});
 
   @override
-  State<EnergyManagementScreen> createState() => _EnergyManagementScreenState();
+  ConsumerState<EnergyManagementScreen> createState() =>
+      _EnergyManagementScreenState();
 }
 
-class _EnergyManagementScreenState extends State<EnergyManagementScreen> {
-  int _currentEnergy = 80;
-  final int _maxEnergy = 100;
+class _EnergyManagementScreenState
+    extends ConsumerState<EnergyManagementScreen>
+    with WidgetsBindingObserver {
+  /// Timer 1s CHỈ cập nhật phần hiển thị countdown — không gọi API.
+  Timer? _ticker;
+
+  /// Chống refresh chồng khi countdown chạm 0 (timer tick tiếp theo không
+  /// lên lịch thêm request nữa cho tới khi fetch xong).
+  bool _refreshingAtZero = false;
+
+  @override
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addObserver(this);
+    // Mở màn → đảm bảo dữ liệu mới nhất (invalidateSelf nếu đã có cache).
+    // refresh() đã swallow lỗi vào AsyncError — UI hiển thị error view.
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) return;
+      ref.read(energyProvider.notifier).refresh();
+    });
+  }
+
+  /// Đồng bộ ticker với trạng thái hiện tại: chỉ tick khi THỰC SỰ có mốc
+  /// hồi để đếm (đầy/lỗi/loading → không timer → pumpAndSettle/test OK,
+  /// không tốn CPU vô ích). Mỗi tick chỉ rebuild phần hiển thị — không
+  /// gọi API.
+  void _syncTicker(EnergyStateDto? dto) {
+    final bool needTick = dto?.timeUntilNextRecovery() != null;
+    if (needTick && _ticker == null) {
+      _ticker = Timer.periodic(const Duration(seconds: 1), (_) {
+        if (!mounted) return;
+        setState(() {}); // chỉ rebuild phần countdown
+        _maybeRefreshAtZero();
+      });
+    } else if (!needTick) {
+      _ticker?.cancel();
+      _ticker = null;
+    }
+  }
+
+  @override
+  void dispose() {
+    _ticker?.cancel();
+    WidgetsBinding.instance.removeObserver(this);
+    super.dispose();
+  }
+
+  /// App quay lại foreground → refetch trạng thái server (recovery có thể
+  /// đã trôi qua nhiều chu kỳ khi app nằm nền).
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    if (state == AppLifecycleState.resumed && mounted) {
+      ref.read(energyProvider.notifier).refresh();
+    }
+  }
+
+  /// Countdown chạm 0 → gọi lại GET /me/energy MỘT lần để lấy trạng thái
+  /// authoritative (có thể đã +5 hoặc đầy). Không tự cộng vào state.
+  void _maybeRefreshAtZero() {
+    if (_refreshingAtZero) return;
+    final dto = ref.read(energyProvider).value;
+    final remain = dto?.timeUntilNextRecovery();
+    if (dto == null || remain == null || remain > Duration.zero) return;
+    _refreshingAtZero = true;
+    ref
+        .read(energyProvider.notifier)
+        .refresh()
+        .whenComplete(() => _refreshingAtZero = false);
+  }
 
   @override
   Widget build(BuildContext context) {
+    final energyAsync = ref.watch(energyProvider);
+    // Ticker chỉ tồn tại khi thật sự có mốc hồi để đếm — data lỗi /
+    // đầy / chưa có nextRecoveryAt → huỷ timer (không tick vô ích,
+    // không cản pumpAndSettle trong test).
+    ref.listen(energyProvider, (_, next) => _syncTicker(next.value));
+
     return Scaffold(
       backgroundColor: DauVietColors.parchmentSurface,
       body: Container(
@@ -37,72 +118,63 @@ class _EnergyManagementScreenState extends State<EnergyManagementScreen> {
         child: SafeArea(
           child: Column(
             children: [
-              // 1. Thanh tiêu đề trên cùng
               _buildTopBar(context),
-
-              // 2. Nội dung cuộn chính
               Expanded(
-                child: SingleChildScrollView(
-                  physics: const BouncingScrollPhysics(),
-                  padding: const EdgeInsets.symmetric(
-                    horizontal: 16,
-                    vertical: 12,
+                child: energyAsync.when(
+                  loading: () => const Center(
+                    child: SizedBox(
+                      width: 26,
+                      height: 26,
+                      child: CircularProgressIndicator(strokeWidth: 2),
+                    ),
                   ),
-                  child: Column(
-                    children: [
-                      // 3. Khung Thước Đo Năng Lượng Hero
-                      _buildEnergyGaugeHero(),
-                      const SizedBox(height: 16),
-
-                      // 4. Các Liệu Pháp Phục Hồi Viện Thái Y
-                      _buildRemediesList(),
-                      const SizedBox(height: 16),
-
-                      // 5. Lời Dặn Của Ngự Y
-                      _buildPhysicianAdviceCard(),
-                      const SizedBox(height: 20),
-
-                      // 6. Cặp Nút Hành Động
-                      DongSonButton(
-                        label: 'HỒI PHỤC NGAY QUA CÂU ĐỐ SỬ HỌC ›',
-                        icon: Icons.quiz_rounded,
-                        variant: DongSonButtonVariant.primaryCinnabar,
-                        height: 52,
-                        onPressed: () {
-                          setState(() {
-                            _currentEnergy = (_currentEnergy + 20).clamp(
-                              0,
-                              _maxEnergy,
-                            );
-                          });
-                          ScaffoldMessenger.of(context).showSnackBar(
-                            const SnackBar(
-                              content: Text(
-                                'Đã phục hồi +20 Thể Lực qua Tĩnh Tâm Ôn Luyện!',
-                              ),
-                              backgroundColor: DauVietColors.natureGreen,
-                            ),
-                          );
-                        },
+                  error: (e, _) => Center(
+                    child: Padding(
+                      padding: const EdgeInsets.all(24),
+                      child: AsyncStateView.error(
+                        error: e,
+                        onRetry: () =>
+                            ref.read(energyProvider.notifier).refresh(),
                       ),
-                      const SizedBox(height: 10),
-                      DongSonButton(
-                        label: 'VỀ BÀN HỌC TẬP (DASHBOARD)',
-                        icon: Icons.home_rounded,
-                        variant: DongSonButtonVariant.secondaryParchment,
-                        height: 48,
-                        onPressed: () {
-                          context.go('/dashboard');
-                        },
-                      ),
-                      const SizedBox(height: 16),
-                    ],
+                    ),
                   ),
+                  data: (dto) => _buildContent(context, dto),
                 ),
               ),
             ],
           ),
         ),
+      ),
+    );
+  }
+
+  Widget _buildContent(BuildContext context, EnergyStateDto dto) {
+    return SingleChildScrollView(
+      physics: const BouncingScrollPhysics(),
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+      child: Column(
+        children: [
+          _buildEnergyGaugeHero(dto),
+          const SizedBox(height: 16),
+          _buildRemediesList(),
+          const SizedBox(height: 16),
+          _buildPhysicianAdviceCard(),
+          const SizedBox(height: 20),
+          DongSonButton(
+            label: 'VỀ BÀN HỌC TẬP (DASHBOARD)',
+            icon: Icons.home_rounded,
+            variant: DongSonButtonVariant.secondaryParchment,
+            height: 48,
+            onPressed: () {
+              if (context.canPop()) {
+                context.pop();
+              } else {
+                context.go('/dashboard');
+              }
+            },
+          ),
+          const SizedBox(height: 16),
+        ],
       ),
     );
   }
@@ -187,9 +259,13 @@ class _EnergyManagementScreenState extends State<EnergyManagementScreen> {
     );
   }
 
-  // Khung thước đo năng lượng Hero
-  Widget _buildEnergyGaugeHero() {
-    final double percent = _currentEnergy / _maxEnergy;
+  // Khung thước đo năng lượng Hero — số liệu thật từ server.
+  Widget _buildEnergyGaugeHero(EnergyStateDto dto) {
+    final double percent = dto.fraction;
+    final Color barColor = dto.isDepleted
+        ? DauVietColors.cinnabarRed
+        : (percent < 0.3 ? const Color(0xFFC05621) : DauVietColors.natureGreen);
+    final Duration? remain = dto.timeUntilNextRecovery();
 
     return ParchmentCard(
       backgroundColor: const Color(0xFFFBF4E4),
@@ -200,9 +276,11 @@ class _EnergyManagementScreenState extends State<EnergyManagementScreen> {
         children: [
           Row(
             children: [
-              const Icon(
+              Icon(
                 Icons.bolt_rounded,
-                color: DauVietColors.cinnabarRed,
+                color: dto.isDepleted
+                    ? DauVietColors.cinnabarRed
+                    : DauVietColors.imperialGold,
                 size: 24,
               ),
               const SizedBox(width: 6),
@@ -219,18 +297,19 @@ class _EnergyManagementScreenState extends State<EnergyManagementScreen> {
               ),
               const SizedBox(width: 8),
               Text(
-                '$_currentEnergy / $_maxEnergy',
+                '${dto.current} / ${dto.max}',
                 style: DauVietTypography.labelMedium.copyWith(
                   fontWeight: FontWeight.w900,
                   fontSize: 16,
-                  color: DauVietColors.inkText,
+                  color: dto.isDepleted
+                      ? DauVietColors.cinnabarRed
+                      : DauVietColors.inkText,
                 ),
               ),
             ],
           ),
           const SizedBox(height: 12),
 
-          // Thanh tiến trình sinh lực
           ClipRRect(
             borderRadius: BorderRadius.circular(8),
             child: LinearProgressIndicator(
@@ -239,14 +318,15 @@ class _EnergyManagementScreenState extends State<EnergyManagementScreen> {
               backgroundColor: DauVietColors.outlineVariant.withValues(
                 alpha: 0.4,
               ),
-              valueColor: const AlwaysStoppedAnimation<Color>(
-                DauVietColors.natureGreen,
-              ),
+              valueColor: AlwaysStoppedAnimation<Color>(barColor),
             ),
           ),
           const SizedBox(height: 12),
 
+          // Trạng thái hồi phục: đầy / cạn / đang đếm ngược — số liệu
+          // server, không tự suy quy tắc.
           Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               const Icon(
                 Icons.timelapse_rounded,
@@ -254,91 +334,128 @@ class _EnergyManagementScreenState extends State<EnergyManagementScreen> {
                 color: DauVietColors.inkMuted,
               ),
               const SizedBox(width: 4),
-              Expanded(
-                child: Text(
-                  '+1 Thể lực / 30 phút',
-                  style: DauVietTypography.bodySmall.copyWith(
-                    fontSize: 11,
-                    color: DauVietColors.inkMuted,
-                  ),
-                  overflow: TextOverflow.ellipsis,
-                ),
-              ),
-              const SizedBox(width: 8),
-              Text(
-                'Đủ học 4 bài (-20/bài)',
-                style: DauVietTypography.labelSmall.copyWith(
-                  fontSize: 11,
-                  fontWeight: FontWeight.w700,
-                  color: DauVietColors.natureGreen,
-                ),
-              ),
+              Expanded(child: _recoveryLine(dto, remain)),
             ],
           ),
+          if (dto.isDepleted) ...[
+            const SizedBox(height: 10),
+            Container(
+              width: double.infinity,
+              padding: const EdgeInsets.all(10),
+              decoration: BoxDecoration(
+                color: DauVietColors.cinnabarRed.withValues(alpha: 0.08),
+                borderRadius: BorderRadius.circular(8),
+                border: Border.all(
+                  color: DauVietColors.cinnabarRed.withValues(alpha: 0.4),
+                ),
+              ),
+              child: Text(
+                'Thể lực đã cạn. Bạn vẫn có thể đọc tư liệu và ôn tập '
+                'trong lúc chờ hồi phục.',
+                style: DauVietTypography.bodySmall.copyWith(
+                  color: DauVietColors.cinnabarRed,
+                  fontSize: 11.5,
+                  height: 1.35,
+                ),
+              ),
+            ),
+          ],
         ],
       ),
     );
   }
 
-  // Danh sách các liệu pháp hồi phục
+  Widget _recoveryLine(EnergyStateDto dto, Duration? remain) {
+    final String rate = dto.recoveryIntervalMinutes > 0
+        ? '+${dto.recoveryAmount} Thể lực mỗi ${dto.recoveryIntervalMinutes} phút'
+        : 'Hồi phục theo cấu hình máy chủ';
+    if (dto.isFull) {
+      return Text(
+        '$rate — Thể lực đã đầy',
+        style: DauVietTypography.bodySmall.copyWith(
+          fontSize: 11,
+          color: DauVietColors.natureGreen,
+          fontWeight: FontWeight.w700,
+        ),
+      );
+    }
+    if (remain == null) {
+      return Text(
+        rate,
+        style: DauVietTypography.bodySmall.copyWith(
+          fontSize: 11,
+          color: DauVietColors.inkMuted,
+        ),
+      );
+    }
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(
+          rate,
+          style: DauVietTypography.bodySmall.copyWith(
+            fontSize: 11,
+            color: DauVietColors.inkMuted,
+          ),
+        ),
+        const SizedBox(height: 2),
+        Text(
+          'Hồi tiếp sau ${_formatCountdown(remain)}',
+          style: DauVietTypography.labelSmall.copyWith(
+            fontSize: 11.5,
+            fontWeight: FontWeight.w800,
+            color: DauVietColors.riverBlue,
+          ),
+        ),
+      ],
+    );
+  }
+
+  String _formatCountdown(Duration d) {
+    final int total = d.inSeconds;
+    final int h = total ~/ 3600;
+    final int m = (total % 3600) ~/ 60;
+    final int s = total % 60;
+    if (h > 0) {
+      return '${h.toString().padLeft(2, '0')}:'
+          '${m.toString().padLeft(2, '0')}:'
+          '${s.toString().padLeft(2, '0')}';
+    }
+    return '${m.toString().padLeft(2, '0')}:${s.toString().padLeft(2, '0')}';
+  }
+
+  // Danh sách liệu pháp — GAME-03: giữ thiết kế nhưng KHÔNG cho tương
+  // tác/cộng năng lượng giả. Wallet/chi tiêu chưa có backend (GAME-07)
+  // nên mọi item hiển thị trạng thái "Sắp mở".
   Widget _buildRemediesList() {
     final remedies = [
       {
-        'title': 'Tĩnh Tâm Ôn Luyện (Nước Vối Miễn Phí)',
-        'desc':
-            'Bát nước vối ấm lành tính giúp sĩ tử giải nhiệt, thư giãn gân cốt.',
-        'reward': '+20 Thể Lực',
-        'cost': 'Miễn phí',
+        'title': 'Nước Vối Tĩnh Tâm',
+        'desc': 'Bát nước vối ấm lành tính giúp sĩ tử thư giãn gân cốt.',
         'assetImage': 'assets/items/energy_nuoc_voi.png',
         'icon': Icons.psychology_rounded,
         'color': DauVietColors.natureGreen,
-        'onTap': () {
-          setState(() {
-            _currentEnergy = (_currentEnergy + 20).clamp(0, _maxEnergy);
-          });
-        },
       },
       {
-        'title': 'Trà Sen Tây Hồ (Dưỡng Thần)',
-        'desc': 'Trà sen ướp hương thơm ngát giúp tinh thần minh mẫn tức thì.',
-        'reward': '+50 Thể Lực',
-        'cost': '50 Điểm Sử Ký',
+        'title': 'Trà Sen Tây Hồ',
+        'desc': 'Trà sen ướp hương thơm ngát giúp tinh thần minh mẫn.',
         'assetImage': 'assets/items/energy_tra_sen.png',
         'icon': Icons.local_cafe_rounded,
         'color': DauVietColors.imperialGold,
-        'onTap': () {
-          setState(() {
-            _currentEnergy = (_currentEnergy + 50).clamp(0, _maxEnergy);
-          });
-        },
       },
       {
         'title': 'Nấm Linh Chi Ngự Dược',
-        'desc': 'Thảo dược đại bổ triều đình bồi bổ nguyên khí, chống mỏi mệt.',
-        'reward': '+80 Thể Lực',
-        'cost': '80 Đồng Cổ',
+        'desc': 'Thảo dược đại bổ triều đình bồi bổ nguyên khí.',
         'assetImage': 'assets/items/energy_linh_chi.png',
         'icon': Icons.spa_rounded,
         'color': const Color(0xFFC05621),
-        'onTap': () {
-          setState(() {
-            _currentEnergy = (_currentEnergy + 80).clamp(0, _maxEnergy);
-          });
-        },
       },
       {
         'title': 'Sâm Ngọc Linh Hoàng Gia',
-        'desc': 'Bảo vật sâm rừng nghìn năm phục hồi 100% sinh lực tức thì.',
-        'reward': 'Hồi Đầy 100%',
-        'cost': '120 Đồng Cổ',
+        'desc': 'Bảo vật sâm rừng nghìn năm phục hồi sinh lực tức thì.',
         'assetImage': 'assets/items/energy_sam_ngoc_linh.png',
         'icon': Icons.stars_rounded,
         'color': DauVietColors.cinnabarRed,
-        'onTap': () {
-          setState(() {
-            _currentEnergy = _maxEnergy;
-          });
-        },
       },
     ];
 
@@ -366,102 +483,118 @@ class _EnergyManagementScreenState extends State<EnergyManagementScreen> {
         const SizedBox(height: 10),
 
         ...remedies.map((rem) {
-          return InkWell(
-            onTap: rem['onTap'] as VoidCallback,
-            borderRadius: BorderRadius.circular(10),
-            child: Container(
-              margin: const EdgeInsets.only(bottom: 10),
-              padding: const EdgeInsets.all(12),
-              decoration: BoxDecoration(
-                color: Colors.white.withValues(alpha: 0.9),
-                borderRadius: BorderRadius.circular(10),
-                border: Border.all(
-                  color: (rem['color'] as Color).withValues(alpha: 0.5),
-                  width: 1.2,
-                ),
+          return Container(
+            margin: const EdgeInsets.only(bottom: 10),
+            padding: const EdgeInsets.all(12),
+            decoration: BoxDecoration(
+              color: Colors.white.withValues(alpha: 0.9),
+              borderRadius: BorderRadius.circular(10),
+              border: Border.all(
+                color: (rem['color'] as Color).withValues(alpha: 0.5),
+                width: 1.2,
               ),
-              child: Row(
-                children: [
-                  Container(
-                    width: 48,
-                    height: 48,
-                    padding: const EdgeInsets.all(4),
-                    decoration: BoxDecoration(
-                      color: Colors.white,
-                      borderRadius: BorderRadius.circular(8),
-                      border: Border.all(
-                        color: (rem['color'] as Color).withValues(alpha: 0.4),
-                        width: 1.2,
-                      ),
+            ),
+            child: Row(
+              children: [
+                Container(
+                  width: 48,
+                  height: 48,
+                  padding: const EdgeInsets.all(4),
+                  decoration: BoxDecoration(
+                    color: Colors.white,
+                    borderRadius: BorderRadius.circular(8),
+                    border: Border.all(
+                      color: (rem['color'] as Color).withValues(alpha: 0.4),
+                      width: 1.2,
                     ),
-                    child: Image.asset(
-                      rem['assetImage'] as String,
-                      fit: BoxFit.contain,
-                      errorBuilder: (context, error, stackTrace) => Container(
-                        decoration: BoxDecoration(
-                          color: (rem['color'] as Color).withValues(
-                            alpha: 0.15,
-                          ),
-                          borderRadius: BorderRadius.circular(6),
-                        ),
-                        child: Icon(
-                          rem['icon'] as IconData,
-                          color: rem['color'] as Color,
-                          size: 22,
-                        ),
+                  ),
+                  child: Image.asset(
+                    rem['assetImage'] as String,
+                    fit: BoxFit.contain,
+                    errorBuilder: (context, error, stackTrace) => Container(
+                      decoration: BoxDecoration(
+                        color: (rem['color'] as Color).withValues(alpha: 0.15),
+                        borderRadius: BorderRadius.circular(6),
+                      ),
+                      child: Icon(
+                        rem['icon'] as IconData,
+                        color: rem['color'] as Color,
+                        size: 22,
                       ),
                     ),
                   ),
-                  const SizedBox(width: 10),
-                  Expanded(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text(
-                          rem['title'] as String,
-                          style: DauVietTypography.labelSmall.copyWith(
-                            fontWeight: FontWeight.w800,
-                            color: DauVietColors.inkText,
-                          ),
-                        ),
-                        const SizedBox(height: 2),
-                        Text(
-                          rem['desc'] as String,
-                          style: DauVietTypography.bodySmall.copyWith(
-                            fontSize: 10.5,
-                            color: DauVietColors.inkMuted,
-                            height: 1.3,
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
-                  const SizedBox(width: 8),
-                  Column(
-                    crossAxisAlignment: CrossAxisAlignment.end,
+                ),
+                const SizedBox(width: 10),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
                       Text(
-                        rem['reward'] as String,
+                        rem['title'] as String,
                         style: DauVietTypography.labelSmall.copyWith(
                           fontWeight: FontWeight.w800,
-                          color: rem['color'] as Color,
-                          fontSize: 11.5,
+                          color: DauVietColors.inkText,
                         ),
                       ),
+                      const SizedBox(height: 2),
                       Text(
-                        rem['cost'] as String,
+                        rem['desc'] as String,
                         style: DauVietTypography.bodySmall.copyWith(
-                          fontSize: 10,
+                          fontSize: 10.5,
                           color: DauVietColors.inkMuted,
+                          height: 1.3,
                         ),
                       ),
                     ],
                   ),
-                ],
-              ),
+                ),
+                const SizedBox(width: 8),
+                Container(
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 8,
+                    vertical: 4,
+                  ),
+                  decoration: BoxDecoration(
+                    color: DauVietColors.outlineVariant.withValues(alpha: 0.4),
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                  child: Text(
+                    'Sắp mở',
+                    style: DauVietTypography.labelSmall.copyWith(
+                      fontSize: 10,
+                      fontWeight: FontWeight.w800,
+                      color: DauVietColors.inkMuted,
+                    ),
+                  ),
+                ),
+              ],
             ),
           );
         }),
+
+        // GAME-03: chưa có Wallet Service — liệu pháp bằng Điểm Sử Ký
+        // chỉ công bố, không CTA mua.
+        Container(
+          width: double.infinity,
+          padding: const EdgeInsets.all(10),
+          decoration: BoxDecoration(
+            color: const Color(0xFFF9F1E2),
+            borderRadius: BorderRadius.circular(8),
+            border: Border.all(
+              color: DauVietColors.imperialGold.withValues(alpha: 0.6),
+            ),
+          ),
+          child: Text(
+            'Liệu pháp hồi phục bằng Điểm Sử Ký sẽ được mở ở bản cập '
+            'nhật tiếp theo.',
+            textAlign: TextAlign.center,
+            style: DauVietTypography.bodySmall.copyWith(
+              fontSize: 11,
+              fontStyle: FontStyle.italic,
+              color: DauVietColors.inkMuted,
+            ),
+          ),
+        ),
       ],
     );
   }
@@ -481,7 +614,7 @@ class _EnergyManagementScreenState extends State<EnergyManagementScreen> {
           Row(
             children: [
               const Icon(
-                Icons.favorite_rounded,
+                Icons.spa_rounded,
                 color: DauVietColors.cinnabarRed,
                 size: 18,
               ),
@@ -501,7 +634,9 @@ class _EnergyManagementScreenState extends State<EnergyManagementScreen> {
           ),
           const SizedBox(height: 6),
           Text(
-            '“Học sử cần tinh tấn nhưng dưỡng thần cần điều hòa. Nghỉ ngơi tĩnh tâm giữa các đợt khảo cứu để tâm trí luôn sáng suốt, hào khí luôn tràn đầy.”',
+            '“Học sử cần tinh tấn nhưng dưỡng thần cần điều hòa. '
+            'Nghỉ ngơi tĩnh tâm giữa các đợt khảo cứu để tâm trí luôn '
+            'sáng suốt, hào khí luôn tràn đầy.”',
             style: DauVietTypography.bodySmall.copyWith(
               color: DauVietColors.inkText,
               fontStyle: FontStyle.italic,

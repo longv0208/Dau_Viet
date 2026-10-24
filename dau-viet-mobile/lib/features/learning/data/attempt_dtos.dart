@@ -2,6 +2,7 @@
 /// Mọi trường free-form JSON (config/feedback/result/detail) giữ Map thô.
 library;
 
+import '../../energy/data/energy_dto.dart';
 import '../../rewards/data/reward_dtos.dart';
 
 class AttemptProgressDto {
@@ -205,6 +206,16 @@ class SubmitResultDto {
   final NextRefDto? next;
   final CompletionVerdictDto completion;
 
+  /// GAME-03 (additive): số Thể lực server đã trừ cho submission này
+  /// (0 khi ungraded/PARTIAL/flag tắt; có thể < penalty khi clamp ở 0).
+  /// KHÔNG suy balance mới = old - deducted — server có thể lazy-recover
+  /// trước khi trừ; dùng [energy] để biết balance authoritative.
+  final int energyDeducted;
+
+  /// GAME-03 (additive): snapshot Thể lực SAU submit — balance authoritative.
+  /// Null trên server version cũ / mock → caller fallback refresh GET.
+  final EnergyStateDto? energy;
+
   const SubmitResultDto({
     required this.status,
     required this.evaluation,
@@ -212,6 +223,8 @@ class SubmitResultDto {
     required this.progress,
     this.next,
     required this.completion,
+    this.energyDeducted = 0,
+    this.energy,
   });
 
   factory SubmitResultDto.fromJson(Map<String, dynamic> json) =>
@@ -232,6 +245,12 @@ class SubmitResultDto {
         completion: CompletionVerdictDto.fromJson(
           (json['completion'] as Map?)?.cast<String, dynamic>(),
         ),
+        energyDeducted: (json['energyDeducted'] as num?)?.toInt() ?? 0,
+        energy: json['energy'] is Map
+            ? EnergyStateDto.fromJson(
+                (json['energy'] as Map).cast<String, dynamic>(),
+              )
+            : null,
       );
 }
 

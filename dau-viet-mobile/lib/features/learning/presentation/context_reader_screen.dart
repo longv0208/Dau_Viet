@@ -200,10 +200,11 @@ class _ContextReaderScreenState extends State<ContextReaderScreen> {
           ),
           const SoundToggleButton(),
           const SizedBox(width: 8),
-          const EnergyPill(
+          EnergyPill(
             energy: 100,
             maxEnergy: 100,
             showHistoryPoints: false,
+            onEnergyTap: () => context.go('/energy'),
           ),
         ],
       ),

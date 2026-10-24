@@ -40,12 +40,14 @@ const _learningPrefixes = [
   '/learning/result/',
   '/map',
   '/collection',
+  '/energy',
 ];
 
 /// Màn demo-only (nội dung hard-code, không có backend thật): giữ trong
 /// USE_MOCK; real mode redirect về dashboard để không lộ dữ liệu bịa.
 /// Reward screens M-18/19/21 cần attemptId hợp lệ — real mode không có.
-/// Timeline/Sa Bàn tường thuật + Năng lượng (EnergyPill giả) là demo.
+/// Timeline/Sa Bàn tường thuật là demo. GAME-03: /energy đã có backend
+/// thật → bỏ khỏi danh sách, gate auth qua _learningPrefixes.
 /// Đảo Di Sản (/island) và Túi Đồ (/inventory) là sở hữu/trang trí THẬT
 /// (nguồn /me/inventory) — KHÔNG gate ở đây, để learner mở được mọi lúc.
 const _demoOnlyPrefixes = [
@@ -54,7 +56,6 @@ const _demoOnlyPrefixes = [
   '/rewards/artifact',
   '/timeline',
   '/saban',
-  '/energy',
 ];
 
 /// Bộ định tuyến toàn cục của Dấu Việt Mobile (go_router)

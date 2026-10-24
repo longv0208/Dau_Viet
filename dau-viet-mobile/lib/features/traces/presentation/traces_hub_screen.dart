@@ -220,10 +220,11 @@ class TracesHubScreen extends StatelessWidget {
               ],
             ),
           ),
-          const EnergyPill(
+          EnergyPill(
             energy: 100,
             maxEnergy: 100,
             showHistoryPoints: false,
+            onEnergyTap: () => context.go('/energy'),
           ),
         ],
       ),

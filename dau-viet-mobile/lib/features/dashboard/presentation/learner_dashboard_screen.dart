@@ -232,19 +232,14 @@ class _LearnerDashboardScreenState
             ),
           ),
           const SizedBox(width: 8),
-          // Energy/điểm chỉ là số liệu demo — ẩn hoàn toàn ở real mode
-          // thay vì hiển thị số dư giả cho learner thật.
-          if (ApiConfig.useMock)
-            GestureDetector(
-              onTap: () {
-                context.go('/energy');
-              },
-              child: const EnergyPill(
-                energy: 100,
-                maxEnergy: 100,
-                historyPoints: 150,
-              ),
-            ),
+          // GAME-03: EnergyPill đọc provider thật ở real mode (mock mode
+          // giữ số demo). Bấm → Viện Thái Y.
+          EnergyPill(
+            energy: 100,
+            maxEnergy: 100,
+            historyPoints: 150,
+            onEnergyTap: () => context.go('/energy'),
+          ),
         ],
       ),
     );

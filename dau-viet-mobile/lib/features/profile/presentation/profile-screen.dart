@@ -76,13 +76,15 @@ class ProfileScreen extends ConsumerWidget {
                             label: 'Đảo di sản',
                             onTap: () => context.go('/island'),
                           ),
-                          // Năng lượng (EnergyPill) vẫn hard-code → chỉ demo.
-                          if (ApiConfig.useMock)
-                            _MenuTile(
-                              icon: Icons.bolt_outlined,
-                              label: 'Năng lượng (demo)',
-                              onTap: () => context.go('/energy'),
-                            ),
+                          // GAME-03: Viện Thái Y có backend thật — mở
+                          // cho cả real mode (mock gắn nhãn demo).
+                          _MenuTile(
+                            icon: Icons.bolt_outlined,
+                            label: ApiConfig.useMock
+                                ? 'Viện Thái Y (demo)'
+                                : 'Viện Thái Y — Thể lực',
+                            onTap: () => context.go('/energy'),
+                          ),
                           const SizedBox(height: 16),
                           const _SectionLabel('TÀI KHOẢN'),
                           const SizedBox(height: 8),

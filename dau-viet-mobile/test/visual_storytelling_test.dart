@@ -1,9 +1,15 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:dau_viet_mobile/core/widgets/ambient_atmosphere_overlay.dart';
 import 'package:dau_viet_mobile/core/widgets/interactive_historical_mascot_widget.dart';
+import 'package:dau_viet_mobile/features/energy/data/energy_providers.dart';
 import 'package:dau_viet_mobile/features/learning/presentation/context_reader_screen.dart';
 import 'package:dau_viet_mobile/features/learning/presentation/multiple_choice_quiz_screen.dart';
+import 'package:dau_viet_mobile/features/rewards/data/reward_dtos.dart';
+import 'package:dau_viet_mobile/features/rewards/data/reward_providers.dart';
+
+import 'fakes/fake_energy_repository.dart';
 
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
@@ -117,7 +123,23 @@ void main() {
     testWidgets('ContextReaderScreen renders with mascot guide', (
       tester,
     ) async {
-      await tester.pumpWidget(const MaterialApp(home: ContextReaderScreen()));
+      // ProviderScope + fake energy repo: EnergyPill trong header giờ đọc
+      // energyProvider (GAME-03) — override để không gọi HTTP thật.
+      await tester.pumpWidget(
+        ProviderScope(
+          overrides: [
+            energyRepositoryProvider.overrideWithValue(
+              FakeEnergyRepository(),
+            ),
+            // EnergyPill watch rewardSummaryProvider — trả giá trị tĩnh
+            // để không gọi HTTP thật trong widget test.
+            rewardSummaryProvider.overrideWith(
+              (ref) async => RewardSummaryDto.empty,
+            ),
+          ],
+          child: const MaterialApp(home: ContextReaderScreen()),
+        ),
+      );
 
       expect(find.byType(InteractiveHistoricalMascotWidget), findsOneWidget);
       expect(find.byType(AmbientAtmosphereOverlay), findsOneWidget);

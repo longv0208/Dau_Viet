@@ -180,9 +180,13 @@ class CampaignDetailScreen extends ConsumerWidget {
               ],
             ),
           ),
-          // Energy/điểm sử ký là cơ chế demo — chưa có backend thật.
-          if (ApiConfig.useMock)
-            const EnergyPill(energy: 100, maxEnergy: 100, historyPoints: 150),
+          // Energy/điểm sử ký từ provider thật (mock mode dùng số demo).
+          EnergyPill(
+            energy: 100,
+            maxEnergy: 100,
+            historyPoints: 150,
+            onEnergyTap: () => context.go('/energy'),
+          ),
         ],
       ),
     );

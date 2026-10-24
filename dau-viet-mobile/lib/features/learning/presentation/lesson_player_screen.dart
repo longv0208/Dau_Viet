@@ -14,6 +14,8 @@ import '../../../core/widgets/parchment_card.dart';
 import '../../../core/widgets/shimmer_progress_bar.dart';
 import '../../../core/widgets/sound_toggle_button.dart';
 import '../../collection/data/collection_providers.dart';
+import '../../energy/data/energy_dto.dart';
+import '../../energy/data/energy_providers.dart';
 import '../../map/data/map_providers.dart';
 import '../../rewards/data/reward_providers.dart';
 import '../data/attempt_dtos.dart';
@@ -192,6 +194,11 @@ class _LessonPlayerScreenState extends ConsumerState<LessonPlayerScreen> {
       // Response authoritative đã về: submission này kết thúc — submit kế
       // (kể cả cùng payload) là attempt mới, cần key mới.
       _needsFreshKey = true;
+      // GAME-03: đồng bộ Thể lực từ snapshot server — KHÔNG suy từ
+      // energyDeducted (server có thể đã lazy-recover trước khi trừ).
+      if (res.energy != null) {
+        ref.read(energyProvider.notifier).applySnapshot(res.energy!);
+      }
       // TASK-0023: submit EVIDENCE_SELECT cập nhật collection trong cùng
       // transaction và evaluator có thể đã mở vật phẩm COLLECTION_COUNT —
       // invalidate catalog/summary để Túi Đồ phản ánh unlock mới nhất.
@@ -202,6 +209,10 @@ class _LessonPlayerScreenState extends ConsumerState<LessonPlayerScreen> {
       _applyResult(res);
     } on ApiException catch (e) {
       if (!mounted) return;
+      if (e.error.code == 'ENERGY_DEPLETED') {
+        _handleEnergyDepleted(e);
+        return;
+      }
       if (e.error.code == 'IDEMPOTENCY_CONFLICT') {
         // Key đã gắn với payload khác phía server. Đây KHÔNG phải lỗi
         // network mơ hồ: không auto-resubmit — server state đã authoritative.
@@ -220,6 +231,90 @@ class _LessonPlayerScreenState extends ConsumerState<LessonPlayerScreen> {
       }
       _showSubmitError(e);
     }
+  }
+
+  /// GAME-03 §8.5 — 409 ENERGY_DEPLETED: submission KHÔNG được ghi nhận.
+  /// Giữ nguyên input/cursor/progress; đồng bộ provider từ error details;
+  /// dialog thân thiện có countdown từ server + lối sang Viện Thái Y.
+  /// Submit trước đã trả response authoritative (hoặc đây là lần submit
+  /// đầu bị từ chối) → submission kế cần key mới khi learner retry.
+  void _handleEnergyDepleted(ApiException e) {
+    _needsFreshKey = true;
+    final details = e.error.details;
+    if (details is Map) {
+      final m = details.cast<String, dynamic>();
+      if (m['currentEnergy'] is num) {
+        ref.read(energyProvider.notifier).applySnapshot(
+          EnergyStateDto(
+            current: (m['currentEnergy'] as num).toInt(),
+            max: ref.read(energyProvider).value?.max ?? 100,
+            nextRecoveryAt: m['nextRecoveryAt'] is String
+                ? DateTime.tryParse(m['nextRecoveryAt'] as String)
+                : null,
+            serverTime: m['serverTime'] is String
+                ? DateTime.tryParse(m['serverTime'] as String)
+                : null,
+            canSubmitGraded: false,
+          ),
+        );
+      }
+    }
+    setState(() {
+      _state = _state!.copyWith(submitting: false);
+    });
+    _showEnergyDepletedDialog(e.error.details);
+  }
+
+  void _showEnergyDepletedDialog(Object? details) {
+    String waitLine = 'Thể lực sẽ tự hồi sau ít phút.';
+    if (details is Map) {
+      final m = details.cast<String, dynamic>();
+      final nextRaw = m['nextRecoveryAt'];
+      final serverRaw = m['serverTime'];
+      if (nextRaw is String) {
+        final next = DateTime.tryParse(nextRaw);
+        final serverNow = serverRaw is String
+            ? DateTime.tryParse(serverRaw)
+            : null;
+        if (next != null) {
+          // Ưu tiên serverTime để bù skew thiết bị; fallback đồng hồ máy.
+          final base = serverNow ?? DateTime.now().toUtc();
+          final remain = next.difference(base.toUtc());
+          final secs = remain.isNegative ? 0 : remain.inSeconds;
+          final mm = secs ~/ 60;
+          final ss = secs % 60;
+          waitLine = mm > 0
+              ? 'Hệ thống sẽ tự hồi +5 Thể lực sau khoảng $mm phút '
+                    '${ss > 0 ? '$ss giây ' : ''}nữa.'
+              : 'Hệ thống sẽ tự hồi +5 Thể lực sau $ss giây nữa.';
+        }
+      }
+    }
+    showDialog<void>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('Hết Thể lực'),
+        content: Text(
+          'Bạn đã hết Thể lực cho các câu hỏi được chấm điểm.\n\n'
+          '$waitLine\n\n'
+          'Bạn vẫn có thể xem lại tư liệu và các hoạt động không chấm '
+          'điểm trong lúc chờ.',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(ctx).pop(),
+            child: const Text('Ở LẠI XEM TIẾP'),
+          ),
+          TextButton(
+            onPressed: () {
+              Navigator.of(ctx).pop();
+              context.push('/energy');
+            },
+            child: const Text('VIỆN THÁI Y'),
+          ),
+        ],
+      ),
+    );
   }
 
   void _showSubmitError(ApiException e) {
@@ -284,11 +379,18 @@ class _LessonPlayerScreenState extends ConsumerState<LessonPlayerScreen> {
         // Retry đã cạn (output.exhausted) → không hứa "thử lại" — server
         // sẽ advance cursor; learner chỉ được đi tiếp.
         final bool exhausted = res.evaluation.output?['exhausted'] == true;
+        final String base =
+            authored ??
+            (exhausted
+                ? 'Chưa chính xác — đã hết lượt thử. Đi tiếp nhé.'
+                : 'Chưa đúng, hãy thử lại.');
+        // GAME-03: chỉ nối mức trừ khi server thực sự debit (>0) —
+        // có thể <10 nếu clamp ở số dư thấp; PARTIAL/flag tắt → 0 →
+        // không hiển thị phạt.
         return _Feedback(
-          authored ??
-              (exhausted
-                  ? 'Chưa chính xác — đã hết lượt thử. Đi tiếp nhé.'
-                  : 'Chưa đúng, hãy thử lại.'),
+          res.energyDeducted > 0
+              ? '$base −${res.energyDeducted} Thể lực'
+              : base,
           _FeedbackTone.error,
         );
       default:

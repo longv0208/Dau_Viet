@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:go_router/go_router.dart';
 import '../theme/dau_viet_colors.dart';
 import '../theme/dau_viet_typography.dart';
 import 'energy_pill.dart';
@@ -68,6 +69,7 @@ class HeritageScaffold extends StatelessWidget {
                     child: EnergyPill(
                       energy: energy,
                       historyPoints: historyPoints,
+                      onEnergyTap: () => context.go('/energy'),
                     ),
                   ),
                 const Padding(
