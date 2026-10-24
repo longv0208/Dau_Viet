@@ -21,22 +21,25 @@
 - `task.json`: status `in_progress` (không done); AC-2 slug-resolution; AC-3 sửa "ENTER/LOOP/EXIT" → "single ENTER cue on estuary"; blockedReason/nextAction thật.
 - `brief.md`: provenance REVIEW_REQUIRED (chưa verify độc lập); ghi rõ thuyền/cọc procedural (không sprite thật), background raster 1 lớp (không parallax), audio overview không phải VO từng beat, interaction whitelist từng bước.
 
-### P0 — playback state machine (đợt verify này, FIX-01)
-- Mount: `_initialIdle=true` → scene đứng ĐẦU beat 0 (`initialState` + camera pose t=0), KHÔNG fire audio cue, KHÔNG chạy tween. Reduced-motion (`disableAnimations`) nhảy END-state beat 0 qua `didChangeDependencies` — `initState` không được đọc `MediaQuery` (dependOnInheritedWidget throw trong initState).
-- Initial PHÁT: `_initialIdle=false` → `_applyStep(_stepIndex)` animate + fire ENTER đúng một lần. Tween đã bị learner hủy giữa chừng (kéo tay water, reveal prediction, chạm marker) KHÔNG chạy lại — `_controller.value` dở dang làm tín hiệu, PHÁT chỉ bật `_playing` + đặt timer, giữ giá trị learner đã chọn.
-- `_togglePlay` phân biệt: PAUSE chủ động (`_tweenPaused`) → resume `forward()` nối tiếp; hủy giữa chừng → không resume/settle.
-- `historical_animation_player.dart`: `_applyStep` thêm `fireAudio` param; `_goTo` chỉ fire ENTER khi `_playing`; `_skip`/`_replay` seek tĩnh không fire ENTER; `_replayAudio` chỉ cháy khi `_playing` sau finish.
+### P0 — playback state machine (MASTER FIX, đợt 2 — refactor toàn diện)
+- `PlaybackStatus` enum thay scattered booleans: `idle/playing/paused/interactionHold/awaitingPrediction/finished/skipped` — `_stepIndex==last` KHÔNG còn bị nhầm là finished; FINISHED là trạng thái riêng set khi AUTO hết timeline.
+- Contract tách bạch: `_seekStepStart` (reset về đầu bước, không audio/timer), `_applyStepEnd` (seek tĩnh cuối bước, skip/reduced-motion), `_startStepPlayback` (animate + fire ENTER — điểm DUY NHẤT audio ENTER cháy), `_animateStepTransition` (navigation tween 1 lần, không audio/autoplay), `_transitionAudio` (EXIT/ENTER chỉ khi `fireAudio`).
+- `_togglePlay` switch đầy đủ 7 trạng thái: pause hủy timer + `onPause` + freeze tween (`_resumeTween`); resume nối tween đóng băng; idle→`_startStepPlayback`; interactionHold→giữ giá trị learner (không forward, không re-prepare); awaitingPrediction→chỉ tiếp khi đã reveal; finished/skipped→replay.
+- Replay: `restoreFrom(seededPainter)` copy mọi mutable field (river: waterLevel/boatProgress/boatsObstructed/highlightStakes/decoyProgress/counterattackProgress/showSequenceSummary; map: markerVisibility/routeProgress/highlightedIds/focusedId) vào painter hiện tại — KHÔNG tạo painter mới, giữ listener. `playAfter=false` (paused/idle) = seek tĩnh beat 0; `playAfter=true` = `_audio.onSkip()` dọn session + phát beat 0 + ENTER một lần.
+- Manual interaction (`_setWater`/`_selectLocation`/`_revealPrediction`) → `interactionHold`: tween bị HỦY có chủ đích (`_resumeTween=false`), Play giữ giá trị learner, không settle.
+- `_goTo` navigation: playing → `_startStepPlayback` (animate + ENTER/EXIT + timer); chờ → `_animateStepTransition` (tween một lần, silent); finished/skipped → về idle.
+- Test mới `playback_state_machine_test.dart` 7/7: replay reset river/map painter về initialState; last-step pause→Play resume bước cuối (không replay); finished→Play replay từ đầu; single-step lifecycle; manual-hold giữ giá trị; replay-paused rồi Play chạy beat 0.
 
-### P0 — audio lifecycle (FIX-02)
+### P0 — audio lifecycle (FIX-02 + đợt 2)
 - Mount không auto-play: `fireAudio=false` trong `initState`, `_ensureAudio` lazy khi ENTER đầu tiên fire.
 - `onPause` pause `_loopPlayer` + tất cả `_oneShotPlayers`; `onResume` resume cả hai — fix bug `_loopPlayer == null` bỏ qua resume one-shot (scene chỉ ENTER không LOOP → narration không bao giờ resume). One-shot pause rồi resume = tiếp tục vị trí, không replay từ đầu.
-- `onSkip`/`dispose` stop mọi player + abort pending fetch (generation + `_exitEpoch`).
-- `_replayAudio` gating `_playing` — replay là seek tĩnh không phát narration khi learner chưa PHÁT lại.
+- `onSkip`/`dispose` stop mọi player + abort pending fetch (generation + `_exitEpoch`) + clear `_pendingOneShots`.
+- Đợt 2 — pending one-shot: `_playOnce` nhận `stale` closure, re-check sau MỖI await (stop/setReleaseMode/setVolume) — pause xen giữa config không còn phát âm lệch hình; cue bị chặn bởi pause queue vào `_pendingOneShots`, `onResume` phát đúng MỘT lần (không refetch, không duplicate), drop cue stale.
 - Test mới `animation_audio_controller_test.dart` +3: one-shot pause→resume giữ position không restart; pause-trước-resolve + skip abort pending fetch; dispose mid-fetch không phát.
 
 ## Verify đã chạy thật
 - `mvnw compile` clean; `mvnw test` **255 run / 0 fail / 1 err** — err duy nhất `DauVietApplicationTests` (Testcontainers, Docker OFF — blocker đã ghi, không phải regression). `AnimationSceneEventLinkerTest` 5/5, `AnimationProductionSeedTest` 2/2.
-- `flutter analyze` clean (5 info cũ `file_names` pre-existing); `flutter test` **353/353** (78 player tests incl. 2 regression play-after-abandoned-tween, 13 audio controller tests incl. 3 mới FIX-02). `dart format` clean.
+- `flutter analyze` clean (5 info cũ `file_names` pre-existing); `flutter test` **360/360** (sau master-fix đợt 2: +7 `playback_state_machine_test.dart`; 4 suite animation 162/162; toàn bộ 360). `dart format` clean.
 - Admin (đợt trước, code không đổi): typecheck + lint clean, vitest 194/194, `next build` OK.
 - `git diff --check` clean.
 - Asset delivery không-DB: 3 file `d7a70000-…` git-tracked, size khớp DB, magic bytes JPEG/WAV thật; `LearnerAssetController` serve `FileSystemResource` đúng mime; Flutter authenticated fetch + fallback không-crash; `dauviet.assets.dir=data/assets` theo cwd (runbook: chạy từ `dau-viet-backend/`).

@@ -1,0 +1,89 @@
+{
+  "schemaVersion": 1,
+  "stages": [
+    {
+      "id": "ev",
+      "type": "EVIDENCE",
+      "required": true,
+      "activities": [
+        {
+          "id": "es",
+          "type": "EVIDENCE_SELECT",
+          "required": true,
+          "instruction": "Chọn tư liệu chứng minh quy mô khởi nghĩa Hai Bà Trưng",
+          "config": {
+            "graded": true,
+            "visibleEvidenceIds": ["${EV1}", "${EV2}", "${EV3}"],
+            "acceptedEvidenceIds": ["${EV1}"],
+            "maxAttempts": 2
+          },
+          "feedback": {
+            "COMPLETED": "Đúng — tư liệu ghi nhận 65 thành trì theo về.",
+            "INCORRECT": "Chưa đúng — chọn lại tư liệu cốt lõi.",
+            "EXHAUSTED": "Hết lượt thử."
+          }
+        }
+      ],
+      "requiredEvidenceIds": ["${EV1}", "${EV2}", "${EV3}"],
+      "nextStageIds": ["cc"]
+    },
+    {
+      "id": "cc",
+      "type": "CONCLUSION",
+      "required": true,
+      "activities": [
+        {
+          "id": "cer",
+          "type": "CER_CHOICE",
+          "required": true,
+          "instruction": "Kết luận về ý nghĩa khởi nghĩa Hai Bà Trưng",
+          "config": {
+            "claims": [
+              { "id": "c-indep", "text": "Khởi nghĩa khôi phục chính quyền tự chủ sau hơn 150 năm Bắc thuộc." },
+              { "id": "c-symbol", "text": "Khởi nghĩa chỉ có ý nghĩa biểu tượng, không thay đổi thực quyền." }
+            ],
+            "reasoningOptions": [
+              { "id": "r-castle", "text": "65 thành trì theo về cho thấy quyền lực được khôi phục trên diện rộng." },
+              { "id": "r-short", "text": "Khởi nghĩa chỉ kéo dài ba năm nên không lập lại quyền lực." }
+            ],
+            "evidenceOptions": [
+              { "id": "${EV1}" },
+              { "id": "${EV2}" }
+            ],
+            "priorEvidenceSource": "es",
+            "acceptedClaims": ["c-indep"],
+            "acceptedEvidenceIds": ["${EV1}"],
+            "acceptedReasoningIds": ["r-castle"],
+            "minCorrect": 3,
+            "maxAttempts": 3
+          },
+          "feedback": {
+            "COMPLETED": "Kết luận đúng.",
+            "PARTIAL": "Một phần đúng.",
+            "INCORRECT": "Chưa đúng.",
+            "EXHAUSTED": "Hết lượt."
+          }
+        }
+      ],
+      "nextStageIds": []
+    },
+    {
+      "id": "rf",
+      "type": "REFLECTION",
+      "required": false,
+      "activities": [
+        {
+          "id": "rf1",
+          "type": "REFLECTION_PROMPT",
+          "config": {
+            "prompt": "Điều gì khiến khởi nghĩa này lan rộng nhanh như vậy?"
+          }
+        }
+      ],
+      "nextStageIds": []
+    }
+  ],
+  "completion": {
+    "requireAllRequiredStages": true
+  }
+}

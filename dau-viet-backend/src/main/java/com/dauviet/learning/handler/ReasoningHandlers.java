@@ -53,11 +53,102 @@ public final class ReasoningHandlers {
                     throw new IllegalArgumentException("relation '" + name + "' is not allowed");
                 }
             }
+
+            Set<String> submitted = new LinkedHashSet<>();
+            for (JsonNode rel : relations) {
+                submitted.add(relationKey(rel));
+            }
+
             JsonNodeFactory f = JsonNodeFactory.instance;
             ObjectNode out = f.objectNode();
             out.put("relationCount", relations.size());
+
+            if (config.path("graded").asBoolean(false)) {
+                return evaluateGraded(ctx, config, submitted, out);
+            }
             return result(ActivityResult.COMPLETED, true, out,
                     feedbackFor(ctx.activity(), ActivityResult.COMPLETED));
+        }
+
+        private String relationKey(JsonNode rel) {
+            return rel.path("from").asText("") + "|"
+                    + rel.path("relation").asText("") + "|"
+                    + rel.path("to").asText("");
+        }
+
+        /** Accepted answer sets: canonical expectedRelations plus any
+         *  alternative acceptedRelationSets member (valid interpretations). */
+        private List<Set<String>> acceptedSets(JsonNode config) {
+            List<Set<String>> sets = new java.util.ArrayList<>();
+            Set<String> canonical = relationSet(config.get("expectedRelations"));
+            if (!canonical.isEmpty()) sets.add(canonical);
+            JsonNode alts = config.get("acceptedRelationSets");
+            if (alts != null && alts.isArray()) {
+                for (JsonNode alt : alts) {
+                    Set<String> s = relationSet(alt);
+                    if (!s.isEmpty()) sets.add(s);
+                }
+            }
+            return sets;
+        }
+
+        private Set<String> relationSet(JsonNode array) {
+            Set<String> set = new LinkedHashSet<>();
+            if (array != null && array.isArray()) {
+                for (JsonNode rel : array) {
+                    String from = rel.path("from").asText(null);
+                    String to = rel.path("to").asText(null);
+                    String name = rel.path("relation").asText(null);
+                    if (from != null && to != null && name != null) {
+                        set.add(from + "|" + name + "|" + to);
+                    }
+                }
+            }
+            return set;
+        }
+
+        /**
+         * Opt-in graded mode (config.graded:true): the submitted relation set
+         * must exactly equal one accepted set -> COMPLETED; otherwise PARTIAL
+         * credit = |submitted n best accepted| / |best accepted|. Output only
+         * reports counts/score — never the expected relations.
+         */
+        private ActivityResult evaluateGraded(AttemptContext ctx, JsonNode config,
+                                              Set<String> submitted, ObjectNode out) {
+            List<Set<String>> acceptedSets = acceptedSets(config);
+            boolean right = acceptedSets.stream().anyMatch(submitted::equals);
+
+            int bestMatch = 0;
+            int bestSize = 0;
+            for (Set<String> accepted : acceptedSets) {
+                Set<String> hit = new LinkedHashSet<>(submitted);
+                hit.retainAll(accepted);
+                if (hit.size() > bestMatch) {
+                    bestMatch = hit.size();
+                    bestSize = accepted.size();
+                } else if (hit.size() == bestMatch && accepted.size() > bestSize) {
+                    bestSize = accepted.size();
+                }
+            }
+            double score = bestSize == 0 ? 0.0 : (double) bestMatch / bestSize;
+
+            int maxAttempts = config.path("maxAttempts").asInt(1);
+            int attemptNo = priorAttempts(ctx) + 1;
+            boolean exhausted = !right && attemptNo >= Math.max(maxAttempts, 1);
+            boolean completed = right || exhausted;
+
+            out.put("correct", right);
+            out.put("score", score);
+            out.put("matchedRelations", bestMatch);
+            out.put("incorrectCount", submitted.size() - bestMatch);
+            out.put("attemptCount", attemptNo);
+            if (exhausted) out.put("exhausted", true);
+
+            String outcome = right ? ActivityResult.COMPLETED
+                    : bestMatch > 0 && !exhausted ? ActivityResult.PARTIAL
+                    : ActivityResult.INCORRECT;
+            return result(outcome, completed, out,
+                    feedbackFor(ctx.activity(), exhausted ? "EXHAUSTED" : outcome));
         }
     }
 

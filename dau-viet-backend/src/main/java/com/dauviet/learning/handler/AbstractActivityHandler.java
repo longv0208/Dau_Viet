@@ -79,6 +79,16 @@ public abstract class AbstractActivityHandler implements ActivityHandler {
         return ids;
     }
 
+    /**
+     * How many times this activity was already submitted in this attempt —
+     * derived from the persisted output's attemptCount (retry budget input).
+     */
+    protected static int priorAttempts(com.dauviet.learning.contract.AttemptContext ctx) {
+        JsonNode prior = ctx.priorOutputs().get(ctx.activityId());
+        return prior != null && prior.isObject()
+                ? prior.path("attemptCount").asInt(0) : 0;
+    }
+
     protected String feedbackFor(JsonNode activity, String outcomeKey) {
         JsonNode fb = activity == null ? null : activity.get("feedback");
         if (fb != null && fb.isObject() && fb.hasNonNull(outcomeKey)) {

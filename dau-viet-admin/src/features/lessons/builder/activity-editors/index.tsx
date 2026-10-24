@@ -2,6 +2,7 @@ import type { ComponentType } from "react";
 
 import type { ActivityType } from "../draft-model";
 import { CerEditor } from "./cer-editor";
+import { CerChoiceEditor } from "./cer-choice-editor";
 import { DragOrderEditor } from "./drag-order-editor";
 import { EvidenceSelectEditor } from "./evidence-select-editor";
 import { HypothesisChoiceEditor } from "./hypothesis-choice-editor";
@@ -27,6 +28,7 @@ const EDITORS: Partial<Record<ActivityType, ComponentType<EditorProps>>> = {
   MATCHING: MatchingEditor,
   DRAG_ORDER: DragOrderEditor,
   CER: CerEditor,
+  CER_CHOICE: CerChoiceEditor,
   REFLECTION_PROMPT: ReflectionPromptEditor,
   HYPOTHESIS_CHOICE: HypothesisChoiceEditor,
   VERIFICATION: VerificationEditor,

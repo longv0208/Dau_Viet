@@ -89,6 +89,61 @@ public class LearnerProjectionService {
     }
 
     /**
+     * Output-continuity surface: inject the attempt's recorded outputs under
+     * `config.priorOutputs` so downstream renderers (e.g. CER_CHOICE) can
+     * pre-fill upstream selections without a new endpoint. Outputs are
+     * learner-safe by construction (handler results are deep-stripped), but
+     * the injected copy is re-stripped for defense-in-depth. Never mutates
+     * the inputs; absent/empty priorOutputs injects nothing.
+     */
+    public ObjectNode project(JsonNode snapshot,
+                              java.util.Map<String, JsonNode> priorOutputs) {
+        ObjectNode copy = project(snapshot);
+        injectPriorOutputs(copy, priorOutputs);
+        return copy;
+    }
+
+    /** Single-activity variant of {@link #project(JsonNode, java.util.Map)}. */
+    public ObjectNode projectActivity(JsonNode activity,
+                                      java.util.Map<String, JsonNode> priorOutputs) {
+        ObjectNode copy = projectActivity(activity);
+        injectPriorOutputs(copy, priorOutputs);
+        return copy;
+    }
+
+    private void injectPriorOutputs(ObjectNode projected,
+                                    java.util.Map<String, JsonNode> priorOutputs) {
+        if (priorOutputs == null || priorOutputs.isEmpty()) return;
+        JsonNode stages = projected.get("stages");
+        if (stages != null && stages.isArray()) {
+            for (JsonNode stage : stages) {
+                JsonNode acts = stage.get("activities");
+                if (acts == null || !acts.isArray()) continue;
+                for (JsonNode act : acts) {
+                    if (act.isObject()) injectPriorOutputsIntoActivity((ObjectNode) act, priorOutputs);
+                }
+            }
+        } else {
+            injectPriorOutputsIntoActivity(projected, priorOutputs);
+        }
+    }
+
+    private void injectPriorOutputsIntoActivity(ObjectNode act,
+                                                java.util.Map<String, JsonNode> priorOutputs) {
+        var f = com.fasterxml.jackson.databind.node.JsonNodeFactory.instance;
+        ObjectNode cfg = act.get("config") != null && act.get("config").isObject()
+                ? (ObjectNode) act.get("config")
+                : act.putObject("config");
+        ObjectNode po = cfg.putObject("priorOutputs");
+        priorOutputs.forEach((activityId, output) -> {
+            if (output == null || !output.isObject()) return;
+            ObjectNode safe = output.deepCopy();
+            stripValue(safe);
+            po.set(activityId, safe);
+        });
+    }
+
+    /**
      * Per-type learner-facing transforms applied to the copied activity BEFORE
      * hidden-key stripping, so emitted fields are never removed again.
      * These change the *presentation* of authored config without touching the

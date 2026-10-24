@@ -102,6 +102,81 @@ class SelectionHandlersTest {
         assertThat(r.output().get("selectedEvidenceIds").size()).isEqualTo(2);
     }
 
+    /* ---------- graded mode (config.graded:true + acceptedEvidenceIds) ---------- */
+
+    @Test
+    void evidenceSelect_graded_exactMatch_completes() {
+        JsonNode act = HandlerTestSupport.json(
+                "{\"id\":\"es\",\"type\":\"EVIDENCE_SELECT\",\"config\":{"
+              + "\"visibleEvidenceIds\":[\"e1\",\"e2\",\"e3\"],\"graded\":true,"
+              + "\"acceptedEvidenceIds\":[\"e1\",\"e2\"],\"maxAttempts\":2}}");
+        ActivityResult r = evidenceSelect.evaluate(
+                HandlerTestSupport.ctx(act, snapshotWithEvidence()),
+                HandlerTestSupport.sub("es", "{\"selectedEvidenceIds\":[\"e1\",\"e2\"]}"));
+        assertThat(r.outcome()).isEqualTo(ActivityResult.COMPLETED);
+        assertThat(r.completed()).isTrue();
+        assertThat(r.output().get("correct").asBoolean()).isTrue();
+        assertThat(r.output().get("score").asDouble()).isEqualTo(1.0);
+    }
+
+    @Test
+    void evidenceSelect_graded_partialHit_partialWithScore() {
+        JsonNode act = HandlerTestSupport.json(
+                "{\"id\":\"es\",\"type\":\"EVIDENCE_SELECT\",\"config\":{"
+              + "\"visibleEvidenceIds\":[\"e1\",\"e2\",\"e3\"],\"graded\":true,"
+              + "\"acceptedEvidenceIds\":[\"e1\",\"e2\"],\"maxAttempts\":3}}");
+        ActivityResult r = evidenceSelect.evaluate(
+                HandlerTestSupport.ctx(act, snapshotWithEvidence()),
+                HandlerTestSupport.sub("es", "{\"selectedEvidenceIds\":[\"e1\",\"e3\"]}"));
+        assertThat(r.outcome()).isEqualTo(ActivityResult.PARTIAL);
+        assertThat(r.completed()).isFalse();
+        assertThat(r.output().get("score").asDouble()).isEqualTo(0.5);
+        assertThat(r.output().get("correctCount").asInt()).isEqualTo(1);
+        assertThat(r.output().get("falseCount").asInt()).isEqualTo(1);
+    }
+
+    @Test
+    void evidenceSelect_graded_noHit_incorrect() {
+        JsonNode act = HandlerTestSupport.json(
+                "{\"id\":\"es\",\"type\":\"EVIDENCE_SELECT\",\"config\":{"
+              + "\"visibleEvidenceIds\":[\"e1\",\"e2\",\"e3\"],\"graded\":true,"
+              + "\"acceptedEvidenceIds\":[\"e1\",\"e2\"],\"maxAttempts\":3}}");
+        ActivityResult r = evidenceSelect.evaluate(
+                HandlerTestSupport.ctx(act, snapshotWithEvidence()),
+                HandlerTestSupport.sub("es", "{\"selectedEvidenceIds\":[\"e3\"]}"));
+        assertThat(r.outcome()).isEqualTo(ActivityResult.INCORRECT);
+        assertThat(r.completed()).isFalse();
+    }
+
+    @Test
+    void evidenceSelect_graded_exhausted_completes() {
+        JsonNode act = HandlerTestSupport.json(
+                "{\"id\":\"es\",\"type\":\"EVIDENCE_SELECT\",\"config\":{"
+              + "\"visibleEvidenceIds\":[\"e1\",\"e2\",\"e3\"],\"graded\":true,"
+              + "\"acceptedEvidenceIds\":[\"e1\",\"e2\"],\"maxAttempts\":2}}");
+        java.util.Map<String, JsonNode> prior = new java.util.LinkedHashMap<>();
+        prior.put("es", HandlerTestSupport.json("{\"attemptCount\":1}"));
+        ActivityResult r = evidenceSelect.evaluate(
+                HandlerTestSupport.ctx(act, snapshotWithEvidence(), prior),
+                HandlerTestSupport.sub("es", "{\"selectedEvidenceIds\":[\"e3\"]}"));
+        assertThat(r.completed()).isTrue();
+        assertThat(r.output().get("exhausted").asBoolean()).isTrue();
+    }
+
+    @Test
+    void evidenceSelect_graded_noKey_fallsBackToLegacy() {
+        // graded flag set but no acceptedEvidenceIds → legacy count path.
+        JsonNode act = HandlerTestSupport.json(
+                "{\"id\":\"es\",\"type\":\"EVIDENCE_SELECT\",\"config\":{"
+              + "\"visibleEvidenceIds\":[\"e1\",\"e2\"],\"graded\":true,"
+              + "\"minRequired\":2}}");
+        ActivityResult r = evidenceSelect.evaluate(
+                HandlerTestSupport.ctx(act, snapshotWithEvidence()),
+                HandlerTestSupport.sub("es", "{\"selectedEvidenceIds\":[\"e1\",\"e2\"]}"));
+        assertThat(r.completed()).isTrue();
+        assertThat(r.output().has("score")).isFalse();
+    }
+
     @Test
     void hypothesisChoice_recordsForVerification() {
         JsonNode act = HandlerTestSupport.json(

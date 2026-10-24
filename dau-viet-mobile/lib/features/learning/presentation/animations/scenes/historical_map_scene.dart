@@ -483,6 +483,20 @@ class MapScenePainter extends HistoricalScenePainter {
     tp.paint(canvas, Offset(dx, dy));
   }
 
+  /// Khôi phục toàn bộ trạng thái mutable từ painter đã-seed — replay
+  /// đưa map về initialState (markers/routes/highlight/focus) thay vì
+  /// giữ trạng thái cuối scene. Giữ [locations]/[routes] của instance
+  /// này (cấu hình scene, không phải trạng thái mutable).
+  @override
+  void restoreFrom(HistoricalScenePainter seeded) {
+    super.restoreFrom(seeded);
+    if (seeded is! MapScenePainter) return;
+    markerVisibility = Map.of(seeded.markerVisibility);
+    routeProgress = Map.of(seeded.routeProgress);
+    highlightedIds = Set.of(seeded.highlightedIds);
+    focusedId = seeded.focusedId;
+  }
+
   @override
   bool shouldRepaint(MapScenePainter old) => false; // ChangeNotifier.
 }

@@ -38,7 +38,8 @@ class HandlerSafetyTest {
                     new ScoredHandlers.DragOrderHandler(),
                     new ReasoningHandlers.ReasoningConnectHandler(),
                     new ReasoningHandlers.VerificationHandler(),
-                    new ReasoningHandlers.CerHandler()));
+                    new ReasoningHandlers.CerHandler(),
+                    new CerChoiceHandler()));
 
     private static JsonNode activity(String type, String config) {
         return HandlerTestSupport.json(
@@ -105,7 +106,17 @@ class HandlerSafetyTest {
                             "{\"rubric\":{\"criteria\":[\"c\"]},"
                             + "\"requiredEvidenceIds\":[\"e1\"]}"),
                             "{\"claim\":\"claim text about correctOptionIds keys\","
-                            + "\"reasoning\":\"reasoning long enough to pass\"}"}})));
+                            + "\"reasoning\":\"reasoning long enough to pass\"}"}})),
+            Map.entry("CER_CHOICE", List.of(new Object[][]{
+                    {activity("CER_CHOICE",
+                            "{\"claims\":[{\"id\":\"c1\"},{\"id\":\"c2\"}],"
+                            + "\"reasoningOptions\":[{\"id\":\"r1\"},{\"id\":\"r2\"}],"
+                            + "\"evidenceOptions\":[{\"id\":\"e1\"}],"
+                            + "\"acceptedClaims\":[\"c1\"],"
+                            + "\"acceptedEvidenceIds\":[\"e1\"],"
+                            + "\"acceptedReasoningIds\":[\"r1\"]}"),
+                            "{\"claimId\":\"c1\",\"evidenceIds\":[\"e1\"],"
+                            + "\"reasoningId\":\"r1\"}"}})));
 
     @Test
     void everyHandler_emitsNoHiddenKeys() {

@@ -34,7 +34,12 @@ public class SnapshotBuilder {
 
     /** config field names that hold evidence-id references inside activities. */
     private static final Set<String> EVIDENCE_REF_FIELDS =
-            Set.of("visibleEvidenceIds", "requiredEvidenceIds", "visibleSourceIds");
+            Set.of("visibleEvidenceIds", "requiredEvidenceIds", "visibleSourceIds",
+                    "acceptedEvidenceIds");
+
+    /** config fields that hold arrays of {id:<evidence-uuid>} objects. */
+    private static final Set<String> EVIDENCE_OBJECT_REF_FIELDS =
+            Set.of("evidenceOptions");
 
     private final EvidenceRepository evidences;
     private final AssetRepository assets;
@@ -154,6 +159,15 @@ public class SnapshotBuilder {
                 if (config == null || !config.isObject()) continue;
                 for (String field : EVIDENCE_REF_FIELDS) {
                     addIds(ids, config.get(field));
+                }
+                for (String field : EVIDENCE_OBJECT_REF_FIELDS) {
+                    JsonNode arr = config.get(field);
+                    if (arr != null && arr.isArray()) {
+                        for (JsonNode item : arr) {
+                            UUID id = parseUuid(item.path("id").asText(null));
+                            if (id != null) ids.add(id);
+                        }
+                    }
                 }
             }
         }

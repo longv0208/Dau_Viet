@@ -31,6 +31,7 @@ export const ACTIVITY_TYPES = [
   "DRAG_ORDER",
   "VERIFICATION",
   "CER",
+  "CER_CHOICE",
   "REFLECTION_PROMPT",
 ] as const;
 export type ActivityType = (typeof ACTIVITY_TYPES)[number];
@@ -44,7 +45,7 @@ export const STAGE_ALLOWED_ACTIVITIES: Record<StageType, ActivityType[]> = {
   HYPOTHESIS: ["HYPOTHESIS_CHOICE", "READ"],
   RECONSTRUCTION: ["DRAG_ORDER", "READ"],
   VERIFICATION: ["VERIFICATION", "MULTIPLE_CHOICE", "READ"],
-  CONCLUSION: ["CER", "READ"],
+  CONCLUSION: ["CER", "CER_CHOICE", "READ"],
   REFLECTION: ["REFLECTION_PROMPT", "READ"],
 };
 

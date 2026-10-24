@@ -1,0 +1,232 @@
+{
+  "schemaVersion": 1,
+  "stages": [
+    {
+      "id": "ctx",
+      "type": "CONTEXT",
+      "required": true,
+      "activities": [
+        {
+          "id": "intro",
+          "type": "READ",
+          "required": true,
+          "instruction": "Đọc bối cảnh trận Bạch Đằng năm 938",
+          "config": {
+            "text": "Năm 938, quân Nam Hán kéo thuỷ quân vào sông Bạch Đằng để đàn áp khởi nghĩa. Ngô Quyền chuẩn bị trận đánh dựa trên địa hình cửa sông và quy luật thuỷ triều."
+          }
+        }
+      ],
+      "nextStageIds": ["ev"]
+    },
+    {
+      "id": "ev",
+      "type": "EVIDENCE",
+      "required": true,
+      "activities": [
+        {
+          "id": "es",
+          "type": "EVIDENCE_SELECT",
+          "required": true,
+          "instruction": "Chọn những tư liệu chứng minh Ngô Quyền lợi dụng thuỷ triều",
+          "config": {
+            "graded": true,
+            "visibleEvidenceIds": ["${EV1}", "${EV2}", "${EV3}"],
+            "acceptedEvidenceIds": ["${EV1}", "${EV2}"],
+            "minRequired": 1,
+            "maxAttempts": 2
+          },
+          "feedback": {
+            "COMPLETED": "Đúng — hai tư liệu cốt lõi về bãi cọc và thuỷ triều.",
+            "PARTIAL": "Chưa đủ — một trong hai bằng chứng chính còn thiếu.",
+            "INCORRECT": "Chưa đúng — rà soát lại tư liệu.",
+            "EXHAUSTED": "Hết lượt thử — hãy đọc lại bối cảnh trước khi tiếp tục."
+          }
+        }
+      ],
+      "requiredEvidenceIds": ["${EV1}", "${EV2}", "${EV3}"],
+      "nextStageIds": ["rs"]
+    },
+    {
+      "id": "rs",
+      "type": "REASONING",
+      "required": true,
+      "activities": [
+        {
+          "id": "rc",
+          "type": "REASONING_CONNECT",
+          "required": true,
+          "instruction": "Nối các yếu tố theo quan hệ nhân — quả của trận đánh",
+          "config": {
+            "graded": true,
+            "nodes": [
+              { "id": "nam-han", "label": "Quân Nam Hán" },
+              { "id": "thuy-trieu", "label": "Thuỷ triều" },
+              { "id": "bai-coc", "label": "Bãi cọc" },
+              { "id": "phuc-kich", "label": "Phục kích" }
+            ],
+            "allowedRelations": ["nguyen-nhan", "ket-qua", "che-giau", "dan-den"],
+            "expectedRelations": [
+              { "from": "thuy-trieu", "to": "bai-coc", "relation": "che-giau" },
+              { "from": "bai-coc", "to": "nam-han", "relation": "dan-den" }
+            ],
+            "acceptedRelationSets": [
+              [
+                { "from": "thuy-trieu", "to": "phuc-kich", "relation": "dan-den" },
+                { "from": "phuc-kich", "to": "nam-han", "relation": "dan-den" }
+              ]
+            ],
+            "maxAttempts": 3
+          },
+          "feedback": {
+            "COMPLETED": "Chính xác — thuỷ triều che giấu bãi cọc, bãi cọc đánh bại Nam Hán.",
+            "PARTIAL": "Một phần đúng — xem lại mối liên hệ còn thiếu.",
+            "INCORRECT": "Chưa đúng — các nút phải tạo thành chuỗi tác động.",
+            "EXHAUSTED": "Hết lượt thử — các quan hệ sẽ được giải thích ở phần sau."
+          }
+        }
+      ],
+      "nextStageIds": ["hp"]
+    },
+    {
+      "id": "hp",
+      "type": "HYPOTHESIS",
+      "required": true,
+      "activities": [
+        {
+          "id": "hc",
+          "type": "HYPOTHESIS_CHOICE",
+          "required": true,
+          "instruction": "Chọn giả thuyết hợp lý nhất cho chiến thắng Bạch Đằng",
+          "config": {
+            "hypotheses": [
+              { "id": "h-tide", "label": "Ngô Quyền thắng nhờ lợi dụng thuỷ triều và bãi cọc" },
+              { "id": "h-number", "label": "Ngô Quyền thắng vì áp đảo về quân số" }
+            ]
+          }
+        }
+      ],
+      "nextStageIds": ["re"]
+    },
+    {
+      "id": "re",
+      "type": "RECONSTRUCTION",
+      "required": true,
+      "activities": [
+        {
+          "id": "do",
+          "type": "DRAG_ORDER",
+          "required": true,
+          "instruction": "Sắp xếp lại trình tự diễn biến trận đánh",
+          "config": {
+            "items": [
+              { "id": "step-dong-coc", "label": "Đóng cọc ở cửa sông" },
+              { "id": "step-du-dich", "label": "Dụ địch vào bãi" },
+              { "id": "step-trieu-len", "label": "Thuỷ triều lên che cọc" },
+              { "id": "step-phuc-kich", "label": "Phục kích chặn đánh" },
+              { "id": "step-trieu-xuong", "label": "Thuỷ triều rút, thuyền mắc cọc" },
+              { "id": "step-tan-vo", "label": "Quân Nam Hán tan vỡ" }
+            ],
+            "expectedOrder": [
+              "step-dong-coc",
+              "step-du-dich",
+              "step-trieu-len",
+              "step-phuc-kich",
+              "step-trieu-xuong",
+              "step-tan-vo"
+            ]
+          },
+          "feedback": {
+            "COMPLETED": "Đúng trình tự.",
+            "INCORRECT": "Sai thứ tự — xem lại vai trò của thuỷ triều."
+          }
+        }
+      ],
+      "nextStageIds": ["vf"]
+    },
+    {
+      "id": "vf",
+      "type": "VERIFICATION",
+      "required": true,
+      "activities": [
+        {
+          "id": "vf1",
+          "type": "VERIFICATION",
+          "required": true,
+          "instruction": "Kiểm chứng giả thuyết đã chọn với bằng chứng",
+          "config": {
+            "visibleSourceIds": ["${EV1}", "${EV2}"],
+            "requiredEvidenceIds": ["${EV1}", "${EV2}"],
+            "expectedHypothesis": "h-tide"
+          },
+          "onPartial": "hp",
+          "onContradicted": "hp",
+          "feedback": {
+            "SUPPORTED": "Giả thuyết được chứng minh.",
+            "PARTIAL": "Thiếu bằng chứng — quay lại chọn giả thuyết.",
+            "CONTRADICTED": "Giả thuyết không khớp bằng chứng — chọn lại."
+          }
+        }
+      ],
+      "nextStageIds": ["cc"]
+    },
+    {
+      "id": "cc",
+      "type": "CONCLUSION",
+      "required": true,
+      "activities": [
+        {
+          "id": "cer",
+          "type": "CER_CHOICE",
+          "required": true,
+          "instruction": "Kết luận bằng chọn lựa: khẳng định + bằng chứng + lập luận",
+          "config": {
+            "claims": [
+              { "id": "c-tide", "text": "Chiến thắng Bạch Đằng là kết quả của việc lợi dụng thuỷ triều và địa hình." },
+              { "id": "c-number", "text": "Chiến thắng Bạch Đằng là kết quả của áp đảo quân số." }
+            ],
+            "reasoningOptions": [
+              { "id": "r-tide", "text": "Thuỷ triều che giấu bãi cọc khiến thuyền địch mắc kẹt rồi bị phục kích." },
+              { "id": "r-luck", "text": "Quân Nam Hán tự rút vì thiếu lương thảo." }
+            ],
+            "evidenceOptions": [
+              { "id": "${EV1}" },
+              { "id": "${EV2}" },
+              { "id": "${EV3}" }
+            ],
+            "priorEvidenceSource": "es",
+            "acceptedClaims": ["c-tide"],
+            "acceptedEvidenceIds": ["${EV1}", "${EV2}"],
+            "acceptedReasoningIds": ["r-tide"],
+            "minCorrect": 3,
+            "maxAttempts": 3
+          },
+          "feedback": {
+            "COMPLETED": "Kết luận đúng và đủ bằng chứng.",
+            "PARTIAL": "Một phần đúng — rà soát lại lựa chọn.",
+            "INCORRECT": "Chưa đúng — đối chiếu lại bằng chứng.",
+            "EXHAUSTED": "Hết lượt — kết quả được ghi nhận theo lần cuối."
+          }
+        }
+      ],
+      "nextStageIds": []
+    },
+    {
+      "id": "rf",
+      "type": "REFLECTION",
+      "required": false,
+      "activities": [
+        {
+          "id": "rf1",
+          "type": "REFLECTION_PROMPT",
+          "config": {
+            "prompt": "Bài học từ cách Ngô Quyền tận dụng điều kiện tự nhiên?"
+          }
+        }
+      ],
+      "nextStageIds": []
+    }
+  ],
+  "completion": {
+    "requireAllRequiredStages": true
+  }
+}

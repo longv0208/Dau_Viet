@@ -242,7 +242,11 @@ public final class SimpleActivityValidators {
         }
     }
 
-    /** EVIDENCE_SELECT: visibleEvidenceIds[] non-empty; refs checked at PUBLISH. */
+    /**
+     * EVIDENCE_SELECT: visibleEvidenceIds[] non-empty; refs checked at PUBLISH.
+     * Opt-in graded mode (config.graded:true) additionally requires
+     * acceptedEvidenceIds ⊆ visibleEvidenceIds at PUBLISH.
+     */
     @Component
     public static class EvidenceSelectValidator extends AbstractActivityValidator {
         @Override public ActivityType supports() { return ActivityType.EVIDENCE_SELECT; }
@@ -253,6 +257,21 @@ public final class SimpleActivityValidators {
             JsonNode config = config(activity);
             requireNonEmptyArray(config, "visibleEvidenceIds", path, 1, errors);
             checkEvidenceRefs(config, "visibleEvidenceIds", path, ctx, errors);
+            if (ctx.isPublish() && config != null
+                    && config.path("graded").asBoolean(false)) {
+                JsonNode visible = config.get("visibleEvidenceIds");
+                Set<String> visibleIds = collectStringIds(visible);
+                JsonNode accepted = config.get("acceptedEvidenceIds");
+                if (accepted == null || !accepted.isArray() || accepted.isEmpty()) {
+                    errors.add(new FieldError(path + ".config.acceptedEvidenceIds",
+                            "MISSING_FIELD",
+                            "acceptedEvidenceIds is required when graded:true"));
+                } else {
+                    requireSubset(collectStringIds(accepted), visibleIds,
+                            path + ".config.acceptedEvidenceIds", "INVALID_CONFIG", errors);
+                }
+                checkEvidenceRefs(config, "acceptedEvidenceIds", path, ctx, errors);
+            }
         }
     }
 
@@ -281,7 +300,12 @@ public final class SimpleActivityValidators {
         }
     }
 
-    /** REASONING_CONNECT: nodes[] >=2 and allowedRelations[] non-empty. */
+    /**
+     * REASONING_CONNECT: nodes[] >=2 and allowedRelations[] non-empty.
+     * Opt-in graded mode (config.graded:true) requires expectedRelations or
+     * acceptedRelationSets at PUBLISH; every relation must reference declared
+     * node ids and allowed relation names.
+     */
     @Component
     public static class ReasoningConnectValidator extends AbstractActivityValidator {
         @Override public ActivityType supports() { return ActivityType.REASONING_CONNECT; }
@@ -294,6 +318,67 @@ public final class SimpleActivityValidators {
             requireNonEmptyArray(config, "allowedRelations", path, 1, errors);
             if (config != null && config.has("nodes")) {
                 collectIds(config.get("nodes"), path + ".config.nodes", errors);
+            }
+            if (!ctx.isPublish() || config == null
+                    || !config.path("graded").asBoolean(false)) {
+                return;
+            }
+            boolean hasExpected = isNonEmptyArray(config.get("expectedRelations"));
+            boolean hasAlts = isNonEmptyArray(config.get("acceptedRelationSets"));
+            if (!hasExpected && !hasAlts) {
+                errors.add(new FieldError(path + ".config.expectedRelations",
+                        "MISSING_FIELD",
+                        "expectedRelations or acceptedRelationSets is required when graded:true"));
+                return;
+            }
+            Set<String> nodeIds = config.has("nodes")
+                    ? idsOf(config.get("nodes"))
+                    : Set.of();
+            Set<String> allowed = collectStringIds(config.get("allowedRelations"));
+            checkRelationArray(config.get("expectedRelations"), nodeIds, allowed,
+                    path + ".config.expectedRelations", errors);
+            JsonNode alts = config.get("acceptedRelationSets");
+            if (alts != null && alts.isArray()) {
+                for (int i = 0; i < alts.size(); i++) {
+                    checkRelationArray(alts.get(i), nodeIds, allowed,
+                            path + ".config.acceptedRelationSets[" + i + "]", errors);
+                }
+            }
+        }
+
+        private boolean isNonEmptyArray(JsonNode node) {
+            return node != null && node.isArray() && !node.isEmpty();
+        }
+
+        private Set<String> idsOf(JsonNode arr) {
+            Set<String> ids = new java.util.HashSet<>();
+            if (arr != null && arr.isArray()) {
+                for (JsonNode item : arr) {
+                    JsonNode id = item.isObject() ? item.get("id") : item;
+                    if (id != null && id.isTextual()) ids.add(id.asText());
+                }
+            }
+            return ids;
+        }
+
+        private void checkRelationArray(JsonNode relations, Set<String> nodeIds,
+                                        Set<String> allowed, String path,
+                                        List<FieldError> errors) {
+            if (relations == null || !relations.isArray()) return;
+            for (int i = 0; i < relations.size(); i++) {
+                JsonNode rel = relations.get(i);
+                String from = rel.path("from").asText(null);
+                String to = rel.path("to").asText(null);
+                String name = rel.path("relation").asText(null);
+                if (from == null || to == null
+                        || !nodeIds.contains(from) || !nodeIds.contains(to)) {
+                    errors.add(new FieldError(path + "[" + i + "]", "INVALID_CONFIG",
+                            "relation must reference declared node ids"));
+                }
+                if (name == null || !allowed.contains(name)) {
+                    errors.add(new FieldError(path + "[" + i + "].relation",
+                            "INVALID_CONFIG", "relation '" + name + "' is not allowed"));
+                }
             }
         }
     }

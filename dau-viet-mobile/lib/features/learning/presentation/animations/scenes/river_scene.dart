@@ -686,6 +686,23 @@ class RiverScenePainter extends HistoricalScenePainter {
     tp.paint(canvas, at - Offset(tp.width / 2, 0));
   }
 
+  /// Khôi phục toàn bộ trạng thái mutable từ painter đã-seed — replay
+  /// đưa scene về initialState (nước/thuyền/cờ/summary) thay vì giữ
+  /// trạng thái cuối trận. Giữ [stakes]/[stakeVisibility] của instance
+  /// này (cấu hình manifest, không phải trạng thái mutable).
+  @override
+  void restoreFrom(HistoricalScenePainter seeded) {
+    super.restoreFrom(seeded);
+    if (seeded is! RiverScenePainter) return;
+    waterLevel = seeded.waterLevel;
+    boatProgress = seeded.boatProgress;
+    boatsObstructed = seeded.boatsObstructed;
+    highlightStakes = seeded.highlightStakes;
+    decoyProgress = seeded.decoyProgress;
+    counterattackProgress = seeded.counterattackProgress;
+    showSequenceSummary = seeded.showSequenceSummary;
+  }
+
   @override
   bool shouldRepaint(RiverScenePainter old) => false; // ChangeNotifier
   // điều khiển repaint — shouldRepaint luôn false vì player giữ cùng

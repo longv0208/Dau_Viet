@@ -17,5 +17,6 @@ public enum ActivityType {
     DRAG_ORDER,
     VERIFICATION,
     CER,
+    CER_CHOICE,
     REFLECTION_PROMPT
 }

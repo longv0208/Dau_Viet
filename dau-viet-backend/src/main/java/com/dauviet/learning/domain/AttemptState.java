@@ -45,6 +45,19 @@ public class AttemptState {
         return completedActivityIds.contains(activityId);
     }
 
+    /**
+     * Dependent-output invalidation (Learning Flow 2.0): drop the stored
+     * output + completion mark of an activity that consumed a since-revised
+     * upstream answer, forcing re-verification instead of stale credit.
+     */
+    public void removeCompleted(String activityId) {
+        completedActivityIds.remove(activityId);
+    }
+
+    public void removeOutput(String activityId) {
+        outputs.remove(activityId);
+    }
+
     public ObjectNode toJson() {
         ObjectNode node = JsonNodeFactory.instance.objectNode();
         ArrayNode completed = node.putArray("completedActivityIds");

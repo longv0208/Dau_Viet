@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 
 import '../../data/attempt_dtos.dart';
 import '../../data/learning_dtos.dart';
+import 'cer_choice_renderer.dart';
 import 'cer_renderer.dart';
 import 'drag_order_renderer.dart';
 import 'evidence_select_renderer.dart';
@@ -112,6 +113,14 @@ class ActivityRenderer extends StatelessWidget {
           activity: activity,
           submitting: submitting,
           onSubmit: onSubmit,
+        );
+      case 'CER_CHOICE':
+        return CerChoiceRenderer(
+          activity: activity,
+          content: content,
+          submitting: submitting,
+          onSubmit: onSubmit,
+          onInputChanged: onInputChanged,
         );
       case 'CER':
         return CerRenderer(

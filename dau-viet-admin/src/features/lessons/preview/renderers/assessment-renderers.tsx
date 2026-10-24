@@ -142,3 +142,126 @@ export function CerActivityView({ activity }: PreviewActivityProps) {
     </div>
   );
 }
+
+/**
+ * CER_CHOICE — 3 pick cards: claim radio, evidence checkboxes (resolved to
+ * evidence titles via the embedded docs), reasoning radio. Answer keys are
+ * stripped server-side; preview is non-graded.
+ */
+export function CerChoiceActivityView({ activity, evidence }: PreviewActivityProps) {
+  const config = activity.config ?? {};
+  const claims = Array.isArray(config.claims)
+    ? (config.claims as Record<string, unknown>[]).map((o) => ({
+        id: String(o.id ?? ""),
+        text: String(o.text ?? o.label ?? ""),
+      }))
+    : [];
+  const reasoningOptions = Array.isArray(config.reasoningOptions)
+    ? (config.reasoningOptions as Record<string, unknown>[]).map((o) => ({
+        id: String(o.id ?? ""),
+        text: String(o.text ?? o.label ?? ""),
+      }))
+    : [];
+  const evidenceOptionIds = Array.isArray(config.evidenceOptions)
+    ? (config.evidenceOptions as Record<string, unknown>[]).map((o) => String(o.id ?? ""))
+    : [];
+  const priorEvidenceIds = (() => {
+    const prior = config.priorOutputs;
+    const source = config.priorEvidenceSource;
+    if (!prior || typeof prior !== "object" || !source || typeof source !== "string") return [];
+    const out = (prior as Record<string, unknown>)[source];
+    const ids = out && typeof out === "object"
+      ? (out as Record<string, unknown>).selectedEvidenceIds
+      : undefined;
+    return Array.isArray(ids) ? ids.map((x) => String(x ?? "")) : [];
+  })();
+
+  const [claim, setClaim] = useState<string>("");
+  const [reasoning, setReasoning] = useState<string>("");
+  const [picked, setPicked] = useState<Set<string>>(new Set(priorEvidenceIds));
+
+  function toggleEvidence(id: string) {
+    setPicked((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
+  }
+
+  return (
+    <div className="flex flex-col gap-4">
+      <div className="flex flex-col gap-2">
+        <p className="text-sm font-medium text-ink">1. Chọn kết luận</p>
+        {claims.map((c) => (
+          <label
+            key={c.id}
+            className={
+              "flex items-start gap-2.5 rounded-md border px-3 py-2 text-sm " +
+              (claim === c.id ? "border-brand bg-brand/5" : "border-border")
+            }
+          >
+            <input
+              type="radio"
+              name={`claim-${activity.id}`}
+              checked={claim === c.id}
+              onChange={() => setClaim(c.id)}
+              className="mt-0.5 size-4 accent-brand"
+            />
+            {c.text}
+          </label>
+        ))}
+      </div>
+      <div className="flex flex-col gap-2">
+        <p className="text-sm font-medium text-ink">2. Chọn bằng chứng hỗ trợ</p>
+        {priorEvidenceIds.length > 0 && (
+          <p className="text-xs text-ink-muted">
+            Đã điền sẵn {priorEvidenceIds.length} bằng chứng đã chọn trước đó.
+          </p>
+        )}
+        {evidenceOptionIds.map((id, i) => (
+          <label
+            key={id}
+            className={
+              "flex items-start gap-2.5 rounded-md border px-3 py-2 text-sm " +
+              (picked.has(id) ? "border-brand bg-brand/5" : "border-border")
+            }
+          >
+            <input
+              type="checkbox"
+              checked={picked.has(id)}
+              onChange={() => toggleEvidence(id)}
+              className="mt-0.5 size-4 accent-brand"
+            />
+            {evidenceLabel(evidence, id, `Bằng chứng ${i + 1}`)}
+          </label>
+        ))}
+        {evidenceOptionIds.length === 0 && (
+          <p className="text-sm italic text-ink-muted">Chưa khai báo bằng chứng nào.</p>
+        )}
+      </div>
+      <div className="flex flex-col gap-2">
+        <p className="text-sm font-medium text-ink">3. Chọn lập luận</p>
+        {reasoningOptions.map((r) => (
+          <label
+            key={r.id}
+            className={
+              "flex items-start gap-2.5 rounded-md border px-3 py-2 text-sm " +
+              (reasoning === r.id ? "border-brand bg-brand/5" : "border-border")
+            }
+          >
+            <input
+              type="radio"
+              name={`reasoning-${activity.id}`}
+              checked={reasoning === r.id}
+              onChange={() => setReasoning(r.id)}
+              className="mt-0.5 size-4 accent-brand"
+            />
+            {r.text}
+          </label>
+        ))}
+      </div>
+      <p className="text-[11px] text-ink-muted">Xem trước — lựa chọn không được ghi nhận.</p>
+    </div>
+  );
+}

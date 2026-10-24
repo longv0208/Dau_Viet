@@ -19,6 +19,38 @@ import 'widgets/prediction_block.dart';
 import 'widgets/skipped_scene.dart';
 import 'widgets/water_level_control.dart';
 
+/// P0 playback stabilization — trạng thái logic của player. Nguồn sự
+/// thật DUY NHẤT về "đang ở đâu trong vòng đời scene", tách khỏi
+/// `controller.value` (chỉ là tiến độ tween) và `_stepIndex` (chỉ là
+/// vị trí bước). Không suy ra status từ index hay progress.
+enum PlaybackStatus {
+  /// Scene đã mount, đứng ở ĐẦU beat 0, chưa phát. Không audio/tween.
+  idle,
+
+  /// Timeline đang chạy (tween + timer auto-advance theo mode).
+  playing,
+
+  /// Learner chủ động tạm dừng — có thể resume nối tiếp. Tween đang
+  /// chạy bị đóng băng giữa chừng với ý định forward tiếp khi resume.
+  paused,
+
+  /// Playback tạm dừng do learner TƯƠNG TÁC (kéo nước, chạm marker,
+  /// reveal prediction) — tween đã bị HỦY có chủ đích, KHÔNG được
+  /// resume/settle khi Play. Khác với paused: không forward tween cũ.
+  interactionHold,
+
+  /// Đang ở checkpoint prediction chưa reveal — AUTO đã dừng chờ. Play
+  /// trước reveal không vượt checkpoint; sau reveal về interactionHold.
+  awaitingPrediction,
+
+  /// Scene đã thật sự chạy hết timeline cuối (AUTO timer cuối expire).
+  /// Play → replay từ đầu. Khác với "đang ở bước cuối chưa xong".
+  finished,
+
+  /// Learner bấm Bỏ qua — hiển thị static summary, không controls.
+  skipped,
+}
+
 /// ANIM-01/02 — Player tái dùng cho mọi scene đã đăng ký. State cục bộ
 /// (step, transition hiện tại, prediction, marker selection) — không
 /// chia sẻ giữa các instance; dispose() dừng timer + controller an
@@ -65,22 +97,24 @@ class _HistoricalAnimationPlayerState
   SceneTransition? _tweenFrom;
 
   int _stepIndex = 0;
-  bool _playing = false;
-  bool _skipped = false;
 
-  /// FIX-01 — `true` từ lúc mount tới initial PHÁT đầu tiên (hoặc
-  /// replay). Ở idle: tween/camera/effects/audio ở đầu beat 0, không
-  /// chạy; audio controller chưa init → ENTER narration không tự phát.
-  /// Prediction/state tương tác không bị reset khi cờ này chuyển false.
-  bool _initialIdle = true;
+  /// Nguồn sự thật duy nhất về trạng thái playback (thay `_playing` +
+  /// `_skipped` + `_initialIdle` rời). `_playing` getter map sang để UI
+  /// controls không đổi.
+  PlaybackStatus _status = PlaybackStatus.idle;
+
+  /// `true` khi trạng thái là [PlaybackStatus.paused] VÀ tween đang bị
+  /// đóng băng giữa chừng với ý định resume nối tiếp — phân biệt
+  /// pause-giữa-tween (forward tiếp) với pause-sau-tween-xong (không
+  /// forward). Interaction-hold KHÔNG set cờ này — tween bị hủy, không
+  /// phải pause.
+  bool _resumeTween = false;
+
+  bool get _playing => _status == PlaybackStatus.playing;
+  bool get _skipped => _status == PlaybackStatus.skipped;
+  bool get _initialIdle => _status == PlaybackStatus.idle;
 
   Timer? _advanceTimer;
-
-  // true chỉ khi learner bấm TẠM DỪNG giữa một tween đang chạy — nghĩa là
-  // controller.value dở dang VÀ learner muốn nối tiếp nó khi bấm PHÁT.
-  // Các hàm hủy tween (_setWater/_revealPrediction/_selectLocation…) phải
-  // xóa cờ này.
-  bool _tweenPaused = false;
 
   // Dự đoán khám phá — state cục bộ, không gửi server.
   int? _chosenOption;
@@ -170,7 +204,7 @@ class _HistoricalAnimationPlayerState
     // pose đầu. PHÁT lần đầu mới chạy transition + ENTER narration.
     // (Reduced-motion: build() xử lý end-state — không check MediaQuery
     // ở đây vì initState không được phép dependOnInheritedWidget.)
-    _applyStep(0, animate: false, fireAudio: false);
+    _seekStepStart(0);
     if (_hasCinematic) {
       widget.cinematicFrame?.value = _cinematic!.frameAt(0, 0.0, 0.0);
     }
@@ -271,30 +305,69 @@ class _HistoricalAnimationPlayerState
     }
   }
 
-  /// Áp trạng thái đích của bước: tween mượt nếu motion bật, nhảy tĩnh
-  /// nếu reduced-motion. `animate=false` cho khởi tạo/replay nhanh.
-  /// Bước có `target == null` giữ nguyên trạng thái hiện tại.
-  /// v2 — fire audio cues: EXIT của step trước, ENTER của step mới.
-  /// `fireAudio=false` (idle mount / skip / navigation / replay-seek)
-  /// bỏ qua phần audio hoàn toàn — narration ENTER chỉ cháy khi playback
-  /// thực sự khởi động (_initialIdle=false), không phải lúc widget
-  /// mount hay seek tĩnh.
-  void _applyStep(
-    int index, {
-    bool animate = true,
-    int? previousIndex,
-    bool fireAudio = true,
-  }) {
-    if (fireAudio) _ensureAudio();
-    if (previousIndex != null && previousIndex != index) {
-      _audio?.onStepExit(_stepIdAt(previousIndex));
-    }
+  /// Đưa painter về trạng thái BAN ĐẦU của scene (initialState đã-seed)
+  /// — replay/seek-về-đầu khôi phục painter thay vì giữ trạng thái cuối
+  /// trận. Tạo instance seeded tạm qua `createPainter()` rồi copy state
+  /// sang `_painter` (giữ listener); seeded tạm không dispose vì nó
+  /// chưa từng attach listener ngoài.
+  void _resetPainterToInitial() {
+    final seeded = widget.definition.createPainter();
+    _painter.restoreFrom(seeded);
+  }
+
+  /// SEEK đầu bước (không phát): painter về initialState nếu index==0,
+  /// `_current` = target bước, `_tweenFrom` snapshot, controller ở 0,
+  /// frame t=0. Dùng cho idle-mount + replay-seek — KHÔNG fire audio,
+  /// KHÔNG đặt timer, KHÔNG chạy tween.
+  void _seekStepStart(int index) {
+    if (index == 0) _resetPainterToInitial();
+    _prepareStep(index);
+    _controller.stop();
+    _controller.value = 0;
+    if (_current != null) _applyCurrent(0);
+    _emitFrame(0.0, 0.0);
+  }
+
+  /// SEEK cuối bước (không phát, nhảy tĩnh): settle end-state của bước
+  /// — reduced-motion, skip, navigation tĩnh. KHÔNG fire audio khi
+  /// `fireAudio=false`.
+  void _applyStepEnd(int index, {int? previousIndex, bool fireAudio = true}) {
+    _transitionAudio(index, previousIndex, fireAudio);
+    _prepareStep(index);
+    _controller.stop();
+    _applyCurrent(1);
+    _emitFrameEnd();
+  }
+
+  /// Bắt đầu PHÁT bước — tween animate (trừ reduced-motion) + fire
+  /// ENTER cue hợp lệ + caller tự `_scheduleAdvance`. Đây là điểm DUY
+  /// NHẤT audio ENTER được phép cháy.
+  void _startStepPlayback(int index, {int? previousIndex}) {
+    _transitionAudio(index, previousIndex, true);
+    _prepareStep(index);
     final step = widget.definition.steps[index];
-    if (fireAudio) _audio?.onStepEnter(_stepIdAt(index));
+    final hasTween = step.target != null || _hasCinematic;
+    if (!_reduceMotion && hasTween) {
+      _controller
+        ..stop()
+        ..reset()
+        ..forward();
+    } else {
+      _controller.stop();
+      _applyCurrent(1);
+      _emitFrameEnd();
+    }
+  }
+
+  /// Setup chung cho một bước — `_current`/`_tweenFrom`/curve/duration.
+  /// Tách ra để seek-start/end/playback dùng chung phần chuẩn bị mà
+  /// không lặp logic.
+  void _prepareStep(int index) {
+    final step = widget.definition.steps[index];
     if (step.target != null) {
       _current = step.target;
-      // Chụp trạng thái ĐANG HIỂN THỊ (kể cả tween cũ đang dở) làm gốc —
-      // chuyển bước giữa chừng không nhảy, mượt từ vị trí hiện tại.
+      // Chụp trạng thái ĐANG HIỂN THỊ làm gốc lerp — chuyển bước giữa
+      // chừng không nhảy, mượt từ vị trí hiện tại.
       _tweenFrom = _current!.captured(_painter);
     } else {
       // Bước cinematic-only (không targetState): xoá _tweenFrom để
@@ -302,15 +375,7 @@ class _HistoricalAnimationPlayerState
       // tránh "rewind" khi learner chen giữa tween trước.
       _tweenFrom = null;
     }
-    // Easing của tween tới bước này — whitelist manifest, bước thiếu
-    // giữ curve mặc định. Map: manifest key → Flutter curve.
     _stepCurve = _curveOf(step.easing);
-    // Bước có tween khi có targetState HOẶC payload cinematic bất kỳ —
-    // bước chỉ-camera/tracks/effects vẫn cần controller chạy để
-    // _onTick/_emitFrame phát frame (tracks theo globalTMs, effects
-    // theo progress). Không chỉ gioi hạn cameraSteps: step thiếu
-    // camera.steps[i] nhưng có tracks/effects cũng phải tween.
-    final hasTween = step.target != null || _hasCinematic;
     // P1 §5 — controller duration khớp step.durationMs khi cinematic:
     // tracks/effects dùng `globalTMs` tính theo stepDurationsMs; nếu
     // controller chạy 900ms nhưng step 1100ms → object chạy hết quỹ đạo
@@ -319,25 +384,19 @@ class _HistoricalAnimationPlayerState
         ? Duration(milliseconds: step.durationMs!)
         : widget.definition.transitionDuration;
     _controller.duration = stepDur;
-    // FIX-01 — `_initialIdle` thay `_reduceMotion` ở nhánh idle: _applyStep
-    // chạy trong initState nên KHÔNG được chạm MediaQuery. Idle mount
-    // (animate=false) đứng ở ĐẦU beat 0 — PHÁT mới animate thật.
-    if (animate && !_reduceMotion && hasTween) {
-      _controller
-        ..stop()
-        ..reset()
-        ..forward();
-    } else {
-      _controller.stop();
-      if (_initialIdle && index == 0) {
-        // ĐẦU beat 0 — initialState + camera pose đầu (không MediaQuery).
-        if (_current != null) _applyCurrent(0);
-        _emitFrame(0.0, 0.0);
-      } else {
-        _applyCurrent(1);
-        _emitFrameEnd();
-      }
+  }
+
+  /// Fire EXIT của bước trước + ENTER của bước đích — CHỈ khi
+  /// `fireAudio` (playback thật). Silent seek/navigation/replay-seek/
+  /// skip truyền false → không đánh cue nào (đặc biệt không fire EXIT
+  /// của bước cũ — silent seek không phải "rời bước tự nhiên").
+  void _transitionAudio(int index, int? previousIndex, bool fireAudio) {
+    if (!fireAudio) return;
+    _ensureAudio();
+    if (previousIndex != null && previousIndex != index) {
+      _audio?.onStepExit(_stepIdAt(previousIndex));
     }
+    _audio?.onStepEnter(_stepIdAt(index));
   }
 
   static const Map<String, Curve> _easingMap = {
@@ -363,7 +422,7 @@ class _HistoricalAnimationPlayerState
     // bấm PHÁT để tiếp tục sau khi đã reveal). Bỏ qua ≠ trả lời: skip
     // vẫn được phép nhưng không tính là đã giải checkpoint.
     if (_predictionVisibleAtCurrentStep && !_predictionRevealed) {
-      setState(() => _playing = false);
+      setState(() => _status = PlaybackStatus.awaitingPrediction);
       return;
     }
     // durationMs (manifest) = TỔNG thời gian ở bước (transition + hold).
@@ -391,80 +450,91 @@ class _HistoricalAnimationPlayerState
         setState(() {
           final prev = _stepIndex;
           _stepIndex++;
-          // P1 §7 — AUTO advance cũng phải fire EXIT cue của step trước
-          // (fade LOOP, one-shot EXIT). Trước đây thiếu previousIndex →
-          // LOOP của step N kéo dài sang N+1.
-          _applyStep(_stepIndex, previousIndex: prev);
+          // AUTO advance = step transition tự nhiên — fire EXIT của
+          // step trước + ENTER của step mới (playback đang chạy thật).
+          _startStepPlayback(_stepIndex, previousIndex: prev);
         });
         _scheduleAdvance();
       } else {
-        setState(() => _playing = false);
+        // Đã hết timeline cuối — FINISHED là trạng thái riêng, không
+        // phải "đang ở bước cuối". Play sau đây sẽ replay từ đầu.
+        setState(() => _status = PlaybackStatus.finished);
       }
     });
   }
 
   void _togglePlay() {
-    if (_playing) {
-      // PAUSE: đóng băng ngay cả tween đang chạy — không chỉ hủy timer.
-      // Đánh dấu đây là PAUSE chủ động để resume nối tiếp đúng tween này.
-      _advanceTimer?.cancel();
-      _audio?.onPause();
-      setState(() {
-        _playing = false;
-        _tweenPaused = _controller.value > 0 && _controller.value < 1;
-        _controller.stop();
-      });
-    } else if (_stepIndex < widget.definition.steps.length - 1) {
-      // FIX-01 — initial PHÁT (idle) HOẶC tween đã bị hủy giữa chừng
-      // (learner kéo tay mực nước, reveal prediction, chạm marker):
-      // KHÔNG được chạy lại/forward tween — nó sẽ ghi đè lựa chọn của
-      // learner. Seek tĩnh giữ nguyên trạng thái đã áp (controller ở 0
-      // sau stop()), chỉ fire ENTER cue nếu là lần phát đầu; timer
-      // advance vẫn đặt bình thường.
-      // `_controller.value` giữ mid sau khi learner hủy tween (kéo tay,
-      // reveal, chạm marker) — dùng làm tín hiệu tween-dở. PAUSE chủ động
-      // bị loại trừ qua _tweenPaused.
-      final abandonedTween =
-          _controller.value > 0 && _controller.value < 1 && !_tweenPaused;
-      if (_initialIdle || abandonedTween) {
+    switch (_status) {
+      case PlaybackStatus.playing:
+        // PAUSE: đóng băng ngay cả tween đang chạy — không chỉ hủy
+        // timer. Đánh dấu resumeTween nếu controller đang dở để Play sau
+        // forward nối tiếp (khác với interaction-hold: tween bị HỦY).
+        _advanceTimer?.cancel();
+        _audio?.onPause();
         setState(() {
-          _playing = true;
-          _skipped = false;
-          _tweenPaused = false;
-          if (_initialIdle && !abandonedTween) {
-            _initialIdle = false;
-            _applyStep(_stepIndex); // animate + fire ENTER của beat
-          }
-          // abandonedTween: giữ nguyên giá trị learner đã chọn — không
-          // _applyStep (reset+forward tween sẽ lerp về target), không
-          // settle (_applyCurrent(1) cũng kéo về target). Chỉ bật
-          // _playing + đặt timer; ENTER cue không phát lại vì đã cháy
-          // lúc step bắt đầu (hoặc idle-mount cũng không phát).
+          _status = PlaybackStatus.paused;
+          _resumeTween = _controller.value > 0 && _controller.value < 1;
+          _controller.stop();
+        });
+      case PlaybackStatus.paused:
+        // RESUME: nối tiếp tween đã đóng băng (nếu có) + audio + timer.
+        final resumeTween = _resumeTween;
+        setState(() {
+          _status = PlaybackStatus.playing;
+          _resumeTween = false;
+          if (resumeTween) _controller.forward();
+        });
+        _audio?.onResume();
+        _scheduleAdvance();
+      case PlaybackStatus.idle:
+        // Initial PHÁT — animate beat hiện tại từ đầu + fire ENTER.
+        setState(() {
+          _status = PlaybackStatus.playing;
+          _startStepPlayback(_stepIndex);
         });
         _scheduleAdvance();
-        return;
-      }
-      // RESUME: chỉ nối tiếp tween khi learner đã PAUSE nó chủ động.
-      // Tween bị thao tác tay/reveal hủy giữa chừng cũng để lại value dở
-      // dang — KHÔNG được forward, nếu không nó ghi đè lựa chọn của
-      // learner (đã xử lý ở nhánh abandonedTween trên).
-      final resumeTween = _tweenPaused;
-      setState(() {
-        _playing = true;
-        _skipped = false;
-        _tweenPaused = false;
-        if (resumeTween) _controller.forward();
-      });
-      _audio?.onResume();
-      _scheduleAdvance();
+      case PlaybackStatus.interactionHold:
+        // Play sau thao tác tay — GIỮ giá trị learner đã chọn, KHÔNG
+        // resume/settle tween đã hủy. Chỉ bật playing + audio + timer;
+        // painter giữ nguyên (không _prepareStep lại, không forward).
+        setState(() => _status = PlaybackStatus.playing);
+        _audio?.onResume();
+        _scheduleAdvance();
+      case PlaybackStatus.awaitingPrediction:
+        // Play trước reveal = không vượt checkpoint — vẫn chờ learner.
+        // Sau reveal `_revealPrediction` chuyển về interactionHold nên
+        // nhánh này chỉ chạy khi learner chưa reveal; no-op về scene,
+        // nhưng vẫn giữ status (không advance timer).
+        if (_predictionRevealed) {
+          setState(() => _status = PlaybackStatus.playing);
+          _audio?.onResume();
+          _scheduleAdvance();
+        }
+      case PlaybackStatus.finished:
+      case PlaybackStatus.skipped:
+        // Play sau finish/skip = replay từ đầu + bắt đầu playback.
+        _replay(startPlayback: true);
+    }
+  }
+
+  /// Chạy transition của bước MỘT lần rồi dừng — dùng cho navigation
+  /// (Next/Prev) khi KHÔNG playing: người học vẫn thấy scene chuyển động
+  /// tới trạng thái bước mới nhưng autoplay không resume, audio không
+  /// fire (silent seek). Giữ nguyên `_status` — idle/paused/hold vẫn là
+  /// trạng thái chờ-PHÁT sau khi tween xong.
+  void _animateStepTransition(int index) {
+    _prepareStep(index);
+    final step = widget.definition.steps[index];
+    final hasTween = step.target != null || _hasCinematic;
+    if (!_reduceMotion && hasTween) {
+      _controller
+        ..stop()
+        ..reset()
+        ..forward(); // chạy 1 lần — không _scheduleAdvance vì !_playing
     } else {
-      // Đang ở bước cuối và bấm PHÁT → tua lại rồi phát tiếp.
-      setState(() {
-        _playing = true;
-        _skipped = false;
-      });
-      _audio?.onResume();
-      _replay();
+      _controller.stop();
+      _applyCurrent(1);
+      _emitFrameEnd();
     }
   }
 
@@ -474,47 +544,54 @@ class _HistoricalAnimationPlayerState
     final prev = _stepIndex;
     setState(() {
       _stepIndex = index;
-      _skipped = false;
-      _tweenPaused = false; // tween mới, không phải pause
+      // Thoát trạng thái kết thúc: điều hướng sau finished/skipped đưa
+      // player về idle (chờ PHÁT) thay vì mắc kẹt ở terminal state.
+      if (_skipped || _status == PlaybackStatus.finished) {
+        _status = PlaybackStatus.idle;
+      }
+      _resumeTween = false;
       _selectedLocationId = null; // panel cũ không sống qua bước mới
-      // FIX-02 — navigation (Next/Prev) chỉ fire ENTER cues của step đích
-      // khi đang playback thật; lúc idle/paused không tự phát overview
-      // sai ngữ cảnh (audio chỉ chạy theo playback).
-      _applyStep(index, previousIndex: prev, fireAudio: _playing);
+      if (_playing) {
+        // Navigation trong lúc playing = step transition thật: animate
+        // + fire EXIT/ENTER + đặt lại timer qua _scheduleAdvance dưới.
+        _startStepPlayback(index, previousIndex: prev);
+      } else {
+        // Navigation lúc chờ = silent seek CÓ animate tween một lần
+        // (scene chuyển động tới bước mới), không audio, không autoplay.
+        _animateStepTransition(index);
+      }
     });
     _scheduleAdvance();
   }
 
-  /// FIX-02 — replay audio khi learner chủ động PHÁT-LẠI sau finish.
-  /// Chạy đúng theo quy tắc: không phát khi replay là seek tĩnh
-  /// (idle/navigation) — narration đúng một lần khi playback chạy lại.
-  void _replayAudio() {
-    final a = _audio;
-    if (a == null) return;
-    a.onSkip(); // dừng mọi cue đang chạy + abort pending fetch
-    a.onStepEnter(_stepIdAt(0)); // fire ENTER của beat 0 lại
-  }
-
-  void _replay() {
+  /// Replay — reset scene về đầu beat 0. `startPlayback=true` (Play sau
+  /// finish/skip, hoặc nút Tua-lại khi đang playing) thì phát luôn beat
+  /// 0 + ENTER; `false` (replay lúc paused/idle) chỉ seek tĩnh — learner
+  /// bấm PHÁT sau mới chạy. Contract: replay KHÔNG giữ trạng thái cuối
+  /// trận (painter reset về initialState qua _seekStepStart).
+  void _replay({bool startPlayback = false}) {
     _advanceTimer?.cancel();
     final prev = _stepIndex;
+    // Replay trong lúc playing → giữ playing và startPlayback. Nút
+    // Tua-lại khi playing cũng là startPlayback (xem lại từ đầu ngay).
+    final playAfter = startPlayback || _playing;
     setState(() {
       _stepIndex = 0;
-      _skipped = false;
-      _tweenPaused = false;
+      _status = playAfter ? PlaybackStatus.playing : PlaybackStatus.idle;
+      _resumeTween = false;
       // Reset scene + xóa mọi state tương tác — replay là "xem lại từ
       // đầu", không giữ lựa chọn/reveal/marker cũ.
       _chosenOption = null;
       _predictionRevealed = false;
       _selectedLocationId = null;
-      _initialIdle = false; // replay = bắt đầu lại playback, không idle
-      // Replay = seek về đầu — animation tĩnh ở đầu beat 0 (không nhảy
-      // cuối). fireAudio=false: ENTER narration phát qua _replayAudio
-      // chỉ khi learner đang playback (bấm PHÁT-LẠI sau finish hoặc
-      // replay trong lúc playing). Replay lúc paused/idle là seek tĩnh
-      // — không tự cháy narration (learner chưa yêu cầu phát lại).
-      _applyStep(0, animate: false, previousIndex: prev, fireAudio: false);
-      if (_playing) _replayAudio();
+      if (playAfter) {
+        // Phát lại beat 0: audio session cũ dọn rồi fire ENTER một lần.
+        _audio?.onSkip();
+        _startStepPlayback(0, previousIndex: prev);
+      } else {
+        // Seek tĩnh về đầu — painter reset, frame t=0, không audio.
+        _seekStepStart(0);
+      }
     });
     _scheduleAdvance();
   }
@@ -523,14 +600,11 @@ class _HistoricalAnimationPlayerState
     _advanceTimer?.cancel();
     _audio?.onSkip(); // dừng mọi cue ngay, không fire EXIT
     setState(() {
-      _playing = false;
-      _skipped = true;
-      _tweenPaused = false;
-      _initialIdle = false;
+      _status = PlaybackStatus.skipped;
+      _resumeTween = false;
       _stepIndex = widget.definition.steps.length - 1;
-      // FIX-02 — skip là seek tĩnh cuối scene: không fire ENTER của bước
-      // cuối (overview không phát lại sai ngữ cảnh).
-      _applyStep(_stepIndex, animate: false, fireAudio: false);
+      // Skip = seek tĩnh cuối scene: không fire ENTER/EXIT của bước cuối.
+      _applyStepEnd(_stepIndex, fireAudio: false);
     });
   }
 
@@ -540,9 +614,11 @@ class _HistoricalAnimationPlayerState
     _advanceTimer?.cancel();
     _audio?.onPause(); // learner tương tác = pause ambient loop
     setState(() {
-      _playing = false; // thao tác tay → không auto-advance
-      _tweenPaused = false; // HỦY tween, không phải pause
-      _controller.stop(); // thao tác tay thắng tween đang chạy
+      // INTERACTION_HOLD — learner giữ giá trị tay; tween bị HỦY có chủ
+      // đích (không resume khi Play), playback về chờ-tiếp-tục.
+      _status = PlaybackStatus.interactionHold;
+      _resumeTween = false;
+      _controller.stop();
       _painter.waterLevel = v.clamp(0.0, 1.0);
       // Snapshot lại gốc để transition kế tiếp lerp từ giá trị tay.
       _tweenFrom = _current?.captured(_painter);
@@ -553,11 +629,11 @@ class _HistoricalAnimationPlayerState
     _advanceTimer?.cancel();
     _audio?.onPause();
     setState(() {
-      // Chạm marker = TẠM DỪNG khám phá: settle scene về trạng thái đích
-      // của bước hiện tại (deterministic), UI về PHÁT, không timer mới.
+      // Chạm marker = INTERACTION_HOLD khám phá: settle scene về trạng
+      // thái đích của bước hiện tại (deterministic), không timer mới.
       // Tween bị hủy KHÔNG được resume — không phải pause-để-tiếp-tục.
-      _playing = false;
-      _tweenPaused = false;
+      _status = PlaybackStatus.interactionHold;
+      _resumeTween = false;
       _controller.stop();
       _selectedLocationId = id == _selectedLocationId ? null : id;
       _applyCurrent(1); // chốt bước hiện tại về trạng thái ổn định
@@ -572,9 +648,12 @@ class _HistoricalAnimationPlayerState
     if (_chosenOption == null) return;
     _advanceTimer?.cancel();
     setState(() {
-      _playing = false;
+      // Reveal = giải checkpoint → về interactionHold (không phải
+      // paused) — Play sau đó tiếp tục theo contract, không resume
+      // tween đã hủy.
+      _status = PlaybackStatus.interactionHold;
       _predictionRevealed = true;
-      _tweenPaused = false; // HỦY tween, không phải pause
+      _resumeTween = false;
       // Dừng tween đang chạy NGAY — nếu không nó sẽ ghi đè trạng thái
       // reveal.
       _controller.stop();

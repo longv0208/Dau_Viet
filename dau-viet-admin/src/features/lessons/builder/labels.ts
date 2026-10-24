@@ -11,6 +11,7 @@ import {
   Layers,
   Lightbulb,
   Link2,
+  ListChecks,
   ListOrdered,
   MapPin,
   PenLine,
@@ -49,5 +50,6 @@ export const ACTIVITY_LABELS: Record<
   DRAG_ORDER: { label: "Sắp xếp diễn biến", description: "Sắp xếp theo thứ tự đúng", icon: ArrowDownUp },
   VERIFICATION: { label: "Kiểm chứng", description: "Xác nhận/bác bỏ khẳng định", icon: CheckSquare },
   CER: { label: "Kết luận có dẫn chứng", description: "Viết lập luận có dẫn chứng", icon: FileQuestion },
+  CER_CHOICE: { label: "Kết luận có dẫn chứng (chọn)", description: "Chọn lập luận - bằng chứng - suy luận", icon: ListChecks },
   REFLECTION_PROMPT: { label: "Câu hỏi suy ngẫm", description: "Câu hỏi mở cho học viên", icon: PenLine },
 };

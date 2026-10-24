@@ -1,6 +1,7 @@
 import type { Activity } from "../builder/draft-model";
 import {
   CerActivityView,
+  CerChoiceActivityView,
   VerificationActivityView,
 } from "./renderers/assessment-renderers";
 import {
@@ -33,6 +34,7 @@ const ACTIVITY_LABELS: Record<string, string> = {
   DRAG_ORDER: "Sắp xếp thứ tự",
   VERIFICATION: "Kiểm chứng",
   CER: "Luận điểm – Bằng chứng – Lập luận",
+  CER_CHOICE: "Kết luận có dẫn chứng (chọn)",
   REFLECTION_PROMPT: "Suy ngẫm",
 };
 
@@ -79,6 +81,8 @@ export function ActivityRenderer({
       return <VerificationActivityView {...props} />;
     case "CER":
       return <CerActivityView {...props} />;
+    case "CER_CHOICE":
+      return <CerChoiceActivityView {...props} />;
     case "REFLECTION_PROMPT":
       return <ReflectionPromptActivityView {...props} />;
     default:

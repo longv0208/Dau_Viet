@@ -27,8 +27,10 @@
   "planPath": "plans/261024-bachdang-938-cinematic-slice/plan.md",
   "evidenceRefs": [
     "plans/261024-bachdang-938-cinematic-slice/plan.md",
+    "plans/261024-playback-audio-stabilization/plan.md",
     "dau-viet-backend/src/main/resources/db/migration/V17__bachdang_production_scene.sql",
-    "dau-viet-backend/src/test/java/com/dauviet/animation/manifest/AnimationProductionSeedTest.java"
+    "dau-viet-backend/src/test/java/com/dauviet/animation/manifest/AnimationProductionSeedTest.java",
+    "dau-viet-mobile/test/learning/playback_state_machine_test.dart"
   ],
   "reviewRefs": [
     "plans/261024-bachdang-938-cinematic-slice/plan.md"
@@ -42,5 +44,5 @@
   "resumeFrom": null,
   "handoffRef": null,
   "createdAt": "2026-10-24T00:00:00+07:00",
-  "updatedAt": "2026-10-24T12:00:00+07:00"
+  "updatedAt": "2026-10-24T18:00:00+07:00"
 }

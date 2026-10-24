@@ -238,7 +238,7 @@ public class LearnerAttemptService {
                         stage.hasNonNull("title") ? stage.get("title").asText() : null);
         CurrentActivityResponse.Activity activityDto = null;
         if (activity != null) {
-            ObjectNode projected = projection.projectActivity(activity);
+            ObjectNode projected = projection.projectActivity(activity, state.outputs());
             activityDto = new CurrentActivityResponse.Activity(
                     activity.path("id").asText(),
                     activity.path("type").asText(null),
@@ -324,6 +324,7 @@ public class LearnerAttemptService {
         if (result.completed()) {
             state.markCompleted(activityId);
         }
+        invalidateDependents(model, state, activityId);
         // TASK-0022: collect evidence đã chọn & validate sau khi submission
         // được chấp nhận — cùng transaction, upsert idempotent. Chỉ
         // EVIDENCE_SELECT (EXPLORE_MAP/clue chưa có evidence reference tường
@@ -411,7 +412,8 @@ public class LearnerAttemptService {
         a.markCompleted();
         attempts.save(a);
         BigDecimal score = scoreOf(progress);
-        String resultJson = resultJsonOf(a, verdict, progress, score);
+        BigDecimal knowledgeScore = knowledgeScoreOf(model, state);
+        String resultJson = resultJsonOf(a, verdict, progress, score, knowledgeScore);
         lessonResults.save(LessonResult.of(a.getId(), score, resultJson,
                 a.getCompletedAt()));
         // TASK-0023: thưởng + vật phẩm mở khóa ghi TRONG cùng transaction —
@@ -444,8 +446,10 @@ public class LearnerAttemptService {
         LessonVersion v = versions.findById(a.getLessonVersionId())
                 .orElseThrow(() -> new VersionNotFoundException(
                         "lesson version missing: " + a.getLessonVersionId()));
+        AttemptState state = AttemptState.fromJson(parse(a.getStateJson()));
         return new LearnerLessonContent(v.getLessonId(), v.getId(),
-                v.getVersionNo(), projection.project(parse(v.getSnapshotJson())));
+                v.getVersionNo(),
+                projection.project(parse(v.getSnapshotJson()), state.outputs()));
     }
 
     /** Persisted lesson_results for an owned, completed attempt. */
@@ -531,14 +535,45 @@ public class LearnerAttemptService {
                 .setScale(2, RoundingMode.HALF_UP);
     }
 
+    /**
+     * Knowledge score (0-100) = mean per-activity correctness over REQUIRED
+     * activities only — deliberately separate from `score` (progress %).
+     * Per-activity contribution: graded output `score` (0..1) when present,
+     * else `correct` (1/0), else completed ? 1 : 0 (ungraded required work
+     * counts fully once done). Exhausted-but-incomplete contributes its
+     * partial score, never free credit.
+     */
+    private BigDecimal knowledgeScoreOf(SnapshotModel model, AttemptState state) {
+        double sum = 0.0;
+        int total = 0;
+        for (JsonNode stage : model.stages()) {
+            for (JsonNode act : model.requiredActivities(stage.path("id").asText())) {
+                total++;
+                String id = act.path("id").asText();
+                JsonNode out = state.outputs().get(id);
+                if (out != null && out.hasNonNull("score")) {
+                    sum += out.get("score").asDouble(0.0);
+                } else if (out != null && out.hasNonNull("correct")) {
+                    sum += out.get("correct").asBoolean(false) ? 1.0 : 0.0;
+                } else if (state.isCompleted(id)) {
+                    sum += 1.0;
+                }
+            }
+        }
+        if (total == 0) return BigDecimal.ZERO.setScale(2);
+        return BigDecimal.valueOf(sum * 100.0 / total)
+                .setScale(2, RoundingMode.HALF_UP);
+    }
+
     private String resultJsonOf(LearnerAttempt a, LessonCompletion verdict,
                                 AttemptProgressResponse.Progress progress,
-                                BigDecimal score) {
+                                BigDecimal score, BigDecimal knowledgeScore) {
         ObjectNode node = mapper.createObjectNode();
         node.put("attemptId", a.getId().toString());
         node.put("lessonVersionId", a.getLessonVersionId().toString());
         node.put("reason", verdict.reason());
         node.put("score", score.doubleValue());
+        node.put("knowledgeScore", knowledgeScore.doubleValue());
         node.put("completedRequired", progress.completedRequired());
         node.put("totalRequired", progress.totalRequired());
         if (verdict.detail() != null) node.set("detail", verdict.detail());
@@ -594,6 +629,42 @@ public class LearnerAttemptService {
                 .orElseThrow(() -> new VersionNotFoundException(
                         "lesson version missing: " + versionId));
         return SnapshotModel.parse(parse(v.getSnapshotJson()));
+    }
+
+    /**
+     * Bounded dependent-output invalidation (Learning Flow 2.0): re-submitting
+     * an upstream activity voids outputs of already-completed activities that
+     * could have consumed the old answer — later siblings in the same stage
+     * and every activity in direct nextStageIds descendant stages. Scope is
+     * deliberately narrow (same stage + depth-1 edges) so revising cannot
+     * cascade a wipe across the whole attempt.
+     */
+    private void invalidateDependents(SnapshotModel model, AttemptState state,
+                                      String activityId) {
+        String stageId = model.stageIdOf(activityId);
+        if (stageId == null) return;
+        java.util.Set<String> dependents = new java.util.LinkedHashSet<>();
+        boolean seenSelf = false;
+        for (JsonNode act : model.activitiesOf(stageId)) {
+            String id = act.path("id").asText(null);
+            if (id == null) continue;
+            if (seenSelf) dependents.add(id);
+            if (id.equals(activityId)) seenSelf = true;
+        }
+        for (String nextStageId : model.nextStageIds(stageId)) {
+            for (JsonNode act : model.activitiesOf(nextStageId)) {
+                String id = act.path("id").asText(null);
+                if (id != null) dependents.add(id);
+            }
+        }
+        for (String id : dependents) {
+            if (state.isCompleted(id) || state.outputs().containsKey(id)) {
+                log.info("invalidating dependent output activity={} after re-submit of {}",
+                        id, activityId);
+                state.removeCompleted(id);
+                state.removeOutput(id);
+            }
+        }
     }
 
     private AttemptProgressResponse.Progress progressOf(SnapshotModel model, AttemptState state) {

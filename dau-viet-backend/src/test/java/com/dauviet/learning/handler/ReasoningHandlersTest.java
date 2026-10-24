@@ -69,6 +69,127 @@ class ReasoningHandlersTest {
                 .hasMessageContaining("not allowed");
     }
 
+    /* ---------- graded mode (config.graded:true) ---------- */
+
+    private static JsonNode gradedReasoningActivity() {
+        return HandlerTestSupport.json(
+                "{\"id\":\"rc\",\"type\":\"REASONING_CONNECT\",\"config\":{"
+              + "\"graded\":true,\"maxAttempts\":3,"
+              + "\"nodes\":[{\"id\":\"n1\"},{\"id\":\"n2\"},{\"id\":\"n3\"}],"
+              + "\"allowedRelations\":[\"causes\",\"contradicts\"],"
+              + "\"expectedRelations\":["
+              + "  {\"from\":\"n1\",\"to\":\"n2\",\"relation\":\"causes\"},"
+              + "  {\"from\":\"n3\",\"to\":\"n1\",\"relation\":\"contradicts\"}]}}");
+    }
+
+    @Test
+    void reasoningConnect_graded_exactMatch_completes() {
+        ActivityResult r = reasoning.evaluate(
+                HandlerTestSupport.ctx(gradedReasoningActivity(), snapshot()),
+                HandlerTestSupport.sub("rc",
+                        "{\"relations\":[{\"from\":\"n1\",\"to\":\"n2\",\"relation\":\"causes\"},"
+                      + "               {\"from\":\"n3\",\"to\":\"n1\",\"relation\":\"contradicts\"}]}"));
+        assertThat(r.outcome()).isEqualTo(ActivityResult.COMPLETED);
+        assertThat(r.completed()).isTrue();
+        assertThat(r.output().get("correct").asBoolean()).isTrue();
+        assertThat(r.output().get("score").asDouble()).isEqualTo(1.0);
+    }
+
+    @Test
+    void reasoningConnect_graded_alternativeAcceptedSet_completes() {
+        JsonNode act = HandlerTestSupport.json(
+                "{\"id\":\"rc\",\"type\":\"REASONING_CONNECT\",\"config\":{"
+              + "\"graded\":true,\"maxAttempts\":3,"
+              + "\"nodes\":[{\"id\":\"n1\"},{\"id\":\"n2\"},{\"id\":\"n3\"}],"
+              + "\"allowedRelations\":[\"causes\",\"contradicts\"],"
+              + "\"expectedRelations\":["
+              + "  {\"from\":\"n1\",\"to\":\"n2\",\"relation\":\"causes\"}],"
+              + "\"acceptedRelationSets\":["
+              + "  [{\"from\":\"n2\",\"to\":\"n3\",\"relation\":\"causes\"}]]}}");
+        ActivityResult r = reasoning.evaluate(
+                HandlerTestSupport.ctx(act, snapshot()),
+                HandlerTestSupport.sub("rc",
+                        "{\"relations\":[{\"from\":\"n2\",\"to\":\"n3\",\"relation\":\"causes\"}]}"));
+        assertThat(r.outcome()).isEqualTo(ActivityResult.COMPLETED);
+        assertThat(r.completed()).isTrue();
+    }
+
+    @Test
+    void reasoningConnect_graded_partialMatch_partial() {
+        ActivityResult r = reasoning.evaluate(
+                HandlerTestSupport.ctx(gradedReasoningActivity(), snapshot()),
+                HandlerTestSupport.sub("rc",
+                        "{\"relations\":[{\"from\":\"n1\",\"to\":\"n2\",\"relation\":\"causes\"}]}"));
+        assertThat(r.outcome()).isEqualTo(ActivityResult.PARTIAL);
+        assertThat(r.completed()).isFalse();
+        assertThat(r.output().get("score").asDouble()).isEqualTo(0.5);
+        assertThat(r.output().get("matchedRelations").asInt()).isEqualTo(1);
+    }
+
+    @Test
+    void reasoningConnect_graded_noMatch_incorrect() {
+        ActivityResult r = reasoning.evaluate(
+                HandlerTestSupport.ctx(gradedReasoningActivity(), snapshot()),
+                HandlerTestSupport.sub("rc",
+                        "{\"relations\":[{\"from\":\"n2\",\"to\":\"n1\",\"relation\":\"causes\"}]}"));
+        assertThat(r.outcome()).isEqualTo(ActivityResult.INCORRECT);
+        assertThat(r.completed()).isFalse();
+        assertThat(r.output().get("score").asDouble()).isEqualTo(0.0);
+    }
+
+    @Test
+    void reasoningConnect_graded_syntaxValidButWrong_notCompleted() {
+        // Valid node ids + allowed relation, but wrong direction/content —
+        // graded mode must not pass on syntax alone.
+        ActivityResult r = reasoning.evaluate(
+                HandlerTestSupport.ctx(gradedReasoningActivity(), snapshot()),
+                HandlerTestSupport.sub("rc",
+                        "{\"relations\":[{\"from\":\"n2\",\"to\":\"n3\",\"relation\":\"causes\"},"
+                      + "               {\"from\":\"n1\",\"to\":\"n3\",\"relation\":\"contradicts\"}]}"));
+        assertThat(r.completed()).isFalse();
+        assertThat(r.output().get("correct").asBoolean()).isFalse();
+    }
+
+    @Test
+    void reasoningConnect_graded_exhausted_completes() {
+        Map<String, JsonNode> prior = new LinkedHashMap<>();
+        prior.put("rc", HandlerTestSupport.json("{\"attemptCount\":2}"));
+        ActivityResult r = reasoning.evaluate(
+                HandlerTestSupport.ctx(gradedReasoningActivity(), snapshot(), prior),
+                HandlerTestSupport.sub("rc",
+                        "{\"relations\":[{\"from\":\"n2\",\"to\":\"n1\",\"relation\":\"causes\"}]}"));
+        assertThat(r.completed()).isTrue();
+        assertThat(r.output().get("exhausted").asBoolean()).isTrue();
+    }
+
+    @Test
+    void reasoningConnect_graded_noKey_stillCompletesLegacy() {
+        // graded flag but no expected sets → nothing can match; treat as
+        // incorrect path (validator blocks this at publish anyway).
+        JsonNode act = HandlerTestSupport.json(
+                "{\"id\":\"rc\",\"type\":\"REASONING_CONNECT\",\"config\":{"
+              + "\"graded\":true,\"maxAttempts\":3,"
+              + "\"nodes\":[{\"id\":\"n1\"},{\"id\":\"n2\"}],"
+              + "\"allowedRelations\":[\"causes\"]}}");
+        ActivityResult r = reasoning.evaluate(
+                HandlerTestSupport.ctx(act, snapshot()),
+                HandlerTestSupport.sub("rc",
+                        "{\"relations\":[{\"from\":\"n1\",\"to\":\"n2\",\"relation\":\"causes\"}]}"));
+        assertThat(r.completed()).isFalse();
+        assertThat(r.outcome()).isEqualTo(ActivityResult.INCORRECT);
+    }
+
+    @Test
+    void reasoningConnect_graded_outputNeverEchoes_expected() {
+        ActivityResult r = reasoning.evaluate(
+                HandlerTestSupport.ctx(gradedReasoningActivity(), snapshot()),
+                HandlerTestSupport.sub("rc",
+                        "{\"relations\":[{\"from\":\"n1\",\"to\":\"n2\",\"relation\":\"causes\"}]}"));
+        String out = r.output().toString();
+        assertThat(out).doesNotContain("expectedRelations");
+        assertThat(out).doesNotContain("acceptedRelationSets");
+    }
+
     private static JsonNode verificationActivity(String extraConfig) {
         return HandlerTestSupport.json(
                 "{\"id\":\"vf\",\"type\":\"VERIFICATION\",\"config\":{"

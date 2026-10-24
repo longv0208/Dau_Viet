@@ -49,7 +49,7 @@ public final class DraftSchema {
             StageType.RECONSTRUCTION, Set.of(ActivityType.DRAG_ORDER, ActivityType.READ),
             StageType.VERIFICATION, Set.of(ActivityType.VERIFICATION, ActivityType.MULTIPLE_CHOICE,
                     ActivityType.READ),
-            StageType.CONCLUSION, Set.of(ActivityType.CER, ActivityType.READ),
+            StageType.CONCLUSION, Set.of(ActivityType.CER, ActivityType.CER_CHOICE, ActivityType.READ),
             StageType.REFLECTION, Set.of(ActivityType.REFLECTION_PROMPT, ActivityType.READ));
 
     /**
@@ -60,7 +60,9 @@ public final class DraftSchema {
     public static final Set<String> LEARNER_HIDDEN_KEYS = Set.of(
             "correctOptionIds", "multiCorrect", "correctPairs", "correctOrder",
             "expectedOrder", "acceptedSequences", "requiredEvidenceIds",
-            "expectedHypothesis", "answerKey", "answer", "key", "expected");
+            "expectedHypothesis", "answerKey", "answer", "key", "expected",
+            "acceptedClaims", "acceptedEvidenceIds", "acceptedReasoningIds",
+            "expectedRelations", "acceptedRelationSets", "acceptedOptions");
 
     private DraftSchema() {
     }

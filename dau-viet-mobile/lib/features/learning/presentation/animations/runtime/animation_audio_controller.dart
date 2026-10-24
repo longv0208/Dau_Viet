@@ -101,6 +101,14 @@ class AnimationAudioController {
   List<int>? _loopPendingBytes;
   bool _loopStarted = false;
 
+  /// One-shot cues bị chặn bởi Pause (bytes đã về nhưng chưa được
+  /// `play`). `onResume` phát lại đúng MỘT lần qua `_playOnce` — không
+  /// refetch (bytes giữ sẵn), không duplicate (list clear trước khi
+  /// phát). `stale` re-check generation/exitEpoch lúc resume: learner
+  /// chuyển step/skip trong lúc pause → pending của step cũ bị drop.
+  final List<({AudioCueDto cue, List<int> bytes, bool Function() stale})>
+  _pendingOneShots = [];
+
   bool _disposed = false;
   bool _paused = false;
 
@@ -163,6 +171,8 @@ class AnimationAudioController {
   /// Phát một cue — ENTER: play once; LOOP: chuyển thành loop player.
   /// Chụp [_generation] trước await: nếu gen đổi (learner đã chuyển
   /// step / skip / dispose) trong lúc fetch bytes thì abort.
+  /// `_paused` sau await = giữ cue pending (bytes đã cache), KHÔNG play
+  /// — onResume sẽ phát lại đúng 1 lần thay vì drop mất.
   Future<void> _fire(AudioCueDto cue) async {
     if (_disposed || !_soundEnabled) return;
     final gen = _generation;
@@ -174,7 +184,7 @@ class AnimationAudioController {
       if (cue.cue == 'LOOP') {
         await _startLoop(cue, bytes, gen);
       } else {
-        await _playOnce(cue, bytes);
+        await _playOnce(cue, bytes, () => gen != _generation);
       }
     } catch (e) {
       debugPrint('AnimationAudioController cue error: $e');
@@ -193,19 +203,37 @@ class AnimationAudioController {
       if (_disposed || epoch != _exitEpoch || bytes == null || bytes.isEmpty) {
         return;
       }
-      await _playOnce(cue, bytes);
+      await _playOnce(cue, bytes, () => epoch != _exitEpoch);
     } catch (e) {
       debugPrint('AnimationAudioController exit cue error: $e');
     }
   }
 
-  Future<void> _playOnce(AudioCueDto cue, List<int> bytes) async {
+  /// Phát one-shot (ENTER/EXIT). [stale] = closure kiểm tra generation/
+  /// epoch của caller — sau MỖI await phải re-check, vì `onPause`,
+  /// `onStepEnter`, `onSkip` có thể xen giữa chuỗi config; nếu cứ `play`
+  /// sau khi learner đã pause/chuyển step thì âm vẫn nổ lệch hình
+  /// (spec: pending fetch + Pause → don't play). Khi phát hiện paused
+  /// giữa config → queue vào `_pendingOneShots` để `onResume` phát đúng
+  /// một lần (không refetch, không duplicate).
+  Future<void> _playOnce(
+    AudioCueDto cue,
+    List<int> bytes,
+    bool Function() stale,
+  ) async {
     if (_isTest) return; // plugin không chạy trong flutter test
     final key = '${cue.assetRef}:${cue.cue}';
     final player = _oneShotPlayers[key] ??= _playerFactory();
     await player.stop();
+    if (_disposed || stale()) return;
     await player.setReleaseMode(ReleaseMode.stop);
+    if (_disposed || stale()) return;
     await player.setVolume(cue.volume);
+    if (_disposed || stale()) return;
+    if (_paused) {
+      _pendingOneShots.add((cue: cue, bytes: bytes, stale: stale));
+      return;
+    }
     await player.play(BytesSource(Uint8List.fromList(bytes)));
   }
 
@@ -387,6 +415,16 @@ class AnimationAudioController {
         } catch (_) {}
       }
     }
+    // One-shot bị chặn bởi pause (bytes đã về, chưa kịp play) — phát
+    // đúng một lần; drop những cue đã stale (learner chuyển step/skip
+    // trong lúc pause). Clear TRƯỚC khi phát để một pending không thể
+    // re-queue chính nó nếu `_playOnce` gặp `_paused` lần nữa.
+    final pending = List.of(_pendingOneShots);
+    _pendingOneShots.clear();
+    for (final p in pending) {
+      if (_disposed || p.stale()) continue;
+      unawaited(_playOnce(p.cue, p.bytes, p.stale));
+    }
     for (final s in _oneShotPlayers.values) {
       try {
         s.resume();
@@ -401,6 +439,7 @@ class AnimationAudioController {
     _exitEpoch = -1;
     if (_disposed) return;
     _stopLoop();
+    _pendingOneShots.clear(); // pending của session cũ — không phát sau skip
     for (final p in _oneShotPlayers.values) {
       try {
         p.stop();
@@ -415,6 +454,7 @@ class AnimationAudioController {
     _generation++;
     _exitEpoch = -1; // pending EXIT abort
     await _stopLoop();
+    _pendingOneShots.clear();
     for (final p in _oneShotPlayers.values) {
       try {
         await p.dispose();

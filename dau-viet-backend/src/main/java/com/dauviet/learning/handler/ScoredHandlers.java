@@ -26,12 +26,6 @@ public final class ScoredHandlers {
     private ScoredHandlers() {
     }
 
-    private static int priorAttempts(AttemptContext ctx) {
-        JsonNode prior = ctx.priorOutputs().get(ctx.activityId());
-        return prior != null && prior.isObject()
-                ? prior.path("attemptCount").asInt(0) : 0;
-    }
-
     @Component
     public static class MultipleChoiceHandler extends AbstractActivityHandler {
         @Override public ActivityType supports() { return ActivityType.MULTIPLE_CHOICE; }

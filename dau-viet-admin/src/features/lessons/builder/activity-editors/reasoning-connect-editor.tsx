@@ -41,6 +41,28 @@ function readRelations(config: Record<string, unknown> | undefined): string[] {
   return Array.isArray(raw) ? raw.map((r) => String(r ?? "")).filter(Boolean) : [];
 }
 
+interface ExpectedRelation {
+  from: string;
+  to: string;
+  relation: string;
+}
+
+function readExpectedRelations(config: Record<string, unknown> | undefined): ExpectedRelation[] {
+  const raw = config?.expectedRelations;
+  if (!Array.isArray(raw)) return [];
+  return raw
+    .filter((r) => r && typeof r === "object")
+    .map((r) => {
+      const x = r as Record<string, unknown>;
+      return {
+        from: String(x.from ?? ""),
+        to: String(x.to ?? ""),
+        relation: String(x.relation ?? ""),
+      };
+    })
+    .filter((r) => r.from && r.to && r.relation);
+}
+
 /**
  * REASONING_CONNECT — config.nodes[{id,label}] ≥2 + config.allowedRelations[]
  * ≥1 (chuỗi tuỳ ý; backend không ép schema chặt hơn). Học viên nối các khái
@@ -50,6 +72,8 @@ export function ReasoningConnectEditor(props: EditorProps) {
   const { activity, readOnly, onChange } = props;
   const nodes = readNodes(activity.config);
   const relations = readRelations(activity.config);
+  const graded = (activity.config?.graded as boolean | undefined) ?? false;
+  const expected = readExpectedRelations(activity.config);
 
   function write(next: { nodes?: Node[]; relations?: string[] }) {
     const cfg: Record<string, unknown> = { ...activity.config };
@@ -174,6 +198,121 @@ export function ReasoningConnectEditor(props: EditorProps) {
           </p>
         )}
       </div>
+
+      <label className="flex items-center gap-2 text-sm text-ink">
+        <input
+          type="checkbox"
+          className="size-4 accent-brand"
+          checked={graded}
+          disabled={readOnly}
+          onChange={(e) =>
+            onChange({ config: { ...activity.config, graded: e.target.checked || undefined } })
+          }
+        />
+        Chấm điểm theo đáp án (graded)
+      </label>
+      {graded && (
+        <ExpectedRelationsEditor
+          nodes={nodes}
+          relations={relations}
+          expected={expected}
+          readOnly={readOnly}
+          onChange={(next) => onChange({ config: { ...activity.config, expectedRelations: next } })}
+        />
+      )}
+    </div>
+  );
+}
+
+/** Graded-mode: canonical expectedRelations[] — pick from/to/relation. */
+function ExpectedRelationsEditor({
+  nodes, relations, expected, readOnly, onChange,
+}: {
+  nodes: Node[];
+  relations: string[];
+  expected: ExpectedRelation[];
+  readOnly?: boolean;
+  onChange: (next: ExpectedRelation[]) => void;
+}) {
+  function add() {
+    const from = nodes[0]?.id;
+    const to = nodes[1]?.id;
+    const rel = relations[0];
+    if (from === undefined || to === undefined || rel === undefined) return;
+    onChange([...expected, { from, to, relation: rel }]);
+  }
+  function set(i: number, patch: Partial<ExpectedRelation>) {
+    onChange(expected.map((r, j) => (j === i ? { ...r, ...patch } : r)));
+  }
+  return (
+    <div className="flex flex-col gap-2 rounded-md border border-brand/30 bg-brand/5 p-3">
+      <Label>Quan hệ đúng (đáp án) *</Label>
+      <p className="text-xs text-ink-muted">
+        Backend chấm đúng khi học viên nối đúng TẤT CẢ các quan hệ này — không hiển thị cho học viên.
+      </p>
+      {expected.map((r, i) => (
+        <div key={i} className="flex items-center gap-2">
+          <select
+            className="h-9 rounded-md border border-border bg-white px-2 text-sm"
+            value={r.from}
+            disabled={readOnly}
+            aria-label={`Quan hệ ${i + 1} — từ`}
+            onChange={(e) => set(i, { from: e.target.value })}
+          >
+            {nodes.map((n) => (
+              <option key={n.id} value={n.id}>{n.label || n.id}</option>
+            ))}
+          </select>
+          <select
+            className="h-9 rounded-md border border-border bg-white px-2 text-sm"
+            value={r.relation}
+            disabled={readOnly}
+            aria-label={`Quan hệ ${i + 1} — loại`}
+            onChange={(e) => set(i, { relation: e.target.value })}
+          >
+            {relations.map((x) => (
+              <option key={x} value={x}>{x}</option>
+            ))}
+          </select>
+          <select
+            className="h-9 rounded-md border border-border bg-white px-2 text-sm"
+            value={r.to}
+            disabled={readOnly}
+            aria-label={`Quan hệ ${i + 1} — đến`}
+            onChange={(e) => set(i, { to: e.target.value })}
+          >
+            {nodes.map((n) => (
+              <option key={n.id} value={n.id}>{n.label || n.id}</option>
+            ))}
+          </select>
+          {!readOnly && (
+            <Button
+              variant="secondary"
+              className="h-9 px-2"
+              aria-label={`Xoá quan hệ đúng ${i + 1}`}
+              onClick={() => onChange(expected.filter((_, j) => j !== i))}
+            >
+              <Trash2 className="size-3.5" />
+            </Button>
+          )}
+        </div>
+      ))}
+      {!readOnly && (
+        <Button
+          variant="secondary"
+          size="sm"
+          className="self-start"
+          disabled={nodes.length < 2 || relations.length === 0}
+          onClick={add}
+        >
+          <Plus className="size-4" /> Thêm quan hệ đúng
+        </Button>
+      )}
+      {expected.length === 0 && (
+        <p role="alert" className="text-xs text-error">
+          Cần ít nhất 1 quan hệ đúng để xuất bản khi chấm điểm.
+        </p>
+      )}
     </div>
   );
 }

@@ -24,11 +24,12 @@ class ActivityHandlerRegistryTest {
                 new ScoredHandlers.DragOrderHandler(),
                 new ReasoningHandlers.ReasoningConnectHandler(),
                 new ReasoningHandlers.VerificationHandler(),
-                new ReasoningHandlers.CerHandler());
+                new ReasoningHandlers.CerHandler(),
+                new CerChoiceHandler());
     }
 
     @Test
-    void allTwelveTypesRegistered() {
+    void allThirteenTypesRegistered() {
         ActivityHandlerRegistry registry = new ActivityHandlerRegistry(allHandlers());
         for (ActivityType t : ActivityType.values()) {
             assertThat(registry.handlerFor(t).supports()).isEqualTo(t);

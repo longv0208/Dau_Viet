@@ -51,16 +51,58 @@ public final class SelectionHandlers {
                             "evidence '" + id + "' is not selectable here");
                 }
             }
-            int minRequired = config.path("minRequired").asInt(1);
             JsonNodeFactory f = JsonNodeFactory.instance;
             ObjectNode out = f.objectNode();
             ArrayNode arr = out.putArray("selectedEvidenceIds");
             distinct.forEach(arr::add);
             out.put("selectedCount", distinct.size());
+
+            Set<String> accepted = stringIds(config.get("acceptedEvidenceIds"));
+            boolean graded = config.path("graded").asBoolean(false) && !accepted.isEmpty();
+            if (graded) {
+                return evaluateGraded(ctx, config, distinct, accepted, out);
+            }
+
+            int minRequired = config.path("minRequired").asInt(1);
             boolean done = distinct.size() >= Math.max(minRequired, 1);
             return result(done ? ActivityResult.COMPLETED : ActivityResult.IN_PROGRESS,
                     done, out, feedbackFor(ctx.activity(),
                             done ? ActivityResult.COMPLETED : ActivityResult.IN_PROGRESS));
+        }
+
+        /**
+         * Opt-in graded mode (config.graded:true + acceptedEvidenceIds key):
+         * exact set match -> COMPLETED; partial overlap -> PARTIAL with a
+         * 0..1 score; no hit -> INCORRECT. Retry budget via config.maxAttempts
+         * (default 1); exhaustion completes to avoid soft-lock.
+         */
+        private ActivityResult evaluateGraded(AttemptContext ctx, JsonNode config,
+                                              Set<String> selected, Set<String> accepted,
+                                              ObjectNode out) {
+            Set<String> correctHits = new LinkedHashSet<>(selected);
+            correctHits.retainAll(accepted);
+            int falseCount = selected.size() - correctHits.size();
+            double score = accepted.isEmpty() ? 0.0
+                    : (double) correctHits.size() / accepted.size();
+            boolean right = selected.equals(accepted);
+
+            int maxAttempts = config.path("maxAttempts").asInt(1);
+            int attemptNo = priorAttempts(ctx) + 1;
+            boolean exhausted = !right && attemptNo >= Math.max(maxAttempts, 1);
+            boolean completed = right || exhausted;
+
+            out.put("correct", right);
+            out.put("score", score);
+            out.put("correctCount", correctHits.size());
+            out.put("falseCount", falseCount);
+            out.put("attemptCount", attemptNo);
+            if (exhausted) out.put("exhausted", true);
+
+            String outcome = right ? ActivityResult.COMPLETED
+                    : !correctHits.isEmpty() && !exhausted ? ActivityResult.PARTIAL
+                    : ActivityResult.INCORRECT;
+            return result(outcome, completed, out,
+                    feedbackFor(ctx.activity(), exhausted ? "EXHAUSTED" : outcome));
         }
 
         private Set<String> snapshotEvidenceIds(AttemptContext ctx) {

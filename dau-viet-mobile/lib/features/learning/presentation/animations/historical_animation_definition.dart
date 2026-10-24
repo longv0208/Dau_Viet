@@ -139,6 +139,15 @@ abstract class HistoricalScenePainter extends CustomPainter
   /// reveal đáp án dự đoán.
   bool get highlightStakes => false;
   set highlightStakes(bool value) {}
+
+  /// Khôi phục mọi trạng thái mutable của painter này từ một instance
+  /// đã-seed [seeded] — replay/seek-về-đầu dùng để đưa painter hiện tại
+  /// về trạng thái ban đầu của scene (initialState) mà KHÔNG tạo
+  /// painter mới (giữ nguyên listener đã đăng ký). Base class chỉ copy
+  /// cờ chung; subclass override để copy field riêng của scene.
+  void restoreFrom(HistoricalScenePainter seeded) {
+    suppressBaseBackground = seeded.suppressBaseBackground;
+  }
 }
 
 /// Định nghĩa một hoạt họa lịch sử tương tác.
