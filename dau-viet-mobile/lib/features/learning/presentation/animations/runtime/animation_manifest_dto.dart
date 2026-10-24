@@ -716,6 +716,10 @@ extension AnimationManifestToDefinition on AnimationManifestDto {
       hasLocationExplorer: hasLocationExplorer,
       aspectRatio: canvasAspectRatio,
       playbackMode: playbackMode,
+      // v2 — steps[].allowedInteractions là whitelist thuần (rỗng = bước
+      // không tương tác). Scene v1 (manifestV1 / definition hardcode)
+      // giữ semantics cũ: definition-level interactions áp mọi bước.
+      manifestV2: schemaVersion >= 2,
       createPainter: rendererCode == 'RIVER_TIDE'
           ? () => _seedRiver(
               RiverScenePainter(

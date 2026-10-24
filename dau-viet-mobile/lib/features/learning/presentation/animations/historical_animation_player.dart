@@ -98,6 +98,21 @@ class _HistoricalAnimationPlayerState
   bool get _predictionVisibleAtCurrentStep =>
       _predictionStepIndex == _stepIndex;
 
+  /// Gate tương tác theo bước (FIX-02):
+  /// - Manifest v2 (manifestV2=true): `allowedInteractions` là whitelist
+  ///   thuần — interaction chỉ bật khi bước khai báo nó; danh sách rỗng
+  ///   = bước không có tương tác bổ sung (khớp admin ScenePreview).
+  /// - Legacy/v1 (manifestV2=false): giữ semantics cũ — danh sách rỗng
+  ///   nghĩa là "không giới hạn", tương tác definition-level áp dụng mọi
+  ///   bước. Không nhìn eventId/slug — phân biệt qua `manifestV2`.
+  bool _interactionAllowedAtCurrentStep(String interaction) {
+    final allowed = _step.allowedInteractions;
+    if (widget.definition.manifestV2) {
+      return allowed.contains(interaction);
+    }
+    return allowed.isEmpty || allowed.contains(interaction);
+  }
+
   // Địa điểm đang chọn trên map (ANIM-02) — local UI state.
   String? _selectedLocationId;
 
@@ -560,8 +575,7 @@ class _HistoricalAnimationPlayerState
         // không khai báo danh sách → giữ hành vi v1 (definition-level).
         if (def.hasWaterControl &&
             !_skipped &&
-            (_step.allowedInteractions.isEmpty ||
-                _step.allowedInteractions.contains('WATER_LEVEL_CONTROL'))) ...[
+            _interactionAllowedAtCurrentStep('WATER_LEVEL_CONTROL')) ...[
           WaterLevelControl(value: _waterLevel, onChanged: _setWater),
           const SizedBox(height: 8),
         ],
@@ -584,8 +598,7 @@ class _HistoricalAnimationPlayerState
         // gate bước như water control (TAP_TO_EXPLORE).
         if (def.hasLocationExplorer &&
             !_skipped &&
-            (_step.allowedInteractions.isEmpty ||
-                _step.allowedInteractions.contains('TAP_TO_EXPLORE'))) ...[
+            _interactionAllowedAtCurrentStep('TAP_TO_EXPLORE')) ...[
           const SizedBox(height: 8),
           LocationInfoPanel(
             painter: _painter,
@@ -648,8 +661,7 @@ class _HistoricalAnimationPlayerState
               // preview `allowTap`).
               for (final loc in mp.locations)
                 if (_locationActive(mp, loc.id) &&
-                    (_step.allowedInteractions.isEmpty ||
-                        _step.allowedInteractions.contains('TAP_TO_EXPLORE')))
+                    _interactionAllowedAtCurrentStep('TAP_TO_EXPLORE'))
                   MapMarkerOverlay(
                     location: loc,
                     canvasSize: size,

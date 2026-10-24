@@ -249,13 +249,15 @@ BEGIN
     UPDATE animation_scenes SET status = 'PUBLISHED'
     WHERE id = sc_bd_prod AND status <> 'PUBLISHED';
 
-    -- Late link: if the event row arrives after this migration ran
-    -- (EventSeedRunner is an ApplicationRunner — it executes after
-    -- Flyway on first boot), attach it on the next migrate. Only fills
-    -- NULL — a scene already linked (by this or a later run) is never
-    -- rebound, and a row a content admin deliberately unlinked via the
-    -- scene editor (clearEvent) is re-attached only while it is still
-    -- the untouched seed row (updated_by = sys_user).
+    -- Late link guard: links NOW if the event row already existed at
+    -- migrate-time (prod DB seeded via admin API before deploy). This
+    -- UPDATE runs exactly once with this migration — it does NOT re-run
+    -- when the event arrives later. Local/dev: EventSeedRunner post-links
+    -- via AnimationSceneEventLinker after upserting the event (real id,
+    -- untouched-seed guard below — same condition). Prod: admin links via
+    -- the scene editor (SceneUpdateRequest.eventId). Only fills NULL on
+    -- the untouched seed row (updated_by = sys_user): an admin-cleared or
+    -- admin-linked row is never rebound.
     UPDATE animation_scenes s
     SET event_id = e.id,
         updated_by = sys_user

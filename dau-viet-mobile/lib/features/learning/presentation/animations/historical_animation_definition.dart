@@ -26,10 +26,16 @@ class HistoricalAnimationStep {
   /// {linear, easeIn, easeOut, easeInOut, easeInOutCubic}.
   final String easing;
 
-  /// Tương tác CHỈ được bật tại bước này — manifest
+  /// Whitelist tương tác CHỈ được bật tại bước này — manifest
   /// `steps[].allowedInteractions` (vd PREDICTION, WATER_LEVEL_CONTROL,
-  /// TAP_TO_EXPLORE). Rỗng = bước không mở thêm tương tác nào;
-  /// tương tác definition-level giữ nguyên hành vi v1.
+  /// TAP_TO_EXPLORE).
+  ///
+  /// Semantics theo [HistoricalAnimationDefinition.manifestV2]:
+  /// - v2: whitelist thuần — rỗng = bước này KHÔNG có tương tác bổ sung,
+  ///   kể cả khi definition-level hasWaterControl/hasLocationExplorer
+  ///   đang bật (chúng chỉ là capability, không phải per-step gate).
+  /// - v1/legacy (manifestV2=false): rỗng = giữ hành vi cũ (tương tác
+  ///   definition-level luôn bật ở mọi bước) — không regression scene cũ.
   final Set<String> allowedInteractions;
 
   const HistoricalAnimationStep({
@@ -169,6 +175,14 @@ class HistoricalAnimationDefinition {
   /// tương tác như TAP_TO_EXPLORE / WATER_LEVEL_CONTROL).
   final String playbackMode;
 
+  /// `true` = definition được build từ manifest schemaVersion >= 2 —
+  /// `allowedInteractions` trên step là whitelist thuần (rỗng = không
+  /// tương tác). `false` = scene v1/legacy hardcode — rỗng giữ semantics
+  /// cũ (tương tác definition-level áp dụng mọi bước, parity admin
+  /// preview + app cũ). Field này thay cho check eventId/slug — engine
+  /// không nhìn scene cụ thể.
+  final bool manifestV2;
+
   const HistoricalAnimationDefinition({
     required this.key,
     required this.title,
@@ -183,5 +197,6 @@ class HistoricalAnimationDefinition {
     this.hasLocationExplorer = false,
     this.aspectRatio = 16 / 10,
     this.playbackMode = 'AUTO',
+    this.manifestV2 = false,
   });
 }

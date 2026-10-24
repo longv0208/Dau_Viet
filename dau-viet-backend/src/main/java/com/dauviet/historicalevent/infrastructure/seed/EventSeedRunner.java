@@ -23,14 +23,22 @@ public class EventSeedRunner implements ApplicationRunner {
     private static final Logger log = LoggerFactory.getLogger(EventSeedRunner.class);
 
     private final EventSeedService seedService;
+    private final AnimationSceneEventLinker sceneLinker;
 
-    public EventSeedRunner(EventSeedService seedService) {
+    public EventSeedRunner(EventSeedService seedService,
+                           AnimationSceneEventLinker sceneLinker) {
         this.seedService = seedService;
+        this.sceneLinker = sceneLinker;
     }
 
     @Override
     public void run(ApplicationArguments args) {
-        seedService.upsertBachDang();
+        var event = seedService.upsertBachDang();
+        // FIX-01 — Flyway ran before this runner, so V17 could only insert
+        // the production scene with event_id NULL on a clean local DB.
+        // Post-link it here using the real (possibly non-seed) event id;
+        // no-op if the scene is already linked or an admin touched it.
+        sceneLinker.linkBachDangProdScene(event);
         log.info("event seed completed (profile=local)");
     }
 }

@@ -6,6 +6,7 @@ import 'package:dau_viet_mobile/features/learning/presentation/animations/runtim
 import 'package:dau_viet_mobile/features/learning/presentation/animations/scenes/historical_map_scene.dart';
 import 'package:dau_viet_mobile/features/learning/presentation/animations/scenes/river_scene.dart';
 import 'package:dau_viet_mobile/features/learning/presentation/animations/widgets/manifest_asset_layers.dart';
+import 'package:dau_viet_mobile/features/learning/presentation/animations/widgets/map_marker_overlay.dart';
 import 'package:dau_viet_mobile/features/learning/presentation/renderers/read_renderer.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -960,5 +961,104 @@ void main() {
       expect(sent, isNotNull);
       expect(sent, isEmpty);
     });
+
+    /* ---------- FIX-02 — step-level interaction whitelist (v2) -------- */
+
+    testWidgets('v2 river manifest: slider only on whitelisted steps', (
+      tester,
+    ) async {
+      // V17 shape: slider chỉ trên bước khai báo WATER_LEVEL_CONTROL —
+      // bước rỗng (allowedInteractions: []) KHÔNG có slider, dù manifest
+      // interactions[] khai báo scene-global. manifestV2 semantics.
+      final m = _riverManifest()..['schemaVersion'] = 2;
+      (m['steps'] as List)[0] = <String, Object>{
+        ...((m['steps'] as List)[0] as Map).cast<String, Object>(),
+        'allowedInteractions': <String>[], // st1: whitelist rỗng
+      };
+      await _pumpRead(tester, {
+        'text': 'Đoạn đọc.',
+        'animationManifest': _embedded(m),
+      });
+      await tester.pump();
+      expect(find.byType(HistoricalAnimationPlayer), findsOneWidget);
+      // Bước 1 (rỗng) → KHÔNG slider.
+      await tester.ensureVisible(find.text('Đoạn đọc.'));
+      await tester.pump();
+      expect(find.byType(Slider), findsNothing);
+      // Sang bước 2 (WATER_LEVEL_CONTROL) → slider hiện.
+      await tester.ensureVisible(find.bySemanticsLabel('Bước tiếp').first);
+      await tester.tap(find.bySemanticsLabel('Bước tiếp').first);
+      await tester.pump();
+      expect(find.byType(Slider), findsOneWidget);
+      expect(tester.takeException(), isNull);
+    });
+
+    testWidgets('v1 manifest keeps legacy semantics (empty = allowed)', (
+      tester,
+    ) async {
+      // schemaVersion=1 + step 0 không khai báo allowedInteractions →
+      // definition-level WATER_LEVEL_CONTROL áp mọi bước (không
+      // regression scene cũ trước khi whitelist tồn tại).
+      await _pumpRead(tester, {
+        'text': 'Đoạn đọc.',
+        'animationManifest': _embedded(_riverManifest()),
+      });
+      await tester.pump();
+      await tester.ensureVisible(find.text('Đoạn đọc.'));
+      await tester.pump();
+      expect(find.byType(Slider), findsOneWidget);
+      expect(tester.takeException(), isNull);
+    });
+
+    testWidgets(
+      'v2 map manifest: markers tappable only on TAP_TO_EXPLORE steps',
+      (tester) async {
+        // TAP_TO_EXPLORE chỉ ở bước 2 — bước 1 rỗng: không overlay chạm,
+        // không LocationInfoPanel; bước 2: tap marker được (parity admin).
+        final m = _mapManifest()..['schemaVersion'] = 2;
+        (m['steps'] as List)[0] = <String, Object>{
+          ...((m['steps'] as List)[0] as Map).cast<String, Object>(),
+          'allowedInteractions': <String>[],
+        };
+        (m['steps'] as List)[1] = <String, Object>{
+          ...((m['steps'] as List)[1] as Map).cast<String, Object>(),
+          'allowedInteractions': ['TAP_TO_EXPLORE'],
+        };
+        await _pumpRead(tester, {
+          'text': 'Đoạn đọc.',
+          'animationManifest': _embedded(m),
+        });
+        await tester.pump();
+        expect(find.byType(HistoricalAnimationPlayer), findsOneWidget);
+        // Bước 1: marker 'a' hiện (targetState) nhưng không tấp được —
+        // không MapMarkerOverlay nào được mount.
+        expect(find.byType(MapMarkerOverlay), findsNothing);
+        // Sang bước 2 (TAP_TO_EXPLORE): overlay mount trên marker đang hiện.
+        await tester.ensureVisible(find.bySemanticsLabel('Bước tiếp').first);
+        await tester.tap(find.bySemanticsLabel('Bước tiếp').first);
+        await tester.pump();
+        expect(find.byType(MapMarkerOverlay), findsWidgets);
+        expect(tester.takeException(), isNull);
+      },
+    );
+
+    testWidgets(
+      'legacy animationKey definitions stay interactive on all steps',
+      (tester) async {
+        // Scene v1 hardcode (bach_dang_938_tide_v1): manifestV2=false →
+        // slider hiện ở mọi bước (definition-level hasWaterControl) — không
+        // làm mất tương tác legacy.
+        await _pumpRead(tester, const {
+          'text': 'x',
+          'animationKey': 'bach_dang_938_tide_v1',
+        });
+        await tester.pump();
+        await tester.ensureVisible(find.text('x'));
+        await tester.pump();
+        expect(find.byType(Slider), findsOneWidget);
+        // Bước 0 không whitelist gì cả → slider vẫn hiện (legacy semantics).
+        expect(tester.takeException(), isNull);
+      },
+    );
   });
 }
