@@ -141,5 +141,8 @@ final lyThaiTo1010RelocationV1 = HistoricalAnimationDefinition(
       highlighted: {'dai_la'},
       focusedId: 'dai_la',
     ),
+    // Checkpoint ở bước "Dời đô năm 1010" (index 3) — sau khi Đại La đã
+    // xuất hiện: dự đoán điểm được chọn trước kết luận Thăng Long.
+    stepIndex: 3,
   ),
 );

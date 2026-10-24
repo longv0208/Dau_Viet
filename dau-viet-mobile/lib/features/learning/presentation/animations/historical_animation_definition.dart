@@ -26,6 +26,12 @@ class HistoricalAnimationStep {
   /// {linear, easeIn, easeOut, easeInOut, easeInOutCubic}.
   final String easing;
 
+  /// Tương tác CHỈ được bật tại bước này — manifest
+  /// `steps[].allowedInteractions` (vd PREDICTION, WATER_LEVEL_CONTROL,
+  /// TAP_TO_EXPLORE). Rỗng = bước không mở thêm tương tác nào;
+  /// tương tác definition-level giữ nguyên hành vi v1.
+  final Set<String> allowedInteractions;
+
   const HistoricalAnimationStep({
     required this.label,
     required this.narration,
@@ -33,6 +39,7 @@ class HistoricalAnimationStep {
     this.target,
     this.durationMs,
     this.easing = 'easeInOut',
+    this.allowedInteractions = const {},
   });
 }
 
@@ -53,6 +60,12 @@ class AnimationPrediction {
   /// quan; river scene tự xử qua nước rút. null = không đổi trạng thái.
   final SceneTransition? revealSceneEffect;
 
+  /// Index bước (0-based) nơi khối dự đoán hiển thị. `null` = scene-
+  /// global (hành vi v1: hiện ở mọi bước, AUTO không dừng). Manifest v2
+  /// bind theo `steps[].allowedInteractions: ["PREDICTION"]` — khối chỉ
+  /// xuất hiện tại checkpoint đó và AUTO phải dừng chờ learner.
+  final int? stepIndex;
+
   const AnimationPrediction({
     required this.question,
     required this.options,
@@ -60,6 +73,7 @@ class AnimationPrediction {
     required this.explanation,
     required this.retryHint,
     this.revealSceneEffect,
+    this.stepIndex,
   });
 }
 

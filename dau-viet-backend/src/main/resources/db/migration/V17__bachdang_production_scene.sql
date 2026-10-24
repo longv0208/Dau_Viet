@@ -1,9 +1,13 @@
 -- Dấu Việt | V17 | Bạch Đằng 938 — production cinematic scene.
 -- Real assets (hero JPG, map-base JPG, narration WAV) + a PUBLISHED
--- RIVER_TIDE v2 scene bound to the seeded `bach-dang-938` event
--- (EventSeedService.BACH_DANG_ID). Replaces the V16 silent-WAV demo for
--- production use: the demo scenes stay PUBLISHED but are no longer the
--- only option — admins pin this scene to a lesson via the lesson builder.
+-- RIVER_TIDE v2 scene. The event FK is resolved by slug at runtime —
+-- event rows are environment data (EventSeedRunner is a dev-only
+-- ApplicationRunner that runs AFTER Flyway, and prod events are created
+-- via admin APIs with their own UUIDs), so a migration must never
+-- hard-code an event UUID. When no `bach-dang-938` row exists yet the
+-- scene inserts with event_id NULL (schema allows, same as V15/V16) —
+-- the admin scene editor links it to the event later via
+-- SceneUpdateRequest.eventId (validated against historical_events).
 -- Idempotent: every INSERT is ON CONFLICT DO NOTHING; scene row inserted
 -- DRAFT then flipped to PUBLISHED only when still DRAFT (V15/V16 dance —
 -- chk_animation_scene_published_version requires a version first).
@@ -13,7 +17,7 @@ DO $$
 DECLARE
     sys_user UUID := '00000000-0000-4000-8000-000000000001';
     tpl_river UUID := 'd7a10000-0000-4000-8000-000000000001';
-    evt_bachdang UUID := '00000000-0000-0000-0000-000000000001';
+    evt_bachdang UUID;
 
     ast_hero  UUID := 'd7a70000-0000-4000-8000-000000000001';
     ast_map   UUID := 'd7a70000-0000-4000-8000-000000000002';
@@ -54,13 +58,21 @@ BEGIN
          sys_user)
     ON CONFLICT (id) DO NOTHING;
 
+    -- Resolve the event FK by slug at runtime — never a hard-coded UUID.
+    -- NULL when the event row does not exist in this environment yet.
+    SELECT id INTO evt_bachdang FROM historical_events WHERE slug = 'bach-dang-938';
+
     /* ============ Bạch Đằng 938 — PRODUCTION (RIVER_TIDE v2) ============
        8 beats: estuary → stake-prep → tide-rise → decoy → prediction →
        tide-fall → counterattack → evidence. Hero JPG is the painted
        background (asset ref + camera zoom on the stakes zone); the map
        artwork rides as a fade-in OBJECT plate on the first beat so the
-       estuary beat shows terrain before the tactical overlay. Narration
-       WAV drives ENTER cues per beat + a scene-length LOOP. */
+       estuary beat shows terrain before the tactical overlay. Narration:
+       one 8.5s overview clip plays once on the opening beat — repeating
+       it as ENTER on every beat made each step restart the shared
+       player and loop the intro (P1 audio storyboard fix). Per-beat VO
+       needs separate licensed clips; text narration carries the beats
+       until they exist. */
     m_bd_prod := '{
       "schemaVersion": 2,
       "rendererCode": "RIVER_TIDE",
@@ -155,13 +167,7 @@ BEGIN
         {"type": "FADE_OUT", "stepId": "evidence", "durationMs": 900}
       ],
       "audio": [
-        {"stepId": "estuary",       "assetRef": "voice", "cue": "ENTER", "volume": 0.9},
-        {"stepId": "stake-prep",    "assetRef": "voice", "cue": "ENTER", "volume": 0.9},
-        {"stepId": "tide-rise",     "assetRef": "voice", "cue": "ENTER", "volume": 0.9},
-        {"stepId": "decoy",         "assetRef": "voice", "cue": "ENTER", "volume": 0.9},
-        {"stepId": "tide-fall",     "assetRef": "voice", "cue": "ENTER", "volume": 0.9},
-        {"stepId": "counterattack", "assetRef": "voice", "cue": "ENTER", "volume": 0.9},
-        {"stepId": "evidence",      "assetRef": "voice", "cue": "EXIT",  "fadeMs": 700}
+        {"stepId": "estuary", "assetRef": "voice", "cue": "ENTER", "volume": 0.9}
       ],
       "steps": [
         {"id": "estuary", "title": "Cửa sông Bạch Đằng", "durationMs": 1200, "easing": "easeInOut",
@@ -242,4 +248,20 @@ BEGIN
 
     UPDATE animation_scenes SET status = 'PUBLISHED'
     WHERE id = sc_bd_prod AND status <> 'PUBLISHED';
+
+    -- Late link: if the event row arrives after this migration ran
+    -- (EventSeedRunner is an ApplicationRunner — it executes after
+    -- Flyway on first boot), attach it on the next migrate. Only fills
+    -- NULL — a scene already linked (by this or a later run) is never
+    -- rebound, and a row a content admin deliberately unlinked via the
+    -- scene editor (clearEvent) is re-attached only while it is still
+    -- the untouched seed row (updated_by = sys_user).
+    UPDATE animation_scenes s
+    SET event_id = e.id,
+        updated_by = sys_user
+    FROM historical_events e
+    WHERE s.id = sc_bd_prod
+      AND s.event_id IS NULL
+      AND s.updated_by = sys_user
+      AND e.slug = 'bach-dang-938';
 END $$;

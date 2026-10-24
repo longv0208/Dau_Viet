@@ -147,5 +147,9 @@ final HistoricalAnimationDefinition bachDang938TideV1 =
           boatsObstructed: true,
           highlightStakes: true,
         ),
+        // Checkpoint ở bước "Dụ địch vào bãi" (index 2) — ngay trước
+        // "Nước rút": dự đoán trước khi xem cọc lộ. Giữ parity hiển thị
+        // cũ (khối luôn hiện) nhưng AUTO giờ dừng chờ learner tại đây.
+        stepIndex: 2,
       ),
     );

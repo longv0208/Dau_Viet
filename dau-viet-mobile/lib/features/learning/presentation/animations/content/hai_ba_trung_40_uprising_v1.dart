@@ -173,5 +173,8 @@ final haiBaTrung40UprisingV1 = HistoricalAnimationDefinition(
       highlighted: {'luy_lau'},
       focusedId: 'luy_lau',
     ),
+    // Checkpoint ở bước "Hướng về Luy Lâu" (index 3) — ngay sau khi
+    // Luy Lâu xuất hiện: dự đoán vai trò của nó trước bước khám phá.
+    stepIndex: 3,
   ),
 );

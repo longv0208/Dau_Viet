@@ -646,8 +646,105 @@ void main() {
       await tester.pump();
       expect(find.byType(HistoricalAnimationPlayer), findsOneWidget);
       expect(find.text('Đoạn đọc.'), findsOneWidget);
-      // Slider nước hiện vì manifest bật WATER_LEVEL_CONTROL.
+      // Bước 0 không khai báo allowedInteractions → vẫn definition-level
+      // (WATER_LEVEL_CONTROL scene-global) → slider hiện.
       expect(find.byType(Slider), findsOneWidget);
+    });
+
+    /* ---------- P0 — prediction checkpoint gating (manifest-driven) ------ */
+
+    test(
+      'manifest binds prediction.stepIndex via step allowedInteractions',
+      () {
+        // Bước 2 khai báo PREDICTION → checkpoint tại đó.
+        final bound = _riverManifest();
+        (bound['steps'] as List)[1] = <String, Object>{
+          ...((bound['steps'] as List)[1] as Map).cast<String, Object>(),
+          'allowedInteractions': ['PREDICTION', 'WATER_LEVEL_CONTROL'],
+        };
+        final def = AnimationRuntimeRegistry.resolve(
+          'RIVER_TIDE',
+        )!.build(AnimationManifestDto.fromJson(bound));
+        expect(def.prediction!.stepIndex, 1);
+
+        // Không bước nào khai báo → fallback giữa scene (không để
+        // prediction "không bao giờ hiện" trên manifest thiếu binding).
+        final unbound = _riverManifest(); // step 1 chỉ WATER_LEVEL_CONTROL
+        final defUnbound = AnimationRuntimeRegistry.resolve(
+          'RIVER_TIDE',
+        )!.build(AnimationManifestDto.fromJson(unbound));
+        expect(defUnbound.prediction!.stepIndex, isNotNull);
+      },
+    );
+
+    testWidgets('manifest prediction shows only at its checkpoint step', (
+      tester,
+    ) async {
+      // Gắn PREDICTION vào bước 2 (index 1) — khối chỉ được hiện ở đó.
+      final m = _riverManifest();
+      (m['steps'] as List)[1] = <String, Object>{
+        ...((m['steps'] as List)[1] as Map).cast<String, Object>(),
+        'allowedInteractions': ['PREDICTION', 'WATER_LEVEL_CONTROL'],
+      };
+      await _pumpRead(tester, {
+        'text': 'Đoạn đọc.',
+        'animationManifest': _embedded(m),
+      });
+      await tester.pump();
+      // Bước 1: không được hiện khối dự đoán (scroll để widget dựng).
+      await tester.ensureVisible(find.text('Đoạn đọc.'));
+      await tester.pump();
+      expect(find.text('DỰ ĐOÁN KHÁM PHÁ'), findsNothing);
+      // Sang bước checkpoint → khối xuất hiện.
+      await tester.ensureVisible(find.bySemanticsLabel('Bước tiếp').first);
+      await tester.tap(find.bySemanticsLabel('Bước tiếp').first);
+      await tester.pump();
+      expect(find.text('DỰ ĐOÁN KHÁM PHÁ'), findsOneWidget);
+      // Quay lại bước 1 → khối biến mất.
+      await tester.ensureVisible(find.bySemanticsLabel('Bước trước').first);
+      await tester.tap(find.bySemanticsLabel('Bước trước').first);
+      await tester.pump();
+      expect(find.text('DỰ ĐOÁN KHÁM PHÁ'), findsNothing);
+      expect(tester.takeException(), isNull);
+    });
+
+    testWidgets('manifest AUTO does not pass an unresolved prediction', (
+      tester,
+    ) async {
+      // Prediction bound ở bước 2 (cuối) → AUTO dừng ở đó, không được
+      // tự kết thúc khi learner chưa reveal.
+      final m = _riverManifest();
+      (m['steps'] as List)[1] = <String, Object>{
+        ...((m['steps'] as List)[1] as Map).cast<String, Object>(),
+        'allowedInteractions': ['PREDICTION', 'WATER_LEVEL_CONTROL'],
+      };
+      await _pumpRead(tester, {
+        'text': 'Đoạn đọc.',
+        'animationManifest': _embedded(m),
+      });
+      await tester.pump();
+      await tester.ensureVisible(find.text('PHÁT'));
+      await tester.tap(find.text('PHÁT'));
+      await tester.pump();
+      // Chờ qua mọi timer có thể — vẫn không được vượt checkpoint.
+      await tester.pump(const Duration(seconds: 30));
+      await tester.pump();
+      expect(find.textContaining('Bước 2/2'), findsOneWidget);
+      expect(find.text('PHÁT'), findsOneWidget); // đã dừng chờ learner
+      expect(find.text('DỰ ĐOÁN KHÁM PHÁ'), findsOneWidget);
+      // Reveal → bấm PHÁT → hết bước cuối, tự dừng (không auto-reveal).
+      await tester.ensureVisible(find.textContaining('Cọc lộ ra'));
+      await tester.tap(find.textContaining('Cọc lộ ra'));
+      await tester.pump();
+      await tester.ensureVisible(find.text('XEM KẾT QUẢ VÀ GIẢI THÍCH'));
+      await tester.tap(find.text('XEM KẾT QUẢ VÀ GIẢI THÍCH'));
+      await tester.pump();
+      await tester.ensureVisible(find.text('PHÁT'));
+      await tester.tap(find.text('PHÁT'));
+      await tester.pump(const Duration(seconds: 10));
+      await tester.pump();
+      expect(find.text('PHÁT'), findsOneWidget);
+      expect(tester.takeException(), isNull);
     });
 
     testWidgets('map manifest renders the player with tappable overlay', (

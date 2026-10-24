@@ -611,13 +611,50 @@ void main() {
       await _tap(tester, find.text('PHÁT'));
       expect(find.text('TẠM DỪNG'), findsOneWidget);
 
-      // Nhảy qua toàn bộ chuỗi: mỗi bước ~1.1s transition + hold tối
-      // thiểu theo độ dài narration (~14ms/ký tự, clamp 2.5..12s) —
-      // v1 dài ~150-200 ký tự/bước → ~3.5s/bước → tổng ~25-35s.
+      // AUTO phải dừng ở checkpoint prediction (bước 3 v1) — không được
+      // lướt qua khi learner chưa chọn + xem kết quả.
+      await tester.pump(const Duration(seconds: 20));
+      await tester.pump();
+      expect(find.textContaining('Bước 3/6'), findsOneWidget);
+      expect(find.text('PHÁT'), findsOneWidget);
+
+      // Giải checkpoint rồi tiếp tục → chạy hết đến bước cuối.
+      await _tap(tester, find.textContaining('Các cọc dần lộ ra'));
+      await _tap(tester, find.text('XEM KẾT QUẢ VÀ GIẢI THÍCH'));
+      await _tap(tester, find.text('PHÁT'));
+
+      // Mỗi bước ~1.1s transition + hold tối thiểu theo độ dài narration
+      // (~14ms/ký tự, clamp 2.5..12s) → vài chục giây cho các bước còn lại.
       await tester.pump(const Duration(seconds: 60));
       await tester.pump();
       expect(find.textContaining('Bước 6/6'), findsOneWidget);
       expect(find.text('PHÁT'), findsOneWidget); // auto-stop ở cuối
+    });
+
+    testWidgets('AUTO stops at the prediction checkpoint until revealed', (
+      tester,
+    ) async {
+      await _pumpPlayer(tester);
+      await tester.pump();
+      await _tap(tester, find.text('PHÁT'));
+      // Cho phát đủ lâu để qua bước 1-2 — phải đứng lại ở checkpoint 3.
+      await tester.pump(const Duration(seconds: 20));
+      await tester.pump();
+      expect(find.textContaining('Bước 3/6'), findsOneWidget);
+      expect(find.text('PHÁT'), findsOneWidget); // đã dừng, không TẠM DỪNG
+      // Chọn mà CHƯA xem kết quả → vẫn không được đi tiếp.
+      await _tap(tester, find.textContaining('Các cọc vẫn chìm sâu'));
+      await _tap(tester, find.text('PHÁT'));
+      await tester.pump(const Duration(seconds: 8));
+      await tester.pump();
+      expect(find.textContaining('Bước 3/6'), findsOneWidget);
+      // Chọn + reveal → bấm PHÁT → qua checkpoint.
+      await _tap(tester, find.textContaining('Các cọc dần lộ ra'));
+      await _tap(tester, find.text('XEM KẾT QUẢ VÀ GIẢI THÍCH'));
+      await _tap(tester, find.text('PHÁT'));
+      await tester.pump(const Duration(seconds: 60));
+      await tester.pump();
+      expect(find.textContaining('Bước 6/6'), findsOneWidget);
     });
 
     testWidgets('pause halts auto-advance', (tester) async {
@@ -691,7 +728,9 @@ void main() {
     ) async {
       await _pumpPlayer(tester);
       await tester.pump();
-      // Tween step 2 đang chạy; reveal hủy tween + ép nước rút 0.22.
+      // Vào checkpoint (bước 3): tween đang chạy; reveal hủy tween +
+      // ép nước rút 0.22.
+      await _tap(tester, find.bySemanticsLabel('Bước tiếp'));
       await _tap(tester, find.bySemanticsLabel('Bước tiếp'));
       await tester.pump(const Duration(milliseconds: 300));
       await _tap(tester, find.textContaining('Các cọc dần lộ ra'));
@@ -716,6 +755,10 @@ void main() {
     ) async {
       await _pumpPlayer(tester);
       await tester.pump();
+      // Vào checkpoint (bước 3) — prediction chỉ hiện tại đây (P0).
+      await _tap(tester, find.bySemanticsLabel('Bước tiếp'));
+      await _tap(tester, find.bySemanticsLabel('Bước tiếp'));
+      await tester.pump(const Duration(milliseconds: 1200));
       // Chọn + reveal prediction.
       await _tap(tester, find.textContaining('Các cọc dần lộ ra'));
       await _tap(tester, find.text('XEM KẾT QUẢ VÀ GIẢI THÍCH'));
@@ -728,6 +771,10 @@ void main() {
         tester.widget<Slider>(find.byType(Slider)).value,
         closeTo(0.3, 0.01),
       );
+      // Quay lại checkpoint → khối hiện lại ở trạng thái chưa trả lời.
+      await _tap(tester, find.bySemanticsLabel('Bước tiếp'));
+      await _tap(tester, find.bySemanticsLabel('Bước tiếp'));
+      await tester.pump(const Duration(milliseconds: 1200));
       expect(find.text('XEM KẾT QUẢ VÀ GIẢI THÍCH'), findsOneWidget);
       expect(find.textContaining('đỉnh cọc nhô lên'), findsNothing);
     });
@@ -810,6 +857,10 @@ void main() {
       }, onSubmit: (payload) async => sent = payload);
       await tester.pump();
 
+      // P0 — prediction chỉ hiện tại checkpoint (bước 3 = index 2).
+      await _tap(tester, find.bySemanticsLabel('Bước tiếp'));
+      await _tap(tester, find.bySemanticsLabel('Bước tiếp'));
+      await tester.pump(const Duration(milliseconds: 1200));
       // Chọn phương án khớp cơ chế (B) rồi reveal.
       await _tap(tester, find.textContaining('Các cọc dần lộ ra'));
       await _tap(tester, find.text('XEM KẾT QUẢ VÀ GIẢI THÍCH'));
@@ -823,6 +874,10 @@ void main() {
     ) async {
       await _pumpPlayer(tester);
       await tester.pump();
+      // P0 — prediction chỉ hiện tại checkpoint (bước 3 = index 2).
+      await _tap(tester, find.bySemanticsLabel('Bước tiếp'));
+      await _tap(tester, find.bySemanticsLabel('Bước tiếp'));
+      await tester.pump(const Duration(milliseconds: 1200));
       await _tap(tester, find.textContaining('Các cọc vẫn chìm sâu'));
       await _tap(tester, find.text('XEM KẾT QUẢ VÀ GIẢI THÍCH'));
       expect(
@@ -917,8 +972,14 @@ void main() {
       await _pumpPlayer(tester);
       await tester.pump();
       await _tap(tester, find.text('PHÁT'));
+      // AUTO dừng ở checkpoint (bước 3) — giải rồi tiếp tục.
+      await tester.pump(const Duration(seconds: 20));
+      await tester.pump();
+      await _tap(tester, find.textContaining('Các cọc dần lộ ra'));
+      await _tap(tester, find.text('XEM KẾT QUẢ VÀ GIẢI THÍCH'));
+      await _tap(tester, find.text('PHÁT'));
       // Chạy đến cuối — auto-stop ở bước 6; narration tổng kết hiện.
-      await tester.pump(const Duration(seconds: 30));
+      await tester.pump(const Duration(seconds: 40));
       await tester.pump();
       expect(find.textContaining('Bước 6/6'), findsOneWidget);
       expect(find.textContaining('TỔNG KẾT'), findsOneWidget);
@@ -1183,6 +1244,12 @@ void main() {
     ) async {
       await _pumpPlayer(tester, definition: haiBaTrung40UprisingV1);
       await tester.pump();
+      // P0 — prediction chỉ hiện tại checkpoint (bước 4 = index 3).
+      for (var i = 0; i < 3; i++) {
+        await _tap(tester, find.bySemanticsLabel('Bước tiếp'));
+      }
+      await tester.pump(const Duration(milliseconds: 1200));
+      expect(find.textContaining('Bước 4/6'), findsOneWidget);
       await _tap(
         tester,
         find.textContaining('trung tâm hành chính của nhà Hán'),
@@ -1239,6 +1306,11 @@ void main() {
         'animationKey': 'ly_thai_to_1010_relocation_v1',
       }, onSubmit: (payload) async => sent = payload);
       await tester.pump();
+      // P0 — prediction chỉ hiện tại checkpoint (bước 4 = index 3).
+      for (var i = 0; i < 3; i++) {
+        await _tap(tester, find.bySemanticsLabel('Bước tiếp'));
+      }
+      await tester.pump(const Duration(milliseconds: 1200));
       await _tap(tester, find.textContaining('Đại La — sau này mang tên'));
       await _tap(tester, find.text('XEM KẾT QUẢ VÀ GIẢI THÍCH'));
       expect(find.textContaining('Thăng Long'), findsWidgets);
@@ -1371,7 +1443,7 @@ void main() {
       await tester.pump(const Duration(milliseconds: 1200));
       await _tap(tester, _marker('luy_lau'));
       expect(find.text('Trung tâm Hán'), findsOneWidget); // panel mở
-      // Reveal prediction trong lúc panel đang mở.
+      // Reveal prediction trong lúc panel đang mở (đang ở checkpoint 4).
       await _tap(
         tester,
         find.textContaining('trung tâm hành chính của nhà Hán'),
@@ -1386,6 +1458,11 @@ void main() {
       expect(find.textContaining('Bước 1/6'), findsOneWidget);
       // Cả panel marker lẫn trạng thái reveal đều bị xóa.
       expect(find.text('Trung tâm Hán'), findsNothing);
+      // Quay lại checkpoint → khối dự đoán hiện lại ở trạng thái chưa trả lời.
+      for (var i = 0; i < 3; i++) {
+        await _tap(tester, find.bySemanticsLabel('Bước tiếp'));
+      }
+      await tester.pump(const Duration(milliseconds: 1200));
       expect(find.text('XEM KẾT QUẢ VÀ GIẢI THÍCH'), findsOneWidget);
       expect(
         find.textContaining('thách thức trực tiếp đến bộ máy cai trị'),
@@ -1398,9 +1475,11 @@ void main() {
     ) async {
       await _pumpPlayer(tester, definition: haiBaTrung40UprisingV1);
       await tester.pump();
-      // Vào bước 2, đợi tween một nhịp rồi reveal — tween step đang dở
-      // khi reveal chạy, trạng thái reveal không được bị ghi đè.
-      await _tap(tester, find.bySemanticsLabel('Bước tiếp'));
+      // Vào checkpoint (bước 4), đợi tween một nhịp rồi reveal — tween
+      // step đang dở khi reveal chạy, trạng thái reveal không bị ghi đè.
+      for (var i = 0; i < 3; i++) {
+        await _tap(tester, find.bySemanticsLabel('Bước tiếp'));
+      }
       await tester.pump(const Duration(milliseconds: 400));
       await _tap(
         tester,
@@ -1414,7 +1493,7 @@ void main() {
       // Tween cũ không ghi đè trạng thái reveal; không crash, không
       // auto-advance (reveal đã hủy timer + dừng controller).
       await tester.pump(const Duration(seconds: 4));
-      expect(find.textContaining('Bước 2/6'), findsOneWidget);
+      expect(find.textContaining('Bước 4/6'), findsOneWidget);
       expect(tester.takeException(), isNull);
     });
   });

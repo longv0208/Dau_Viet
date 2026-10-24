@@ -91,7 +91,9 @@ class AnimationProductionSeedTest {
             assertEquals(expected[i], m.get("steps").get(i).get("id").asText());
         }
 
-        // Every audio cue points at the AUDIO-role assetRef.
+        // Audio contract (P1 fix): the single overview clip plays once —
+        // ENTER on the first beat only, no EXIT/LOOP. Repeating the same
+        // file per-step restarted the shared player each beat.
         String audioKey = null;
         for (JsonNode a : m.get("assets")) {
             if ("AUDIO".equals(a.get("role").asText())) {
@@ -99,9 +101,11 @@ class AnimationProductionSeedTest {
             }
         }
         assertEquals("voice", audioKey);
-        for (JsonNode cue : m.get("audio")) {
-            assertEquals("voice", cue.get("assetRef").asText());
-        }
+        JsonNode audio = m.get("audio");
+        assertEquals(1, audio.size(), "one overview narration cue only");
+        assertEquals("estuary", audio.get(0).get("stepId").asText());
+        assertEquals("ENTER", audio.get(0).get("cue").asText());
+        assertEquals("voice", audio.get(0).get("assetRef").asText());
 
         // Prediction checkpoint is wired.
         JsonNode pred = m.get("prediction");

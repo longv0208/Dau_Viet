@@ -79,6 +79,25 @@ class _HistoricalAnimationPlayerState
   int? _chosenOption;
   bool _predictionRevealed = false;
 
+  /// P0 — khối dự đoán hiển thị tại đúng bước checkpoint: bước khai
+  /// báo allowedInteractions ["PREDICTION"], hoặc prediction.stepIndex
+  /// của scene v1 (parity hành vi). null → không bước nào hiển thị.
+  int? get _predictionStepIndex {
+    final pred = widget.definition.prediction;
+    if (pred == null) return null;
+    for (var i = 0; i < widget.definition.steps.length; i++) {
+      if (widget.definition.steps[i].allowedInteractions.contains(
+        'PREDICTION',
+      )) {
+        return i;
+      }
+    }
+    return pred.stepIndex;
+  }
+
+  bool get _predictionVisibleAtCurrentStep =>
+      _predictionStepIndex == _stepIndex;
+
   // Địa điểm đang chọn trên map (ANIM-02) — local UI state.
   String? _selectedLocationId;
 
@@ -276,6 +295,14 @@ class _HistoricalAnimationPlayerState
     // (STEPPED) hoặc khám phá tương tác (INTERACTIVE). AUTO mới đặt timer.
     if (widget.definition.playbackMode != 'AUTO') return;
     final step = widget.definition.steps[_stepIndex];
+    // P0 — checkpoint dự đoán: AUTO KHÔNG được lướt qua bước khi learner
+    // chưa chọn + xem kết quả. Dừng ở checkpoint (UI về PHÁT — learner
+    // bấm PHÁT để tiếp tục sau khi đã reveal). Bỏ qua ≠ trả lời: skip
+    // vẫn được phép nhưng không tính là đã giải checkpoint.
+    if (_predictionVisibleAtCurrentStep && !_predictionRevealed) {
+      setState(() => _playing = false);
+      return;
+    }
     // durationMs (manifest) = TỔNG thời gian ở bước (transition + hold).
     // Mặc định: transitionDuration + 2.2s hold cho đọc narration.
     final total = step.durationMs != null
@@ -528,8 +555,13 @@ class _HistoricalAnimationPlayerState
         ),
         const SizedBox(height: 8),
 
-        // --- Điều khiển nước (river scenes) ---
-        if (def.hasWaterControl && !_skipped) ...[
+        // --- Điều khiển nước (river scenes) — chỉ khi bước hiện tại
+        // cho phép (allowedInteractions WATER_LEVEL_CONTROL) hoặc bước
+        // không khai báo danh sách → giữ hành vi v1 (definition-level).
+        if (def.hasWaterControl &&
+            !_skipped &&
+            (_step.allowedInteractions.isEmpty ||
+                _step.allowedInteractions.contains('WATER_LEVEL_CONTROL'))) ...[
           WaterLevelControl(value: _waterLevel, onChanged: _setWater),
           const SizedBox(height: 8),
         ],
@@ -548,8 +580,12 @@ class _HistoricalAnimationPlayerState
           onSkip: _skip,
         ),
 
-        // --- Panel thông tin địa điểm (map scenes) ---
-        if (def.hasLocationExplorer && !_skipped) ...[
+        // --- Panel thông tin địa điểm (map scenes) — cùng quy tắc
+        // gate bước như water control (TAP_TO_EXPLORE).
+        if (def.hasLocationExplorer &&
+            !_skipped &&
+            (_step.allowedInteractions.isEmpty ||
+                _step.allowedInteractions.contains('TAP_TO_EXPLORE'))) ...[
           const SizedBox(height: 8),
           LocationInfoPanel(
             painter: _painter,
@@ -558,8 +594,10 @@ class _HistoricalAnimationPlayerState
           ),
         ],
 
-        // --- Dự đoán khám phá ---
-        if (pred != null && !_skipped) ...[
+        // --- Dự đoán khám phá — chỉ tại bước checkpoint (P0). Scene v1
+        // giữ parity qua prediction.stepIndex; manifest v2 bind qua
+        // allowedInteractions PREDICTION của bước.
+        if (pred != null && !_skipped && _predictionVisibleAtCurrentStep) ...[
           const SizedBox(height: 10),
           PredictionBlock(
             prediction: pred,
@@ -604,8 +642,14 @@ class _HistoricalAnimationPlayerState
               // Mount overlay theo TARGET của bước (deterministic), không
               // theo visibility đang tween — tránh phụ thuộc frame kết
               // cuối và marker vẫn tấp được khi đang fade-in.
+              // Overlay tấp theo gate bước: bước không khai báo
+              // TAP_TO_EXPLORE (khi manifest có danh sách cho bước đó)
+              // → không mount vùng chạm (giữ hit-test sạch, khớp admin
+              // preview `allowTap`).
               for (final loc in mp.locations)
-                if (_locationActive(mp, loc.id))
+                if (_locationActive(mp, loc.id) &&
+                    (_step.allowedInteractions.isEmpty ||
+                        _step.allowedInteractions.contains('TAP_TO_EXPLORE')))
                   MapMarkerOverlay(
                     location: loc,
                     canvasSize: size,

@@ -683,6 +683,7 @@ extension AnimationManifestToDefinition on AnimationManifestDto {
             target: _target(s.targetState),
             durationMs: s.durationMs > 0 ? s.durationMs : null,
             easing: s.easing,
+            allowedInteractions: s.allowedInteractions,
           ),
         )
         .toList();
@@ -700,6 +701,13 @@ extension AnimationManifestToDefinition on AnimationManifestDto {
               explanation: prediction!.explanation,
               retryHint: prediction!.retryHint,
               revealSceneEffect: _target(prediction!.revealTargetState),
+              // P0 — checkpoint binding: bước nào khai báo
+              // allowedInteractions ["PREDICTION"] thì khối hiển thị tại
+              // bước đó (và AUTO dừng chờ). Không bước nào khai báo →
+              // fallback về giữa scene (giữ hành vi khám phá trước đây:
+              // không khiến prediction "không bao giờ hiện" khi manifest
+              // thiếu binding tường minh).
+              stepIndex: _predictionStepIndex(),
             ),
       disclaimer: disclaimer,
       sourceReference: sourceReferences.join(' · '),
@@ -722,6 +730,17 @@ extension AnimationManifestToDefinition on AnimationManifestDto {
           : () =>
                 _seedMap(MapScenePainter(locations: locations, routes: routes)),
     );
+  }
+
+  /// Bước khai báo `allowedInteractions: ["PREDICTION"]` → index của nó;
+  /// không có → fallback về bước giữa scene (không để prediction "không
+  /// bao giờ hiện" khi manifest thiếu binding tường minh).
+  int? _predictionStepIndex() {
+    if (prediction == null || steps.isEmpty) return null;
+    for (var i = 0; i < steps.length; i++) {
+      if (steps[i].allowedInteractions.contains('PREDICTION')) return i;
+    }
+    return (steps.length - 1) ~/ 2;
   }
 
   /// Áp manifest.initialState lên painter vừa tạo — key nào thiếu giữ
