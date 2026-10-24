@@ -14,6 +14,7 @@ import com.dauviet.energy.api.dto.EnergyStateResponse;
 import com.dauviet.energy.domain.EnergyDepletedException;
 import com.dauviet.energy.domain.EnergyTransaction;
 import com.dauviet.energy.domain.UserEnergy;
+import com.dauviet.energy.infrastructure.persistence.EnergyTransactionRepository.StoredCause;
 import com.dauviet.energy.infrastructure.persistence.EnergyTransactionRepository;
 import com.dauviet.energy.infrastructure.persistence.UserEnergyRepository;
 import com.fasterxml.jackson.databind.JsonNode;
@@ -79,6 +80,23 @@ public class EnergyService {
     }
 
     /**
+     * FIX 7: snapshot trạng thái energy NGAY TRONG transaction submit —
+     * trả kèm response để client biết balance mới mà không phải gọi lại
+     * /me/energy. Hàng đã lock sẵn nên đọc lại rẻ; KHÔNG áp thêm recovery
+     * (vừa settle trước đó — chỉ project trạng thái hiện tại).
+     */
+    public EnergyStateResponse snapshot(UUID userId) {
+        Instant now = Instant.now(clock);
+        UserEnergy e = energy.findForUpdate(userId).orElse(null);
+        if (e == null) {
+            return new EnergyStateResponse(props.maxEnergy(), props.maxEnergy(),
+                    props.recoveryAmount(),
+                    props.recoveryInterval().getSeconds(), null, now, true);
+        }
+        return toResponse(e, now);
+    }
+
+    /**
      * Zero-energy gate (ENGY-09) — gọi TRƯỚC handler.evaluate bên trong
      * transaction của submit. Lazy-recover trước rồi mới kiểm tra: energy=0
      * mà đã qua đủ một chu kỳ hồi thì được phép đi tiếp (trường hợp C).
@@ -102,7 +120,14 @@ public class EnergyService {
      * lần submit mới hợp lệ trừ một lần, idempotent replay không trừ lại.
      * Khi {@code enabled=false} → no-op.
      *
-     * @return số energy đã trừ (0 = không bị phạt)
+     * <p>FIX 1 (idempotent ledger-first): ghi energy_transactions TRƯỚC khi
+     * đụng balance. cause_key trùng → bút toán đã commit ở tx trước → KHÔNG
+     * được trừ thêm phần energy đó; chỉ còn nghĩa vụ cộng recovery đã tích
+     * lũy từ created_at của bút toán cũ (lazy-recover theo anchor chung).
+     * Nhờ vậy retry/concurrent/duplicate-cause không bao giờ tạo lệch giữa
+     * balance hiện hữu và tổng ledger.
+     *
+     * @return số energy đã trừ CHO submission này (0 = replay/no-op)
      */
     @Transactional(propagation = Propagation.REQUIRED)
     public int settleAfterSubmission(UUID userId, UUID attemptId,
@@ -110,23 +135,34 @@ public class EnergyService {
         if (!props.enabled()) return 0;
         Instant now = Instant.now(clock);
         UserEnergy e = recoverLocked(userId, now);
-        int amount = Math.min(props.incorrectPenalty(), e.getCurrentEnergy());
-        if (amount <= 0) return 0;
-        e.debit(amount, now);
-        energy.save(e);
         String causeKey = "SUBMIT_PENALTY:" + attemptId + ":" + activityId
                 + ":" + attemptNo;
         ObjectNode ref = mapper.createObjectNode();
         ref.put("attemptId", attemptId.toString());
         ref.put("activityId", activityId);
         ref.put("attemptNo", attemptNo);
+
+        // Ledger-first: balance_after gửi kèm là "dự kiến" — nếu cause đã
+        // tồn tại, insert trả 0 và balance_after kia bị bỏ qua, không hại.
+        int amount = Math.min(props.incorrectPenalty(), e.getCurrentEnergy());
+        if (amount <= 0) return 0;
+        int projected = e.getCurrentEnergy() - amount;
         int written = ledger.insertIgnore(userId, EnergyTransaction.DIR_DEBIT,
                 amount, EnergyTransaction.REASON_GRADED_INCORRECT, causeKey,
-                e.getCurrentEnergy(), ref.toString());
+                projected, ref.toString());
+        if (written == 0) {
+            // Cause đã commit: bù balance về đúng ledger + recovery từ
+            // created_at của bút toán đã lưu — tx cũ có thể rollback sau khi
+            // insert ledger (hiếm), hoặc replay ở tầng trên. Submission này
+            // không trừ gì thêm (return 0) — không double-apply.
+            reconcileFromStoredCause(e, userId, causeKey, now);
+            return 0;
+        }
+        e.debit(amount, now);
+        energy.save(e);
         log.info("energy penalty user={} attempt={} activity={} attemptNo={} "
-                + "amount={} balance={} ledger={}",
-                userId, attemptId, activityId, attemptNo, amount,
-                e.getCurrentEnergy(), written);
+                + "amount={} balance={}", userId, attemptId, activityId,
+                attemptNo, amount, e.getCurrentEnergy());
         return amount;
     }
 
@@ -143,13 +179,21 @@ public class EnergyService {
         }
         Instant now = Instant.now(clock);
         UserEnergy e = recoverLocked(userId, now);
-        int credited = Math.min(amount, props.maxEnergy() - e.getCurrentEnergy());
+        // FIX 1: ledger-first — cause_key đã tồn tại thì chỉ bù recovery,
+        // không credit thêm (một giao dịch mua = đúng một lần cộng).
+        int credited = Math.min(amount,
+                props.maxEnergy() - e.getCurrentEnergy());
         if (credited <= 0) return 0;
+        int projected = e.getCurrentEnergy() + credited;
+        int written = ledger.insertIgnore(userId, EnergyTransaction.DIR_CREDIT,
+                credited, EnergyTransaction.REASON_REFILL_PURCHASE, causeKey,
+                projected, referenceJson);
+        if (written == 0) {
+            reconcileFromStoredCause(e, userId, causeKey, now);
+            return 0;
+        }
         e.credit(credited, null);
         energy.save(e);
-        ledger.insertIgnore(userId, EnergyTransaction.DIR_CREDIT, credited,
-                EnergyTransaction.REASON_REFILL_PURCHASE, causeKey,
-                e.getCurrentEnergy(), referenceJson);
         return credited;
     }
 
@@ -176,7 +220,8 @@ public class EnergyService {
     }
 
     /**
-     * cycles = floor((now - lastRecoveryAt) / interval). Clock bất thường
+     * cycles = floor(elapsed / interval), elapsed đo bằng Duration giữ
+     * nano — 14p59.9s KHÔNG tính là đủ 15 phút (FIX 5). Clock bất thường
      * (lastRecoveryAt ở tương lai) → elapsed âm → cycles = 0, không cộng,
      * không âm, không reset mốc (an toàn với NTP jump/clock skew nhỏ).
      * Đầy max thì anchor neo tới đúng điểm chạm max — không tích lũy chu kỳ
@@ -184,9 +229,10 @@ public class EnergyService {
      */
     private void applyLazyRecovery(UserEnergy e, UUID userId, Instant now) {
         long intervalSec = props.recoveryInterval().getSeconds();
-        long elapsedSec = Math.max(0,
-                now.getEpochSecond() - e.getLastRecoveryAt().getEpochSecond());
-        long cycles = elapsedSec / intervalSec;
+        java.time.Duration elapsed = java.time.Duration
+                .between(e.getLastRecoveryAt(), now);
+        if (elapsed.isNegative()) elapsed = java.time.Duration.ZERO;
+        long cycles = elapsed.dividedBy(props.recoveryInterval());
         if (cycles <= 0 || e.getCurrentEnergy() >= props.maxEnergy()) {
             // Đang đầy: anchor trượt theo thời gian (không ghi ledger — không
             // có thay đổi energy), giữ hành vi "đầy không tích lũy".
@@ -210,6 +256,32 @@ public class EnergyService {
         ledger.insertIgnore(userId, EnergyTransaction.DIR_CREDIT, credited,
                 EnergyTransaction.REASON_NATURAL_RECOVERY, causeKey,
                 e.getCurrentEnergy(), null);
+    }
+
+    /**
+     * FIX 1: cause_key đã tồn tại trong ledger → bút toán tương ứng đã được
+     * commit trước đó. Cân bằng lại về trạng thái đúng: current =
+     * balance_after của bút toán đó, rồi cộng recovery đã trôi qua kể từ
+     * created_at của nó (không dùng last_recovery_at hiện hữu — mốc đó có
+     * thể đã trôi quá xa và tính gộp thời gian của tx rollback). Trả true
+     * nếu tìm thấy stored cause và đã bù.
+     */
+    private boolean reconcileFromStoredCause(UserEnergy e, UUID userId,
+                                             String causeKey, Instant now) {
+        StoredCause stored = ledger.findStoredByCauseKey(userId, causeKey);
+        if (stored == null) {
+            // Conflict với row vừa insert trong CÙNG tx chưa flush — rất
+            // hiếm; an toàn nhất là coi như chưa có bút toán: không debit/
+            // credit gì (đã kiểm tra trước). Để lại row hiện hữu nguyên.
+            log.warn("energy cause {} conflict but no stored row user={}",
+                    causeKey, userId);
+            return false;
+        }
+        e.setCurrentEnergy(stored.balanceAfter());
+        e.setLastRecoveryAt(stored.createdAt());
+        energy.save(e);
+        applyLazyRecovery(e, userId, now);
+        return true;
     }
 
     /** Mốc hồi kế tiếp; null khi đã đầy (không có chu kỳ đang chờ). */

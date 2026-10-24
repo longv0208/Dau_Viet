@@ -43,6 +43,11 @@ app:
 
 
 dauviet:
+  energy:
+    # GAME-02 rollout flag (FIX 3): false = safe default for prod/dev while
+    # GAME-03 Flutter chưa xử lý ENERGY_DEPLETED. Bật qua env
+    # DAUVIET_ENERGY_ENABLED=true hoặc profile riêng khi mobile đã sẵn sàng.
+    enabled: ${DAUVIET_ENERGY_ENABLED:false}
   assets:
     # Local-dev upload dir; production swaps to object storage behind the same contentUrl.
     dir: ${DAUVIET_ASSETS_DIR:data/assets}

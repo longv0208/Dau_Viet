@@ -133,6 +133,8 @@ Content-Type: application/json
 
 `energyDeducted` (GAME-02, additive): số thể lực server vừa trừ cho lượt submit đó (graded `INCORRECT` → `incorrectPenalty`, mặc định 10; clamp về số dư còn lại). Replay `Idempotency-Key` trả nguyên giá trị đã lưu — không trừ lại.
 
+`energy` (GAME-02 FIX 7, additive): snapshot `EnergyStateResponse` ngay sau submission (cùng shape `GET /me/energy`). Đã gồm lazy-recovery server tự áp trước khi chấm — client đọc `energy.current` để biết balance mới, **không** suy từ `energyDeducted` (server có thể đã tự hồi +5 trước khi xử lý). Replay trả snapshot đã lưu cùng response.
+
 **Không** cho Flutter gửi `correct`, `earnedExp`, `isCompleted`, `nextStageId` với quyền quyết định. Backend tính các dữ liệu đó từ snapshot/rule và state server.
 
 ### GET /me/energy — implemented shape (GAME-02)
@@ -155,6 +157,7 @@ Content-Type: application/json
 - `canSubmitGraded` = `current > 0` — client dùng để quyết hiển thị nút submit graded; energy 0 chỉ chặn graded submit, ungraded/read/complete vẫn đi qua.
 - `current`, `nextRecoveryAt`, `serverTime` do server tính tuyệt đối — client không gửi balance, không tự tính chu kỳ hồi.
 - Error `409 ENERGY_DEPLETED` (submit graded khi `current = 0`) mang `details {currentEnergy, nextRecoveryAt, serverTime}` để client hiển thị countdown mà không cần gọi thêm endpoint.
+- **Rollout flag (FIX 3)**: `dauviet.energy.enabled` mặc định `false` qua `application.yml` (`DAUVIET_ENERGY_ENABLED` env-override) — penalty + gate no-op khi tắt, chỉ theo dõi trạng thái; `canSubmitGraded` trả `true`. Bật `true` khi GAME-03 Flutter đã xử lý `ENERGY_DEPLETED` + đồng hồ đếm; bật/tắt không reset `user_energy`/`energy_transactions`. Tests bật explicit qua `src/test/resources/application.yml`.
 
 ### GET /events — implemented shape (TASK-0005)
 

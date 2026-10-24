@@ -269,6 +269,189 @@ class EnergySystemIT extends AbstractPostgresIT {
         assertThat(currentEnergy()).isEqualTo(100);
     }
 
+    /* ---------- FIX 6: toàn bộ handler graded thực sự trừ đúng ---------- */
+
+    /**
+     * Draft một stage một activity required — stage type chọn theo type để
+     * qua STAGE_ACTIVITY_MISMATCH của publish validation.
+     */
+    private String draftSingleActivity(String stageType, String actType,
+                                       String config) {
+        return """
+                {"schemaVersion":1,
+                 "stages":[
+                   {"id":"s1","type":"%s","required":true,
+                    "activities":[{"id":"a1","type":"%s","required":true,
+                                    "config":%s}],
+                    "requiredEvidenceIds":["%s"],
+                    "nextStageIds":[]}],
+                 "completion":{"requireAllRequiredStages":true}}
+                """.formatted(stageType, actType, config, evId);
+    }
+
+    private void submitWrongAndExpect(String stageType, String actType,
+                                      String config, String wrongAnswer,
+                                      int expectedDeducted) throws Exception {
+        String lessonId = publish(draftSingleActivity(stageType, actType, config));
+        String attemptId = AttemptItFixture.startAttempt(mvc, om,
+                learnerToken, lessonId);
+        MvcResult res = submit(learnerToken, attemptId, "a1", wrongAnswer, null);
+        JsonNode b = AttemptItFixture.body(om, res);
+        assertThat(res.getResponse().getStatus()).isEqualTo(200);
+        assertThat(b.get("energyDeducted").asInt()).isEqualTo(expectedDeducted);
+        if (expectedDeducted > 0) {
+            assertThat(currentEnergy()).isEqualTo(100 - expectedDeducted);
+        }
+    }
+
+    @Test
+    void evidenceSelect_gradedIncorrect_deducts() throws Exception {
+        // FIX 2 + FIX 6: graded:true + acceptedEvidenceIds hợp lệ → chấm sai
+        // → trừ đúng một lần.
+        String esConfig = "{\"visibleEvidenceIds\":[\"" + evId + "\"],"
+                + "\"graded\":true,"
+                + "\"acceptedEvidenceIds\":[\"" + evId + "\"],"
+                + "\"maxAttempts\":3}";
+        // Chọn rỗng → exact-match fail → INCORRECT (không PARTIAL vì
+        // correctHits rỗng).
+        submitWrongAndExpect("EVIDENCE", "EVIDENCE_SELECT", esConfig,
+                "{\"selectedEvidenceIds\":[]}", 10);
+    }
+
+    @Test
+    void reasoningConnect_gradedIncorrect_deducts() throws Exception {
+        String rcConfig = "{\"nodes\":["
+                + "{\"id\":\"n1\"},{\"id\":\"n2\"}],"
+                + "\"allowedRelations\":[\"causes\"],"
+                + "\"graded\":true,"
+                + "\"expectedRelations\":[{\"from\":\"n1\",\"relation\":\"causes\",\"to\":\"n2\"}],"
+                + "\"maxAttempts\":3}";
+        submitWrongAndExpect("REASONING", "REASONING_CONNECT", rcConfig,
+                "{\"relations\":[{\"from\":\"n2\",\"relation\":\"causes\",\"to\":\"n1\"}]}",
+                10);
+    }
+
+    @Test
+    void matching_incorrect_deducts() throws Exception {
+        String mtConfig = "{\"pairs\":["
+                + "{\"left\":{\"id\":\"l1\"},\"right\":{\"id\":\"r1\"}},"
+                + "{\"left\":{\"id\":\"l2\"},\"right\":{\"id\":\"r2\"}}],"
+                + "\"correctPairs\":[{\"left\":\"l1\",\"right\":\"r1\"},"
+                + "{\"left\":\"l2\",\"right\":\"r2\"}],"
+                + "\"maxAttempts\":3}";
+        submitWrongAndExpect("REASONING", "MATCHING", mtConfig,
+                "{\"pairs\":[{\"leftId\":\"l1\",\"rightId\":\"r2\"},"
+                        + "{\"leftId\":\"l2\",\"rightId\":\"r1\"}]}", 10);
+    }
+
+    @Test
+    void dragOrder_incorrect_deducts() throws Exception {
+        String doConfig = "{\"items\":[{\"id\":\"i1\"},{\"id\":\"i2\"},"
+                + "{\"id\":\"i3\"}],"
+                + "\"expectedOrder\":[\"i1\",\"i2\",\"i3\"],"
+                + "\"maxAttempts\":3}";
+        submitWrongAndExpect("RECONSTRUCTION", "DRAG_ORDER", doConfig,
+                "{\"orderedIds\":[\"i3\",\"i2\",\"i1\"]}", 10);
+    }
+
+    @Test
+    void cerChoice_incorrect_deducts() throws Exception {
+        // acceptedCombos + 3 flat arrays (publish contract đòi song song
+        // theo CerChoiceValidator); evidence ids phải thật của event.
+        String ev2 = AttemptItFixture.newEvidence(jdbc, eventId);
+        String cerConfig = "{\"claims\":[{\"id\":\"c1\"},{\"id\":\"c2\"}],"
+                + "\"reasoningOptions\":[{\"id\":\"r1\"},{\"id\":\"r2\"}],"
+                + "\"evidenceOptions\":[{\"id\":\"" + evId + "\"},"
+                + "{\"id\":\"" + ev2 + "\"}],"
+                + "\"acceptedCombos\":[{\"claimId\":\"c1\",\"evidenceIds\":[\"" + evId + "\"],\"reasoningId\":\"r1\"}],"
+                + "\"acceptedClaims\":[\"c1\"],"
+                + "\"acceptedEvidenceIds\":[\"" + evId + "\"],"
+                + "\"acceptedReasoningIds\":[\"r1\"],"
+                + "\"maxAttempts\":3}";
+        // feedback nằm ở activity.feedback (validator đọc activity, không
+        // phải config) — draftSingleActivity chưa hỗ trợ feedback bên ngoài
+        // nên build draft riêng tại đây.
+        String draft = """
+                {"schemaVersion":1,
+                 "stages":[
+                   {"id":"s1","type":"CONCLUSION","required":true,
+                    "activities":[{"id":"a1","type":"CER_CHOICE","required":true,
+                                    "config":%s,
+                                    "feedback":{"COMPLETED":"ok",
+                                                "INCORRECT":"no"}}],
+                    "requiredEvidenceIds":["%s"],
+                    "nextStageIds":[]}],
+                 "completion":{"requireAllRequiredStages":true}}
+                """.formatted(cerConfig, evId);
+        String lessonId = publish(draft);
+        String attemptId = AttemptItFixture.startAttempt(mvc, om,
+                learnerToken, lessonId);
+        MvcResult res = submit(learnerToken, attemptId, "a1",
+                "{\"claimId\":\"c2\",\"reasoningId\":\"r2\",\"evidenceIds\":[\"" + ev2 + "\"]}",
+                null);
+        JsonNode b = AttemptItFixture.body(om, res);
+        assertThat(res.getResponse().getStatus()).isEqualTo(200);
+        assertThat(b.get("energyDeducted").asInt()).isEqualTo(10);
+        assertThat(currentEnergy()).isEqualTo(90);
+    }
+
+    @Test
+    void partialOutcome_neverDeducts() throws Exception {
+        // EVIDENCE_SELECT graded với một phần đúng nhưng chưa hết lượt →
+        // PARTIAL — không trừ (đúng bảng policy). Cần 2 evidence thật của
+        // event để accepted hợp lệ.
+        String ev2 = AttemptItFixture.newEvidence(jdbc, eventId);
+        String esConfig = "{\"visibleEvidenceIds\":[\"" + evId + "\",\""
+                + ev2 + "\"],"
+                + "\"graded\":true,"
+                + "\"acceptedEvidenceIds\":[\"" + evId + "\",\"" + ev2 + "\"],"
+                + "\"maxAttempts\":3}";
+        String lessonId = publish(draftSingleActivity("EVIDENCE",
+                "EVIDENCE_SELECT", esConfig));
+        String attemptId = AttemptItFixture.startAttempt(mvc, om,
+                learnerToken, lessonId);
+        MvcResult res = submit(learnerToken, attemptId, "a1",
+                "{\"selectedEvidenceIds\":[\"" + evId + "\"]}", null);
+        JsonNode b = AttemptItFixture.body(om, res);
+        assertThat(b.get("evaluation").get("outcome").asText())
+                .isEqualTo("PARTIAL");
+        assertThat(b.get("energyDeducted").asInt()).isZero();
+        assertThat(currentEnergy()).isEqualTo(100);
+    }
+
+    @Test
+    void ungradedEvidenceSelect_notGatedWhenZero() throws Exception {
+        // EVIDENCE_SELECT KHÔNG graded (không flag) → ungraded thật sự;
+        // energy=0 vẫn cho submit — baseline của FIX 2 (trường hợp graded
+        // flag thiếu key bị publish chặn nên không thể tồn tại trên DB).
+        String lessonId = publish(draftSingleActivity("EVIDENCE",
+                "EVIDENCE_SELECT",
+                "{\"visibleEvidenceIds\":[\"" + evId + "\"],"
+                        + "\"minRequired\":1}"));
+        String attemptId = AttemptItFixture.startAttempt(mvc, om,
+                learnerToken, lessonId);
+        setEnergy(0);
+        MvcResult res = submit(learnerToken, attemptId, "a1",
+                "{\"selectedEvidenceIds\":[\"" + evId + "\"]}", null);
+        assertThat(res.getResponse().getStatus()).isEqualTo(200);
+    }
+
+    @Test
+    void submitResponse_carriesEnergySnapshot() throws Exception {
+        // FIX 7: response submit trả kèm trạng thái energy sau tx — client
+        // không phải gọi lại /me/energy để biết balance mới.
+        String lessonId = publish(draftSingleActivity("EVIDENCE",
+                "MULTIPLE_CHOICE", MC_CONFIG));
+        String attemptId = AttemptItFixture.startAttempt(mvc, om,
+                learnerToken, lessonId);
+        MvcResult res = submit(learnerToken, attemptId, "a1", MC_WRONG, null);
+        JsonNode b = AttemptItFixture.body(om, res);
+        JsonNode snap = b.get("energy");
+        assertThat(snap).isNotNull();
+        assertThat(snap.get("current").asInt()).isEqualTo(90);
+        assertThat(snap.get("max").asInt()).isEqualTo(100);
+    }
+
     /* ---------- retry & idempotency ---------- */
 
     @Test

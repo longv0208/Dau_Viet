@@ -38,4 +38,34 @@ public interface EnergyTransactionRepository
                      @Param("causeKey") String causeKey,
                      @Param("balanceAfter") int balanceAfter,
                      @Param("referenceJson") String referenceJson);
+
+    /**
+     * FIX 1: đọc lại bút toán đã commit của một cause_key — dùng khi
+     * insertIgnore trả 0 để biết balance_after + thời điểm của bản ghi gốc
+     * (phục vụ reconcile balance mà không double-apply).
+     */
+    @Query(value = """
+            SELECT balance_after, created_at
+            FROM energy_transactions
+            WHERE user_id = :userId AND cause_key = :causeKey
+            """, nativeQuery = true)
+    StoredCauseProjection findStoredProjection(@Param("userId") UUID userId,
+                                               @Param("causeKey") String causeKey);
+
+    /** Projection interface — Spring Data map balance_after/created_at. */
+    interface StoredCauseProjection {
+        Integer getBalanceAfter();
+        java.time.Instant getCreatedAt();
+    }
+
+    /** Value object service dùng (không lộ JPA projection ra ngoài). */
+    record StoredCause(int balanceAfter, java.time.Instant createdAt) { }
+
+    /** Convenience: projection → value object, null-safe. */
+    default StoredCause findStoredByCauseKey(UUID userId, String causeKey) {
+        StoredCauseProjection p = findStoredProjection(userId, causeKey);
+        return p == null || p.getBalanceAfter() == null
+                ? null
+                : new StoredCause(p.getBalanceAfter(), p.getCreatedAt());
+    }
 }

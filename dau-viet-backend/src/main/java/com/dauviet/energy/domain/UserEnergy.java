@@ -65,4 +65,17 @@ public class UserEnergy {
             this.lastRecoveryAt = recoveryAnchor;
         }
     }
+
+    /**
+     * FIX 1: ghi đè trực tiếp khi reconcile từ ledger (cause_key đã commit
+     * trước). Không dùng cho credit/debit thường — chỉ service gọi sau khi
+     * đã đọc balance_after từ energy_transactions.
+     */
+    public void setCurrentEnergy(int currentEnergy) {
+        this.currentEnergy = currentEnergy;
+    }
+
+    public void setLastRecoveryAt(Instant lastRecoveryAt) {
+        this.lastRecoveryAt = lastRecoveryAt;
+    }
 }

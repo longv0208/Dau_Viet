@@ -379,6 +379,10 @@ public class LearnerAttemptService {
                 ? energyService.settleAfterSubmission(userId, a.getId(),
                         activityId, attemptNo)
                 : 0;
+        // FIX 7: snapshot energy SAU settle (cùng row-lock đã giữ) — client
+        // biết balance mới kể cả khi server vừa lazy-recover trước submit,
+        // không phải suy từ energyDeducted. Đọc lại trong tx rẻ.
+        var energySnapshot = energyService.snapshot(userId);
         activityAttempts.save(ActivityAttempt.of(a.getId(), activityId, attemptNo,
                 answer == null ? "{}" : answer.toString(), resultJson(result)));
 
@@ -398,7 +402,8 @@ public class LearnerAttemptService {
         LessonCompletion completion = completionEvaluator.evaluate(model, state);
         SubmitActivityResponse.Next next = nextDto(model, state, transition, optionalInStage);
         return new SubmitActivityResponse("ACCEPTED", result, result.completed(),
-                progressOf(model, state), next, completion, energyDeducted);
+                progressOf(model, state), next, completion, energyDeducted,
+                energySnapshot);
     }
 
     /**

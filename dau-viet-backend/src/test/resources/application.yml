@@ -5,3 +5,8 @@ app:
     jwt-secret: test-secret-key-32-bytes-minimum-0123456789abcdef
     access-token-ttl-seconds: 900
     refresh-token-ttl-seconds: 1209600
+
+dauviet:
+  energy:
+    # FIX 3: test bật explicit — không phụ thuộc default prod-safe (false).
+    enabled: true

@@ -40,13 +40,44 @@ class GradedActivityClassifierTest {
 
     @Test
     void optInGraded_onlyWhenFlagged() throws Exception {
-        JsonNode es = act("EVIDENCE_SELECT", "{\"graded\":true}");
-        JsonNode rc = act("REASONING_CONNECT", "{\"graded\":true}");
+        JsonNode es = act("EVIDENCE_SELECT",
+                "{\"graded\":true,\"acceptedEvidenceIds\":[\"e1\"]}");
+        JsonNode rc = act("REASONING_CONNECT",
+                "{\"graded\":true,\"expectedRelations\":"
+                        + "[{\"from\":\"a\",\"relation\":\"r\",\"to\":\"b\"}]}");
         assertThat(c.isGraded(es)).isTrue();
         assertThat(c.isGraded(rc)).isTrue();
         assertThat(c.isGraded(act("EVIDENCE_SELECT", null))).isFalse();
         assertThat(c.isGraded(act("REASONING_CONNECT",
                 "{\"graded\":false}"))).isFalse();
+    }
+
+    @Test
+    void optInGraded_flagButNoAnswerKey_notGraded() throws Exception {
+        // FIX 2: graded:true thiếu key chấm → handler đi nhánh ungraded →
+        // không được gate/phạt (trước đây chỉ kiểm flag → gate nhầm).
+        assertThat(c.isGraded(act("EVIDENCE_SELECT",
+                "{\"graded\":true}"))).isFalse();
+        assertThat(c.isGraded(act("EVIDENCE_SELECT",
+                "{\"graded\":true,\"acceptedEvidenceIds\":[]}"))).isFalse();
+        // REASONING_CONNECT graded nhưng không có set quan hệ nào hợp lệ.
+        assertThat(c.isGraded(act("REASONING_CONNECT",
+                "{\"graded\":true}"))).isFalse();
+        assertThat(c.isGraded(act("REASONING_CONNECT",
+                "{\"graded\":true,\"expectedRelations\":[]}"))).isFalse();
+        // Set rỗng phần tử (thiếu trường) cũng không tính.
+        assertThat(c.isGraded(act("REASONING_CONNECT",
+                "{\"graded\":true,\"expectedRelations\":["
+                        + "{\"from\":\"a\"}]}"))).isFalse();
+        // acceptedRelationSets[] thay thế expectedRelations.
+        assertThat(c.isGraded(act("REASONING_CONNECT",
+                "{\"graded\":true,\"acceptedRelationSets\":["
+                        + "[{\"from\":\"a\",\"relation\":\"r\",\"to\":\"b\"}]]}"
+                ))).isTrue();
+        // graded:true + acceptedEvidenceIds blank-string-only → không graded.
+        assertThat(c.isGraded(act("EVIDENCE_SELECT",
+                "{\"graded\":true,\"acceptedEvidenceIds\":[\"  \"]}")))
+                .isFalse();
     }
 
     @Test

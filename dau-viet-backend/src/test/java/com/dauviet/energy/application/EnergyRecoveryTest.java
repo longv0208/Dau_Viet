@@ -20,6 +20,7 @@ import org.mockito.Mockito;
 import com.dauviet.energy.domain.EnergyDepletedException;
 import com.dauviet.energy.domain.UserEnergy;
 import com.dauviet.energy.infrastructure.persistence.EnergyTransactionRepository;
+import com.dauviet.energy.infrastructure.persistence.EnergyTransactionRepository.StoredCause;
 import com.dauviet.energy.infrastructure.persistence.UserEnergyRepository;
 import com.fasterxml.jackson.databind.ObjectMapper;
 
@@ -78,6 +79,20 @@ class EnergyRecoveryTest {
         service = new EnergyService(new EnergyProperties(true, 100, 10, 5,
                 Duration.ofMinutes(15)), energyRepo, ledger, clock,
                 new ObjectMapper());
+        seedDefaultLedgerBehavior();
+    }
+
+    /**
+     * FIX 1: ledger mặc định insert thành công (trả 1) — test chuyên sâu về
+     * duplicate-cause override riêng. findStoredByCauseKey trả null mặc định.
+     */
+    private void seedDefaultLedgerBehavior() {
+        Mockito.when(ledger.insertIgnore(Mockito.any(), Mockito.any(),
+                Mockito.anyInt(), Mockito.any(), Mockito.any(),
+                Mockito.anyInt(), Mockito.any()))
+                .thenReturn(1);
+        Mockito.when(ledger.findStoredByCauseKey(Mockito.any(), Mockito.any()))
+                .thenReturn(null);
     }
 
     private UserEnergy seed(int energy, Instant anchor) {
@@ -227,5 +242,142 @@ class EnergyRecoveryTest {
                 cause.capture(), Mockito.eq(40), Mockito.any());
         assertThat(cause.getValue())
                 .isEqualTo("SUBMIT_PENALTY:" + attempt + ":mc:2");
+    }
+
+    /* ---------- FIX 5: chính xác đến nano quanh ranh giới chu kỳ ---------- */
+
+    @Test
+    void recovery_14m59s2_noCredit() {
+        // Epoch-second diff đã qua 900s nhưng thực tế chưa đủ — không hồi.
+        UserEnergy e = seed(40, T0.plusMillis(900));
+        clock.set(T0.plusSeconds(15 * 60).plusMillis(100));
+        service.stateOf(U);
+        assertThat(e.getCurrentEnergy()).isEqualTo(40);
+    }
+
+    @Test
+    void recovery_exactly15m_credit() {
+        UserEnergy e = seed(40, T0);
+        clock.set(T0.plusSeconds(15 * 60));
+        service.stateOf(U);
+        assertThat(e.getCurrentEnergy()).isEqualTo(45);
+    }
+
+    @Test
+    void recovery_15m0s8_creditAndKeepsFraction() {
+        // Đủ 1 chu kỳ + 0,8s lẻ → hồi 5, anchor chỉ tiến đúng 15 phút
+        // (0,8s lẻ giữ lại cho chu kỳ sau).
+        UserEnergy e = seed(40, T0);
+        clock.set(T0.plusSeconds(15 * 60).plusMillis(800));
+        service.stateOf(U);
+        assertThat(e.getCurrentEnergy()).isEqualTo(45);
+        assertThat(e.getLastRecoveryAt())
+                .isEqualTo(T0.plusSeconds(15 * 60));
+    }
+
+    @Test
+    void recovery_29m59s9_onlyOneCycle() {
+        UserEnergy e = seed(40, T0);
+        clock.set(T0.plusSeconds(29 * 60).plusMillis(900));
+        service.stateOf(U);
+        assertThat(e.getCurrentEnergy()).isEqualTo(45);
+    }
+
+    @Test
+    void recovery_exactly30m_twoCycles() {
+        UserEnergy e = seed(40, T0);
+        clock.set(T0.plusSeconds(30 * 60));
+        service.stateOf(U);
+        assertThat(e.getCurrentEnergy()).isEqualTo(50);
+    }
+
+    /* ---------- FIX 1: duplicate cause không trừ thêm ---------- */
+
+    @Test
+    void settle_duplicateCauseKey_doesNotDebitTwice() {
+        // Ledger insert trả 0 (đã có cause) → balance phải bù về
+        // balance_after đã lưu + recovery từ created_at, KHÔNG debit mới.
+        seed(50, T0);
+        Mockito.when(ledger.insertIgnore(Mockito.any(), Mockito.any(),
+                Mockito.anyInt(), Mockito.any(), Mockito.any(),
+                Mockito.anyInt(), Mockito.any()))
+                .thenReturn(0);
+        Mockito.when(ledger.findStoredByCauseKey(Mockito.eq(U), Mockito.any()))
+                .thenReturn(new StoredCause(40, T0));
+        clock.set(T0.plusSeconds(15 * 60)); // đủ 1 chu kỳ kể từ tx gốc
+        int debited = service.settleAfterSubmission(U, UUID.randomUUID(),
+                "mc", 1);
+        assertThat(debited).isZero(); // không trừ lần hai
+        // balance = 40 (stored) + 5 recovery (1 chu kỳ từ T0) = 45.
+        assertThat(rows.get(U).getCurrentEnergy()).isEqualTo(45);
+    }
+
+    @Test
+    void refill_duplicateCauseKey_doesNotCreditTwice() {
+        // Đồng hồ đã đứng T0 + 15p TRƯỚC khi refill → reconcile bù về stored
+        // balance 60 + recovery tính từ created_at T0 (đủ 1 chu kỳ) = 65.
+        seed(50, T0);
+        clock.set(T0.plusSeconds(15 * 60));
+        Mockito.when(ledger.insertIgnore(Mockito.any(), Mockito.any(),
+                Mockito.anyInt(), Mockito.any(), Mockito.any(),
+                Mockito.anyInt(), Mockito.any()))
+                .thenReturn(0);
+        Mockito.when(ledger.findStoredByCauseKey(Mockito.eq(U), Mockito.any()))
+                .thenReturn(new StoredCause(60, T0));
+        int credited = service.applyRefill(U, 20, "PURCHASE:X", null);
+        assertThat(credited).isZero(); // không credit lần hai
+        // Đọc lại: bút toán RECOVERY do reconcile ghi có thể đổi balance —
+        // ở đây mock insertIgnore trả 0 → state ổn định ở stored+recovery.
+        service.stateOf(U);
+        assertThat(rows.get(U).getCurrentEnergy()).isEqualTo(65);
+    }
+
+    @Test
+    void settle_ledgerInsertFails_throwsPropagates() {
+        // insertIgnore throw (vd. lỗi DB) → exception lan truyền, không có
+        // debit bí mật — atomicity do tx đảm bảo (rollback kéo energy).
+        seed(50, T0);
+        Mockito.when(ledger.insertIgnore(Mockito.any(), Mockito.any(),
+                Mockito.anyInt(), Mockito.any(), Mockito.any(),
+                Mockito.anyInt(), Mockito.any()))
+                .thenThrow(new RuntimeException("db down"));
+        assertThatThrownBy(() -> service.settleAfterSubmission(U,
+                UUID.randomUUID(), "mc", 1))
+                .hasMessageContaining("db down");
+        assertThat(rows.get(U).getCurrentEnergy()).isEqualTo(50); // không đổi
+    }
+
+    /* ---------- FIX 4: validate cấu hình ---------- */
+
+    @Test
+    void properties_maxOverSchemaCap_failsValidation() {
+        assertThatThrownBy(() -> new EnergyProperties(true, 120, 10, 5,
+                Duration.ofMinutes(15)).validate())
+                .isInstanceOf(IllegalStateException.class)
+                .hasMessageContaining("schema CHECK cap");
+    }
+
+    @Test
+    void properties_subSecondInterval_failsValidation() {
+        assertThatThrownBy(() -> new EnergyProperties(true, 100, 10, 5,
+                Duration.ofMillis(500)).validate())
+                .isInstanceOf(IllegalStateException.class)
+                .hasMessageContaining(">= 1s");
+    }
+
+    @Test
+    void properties_invalidValues_failFast() {
+        assertThatThrownBy(() -> new EnergyProperties(true, 0, 10, 5,
+                Duration.ofMinutes(15)).validate())
+                .isInstanceOf(IllegalStateException.class);
+        assertThatThrownBy(() -> new EnergyProperties(true, 100, 0, 5,
+                Duration.ofMinutes(15)).validate())
+                .isInstanceOf(IllegalStateException.class);
+        assertThatThrownBy(() -> new EnergyProperties(true, 100, 10, 0,
+                Duration.ofMinutes(15)).validate())
+                .isInstanceOf(IllegalStateException.class);
+        assertThatThrownBy(() -> new EnergyProperties(true, 100, 200, 5,
+                Duration.ofMinutes(15)).validate())
+                .isInstanceOf(IllegalStateException.class); // penalty > max
     }
 }

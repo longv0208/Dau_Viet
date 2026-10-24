@@ -84,7 +84,8 @@ class LearnerAttemptServiceTest {
                 {"stages":[
                   {"id":"ev","type":"EVIDENCE","required":true,"activities":[
                     {"id":"es","type":"EVIDENCE_SELECT","required":true,
-                     "config":{"graded":true}}],
+                     "config":{"graded":true,
+                               "acceptedEvidenceIds":["e1"]}}],
                    "nextStageIds":["rs"]},
                   {"id":"rs","type":"REASONING","required":true,"activities":[
                     {"id":"rc","type":"REASONING_CONNECT","required":true}],
@@ -539,9 +540,10 @@ class LearnerAttemptServiceTest {
 
     @Test
     void knowledgeScoreOf_ungradedCompletionDoesNotCount() {
-        // TASK-0020 §P2: only activities with a real grading rule feed
-        // knowledgeScore. rc is ungraded -> dropped from the denominator;
-        // es score 0.0 and cer correct -> mean(0,1)*100 = 50.
+        // TASK-0020 §P2 + FIX 2: chỉ activity có rule chấm THỰC đếm vào
+        // knowledgeScore. es giờ graded thật (config có acceptedEvidenceIds
+        // trong fixture), score 0.0; cer correct → mean(0, 1) = 50.
+        // rc ungraded bị loại khỏi mẫu số như trước.
         SnapshotModel model = SnapshotModel.parse(snapshotThreeStage());
         AttemptState state = new AttemptState();
         state.recordOutput("es", json("{\"score\":0.0}"));
@@ -552,6 +554,27 @@ class LearnerAttemptServiceTest {
                 "knowledgeScoreOf", model, state);
         assertThat(((java.math.BigDecimal) score).doubleValue())
                 .isBetween(49.0, 51.0);
+    }
+
+    @Test
+    void knowledgeScoreOf_flagWithoutAnswerKey_notCounted() {
+        // FIX 2 regression: graded:true thiếu đáp án đếm như ungraded —
+        // denominator chỉ chứa activity handler thực sự phát verdict.
+        JsonNode snap = json("""
+                {"stages":[{"id":"ev","type":"EVIDENCE","required":true,
+                  "activities":[
+                    {"id":"es","type":"EVIDENCE_SELECT","required":true,
+                     "config":{"graded":true}}],
+                  "nextStageIds":[]}]}
+                """);
+        SnapshotModel model = SnapshotModel.parse(snap);
+        AttemptState state = new AttemptState();
+        state.recordOutput("es", json("{\"score\":0.0}"));
+        state.markCompleted("es");
+        Object score = ReflectionTestUtils.invokeMethod(service,
+                "knowledgeScoreOf", model, state);
+        // Không còn graded activity → 0 (không phải 0/1 trung bình).
+        assertThat(((java.math.BigDecimal) score).doubleValue()).isEqualTo(0.0);
     }
 
     @Test
