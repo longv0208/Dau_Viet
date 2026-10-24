@@ -49,16 +49,25 @@ public class ItemUnlockRule {
     private Integer threshold;
 
     /**
-     * GAME-05 V24 + FIX-4: revision của policy MỖI ITEM — 1 = rule legacy
-     * V1 hoặc publish v2 đầu tiên của item vốn có rule v1; mỗi lần admin
-     * publish rule mới, revision = max(existing)+1 nên hai publish khác
-     * nhau luôn phân biệt được (provenance user_inventory.unlock_rule_
-     * version truy vết đúng revision đã cấp). AST format luôn là v2 —
-     * "schema" của grammar không cần cột riêng (parser chỉ có một ngữ
-     * pháp; khi format đổi sẽ là cột/cấu trúc mới, không reuse số này).
+     * GAME-05 V24 + FINAL FIX-3: SCHEMA VERSION của rule — 1 = payload V1
+     * (3 cột phẳng), 2 = payload AST trong condition_json. Đây là "kiểu
+     * dữ liệu", KHÔNG phải thứ tự publish — một item có thể đi V1 → V2 →
+     * V1 (admin dùng API tương thích) mà schema version vẫn đúng mô tả
+     * payload, không bị ép tăng. Số thứ tự publish nằm ở {@link #revision}.
      */
     @Column(name = "rule_version", nullable = false, updatable = false)
     private int ruleVersion = 1;
+
+    /**
+     * FINAL FIX-3: revision của policy MỖI ITEM — monotonic, không giảm,
+     * không reuse trong cùng item. Mọi publish (V1 lẫn V2) đều lấy
+     * max(revision hiện có)+1 nên hai publish khác nhau luôn phân biệt
+     * được trong provenance (user_inventory.unlock_rule_version giờ ghi
+     * revision). rule_version chỉ mô tả SCHEMA payload, revision mới là
+     * thứ tự publish thật.
+     */
+    @Column(name = "revision", nullable = false, updatable = false)
+    private int revision = 1;
 
     /** AST serialized (jsonb); v2 bắt buộc, v1 chứa bản normalize tương đương. */
     @JdbcTypeCode(SqlTypes.JSON)
@@ -80,18 +89,21 @@ public class ItemUnlockRule {
     public ItemUnlockRule() {
     }
 
-    public static ItemUnlockRule lessonCompleted(UUID itemId, UUID lessonId) {
+    public static ItemUnlockRule lessonCompleted(UUID itemId, UUID lessonId,
+                                                 int revision) {
         ItemUnlockRule r = base(itemId, TYPE_LESSON_COMPLETED);
         r.lessonId = lessonId;
+        r.revision = revision;
         r.conditionJson = "{\"type\":\"LESSON_COMPLETED\",\"lessonId\":\""
                 + lessonId + "\"}";
         return r;
     }
 
     public static ItemUnlockRule counted(UUID itemId, String ruleType,
-                                         int threshold) {
+                                         int threshold, int revision) {
         ItemUnlockRule r = base(itemId, ruleType);
         r.threshold = threshold;
+        r.revision = revision;
         r.conditionJson = "{\"type\":\"" + ruleType
                 + "\",\"threshold\":" + threshold + "}";
         return r;
@@ -99,15 +111,16 @@ public class ItemUnlockRule {
 
     /**
      * Rule v2: AST đã parse+validate ở service — chỉ lưu canonical JSON.
-     * `revision` = rule_version mới (per-item, FIX-4): service tính
-     * max(revision hiện có)+1 khi thay rule; truyền 1 cho publish đầu.
+     * ruleVersion=2 (schema AST); `revision` = thứ tự publish per-item
+     * (FINAL FIX-3): service tính max(revision hiện có)+1 khi thay rule.
      */
     public static ItemUnlockRule v2(UUID itemId, String ruleType,
                                     String conditionJson,
                                     String ruleMetadata,
                                     int revision) {
         ItemUnlockRule r = base(itemId, ruleType);
-        r.ruleVersion = revision;
+        r.ruleVersion = 2;
+        r.revision = revision;
         r.conditionJson = conditionJson;
         r.ruleMetadata = ruleMetadata;
         return r;
@@ -128,6 +141,7 @@ public class ItemUnlockRule {
     public UUID getLessonId() { return lessonId; }
     public Integer getThreshold() { return threshold; }
     public int getRuleVersion() { return ruleVersion; }
+    public int getRevision() { return revision; }
     public String getConditionJson() { return conditionJson; }
     public String getRuleMetadata() { return ruleMetadata; }
     public boolean isActive() { return active; }
@@ -143,12 +157,53 @@ public class ItemUnlockRule {
      * Metadata hỏng/không parse được → false: không chặn grant hợp lệ.
      */
     public static boolean isNeedsMapping(String ruleMetadata) {
-        if (ruleMetadata == null || ruleMetadata.isBlank()) return false;
+        return "needs-mapping".equals(auditOf(ruleMetadata));
+    }
+
+    private static String auditOf(String ruleMetadata) {
+        if (ruleMetadata == null || ruleMetadata.isBlank()) return null;
         try {
             JsonNode node = new ObjectMapper().readTree(ruleMetadata);
-            return "needs-mapping".equals(node.path("audit").asText());
+            return node.path("audit").asText(null);
         } catch (Exception e) {
-            return false;
+            return null;
         }
     }
+
+    /* ---------- FINAL FIX-2: item-level event scope từ audit trail ---------- */
+
+    /**
+     * Leaf được coi là "event-scoped" khi nó tham chiếu eventId (điều kiện
+     * gắn sự kiện lịch sử cụ thể). LESSON_COMPLETED/LESSON_MASTERED là
+     * lesson-scoped — bài học đã gắn event ở tầng lesson, không tính ở đây
+     * để rule "hoàn thành bài X" vẫn hợp lệ cho item global. Danh sách này
+     * theo GRAMMAR (LeafType), không theo mã item — không hard-code
+     * Bạch Đằng/Hai Bà Trưng.
+     */
+    public static boolean isEventScopedLeaf(com.dauviet.reward.application
+            .ItemCondition.LeafType type) {
+        return switch (type) {
+            case EVENT_COMPLETED, EVENT_MASTERED, EVENT_EVIDENCE_COUNT,
+                 SPECIFIC_EVIDENCE_SET, TOTAL_EVENTS_COMPLETED,
+                 TOTAL_EVENTS_MASTERED -> true;
+            default -> false;
+        };
+    }
+
+    /**
+     * Scope đã duyệt của một ITEM — kết luận từ LỊCH SỬ rule của item
+     * (audit trail), không phải chỉ rule đang active:
+     *  - UNRESOLVED: từng có rule flag 'needs-mapping' mà chưa có rule v2
+     *    event-scoped nào được publish sau đó → chặn grant mới (global
+     *    bypass cũng chặn) cho tới khi admin định nghĩa event minh định.
+     *  - EVENT_SCOPED: đã có rule v2 event-scoped → chỉ chấp nhận rule
+     *    event-scoped (một rule global mới sẽ làm mất ý nghĩa sự kiện).
+     *  - GLOBAL: chưa từng flagged / không gắn event → rule global bình
+     *    thường được phép.
+     *
+     * Kết luận này lấy từ DỮ LIỆU (rule_metadata + AST eventId của các rule
+     * đã publish) — không phải danh sách code item, nên item event-specific
+     * tạo sau cũng tự bảo vệ khi rule đầu của nó event-scoped.
+     */
+    public enum ItemScope { UNRESOLVED, EVENT_SCOPED, GLOBAL }
 }

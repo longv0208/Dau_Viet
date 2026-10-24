@@ -38,10 +38,12 @@ public interface UserInventoryRepository
                      @Param("sourceAttemptId") UUID sourceAttemptId);
 
     /**
-     * GAME-05 V24: ghi kèm provenance đầy đủ (rule đã cấp + version, event
-     * nguồn, cause_key idempotent). Hai ON CONFLICT phối hợp: (user_id,
-     * item_id) chặn cấp lại; ux_user_inventory_cause_key chặn cùng nguyên
-     * nhân ghi hai lần kể cả khi caller thay đổi item.
+     * GAME-05 V24 + FINAL FIX-3: ghi kèm provenance đầy đủ (rule đã cấp +
+     * REVISION, event nguồn, cause_key idempotent). `unlockRuleVersion`
+     * là item_unlock_rule.revision — thứ tự publish per-item, độc lập
+     * schema rule_version. Hai ON CONFLICT phối hợp: (user_id,item_id)
+     * chặn cấp lại; ux_user_inventory_cause_key chặn cùng nguyên nhân
+     * ghi hai lần kể cả khi caller thay đổi item.
      */
     @Modifying
     @Query(value = """

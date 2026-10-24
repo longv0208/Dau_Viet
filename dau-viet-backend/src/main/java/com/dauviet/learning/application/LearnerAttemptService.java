@@ -481,8 +481,11 @@ public class LearnerAttemptService {
             UUID eventId = lessons.findById(lessonId)
                     .map(Lesson::getEventId).orElse(null);
             if (eventId != null) {
-                newlyUnlockedDossiers =
-                        eventMilestones.recordIfEarned(userId, eventId);
+                // Truyền lessonId/attemptId đang complete: item grant qua
+                // leaf EVENT_* trong cùng tx này ghi source_attempt_id đúng
+                // → GET /attempts/{id}/result hiển thị đúng (FIX FINAL-1).
+                newlyUnlockedDossiers = eventMilestones.recordIfEarned(
+                        userId, eventId, lessonId, a.getId());
             }
             itemUnlocks.evaluateAfterLessonCompletion(userId, lessonId,
                     a.getId());

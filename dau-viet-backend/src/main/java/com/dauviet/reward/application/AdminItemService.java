@@ -40,6 +40,7 @@ public class AdminItemService {
     private final ObjectMapper mapper;
     private final ItemConditionParser conditionParser;
     private final ItemConditionValidator conditionValidator;
+    private final ItemRuleScopeResolver scopeResolver;
 
     public AdminItemService(ItemCatalogRepository items,
                             ItemUnlockRuleRepository rules,
@@ -47,7 +48,8 @@ public class AdminItemService {
                             jakarta.persistence.EntityManager em,
                             ObjectMapper mapper,
                             ItemConditionParser conditionParser,
-                            ItemConditionValidator conditionValidator) {
+                            ItemConditionValidator conditionValidator,
+                            ItemRuleScopeResolver scopeResolver) {
         this.items = items;
         this.rules = rules;
         this.lessons = lessons;
@@ -55,6 +57,7 @@ public class AdminItemService {
         this.mapper = mapper;
         this.conditionParser = conditionParser;
         this.conditionValidator = conditionValidator;
+        this.scopeResolver = scopeResolver;
     }
 
     @Transactional(readOnly = true)
@@ -129,11 +132,18 @@ public class AdminItemService {
      * là mâu thuẫn cấu hình → 400 trước khi chạm DB, không để constraint
      * flush bắt. rule_type cột là discriminator của hệ thống.
      *
-     * FIX-4: rule_version = policy revision PER ITEM — publish đầu của
-     * một item vốn có rule v1 → 2; mỗi lần thay tiếp → max(existing)+1.
-     * Hai publish khác nhau luôn phân biệt được trong
-     * user_inventory.unlock_rule_version (provenance truy vết đúng
-     * revision đã cấp; rule id làm khoá chính truy vết).
+     * FINAL FIX-2: scope CẤP ITEM — item đã bị audit 'needs-mapping'
+     * (chưa minh định event) hoặc đã event-scoped thì chỉ chấp nhận rule
+     * mới có leaf event-scoped; một rule đếm global mới (COLLECTION_COUNT/
+     * LESSON_COUNT v1, hoặc AST không gắn event) bị 400 — không phá bảo
+     * vệ sự kiện bằng rule mới không flag. Item GLOBAL thật sự vẫn dùng
+     * được mọi rule hợp lệ. Không hard-code mã item — scope suy ra từ
+     * audit trail (rule_metadata + eventId trong AST đã publish).
+     *
+     * FINAL FIX-3: revision = thứ tự publish per-item (monotonic), độc
+     * lập schema rule_version — rule V1 lẫn V2 đều lấy max(revision)+1
+     * nên V1→V2→V1 không lặp/giảm; rule_version chỉ mô tả payload (1=V1
+     * cột phẳng, 2=AST).
      */
     private ItemUnlockRule buildRule(UUID itemId, AdminRuleRequest req) {
         if (req.condition() != null && !req.condition().isNull()) {
@@ -147,19 +157,33 @@ public class AdminItemService {
             }
             ItemCondition condition = conditionParser.parse(req.condition());
             conditionValidator.validate(condition);
-            int revision = rules.findMaxRuleVersion(itemId) + 1;
-            // Item chưa từng có rule → publish v2 đầu mang revision 2 để
-            // phân biệt rõ "không phải legacy row" trong provenance.
-            if (revision < 2) revision = 2;
+            if (!scopeResolver.acceptsRule(itemId, condition)) {
+                throw new IllegalArgumentException(
+                        "item is event-scoped/awaiting event mapping — only "
+                        + "a rule with an event-scoped condition may be "
+                        + "activated for this item");
+            }
+            int revision = rules.findMaxRevision(itemId) + 1;
+            if (revision < 2) revision = 2; // publish v2 đầu rõ "không phải legacy"
             return ItemUnlockRule.v2(itemId, ItemUnlockRule.TYPE_RULE_V2,
                     req.condition().toString(), null, revision);
         }
         validateV1(req);
+        // Rule V1 không bao giờ event-scoped (3 loại global/lesson) — item
+        // event-scoped hoặc đang chờ mapping không được kích hoạt nó.
+        ItemUnlockRule.ItemScope scope = scopeResolver.scopeOf(itemId);
+        if (scope != ItemUnlockRule.ItemScope.GLOBAL) {
+            throw new IllegalArgumentException(
+                    "item is " + scope + " — a global v1 rule cannot be "
+                    + "activated; publish an event-scoped v2 rule first");
+        }
+        int revision = rules.findMaxRevision(itemId) + 1;
         return switch (req.ruleType()) {
             case ItemUnlockRule.TYPE_LESSON_COMPLETED ->
-                    ItemUnlockRule.lessonCompleted(itemId, req.lessonId());
+                    ItemUnlockRule.lessonCompleted(itemId, req.lessonId(),
+                            revision);
             default -> ItemUnlockRule.counted(itemId, req.ruleType(),
-                    req.threshold());
+                    req.threshold(), revision);
         };
     }
 

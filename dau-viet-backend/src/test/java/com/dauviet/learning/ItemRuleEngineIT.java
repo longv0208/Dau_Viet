@@ -260,6 +260,27 @@ class ItemRuleEngineIT extends AbstractPostgresIT {
                 .isEqualTo(1);
     }
 
+    /** Draft activity READ-only (không EVIDENCE_SELECT nào) nhưng tham
+     *  chiếu evidence qua requiredEvidenceIds + evidenceRefs + config —
+     *  evidence xuất hiện trong snapshot.evidence[] nhưng learner không
+     *  thể collect (FINAL FIX-4). Cần activity non-READ required khác để
+     *  qua draft validation. */
+    private String draftReadOnly(String evId, String mcConfig) {
+        return """
+                {"schemaVersion":1,
+                 "stages":[
+                   {"id":"ev","type":"EVIDENCE","required":true,
+                    "activities":[
+                      {"id":"r1","type":"READ","required":true,
+                       "config":{"text":"intro","evidenceRefs":["%s"]}},
+                      {"id":"mc","type":"MULTIPLE_CHOICE","required":true,
+                       "config":%s}],
+                    "requiredEvidenceIds":["%s"],
+                    "nextStageIds":[]}],
+                 "completion":{"requireAllRequiredStages":true}}
+                """.formatted(evId, mcConfig, evId);
+    }
+
     /* ---------- C. EVENT_COMPLETED: ledger sau ordering fix ---------- */
 
     @Test
@@ -440,6 +461,11 @@ class ItemRuleEngineIT extends AbstractPostgresIT {
                 "select rule_version from item_unlock_rule "
               + "where item_id = ?::uuid and active = true",
                 Integer.class, itemId)).isEqualTo(2);
+        // FINAL FIX-3: revision phân biệt hai publish (v1 legacy=1, v2=2).
+        assertThat(jdbc.queryForObject(
+                "select revision from item_unlock_rule "
+              + "where item_id = ?::uuid and active = true",
+                Integer.class, itemId)).isEqualTo(2);
     }
 
     /* ---------- H. needs-mapping: audit flag chặn grant mới ---------- */
@@ -536,10 +562,13 @@ class ItemRuleEngineIT extends AbstractPostgresIT {
                 "user_id = '" + learnerId + "' and item_id = '" + itemId + "'"))
                 .isZero();
 
-        // Admin publish rule v2 hợp lệ → flag biến mất, rule đánh giá bình
-        // thường (learner đã đủ → reconcile grant, không auto re-grant).
+        // Admin publish rule v2 event-scoped hợp lệ → flag biến mất, rule
+        // đánh giá bình thường (item UNRESOLVED chỉ chấp nhận rule gắn
+        // event — FINAL FIX-2; learner đã đủ → reconcile grant).
+        newPolicy(1, new String[]{lesson}, null); // policy cho EVENT_*
         setRuleV2ExpectOk(itemId,
-                "{\"type\":\"COLLECTION_COUNT\",\"threshold\":1}");
+                "{\"type\":\"EVENT_EVIDENCE_COUNT\",\"eventId\":\"" + eventId
+                        + "\",\"threshold\":1}");
         res = mvc.perform(get("/api/v1/me/inventory/catalog")
                         .header("Authorization", learnerToken))
                 .andExpect(status().isOk()).andReturn();
@@ -612,7 +641,7 @@ class ItemRuleEngineIT extends AbstractPostgresIT {
             throws Exception {
         String itemId = newItem("HUY_HIEU_REV", "COMMEMORATIVE_BADGE");
         // 3 publish liên tiếp — revision phải tăng dần (2, 3, 4) phân biệt
-        // được ba rule khác nhau, không phải ba rule cùng version=2.
+        // được ba rule khác nhau (schema rule_version đều =2 AST).
         setRuleV2ExpectOk(itemId,
                 "{\"type\":\"COLLECTION_COUNT\",\"threshold\":1}");
         setRuleV2ExpectOk(itemId,
@@ -620,13 +649,15 @@ class ItemRuleEngineIT extends AbstractPostgresIT {
         setRuleV2ExpectOk(itemId,
                 "{\"type\":\"LESSON_COUNT\",\"threshold\":7}");
         var rows = jdbc.queryForList("""
-                select rule_version, active from item_unlock_rule
-                where item_id = ?::uuid order by rule_version
+                select rule_version, revision, active from item_unlock_rule
+                where item_id = ?::uuid order by revision
                 """, itemId);
         assertThat(rows).hasSize(3);
-        assertThat(rows.get(0).get("rule_version")).isEqualTo(2);
-        assertThat(rows.get(1).get("rule_version")).isEqualTo(3);
-        assertThat(rows.get(2).get("rule_version")).isEqualTo(4);
+        assertThat(rows.get(0).get("revision")).isEqualTo(2);
+        assertThat(rows.get(1).get("revision")).isEqualTo(3);
+        assertThat(rows.get(2).get("revision")).isEqualTo(4);
+        // Mọi publish đều schema AST (rule_version=2).
+        assertThat(rows.get(2).get("rule_version")).isEqualTo(2);
         // Chỉ rule mới nhất active.
         assertThat(rows.get(0).get("active")).isEqualTo(false);
         assertThat(rows.get(1).get("active")).isEqualTo(false);
@@ -718,6 +749,221 @@ class ItemRuleEngineIT extends AbstractPostgresIT {
                 "select count(*) from item_unlock_rule where item_id = ?::uuid",
                 Long.class, itemId);
         assertThat(rules).isZero();
+    }
+
+    /* ---------- Q. FINAL FIX-1: grant qua EVENT_* giữ attempt provenance
+       cho result screen ---------- */
+
+    @Test
+    void eventMilestoneGrant_keepsAttemptProvenance_showsOnResult()
+            throws Exception {
+        // Lesson cuối của event → EVENT_COMPLETED ghi trong doComplete;
+        // item rule EVENT_COMPLETED grant trong cùng tx phải ghi
+        // source_attempt_id = attempt vừa completed để result screen thấy.
+        String lesson = publish(AttemptItFixture.draftTwoStage(ev1,
+                MC_CONFIG));
+        newPolicy(1, new String[]{lesson}, null);
+        String itemId = newItem("HUY_HIEU_PROV", "COMMEMORATIVE_BADGE");
+        setRuleV2ExpectOk(itemId,
+                "{\"type\":\"EVENT_COMPLETED\",\"eventId\":\"" + eventId
+                        + "\"}");
+
+        String attemptId = completeMcLesson(learnerToken, lesson);
+        // Đúng một grant, provenance = attempt vừa complete + event.
+        assertThat(inventoryCount(
+                "user_id = '" + learnerId + "' and item_id = '" + itemId + "'"))
+                .isEqualTo(1);
+        assertThat(jdbc.queryForObject(
+                "select source_attempt_id::text from user_inventory "
+              + "where user_id = ?::uuid and item_id = ?::uuid",
+                String.class, learnerId, itemId))
+                .isEqualTo(attemptId);
+        assertThat(jdbc.queryForObject(
+                "select acquisition_source from user_inventory "
+              + "where user_id = ?::uuid and item_id = ?::uuid",
+                String.class, learnerId, itemId))
+                .isEqualTo("RULE_UNLOCK");
+        // GET /attempts/{id}/result trả badge trong itemsUnlocked.
+        MvcResult res = mvc.perform(
+                get("/api/v1/attempts/" + attemptId + "/result")
+                        .header("Authorization", learnerToken))
+                .andExpect(status().isOk()).andReturn();
+        JsonNode body = AttemptItFixture.body(om, res);
+        JsonNode unlocked = body.get("itemsUnlocked");
+        boolean found = false;
+        for (JsonNode i : unlocked) {
+            if (itemId.equals(i.get("itemId").asText())) found = true;
+        }
+        assertThat(found)
+                .as("result screen must list the event-granted item")
+                .isTrue();
+
+        // Retry complete → nhánh alreadyCompleted, không grant lần hai.
+        complete(learnerToken, attemptId);
+        assertThat(inventoryCount(
+                "user_id = '" + learnerId + "' and item_id = '" + itemId + "'"))
+                .isEqualTo(1);
+    }
+
+    /* ---------- R. FINAL FIX-2: item-level event scope không bypass ---------- */
+
+    @Test
+    void eventScopedItem_rejectsGlobalRuleUntilEventRule() throws Exception {
+        // Item từng có rule flag needs-mapping (V24 audit) — admin KHÔNG
+        // được gán rule global mới để lách bảo vệ.
+        String itemId = newItem("PHIEN_BAN_SCOPE", "DIGITAL_EDITION");
+        jdbc.update("""
+                insert into item_unlock_rule (id, item_id, rule_type,
+                                              threshold, active, rule_metadata)
+                values (?::uuid, ?::uuid, 'COLLECTION_COUNT', 1, true,
+                        '{"audit":"needs-mapping"}'::jsonb)
+                """, UUID.randomUUID().toString(), itemId);
+
+        // 1) setRule V1 COLLECTION_COUNT global → 400 (item chưa minh định
+        //    event; một rule global mới không được phá bảo vệ).
+        MvcResult res = mvc.perform(
+                put("/api/v1/admin/items/" + itemId + "/rule")
+                        .header("Authorization", adminToken)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"ruleType\":\"COLLECTION_COUNT\","
+                                + "\"threshold\":1}"))
+                .andReturn();
+        assertThat(res.getResponse().getStatus()).isEqualTo(400);
+
+        // 2) setRule v2 global (không leaf event) → cũng 400.
+        assertThat(setRuleV2(itemId,
+                "{\"type\":\"COLLECTION_COUNT\",\"threshold\":1}")
+                .getResponse().getStatus()).isEqualTo(400);
+
+        // 3) Catalog vẫn UNCONFIGURED (chưa minh định event); collect
+        //    evidence không grant. Lesson offer cả ev1+ev2 để attempt sau
+        //    có thể chọn ev2 (visibleEvidenceIds phải chứa id được chọn).
+        String lesson = publish(draftEs(ev1, ev2));
+        collect(learnerToken, lesson, ev1);
+        MvcResult cat = mvc.perform(get("/api/v1/me/inventory/catalog")
+                        .header("Authorization", learnerToken))
+                .andExpect(status().isOk()).andReturn();
+        for (JsonNode i : AttemptItFixture.body(om, cat)) {
+            if (itemId.equals(i.get("itemId").asText())) {
+                assertThat(i.get("requirement").get("status").asText())
+                        .isEqualTo("UNCONFIGURED");
+            }
+        }
+        assertThat(inventoryCount(
+                "user_id = '" + learnerId + "' and item_id = '" + itemId + "'"))
+                .isZero();
+
+        // 4) Admin gán rule v2 ĐÚNG event (EVENT_EVIDENCE_COUNT=2) → chấp
+        //    nhận; item chỉ mở khi đủ evidence CỦA event — không phải
+        //    evidence event khác (1 ev1 hiện có không đủ 2).
+        newPolicy(1, new String[]{lesson}, null); // policy cho EVENT_*
+        setRuleV2ExpectOk(itemId,
+                "{\"type\":\"EVENT_EVIDENCE_COUNT\",\"eventId\":\"" + eventId
+                        + "\",\"threshold\":2}");
+        // Attempt mới chỉ chọn ev2 (minRequired=1 → complete được mà
+        // không cần chọn lại ev1) — đủ 2 evidence của event → grant.
+        collect(learnerToken, lesson, ev2);
+        assertThat(inventoryCount(
+                "user_id = '" + learnerId + "' and item_id = '" + itemId + "'"))
+                .isEqualTo(1);
+    }
+
+    @Test
+    void globalItem_stillAllowsGlobalRule() throws Exception {
+        // Item chưa từng flagged / chưa event-scoped → GLOBAL — rule đếm
+        // global bình thường được phép (không over-block).
+        String itemId = newItem("HUY_HIEU_GLOBAL", "COMMEMORATIVE_BADGE");
+        MvcResult res = mvc.perform(
+                put("/api/v1/admin/items/" + itemId + "/rule")
+                        .header("Authorization", adminToken)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"ruleType\":\"COLLECTION_COUNT\","
+                                + "\"threshold\":1}"))
+                .andReturn();
+        assertThat(res.getResponse().getStatus()).isEqualTo(200);
+        String lesson = publish(draftEs(ev1));
+        collect(learnerToken, lesson, ev1);
+        assertThat(inventoryCount(
+                "user_id = '" + learnerId + "' and item_id = '" + itemId + "'"))
+                .isEqualTo(1);
+    }
+
+    /* ---------- S. FINAL FIX-3: revision monotonic V1↔V2 ---------- */
+
+    @Test
+    void ruleRevision_monotonicAcrossV1V2V1() throws Exception {
+        String itemId = newItem("HUY_HIEU_MIX", "COMMEMORATIVE_BADGE");
+        String lesson = publish(AttemptItFixture.draftTwoStage(ev1,
+                MC_CONFIG));
+        // V1 → revision 1; V2 → 2; V2 → 3; V1 (tương thích) → 4 — không
+        // lặp/giảm dù schema version quay về 1.
+        mvc.perform(put("/api/v1/admin/items/" + itemId + "/rule")
+                        .header("Authorization", adminToken)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"ruleType\":\"LESSON_COUNT\","
+                                + "\"threshold\":1}"))
+                .andExpect(status().isOk());
+        setRuleV2ExpectOk(itemId,
+                "{\"type\":\"COLLECTION_COUNT\",\"threshold\":1}");
+        setRuleV2ExpectOk(itemId,
+                "{\"type\":\"LESSON_COUNT\",\"threshold\":2}");
+        mvc.perform(put("/api/v1/admin/items/" + itemId + "/rule")
+                        .header("Authorization", adminToken)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"ruleType\":\"LESSON_COMPLETED\","
+                                + "\"lessonId\":\"" + lesson + "\"}"))
+                .andExpect(status().isOk());
+        var rows = jdbc.queryForList("""
+                select rule_version, revision from item_unlock_rule
+                where item_id = ?::uuid order by revision
+                """, itemId);
+        assertThat(rows).hasSize(4);
+        // schema: 1,2,2,1 ; revision: 1,2,3,4 — V1 cuối cùng KHÔNG reset về 1.
+        assertThat(rows.get(0).get("rule_version")).isEqualTo(1);
+        assertThat(rows.get(0).get("revision")).isEqualTo(1);
+        assertThat(rows.get(1).get("rule_version")).isEqualTo(2);
+        assertThat(rows.get(1).get("revision")).isEqualTo(2);
+        assertThat(rows.get(2).get("rule_version")).isEqualTo(2);
+        assertThat(rows.get(2).get("revision")).isEqualTo(3);
+        assertThat(rows.get(3).get("rule_version")).isEqualTo(1);
+        assertThat(rows.get(3).get("revision")).isEqualTo(4);
+    }
+
+    /* ---------- T. FINAL FIX-4: evidence phải thật sự collect được ---------- */
+
+    @Test
+    void specificEvidenceSet_rejectsEvidenceOnlyInNonSelectActivity()
+            throws Exception {
+        String itemId = newItem("BO_CHUNG_READ", "COMMEMORATIVE_BADGE");
+        // ev2 chỉ nằm trong requiredEvidenceIds của stage + READ (KHÔNG có
+        // EVIDENCE_SELECT nào chọn nó) → learner không thể collect → 400.
+        publish(draftReadOnly(ev2, MC_CONFIG));
+        assertThat(setRuleV2(itemId,
+                "{\"type\":\"SPECIFIC_EVIDENCE_SET\",\"eventId\":\"" + eventId
+                        + "\",\"evidenceIds\":[\"" + ev2 + "\"]}")
+                .getResponse().getStatus()).isEqualTo(400);
+        // ev1 được EVIDENCE_SELECT offer → chấp nhận.
+        publish(draftEs(ev1));
+        setRuleV2ExpectOk(itemId,
+                "{\"type\":\"SPECIFIC_EVIDENCE_SET\",\"eventId\":\"" + eventId
+                        + "\",\"evidenceIds\":[\"" + ev1 + "\"]}");
+    }
+
+    @Test
+    void specificEvidenceSet_acceptsEvidenceCollectedFromOldVersion()
+            throws Exception {
+        String itemId = newItem("BO_CHUNG_OLD", "COMMEMORATIVE_BADGE");
+        // ev3 collect được ở phiên bản cũ (đã có user_evidence row) — dù
+        // hiện không còn EVIDENCE_SELECT nào offer → vẫn hợp lệ (giữ
+        // entitlement người đã sưu tầm).
+        String lesson = publish(draftEs(ev3));
+        collect(learnerToken, lesson, ev3);
+        // Xoá lesson → ev3 không còn trong published snapshot nào.
+        jdbc.update("update lessons set status='ARCHIVED', "
+                + "current_version_id=null");
+        setRuleV2ExpectOk(itemId,
+                "{\"type\":\"SPECIFIC_EVIDENCE_SET\",\"eventId\":\"" + eventId
+                        + "\",\"evidenceIds\":[\"" + ev3 + "\"]}");
     }
 
     /* ---------- J. v1 rule vẫn evaluate (legacy semantics) ---------- */

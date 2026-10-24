@@ -2,6 +2,25 @@
 
 > Detailed record of significant changes, features và fixes. Newest first.
 
+## 2026-10-25 — GAME-05 FINAL FIX: Grant Provenance & Rule Safety
+
+**Scope:** 4 fix trên commit `32f6428` — grant event-milestone giữ provenance attempt, chặn bypass bảo vệ event-specific bằng rule V1 global, tách schema `rule_version` khỏi `revision` publish monotonic, siết kiểm chứng evidence collectible theo EVIDENCE_SELECT. Không refactor rộng, không tính năng mới — chuẩn bị cho GAME-06.
+
+**Database**
+- `V27__item_rule_revision_schema.sql` — `item_unlock_rule` +`revision INTEGER`; backfill `revision = rule_version` (provenance cũ giữ nguyên); `SET NOT NULL` + `DEFAULT 1` (chỉ bảo vệ insert thủ công) + `chk_rule_revision CHECK (revision >= 1)`. Không sửa V24/V25/V26.
+
+**Backend**
+- FINAL FIX-1 (P1): `EventMilestoneRecorder.recordIfEarned` overload 4-tham-số `(userId, eventId, lessonId, attemptId)`; `doComplete` truyền attempt đang hoàn thành → `ItemUnlockService.evaluateAfterEventMilestone` grant với `source_attempt_id`/`source_lesson_id` đúng → `itemsUnlocked` (lọc `source_attempt_id` + `acquisition_source<>'ADMIN_GRANT'`) hiển thị badge `EVENT_COMPLETED` ngay trên result screen. Overload 2-tham-số cho reconcile giữ null — không gán attempt giả; không vòng gọi; grant cùng tx completion; `cause_key` chặn double-grant khi `evaluateAfterLessonCompletion` chạy sau.
+- FINAL FIX-2 (P1): `ItemRuleScopeResolver` (mới) suy `ItemScope ∈ UNRESOLVED|EVENT_SCOPED|GLOBAL` từ toàn bộ lịch sử rule của item — từng có AST chứa leaf event-scoped → `EVENT_SCOPED`; chỉ có flag `needs-mapping` → `UNRESOLVED`; còn lại `GLOBAL`. `AdminItemService.buildRule` từ chối 400 publish rule global lên item `UNRESOLVED`/`EVENT_SCOPED`; `ItemUnlockService.blockedByAudit` chặn grant `UNRESOLVED` kể cả khi active rule mất flag; `RewardService.requirement` → `UNCONFIGURED`. Không hard-code mã item/tên Bạch Đằng; item `GLOBAL` vẫn nhận rule global.
+- FINAL FIX-3 (P2): `rule_version` giờ chỉ là schema payload (1=V1, 2=V2 — CHECK cũ giữ); `revision` mới là thứ tự publish per-item — cả nhánh V1 lẫn V2 của `setRule` đều ghi `findMaxRevision(itemId)+1` (V2 floor 2). Sửa lỗi publish V1 sau nhiều publish V2 ghi `rule_version=1` → revision trùng/giảm. `user_inventory.unlock_rule_version` ghi `revision`; `AdminItemResponse.Rule.ruleVersion` trả `revision`.
+- FINAL FIX-4 (P2): `ItemConditionValidator.isCollectible` siết lại — evidence chỉ "collect được" khi một activity `EVIDENCE_SELECT` trong snapshot PUBLISHED hiện tại tham chiếu nó (`@> jsonb_build_array(to_jsonb(:eid))` trên `visibleEvidenceIds`/`acceptedEvidenceIds`/`requiredEvidenceIds` hoặc `evidenceOptions[{id}]`); chỉ nằm trong `snapshot.evidence[]` metadata là chưa đủ (recorder chỉ ghi từ submission EVIDENCE_SELECT được chấp nhận). Fallback `user_evidence` row — entitlement collect từ version cũ giữ nguyên. Native query fix: bỏ `::text` cast làm param fail.
+
+**Tests & verification**
+- `ItemRuleEngineIT` 23/23 (+6: eventMilestoneGrant giữ provenance hiển thị trên result, eventScopedItem từ chối rule global tới khi có rule event, globalItem vẫn cho COLLECTION_COUNT, revision monotonic V1→V2→V1 (schema 1,2,2,1 / revision 1,2,3,4), SPECIFIC_EVIDENCE_SET từ chối evidence chỉ có trong READ, chấp nhận evidence collect từ version cũ). `ItemUnlockIT`/`EventCompletionIT`/`RewardGrantIT`/`AttemptCompletionIT` + parser/evaluator unit tests.
+- `mvnw verify` **PASS 328/328** (trước 322). Mobile: `dart format` clean, `flutter analyze` 0 issues, `flutter test` **PASS 430/430** — không đổi code mobile.
+
+**Docs updated:** `docs/API_SPEC.md`, `docs/DATABASE_DESIGN.md`, `docs/project-changelog.md`.
+
 ## 2026-10-25 — GAME-05 FIX: Rule Engine Integrity & CI
 
 **Scope:** 8 fix trên commit `da4e9cf` — đồng bộ trạng thái UNCONFIGURED, grammar chặt cho condition JSON, trigger item evaluation sau event reconcile, `rule_version` thành revision per-item, chặn ruleType lệch, kiểm chứng evidence collectible, reconcile theo batch, sửa countdown test mobile CI.

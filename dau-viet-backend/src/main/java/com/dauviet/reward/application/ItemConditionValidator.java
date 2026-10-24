@@ -183,44 +183,65 @@ public class ItemConditionValidator {
                         "evidence " + id + " does not belong to event "
                         + leaf.eventId() + " or is not usable");
             }
-            // FIX-6: evidence phải THỰC SỰ collect được — xuất hiện trong
-            // mảng snapshot.evidence[] của một bài học PUBLISHED hiện tại
-            // (snapshot root embed mọi evidence mà draft tham chiếu qua
-            // visibleEvidenceIds / requiredEvidenceIds / acceptedEvidenceIds /
-            // evidenceRefs / evidenceOptions), HOẶC đã từng được learner
-            // collect (user_evidence row tồn tại — evidence lấy từ phiên
-            // bản cũ đã rút vẫn giữ quyền, không mất entitlement). Rule
-            // yêu cầu evidence không ai collect được là cấu hình chết.
+            // FIX-6 + FINAL FIX-4: evidence phải THỰC SỰ collect được —
+            // EvidenceCollectionRecorder chỉ ghi user_evidence từ submission
+            // EVIDENCE_SELECT được chấp nhận, nên evidence phải được một
+            // activity EVIDENCE_SELECT tham chiếu (visibleEvidenceIds /
+            // acceptedEvidenceIds / evidenceOptions / requiredEvidenceIds)
+            // trong snapshot PUBLISHED hiện tại — chỉ nằm trong mảng
+            // snapshot.evidence[] metadata (READ/requiredEvidenceIds của
+            // stage) là CHƯA ĐỦ. Fallback: đã có user_evidence row (collect
+            // hợp lệ từ version cũ đã gỡ — giữ entitlement). Rule đòi
+            // evidence không ai collect được là cấu hình chết.
             if (!isCollectible(id)) {
                 throw new ItemRuleException(
-                        "evidence " + id + " is not collectible: absent "
-                        + "from every published lesson snapshot and never "
-                        + "collected before");
+                        "evidence " + id + " is not collectible: not offered "
+                        + "by any EVIDENCE_SELECT in a published lesson and "
+                        + "never collected before");
             }
         }
     }
 
     /**
-     * Evidence "collect được" khi nằm trong snapshot.evidence[] của ít
-     * nhất một lesson PUBLISHED (current_version), hoặc đã có ít nhất
-     * một learner collect từ phiên bản trước (snapshot cũ đã gỡ nhưng
-     * entitlement phải giữ — rule vẫn có thể đạt cho người đã sưu tầm).
-     * Không suy ra từ title/tag — chỉ đọc cấu trúc đã publish.
+     * Evidence "collect được" (FINAL FIX-4) khi được MỘT activity
+     * EVIDENCE_SELECT tham chiếu trong snapshot của ít nhất một lesson
+     * PUBLISHED hiện tại — vì chỉ EVIDENCE_SELECT mới ghi user_evidence
+     * (recorder). Tham chiếu được kiểm ở mọi field cấu hình EVIDENCE_SELECT
+     * (visibleEvidenceIds / acceptedEvidenceIds / requiredEvidenceIds /
+     * evidenceOptions[{id}]) — bằng predicate tồn tại trên cấu trúc,
+     * không suy từ title/tag. Fallback: đã có user_evidence row (collect
+     * hợp lệ từ version cũ đã gỡ — giữ entitlement, rule vẫn đạt cho
+     * người đã sưu tầm).
      */
     private boolean isCollectible(UUID evidenceId) {
-        Number inSnapshot = (Number) em.createNativeQuery("""
+        Number offered = (Number) em.createNativeQuery("""
                 SELECT COUNT(*) FROM lesson_versions lv
                 JOIN lessons l ON l.current_version_id = lv.id
                 WHERE l.status = 'PUBLISHED'
                   AND EXISTS (
-                    SELECT 1 FROM jsonb_array_elements(
-                        lv.snapshot_json -> 'evidence') e
-                    WHERE e ->> 'id' = :eid
+                    SELECT 1
+                    FROM jsonb_array_elements(lv.snapshot_json -> 'stages') s,
+                         jsonb_array_elements(s -> 'activities') a
+                    WHERE a ->> 'type' = 'EVIDENCE_SELECT'
+                      AND (
+                        a -> 'config' -> 'visibleEvidenceIds'
+                            @> jsonb_build_array(to_jsonb(:eid))
+                     OR a -> 'config' -> 'acceptedEvidenceIds'
+                            @> jsonb_build_array(to_jsonb(:eid))
+                     OR a -> 'config' -> 'requiredEvidenceIds'
+                            @> jsonb_build_array(to_jsonb(:eid))
+                     OR EXISTS (
+                         SELECT 1 FROM jsonb_array_elements(
+                             COALESCE(a -> 'config' -> 'evidenceOptions',
+                                      '[]'::jsonb)) o
+                         WHERE o ->> 'id' = :eid
+                       )
+                      )
                   )
                 """)
                 .setParameter("eid", evidenceId.toString())
                 .getSingleResult();
-        if (inSnapshot.longValue() > 0) return true;
+        if (offered.longValue() > 0) return true;
         Number collected = (Number) em.createNativeQuery(
                 "SELECT COUNT(*) FROM user_evidence WHERE evidence_id = :eid")
                 .setParameter("eid", evidenceId)

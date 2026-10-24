@@ -66,6 +66,7 @@ public class ItemUnlockService {
     private final LessonResultRepository lessonResults;
     private final ItemConditionParser parser;
     private final ItemRuleEvaluator evaluator;
+    private final ItemRuleScopeResolver scopeResolver;
     private final ObjectProvider<ItemUnlockService> selfProvider;
 
     @PersistenceContext
@@ -80,6 +81,7 @@ public class ItemUnlockService {
                              LessonResultRepository lessonResults,
                              ItemConditionParser parser,
                              ItemRuleEvaluator evaluator,
+                             ItemRuleScopeResolver scopeResolver,
                              ObjectProvider<ItemUnlockService> selfProvider) {
         this.rules = rules;
         this.items = items;
@@ -90,6 +92,7 @@ public class ItemUnlockService {
         this.lessonResults = lessonResults;
         this.parser = parser;
         this.evaluator = evaluator;
+        this.scopeResolver = scopeResolver;
         this.selfProvider = selfProvider;
     }
 
@@ -117,16 +120,30 @@ public class ItemUnlockService {
     }
 
     /**
-     * Đánh giá sau khi eventMilestones.recordIfEarned ghi milestone — cùng
-     * tx doComplete, truyền eventId để log/source_event_id chính xác cho
-     * rule event-scoped. Hiện gọi trong evaluateAfterLessonCompletion
-     * (một điểm vào duy nhất sau milestone); giữ hàm riêng để trigger
-     * milestone-only (ví dụ reconcile event) có entry point rõ ràng.
+     * Đánh giá sau khi eventMilestones.recordIfEarned ghi milestone MỚI —
+     * cùng tx của caller. Hai entry point phân biệt provenance:
+     *  - doComplete truyền lessonId/attemptId đang complete → grant ghi
+     *    source_attempt_id để GET /attempts/{id}/result hiển thị đúng
+     *    "vừa mở khóa trong lượt học này" (FIX FINAL-1);
+     *  - reconcile-on-read (EventReconcileService) gọi bản 2-tham-số →
+     *    không gán attempt giả: nguồn grant là RECONCILE_GRANT, không phải
+     *    attempt completion (FIX FINAL-1 §4).
+     * Trigger chỉ chạy trên milestone MỚI nên lần đánh giá thứ hai từ
+     * doComplete (evaluateAfterLessonCompletion) no-op nhờ insertIgnore —
+     * không double-grant, không vòng lặp (ItemUnlockService không gọi lại
+     * EventMilestoneRecorder).
      */
     @Transactional(propagation = Propagation.REQUIRED)
     public List<ItemCatalog> evaluateAfterEventMilestone(
             UUID userId, UUID eventId) {
-        return evaluate(userId, null, null, eventId);
+        return evaluateAfterEventMilestone(userId, eventId, null, null);
+    }
+
+    /** Bản đầy đủ — doComplete truyền lesson/attempt đang hoàn thành. */
+    @Transactional(propagation = Propagation.REQUIRED)
+    public List<ItemCatalog> evaluateAfterEventMilestone(
+            UUID userId, UUID eventId, UUID lessonId, UUID attemptId) {
+        return evaluate(userId, lessonId, attemptId, eventId);
     }
 
     /* ---------- core ---------- */
@@ -171,14 +188,22 @@ public class ItemUnlockService {
                         rule.getId(), item.getCode(), e.getMessage());
                 continue;
             }
-            // Seed audit: rule V1 đếm global cho item event-specific bị flag
-            // needs-mapping → chặn grant MỚI tới khi admin publish rule v2
-            // event-scoped minh định (không đoán eventId). Ownership cũ giữ.
+            // FINAL FIX-2: chặn theo scope CẤP ITEM, không chỉ cờ trên rule
+            // đang active — một rule global mới không được phá bảo vệ
+            // event-specific (bypass bằng setRule mới bị chặn ở đây và ở
+            // AdminItemService). Ownership cũ giữ.
             if (blockedByAudit(rule)) continue;
             if (!evaluator.satisfied(condition, ctx)) continue;
+            // Provenance (FIX FINAL-1): lessonId/attemptId caller truyền =
+            // bài/attempt THỰC SỰ vừa trigger grant (doComplete qua
+            // recordIfEarned(4-tham-số), submit EVIDENCE_SELECT, hoặc
+            // evaluateAfterLessonCompletion) — đây là "nguồn mở khóa",
+            // không phải lesson rule tham chiếu (đó là việc của reconcile
+            // backfill). Reconcile truyền null + ADMIN_GRANT — không bao
+            // giờ gán attempt giả cho backfill.
             int inserted = inventory.insertIgnoreV2(userId, item.getId(),
                     SOURCE_RULE_UNLOCK, lessonId, attemptId,
-                    rule.getId(), rule.getRuleVersion(),
+                    rule.getId(), rule.getRevision(),
                     firstEventId(condition, eventId),
                     causeKey(rule, userId));
             if (inserted > 0) {
@@ -224,9 +249,18 @@ public class ItemUnlockService {
      * Dùng CHUNG {@link ItemUnlockRule#isNeedsMapping} với catalog read
      * path (RewardService → status UNCONFIGURED) — grant path và read
      * path luôn đồng ý một rule có bị chặn hay không (FIX-1).
+     *
+     * FINAL FIX-2: mở rộng sang scope CẤP ITEM — item còn UNRESOLVED
+     * (từng needs-mapping, chưa có rule event-scoped nào được publish)
+     * thì mọi rule của item bị chặn, kể cả rule global admin vừa setRule
+     * (không flag) — cờ không còn chỉ sống trên bản rule bị audit.
      */
     private boolean blockedByAudit(ItemUnlockRule rule) {
-        return ItemUnlockRule.isNeedsMapping(rule.getRuleMetadata());
+        if (ItemUnlockRule.isNeedsMapping(rule.getRuleMetadata())) {
+            return true;
+        }
+        return scopeResolver.scopeOf(rule.getItemId())
+                == ItemUnlockRule.ItemScope.UNRESOLVED;
     }
 
     /** Event đầu tiên xuất hiện trong AST (provenance); null cho global. */
@@ -421,7 +455,7 @@ public class ItemUnlockService {
                     pr.item().getId(), SOURCE_RECONCILE,
                     backfillLessonId, backfillAttemptId,
                     pr.rule().getId(),
-                    pr.rule().getRuleVersion(),
+                    pr.rule().getRevision(),
                     firstEventId(pr.condition(), null),
                     causeKey(pr.rule(), userId));
             granted += inserted;

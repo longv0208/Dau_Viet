@@ -56,6 +56,7 @@ public class RewardService {
     private final LessonResultRepository lessonResults;
     private final ItemConditionParser conditionParser;
     private final ItemRuleEvaluator ruleEvaluator;
+    private final ItemRuleScopeResolver scopeResolver;
     private final ObjectMapper mapper;
 
     public RewardService(RewardTransactionRepository rewards,
@@ -71,6 +72,7 @@ public class RewardService {
                          LessonResultRepository lessonResults,
                          ItemConditionParser conditionParser,
                          ItemRuleEvaluator ruleEvaluator,
+                         ItemRuleScopeResolver scopeResolver,
                          ObjectMapper mapper) {
         this.rewards = rewards;
         this.inventory = inventory;
@@ -84,6 +86,7 @@ public class RewardService {
         this.lessonResults = lessonResults;
         this.conditionParser = conditionParser;
         this.ruleEvaluator = ruleEvaluator;
+        this.scopeResolver = scopeResolver;
         this.mapper = mapper;
     }
 
@@ -251,6 +254,12 @@ public class RewardService {
     private CatalogItemResponse.Requirement requirement(
             ItemCatalog item, ItemRuleEvaluationContext ctx,
             Map<UUID, String> lessonTitles) {
+        // FINAL FIX-2: scope cấp item UNRESOLVED (audit trail, không chỉ cờ
+        // trên rule active) → UNCONFIGURED dù admin vừa setRule global mới.
+        if (scopeResolver.scopeOf(item.getId())
+                == ItemUnlockRule.ItemScope.UNRESOLVED) {
+            return unconfiguredRequirement();
+        }
         return rules.findByItemIdAndActiveTrue(item.getId())
                 .map(r -> {
                     if (ItemUnlockRule.isNeedsMapping(r.getRuleMetadata())) {
