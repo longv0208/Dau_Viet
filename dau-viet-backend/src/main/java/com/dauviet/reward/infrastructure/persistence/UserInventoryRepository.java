@@ -37,6 +37,34 @@ public interface UserInventoryRepository
                      @Param("sourceLessonId") UUID sourceLessonId,
                      @Param("sourceAttemptId") UUID sourceAttemptId);
 
+    /**
+     * GAME-05 V24: ghi kèm provenance đầy đủ (rule đã cấp + version, event
+     * nguồn, cause_key idempotent). Hai ON CONFLICT phối hợp: (user_id,
+     * item_id) chặn cấp lại; ux_user_inventory_cause_key chặn cùng nguyên
+     * nhân ghi hai lần kể cả khi caller thay đổi item.
+     */
+    @Modifying
+    @Query(value = """
+            INSERT INTO user_inventory
+                (id, user_id, item_id, acquired_at, acquisition_source,
+                 source_lesson_id, source_attempt_id, unlock_rule_id,
+                 unlock_rule_version, source_event_id, cause_key)
+            VALUES (gen_random_uuid(), :userId, :itemId, now(),
+                    :acquisitionSource, :sourceLessonId, :sourceAttemptId,
+                    :unlockRuleId, :unlockRuleVersion, :sourceEventId,
+                    :causeKey)
+            ON CONFLICT (user_id, item_id) DO NOTHING
+            """, nativeQuery = true)
+    int insertIgnoreV2(@Param("userId") UUID userId,
+                       @Param("itemId") UUID itemId,
+                       @Param("acquisitionSource") String acquisitionSource,
+                       @Param("sourceLessonId") UUID sourceLessonId,
+                       @Param("sourceAttemptId") UUID sourceAttemptId,
+                       @Param("unlockRuleId") UUID unlockRuleId,
+                       @Param("unlockRuleVersion") Integer unlockRuleVersion,
+                       @Param("sourceEventId") UUID sourceEventId,
+                       @Param("causeKey") String causeKey);
+
     /** Inventory của learner — mới nhất trước. */
     List<UserInventoryItem> findByUserIdOrderByAcquiredAtDesc(UUID userId);
 

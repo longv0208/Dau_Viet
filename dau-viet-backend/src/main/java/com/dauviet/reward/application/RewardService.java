@@ -15,6 +15,7 @@ import org.springframework.transaction.annotation.Transactional;
 import com.dauviet.collection.infrastructure.persistence.UserEvidenceRepository;
 import com.dauviet.common.api.PageResponse;
 import com.dauviet.learning.infrastructure.persistence.LearnerAttemptRepository;
+import com.dauviet.learning.infrastructure.persistence.LessonResultRepository;
 import com.dauviet.lesson.domain.Lesson;
 import com.dauviet.lesson.domain.LessonVersion;
 import com.dauviet.lesson.infrastructure.persistence.LessonRepository;
@@ -50,6 +51,11 @@ public class RewardService {
     private final LessonVersionRepository versions;
     private final LessonRepository lessons;
     private final UserEvidenceRepository userEvidence;
+    private final com.dauviet.collection.infrastructure.persistence
+            .UserEventProgressRepository eventProgress;
+    private final LessonResultRepository lessonResults;
+    private final ItemConditionParser conditionParser;
+    private final ItemRuleEvaluator ruleEvaluator;
     private final ObjectMapper mapper;
 
     public RewardService(RewardTransactionRepository rewards,
@@ -60,6 +66,11 @@ public class RewardService {
                          LessonVersionRepository versions,
                          LessonRepository lessons,
                          UserEvidenceRepository userEvidence,
+                         com.dauviet.collection.infrastructure.persistence
+                                 .UserEventProgressRepository eventProgress,
+                         LessonResultRepository lessonResults,
+                         ItemConditionParser conditionParser,
+                         ItemRuleEvaluator ruleEvaluator,
                          ObjectMapper mapper) {
         this.rewards = rewards;
         this.inventory = inventory;
@@ -69,6 +80,10 @@ public class RewardService {
         this.versions = versions;
         this.lessons = lessons;
         this.userEvidence = userEvidence;
+        this.eventProgress = eventProgress;
+        this.lessonResults = lessonResults;
+        this.conditionParser = conditionParser;
+        this.ruleEvaluator = ruleEvaluator;
         this.mapper = mapper;
     }
 
@@ -118,7 +133,8 @@ public class RewardService {
                     item == null ? null : item.getRarity(),
                     item == null ? null : item.getAssetId(),
                     o.getAcquiredAt(), o.getAcquisitionSource(),
-                    o.getSourceLessonId());
+                    o.getSourceLessonId(), o.getUnlockRuleId(),
+                    o.getUnlockRuleVersion(), o.getSourceEventId());
         }).toList();
     }
 
@@ -147,8 +163,10 @@ public class RewardService {
                 .filter(java.util.Objects::nonNull)
                 .sorted(java.util.Comparator.comparing(ItemCatalog::getCode))
                 .toList();
-        long collected = userEvidence.countDistinctEvidence(userId);
-        long lessonsDone = attempts.countDistinctCompletedLessons(userId);
+        // Evaluation context dùng chung cho mọi item — cache một lần,
+        // không N+1 dù catalog nhiều item.
+        ItemRuleEvaluationContext ctx = new ItemRuleEvaluationContext(userId,
+                userEvidence, eventProgress, attempts, lessonResults);
         Map<UUID, String> lessonTitles = lessonTitlesOf(
                 all.stream()
                         .map(i -> rules.findByItemIdAndActiveTrue(i.getId())
@@ -163,7 +181,7 @@ public class RewardService {
                     i.getAssetId(), parse(i.getSourceMetadata()),
                     ownedRow != null,
                     ownedRow == null ? null : ownedRow.getAcquiredAt(),
-                    requirement(i, lessonTitles, collected, lessonsDone));
+                    requirement(i, ctx, lessonTitles));
         }).toList();
     }
 
@@ -192,7 +210,8 @@ public class RewardService {
                     item == null ? null : item.getRarity(),
                     item == null ? null : item.getAssetId(),
                     o.getAcquiredAt(), o.getAcquisitionSource(),
-                    o.getSourceLessonId());
+                    o.getSourceLessonId(), o.getUnlockRuleId(),
+                    o.getUnlockRuleVersion(), o.getSourceEventId());
         }).toList();
     }
 
@@ -215,27 +234,62 @@ public class RewardService {
 
     /* ---------- internals ---------- */
 
+    /**
+     * Điều kiện mở khóa + tiến độ của item (GAME-05): parse condition_json
+     * của active rule → evaluator trả cây status → map sang Requirement
+     * tree. Rule v1 đã được V24 normalize sang condition_json tương đương
+     * nên đi chung một đường; rule không parse được trả null (client hiển
+     * thị "chưa cấu hình").
+     */
     private CatalogItemResponse.Requirement requirement(
-            ItemCatalog item, Map<UUID, String> lessonTitles,
-            long collected, long lessonsDone) {
+            ItemCatalog item, ItemRuleEvaluationContext ctx,
+            Map<UUID, String> lessonTitles) {
         return rules.findByItemIdAndActiveTrue(item.getId())
-                .map(r -> switch (r.getRuleType()) {
-                    case ItemUnlockRule.TYPE_LESSON_COMPLETED ->
-                            new CatalogItemResponse.Requirement(
-                                    r.getRuleType(), r.getLessonId(),
-                                    lessonTitles.get(r.getLessonId()),
-                                    null, null);
-                    case ItemUnlockRule.TYPE_COLLECTION_COUNT ->
-                            new CatalogItemResponse.Requirement(
-                                    r.getRuleType(), null, null,
-                                    r.getThreshold(), collected);
-                    case ItemUnlockRule.TYPE_LESSON_COUNT ->
-                            new CatalogItemResponse.Requirement(
-                                    r.getRuleType(), null, null,
-                                    r.getThreshold(), lessonsDone);
-                    default -> (CatalogItemResponse.Requirement) null;
+                .map(r -> {
+                    try {
+                        ItemCondition condition = conditionParser.parse(
+                                r.getConditionJson() != null
+                                        && !r.getConditionJson().isBlank()
+                                        ? r.getConditionJson()
+                                        : legacyConditionJson(r));
+                        ItemRuleEvaluator.Evaluation ev =
+                                ruleEvaluator.evaluate(condition, ctx);
+                        return toRequirement(ev.root(), lessonTitles);
+                    } catch (ItemRuleException e) {
+                        return null;
+                    }
                 })
                 .orElse(null);
+    }
+
+    /** condition_json null (row v1 ghi tay) → AST tương đương cột phẳng. */
+    private String legacyConditionJson(ItemUnlockRule r) {
+        return switch (r.getRuleType()) {
+            case ItemUnlockRule.TYPE_LESSON_COMPLETED ->
+                    "{\"type\":\"LESSON_COMPLETED\",\"lessonId\":\""
+                            + r.getLessonId() + "\"}";
+            default -> "{\"type\":\"" + r.getRuleType()
+                    + "\",\"threshold\":" + r.getThreshold() + "}";
+        };
+    }
+
+    private CatalogItemResponse.Requirement toRequirement(
+            ItemRuleEvaluator.ConditionStatus node,
+            Map<UUID, String> lessonTitles) {
+        boolean operator = node.children() != null && !node.children().isEmpty();
+        return new CatalogItemResponse.Requirement(
+                operator ? node.node() : null,
+                node.type() == null ? null : node.type().name(),
+                node.eventId(), node.lessonId(),
+                node.lessonId() == null ? null
+                        : lessonTitles.get(node.lessonId()),
+                node.evidenceIds() == null || node.evidenceIds().isEmpty()
+                        ? null : node.evidenceIds(),
+                node.threshold(), node.current(), node.required(),
+                node.satisfied(), node.status(), node.description(),
+                operator ? node.children().stream()
+                        .map(ch -> toRequirement(ch, lessonTitles)).toList()
+                        : List.of());
     }
 
     private Map<UUID, UUID> resolveLessons(Set<UUID> attemptIds) {

@@ -73,6 +73,24 @@ public interface UserEvidenceRepository extends JpaRepository<UserEvidence, UUID
     long countDistinctEvidence(@Param("userId") UUID userId);
 
     /**
+     * GAME-05 EVENT_EVIDENCE_COUNT: số evidence KHÁC NHAU của learner THUỘC
+     * MỘT event — rule event-scoped không được dùng count global (QA-16:
+     * evidence event B không mở khoá item event A).
+     */
+    @Query("SELECT COUNT(DISTINCT ue.evidenceId) FROM UserEvidence ue "
+         + "WHERE ue.userId = :userId AND ue.eventId = :eventId")
+    long countDistinctEvidenceForEvent(@Param("userId") UUID userId,
+                                       @Param("eventId") UUID eventId);
+
+    /**
+     * Tập evidence_id learner đã collect — SPECIFIC_EVIDENCE_SET kiểm tra
+     * tập con. Dedup sẵn ở tầng DB, catalog evidence nhỏ nên kéo cả set.
+     */
+    @Query("SELECT DISTINCT ue.evidenceId FROM UserEvidence ue "
+         + "WHERE ue.userId = :userId")
+    java.util.Set<UUID> collectedEvidenceIds(@Param("userId") UUID userId);
+
+    /**
      * Toàn bộ evidence_type learner đã collect (P2-D — filter chips lấy
      * đủ loại trên mọi trang, không cần tải hết items). DISTINCT + sort
      * để response ổn định; bỏ null/blank phòng row cũ thiếu cột V10.

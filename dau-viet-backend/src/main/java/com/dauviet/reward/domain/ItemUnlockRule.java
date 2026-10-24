@@ -3,6 +3,9 @@ package com.dauviet.reward.domain;
 import java.time.Instant;
 import java.util.UUID;
 
+import org.hibernate.annotations.JdbcTypeCode;
+import org.hibernate.type.SqlTypes;
+
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
 import jakarta.persistence.Id;
@@ -39,6 +42,25 @@ public class ItemUnlockRule {
     @Column(name = "threshold", updatable = false)
     private Integer threshold;
 
+    /**
+     * GAME-05 V24: 1 = rule legacy (3 rule_type cột phẳng — semantics V1,
+     * condition_json chỉ là bản normalize để evaluator đọc chung); 2 = rule
+     * AST đầy đủ viết qua AdminRuleRequest.condition.
+     */
+    @Column(name = "rule_version", nullable = false, updatable = false)
+    private int ruleVersion = 1;
+
+    /** AST serialized (jsonb); v2 bắt buộc, v1 chứa bản normalize tương đương. */
+    @JdbcTypeCode(SqlTypes.JSON)
+    @Column(name = "condition_json", updatable = false,
+            columnDefinition = "jsonb")
+    private String conditionJson;
+
+    /** Metadata tự do (jsonb) — audit flag 'needs-mapping'/'valid-global'… */
+    @JdbcTypeCode(SqlTypes.JSON)
+    @Column(name = "rule_metadata", columnDefinition = "jsonb")
+    private String ruleMetadata;
+
     @Column(name = "active", nullable = false)
     private boolean active = true;
 
@@ -51,6 +73,8 @@ public class ItemUnlockRule {
     public static ItemUnlockRule lessonCompleted(UUID itemId, UUID lessonId) {
         ItemUnlockRule r = base(itemId, TYPE_LESSON_COMPLETED);
         r.lessonId = lessonId;
+        r.conditionJson = "{\"type\":\"LESSON_COMPLETED\",\"lessonId\":\""
+                + lessonId + "\"}";
         return r;
     }
 
@@ -58,6 +82,19 @@ public class ItemUnlockRule {
                                          int threshold) {
         ItemUnlockRule r = base(itemId, ruleType);
         r.threshold = threshold;
+        r.conditionJson = "{\"type\":\"" + ruleType
+                + "\",\"threshold\":" + threshold + "}";
+        return r;
+    }
+
+    /** Rule v2: AST đã parse+validate ở service — chỉ lưu canonical JSON. */
+    public static ItemUnlockRule v2(UUID itemId, String ruleType,
+                                    String conditionJson,
+                                    String ruleMetadata) {
+        ItemUnlockRule r = base(itemId, ruleType);
+        r.ruleVersion = 2;
+        r.conditionJson = conditionJson;
+        r.ruleMetadata = ruleMetadata;
         return r;
     }
 
@@ -75,6 +112,9 @@ public class ItemUnlockRule {
     public String getRuleType() { return ruleType; }
     public UUID getLessonId() { return lessonId; }
     public Integer getThreshold() { return threshold; }
+    public int getRuleVersion() { return ruleVersion; }
+    public String getConditionJson() { return conditionJson; }
+    public String getRuleMetadata() { return ruleMetadata; }
     public boolean isActive() { return active; }
     public Instant getCreatedAt() { return createdAt; }
 

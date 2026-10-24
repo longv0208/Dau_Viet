@@ -38,17 +38,23 @@ public class AdminItemService {
     private final LessonRepository lessons;
     private final jakarta.persistence.EntityManager em;
     private final ObjectMapper mapper;
+    private final ItemConditionParser conditionParser;
+    private final ItemConditionValidator conditionValidator;
 
     public AdminItemService(ItemCatalogRepository items,
                             ItemUnlockRuleRepository rules,
                             LessonRepository lessons,
                             jakarta.persistence.EntityManager em,
-                            ObjectMapper mapper) {
+                            ObjectMapper mapper,
+                            ItemConditionParser conditionParser,
+                            ItemConditionValidator conditionValidator) {
         this.items = items;
         this.rules = rules;
         this.lessons = lessons;
         this.em = em;
         this.mapper = mapper;
+        this.conditionParser = conditionParser;
+        this.conditionValidator = conditionValidator;
     }
 
     @Transactional(readOnly = true)
@@ -98,19 +104,15 @@ public class AdminItemService {
     public AdminItemResponse setRule(UUID itemId, AdminRuleRequest req) {
         ItemCatalog item = items.findByIdForUpdate(itemId).orElseThrow(() ->
                 new ResourceNotFoundException("item not found: " + itemId));
-        validateRule(req);
+        ItemUnlockRule rule = buildRule(itemId, req);
         // Flush UPDATE active=false trước INSERT rule mới để không đụng
-        // ux_item_unlock_rule_item (chỉ một active rule/item).
+        // ux_item_unlock_rule_item (chỉ một active rule/item). Rule cũ
+        // append-only: không UPDATE/DELETE — version cũ ngừng áp dụng cho
+        // grant MỚI, provenance user_inventory đã ghi giữ nguyên.
         for (ItemUnlockRule r : rules.findByItemIdOrderByCreatedAtAsc(itemId)) {
             r.setActive(false);
         }
         em.flush();
-        ItemUnlockRule rule = switch (req.ruleType()) {
-            case ItemUnlockRule.TYPE_LESSON_COMPLETED ->
-                    ItemUnlockRule.lessonCompleted(itemId, req.lessonId());
-            default -> ItemUnlockRule.counted(itemId, req.ruleType(),
-                    req.threshold());
-        };
         if (req.active() != null && !req.active()) {
             rule.setActive(false);
         }
@@ -118,7 +120,32 @@ public class AdminItemService {
         return toResponse(item, activeRules(java.util.List.of(itemId)));
     }
 
-    private void validateRule(AdminRuleRequest req) {
+    /**
+     * Xây rule row từ request: có `condition` → AST v2 (parse + validate
+     * nghiêm — ItemRuleException → 400); không có → rule v1 3-loại như cũ.
+     */
+    private ItemUnlockRule buildRule(UUID itemId, AdminRuleRequest req) {
+        if (req.condition() != null && !req.condition().isNull()) {
+            ItemCondition condition = conditionParser.parse(req.condition());
+            conditionValidator.validate(condition);
+            String ruleType = req.ruleType() == null || req.ruleType().isBlank()
+                    ? "RULE_V2" : req.ruleType();
+            return ItemUnlockRule.v2(itemId, ruleType,
+                    req.condition().toString(), null);
+        }
+        validateV1(req);
+        return switch (req.ruleType()) {
+            case ItemUnlockRule.TYPE_LESSON_COMPLETED ->
+                    ItemUnlockRule.lessonCompleted(itemId, req.lessonId());
+            default -> ItemUnlockRule.counted(itemId, req.ruleType(),
+                    req.threshold());
+        };
+    }
+
+    private void validateV1(AdminRuleRequest req) {
+        if (req.ruleType() == null) {
+            throw new IllegalArgumentException("ruleType is required");
+        }
         switch (req.ruleType()) {
             case ItemUnlockRule.TYPE_LESSON_COMPLETED -> {
                 if (req.lessonId() == null) {
@@ -195,7 +222,9 @@ public class AdminItemService {
                 item.isActive(), item.getRowVersion(),
                 r == null ? null : new AdminItemResponse.Rule(
                         r.getId(), r.getRuleType(), r.getLessonId(),
-                        r.getThreshold(), r.isActive()));
+                        r.getThreshold(), r.isActive(), r.getRuleVersion(),
+                        parse(r.getConditionJson()),
+                        parse(r.getRuleMetadata())));
     }
 
     private JsonNode parse(String json) {

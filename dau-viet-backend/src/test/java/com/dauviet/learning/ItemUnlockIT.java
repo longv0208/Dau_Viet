@@ -184,9 +184,17 @@ class ItemUnlockIT extends AbstractPostgresIT {
         assertThat(inventoryCount(
                 "user_id = '" + learnerId + "' and item_id = '" + itemId + "'"))
                 .isEqualTo(1);
+        // GAME-05: acquisition_source = RULE_UNLOCK cho grant realtime;
+        // loại điều kiện truy vết qua unlock_rule_id → item_unlock_rule.
         assertThat(jdbc.queryForObject(
                 "select acquisition_source from user_inventory "
               + "where user_id = ?::uuid and item_id = ?::uuid",
+                String.class, learnerId, itemId))
+                .isEqualTo("RULE_UNLOCK");
+        assertThat(jdbc.queryForObject(
+                "select r.rule_type from user_inventory i "
+              + "join item_unlock_rule r on r.id = i.unlock_rule_id "
+              + "where i.user_id = ?::uuid and i.item_id = ?::uuid",
                 String.class, learnerId, itemId))
                 .isEqualTo("LESSON_COMPLETED");
         // source_attempt_id trỏ đúng attempt đã kích hoạt.
@@ -290,7 +298,7 @@ class ItemUnlockIT extends AbstractPostgresIT {
                 "select acquisition_source from user_inventory "
               + "where user_id = ?::uuid and item_id = ?::uuid",
                 String.class, learnerId, itemId))
-                .isEqualTo("COLLECTION_COUNT");
+                .isEqualTo("RULE_UNLOCK");
     }
 
     /* ---------- LESSON_COUNT ---------- */

@@ -74,4 +74,14 @@ public interface UserEventProgressRepository
             """, nativeQuery = true)
     long countUnlockedDossiersForEvent(@Param("userId") UUID userId,
                                        @Param("eventId") UUID eventId);
+
+    /**
+     * GAME-05 TOTAL_EVENTS_*: số event KHÁC NHAU learner đã ghi một
+     * milestone (ví dụ EVENT_COMPLETED) trên ledger — một event nhiều lần
+     * ghi cùng milestone vẫn tính một.
+     */
+    @Query("select count(distinct p.eventId) from UserEventProgress p "
+         + "where p.userId = :userId and p.milestone = :milestone")
+    long countDistinctEventsByMilestone(@Param("userId") UUID userId,
+                                        @Param("milestone") String milestone);
 }

@@ -472,17 +472,20 @@ public class LearnerAttemptService {
         if (completedVersion != null) {
             UUID lessonId = completedVersion.getLessonId();
             rewardGrants.grantFirstCompletion(userId, lessonId, a.getId());
-            itemUnlocks.evaluateAfterLessonCompletion(userId, lessonId,
-                    a.getId());
-            // GAME-04: milestone event + mở hồ sơ — cùng tx, exception làm
-            // rollback cả completion (atomic, scenario J). Lesson không gắn
-            // event → bỏ qua lặng lẽ.
+            // GAME-04 + GAME-05 ordering: ghi milestone event TRƯỚC khi đánh
+            // giá item rules — leaf EVENT_COMPLETED/EVENT_MASTERED/
+            // TOTAL_EVENTS_* phải nhìn thấy milestone vừa ghi trong cùng
+            // tx, không thể đọc snapshot cũ (bug ordering V1: item chạy
+            // trước milestone → rule event-scoped không bao giờ grant cùng
+            // lượt complete cuối). Lesson không gắn event → bỏ qua.
             UUID eventId = lessons.findById(lessonId)
                     .map(Lesson::getEventId).orElse(null);
             if (eventId != null) {
                 newlyUnlockedDossiers =
                         eventMilestones.recordIfEarned(userId, eventId);
             }
+            itemUnlocks.evaluateAfterLessonCompletion(userId, lessonId,
+                    a.getId());
         }
         return new CompleteAttemptResponse(a.getId(), a.getStatus().name(),
                 false, a.getCompletedAt(), verdict, progress,

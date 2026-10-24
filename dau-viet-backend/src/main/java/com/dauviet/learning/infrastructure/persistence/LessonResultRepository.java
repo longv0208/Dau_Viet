@@ -108,4 +108,20 @@ public interface LessonResultRepository extends JpaRepository<LessonResult, UUID
     java.util.Set<UUID> lessonsWithGradedActivity(@Param("userId") UUID userId,
                                                   @Param("lessonIds")
                                                   java.util.List<UUID> lessonIds);
+
+    /**
+     * GAME-05 LESSON_MASTERED: best knowledgeScore của learner trên MỘT
+     * lesson (mọi pinned version) — null khi chưa có result COMPLETED nào.
+     * Đọc result_json->>'knowledgeScore' giống bestKnowledgeScoresByLesson.
+     */
+    @Query(value = """
+            SELECT MAX(COALESCE((r.result_json->>'knowledgeScore')::numeric, 0))
+            FROM lesson_results r
+            JOIN learner_attempts a ON a.id = r.learner_attempt_id
+            JOIN lesson_versions v ON v.id = a.lesson_version_id
+            WHERE a.user_id = :userId AND a.status = 'COMPLETED'
+              AND v.lesson_id = :lessonId
+            """, nativeQuery = true)
+    java.math.BigDecimal bestKnowledgeScoreByLesson(@Param("userId") UUID userId,
+                                                    @Param("lessonId") UUID lessonId);
 }

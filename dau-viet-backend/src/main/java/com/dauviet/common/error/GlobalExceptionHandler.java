@@ -103,6 +103,17 @@ public class GlobalExceptionHandler {
                 "Invalid credentials", Map.of());
     }
 
+    @ExceptionHandler(com.dauviet.reward.application.ItemRuleException.class)
+    public ResponseEntity<ApiError> handleItemRule(
+            com.dauviet.reward.application.ItemRuleException ex) {
+        // Cấu hình rule v2 sai grammar/reference → 400 sạch (ITEM-06), không
+        // bao giờ để lọt thành 500 khi admin publish rule lỗi.
+        Map<String, Object> details = Map.of("reason",
+                ex.getMessage() == null ? "invalid rule" : ex.getMessage());
+        return build(HttpStatus.BAD_REQUEST, ErrorCode.VALIDATION_ERROR,
+                "Invalid unlock rule", details);
+    }
+
     @ExceptionHandler(IllegalArgumentException.class)
     public ResponseEntity<ApiError> handleIllegalArgument(IllegalArgumentException ex) {
         Map<String, Object> details = Map.of("reason", ex.getMessage() == null ? "invalid argument" : ex.getMessage());

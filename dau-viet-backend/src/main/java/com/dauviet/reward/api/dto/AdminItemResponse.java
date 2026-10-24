@@ -20,13 +20,20 @@ public record AdminItemResponse(
         Long rowVersion,
         Rule rule
 ) {
-    /** Unlock rule đang gắn item (null = chưa cấu hình). */
+    /**
+     * Unlock rule đang gắn item (null = chưa cấu hình). GAME-05: thêm
+     * ruleVersion + conditionJson (AST gốc) + ruleMetadata để admin đọc
+     * lại đúng cấu hình đã publish — additive.
+     */
     public record Rule(
             UUID id,
             String ruleType,
             UUID lessonId,
             Integer threshold,
-            boolean active
+            boolean active,
+            Integer ruleVersion,
+            JsonNode conditionJson,
+            JsonNode ruleMetadata
     ) {
     }
 }

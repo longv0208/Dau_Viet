@@ -41,6 +41,21 @@ public class UserInventoryItem {
     @Column(name = "source_attempt_id", updatable = false)
     private UUID sourceAttemptId;
 
+    /** GAME-05 V24: rule + version đã cấp item — audit "vì sao user có". */
+    @Column(name = "unlock_rule_id", updatable = false)
+    private UUID unlockRuleId;
+
+    @Column(name = "unlock_rule_version", updatable = false)
+    private Integer unlockRuleVersion;
+
+    /** Event gắn với điều kiện đã kích hoạt (null cho rule global). */
+    @Column(name = "source_event_id", updatable = false)
+    private UUID sourceEventId;
+
+    /** Idempotency key tầng nghiệp vụ (ux partial index khi non-null). */
+    @Column(name = "cause_key", updatable = false)
+    private String causeKey;
+
     public UserInventoryItem() {
     }
 
@@ -51,4 +66,8 @@ public class UserInventoryItem {
     public String getAcquisitionSource() { return acquisitionSource; }
     public UUID getSourceLessonId() { return sourceLessonId; }
     public UUID getSourceAttemptId() { return sourceAttemptId; }
+    public UUID getUnlockRuleId() { return unlockRuleId; }
+    public Integer getUnlockRuleVersion() { return unlockRuleVersion; }
+    public UUID getSourceEventId() { return sourceEventId; }
+    public String getCauseKey() { return causeKey; }
 }

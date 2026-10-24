@@ -83,6 +83,18 @@ public interface LearnerAttemptRepository extends JpaRepository<LearnerAttempt, 
          + "and a.userId = :userId and a.status = 'COMPLETED'")
     long countDistinctCompletedLessons(@Param("userId") UUID userId);
 
+    /**
+     * GAME-05: tập lesson_id (logic, mọi version) learner đã hoàn thành —
+     * ItemRuleEvaluationContext cache một lần rồi check membership cho
+     * LESSON_COMPLETED leafs, không N+1.
+     */
+    @Query("select distinct v.lessonId "
+         + "from LearnerAttempt a, LessonVersion v "
+         + "where a.lessonVersionId = v.id "
+         + "and a.userId = :userId and a.status = 'COMPLETED'")
+    java.util.Set<UUID> findDistinctCompletedLessonIds(
+            @Param("userId") UUID userId);
+
     /** Pessimistic write lock — serializes concurrent submits on one attempt. */
     @Lock(LockModeType.PESSIMISTIC_WRITE)
     @Query("select a from LearnerAttempt a where a.id = :id")

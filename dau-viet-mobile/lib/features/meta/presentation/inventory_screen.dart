@@ -436,12 +436,12 @@ class _InventoryScreenState extends ConsumerState<InventoryScreen> {
   }
 
   // Thẻ soi chi tiết vật phẩm đang chọn — kèm điều kiện + tiến độ khi
-  // chưa mở khóa (dữ liệu `requirement` server đã tính sẵn).
+  // chưa mở khóa (GAME-05: `requirement` là cây ALL/ANY + leaf server đã
+  // tính sẵn per-branch; render TỪNG dòng, không gộp một bar tổng).
   Widget _buildItemInspectorCard(CatalogItemDto item) {
     final rarityColor =
         _rarityColors[item.rarity] ?? DauVietColors.outlineVariant;
     final req = item.requirement;
-    final progress = req?.progressFraction;
 
     return ParchmentCard(
       backgroundColor: const Color(0xFFFBF4E4),
@@ -554,51 +554,115 @@ class _InventoryScreenState extends ConsumerState<InventoryScreen> {
               ],
             )
           else if (req != null) ...[
-            Row(
-              children: [
-                const Icon(
-                  Icons.lock_outline_rounded,
-                  color: DauVietColors.inkMuted,
-                  size: 15,
+            _RequirementTree(node: req, rarityColor: rarityColor),
+          ],
+        ],
+      ),
+    );
+  }
+}
+
+/// Cây điều kiện mở khóa (GAME-05): operator ALL/ANY in heading cố định
+/// ("Hoàn thành tất cả điều kiện sau" / "Hoàn thành một trong các điều
+/// kiện sau") rồi render từng leaf một dòng với trạng thái riêng — leaf
+/// boolean chỉ icon, leaf đếm thêm progress bar + current/required; leaf
+/// UNSUPPORTED hiển thị "chưa hỗ trợ" thay vì giả vờ "sắp xong".
+class _RequirementTree extends StatelessWidget {
+  final ItemRequirementDto node;
+  final Color rarityColor;
+  const _RequirementTree({required this.node, required this.rarityColor});
+
+  @override
+  Widget build(BuildContext context) {
+    if (node.isOperator) {
+      return Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              const Icon(
+                Icons.lock_outline_rounded,
+                color: DauVietColors.inkMuted,
+                size: 15,
+              ),
+              const SizedBox(width: 6),
+              Expanded(
+                child: Text(
+                  node.operatorHeading(),
+                  style: DauVietTypography.bodySmall.copyWith(
+                    color: DauVietColors.inkText,
+                    fontWeight: FontWeight.w700,
+                    fontSize: 11,
+                  ),
                 ),
-                const SizedBox(width: 6),
-                Expanded(
-                  child: Text(
-                    req.describe(),
-                    style: DauVietTypography.bodySmall.copyWith(
-                      color: DauVietColors.inkMuted,
-                      fontSize: 11,
-                      height: 1.35,
+              ),
+            ],
+          ),
+          const SizedBox(height: 6),
+          for (final child in node.conditions)
+            Padding(
+              padding: const EdgeInsets.only(left: 14, bottom: 4),
+              child: _RequirementTree(node: child, rarityColor: rarityColor),
+            ),
+        ],
+      );
+    }
+    // Leaf — một dòng trạng thái riêng.
+    final progress = node.progressFraction;
+    final done = node.satisfied;
+    final muted = node.isUnsupported;
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Row(
+          children: [
+            Icon(
+              done
+                  ? Icons.check_circle_rounded
+                  : muted
+                  ? Icons.block_rounded
+                  : Icons.radio_button_unchecked_rounded,
+              color: done ? DauVietColors.natureGreen : DauVietColors.inkMuted,
+              size: 14,
+            ),
+            const SizedBox(width: 6),
+            Expanded(
+              child: Text(
+                node.describe(),
+                style: DauVietTypography.bodySmall.copyWith(
+                  color: muted
+                      ? DauVietColors.inkLight
+                      : DauVietColors.inkMuted,
+                  fontSize: 11,
+                  height: 1.35,
+                ),
+              ),
+            ),
+          ],
+        ),
+        if (progress != null && !done) ...[
+          const SizedBox(height: 4),
+          Padding(
+            padding: const EdgeInsets.only(left: 20),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                ClipRRect(
+                  borderRadius: BorderRadius.circular(4),
+                  child: LinearProgressIndicator(
+                    value: progress,
+                    minHeight: 5,
+                    backgroundColor: DauVietColors.parchmentHigh,
+                    valueColor: const AlwaysStoppedAnimation<Color>(
+                      DauVietColors.imperialGold,
                     ),
                   ),
                 ),
               ],
             ),
-            if (progress != null) ...[
-              const SizedBox(height: 8),
-              ClipRRect(
-                borderRadius: BorderRadius.circular(4),
-                child: LinearProgressIndicator(
-                  value: progress,
-                  minHeight: 6,
-                  backgroundColor: DauVietColors.parchmentHigh,
-                  valueColor: const AlwaysStoppedAnimation<Color>(
-                    DauVietColors.imperialGold,
-                  ),
-                ),
-              ),
-              const SizedBox(height: 4),
-              Text(
-                '${req.current ?? 0}/${req.threshold}',
-                style: DauVietTypography.bodySmall.copyWith(
-                  color: DauVietColors.inkMuted,
-                  fontSize: 10.5,
-                ),
-              ),
-            ],
-          ],
+          ),
         ],
-      ),
+      ],
     );
   }
 }

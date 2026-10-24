@@ -2,6 +2,33 @@
 
 > Detailed record of significant changes, features và fixes. Newest first.
 
+## 2026-10-25 — GAME-05: Item Unlock Rule Engine V2 & Achievement Rules
+
+**Scope:** vật phẩm/huy hiệu chỉ mở khóa khi learner thoả điều kiện cấu hình — AST `condition_json` thay cho 3 rule phẳng V1, event-scoped conditions đọc ledger GAME-04, rule append-only có provenance, API requirement tree cho Flutter.
+
+**Database**
+- `V24__item_rule_engine_v2.sql` — `item_unlock_rule` +`rule_version`/`condition_json` JSONB/`rule_metadata` JSONB; `user_inventory` +provenance (`unlock_rule_id`, `unlock_rule_version`, `source_event_id`, `cause_key` + partial unique); `acquisition_source` +`RULE_UNLOCK`/`RECONCILE_GRANT` (giữ `ADMIN_GRANT`); normalize rule v1 sang `condition_json` tương đương (giữ `rule_version=1`); seed audit 7 item event-themed → `needs-mapping`, `HUY_HIEU_DIEN_BIEN_PHU` → `valid-global`.
+- `V25__item_rule_v2_check_extension.sql` — mở rộng `chk_unlock_rule_type` (+`RULE_V2`) và `chk_unlock_rule_shape` (v2 đòi `condition_json` NOT NULL, cột phẳng NULL) — fix gap V24 thiếu CHECK cho `rule_type='RULE_V2'`.
+
+**Backend** (`com.dauviet.reward`)
+- Mới: `ItemCondition` (sealed `Leaf|All|Any`, `LeafType` 11 loại), `ItemConditionParser` (depth ≤2, ≤20 children/operator, grammar nghiêm → `ItemRuleException`), `ItemConditionValidator` (tham chiếu event/lesson PUBLISHED, `EVENT_*` đòi policy configured, `SPECIFIC_EVIDENCE_SET` evidence APPROVED thuộc `eventId` + không trùng, `LEVEL_AT_LEAST` → 400 "not evaluable yet"), `ItemRuleEvaluator` (`Evaluation(satisfied, root ConditionStatus)` — per-branch `status ∈ SATISFIED|PENDING|UNSUPPORTED`, `current`/`required`, `description` tiếng Việt), `ItemRuleEvaluationContext` (lazy per-request cache, không N+1).
+- `ItemUnlockService` rewrite: `evaluate(userId, lessonId?, attemptId?, eventId?)` — per-user advisory lock `pg_advisory_xact_lock(hashtextextended('item-unlock|'||userId))`; `conditionOf()` + `legacyConditionJson()` fallback cho rule v1 (row JDBC thiếu `condition_json`); `blockedByAudit()` đọc `rule_metadata.audit='needs-mapping'` chặn grant mới; grant qua `insertIgnoreV2` với `acquisition_source='RULE_UNLOCK'`, `cause_key = item-rule|{ruleId}|{userId}`.
+- `LearnerAttemptService.doComplete` ordering fix: `eventMilestones.recordIfEarned` **trước** `itemUnlocks.evaluateAfterLessonCompletion` (leaf `EVENT_*` thấy milestone vừa ghi trong cùng tx).
+- `RewardService` — catalog() dùng chung một `ItemRuleEvaluationContext`; `requirement()` parse `condition_json` (fallback legacy) → evaluator → `toRequirement()` map cây `ConditionStatus` sang `Requirement` tree; `inventoryList`/`itemsUnlockedByAttempt` trả provenance.
+- `AdminItemService.setRule` — `req.condition` non-null → parse+validate → `ItemUnlockRule.v2` (`ruleVersion=2`, `ruleType='RULE_V2'` default); không `condition` → validateV1 + legacy factory. `AdminItemResponse.Rule` +`ruleVersion`/`conditionJson`/`ruleMetadata`.
+- `GlobalExceptionHandler` — `ItemRuleException` → `400 VALIDATION_ERROR` "Invalid unlock rule" (không 500).
+- `reconcileUnlocks` — cùng evaluator realtime trên tập user ứng viên (UNION `user_evidence`/`learner_attempts COMPLETED`/`user_event_progress`, không quét toàn bảng); `acquisition_source='ADMIN_GRANT'`; rule `LESSON_COMPLETED` backfill `source_lesson_id` + earliest COMPLETED attempt.
+
+**Mobile** (`dau-viet-mobile`)
+- `reward_dtos.dart`: `ItemRequirementDto` → tree model (`operator`, `eventId`, `lessonId`, `lessonTitle`, `evidenceIds`, `threshold`, `current`, `required`, `satisfied`, `status`, `description`, `conditions`); `isOperator`/`isUnsupported`/`operatorHeading()`/`describe()`/`progressFraction`; `InventoryItemDto` +provenance fields.
+- `inventory_screen.dart`: locked branch render `_RequirementTree` — operator heading (`Hoàn thành tất cả/một trong các điều kiện sau`) + indented leaf rows theo status; progress bar chỉ dưới leaf đếm PENDING; UNSUPPORTED muted.
+
+**Tests & verification**
+- Backend: `ItemRuleEngineIT` 11 tests (event-scope QA-16, SPECIFIC_EVIDENCE_SET, EVENT_COMPLETED ledger+ordering, ALL/ANY, LEVEL_AT_LEAST reject+no-grant, validation 400 matrix, v1→v2 provenance, needs-mapping block, catalog tree, v1 compat), `ItemConditionParserTest` 8, `ItemRuleEvaluatorTest` 13, `ItemUnlockIT` 22 (2 assert đổi `RULE_UNLOCK`). `mvnw verify` **PASS 316/316**.
+- Mobile: `dart format --set-exit-if-changed` clean, `flutter analyze` 0 issues, `flutter test` **PASS 430/430**.
+
+**Docs updated:** `docs/API_SPEC.md`, `docs/DATABASE_DESIGN.md`, `docs/project-changelog.md`.
+
 ## 2026-10-25 — GAME-04: Event Completion & Historical Dossier Collection
 
 **Scope:** versioned event completion policies, event progress milestones, canonical historical dossiers với unlock fan-out, learner APIs, Flutter collection tabs.
