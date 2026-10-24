@@ -23,15 +23,11 @@ const STATUS_LABELS: Record<string, string> = {
   ARCHIVED: "Đã lưu trữ",
 };
 
-const RENDERER_LABELS: Record<string, string> = {
-  RIVER_TIDE: "Sông & thủy triều",
-  JOURNEY_MAP: "Hành trình bản đồ",
-  HTML_WEBVIEW: "Hoạt họa HTML",
-};
-
 /**
- * Screen A — Thư viện hoạt họa: tìm kiếm/lọc/phân trang + hành động
- * (sửa, nhân bản, lưu trữ, xuất bản nhanh qua trang chi tiết).
+ * Thư viện hoạt họa — HTML ONLY. Dropzone luôn hiện ngay khi mở trang;
+ * danh sách chỉ liệt kê scene HTML_WEBVIEW (lọc phía server qua
+ * templateId của template HTML — KHÔNG lọc client sau khi phân trang,
+ * tránh trang rỗng/pagination sai).
  */
 export function AnimationLibrary() {
   const router = useRouter();
@@ -39,20 +35,37 @@ export function AnimationLibrary() {
   const [q, setQ] = useState("");
   const [status, setStatus] = useState("");
   const [page, setPage] = useState(0);
-  const [importOpen, setImportOpen] = useState(false);
   const importBusy = useRef(false);
 
+  // Xác định template HTML_WEBVIEW để filter server-side — không phân
+  // trang qua tập toàn-scene rồi lọc phía client.
+  const htmlTemplate = useQuery({
+    queryKey: qk.animationTemplates.list({ rendererCode: "HTML_WEBVIEW" }),
+    queryFn: () =>
+      animationApi.listTemplates({ rendererCode: "HTML_WEBVIEW", size: 1 }),
+    staleTime: 60_000,
+  });
+  const htmlTemplateId = htmlTemplate.data?.content?.[0]?.id;
+
   const query = useQuery({
-    queryKey: qk.animationScenes.list({ page, size: 20, status, q }),
-    queryFn: () => animationApi.listScenes({ page, size: 20, status, q }),
+    queryKey: qk.animationScenes.list({
+      page,
+      size: 20,
+      status,
+      q,
+      templateId: htmlTemplateId,
+    }),
+    // Chờ có templateId — list chỉ tập HTML, không rơi scene legacy.
+    queryFn: () =>
+      animationApi.listScenes({
+        page,
+        size: 20,
+        status,
+        q,
+        templateId: htmlTemplateId,
+      }),
+    enabled: htmlTemplateId != null,
   });
-  const templates = useQuery({
-    queryKey: qk.animationTemplates.list({ enabled: true }),
-    queryFn: () => animationApi.listTemplates({ enabled: true, size: 100 }),
-  });
-  const templateById = new Map(
-    (templates.data?.content ?? []).map((t) => [t.id, t] as const),
-  );
 
   const invalidate = () =>
     qc.invalidateQueries({ queryKey: ["animation-scenes"] });
@@ -72,7 +85,6 @@ export function AnimationLibrary() {
     mutationFn: (file: File) => animationApi.importHtmlScene(file),
     onSuccess: (scene) => {
       invalidate();
-      setImportOpen(false);
       router.push(`/animations/${scene.id}/edit`);
     },
   });
@@ -91,17 +103,6 @@ export function AnimationLibrary() {
         >
           {r.title}
         </Link>
-      ),
-    },
-    {
-      key: "template",
-      header: "Kiểu cảnh",
-      cell: (r) => (
-        <span className="text-ink-muted">
-          {RENDERER_LABELS[templateById.get(r.templateId)?.rendererCode ?? ""] ??
-            templateById.get(r.templateId)?.name ??
-            "—"}
-        </span>
       ),
     },
     {
@@ -163,6 +164,27 @@ export function AnimationLibrary() {
 
   return (
     <div className="flex flex-col gap-4">
+      {/* Vùng tải lên — luôn hiện, không cần bấm mở trước. */}
+      <div className="max-w-2xl">
+        <HtmlImportDropzone
+          disabled={htmlImport.isPending}
+          onFile={(file) => {
+            if (importBusy.current) return;
+            importBusy.current = true;
+            htmlImport.mutate(file, {
+              onSettled: () => {
+                importBusy.current = false;
+              },
+            });
+          }}
+        />
+        {htmlImport.isPending && (
+          <p className="mt-2 text-xs text-ink-muted">
+            Đang tải lên và kiểm tra tệp…
+          </p>
+        )}
+      </div>
+
       <div className="flex flex-wrap items-center gap-3">
         <Input
           value={q}
@@ -189,36 +211,7 @@ export function AnimationLibrary() {
             </option>
           ))}
         </Select>
-        <Button
-          variant="outline"
-          size="sm"
-          onClick={() => setImportOpen((v) => !v)}
-        >
-          {importOpen ? "Đóng tải HTML" : "Tải hoạt họa HTML lên"}
-        </Button>
       </div>
-
-      {importOpen && (
-        <div className="max-w-xl">
-          <HtmlImportDropzone
-            disabled={htmlImport.isPending}
-            onFile={(file) => {
-              if (importBusy.current) return;
-              importBusy.current = true;
-              htmlImport.mutate(file, {
-                onSettled: () => {
-                  importBusy.current = false;
-                },
-              });
-            }}
-          />
-          {htmlImport.isPending && (
-            <p className="mt-2 text-xs text-ink-muted">
-              Đang tải lên và kiểm tra tệp…
-            </p>
-          )}
-        </div>
-      )}
 
       {actionError && (
         <p role="alert" className="rounded-md border border-error/40 bg-error/5 px-3 py-2 text-xs text-error">
@@ -230,11 +223,11 @@ export function AnimationLibrary() {
         columns={columns}
         rows={rows}
         rowKey={(r) => r.id}
-        loading={query.isPending}
-        error={query.error ?? undefined}
+        loading={query.isPending || htmlTemplate.isPending}
+        error={query.error ?? htmlTemplate.error ?? undefined}
         onRetry={() => query.refetch()}
         emptyTitle="Chưa có hoạt họa nào"
-        emptyDescription='Bấm "Tạo hoạt họa mới" để bắt đầu soạn cảnh minh họa đầu tiên.'
+        emptyDescription="Kéo thả một tệp .html vào vùng tải lên ở trên để tạo hoạt họa đầu tiên."
       />
 
       {totalPages > 1 && (

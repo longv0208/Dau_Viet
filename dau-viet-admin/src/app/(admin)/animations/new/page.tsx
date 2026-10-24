@@ -1,16 +1,10 @@
-import { PageHeader } from "@/components/page-header";
-import { TemplatePicker } from "@/features/animations/template-picker";
+import { redirect } from "next/navigation";
 
 export const metadata = { title: "Tạo hoạt họa — Dấu Việt CMS" };
 
+// Quy trình tạo scene bằng template RIVER_TIDE/JOURNEY_MAP đã ngừng —
+// hoạt họa giờ được tải lên dưới dạng file HTML tự chứa. Đường dẫn cũ
+// redirect về thư viện có dropzone ngay trên trang.
 export default function NewAnimationPage() {
-  return (
-    <div>
-      <PageHeader
-        title="Tạo hoạt họa mới"
-        description="Chọn kiểu cảnh minh họa — chỉ hiện các kiểu mà ứng dụng học viên đã hỗ trợ."
-      />
-      <TemplatePicker />
-    </div>
-  );
+  redirect("/animations");
 }

@@ -100,7 +100,8 @@ export function HtmlSceneEditor({ sceneId }: { sceneId: string }) {
       });
     return () => {
       alive = false;
-      previewSeq.current++; // invalidate pending preview fetch khi unmount/đổi scene
+      // invalidate pending preview fetch khi unmount/đổi scene (seq++).
+      previewSeq.current = previewSeq.current + 1;
       if (objectUrlRef.current) {
         URL.revokeObjectURL(objectUrlRef.current);
         objectUrlRef.current = null;
@@ -213,8 +214,8 @@ export function HtmlSceneEditor({ sceneId }: { sceneId: string }) {
             <div className="flex flex-col gap-3">
               <p className="text-xs text-ink-muted">
                 Thay file = cập nhật bản nháp. Phiên bản đã xuất bản giữ
-                nguyên file cũ — muốn phát hành file mới hãy bấm "Xuất bản
-                phiên bản mới" bên dưới.
+                nguyên file cũ — muốn phát hành file mới hãy bấm &quot;Xuất bản
+                phiên bản mới&quot; bên dưới.
               </p>
               {!readOnly && (
                 <HtmlImportDropzone

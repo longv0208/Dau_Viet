@@ -44,7 +44,7 @@ export function PublishSection({ scene, onSaved }: { scene: AnimationSceneDetail
       const fresh = qc.getQueryData<AnimationSceneDetail>(qk.animationScenes.detail(scene.id));
       return animationApi.publishScene(scene.id, fresh?.rowVersion ?? scene.rowVersion);
     },
-    onSuccess: async (published) => {
+    onSuccess: async () => {
       await qc.invalidateQueries({ queryKey: ["animation-scenes"] });
       // FIX-02: refetch scene detail NGAY sau publish — cập nhật
       // status/rowVersion/currentVersionId/currentVersionNo trong cache
