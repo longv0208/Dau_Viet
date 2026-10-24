@@ -11,6 +11,11 @@
 const RETURN_PATH =
   /^\/(events|lessons|evidence|animations|versions|templates|assets)\/[0-9a-fA-F-]{36}(\?[a-zA-Z0-9=&%_-]*)?$/;
 
+/** `/lessons/new[?event=<uuid>&…]` — the create-lesson wizard is a valid
+ * return target (template authoring sends the admin back to step 2). */
+const RETURN_LESSONS_NEW =
+  /^\/lessons\/new(\?[a-zA-Z0-9=&%_-]*)?$/;
+
 /**
  * Validate a raw `?return=` value → the path if it is a whitelisted
  * internal admin URL, else `null`.
@@ -21,7 +26,7 @@ export function parseReturnTo(raw: string | null | undefined): string | null {
   if (raw.startsWith("//") || raw.includes("://") || raw.includes("..")) {
     return null;
   }
-  return RETURN_PATH.test(raw) ? raw : null;
+  return RETURN_PATH.test(raw) || RETURN_LESSONS_NEW.test(raw) ? raw : null;
 }
 
 /**

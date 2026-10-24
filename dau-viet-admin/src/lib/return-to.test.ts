@@ -52,6 +52,19 @@ describe("parseReturnTo", () => {
     expect(parseReturnTo("/events")).toBeNull();
     expect(parseReturnTo("/lessons")).toBeNull();
   });
+
+  it("accepts the lesson-create wizard path (template flow return target)", () => {
+    expect(parseReturnTo("/lessons/new")).toBe("/lessons/new");
+    expect(parseReturnTo(`/lessons/new?event=${VALID_UUID}`)).toBe(
+      `/lessons/new?event=${VALID_UUID}`,
+    );
+  });
+
+  it("rejects other /new routes and malformed wizard paths", () => {
+    expect(parseReturnTo("/events/new")).toBeNull();
+    expect(parseReturnTo("/templates/new")).toBeNull();
+    expect(parseReturnTo("/lessons/new/extra")).toBeNull();
+  });
 });
 
 describe("withReturnTo", () => {
