@@ -16,11 +16,12 @@
   ],
   "acceptanceCriteria": [
     { "id": "AC-1", "text": "V17 is idempotent (ON CONFLICT DO NOTHING), declares 3 ACTIVE assets (hero jpg, map-base jpg, narration wav) with fixed UUIDs d7a70000-…-001/002/003, correct mime_type/size_bytes/alt_text, storage_key assets/<uuid>.<ext> matching files copied to dau-viet-backend/data/assets/." },
-    { "id": "AC-2", "text": "Scene bach-dang-938-prod: RIVER_TIDE template d7a10000-…-001, event_id resolved by slug 'bach-dang-938' at migrate-time (NULL when absent, late-link on next migrate via UPDATE … FROM historical_events; admin scene editor links via SceneUpdateRequest.eventId), schemaVersion 2, PUBLISHED with version 1 snapshot + current_version_id, manifest passes AnimationManifestValidator (0 errors) — verified by extracting m_bd_prod literal in a unit test with mocked AssetRepository." },
+    { "id": "AC-2", "text": "Scene bach-dang-938-prod: RIVER_TIDE template d7a10000-…-001, event_id resolved by slug 'bach-dang-938' at migrate-time (NULL when absent, post-Flyway local-only link via AnimationSceneEventLinker with real event id + updatedBy=sys_user guard, idempotent; admin links via SceneUpdateRequest.eventId), schemaVersion 2, PUBLISHED with version 1 snapshot + current_version_id, manifest passes AnimationManifestValidator (0 errors)." },
     { "id": "AC-3", "text": "8 steps: estuary, stake-prep, tide-rise, decoy, prediction-checkpoint (PREDICTION interaction), tide-fall, counterattack, evidence — each with title/narration/hint/durationMs/easing/targetState; camera steps align; tracks animate boat-decoy; effects WATER_RIPPLE/MIST/GLOW/FADE_*; audio[] = single ENTER cue on estuary (8.5s overview clip plays once across the opening, not per-beat VO); per-step interactions whitelist via steps[].allowedInteractions." },
     { "id": "AC-4", "text": "prediction: >=2 options, explainedOptionIndex valid, revealTargetState uses whitelisted RIVER_TIDE keys, sourceReferences >=1 with title, disclaimer non-blank, no answer key leakage." },
     { "id": "AC-5", "text": "No modification to V15/V16 scenes or published snapshots; scene id d7a80000-…-001 is new; V16 demo scenes remain intact." },
-    { "id": "AC-6", "text": "Backend `mvnw compile` + `mvnw test` green except pre-existing Docker-blocked ITs (DauVietApplicationTests/Testcontainers); AnimationSeedManifestTest-style test proves V17 manifest validates." }
+    { "id": "AC-6", "text": "Backend `mvnw compile` + `mvnw test` green except pre-existing Docker-blocked ITs; AnimationProductionSeedTest proves V17 manifest validates; AnimationSceneEventLinkerTest proves post-Flyway link semantics." },
+    { "id": "AC-7", "text": "Playback state machine: mount = idle start-of-beat-0 (no audio, no tween); initial PHÁT animates + fires ENTER once; PHÁT after manual-water/reveal never re-runs abandoned tween (learner value kept); pause/resume syncs LOOP + one-shot narration; skip stops cues; replay-after-finish fires ENTER once." }
   ],
   "dependencies": ["TASK-0018"],
   "planPath": "plans/261024-bachdang-938-cinematic-slice/plan.md",
@@ -32,14 +33,14 @@
   "reviewRefs": [
     "plans/261024-bachdang-938-cinematic-slice/plan.md"
   ],
-  "nextAction": "Bật Docker → mvnw verify cho Testcontainers ITs (FlywayMigrationIT chạy V17 trên clean DB, AnimationScenePublishIT, asset content endpoint). Admin pin scene bach-dang-938-prod vào lesson + gán event. Verify visual trên thiết bị/emulator.",
+  "nextAction": "Bật Docker → mvnw verify cho FlywayMigrationIT (V17 clean-DB + checksum), AnimationScenePublishIT, EventSeedServiceIT (linker trên DB thật), asset content endpoint. Admin pin scene bach-dang-938-prod vào lesson + gán event nếu event_id NULL. Verify visual trên thiết bị/emulator.",
   "baseCommit": "cd896cc65d81a33a606e733d315e3a505d65a3fa",
   "inputFingerprint": null,
   "snapshot": null,
   "roleReports": [],
-  "blockedReason": "Docker daemon OFF — Testcontainers ITs (FlywayMigrationIT clean-DB, AnimationScenePublishIT, asset content endpoint) cannot run; V17 manifest + event slug-resolution covered by AnimationProductionSeedTest (validator-level) only. Real-DB Flyway verification pending Docker.",
+  "blockedReason": "Docker daemon OFF — Testcontainers ITs (FlywayMigrationIT clean-DB V17 checksum, AnimationScenePublishIT, EventSeedServiceIT post-link, asset content endpoint) cannot run. Unit/validator tests cover manifest + linker logic only. Visual QA trên device/emulator và E2E publish-lesson flow chưa verify.",
   "resumeFrom": null,
   "handoffRef": null,
   "createdAt": "2026-10-24T00:00:00+07:00",
-  "updatedAt": "2026-10-24T00:00:00+07:00"
+  "updatedAt": "2026-10-24T12:00:00+07:00"
 }

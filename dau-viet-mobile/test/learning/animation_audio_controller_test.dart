@@ -226,4 +226,80 @@ void main() {
       await c.dispose();
     });
   });
+
+  /* ---------- FIX-02 — one-shot (narration ENTER) pause/resume ------ */
+
+  group('FIX-02 one-shot narration pause/resume', () {
+    late List<String> log;
+
+    setUp(() {
+      log = <String>[];
+      audioTestBypassPlugin = true;
+    });
+    tearDown(() => audioTestBypassPlugin = false);
+
+    AnimationAudioController ctrl({
+      List<AudioCueDto>? cues,
+      Future<List<int>?> Function(String)? fetchBytes,
+    }) => AnimationAudioController(
+      fetchBytes: fetchBytes ?? (_) async => [1, 2, 3],
+      audioAssetIds: const {'a1': 'uuid-1'},
+      cues: cues ?? const [],
+      playerFactory: () => _FakeCuePlayer(log),
+    );
+
+    test(
+      'pause holds one-shot mid-play; resume continues — no restart',
+      () async {
+        final c = ctrl(
+          cues: const [AudioCueDto(stepId: 's1', assetRef: 'a1', cue: 'ENTER')],
+        );
+        c.onStepEnter('s1');
+        // Flush: _fire → _bytesOf (putIfAbsent + fetchBytes) → _playOnce.
+        await Future<void>.delayed(Duration.zero);
+        await Future<void>.delayed(Duration.zero);
+        // One-shot đã play → 'play' xuất hiện đúng 1 lần.
+        expect(log.where((e) => e == 'play').length, 1);
+
+        c.onPause();
+        expect(log.where((e) => e == 'pause').length, 1);
+
+        c.onResume();
+        await Future<void>.delayed(Duration.zero);
+        // Resume = continue position, KHÔNG play lại từ đầu → 'play' vẫn 1.
+        expect(log.where((e) => e == 'play').length, 1);
+        expect(log.where((e) => e == 'resume').length, 1);
+        await c.dispose();
+      },
+    );
+
+    test('pause before bytes resolve → no late play after resume aborted '
+        'by skip', () async {
+      final gate = Completer<List<int>?>();
+      final c = ctrl(
+        fetchBytes: (_) => gate.future,
+        cues: const [AudioCueDto(stepId: 's1', assetRef: 'a1', cue: 'ENTER')],
+      );
+      c.onStepEnter('s1');
+      c.onPause();
+      c.onSkip(); // bump generation → pending fetch abort
+      gate.complete([1, 2]);
+      await Future<void>.delayed(Duration.zero);
+      expect(log.where((e) => e == 'play'), isEmpty);
+      await c.dispose();
+    });
+
+    test('dispose mid-fetch does not play', () async {
+      final gate = Completer<List<int>?>();
+      final c = ctrl(
+        fetchBytes: (_) => gate.future,
+        cues: const [AudioCueDto(stepId: 's1', assetRef: 'a1', cue: 'ENTER')],
+      );
+      c.onStepEnter('s1');
+      await c.dispose();
+      gate.complete([1]);
+      await Future<void>.delayed(Duration.zero);
+      expect(log.where((e) => e == 'play'), isEmpty);
+    });
+  });
 }

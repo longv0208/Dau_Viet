@@ -15,7 +15,8 @@ import 'animation_manifest_dto.dart';
 /// - Missing assetRef/assetId/bytes → no-op, scene vẫn chạy.
 /// - Dispose → stop + release mọi player.
 /// - Skip → stop mọi cue.
-/// - Pause → pause LOOP; resume → resume LOOP.
+/// - Pause → pause LOOP + one-shot narration dài; resume → resume cả
+///   hai (one-shot tạm dừng, không replay từ đầu).
 /// - fadeMs của LOOP cue → fade-in khi start, fade-out khi exit step.
 /// - Generation token: pending fetchBytes của step cũ không phát âm
 ///   khi learner đã chuyển step / skip / dispose.
@@ -341,38 +342,56 @@ class AnimationAudioController {
     if (_loopStepId == stepId) _stopLoop(fade: true);
   }
 
-  /// Learner pause — LOOP pause theo; one-shot để nguyên (ngắn).
+  /// Learner pause — LOOP pause theo; one-shot (narration ENTER/EXIT dài)
+  /// cũng pause để không lệch hình (FIX-02). One-shot ngắn pause rồi
+  /// resume là no-op an toàn.
   void onPause() {
     _paused = true;
     try {
       _loopPlayer?.pause();
     } catch (_) {}
+    for (final p in _oneShotPlayers.values) {
+      try {
+        p.pause();
+      } catch (_) {}
+    }
   }
 
   /// Learner resume — LOOP tiếp tục nếu còn active. Nếu LOOP được fire
   /// TRONG LÚC pause (chưa start — `_loopStarted=false`), resume() trên
   /// player chưa play là no-op → phải `play` với bytes đã giữ.
+  /// One-shot (narration ENTER dài) resume nối tiếp từ vị trí pause —
+  /// KHÔNG replay từ đầu. audioplayers: resume() trên player đã
+  /// stop/finished là no-op an toàn. FIX-02: resume one-shot chạy độc
+  /// lập LOOP — `_loopPlayer == null` (scene không có LOOP cue) không
+  /// được bỏ qua phần one-shot.
   void onResume() {
     _paused = false;
     final p = _loopPlayer;
-    if (p == null) return;
-    if (!_loopStarted && _loopPendingBytes != null) {
-      final bytes = _loopPendingBytes!;
-      _loopPendingBytes = null;
-      p
-          .play(BytesSource(Uint8List.fromList(bytes)))
-          .then((_) {
-            _loopStarted = true;
-            if (_loopFadeMs > 0) {
-              unawaited(_rampVolume(p, _loopVolume, _loopFadeMs));
-            }
-          })
-          .catchError((_) {});
-      return;
+    if (p != null) {
+      if (!_loopStarted && _loopPendingBytes != null) {
+        final bytes = _loopPendingBytes!;
+        _loopPendingBytes = null;
+        p
+            .play(BytesSource(Uint8List.fromList(bytes)))
+            .then((_) {
+              _loopStarted = true;
+              if (_loopFadeMs > 0) {
+                unawaited(_rampVolume(p, _loopVolume, _loopFadeMs));
+              }
+            })
+            .catchError((_) {});
+      } else {
+        try {
+          p.resume();
+        } catch (_) {}
+      }
     }
-    try {
-      p.resume();
-    } catch (_) {}
+    for (final s in _oneShotPlayers.values) {
+      try {
+        s.resume();
+      } catch (_) {}
+    }
   }
 
   /// Skip — dừng mọi cue ngay (không fire EXIT). Bump generation +

@@ -22,6 +22,7 @@ Dùng engine animation hiện có (V14–V16 + FIX-* đã merge). Không viết 
 - **P0 V17 FK (FIX-01)**: bỏ hard-code `00000000-…-001`; `evt_bachdang` resolve theo slug `bach-dang-938`, NULL fallback. UPDATE cuối file chạy **một lần lúc migrate** (link nếu event đã có — prod seed trước deploy; không re-run). **Post-Flyway link**: `AnimationSceneEventLinker` (local-only, trong `EventSeedRunner` sau `upsertBachDang`) dùng event id thật, chỉ fill NULL + `updatedBy=sys_user`, không đè admin, idempotent. V17 unapplied → không checksum drift.
 - **P0 prediction checkpoint + step whitelist (FIX-02)**: `allowedInteractions` trên step + `stepIndex` trên prediction; `manifestV2` flag (`schemaVersion>=2`) → v2 whitelist thuần (rỗng = không tương tác, parity admin), v1/legacy rỗng = definition-level (không regression). AUTO dừng ở checkpoint chưa reveal; v1 pin stepIndex 2/3/3.
 - **P1 audio (FIX-03)**: `audio[]` = 1 ENTER cue @estuary — overview clip 8.5s phát một lần xuyên opening (option A), không VO từng beat, không phát chồng; skip/dispose/replay đúng lifecycle.
+- **P0 playback state (đợt này)**: mount idle start-of-beat-0 (no audio/tween), `didChangeDependencies` reduced-motion → end-state; initial PHÁT animate+ENTER; PHÁT sau abandoned-tween giữ giá trị learner; pause/resume sync LOOP+one-shot. `onResume` fix `_loopPlayer==null` bỏ sót one-shot. `flutter test` 353/353.
 - **P1 asset delivery**: file git-tracked, magic bytes đúng, endpoint FileSystemResource, Flutter authenticated fetch + no-crash fallback; caveat `dauviet.assets.dir` theo cwd.
 - **P1 visual**: không sprite thuyền/cọc thật → procedural, PARTIALLY; map-plate crop vuông ~40% chiều cao (engine, parity admin preview).
 - **P1 E2E**: `SnapshotBuilderTest` pin→snapshot→`sceneVersionId` (unit); pin-publish-fetch thật chờ Docker.
@@ -75,9 +76,9 @@ Dùng engine animation hiện có (V14–V16 + FIX-* đã merge). Không viết 
 
 ## Evidence
 - `mvnw compile` clean; `mvnw test` **255/0 fail/1 err** (Docker-blocked `DauVietApplicationTests`). `AnimationSceneEventLinkerTest` 5/5, `AnimationProductionSeedTest` 2/2.
-- `flutter analyze` clean (5 info pre-existing); `flutter test` **350/350** (4 test mới FIX-02: v2 whitelist slider, v1 legacy, v2 map TAP_TO_EXPLORE, legacy key interactive). `dart format` clean.
+- `flutter analyze` clean (5 info pre-existing); `flutter test` **353/353** (4 test mới FIX-02 whitelist + 3 test mới FIX-02 audio pause/resume). `dart format` clean.
 - Admin: typecheck + lint clean, vitest 194/194, `next build` OK. `git diff --check` clean.
-- Files đợt này: `V17__bachdang_production_scene.sql`, `AnimationProductionSeedTest.java`, `AnimationSceneEventLinker.java` (mới), `AnimationSceneEventLinkerTest.java` (mới), `EventSeedRunner.java`, `historical_animation_definition.dart`, `animation_manifest_dto.dart`, `historical_animation_player.dart`, `bach_dang_938_tide_v1.dart`, `hai_ba_trung_40_uprising_v1.dart`, `ly_thai_to_1010_relocation_v1.dart`, `historical_animation_test.dart`, `animation_runtime_test.dart`, `tasks/TASK-0019/` (task.json, brief.md, handoff.md).
+- Files đợt này: `V17__bachdang_production_scene.sql`, `AnimationProductionSeedTest.java`, `AnimationSceneEventLinker.java` (mới), `AnimationSceneEventLinkerTest.java` (mới), `EventSeedRunner.java`, `historical_animation_definition.dart`, `animation_manifest_dto.dart`, `historical_animation_player.dart`, `animation_audio_controller.dart`, `bach_dang_938_tide_v1.dart`, `hai_ba_trung_40_uprising_v1.dart`, `ly_thai_to_1010_relocation_v1.dart`, `historical_animation_test.dart`, `animation_runtime_test.dart`, `animation_audio_controller_test.dart`, `tasks/TASK-0019/` (task.json, brief.md, handoff.md).
 - Không sửa V15/V16; không commit/push.
 
 ## Blockers

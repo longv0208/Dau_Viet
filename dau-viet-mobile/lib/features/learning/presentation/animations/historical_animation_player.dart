@@ -67,6 +67,13 @@ class _HistoricalAnimationPlayerState
   int _stepIndex = 0;
   bool _playing = false;
   bool _skipped = false;
+
+  /// FIX-01 — `true` từ lúc mount tới initial PHÁT đầu tiên (hoặc
+  /// replay). Ở idle: tween/camera/effects/audio ở đầu beat 0, không
+  /// chạy; audio controller chưa init → ENTER narration không tự phát.
+  /// Prediction/state tương tác không bị reset khi cờ này chuyển false.
+  bool _initialIdle = true;
+
   Timer? _advanceTimer;
 
   // true chỉ khi learner bấm TẠM DỪNG giữa một tween đang chạy — nghĩa là
@@ -158,7 +165,30 @@ class _HistoricalAnimationPlayerState
     if (m != null && m.hasBackgroundAsset) {
       _painter.suppressBaseBackground = true;
     }
-    _applyStep(0, animate: false);
+    // FIX-01/02 — idle semantics: mount KHÔNG fire audio cue và đứng ở
+    // ĐẦU beat 0 — frame t=0 với scene-state từ initialState, camera đúng
+    // pose đầu. PHÁT lần đầu mới chạy transition + ENTER narration.
+    // (Reduced-motion: build() xử lý end-state — không check MediaQuery
+    // ở đây vì initState không được phép dependOnInheritedWidget.)
+    _applyStep(0, animate: false, fireAudio: false);
+    if (_hasCinematic) {
+      widget.cinematicFrame?.value = _cinematic!.frameAt(0, 0.0, 0.0);
+    }
+  }
+
+  /// Reduced-motion correction chạy ở didChangeDependencies — initState
+  /// KHÔNG được đọc MediaQuery (dependOnInheritedWidget throw). Nếu
+  /// disableAnimations bật: idle-mount đã áp start-pose t=0 → nhảy ngay
+  /// tới END-state beat 0 (không tween), khớp contract reduced-motion
+  /// "hiển thị end-state ngay".
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    if (_initialIdle && _reduceMotion && _stepIndex == 0) {
+      _controller.stop();
+      if (_current != null) _applyCurrent(1);
+      _emitFrameEnd();
+    }
   }
 
   @override
@@ -245,13 +275,22 @@ class _HistoricalAnimationPlayerState
   /// nếu reduced-motion. `animate=false` cho khởi tạo/replay nhanh.
   /// Bước có `target == null` giữ nguyên trạng thái hiện tại.
   /// v2 — fire audio cues: EXIT của step trước, ENTER của step mới.
-  void _applyStep(int index, {bool animate = true, int? previousIndex}) {
-    _ensureAudio();
+  /// `fireAudio=false` (idle mount / skip / navigation / replay-seek)
+  /// bỏ qua phần audio hoàn toàn — narration ENTER chỉ cháy khi playback
+  /// thực sự khởi động (_initialIdle=false), không phải lúc widget
+  /// mount hay seek tĩnh.
+  void _applyStep(
+    int index, {
+    bool animate = true,
+    int? previousIndex,
+    bool fireAudio = true,
+  }) {
+    if (fireAudio) _ensureAudio();
     if (previousIndex != null && previousIndex != index) {
       _audio?.onStepExit(_stepIdAt(previousIndex));
     }
     final step = widget.definition.steps[index];
-    _audio?.onStepEnter(_stepIdAt(index));
+    if (fireAudio) _audio?.onStepEnter(_stepIdAt(index));
     if (step.target != null) {
       _current = step.target;
       // Chụp trạng thái ĐANG HIỂN THỊ (kể cả tween cũ đang dở) làm gốc —
@@ -280,6 +319,9 @@ class _HistoricalAnimationPlayerState
         ? Duration(milliseconds: step.durationMs!)
         : widget.definition.transitionDuration;
     _controller.duration = stepDur;
+    // FIX-01 — `_initialIdle` thay `_reduceMotion` ở nhánh idle: _applyStep
+    // chạy trong initState nên KHÔNG được chạm MediaQuery. Idle mount
+    // (animate=false) đứng ở ĐẦU beat 0 — PHÁT mới animate thật.
     if (animate && !_reduceMotion && hasTween) {
       _controller
         ..stop()
@@ -287,8 +329,14 @@ class _HistoricalAnimationPlayerState
         ..forward();
     } else {
       _controller.stop();
-      _applyCurrent(1);
-      _emitFrameEnd();
+      if (_initialIdle && index == 0) {
+        // ĐẦU beat 0 — initialState + camera pose đầu (không MediaQuery).
+        if (_current != null) _applyCurrent(0);
+        _emitFrame(0.0, 0.0);
+      } else {
+        _applyCurrent(1);
+        _emitFrameEnd();
+      }
     }
   }
 
@@ -367,10 +415,39 @@ class _HistoricalAnimationPlayerState
         _controller.stop();
       });
     } else if (_stepIndex < widget.definition.steps.length - 1) {
+      // FIX-01 — initial PHÁT (idle) HOẶC tween đã bị hủy giữa chừng
+      // (learner kéo tay mực nước, reveal prediction, chạm marker):
+      // KHÔNG được chạy lại/forward tween — nó sẽ ghi đè lựa chọn của
+      // learner. Seek tĩnh giữ nguyên trạng thái đã áp (controller ở 0
+      // sau stop()), chỉ fire ENTER cue nếu là lần phát đầu; timer
+      // advance vẫn đặt bình thường.
+      // `_controller.value` giữ mid sau khi learner hủy tween (kéo tay,
+      // reveal, chạm marker) — dùng làm tín hiệu tween-dở. PAUSE chủ động
+      // bị loại trừ qua _tweenPaused.
+      final abandonedTween =
+          _controller.value > 0 && _controller.value < 1 && !_tweenPaused;
+      if (_initialIdle || abandonedTween) {
+        setState(() {
+          _playing = true;
+          _skipped = false;
+          _tweenPaused = false;
+          if (_initialIdle && !abandonedTween) {
+            _initialIdle = false;
+            _applyStep(_stepIndex); // animate + fire ENTER của beat
+          }
+          // abandonedTween: giữ nguyên giá trị learner đã chọn — không
+          // _applyStep (reset+forward tween sẽ lerp về target), không
+          // settle (_applyCurrent(1) cũng kéo về target). Chỉ bật
+          // _playing + đặt timer; ENTER cue không phát lại vì đã cháy
+          // lúc step bắt đầu (hoặc idle-mount cũng không phát).
+        });
+        _scheduleAdvance();
+        return;
+      }
       // RESUME: chỉ nối tiếp tween khi learner đã PAUSE nó chủ động.
       // Tween bị thao tác tay/reveal hủy giữa chừng cũng để lại value dở
       // dang — KHÔNG được forward, nếu không nó ghi đè lựa chọn của
-      // learner.
+      // learner (đã xử lý ở nhánh abandonedTween trên).
       final resumeTween = _tweenPaused;
       setState(() {
         _playing = true;
@@ -400,9 +477,22 @@ class _HistoricalAnimationPlayerState
       _skipped = false;
       _tweenPaused = false; // tween mới, không phải pause
       _selectedLocationId = null; // panel cũ không sống qua bước mới
-      _applyStep(index, previousIndex: prev);
+      // FIX-02 — navigation (Next/Prev) chỉ fire ENTER cues của step đích
+      // khi đang playback thật; lúc idle/paused không tự phát overview
+      // sai ngữ cảnh (audio chỉ chạy theo playback).
+      _applyStep(index, previousIndex: prev, fireAudio: _playing);
     });
     _scheduleAdvance();
+  }
+
+  /// FIX-02 — replay audio khi learner chủ động PHÁT-LẠI sau finish.
+  /// Chạy đúng theo quy tắc: không phát khi replay là seek tĩnh
+  /// (idle/navigation) — narration đúng một lần khi playback chạy lại.
+  void _replayAudio() {
+    final a = _audio;
+    if (a == null) return;
+    a.onSkip(); // dừng mọi cue đang chạy + abort pending fetch
+    a.onStepEnter(_stepIdAt(0)); // fire ENTER của beat 0 lại
   }
 
   void _replay() {
@@ -417,7 +507,14 @@ class _HistoricalAnimationPlayerState
       _chosenOption = null;
       _predictionRevealed = false;
       _selectedLocationId = null;
-      _applyStep(0, animate: false, previousIndex: prev);
+      _initialIdle = false; // replay = bắt đầu lại playback, không idle
+      // Replay = seek về đầu — animation tĩnh ở đầu beat 0 (không nhảy
+      // cuối). fireAudio=false: ENTER narration phát qua _replayAudio
+      // chỉ khi learner đang playback (bấm PHÁT-LẠI sau finish hoặc
+      // replay trong lúc playing). Replay lúc paused/idle là seek tĩnh
+      // — không tự cháy narration (learner chưa yêu cầu phát lại).
+      _applyStep(0, animate: false, previousIndex: prev, fireAudio: false);
+      if (_playing) _replayAudio();
     });
     _scheduleAdvance();
   }
@@ -429,8 +526,11 @@ class _HistoricalAnimationPlayerState
       _playing = false;
       _skipped = true;
       _tweenPaused = false;
+      _initialIdle = false;
       _stepIndex = widget.definition.steps.length - 1;
-      _applyStep(_stepIndex, animate: false);
+      // FIX-02 — skip là seek tĩnh cuối scene: không fire ENTER của bước
+      // cuối (overview không phát lại sai ngữ cảnh).
+      _applyStep(_stepIndex, animate: false, fireAudio: false);
     });
   }
 
