@@ -59,6 +59,9 @@ void main() {
       await expectLater(service.playTap(), completes);
       await expectLater(service.playCorrect(), completes);
       await expectLater(service.playWrong(), completes);
+      await expectLater(service.playRandomCorrectVoice(), completes);
+      await expectLater(service.playRandomWrongVoice(), completes);
+      await expectLater(service.playVictoryVoice(), completes);
       await expectLater(service.playStreakUp(combo: 3), completes);
       await expectLater(service.playChestOpen(), completes);
     });

@@ -6,6 +6,8 @@ import 'features/learning/data/learning_providers.dart';
 void main() {
   WidgetsFlutterBinding.ensureInitialized();
   appContainer = ProviderContainer();
+  // Khởi động phục hồi phiên đăng nhập ngay khi mở ứng dụng (hỗ trợ Web refresh / deep-linking)
+  appContainer!.read(authSessionProvider.notifier).restore();
   runApp(
     UncontrolledProviderScope(
       container: appContainer!,

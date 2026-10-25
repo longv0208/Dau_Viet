@@ -17,68 +17,142 @@ class MockAttemptRepository implements AttemptRepository {
 
   static const List<Map<String, dynamic>> _activities = [
     {
-      'stage': {'id': 'st-context', 'type': 'CONTEXT', 'title': 'Bối cảnh'},
-      'activity': {
-        'id': 'act-read',
-        'type': 'READ',
-        'instruction': 'Đọc bối cảnh trận Bạch Đằng 938 rồi bấm Tiếp tục.',
-        'config': {
-          'title': 'Bối cảnh năm 938',
-          'body':
-              'Năm 938, quân Nam Hán kéo thủy quân vào cửa sông Bạch Đằng. '
-              'Ngô Quyền cho đóng cọc gỗ ngầm dưới lòng sông, lợi dụng triều '
-              'lên xuống để mai phục — đòn then chốt của chiến thắng.',
-        },
-        'feedback': {},
-      },
-    },
-    {
-      'stage': {'id': 'st-evidence', 'type': 'EVIDENCE', 'title': 'Bằng chứng'},
+      'stage': {'id': 'st-mcq', 'type': 'CONTEXT', 'title': 'Truyền thuyết'},
       'activity': {
         'id': 'act-mcq',
         'type': 'MULTIPLE_CHOICE',
-        'instruction': 'Đòn then chốt của Ngô Quyền là gì?',
+        'instruction': 'Hãy suy nghĩ và chọn câu trả lời đúng nhất nhé!',
         'config': {
-          'question': 'Yếu tố quyết định chiến thắng Bạch Đằng 938?',
+          'question':
+              'Theo truyền thuyết, Lạc Long Quân và Âu Cơ sinh ra bọc trăm trứng, sau đó chia nhau đi đâu?',
           'multiSelect': false,
           'options': [
-            {'id': 'o1', 'label': 'Cọc gỗ ngầm + thủy triều'},
-            {'id': 'o2', 'label': 'Quân số đông gấp ba'},
-            {'id': 'o3', 'label': 'Hỏa công ban đêm'},
+            {
+              'id': 'o1',
+              'label': '50 con theo mẹ lên núi, 50 con theo cha xuống biển',
+            },
+            {'id': 'o2', 'label': 'Cùng nhau ở lại đồng bằng xây dựng xóm làng'},
+            {'id': 'o3', 'label': 'Di cư sang phương Bắc để khai khẩn đất mới'},
+            {
+              'id': 'o4',
+              'label': 'Đi khắp bốn phương tìm kiếm vùng đất trù phú',
+            },
           ],
         },
-        'feedback': {'correct': 'Chính xác!', 'wrong': 'Chưa đúng, thử lại.'},
+        'feedback': {
+          'correct': 'Chính xác! Lạc Long Quân đưa 50 con xuống biển, Âu Cơ đưa 50 con lên núi.',
+          'wrong': 'Chưa chính xác, hãy nhớ lại câu chuyện bọc trăm trứng nhé.',
+        },
+      },
+    },
+    {
+      'stage': {'id': 'st-matching', 'type': 'EVIDENCE', 'title': 'Ghép cặp'},
+      'activity': {
+        'id': 'act-matching',
+        'type': 'MATCHING',
+        'instruction': 'Ghép mỗi nhân vật, hiện vật với thông tin phù hợp',
+        'config': {
+          'leftItems': [
+            {'id': 'l1', 'label': 'Lạc Long Quân'},
+            {'id': 'l2', 'label': 'Âu Cơ'},
+            {'id': 'l3', 'label': 'Trống đồng'},
+            {'id': 'l4', 'label': 'Văn Lang'},
+          ],
+          'rightItems': [
+            {
+              'id': 'r1',
+              'label': 'Vua Rồng biển cả, tổ tiên truyền thuyết của người Việt',
+            },
+            {'id': 'r2', 'label': 'Mẹ Âu Cơ dẫn 50 con lên miền non cao'},
+            {
+              'id': 'r3',
+              'label': 'Biểu tượng văn hoá đỉnh cao thời đại dựng nước',
+            },
+            {
+              'id': 'r4',
+              'label': 'Người đứng đầu nhà nước sơ khai của người Việt',
+            },
+          ],
+        },
+        'feedback': {'correct': 'Tuyệt vời! Bạn đã ghép chính xác toàn bộ tư liệu.'},
       },
     },
     {
       'stage': {
         'id': 'st-order',
         'type': 'RECONSTRUCTION',
-        'title': 'Dựng lại',
+        'title': 'Trình tự',
       },
       'activity': {
         'id': 'act-order',
         'type': 'DRAG_ORDER',
-        'instruction': 'Sắp xếp lại trình tự chiến dịch.',
+        'instruction': 'Hãy sắp xếp các sự kiện theo đúng trình tự thời gian nhé!',
         'config': {
           'items': [
-            {'id': 's2', 'label': 'Triều lên — quân Nam Hán tiến vào bãi cọc'},
-            {'id': 's1', 'label': 'Ngô Quyền đóng cọc ngầm trước trận'},
-            {'id': 's3', 'label': 'Triều rút — thuyền giặc mắc cọc, chìm'},
+            {'id': 's1', 'label': 'Lạc Long Quân kết duyên cùng Âu Cơ'},
+            {
+              'id': 's2',
+              'label': 'Sinh ra bọc trăm trứng nở thành trăm người con',
+            },
+            {'id': 's3', 'label': 'Chia 50 con lên núi, 50 con xuống biển'},
+            {
+              'id': 's4',
+              'label': 'Người con trưởng lên ngôi, lập nên nhà nước Văn Lang',
+            },
           ],
         },
-        'feedback': {},
+        'feedback': {'correct': 'Chính xác! Trình tự thời gian đã hoàn toàn đúng.'},
+      },
+    },
+    {
+      'stage': {
+        'id': 'st-tf',
+        'type': 'CONCLUSION',
+        'title': 'Đúng / Sai',
+      },
+      'activity': {
+        'id': 'act-tf',
+        'type': 'MULTIPLE_CHOICE',
+        'instruction': 'Quan sát tranh minh họa và nhận định xem đúng hay sai nhé!',
+        'config': {
+          'question':
+              'Thời Hùng Vương, người Việt đã biết trồng lúa nước, làm nhà sàn và sống thành các làng bản.',
+          'image': 'assets/images/lesson_scene_hung_kings_life.jpg',
+          'multiSelect': false,
+          'options': [
+            {'id': 'opt-true', 'label': 'Đúng'},
+            {'id': 'opt-false', 'label': 'Sai'},
+          ],
+        },
+        'feedback': {
+          'correct':
+              'Chính xác! Nền văn minh sông Hồng gắn liền với nghề trồng lúa nước và nếp sống nhà sàn.',
+        },
       },
     },
   ];
 
   CurrentActivityDto _current() {
-    if (_cursor >= _activities.length) {
-      return const CurrentActivityDto(
-        progress: AttemptProgressDto(completedRequired: 3, totalRequired: 3),
+    int cur = _cursor;
+    try {
+      final frag = Uri.base.fragment;
+      if (frag.contains('step=')) {
+        final val = int.tryParse(frag.split('step=')[1].split('&')[0]);
+        if (val != null && val >= 0 && val < _activities.length) {
+          cur = val;
+        }
+      }
+    } catch (_) {}
+
+    if (cur >= _activities.length) {
+      return CurrentActivityDto(
+        progress: AttemptProgressDto(
+          completedRequired: _activities.length,
+          totalRequired: _activities.length,
+        ),
       );
     }
-    final Map<String, dynamic> row = _activities[_cursor];
+    final Map<String, dynamic> row = _activities[cur];
     return CurrentActivityDto(
       stage: StageRefDto.fromJson(
         (row['stage'] as Map).cast<String, dynamic>(),
@@ -87,7 +161,7 @@ class MockAttemptRepository implements AttemptRepository {
         (row['activity'] as Map).cast<String, dynamic>(),
       ),
       progress: AttemptProgressDto(
-        completedRequired: _cursor,
+        completedRequired: cur,
         totalRequired: _activities.length,
       ),
     );

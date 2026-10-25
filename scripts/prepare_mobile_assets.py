@@ -19,19 +19,19 @@ def remove_background_connected(img, tolerance=28, feather=8):
     img = img.convert('RGBA')
     arr = np.array(img, dtype=np.float32)
     h, w, _ = arr.shape
-    
+
     # Lấy màu nền mẫu từ các góc
     corners = [arr[0, 0, :3], arr[0, w - 1, :3], arr[h - 1, 0, :3], arr[h - 1, w - 1, :3]]
     bg_color = np.median(corners, axis=0)
-    
+
     # Tính khoảng cách Euclidean màu
     diff = np.sqrt(np.sum((arr[:, :, :3] - bg_color) ** 2, axis=2))
     is_bg_candidate = diff < (tolerance + feather)
-    
+
     # BFS Flood fill từ mép ngoài
     visited = np.zeros((h, w), dtype=bool)
     queue = deque()
-    
+
     for x in range(w):
         if is_bg_candidate[0, x]:
             queue.append((0, x))
@@ -46,7 +46,7 @@ def remove_background_connected(img, tolerance=28, feather=8):
         if is_bg_candidate[y, w - 1] and not visited[y, w - 1]:
             queue.append((y, w - 1))
             visited[y, w - 1] = True
-            
+
     while queue:
         cy, cx = queue.popleft()
         for dy, dx in [(-1, 0), (1, 0), (0, -1), (0, 1)]:
@@ -54,7 +54,7 @@ def remove_background_connected(img, tolerance=28, feather=8):
             if 0 <= ny < h and 0 <= nx < w and not visited[ny, nx] and is_bg_candidate[ny, nx]:
                 visited[ny, nx] = True
                 queue.append((ny, nx))
-                
+
     # Gán kênh Alpha với viền feathering
     alpha = arr[:, :, 3].copy()
     for y in range(h):
@@ -65,10 +65,10 @@ def remove_background_connected(img, tolerance=28, feather=8):
                     alpha[y, x] = 0
                 else:
                     alpha[y, x] = int(255 * (d - tolerance) / feather)
-                    
+
     arr[:, :, 3] = alpha
     result = Image.fromarray(np.clip(arr, 0, 255).astype(np.uint8))
-    
+
     # Tự động cắt khoảng trắng thừa xung quanh (Auto-trim bounding box)
     bbox = result.getbbox()
     if bbox:
@@ -86,10 +86,10 @@ def make_circular_badge(img, diameter=460):
     w, h = img.size
     cx, cy = w // 2, h // 2
     r = diameter // 2
-    
+
     # Crop tâm
     cropped = img.crop((cx - r, cy - r, cx + r, cy + r)).convert('RGBA')
-    
+
     # Tạo circular alpha mask
     mask = Image.new('L', (diameter, diameter), 0)
     import math
@@ -100,7 +100,7 @@ def make_circular_badge(img, diameter=460):
                 mask.putpixel((x, y), 255)
             elif dist <= r:
                 mask.putpixel((x, y), int(255 * (r - dist) / 2))
-                
+
     cropped.putalpha(mask)
     return cropped
 
@@ -110,11 +110,11 @@ def process_all_assets():
     img_dir = os.path.join(dest_dir, 'images')
     badge_dir = os.path.join(dest_dir, 'badges')
     item_dir = os.path.join(dest_dir, 'items')
-    
+
     ensure_dir(img_dir)
     ensure_dir(badge_dir)
     ensure_dir(item_dir)
-    
+
     # 1. Copy các ảnh toàn cảnh / Hero / Sa bàn (giữ nguyên độ phân giải cao)
     full_images = [
         'dv_EVT_ngoquyen_bachdang_hero_v01.jpg',
@@ -128,7 +128,7 @@ def process_all_assets():
         if os.path.exists(sp):
             shutil.copy2(sp, dp)
             print(f'[COPY FULL] {fn} -> {dp}')
-            
+
     # 2. Xử lý Dải Băng Khải Hoàn (Victory Banner) -> Transparent PNG
     ach_path = os.path.join(src_dir, 'dv_ACH_shared_victory-banner_v01.jpg')
     if os.path.exists(ach_path):

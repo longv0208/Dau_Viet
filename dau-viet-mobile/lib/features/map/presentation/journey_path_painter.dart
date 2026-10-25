@@ -16,17 +16,21 @@ class JourneyPathPainter extends CustomPainter {
   final List<Offset> centers;
   final List<MapUnlockState> states;
   final int? selectedIndex;
+  final bool showProceduralBackground;
 
   JourneyPathPainter({
     required this.centers,
     required this.states,
     this.selectedIndex,
+    this.showProceduralBackground = false,
   });
 
   @override
   void paint(Canvas canvas, Size size) {
-    _paintParchment(canvas, size);
-    _paintLandscape(canvas, size);
+    if (showProceduralBackground) {
+      _paintParchment(canvas, size);
+      _paintLandscape(canvas, size);
+    }
     _paintPath(canvas, size);
     _paintOrnaments(canvas, size);
   }
@@ -291,5 +295,6 @@ class JourneyPathPainter extends CustomPainter {
   bool shouldRepaint(JourneyPathPainter old) =>
       old.centers != centers ||
       old.states != states ||
-      old.selectedIndex != selectedIndex;
+      old.selectedIndex != selectedIndex ||
+      old.showProceduralBackground != showProceduralBackground;
 }

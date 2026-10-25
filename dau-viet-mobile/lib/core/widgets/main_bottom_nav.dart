@@ -94,7 +94,7 @@ class MainBottomNav extends StatelessWidget {
         backgroundColor: Colors.transparent,
         elevation: 0,
         type: BottomNavigationBarType.fixed,
-        selectedItemColor: DauVietColors.cinnabarRed,
+        selectedItemColor: DauVietColors.heritageGreen,
         unselectedItemColor: DauVietColors.inkMuted,
         selectedLabelStyle: DauVietTypography.labelSmall.copyWith(
           fontWeight: FontWeight.w800,

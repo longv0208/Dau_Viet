@@ -28,6 +28,21 @@ class DauVietAudioService extends ChangeNotifier {
   static const String sfxChestOpenPath = 'audio/sfx_chest_open.wav';
   static const String defaultNarrationPath = 'audio/narration_bach_dang.wav';
 
+  // Câu thoại Tiếng Việt sống động
+  static const List<String> correctVoicePaths = [
+    'audio/voice_correct_1.mp3',
+    'audio/voice_correct_2.mp3',
+    'audio/voice_correct_3.mp3',
+  ];
+
+  static const List<String> wrongVoicePaths = [
+    'audio/voice_wrong_1.mp3',
+    'audio/voice_wrong_2.mp3',
+    'audio/voice_wrong_3.mp3',
+  ];
+
+  static const String victoryVoicePath = 'audio/voice_victory.mp3';
+
   // Trạng thái cấu hình âm thanh
   bool _isSoundEnabled = true;
   bool _isNarrationEnabled = true;
@@ -161,14 +176,60 @@ class DauVietAudioService extends ChangeNotifier {
     await _playSfx(sfxTapPath, volumeMultiplier: 0.85);
   }
 
-  /// Phát tiếng Trống Đồng trầm hùng + chuông ngân hoàng gia khi trả lời đúng
-  Future<void> playCorrect() async {
-    await _playSfx(sfxCorrectPath, volumeMultiplier: 1.0);
+  /// Phát tiếng Trống Đồng trầm hùng + câu thoại tiếng Việt ngẫu nhiên khi trả lời đúng
+  Future<void> playCorrect({bool withVoice = true}) async {
+    await _playSfx(sfxCorrectPath, volumeMultiplier: 0.85);
+    if (withVoice) {
+      if (!isTestEnvironment) {
+        Future.delayed(const Duration(milliseconds: 280), () {
+          playRandomCorrectVoice();
+        });
+      } else {
+        await playRandomCorrectVoice();
+      }
+    }
   }
 
-  /// Phát tiếng mộc gõ ấm áp, nhẹ nhàng khi trả lời sai
-  Future<void> playWrong() async {
-    await _playSfx(sfxWrongPath, volumeMultiplier: 0.9);
+  /// Phát tiếng mộc gõ ấm áp + câu thoại tiếng Việt ngẫu nhiên khi trả lời sai
+  Future<void> playWrong({bool withVoice = true}) async {
+    await _playSfx(sfxWrongPath, volumeMultiplier: 0.7);
+    if (withVoice) {
+      if (!isTestEnvironment) {
+        Future.delayed(const Duration(milliseconds: 280), () {
+          playRandomWrongVoice();
+        });
+      } else {
+        await playRandomWrongVoice();
+      }
+    }
+  }
+
+  /// Phát ngẫu nhiên câu thoại tiếng Việt chúc mừng khi trả lời đúng
+  Future<void> playRandomCorrectVoice() async {
+    final path = (List<String>.from(correctVoicePaths)..shuffle()).first;
+    await _playSfx(path, volumeMultiplier: 1.0);
+  }
+
+  /// Phát ngẫu nhiên câu thoại tiếng Việt động viên khi trả lời sai
+  Future<void> playRandomWrongVoice() async {
+    final path = (List<String>.from(wrongVoicePaths)..shuffle()).first;
+    await _playSfx(path, volumeMultiplier: 1.0);
+  }
+
+  /// Dừng toàn bộ các hiệu ứng âm thanh SFX và câu thoại đang phát
+  Future<void> stopAllSfx() async {
+    for (final player in _sfxPlayers) {
+      try {
+        await player.stop();
+      } catch (_) {}
+    }
+  }
+
+  /// Phát câu thoại tiếng Việt chúc mừng hoàn thành bài học
+  Future<void> playVictoryVoice() async {
+    // Dừng tất cả âm thanh SFX và câu thoại khác trước khi phát câu thoại hoàn thành bài học
+    await stopAllSfx();
+    await _playSfx(victoryVoicePath, volumeMultiplier: 1.0);
   }
 
   /// Phát chuỗi âm ngũ cung thăng tiến khi nối dài Combo Streak

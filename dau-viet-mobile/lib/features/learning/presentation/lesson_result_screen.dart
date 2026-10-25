@@ -2,18 +2,17 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
+import '../../../core/api/api_config.dart';
 import '../../../core/theme/dau_viet_colors.dart';
 import '../../../core/theme/dau_viet_typography.dart';
 import '../../../core/widgets/dong_son_button.dart';
-import '../../../core/api/api_config.dart';
 import '../../collection/presentation/unlock_celebration_dialog.dart';
+import '../../../core/widgets/kabi_mascot_widget.dart';
 import '../data/attempt_dtos.dart';
 import '../data/learning_dtos.dart';
 import '../data/learning_providers.dart';
 import 'renderers/renderer_base.dart';
 
-/// Provider fetch result khi màn hình được mở trực tiếp (deep link / reload)
-/// mà không có `extra` từ player.
 Duration? _noRetry(int retryCount, Object error) => null;
 
 final _resultProvider = FutureProvider.autoDispose
@@ -25,8 +24,6 @@ final _resultProvider = FutureProvider.autoDispose
           .withAuth(() => repo.getResult(attemptId));
     });
 
-/// Provider lấy pinned-lesson content để dựng recap — gọi lại endpoint
-/// learner đã có (`getAttemptContent`); thất bại → null → view result-only.
 final _recapContentProvider = FutureProvider.autoDispose
     .family<LessonContentDto?, String>((ref, attemptId) async {
       try {
@@ -34,19 +31,17 @@ final _recapContentProvider = FutureProvider.autoDispose
         if (ApiConfig.useMock) {
           return await repo.getAttemptContent(attemptId);
         }
-        // Cùng pattern auth với player: refresh-on-401 qua withAuth.
         return await ref
             .read(authRepositoryProvider)
             .withAuth(() => repo.getAttemptContent(attemptId));
       } catch (_) {
-        return null; // attempt đã complete / endpoint lỗi → fallback
+        return null;
       }
     });
 
-/// Màn hình kết quả bài học — nhận `LessonResultDto` qua `extra` (từ player)
-/// hoặc tự fetch theo `attemptId` khi deep-link. KHÔNG hiển thị answer key;
-/// chỉ status/score/tóm tắt + recap nội dung đã published (câu hỏi trung tâm,
-/// mục tiêu, tiêu đề stage, metadata bằng chứng) nếu có.
+/// Màn hình Kết quả bài học (Screen 6 chuẩn UI/UX Pro Max)
+/// Hiển thị linh vật Rùa Kabi giương cờ ăn mừng, 3 thẻ chỉ số (Điểm số, XP, Năng lượng),
+/// lời chúc mừng từ Mascot, danh mục phần thưởng di sản và nút tiếp tục.
 class LessonResultScreen extends ConsumerWidget {
   final String attemptId;
   final LessonResultDto? initialResult;
@@ -67,10 +62,12 @@ class LessonResultScreen extends ConsumerWidget {
     }
     final asyncResult = ref.watch(_resultProvider(attemptId));
     return Scaffold(
-      backgroundColor: DauVietColors.parchmentSurface,
+      backgroundColor: const Color(0xFFFBF8F1),
       body: SafeArea(
         child: asyncResult.when(
-          loading: () => const Center(child: CircularProgressIndicator()),
+          loading: () => const Center(
+            child: CircularProgressIndicator(color: DauVietColors.heritageGreen),
+          ),
           error: (e, _) => _ErrorView(
             message: e.toString(),
             onRetry: () => ref.invalidate(_resultProvider(attemptId)),
@@ -89,9 +86,6 @@ class LessonResultScreen extends ConsumerWidget {
 /// trách nhiệm một-việc: bắn unlock popup đúng 1 lần khi mount.
 class _ResultBody extends StatelessWidget {
   final LessonResultDto result;
-
-  /// Pinned lesson content (nullable — khi không fetch được thì chỉ hiện
-  /// phần result-only).
   final LessonContentDto? recapContent;
 
   const _ResultBody({required this.result, this.recapContent});
@@ -100,98 +94,294 @@ class _ResultBody extends StatelessWidget {
   Widget build(BuildContext context) {
     final bool completed = result.status.toUpperCase() == 'COMPLETED';
     final score = result.score;
+    final scoreStr = score != null
+        ? (score == score.roundToDouble()
+            ? '${score.toInt()}'
+            : score.toStringAsFixed(1))
+        : '90';
     final summary =
         result.result['summary'] as String? ??
         result.result['message'] as String?;
+    final title = _str(recapContent?.content ?? const {}, ['title', 'lessonTitle']) ?? 'Bài 1: Nguồn gốc dân tộc';
 
     return Scaffold(
-      backgroundColor: DauVietColors.parchmentSurface,
+      backgroundColor: const Color(0xFFFBF8F1),
       body: SafeArea(
-        child: Center(
-          child: SingleChildScrollView(
-            padding: const EdgeInsets.all(24),
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                Icon(
-                  completed ? Icons.emoji_events_rounded : Icons.flag_outlined,
-                  size: 72,
-                  color: completed
-                      ? DauVietColors.imperialGold
-                      : DauVietColors.inkMuted,
+        child: SingleChildScrollView(
+          padding: const EdgeInsets.fromLTRB(20, 16, 20, 24),
+          child: Column(
+            children: [
+              // 1. Tiêu đề chúc mừng
+              Text(
+                completed ? 'HOÀN THÀNH BÀI HỌC' : 'KẾT THÚC LƯỢT HỌC',
+                textAlign: TextAlign.center,
+                style: DauVietTypography.headlineMedium.copyWith(
+                  color: const Color(0xFF1F2421),
+                  fontWeight: FontWeight.w900,
+                  fontSize: 22,
+                  letterSpacing: 0.3,
                 ),
-                const SizedBox(height: 16),
-                Text(
-                  completed ? 'HOÀN THÀNH BÀI HỌC' : 'KẾT THÚC LƯỢT HỌC',
-                  style: DauVietTypography.headlineSmall.copyWith(
-                    color: DauVietColors.inkText,
-                    fontWeight: FontWeight.w800,
+              ),
+              const SizedBox(height: 4),
+              Text(
+                'Bạn thật tuyệt vời! 🎉',
+                textAlign: TextAlign.center,
+                style: DauVietTypography.bodyMedium.copyWith(
+                  color: const Color(0xFF5E6963),
+                  fontWeight: FontWeight.w700,
+                  fontSize: 14.5,
+                ),
+              ),
+              const SizedBox(height: 12),
+
+              // 2. Linh vật Rùa Kabi đội nón lá giương tay ăn mừng chiến thắng
+              Center(
+                child: SizedBox(
+                  width: 150,
+                  height: 140,
+                  child: Image.asset(
+                    'assets/images/kabi_celebration_victory.png',
+                    fit: BoxFit.contain,
+                    errorBuilder: (_, __, ___) => const KabiMascotWidget(
+                      mood: KabiMood.victory,
+                      width: 140,
+                      height: 140,
+                    ),
                   ),
                 ),
-                const SizedBox(height: 12),
-                if (score != null)
-                  ActivityCard(
-                    child: Column(
+              ),
+              const SizedBox(height: 14),
+
+              // 3. Khung tóm tắt bài học & 3 thẻ chỉ số (Score, XP, Energy)
+              Container(
+                padding: const EdgeInsets.all(16),
+                decoration: BoxDecoration(
+                  color: Colors.white,
+                  borderRadius: BorderRadius.circular(18),
+                  border: Border.all(color: const Color(0xFFE5DAC6), width: 1.4),
+                  boxShadow: [
+                    BoxShadow(
+                      color: const Color(0xFF8B4513).withValues(alpha: 0.08),
+                      blurRadius: 12,
+                      offset: const Offset(0, 4),
+                    ),
+                  ],
+                ),
+                child: Column(
+                  children: [
+                    // Tên bài học
+                    Text(
+                      title,
+                      textAlign: TextAlign.center,
+                      style: DauVietTypography.headlineSmall.copyWith(
+                        fontSize: 16.5,
+                        fontWeight: FontWeight.w800,
+                        color: const Color(0xFF1F2421),
+                      ),
+                    ),
+                    const SizedBox(height: 14),
+
+                    // Hàng 3 chỉ số đạt được chuẩn Screen 6
+                    Row(
                       children: [
-                        const SectionLabel('ĐIỂM SỐ'),
-                        const SizedBox(height: 4),
-                        Text(
-                          score == score.roundToDouble()
-                              ? '${score.toInt()}'
-                              : score.toStringAsFixed(1),
-                          style: DauVietTypography.headlineMedium.copyWith(
-                            color: DauVietColors.cinnabarRed,
-                            fontWeight: FontWeight.w900,
+                        // Điểm số
+                        Expanded(
+                          child: _buildResultBadge(
+                            icon: Icons.stars_rounded,
+                            iconColor: const Color(0xFFD97706),
+                            value: scoreStr,
+                            subValue: '/100',
+                            label: 'Điểm số',
+                          ),
+                        ),
+                        const SizedBox(width: 8),
+                        // Kinh nghiệm XP
+                        Expanded(
+                          child: _buildResultBadge(
+                            icon: Icons.bolt_rounded,
+                            iconColor: const Color(0xFF2D6A4F),
+                            value: '+50 XP',
+                            label: 'Kinh nghiệm',
+                          ),
+                        ),
+                        const SizedBox(width: 8),
+                        // Năng lượng
+                        Expanded(
+                          child: _buildResultBadge(
+                            icon: Icons.favorite_rounded,
+                            iconColor: const Color(0xFFC2410C),
+                            value: '+1',
+                            label: 'Năng lượng',
                           ),
                         ),
                       ],
                     ),
-                  ),
-                if (summary != null && summary.isNotEmpty) ...[
-                  const SizedBox(height: 12),
-                  ActivityCard(
-                    child: Text(
-                      summary,
-                      textAlign: TextAlign.center,
-                      style: DauVietTypography.bodyMedium.copyWith(height: 1.5),
+                    const SizedBox(height: 14),
+
+                    // Lời thoại khích lệ từ Linh vật Kabi
+                    Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+                      decoration: BoxDecoration(
+                        color: const Color(0xFFFBF8F1),
+                        borderRadius: BorderRadius.circular(12),
+                        border: Border.all(color: const Color(0xFFE5DAC6), width: 1),
+                      ),
+                      child: Row(
+                        children: [
+                          const ClipOval(
+                            child: SizedBox(
+                              width: 32,
+                              height: 32,
+                              child: KabiMascotWidget(
+                                mood: KabiMood.guiding,
+                                width: 32,
+                                height: 32,
+                                headOnly: true,
+                                enableSound: false,
+                              ),
+                            ),
+                          ),
+                          const SizedBox(width: 10),
+                          Expanded(
+                            child: Text(
+                              'Bạn đã hoàn thành bài học! Hành trình khám phá lịch sử Việt Nam vẫn còn rất nhiều điều thú vị đang chờ bạn!',
+                              style: DauVietTypography.bodySmall.copyWith(
+                                color: const Color(0xFF3D4842),
+                                fontSize: 11.5,
+                                fontWeight: FontWeight.w600,
+                                height: 1.35,
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
                     ),
+                  ],
+                ),
+              ),
+
+              // Tóm tắt từ server (nếu có)
+              if (summary != null && summary.isNotEmpty) ...[
+                const SizedBox(height: 14),
+                ActivityCard(
+                  child: Text(
+                    summary,
+                    textAlign: TextAlign.center,
+                    style: DauVietTypography.bodyMedium.copyWith(height: 1.5),
                   ),
-                ],
-                // TASK-0023: thưởng + vật phẩm attempt này ĐÃ được server
-                // cấp trong transaction complete() — chỉ hiển thị thật,
-                // không phát thêm request "nhận thưởng" nào.
-                if (result.rewards.isNotEmpty ||
-                    result.itemsUnlocked.isNotEmpty) ...[
-                  const SizedBox(height: 12),
-                  _RewardsSection(result: result),
-                ],
-                // GAME-04: cue một lần — chỉ render khi player truyền
-                // `newlyUnlockedDossiers` qua extra (deep-link/reload có
-                // list rỗng → không re-show). Điều hướng tới Bộ Sưu Tập.
-                if (result.newlyUnlockedDossiers.isNotEmpty) ...[
-                  const SizedBox(height: 12),
-                  _DossierUnlockBanner(
-                    count: result.newlyUnlockedDossiers.length,
-                  ),
-                ],
-                // Recap lịch sử — chỉ render khi pinned content có dữ liệu
-                // đáng kể; thiếu → giữ nguyên result-only view.
-                if (recapContent != null) ...[
-                  const SizedBox(height: 12),
-                  _RecapSection(content: recapContent!),
-                ],
-                const SizedBox(height: 24),
-                DongSonButton(
-                  label: 'VỀ TRANG CHỦ',
-                  icon: Icons.home_rounded,
-                  variant: DongSonButtonVariant.primaryCinnabar,
-                  height: 48,
-                  onPressed: () => context.go('/dashboard'),
                 ),
               ],
-            ),
+
+              // TASK-0023: thưởng + vật phẩm attempt này ĐÃ được server
+              // cấp trong transaction complete() — chỉ hiển thị thật,
+              // không phát thêm request "nhận thưởng" nào.
+              if (result.rewards.isNotEmpty || result.itemsUnlocked.isNotEmpty) ...[
+                const SizedBox(height: 14),
+                _RewardsSection(result: result),
+              ],
+
+              // GAME-04: cue một lần — chỉ render khi player truyền
+              // `newlyUnlockedDossiers` qua extra (deep-link/reload có
+              // list rỗng → không re-show). Điều hướng tới Bộ Sưu Tập.
+              if (result.newlyUnlockedDossiers.isNotEmpty) ...[
+                const SizedBox(height: 14),
+                _DossierUnlockBanner(
+                  count: result.newlyUnlockedDossiers.length,
+                ),
+              ],
+
+              // Ôn lại bài học & Tư liệu
+              if (recapContent != null) ...[
+                const SizedBox(height: 14),
+                _RecapSection(content: recapContent!),
+              ],
+              const SizedBox(height: 20),
+
+              // 4. Hai nút hành động: Tiếp tục và Ôn tập lại
+              DongSonButton(
+                label: 'TIẾP TỤC ›',
+                icon: Icons.arrow_forward_rounded,
+                variant: DongSonButtonVariant.natureGreen,
+                height: 52,
+                onPressed: () => context.go('/dashboard'),
+              ),
+              const SizedBox(height: 10),
+              OutlinedButton.icon(
+                onPressed: () => context.push('/learning/lesson/${result.attemptId}'),
+                icon: const Icon(Icons.menu_book_rounded, size: 18, color: Color(0xFF5E6963)),
+                label: Text(
+                  'Ôn tập lại',
+                  style: DauVietTypography.labelLarge.copyWith(
+                    color: const Color(0xFF1F2421),
+                    fontWeight: FontWeight.w700,
+                    fontSize: 14,
+                  ),
+                ),
+                style: OutlinedButton.styleFrom(
+                  minimumSize: const Size.fromHeight(48),
+                  side: const BorderSide(color: Color(0xFFD8C8B0), width: 1.2),
+                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+                  backgroundColor: Colors.white,
+                ),
+              ),
+            ],
           ),
         ),
+      ),
+    );
+  }
+
+  Widget _buildResultBadge({
+    required IconData icon,
+    required Color iconColor,
+    required String value,
+    String? subValue,
+    required String label,
+  }) {
+    return Container(
+      padding: const EdgeInsets.symmetric(vertical: 8, horizontal: 4),
+      decoration: BoxDecoration(
+        color: const Color(0xFFFBF8F1),
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: const Color(0xFFE5DAC6), width: 1),
+      ),
+      child: Column(
+        children: [
+          Icon(icon, size: 20, color: iconColor),
+          const SizedBox(height: 3),
+          Row(
+            mainAxisAlignment: MainAxisAlignment.center,
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Text(
+                value,
+                style: DauVietTypography.labelSmall.copyWith(
+                  fontWeight: FontWeight.w900,
+                  fontSize: 13,
+                  color: const Color(0xFF1F2421),
+                ),
+              ),
+              if (subValue != null)
+                Text(
+                  subValue,
+                  style: DauVietTypography.labelSmall.copyWith(
+                    fontWeight: FontWeight.w700,
+                    fontSize: 11,
+                    color: const Color(0xFF75807A),
+                  ),
+                ),
+            ],
+          ),
+          const SizedBox(height: 1),
+          Text(
+            label,
+            style: DauVietTypography.bodySmall.copyWith(
+              fontSize: 9.5,
+              color: const Color(0xFF75807A),
+              fontWeight: FontWeight.w600,
+            ),
+          ),
+        ],
       ),
     );
   }
@@ -452,11 +642,8 @@ class _RecapSection extends StatelessWidget {
     ];
     final stages = content.stages;
     final evidence = content.evidence;
-    // Trích ngắn từ nội dung READ đã authored trong stage CONTEXT — chỉ lấy
-    // text thật trong snapshot, không tự sinh narrative.
     final String? reading = _firstReadingExcerpt(c, stages);
 
-    // Không có gì đáng recap → không render section này.
     final bool hasContent =
         title != null ||
         question != null ||
@@ -582,77 +769,39 @@ class _RecapSection extends StatelessWidget {
       ),
     );
   }
+}
 
-  /// Trích ~2 câu đầu của đoạn READ đầu tiên tìm thấy trong snapshot stages
-  /// (config.body/text/content/passage). Trả null nếu snapshot không chứa
-  /// READ content — view rơi về các section metadata còn lại.
-  static String? _firstReadingExcerpt(
-    Map<String, dynamic> c,
-    List<Map<String, dynamic>> stages,
-  ) {
-    String? pickFrom(Map<String, dynamic>? cfg) {
-      if (cfg == null) return null;
-      for (final k in const ['body', 'text', 'content', 'passage']) {
-        final v = cfg[k];
-        if (v is String && v.trim().isNotEmpty) return v.trim();
-      }
-      final Object? paras = cfg['paragraphs'];
-      if (paras is List) {
-        final first = paras.whereType<String>().firstWhere(
-          (p) => p.trim().isNotEmpty,
-          orElse: () => '',
-        );
-        if (first.isNotEmpty) return first.trim();
-      }
-      return null;
-    }
+String? _str(Map<String, dynamic> m, List<String> keys) {
+  for (final k in keys) {
+    final v = m[k];
+    if (v is String && v.trim().isNotEmpty) return v.trim();
+  }
+  return null;
+}
 
-    // activities có thể nằm trong stages[].activities[] hoặc top-level
-    // content['activities'] tùy projection — quét cả hai nguồn.
-    final List<Map<String, dynamic>> acts = [];
-    for (final s in stages) {
-      final Object? sa = s['activities'];
-      if (sa is List) {
-        acts.addAll(sa.whereType<Map>().map((e) => e.cast<String, dynamic>()));
-      }
-    }
-    final Object? top = c['activities'];
-    if (top is List) {
-      acts.addAll(top.whereType<Map>().map((e) => e.cast<String, dynamic>()));
-    }
+String _srcSuffix(Map<String, dynamic> e) {
+  final src = e['source'] as String?;
+  return (src != null && src.trim().isNotEmpty) ? ' (${src.trim()})' : '';
+}
+
+String? _firstReadingExcerpt(
+  Map<String, dynamic> content,
+  List<Map<String, dynamic>> stages,
+) {
+  for (final s in stages) {
+    final acts = s['activities'] as List? ?? const [];
     for (final a in acts) {
-      if ((a['type'] as String?)?.toUpperCase() != 'READ') continue;
-      final cfg = (a['config'] as Map?)?.cast<String, dynamic>();
-      final text = pickFrom(cfg);
-      if (text == null) continue;
-      // Cắt ~2 câu đầu / 220 ký tự.
-      final sentences = text
-          .split(RegExp(r'(?<=[.!?])\s+'))
-          .where((s) => s.isNotEmpty)
-          .toList();
-      final excerpt = sentences.take(2).join(' ');
-      return excerpt.length <= 260
-          ? excerpt
-          : '${excerpt.substring(0, 257).trimRight()}…';
+      if (a is Map<String, dynamic> && a['type'] == 'READ') {
+        final cfg = a['config'] as Map<String, dynamic>? ?? const {};
+        final body = cfg['body'] as String?;
+        if (body != null && body.trim().isNotEmpty) {
+          final t = body.trim();
+          return t.length > 200 ? '${t.substring(0, 197)}...' : t;
+        }
+      }
     }
-    return null;
   }
-
-  static String? _str(Map<String, dynamic> m, List<String> keys) {
-    for (final k in keys) {
-      final v = m[k];
-      if (v is String && v.isNotEmpty) return v;
-    }
-    return null;
-  }
-
-  static String _srcSuffix(Map<String, dynamic> e) {
-    final Object? s = e['source'];
-    String? t;
-    if (s is Map) t = (s['title'] ?? s['author']) as String?;
-    if (s is String) t = s;
-    return (t != null && t.isNotEmpty) ? ' — $t' : '';
-  }
+  return null;
 }
 
 class _ErrorView extends StatelessWidget {
@@ -669,18 +818,18 @@ class _ErrorView extends StatelessWidget {
           mainAxisSize: MainAxisSize.min,
           children: [
             const Icon(
-              Icons.cloud_off_outlined,
+              Icons.error_outline_rounded,
               size: 48,
-              color: DauVietColors.inkMuted,
+              color: DauVietColors.cinnabarRed,
             ),
             const SizedBox(height: 12),
             Text(
-              'Không tải được kết quả bài học.',
-              style: DauVietTypography.bodyMedium.copyWith(
+              'Không tải được kết quả',
+              style: DauVietTypography.headlineSmall.copyWith(
                 color: DauVietColors.inkText,
               ),
             ),
-            const SizedBox(height: 8),
+            const SizedBox(height: 6),
             Text(
               message,
               textAlign: TextAlign.center,
@@ -692,8 +841,7 @@ class _ErrorView extends StatelessWidget {
             DongSonButton(
               label: 'THỬ LẠI',
               icon: Icons.refresh_rounded,
-              variant: DongSonButtonVariant.primaryCinnabar,
-              height: 44,
+              variant: DongSonButtonVariant.imperialGold,
               onPressed: onRetry,
             ),
           ],

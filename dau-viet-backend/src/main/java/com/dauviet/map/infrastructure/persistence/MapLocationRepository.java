@@ -25,7 +25,7 @@ public interface MapLocationRepository extends JpaRepository<MapLocation, UUID> 
      */
     @Query("select m from MapLocation m, HistoricalEvent e "
          + "where m.eventId = e.id and e.status = 'PUBLISHED' "
-         + "and m.status = :status order by m.displayOrder asc, m.title asc")
+         + "and m.status = :status order by coalesce(e.startYear, 0) asc, m.displayOrder asc, m.title asc")
     List<MapLocation> findVisibleForLearner(@Param("status") MapLocationStatus status);
 
     @Query("select m from MapLocation m "

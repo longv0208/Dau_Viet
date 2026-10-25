@@ -71,12 +71,13 @@ class _GoldConfettiOverlayState extends State<GoldConfettiOverlay>
               return const SizedBox.shrink();
             }
 
-            return IgnorePointer(
-              child: CustomPaint(
-                size: Size.infinite,
-                painter: _ConfettiPainter(
-                  progress: _controller.value,
-                  particles: _particles,
+            return Positioned.fill(
+              child: IgnorePointer(
+                child: CustomPaint(
+                  painter: _ConfettiPainter(
+                    progress: _controller.value,
+                    particles: _particles,
+                  ),
                 ),
               ),
             );
