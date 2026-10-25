@@ -29,9 +29,7 @@ import '../data/attempt_repository.dart';
 import '../data/learning_dtos.dart';
 import '../data/learning_providers.dart';
 import 'renderers/activity_renderer.dart';
-import 'widgets/lesson_header_top_bar.dart';
 import '../../../core/widgets/mascot_speech_bubble.dart';
-import 'stage_guidance.dart';
 
 /// Mức độ feedback sau submit — map đúng outcome backend trả về.
 enum _FeedbackTone { success, info, warning, error }
@@ -1085,29 +1083,23 @@ class _LessonPlayerScreenState extends ConsumerState<LessonPlayerScreen> {
 
   /// Thẻ feedback theo `_FeedbackTone` — Duolingo style sheet banner kèm Mascot Kabi TO RÕ.
   Widget _feedbackCard(_Feedback fb) {
-    final isSuccess = fb.tone == _FeedbackTone.success;
-
-    final (headline, icon, iconColor, fgColor) = switch (fb.tone) {
+    final (icon, iconColor, fgColor) = switch (fb.tone) {
       _FeedbackTone.success => (
-        'CHÍNH XÁC!',
         Icons.check_circle_rounded,
         const Color(0xFF2E7D32),
         const Color(0xFF1E5633),
       ),
       _FeedbackTone.warning => (
-        'LƯU Ý',
         Icons.info_rounded,
         DauVietColors.imperialGold,
         const Color(0xFF7A5B18),
       ),
       _FeedbackTone.error => (
-        'CHƯA CHÍNH XÁC',
         Icons.cancel_rounded,
         DauVietColors.cinnabarRed,
         DauVietColors.cinnabarRed,
       ),
       _FeedbackTone.info => (
-        'THÔNG BÁO',
         Icons.lightbulb_rounded,
         DauVietColors.imperialGold,
         DauVietColors.inkText,

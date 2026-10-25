@@ -1,16 +1,13 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
-import '../../../core/api/api_config.dart';
 import '../../../core/theme/dau_viet_colors.dart';
 import '../../../core/theme/dau_viet_typography.dart';
 import '../../../core/widgets/dong_son_button.dart';
 import '../../../core/widgets/energy_pill.dart';
 import '../../../core/widgets/main_bottom_nav.dart';
-import '../../../core/widgets/parchment_card.dart';
 import '../../auth/data/auth_state.dart';
 import '../../events/data/events_providers.dart';
-import '../../learning/data/attempt_dtos.dart';
 import '../../learning/data/learning_providers.dart';
 
 /// Màn hình M-03: Trang Chủ / Bàn Học Tập Người Học (Learner Dashboard & Homepage)

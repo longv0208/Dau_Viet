@@ -1,7 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
-import '../../../../core/theme/dau_viet_colors.dart';
 import '../../../../core/theme/dau_viet_typography.dart';
 import '../../data/attempt_dtos.dart';
 import 'renderer_base.dart';
