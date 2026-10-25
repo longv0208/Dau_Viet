@@ -5,9 +5,14 @@ allprojects {
     }
 }
 
+// E: drive đầy — build output ghi sang ổ C:. Khi ổ E: còn chỗ, có thể đổi
+// lại "../../build" cho giữ nguyên trong project.
+// Lưu ý: đường dẫn cuối phải là .../dau-viet-mobile-build/build để junction
+// <project>/build -> C:\...\dau-viet-mobile-build\build khớp với path Flutter tool
+// tra cứu (<project>/build/app/outputs/apk/...).
 val newBuildDir: Directory =
     rootProject.layout.buildDirectory
-        .dir("../../build")
+        .dir("C:/Users/FPTSHOP/AppData/Local/dau-viet-mobile-build/build")
         .get()
 rootProject.layout.buildDirectory.value(newBuildDir)
 
