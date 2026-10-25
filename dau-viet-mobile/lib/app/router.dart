@@ -147,7 +147,16 @@ final appRouter = GoRouter(
     GoRoute(
       path: '/map',
       name: 'historical_map',
-      builder: (context, state) => const HistoricalMapScreen(),
+      builder: (context, state) {
+        final view = state.uri.queryParameters['view'];
+        final eventId = state.uri.queryParameters['eventId'];
+        return HistoricalMapScreen(
+          initialMode: view == 'timeline'
+              ? ExploreViewMode.timeline
+              : ExploreViewMode.map,
+          initialEventId: eventId,
+        );
+      },
     ),
 
     // M-06: Sa Bàn Chiến Thuật & Bản Đồ Sông Bạch Đằng

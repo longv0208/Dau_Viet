@@ -5,6 +5,9 @@ enum DongSonButtonVariant {
   primaryCinnabar, // Đỏ chu sa (Hành động chính)
   secondaryParchment, // Nền giấy dó viền gỗ (Hành động phụ)
   imperialGold, // Vàng ngự xưởng (Ăn mừng / Phần thưởng)
+  natureGreen, // Xanh di sản (Chính xác / Tiếp tục)
+  dangerRed, // Đỏ cảnh báo (Thử lại)
+  heritageGreen, // Xanh rêu di sản UI Pro Max
 }
 
 /// Nút bấm hoa văn di sản Dấu Việt v2.0
@@ -41,6 +44,15 @@ class DongSonButton extends StatelessWidget {
         break;
       case DongSonButtonVariant.imperialGold:
         tVariant = Tactile3DVariant.imperialGold;
+        break;
+      case DongSonButtonVariant.natureGreen:
+        tVariant = Tactile3DVariant.natureGreen;
+        break;
+      case DongSonButtonVariant.dangerRed:
+        tVariant = Tactile3DVariant.dangerRed;
+        break;
+      case DongSonButtonVariant.heritageGreen:
+        tVariant = Tactile3DVariant.heritageGreen;
         break;
     }
 

@@ -9,6 +9,7 @@ enum Tactile3DVariant {
   imperialGold, // Vàng ngự xưởng
   natureGreen, // Xanh di sản
   dangerRed, // Đỏ cảnh báo
+  heritageGreen, // Xanh rêu di sản UI Pro Max
 }
 
 /// Nút bấm xúc giác 3D chuẩn phong cách Duolingo kết hợp mỹ thuật Dấu Việt
@@ -102,6 +103,12 @@ class _Tactile3DButtonState extends State<Tactile3DButton> {
         bottomColor = const Color(0xFF8A1C1C);
         textColor = Colors.white;
         border = Border.all(color: const Color(0xFF8A1C1C), width: 1.2);
+        break;
+      case Tactile3DVariant.heritageGreen:
+        topColor = DauVietColors.heritageGreen;
+        bottomColor = DauVietColors.heritageGreenDark;
+        textColor = Colors.white;
+        border = Border.all(color: DauVietColors.heritageGreenDark, width: 1.2);
         break;
     }
 

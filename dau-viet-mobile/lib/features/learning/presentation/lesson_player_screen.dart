@@ -6,11 +6,15 @@ import 'package:uuid/uuid.dart';
 import '../../../core/api/api_config.dart';
 import '../../../core/api/api_error.dart';
 import '../../../core/api/api_exception.dart';
+import '../../../core/audio/dau_viet_audio_service.dart';
 import '../../../core/theme/dau_viet_colors.dart';
 import '../../../core/theme/dau_viet_typography.dart';
 import '../../../core/widgets/async_state_view.dart';
 import '../../../core/widgets/dong_son_button.dart';
-import '../../../core/widgets/parchment_card.dart';
+import '../../../core/widgets/gold_confetti_overlay.dart';
+import '../../../core/widgets/kabi_mascot_widget.dart';
+import '../../../core/widgets/tactile_3d_button.dart';
+
 import '../../../core/widgets/shimmer_progress_bar.dart';
 import '../../../core/widgets/sound_toggle_button.dart';
 import '../../collection/data/collection_providers.dart';
@@ -21,6 +25,8 @@ import '../data/attempt_repository.dart';
 import '../data/learning_dtos.dart';
 import '../data/learning_providers.dart';
 import 'renderers/activity_renderer.dart';
+import 'widgets/lesson_header_top_bar.dart';
+import '../../../core/widgets/mascot_speech_bubble.dart';
 import 'stage-guidance.dart';
 
 /// Mức độ feedback sau submit — map đúng outcome backend trả về.
@@ -301,6 +307,16 @@ class _LessonPlayerScreenState extends ConsumerState<LessonPlayerScreen> {
     final fb = _feedbackFor(res, st.current.activity);
 
     if (res.completion.complete) {
+      // Khi hoàn thành bài học: chỉ phát chuông sfxCorrect (không voice) rồi phát victoryVoice.
+      // Tuyệt đối không phát voice câu đúng thông thường để tránh trùng lặp âm thanh.
+      DauVietAudioService.instance.playCorrect(withVoice: false);
+      if (!DauVietAudioService.isTestEnvironment) {
+        Future.delayed(const Duration(milliseconds: 320), () {
+          DauVietAudioService.instance.playVictoryVoice();
+        });
+      } else {
+        DauVietAudioService.instance.playVictoryVoice();
+      }
       setState(() {
         _state = st.copyWith(
           submitting: false,
@@ -311,6 +327,13 @@ class _LessonPlayerScreenState extends ConsumerState<LessonPlayerScreen> {
         _hasUnsentInput = false;
       });
       return;
+    }
+
+    // Micro-SFX chuẩn Duolingo cho phản hồi đúng / sai từng câu thông thường
+    if (fb.tone == _FeedbackTone.success) {
+      DauVietAudioService.instance.playCorrect();
+    } else if (fb.tone == _FeedbackTone.error) {
+      DauVietAudioService.instance.playWrong();
     }
     // INCORRECT retry path: server giữ cursor ở activity hiện tại — next
     // đến cùng activity đó, không phải sang activity mới. Không chuyển
@@ -483,50 +506,67 @@ class _LessonPlayerScreenState extends ConsumerState<LessonPlayerScreen> {
     );
   }
 
+  String _resolveMascotPrompt(_PlayerState st) {
+    final cur = st.current;
+    final act = cur.activity;
+    if (act == null) return 'Khám phá sử liệu cùng mình nhé! Bạn sẽ làm rất tốt!';
+
+    final type = act.type;
+    if (type == 'MULTIPLE_CHOICE') {
+      final opts = (act.config['options'] as List? ?? const []);
+      if (opts.length == 2) {
+        return 'Đây là câu hỏi cuối cùng! Bạn hãy chọn Đúng hoặc Sai nhé!';
+      }
+      return 'Cùng suy nghĩ nào! Bạn làm được mà! 💪';
+    } else if (type == 'MATCHING') {
+      return 'Ghép đúng là giỏi lắm! Hãy kết nối các thẻ với nhau nhé!';
+    } else if (type == 'DRAG_ORDER') {
+      return 'Hãy sắp xếp các sự kiện theo đúng trình tự thời gian nhé!';
+    }
+    return 'Cùng suy nghĩ nào! Bạn làm được mà! 💪';
+  }
+
   Widget _buildPlayer(_PlayerState st) {
     final cur = st.current;
     return Column(
       children: [
         _buildTopBar(st),
-        if (cur.activity == null) const Spacer(),
         if (cur.activity == null)
           _buildFinished(st)
+        else if (st.awaitingContinue && st.feedback != null)
+          _buildCelebrationScreen(st)
         else ...[
+          // Bong bóng thoại Mascot Rùa Kabi đội nón lá (Screen 2, 3, 4, 5)
+          MascotSpeechBubble(
+            message: _resolveMascotPrompt(st),
+            mood: KabiMood.guiding,
+          ),
           Expanded(
             child: SingleChildScrollView(
-              // viewInsets.bottom để bàn phím không che ô đang nhập (CER/
-              // Reflection) — phần còn lại của layout giữ nguyên.
               padding: EdgeInsets.fromLTRB(
                 16,
-                12,
+                4,
                 16,
-                12 + MediaQuery.of(context).viewInsets.bottom,
+                10 + MediaQuery.of(context).viewInsets.bottom,
               ),
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.stretch,
                 children: [
-                  // Giai đoạn điều tra hiện tại + gợi ý cách làm (P1-04).
-                  if (cur.stage?.type != null) ...[
-                    StageGuidanceChip(stageType: cur.stage!.type),
-                    const SizedBox(height: 10),
-                  ],
-                  if (cur.activity!.instruction != null)
-                    Padding(
-                      padding: const EdgeInsets.only(bottom: 10),
-                      child: Text(
-                        cur.activity!.instruction!,
-                        style: DauVietTypography.bodyMedium.copyWith(
-                          color: DauVietColors.inkMuted,
-                          fontStyle: FontStyle.italic,
-                        ),
+                  if (cur.activity?.instruction != null) ...[
+                    Text(
+                      cur.activity!.instruction!,
+                      style: DauVietTypography.bodyMedium.copyWith(
+                        fontStyle: FontStyle.italic,
+                        color: DauVietColors.inkMuted,
+                        fontSize: 12.5,
                       ),
                     ),
+                    const SizedBox(height: 8),
+                  ],
                   ActivityRenderer(
                     key: ValueKey(cur.activity!.id),
                     activity: cur.activity!,
                     content: st.content,
-                    // completionReady: khóa tương tác renderer — chỉ còn
-                    // nút hoàn thành; chặn submit trùng activity cuối.
                     submitting:
                         st.submitting ||
                         st.awaitingContinue ||
@@ -547,12 +587,13 @@ class _LessonPlayerScreenState extends ConsumerState<LessonPlayerScreen> {
   Widget _buildTopBar(_PlayerState st) {
     final cur = st.current;
     return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 8),
+      padding: const EdgeInsets.fromLTRB(8, 6, 12, 8),
       decoration: BoxDecoration(
         color: DauVietColors.parchmentSurface,
         border: Border(
           bottom: BorderSide(
-            color: DauVietColors.outlineVariant.withValues(alpha: 0.5),
+            color: DauVietColors.outlineVariant.withValues(alpha: 0.4),
+            width: 1,
           ),
         ),
       ),
@@ -561,32 +602,94 @@ class _LessonPlayerScreenState extends ConsumerState<LessonPlayerScreen> {
           IconButton(
             icon: const Icon(Icons.arrow_back_ios_new_rounded, size: 20),
             color: DauVietColors.inkText,
+            tooltip: 'Thoát bài học',
             onPressed: _confirmExit,
           ),
           Expanded(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Text(
-                  cur.stage?.title ?? 'Bài học',
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                  style: DauVietTypography.headlineMedium.copyWith(
-                    fontSize: 15,
-                  ),
+                Row(
+                  children: [
+                    Expanded(
+                      child: Text(
+                        cur.stage?.title ?? 'Bài học',
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: DauVietTypography.headlineMedium.copyWith(
+                          fontSize: 14,
+                          fontWeight: FontWeight.w700,
+                        ),
+                      ),
+                    ),
+                    const SizedBox(width: 6),
+                    // Huy hiệu ngọn lửa chuỗi học Streak 🔥 12
+                    Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 2),
+                      decoration: BoxDecoration(
+                        color: const Color(0xFFFFF3E0),
+                        borderRadius: BorderRadius.circular(10),
+                        border: Border.all(color: const Color(0xFFFFB74D), width: 1),
+                      ),
+                      child: Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          const Icon(
+                            Icons.local_fire_department_rounded,
+                            size: 13,
+                            color: Color(0xFFE65100),
+                          ),
+                          const SizedBox(width: 2),
+                          Text(
+                            '12',
+                            style: DauVietTypography.labelSmall.copyWith(
+                              color: const Color(0xFFE65100),
+                              fontWeight: FontWeight.w800,
+                              fontSize: 11,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                    const SizedBox(width: 6),
+                    Container(
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 8,
+                        vertical: 2,
+                      ),
+                      decoration: BoxDecoration(
+                        color: const Color(0xFFEFE8DA),
+                        borderRadius: BorderRadius.circular(10),
+                        border: Border.all(
+                          color: const Color(0xFFD8C8B0),
+                          width: 1,
+                        ),
+                      ),
+                      child: Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Text(
+                            '${cur.progress.completedRequired}/${cur.progress.totalRequired}',
+                            style: DauVietTypography.labelSmall.copyWith(
+                              color: const Color(0xFF5E6963),
+                              fontWeight: FontWeight.w800,
+                              fontSize: 11.5,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ],
                 ),
-                const SizedBox(height: 4),
-                ShimmerProgressBar(progress: cur.progress.fraction, height: 6),
+                const SizedBox(height: 6),
+                ShimmerProgressBar(
+                  progress: cur.progress.fraction,
+                  height: 8,
+                ),
               ],
             ),
           ),
           const SizedBox(width: 8),
-          Text(
-            '${cur.progress.completedRequired}/${cur.progress.totalRequired}',
-            style: DauVietTypography.labelSmall.copyWith(
-              color: DauVietColors.inkMuted,
-            ),
-          ),
           const SoundToggleButton(),
         ],
       ),
@@ -594,132 +697,341 @@ class _LessonPlayerScreenState extends ConsumerState<LessonPlayerScreen> {
   }
 
   Widget _buildBottomBar(_PlayerState st) {
-    return Container(
-      padding: const EdgeInsets.fromLTRB(16, 10, 16, 14),
-      decoration: BoxDecoration(
-        color: DauVietColors.parchmentSurface,
-        border: Border(
-          top: BorderSide(
-            color: DauVietColors.outlineVariant.withValues(alpha: 0.5),
-          ),
+    final isSuccess = st.feedback?.tone == _FeedbackTone.success;
+    final isError = st.feedback?.tone == _FeedbackTone.error;
+    final isWarning = st.feedback?.tone == _FeedbackTone.warning;
+
+    Color sheetBg = DauVietColors.parchmentSurface;
+    BorderSide topBorder = BorderSide(
+      color: DauVietColors.outlineVariant.withValues(alpha: 0.5),
+    );
+
+    if (st.feedback != null) {
+      if (isSuccess) {
+        sheetBg = const Color(0xFFE8F7ED);
+        topBorder = const BorderSide(color: Color(0xFF4C7C44), width: 2.0);
+      } else if (isError) {
+        sheetBg = const Color(0xFFFDEEEC);
+        topBorder = const BorderSide(color: DauVietColors.cinnabarRed, width: 2.0);
+      } else if (isWarning) {
+        sheetBg = const Color(0xFFFFF7E6);
+        topBorder = const BorderSide(color: DauVietColors.imperialGold, width: 2.0);
+      }
+    }
+
+    return GoldConfettiOverlay(
+      trigger: isSuccess,
+      child: Container(
+        padding: const EdgeInsets.fromLTRB(14, 6, 14, 8),
+        decoration: BoxDecoration(
+          color: sheetBg,
+          border: Border(top: topBorder),
+          borderRadius: st.feedback != null
+              ? const BorderRadius.vertical(top: Radius.circular(20))
+              : null,
+          boxShadow: st.feedback != null
+              ? [
+                  BoxShadow(
+                    color: Colors.black.withValues(alpha: 0.08),
+                    blurRadius: 12,
+                    offset: const Offset(0, -4),
+                  ),
+                ]
+              : null,
         ),
-      ),
-      child: Column(
-        mainAxisSize: MainAxisSize.min,
-        crossAxisAlignment: CrossAxisAlignment.stretch,
-        children: [
-          if (st.feedback != null)
-            Padding(
-              padding: const EdgeInsets.only(bottom: 8),
-              child: _feedbackCard(st.feedback!),
-            ),
-          if (st.submitting)
-            Text(
-              'Đang kiểm tra...',
-              textAlign: TextAlign.center,
-              style: DauVietTypography.bodySmall.copyWith(
-                color: DauVietColors.inkMuted,
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            if (st.feedback != null)
+              Padding(
+                padding: const EdgeInsets.only(bottom: 12),
+                child: _feedbackCard(st.feedback!),
               ),
-            ),
-          if (st.awaitingContinue && !st.submitting)
-            DongSonButton(
-              label: 'TIẾP TỤC ›',
-              icon: Icons.arrow_forward_rounded,
-              variant: DongSonButtonVariant.primaryCinnabar,
-              height: 50,
-              onPressed: _onContinue,
-            ),
-          if (st.completionReady)
-            DongSonButton(
-              label: _completing || _fetchingResult
-                  ? 'ĐANG TỔNG KẾT...'
-                  : _completionAcknowledged
-                  ? 'THỬ TẢI KẾT QUẢ'
-                  : 'HOÀN THÀNH BÀI HỌC',
-              icon: Icons.emoji_events_rounded,
-              variant: DongSonButtonVariant.primaryCinnabar,
-              height: 50,
-              onPressed: _completing || _fetchingResult ? () {} : _complete,
-            ),
-        ],
+            if (st.submitting)
+              Padding(
+                padding: const EdgeInsets.symmetric(vertical: 6),
+                child: Text(
+                  'Đang kiểm tra...',
+                  textAlign: TextAlign.center,
+                  style: DauVietTypography.bodySmall.copyWith(
+                    color: DauVietColors.inkMuted,
+                    fontWeight: FontWeight.w600,
+                  ),
+                ),
+              ),
+            if (st.awaitingContinue && !st.submitting)
+              DongSonButton(
+                label: 'TIẾP TỤC ›',
+                icon: Icons.arrow_forward_rounded,
+                variant: isSuccess
+                    ? DongSonButtonVariant.natureGreen
+                    : DongSonButtonVariant.primaryCinnabar,
+                height: 50,
+                onPressed: _onContinue,
+              ),
+            if (st.completionReady)
+              DongSonButton(
+                label: _completing || _fetchingResult
+                    ? 'ĐANG TỔNG KẾT...'
+                    : _completionAcknowledged
+                    ? 'THỬ TẢI KẾT QUẢ'
+                    : 'HOÀN THÀNH BÀI HỌC',
+                icon: Icons.emoji_events_rounded,
+                variant: DongSonButtonVariant.imperialGold,
+                height: 50,
+                onPressed: _completing || _fetchingResult ? () {} : _complete,
+              ),
+          ],
+        ),
       ),
     );
   }
 
-  /// Thẻ feedback theo `_FeedbackTone` — không dùng xanh lá cho mọi outcome.
-  Widget _feedbackCard(_Feedback fb) {
-    final (bg, border, fg) = switch (fb.tone) {
-      _FeedbackTone.success => (
-        const Color(0xFFEAF3E5),
-        const Color(0xFF4C7C44),
-        const Color(0xFF2F5A2B),
+  /// Màn Ăn Mừng / Động Viên riêng biệt toàn màn hình chuẩn Duolingo.
+  /// Chỉ hiển thị duy nhất 1 Mascot Kabi to lớn (140x140) ở trung tâm.
+  Widget _buildCelebrationScreen(_PlayerState st) {
+    final isSuccess = st.feedback?.tone == _FeedbackTone.success;
+    final fb = st.feedback;
+
+    final title = isSuccess ? 'CHÍNH XÁC! XUẤT SẮC!' : 'CHƯA CHÍNH XÁC RỒI!';
+    final titleColor = isSuccess ? const Color(0xFF1B5E20) : DauVietColors.cinnabarRed;
+    final badgeBg = isSuccess ? const Color(0xFFDDF3E4) : const Color(0xFFFDE8E5);
+    final badgeBorder = isSuccess ? const Color(0xFF4C7C44) : DauVietColors.cinnabarRed;
+
+    return Expanded(
+      child: GoldConfettiOverlay(
+        trigger: isSuccess,
+        child: Container(
+          width: double.infinity,
+          decoration: BoxDecoration(
+            gradient: LinearGradient(
+              begin: Alignment.topCenter,
+              end: Alignment.bottomCenter,
+              colors: isSuccess
+                  ? [const Color(0xFFF2FAF4), DauVietColors.parchmentSurface]
+                  : [const Color(0xFFFDF4F2), DauVietColors.parchmentSurface],
+            ),
+          ),
+          child: Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 16),
+            child: Column(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                const Spacer(),
+                // DUY NHẤT 1 LINH VẬT KABI TO LỚN Ở TRUNG TÂM (140x140)
+                KabiMascotWidget(
+                  mood: isSuccess ? KabiMood.cheering : KabiMood.thinking,
+                  width: 140,
+                  height: 140,
+                  headOnly: false,
+                ),
+                const SizedBox(height: 18),
+                // Huy hiệu trạng thái (loại bỏ hoàn toàn icon vui / buồn gây nhiễu trước mascot)
+                Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 6),
+                  decoration: BoxDecoration(
+                    color: badgeBg,
+                    borderRadius: BorderRadius.circular(20),
+                    border: Border.all(color: badgeBorder, width: 1.4),
+                  ),
+                  child: Text(
+                    title,
+                    style: DauVietTypography.headlineMedium.copyWith(
+                      color: titleColor,
+                      fontSize: 16,
+                      fontWeight: FontWeight.w900,
+                      letterSpacing: 0.5,
+                    ),
+                  ),
+                ),
+                const SizedBox(height: 14),
+                // Thẻ giải thích sử liệu
+                if (fb != null)
+                  Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                    decoration: BoxDecoration(
+                      color: Colors.white.withValues(alpha: 0.9),
+                      borderRadius: BorderRadius.circular(16),
+                      border: Border.all(
+                        color: DauVietColors.outlineVariant.withValues(alpha: 0.5),
+                      ),
+                      boxShadow: [
+                        BoxShadow(
+                          color: Colors.black.withValues(alpha: 0.04),
+                          blurRadius: 10,
+                          offset: const Offset(0, 3),
+                        ),
+                      ],
+                    ),
+                    child: Text(
+                      fb.text,
+                      textAlign: TextAlign.center,
+                      style: DauVietTypography.bodyMedium.copyWith(
+                        color: DauVietColors.inkText,
+                        fontWeight: FontWeight.w600,
+                        fontSize: 14,
+                        height: 1.4,
+                      ),
+                    ),
+                  ),
+                const Spacer(),
+                // Nút 3D Tiếp tục câu hỏi
+                DongSonButton(
+                  label: 'TIẾP TỤC ›',
+                  icon: Icons.arrow_forward_rounded,
+                  variant: isSuccess
+                      ? DongSonButtonVariant.natureGreen
+                      : DongSonButtonVariant.primaryCinnabar,
+                  isLoading: st.submitting,
+                  height: 52,
+                  onPressed: st.submitting ? null : _onContinue,
+                ),
+                const SizedBox(height: 10),
+              ],
+            ),
+          ),
+        ),
       ),
-      _FeedbackTone.info => (
-        DauVietColors.parchmentContainer,
-        DauVietColors.outlineVariant,
-        DauVietColors.inkText,
+    );
+  }
+
+  /// Thẻ feedback theo `_FeedbackTone` — Duolingo style sheet banner kèm Mascot Kabi TO RÕ.
+  Widget _feedbackCard(_Feedback fb) {
+    final isSuccess = fb.tone == _FeedbackTone.success;
+
+    final (headline, icon, iconColor, fgColor) = switch (fb.tone) {
+      _FeedbackTone.success => (
+        'CHÍNH XÁC!',
+        Icons.check_circle_rounded,
+        const Color(0xFF2E7D32),
+        const Color(0xFF1E5633),
       ),
       _FeedbackTone.warning => (
-        const Color(0xFFFDF3E0),
+        'LƯU Ý',
+        Icons.info_rounded,
         DauVietColors.imperialGold,
         const Color(0xFF7A5B18),
       ),
       _FeedbackTone.error => (
-        DauVietColors.cinnabarRed.withValues(alpha: 0.08),
+        'CHƯA CHÍNH XÁC',
+        Icons.cancel_rounded,
         DauVietColors.cinnabarRed,
         DauVietColors.cinnabarRed,
       ),
+      _FeedbackTone.info => (
+        'THÔNG BÁO',
+        Icons.lightbulb_rounded,
+        DauVietColors.imperialGold,
+        DauVietColors.inkText,
+      ),
     };
-    return ParchmentCard(
-      backgroundColor: bg,
-      borderColor: border,
-      borderWidth: 1,
-      padding: const EdgeInsets.all(10),
-      child: Text(
-        fb.text,
-        style: DauVietTypography.bodySmall.copyWith(
-          color: fg,
-          fontWeight: FontWeight.w600,
+
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+      decoration: BoxDecoration(
+        color: Colors.white.withValues(alpha: 0.9),
+        borderRadius: BorderRadius.circular(14),
+        border: Border.all(
+          color: iconColor.withValues(alpha: 0.4),
+          width: 1.2,
         ),
+      ),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.center,
+        children: [
+          Icon(icon, color: iconColor, size: 22),
+          const SizedBox(width: 10),
+          Expanded(
+            child: Text(
+              fb.text,
+              style: DauVietTypography.bodyMedium.copyWith(
+                color: fgColor,
+                fontWeight: FontWeight.w600,
+                fontSize: 13,
+                height: 1.35,
+              ),
+            ),
+          ),
+        ],
       ),
     );
   }
 
   Widget _buildFinished(_PlayerState st) {
-    return Padding(
-      padding: const EdgeInsets.all(24),
-      child: Column(
-        mainAxisAlignment: MainAxisAlignment.center,
-        children: [
-          Text(
-            'Đã hết hoạt động bắt buộc.',
-            style: DauVietTypography.bodyMedium,
-          ),
-          const SizedBox(height: 16),
-          if (st.feedback != null)
-            Padding(
-              padding: const EdgeInsets.only(bottom: 12),
-              child: _feedbackCard(st.feedback!),
+    return Expanded(
+      child: GoldConfettiOverlay(
+        trigger: true,
+        child: Center(
+          child: SingleChildScrollView(
+            padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 24),
+            child: Column(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                KabiMascotWidget(
+                  mood: KabiMood.victory,
+                  width: 130,
+                  height: 130,
+                  headOnly: false,
+                ),
+                const SizedBox(height: 18),
+                Text(
+                  'HOÀN THÀNH BÀI HỌC!',
+                  textAlign: TextAlign.center,
+                  style: DauVietTypography.headlineMedium.copyWith(
+                    fontSize: 20,
+                    fontWeight: FontWeight.w800,
+                    color: DauVietColors.inkText,
+                  ),
+                ),
+                const SizedBox(height: 6),
+                Text(
+                  'Chúc mừng Sĩ Tử đã khám phá trọn vẹn sự kiện lịch sử này.',
+                  textAlign: TextAlign.center,
+                  style: DauVietTypography.bodyMedium.copyWith(
+                    color: DauVietColors.inkMuted,
+                    fontSize: 13.5,
+                  ),
+                ),
+                const SizedBox(height: 4),
+                Text(
+                  'Đã hết hoạt động bắt buộc.',
+                  textAlign: TextAlign.center,
+                  style: DauVietTypography.bodySmall.copyWith(
+                    color: DauVietColors.inkMuted.withValues(alpha: 0.75),
+                    fontStyle: FontStyle.italic,
+                  ),
+                ),
+                const SizedBox(height: 18),
+                if (st.feedback != null)
+                  Padding(
+                    padding: const EdgeInsets.only(bottom: 14),
+                    child: _feedbackCard(st.feedback!),
+                  ),
+                SizedBox(
+                  width: double.infinity,
+                  child: Tactile3DButton(
+                    label: _completing || _fetchingResult
+                        ? 'ĐANG TỔNG KẾT...'
+                        : _completionAcknowledged
+                        ? 'THỬ TẢI KẾT QUẢ'
+                        : 'HOÀN THÀNH BÀI HỌC',
+                    icon: Icons.emoji_events_rounded,
+                    variant: Tactile3DVariant.primaryCinnabar,
+                    height: 50,
+                    depth: 4.0,
+                    onPressed:
+                        _completing || _fetchingResult ? () {} : _complete,
+                  ),
+                ),
+              ],
             ),
-          DongSonButton(
-            label: _completing || _fetchingResult
-                ? 'ĐANG TỔNG KẾT...'
-                : _completionAcknowledged
-                ? 'THỬ TẢI KẾT QUẢ'
-                : 'HOÀN THÀNH BÀI HỌC',
-            icon: Icons.emoji_events_rounded,
-            variant: DongSonButtonVariant.primaryCinnabar,
-            height: 50,
-            onPressed: _completing || _fetchingResult ? () {} : _complete,
           ),
-        ],
+        ),
       ),
     );
   }
 
-  /// Thoát player: submission đã submit xong là an toàn (server-side);
-  /// chỉ hỏi xác nhận khi renderer báo còn input chưa gửi (draft sẽ mất).
-  /// Android Back và nút back góc trên đi chung đường này.
   Future<void> _confirmExit() async {
     // Không có input chưa gửi → thoát thẳng, không cần hỏi.
     if (!_hasUnsentInput) {

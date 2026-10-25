@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import '../audio/dau_viet_audio_service.dart';
+import 'kabi_mascot_widget.dart';
 import '../theme/dau_viet_colors.dart';
 import '../theme/dau_viet_typography.dart';
 
@@ -78,16 +79,7 @@ class _InteractiveHistoricalMascotWidgetState
     super.dispose();
   }
 
-  String _getImageAsset() {
-    switch (widget.state) {
-      case MascotState.cheering:
-        return 'assets/images/mascot_cheering.jpg';
-      case MascotState.thinking:
-        return 'assets/images/mascot_thinking.jpg';
-      case MascotState.guiding:
-        return 'assets/images/mascot_guiding.jpg';
-    }
-  }
+
 
   String _getDefaultMessage() {
     switch (widget.state) {
@@ -141,41 +133,18 @@ class _InteractiveHistoricalMascotWidgetState
         child: Row(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            // 1. Avatar Chibi Bé Sĩ Tử Dấu Việt có hiệu ứng nhảy lò xo khi chuyển trạng thái
+            // 1. Avatar Kabi Mascot có hiệu ứng nhảy lò xo khi chuyển trạng thái
             ScaleTransition(
               scale: _scaleAnimation,
-              child: Container(
+              child: KabiMascotWidget(
+                mood: widget.state == MascotState.cheering
+                    ? KabiMood.cheering
+                    : (widget.state == MascotState.thinking
+                        ? KabiMood.thinking
+                        : KabiMood.guiding),
                 width: widget.avatarSize,
                 height: widget.avatarSize,
-                decoration: BoxDecoration(
-                  shape: BoxShape.circle,
-                  border: Border.all(color: statusColor, width: 2.2),
-                  boxShadow: [
-                    BoxShadow(
-                      color: statusColor.withValues(alpha: 0.28),
-                      blurRadius: 8,
-                      offset: const Offset(0, 3),
-                    ),
-                  ],
-                ),
-                child: ClipOval(
-                  child: Image.asset(
-                    _getImageAsset(),
-                    fit: BoxFit.cover,
-                    errorBuilder: (context, error, stackTrace) => Container(
-                      color: DauVietColors.parchmentContainer,
-                      child: Icon(
-                        widget.state == MascotState.cheering
-                            ? Icons.sentiment_very_satisfied_rounded
-                            : (widget.state == MascotState.thinking
-                                  ? Icons.psychology_rounded
-                                  : Icons.school_rounded),
-                        color: statusColor,
-                        size: widget.avatarSize * 0.55,
-                      ),
-                    ),
-                  ),
-                ),
+                headOnly: true,
               ),
             ),
             const SizedBox(width: 12),

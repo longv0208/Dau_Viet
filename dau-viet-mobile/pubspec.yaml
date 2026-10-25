@@ -44,6 +44,7 @@ dependencies:
   uuid: ^4.6.0
   webview_flutter: ^4.10.0
   crypto: ^3.0.5
+  rive: 0.13.20
 
 dev_dependencies:
   flutter_test:
@@ -70,9 +71,28 @@ flutter:
   # Assets di sản Dấu Việt
   assets:
     - assets/images/
+    - assets/images/map_van_lang.jpg
+    - assets/images/map_hai_ba_trung.jpg
+    - assets/images/dv_MAP_ngoquyen_bachdang-base_v01.jpg
+    - assets/images/map_nhu_nguyet.jpg
+    - assets/images/map_dien_bien_phu.jpg
+    - assets/images/vietnam_journey_map_bg.jpg
+    - assets/images/bach_dang_938.jpg
+    - assets/images/hung_king_temple.jpg
+    - assets/images/hung_vuong_village.jpg
+    - assets/images/landscape_hero_bg.jpg
+    - assets/images/lesson_hero_lac_long_quan_au_co.jpg
+    - assets/images/lesson_scene_hung_kings_life.jpg
+    - assets/images/matching_lac_long_quan.png
+    - assets/images/matching_au_co.png
+    - assets/images/matching_trong_dong.png
+    - assets/images/matching_van_lang.png
+    - assets/images/kabi_celebration_victory.png
+    - assets/images/ancient_village_footer.png
     - assets/badges/
     - assets/items/
     - assets/audio/
+    - assets/rive/
 
   # An image asset can refer to one or more resolution-specific "variants", see
   # https://flutter.dev/to/resolution-aware-images

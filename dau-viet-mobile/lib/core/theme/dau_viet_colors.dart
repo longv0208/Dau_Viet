@@ -31,6 +31,12 @@ class DauVietColors {
   static const Color outline = Color(0xFF8C6747); // Viền đồng cổ
   static const Color outlineVariant = Color(0xFFD4C1A5); // Viền giấy dó mờ
 
+  // UI/UX Pro Max: Tông màu Xanh Rêu Di Sản (Heritage Forest Green - Chuẩn mẫu giao diện mới)
+  static const Color heritageGreen = Color(0xFF1E4D3B); // Xanh rêu di sản (Nút chính, điểm nhấn)
+  static const Color heritageGreenDark = Color(0xFF123427); // Xanh rêu đậm (Đổ bóng 3D, viền)
+  static const Color heritageGreenLight = Color(0xFF2D6A4F); // Xanh rêu tươi nhẹ
+  static const Color heritageGreenSurface = Color(0xFFEBF4EF); // Nền xanh rêu nhạt
+
   // Tông màu tự nhiên & Ngữ cảnh
   static const Color natureGreen = Color(
     0xFF64824C,
