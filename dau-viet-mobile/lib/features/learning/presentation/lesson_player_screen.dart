@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:uuid/uuid.dart';
@@ -221,6 +222,12 @@ class _LessonPlayerScreenState extends ConsumerState<LessonPlayerScreen> {
       // energyDeducted (server có thể đã lazy-recover trước khi trừ).
       if (res.energy != null) {
         ref.read(energyProvider.notifier).applySnapshot(res.energy!);
+      }
+      // GAME-03: khi server thực sự trừ Thể lực (>0) — báo ngay kiểu game:
+      // toast "-N Thể lực" trượt lên + rung nhẹ. Chỉ chạy sau khi mounted
+      // và trước khi feedback/continue render lại.
+      if (res.energyDeducted > 0) {
+        _showEnergyPenaltyToast(res.energyDeducted);
       }
       // TASK-0023: submit EVIDENCE_SELECT cập nhật collection trong cùng
       // transaction và evaluator có thể đã mở vật phẩm COLLECTION_COUNT —
@@ -690,6 +697,17 @@ class _LessonPlayerScreenState extends ConsumerState<LessonPlayerScreen> {
                         ),
                       ),
                     ),
+                  // GAME-03: hint chi phí Thể lực TRƯỚC khi submit — chỉ hiện
+                  // khi server xác nhận activity graded (additive field);
+                  // activity không graded / server cũ → ẩn hoàn toàn.
+                  if (cur.activity!.graded &&
+                      (cur.activity!.incorrectPenalty ?? 0) > 0)
+                    Padding(
+                      padding: const EdgeInsets.only(bottom: 10),
+                      child: _EnergyCostHint(
+                        penalty: cur.activity!.incorrectPenalty!,
+                      ),
+                    ),
                   ActivityRenderer(
                     key: ValueKey(cur.activity!.id),
                     activity: cur.activity!,
@@ -944,5 +962,174 @@ class _LessonPlayerScreenState extends ConsumerState<LessonPlayerScreen> {
     } else {
       context.go('/dashboard');
     }
+  }
+
+  /// GAME-03: thông báo trừ Thể lực kiểu game — toast overlay trượt lên
+  /// từ đáy (badge "-N ⚡ Thể lực") + rung nhẹ. Dùng Overlay trực tiếp thay
+  /// vì SnackBar để kiểm soát animation + không bị che bởi bottom bar.
+  /// Rung medium = cảm giác "bị phạt" chứ không phải lỗi hệ thống.
+  void _showEnergyPenaltyToast(int amount) {
+    HapticFeedback.mediumImpact();
+    final overlay = Overlay.of(context);
+    late final OverlayEntry entry;
+    entry = OverlayEntry(
+      builder: (_) =>
+          _EnergyPenaltyToast(amount: amount, onDone: () => entry.remove()),
+    );
+    overlay.insert(entry);
+  }
+}
+
+/// Banner "-N Thể lực" trượt lên từ đáy màn — tự gỡ sau ~2.2s.
+/// reduceMotion (MediaQuery.disableAnimations) → hiện tĩnh không trượt.
+class _EnergyPenaltyToast extends StatefulWidget {
+  final int amount;
+  final VoidCallback onDone;
+
+  const _EnergyPenaltyToast({required this.amount, required this.onDone});
+
+  @override
+  State<_EnergyPenaltyToast> createState() => _EnergyPenaltyToastState();
+}
+
+class _EnergyPenaltyToastState extends State<_EnergyPenaltyToast>
+    with SingleTickerProviderStateMixin {
+  late final AnimationController _ctrl;
+  late final Animation<Offset> _slide;
+  late final Animation<double> _fade;
+
+  @override
+  void initState() {
+    super.initState();
+    _ctrl = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 2200),
+    );
+    _slide = Tween<Offset>(begin: const Offset(0, 1.4), end: Offset.zero)
+        .animate(
+          CurvedAnimation(
+            parent: _ctrl,
+            curve: const Interval(0.0, 0.16, curve: Curves.easeOutBack),
+          ),
+        );
+    _fade = CurvedAnimation(
+      parent: _ctrl,
+      // Fade out ở 15% cuối — giữ đọc được gần hết thời gian.
+      curve: const Interval(0.0, 0.85, curve: Curves.linear),
+      reverseCurve: Curves.easeIn,
+    );
+    _ctrl.forward().whenComplete(widget.onDone);
+  }
+
+  @override
+  void dispose() {
+    _ctrl.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final bool reduceMotion =
+        MediaQuery.maybeDisableAnimationsOf(context) ?? false;
+    final Widget badge = FadeTransition(
+      opacity: reduceMotion ? const AlwaysStoppedAnimation(1.0) : _fade,
+      child: SlideTransition(
+        position: reduceMotion
+            ? const AlwaysStoppedAnimation(Offset.zero)
+            : _slide,
+        child: Align(
+          alignment: Alignment.bottomCenter,
+          child: Padding(
+            padding: const EdgeInsets.only(bottom: 110),
+            child: Material(
+              color: Colors.transparent,
+              child: Container(
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 14,
+                  vertical: 8,
+                ),
+                decoration: BoxDecoration(
+                  color: DauVietColors.cinnabarRed,
+                  borderRadius: BorderRadius.circular(20),
+                  border: Border.all(
+                    color: DauVietColors.imperialGoldLight,
+                    width: 1.4,
+                  ),
+                  boxShadow: [
+                    BoxShadow(
+                      color: Colors.black.withValues(alpha: 0.28),
+                      blurRadius: 10,
+                      offset: const Offset(0, 3),
+                    ),
+                  ],
+                ),
+                child: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    const Icon(
+                      Icons.bolt_rounded,
+                      size: 18,
+                      color: DauVietColors.imperialGoldLight,
+                    ),
+                    const SizedBox(width: 6),
+                    Text(
+                      '-${widget.amount} Thể lực',
+                      style: DauVietTypography.labelMedium.copyWith(
+                        color: Colors.white,
+                        fontWeight: FontWeight.w800,
+                        fontSize: 14,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
+    return Positioned.fill(child: IgnorePointer(child: badge));
+  }
+}
+
+/// Chip nhỏ báo activity có chấm điểm sẽ trừ Thể lực khi sai — đặt ngay trên
+/// renderer để learner thấy chi phí trước khi quyết định. Không block UI.
+class _EnergyCostHint extends StatelessWidget {
+  final int penalty;
+  const _EnergyCostHint({required this.penalty});
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+      decoration: BoxDecoration(
+        color: DauVietColors.imperialGold.withValues(alpha: 0.14),
+        borderRadius: BorderRadius.circular(8),
+        border: Border.all(
+          color: DauVietColors.imperialGold.withValues(alpha: 0.6),
+        ),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          const Icon(
+            Icons.bolt_rounded,
+            size: 15,
+            color: DauVietColors.imperialGold,
+          ),
+          const SizedBox(width: 5),
+          Expanded(
+            child: Text(
+              'Hoạt động chấm điểm — trả lời sai mất $penalty Thể lực',
+              style: DauVietTypography.bodySmall.copyWith(
+                fontSize: 11.5,
+                color: const Color(0xFF7A5B18),
+                fontWeight: FontWeight.w600,
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
   }
 }

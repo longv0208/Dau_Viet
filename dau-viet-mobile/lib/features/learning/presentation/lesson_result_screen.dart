@@ -6,6 +6,7 @@ import '../../../core/theme/dau_viet_colors.dart';
 import '../../../core/theme/dau_viet_typography.dart';
 import '../../../core/widgets/dong_son_button.dart';
 import '../../../core/api/api_config.dart';
+import '../../collection/presentation/unlock_celebration_dialog.dart';
 import '../data/attempt_dtos.dart';
 import '../data/learning_dtos.dart';
 import '../data/learning_providers.dart';
@@ -84,14 +85,16 @@ class LessonResultScreen extends ConsumerWidget {
   }
 }
 
-class _ResultView extends StatelessWidget {
+/// Body thực tế của _ResultView — tách riêng để StatefulWidget cha chịu
+/// trách nhiệm một-việc: bắn unlock popup đúng 1 lần khi mount.
+class _ResultBody extends StatelessWidget {
   final LessonResultDto result;
 
   /// Pinned lesson content (nullable — khi không fetch được thì chỉ hiện
   /// phần result-only).
   final LessonContentDto? recapContent;
 
-  const _ResultView({required this.result, this.recapContent});
+  const _ResultBody({required this.result, this.recapContent});
 
   @override
   Widget build(BuildContext context) {
@@ -190,6 +193,58 @@ class _ResultView extends StatelessWidget {
           ),
         ),
       ),
+    );
+  }
+}
+
+/// Chuyển _ResultView thành StatefulWidget để bắn unlock-popup ĐÚNG MỘT LẦN
+/// khi màn được mở từ player (extra non-null). Deep-link/reload (initialResult
+/// null → fetch lại) không trigger popup vì newlyUnlockedDossiers rỗng và
+/// itemsUnlocked trên replay đã được hiển thị bình thường bên dưới.
+class _ResultView extends StatefulWidget {
+  final LessonResultDto result;
+
+  /// Pinned lesson content (nullable — khi không fetch được thì chỉ hiện
+  /// phần result-only).
+  final LessonContentDto? recapContent;
+
+  const _ResultView({required this.result, this.recapContent});
+
+  @override
+  State<_ResultView> createState() => _ResultViewState();
+}
+
+class _ResultViewState extends State<_ResultView> {
+  /// Chặn double-fire nếu widget rebuild (post-frame chỉ gọi một lần).
+  bool _popupShown = false;
+
+  @override
+  void initState() {
+    super.initState();
+    // Chỉ bắn popup khi có item hoặc dossier MỚI — màn được mở với extra
+    // từ player (fresh complete). Deep-link giữ nguyên view list bên dưới.
+    if (widget.result.itemsUnlocked.isNotEmpty ||
+        widget.result.newlyUnlockedDossiers.isNotEmpty) {
+      WidgetsBinding.instance.addPostFrameCallback((_) => _showPopups());
+    }
+  }
+
+  Future<void> _showPopups() async {
+    if (!mounted || _popupShown) return;
+    _popupShown = true;
+    // await tuần tự — item trước, dossier sau; learner đóng từng cái.
+    await UnlockCelebrationDialog.show(
+      context,
+      items: widget.result.itemsUnlocked,
+      dossierIds: widget.result.newlyUnlockedDossiers,
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return _ResultBody(
+      result: widget.result,
+      recapContent: widget.recapContent,
     );
   }
 }

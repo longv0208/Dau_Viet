@@ -100,12 +100,22 @@ class ActivityRefDto {
   final Map<String, dynamic> config;
   final Map<String, dynamic> feedback;
 
+  /// GAME-03 additive: activity này có chấm điểm → submit sai sẽ trừ
+  /// Thể lực. Server cũ/mock không trả → false (ẩn hint chi phí).
+  final bool graded;
+
+  /// Số Thể lực trừ khi trả lời SAI (clamp ở số dư). Null khi !graded
+  /// hoặc server cũ — chỉ dùng để hiển thị hint, không tự suy lại.
+  final int? incorrectPenalty;
+
   const ActivityRefDto({
     required this.id,
     this.type,
     this.instruction,
     required this.config,
     required this.feedback,
+    this.graded = false,
+    this.incorrectPenalty,
   });
 
   factory ActivityRefDto.fromJson(Map<String, dynamic>? json) => ActivityRefDto(
@@ -114,6 +124,8 @@ class ActivityRefDto {
     instruction: json?['instruction'] as String?,
     config: (json?['config'] as Map?)?.cast<String, dynamic>() ?? const {},
     feedback: (json?['feedback'] as Map?)?.cast<String, dynamic>() ?? const {},
+    graded: json?['graded'] as bool? ?? false,
+    incorrectPenalty: (json?['incorrectPenalty'] as num?)?.toInt(),
   );
 
   /// Resolve feedbackCode → text từ feedback map (key có thể null).

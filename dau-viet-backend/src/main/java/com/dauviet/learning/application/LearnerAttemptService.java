@@ -91,6 +91,7 @@ public class LearnerAttemptService {
     private final com.dauviet.reward.application.ItemUnlockService itemUnlocks;
     private final com.dauviet.reward.application.RewardService rewardService;
     private final com.dauviet.energy.application.EnergyService energyService;
+    private final com.dauviet.energy.application.EnergyProperties energyProps;
     private final GradedActivityClassifier gradedClassifier;
     private final ObjectMapper mapper;
     private final TransactionTemplate txTemplate;
@@ -118,6 +119,8 @@ public class LearnerAttemptService {
                                          .RewardService rewardService,
                                  com.dauviet.energy.application
                                          .EnergyService energyService,
+                                 com.dauviet.energy.application
+                                         .EnergyProperties energyProps,
                                  GradedActivityClassifier gradedClassifier,
                                  ObjectMapper mapper,
                                  org.springframework.transaction
@@ -139,6 +142,7 @@ public class LearnerAttemptService {
         this.itemUnlocks = itemUnlocks;
         this.rewardService = rewardService;
         this.energyService = energyService;
+        this.energyProps = energyProps;
         this.gradedClassifier = gradedClassifier;
         this.mapper = mapper;
         this.txTemplate = new TransactionTemplate(txManager);
@@ -250,12 +254,18 @@ public class LearnerAttemptService {
         CurrentActivityResponse.Activity activityDto = null;
         if (activity != null) {
             ObjectNode projected = projection.projectActivity(activity, state.outputs());
+            // GAME-03 additive: expose graded flag + penalty để client hiển
+            // thị chi phí Thể lực trước khi submit — additive, server cũ
+            // trả null/false và client fallback ẩn hint.
+            boolean graded = gradedClassifier.isGraded(activity);
             activityDto = new CurrentActivityResponse.Activity(
                     activity.path("id").asText(),
                     activity.path("type").asText(null),
                     activity.hasNonNull("instruction")
                             ? activity.get("instruction").asText() : null,
-                    projected.get("config"), projected.get("feedback"));
+                    projected.get("config"), projected.get("feedback"),
+                    graded,
+                    graded ? energyProps.incorrectPenalty() : null);
         }
         return new CurrentActivityResponse(stageDto, activityDto,
                 progressOf(model, state));

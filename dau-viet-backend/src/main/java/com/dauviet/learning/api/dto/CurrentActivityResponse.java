@@ -17,6 +17,13 @@ public record CurrentActivityResponse(
     }
 
     public record Activity(String id, String type, String instruction,
-                           JsonNode config, JsonNode feedback) {
+                           JsonNode config, JsonNode feedback,
+                           // GAME-03 additive: activity này có chấm điểm
+                           // (có thể trừ Thể lực) — client hiển thị hint chi
+                           // phí trước khi submit. false/null trên server cũ.
+                           boolean graded,
+                           // Số Thể lực trừ khi verdict INCORRECT (clamp ở số
+                           // dư). Chỉ có nghĩa khi graded=true.
+                           Integer incorrectPenalty) {
     }
 }

@@ -80,6 +80,26 @@ class _MatchingRendererState extends State<MatchingRenderer> {
     final bool reduceMotion =
         MediaQuery.maybeDisableAnimationsOf(context) ?? false;
 
+    // Right column "snap-to-row": slot i = right da noi voi left[i]
+    // (null = cho trong); right chua noi xep duoi giu nguyen thu tu goc —
+    // cap nhom gon, de nhin quan he 1-1. left.length == right.length.
+    final rightById = {for (final r in right) (r['id'] as String? ?? ''): r};
+    final int rowCount = left.length;
+    final List<Map<String, dynamic>?> orderedRight =
+        List<Map<String, dynamic>?>.filled(rowCount, null);
+    for (var i = 0; i < rowCount; i++) {
+      final rid = _pairs[left[i]['id']];
+      if (rid != null) orderedRight[i] = rightById[rid];
+    }
+    var nextFree = 0;
+    for (final r in right) {
+      if (usedRight.contains(r['id'])) continue;
+      while (nextFree < rowCount && orderedRight[nextFree] != null) {
+        nextFree++;
+      }
+      if (nextFree < rowCount) orderedRight[nextFree] = r;
+    }
+
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
@@ -94,73 +114,54 @@ class _MatchingRendererState extends State<MatchingRenderer> {
           ),
         ),
         const SizedBox(height: 8),
-        Row(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Expanded(
-              child: Column(
-                children: [
-                  for (final item in left)
-                    _MatchTile(
-                      label:
-                          (item['label'] ?? item['text'] ?? item['id'])
-                              as String,
-                      selected: _activeLeft == item['id'],
-                      paired: _pairs.containsKey(item['id']),
-                      enabled: !locked,
-                      reduceMotion: reduceMotion,
-                      onTap: () => _tapLeft(item['id'] as String? ?? ''),
-                    ),
-                ],
-              ),
+        // Mot Row moi hang: left | dot | right cung truc ngang, tile cao
+        // hon dinh chieu hang — cap da noi luon nam ngang nhau.
+        for (var i = 0; i < rowCount; i++)
+          _PairRow(
+            left: _MatchTile(
+              label:
+                  (left[i]['label'] ?? left[i]['text'] ?? left[i]['id'])
+                      as String,
+              selected: _activeLeft == left[i]['id'],
+              paired: _pairs.containsKey(left[i]['id']),
+              enabled: !locked,
+              reduceMotion: reduceMotion,
+              onTap: () => _tapLeft(left[i]['id'] as String? ?? ''),
             ),
-            // Cột nối: chấm tròn ở giữa — sáng màu khi cặp đã nối, nhấp nháy
-            // mềm khi đang chờ chọn right cho left đang active.
-            SizedBox(
-              width: 26,
-              child: Column(
-                children: [
-                  for (final item in left)
-                    _PairDot(
-                      linked: _pairs.containsKey(item['id']),
-                      seeking: _activeLeft == item['id'],
-                      reduceMotion: reduceMotion,
-                    ),
-                ],
-              ),
+            dot: _PairDot(
+              linked: _pairs.containsKey(left[i]['id']),
+              seeking: _activeLeft == left[i]['id'],
+              reduceMotion: reduceMotion,
             ),
-            Expanded(
-              child: Column(
-                children: [
-                  for (final item in right)
-                    _MatchTile(
-                      label:
-                          (item['label'] ?? item['text'] ?? item['id'])
-                              as String,
-                      selected: false,
-                      paired: usedRight.contains(item['id']),
-                      alignEnd: true,
-                      // Ngoặc bắt buộc: không có chúng, `|| usedRight` vẫn
-                      // cho tap khi đang submitting (bug precedence đã fix).
-                      enabled:
-                          !locked &&
-                          (_activeLeft != null ||
-                              usedRight.contains(item['id'])),
-                      reduceMotion: reduceMotion,
-                      onTap: () {
-                        if (usedRight.contains(item['id']) &&
-                            _activeLeft == null) {
-                          _unpairRight(item['id'] as String? ?? '');
-                        } else {
-                          _tapRight(item['id'] as String? ?? '');
-                        }
-                      },
-                    ),
-                ],
-              ),
-            ),
-          ],
-        ),
+            right: orderedRight[i] == null
+                ? const _EmptySlot()
+                : _MatchTile(
+                    key: ValueKey(orderedRight[i]!['id']),
+                    label:
+                        (orderedRight[i]!['label'] ??
+                                orderedRight[i]!['text'] ??
+                                orderedRight[i]!['id'])
+                            as String,
+                    selected: false,
+                    paired: usedRight.contains(orderedRight[i]!['id']),
+                    alignEnd: true,
+                    // Ngoặc bắt buộc: không có chúng, `|| usedRight` vẫn cho
+                    // tap khi đang submitting (precedence fix).
+                    enabled:
+                        !locked &&
+                        (_activeLeft != null ||
+                            usedRight.contains(orderedRight[i]!['id'])),
+                    reduceMotion: reduceMotion,
+                    onTap: () {
+                      if (usedRight.contains(orderedRight[i]!['id']) &&
+                          _activeLeft == null) {
+                        _unpairRight(orderedRight[i]!['id'] as String? ?? '');
+                      } else {
+                        _tapRight(orderedRight[i]!['id'] as String? ?? '');
+                      }
+                    },
+                  ),
+          ),
         const SizedBox(height: 10),
         Text(
           'Đã ghép ${_pairs.length}/${left.length}',
@@ -200,6 +201,7 @@ class _MatchTile extends StatelessWidget {
   final VoidCallback onTap;
 
   const _MatchTile({
+    super.key,
     required this.label,
     required this.selected,
     required this.paired,
@@ -229,6 +231,9 @@ class _MatchTile extends StatelessWidget {
                 : const Duration(milliseconds: 150),
             curve: Curves.easeOut,
             width: double.infinity,
+            // height: double.infinity de tile gian bang chieu cao hang
+            // (IntrinsicHeight cua _PairRow) — 2 tile cap ngang nhau.
+            height: double.infinity,
             constraints: const BoxConstraints(minHeight: 48),
             padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 11),
             decoration: BoxDecoration(
@@ -269,6 +274,56 @@ class _MatchTile extends StatelessWidget {
   }
 }
 
+/// Mot hang left | dot | right — IntrinsicHeight de 2 tile cung chieu cao
+/// hang, dot can giua truc doc: cap da noi luon ngang nhau ke ca khi noi
+/// dung left/right chenh chieu cao.
+class _PairRow extends StatelessWidget {
+  final Widget left;
+  final Widget dot;
+  final Widget right;
+
+  const _PairRow({required this.left, required this.dot, required this.right});
+
+  @override
+  Widget build(BuildContext context) {
+    return IntrinsicHeight(
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          Expanded(child: left),
+          SizedBox(width: 26, child: Center(child: dot)),
+          Expanded(child: right),
+        ],
+      ),
+    );
+  }
+}
+
+/// O trong o cot phai khi left chua noi — giu dung chieu cao tile de hang
+/// khong nhay khi right snap vao.
+class _EmptySlot extends StatelessWidget {
+  const _EmptySlot();
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 8),
+      child: Container(
+        width: double.infinity,
+        height: double.infinity,
+        constraints: const BoxConstraints(minHeight: 48),
+        decoration: BoxDecoration(
+          borderRadius: BorderRadius.circular(10),
+          border: Border.all(
+            color: DauVietColors.outlineVariant.withValues(alpha: 0.4),
+            style: BorderStyle.solid,
+          ),
+        ),
+      ),
+    );
+  }
+}
+
 /// Chấm nối giữa hai cột — sáng khi cặp đã link, pulse nhẹ khi đang chờ
 /// chọn đầu phải.
 class _PairDot extends StatelessWidget {
@@ -284,32 +339,29 @@ class _PairDot extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Padding(
-      // Căn giữa theo chiều cao tile (11 top + ~26 text + 11 bottom + 8 margin).
-      padding: const EdgeInsets.symmetric(vertical: 21),
-      child: AnimatedContainer(
-        duration: reduceMotion
-            ? Duration.zero
-            : const Duration(milliseconds: 180),
-        width: linked || seeking ? 12 : 8,
-        height: linked || seeking ? 12 : 8,
-        decoration: BoxDecoration(
-          shape: BoxShape.circle,
-          color: linked
-              ? DauVietColors.cinnabarRed
-              : seeking
-              ? DauVietColors.imperialGold
-              : DauVietColors.outlineVariant.withValues(alpha: 0.7),
-          boxShadow: seeking && !reduceMotion
-              ? [
-                  BoxShadow(
-                    color: DauVietColors.imperialGold.withValues(alpha: 0.5),
-                    blurRadius: 6,
-                    spreadRadius: 1,
-                  ),
-                ]
-              : null,
-        ),
+    // Dot da duoc Center cua _PairRow can giua truc doc — khong can padding.
+    return AnimatedContainer(
+      duration: reduceMotion
+          ? Duration.zero
+          : const Duration(milliseconds: 180),
+      width: linked || seeking ? 12 : 8,
+      height: linked || seeking ? 12 : 8,
+      decoration: BoxDecoration(
+        shape: BoxShape.circle,
+        color: linked
+            ? DauVietColors.cinnabarRed
+            : seeking
+            ? DauVietColors.imperialGold
+            : DauVietColors.outlineVariant.withValues(alpha: 0.7),
+        boxShadow: seeking && !reduceMotion
+            ? [
+                BoxShadow(
+                  color: DauVietColors.imperialGold.withValues(alpha: 0.5),
+                  blurRadius: 6,
+                  spreadRadius: 1,
+                ),
+              ]
+            : null,
       ),
     );
   }
