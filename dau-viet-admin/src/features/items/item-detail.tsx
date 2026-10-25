@@ -9,11 +9,7 @@ import { z } from "zod";
 
 import { apiFetch } from "@/lib/api-client";
 import { toUserMessage } from "@/lib/api-error";
-import type {
-  AdminItem,
-  AdminItemRequest,
-  AdminRuleRequest,
-} from "@/lib/dto/item";
+import type { AdminItem, AdminItemRequest } from "@/lib/dto/item";
 import { qk } from "@/lib/query-keys";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -23,6 +19,10 @@ import { Select } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
 import { Skeleton } from "@/components/ui/skeleton";
 import { ErrorState } from "@/components/error-state";
+
+import { RuleBuilder } from "./rule-builder/rule-builder";
+import { ScopeBanner } from "./rule-builder/scope-banner";
+import { RuleHistoryTable } from "./rule-history-table";
 
 const ITEM_TYPES = [
   { value: "HISTORICAL_REPLICA", label: "Mô hình" },
@@ -37,12 +37,6 @@ const RARITIES = [
   { value: "EPIC", label: "Sử thi" },
 ] as const;
 
-const RULE_TYPES = [
-  { value: "LESSON_COMPLETED", label: "Hoàn thành bài học cụ thể" },
-  { value: "COLLECTION_COUNT", label: "Sưu tầm đủ N bằng chứng" },
-  { value: "LESSON_COUNT", label: "Hoàn thành đủ N bài học" },
-] as const;
-
 const itemSchema = z.object({
   name: z.string().min(1, "Vui lòng nhập tên vật phẩm").max(160),
   description: z.string().optional().or(z.literal("")),
@@ -52,43 +46,20 @@ const itemSchema = z.object({
   active: z.boolean(),
 });
 
-const ruleSchema = z.object({
-  ruleType: z.enum(["LESSON_COMPLETED", "COLLECTION_COUNT", "LESSON_COUNT"]),
-  lessonId: z.string().optional().or(z.literal("")),
-  threshold: z.coerce.number().int().positive().optional(),
-});
-
 type ItemFormValues = z.infer<typeof itemSchema>;
-type RuleFormValues = z.infer<typeof ruleSchema>;
 
-interface PageResponse<T> {
-  content: T[];
-}
-
-/** Lessons published — dùng cho dropdown rule LESSON_COMPLETED. */
-interface LessonSummary {
-  id: string;
-  title: string;
-}
-
-/** /items/[id] — sửa metadata + gán điều kiện mở khóa (tối thiểu). */
+/**
+ * /items/[id] — sửa metadata + Rule Builder V2 (GAME-06 Module C):
+ * ScopeBanner + builder 2-panel + lịch sử revision.
+ */
 export function ItemDetail({ itemId }: { itemId: string }) {
   const qc = useQueryClient();
   const [metaError, setMetaError] = useState<string | null>(null);
-  const [ruleError, setRuleError] = useState<string | null>(null);
   const [saved, setSaved] = useState(false);
 
   const itemQuery = useQuery({
     queryKey: qk.items.detail(itemId),
     queryFn: () => apiFetch<AdminItem>(`/admin/items/${itemId}`),
-  });
-
-  const lessonsQuery = useQuery({
-    queryKey: ["lessons", "list", { status: "PUBLISHED", size: 100 }],
-    queryFn: () =>
-      apiFetch<PageResponse<LessonSummary>>(
-        "/admin/lessons?status=PUBLISHED&size=100",
-      ),
   });
 
   const itemForm = useForm<ItemFormValues>({
@@ -98,12 +69,6 @@ export function ItemDetail({ itemId }: { itemId: string }) {
       itemType: "HISTORICAL_REPLICA", rarity: "COMMON", active: true,
     },
   });
-
-  const ruleForm = useForm<RuleFormValues>({
-    resolver: zodResolver(ruleSchema),
-    defaultValues: { ruleType: "COLLECTION_COUNT", lessonId: "", threshold: 1 },
-  });
-  const ruleType = ruleForm.watch("ruleType");
 
   useEffect(() => {
     const item = itemQuery.data;
@@ -116,13 +81,6 @@ export function ItemDetail({ itemId }: { itemId: string }) {
       rarity: item.rarity,
       active: item.active,
     });
-    if (item.rule) {
-      ruleForm.reset({
-        ruleType: item.rule.ruleType,
-        lessonId: item.rule.lessonId ?? "",
-        threshold: item.rule.threshold ?? undefined,
-      });
-    }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [itemQuery.data]);
 
@@ -148,35 +106,6 @@ export function ItemDetail({ itemId }: { itemId: string }) {
       setSaved(true);
     } catch (err) {
       setMetaError(toUserMessage(err));
-    }
-  });
-
-  const saveRule = ruleForm.handleSubmit(async (v) => {
-    setRuleError(null);
-    setSaved(false);
-    try {
-      if (v.ruleType === "LESSON_COMPLETED" && !v.lessonId) {
-        setRuleError("Chọn bài học cho điều kiện hoàn thành.");
-        return;
-      }
-      if (v.ruleType !== "LESSON_COMPLETED" && !v.threshold) {
-        setRuleError("Nhập ngưỡng cho điều kiện đếm.");
-        return;
-      }
-      const payload: AdminRuleRequest = {
-        ruleType: v.ruleType,
-        lessonId: v.ruleType === "LESSON_COMPLETED" ? v.lessonId : null,
-        threshold: v.ruleType === "LESSON_COMPLETED" ? null : v.threshold ?? null,
-        active: true,
-      };
-      await apiFetch<AdminItem>(`/admin/items/${itemId}/rule`, {
-        method: "PUT",
-        body: JSON.stringify(payload),
-      });
-      qc.invalidateQueries({ queryKey: qk.items.detail(itemId) });
-      setSaved(true);
-    } catch (err) {
-      setRuleError(toUserMessage(err));
     }
   });
 
@@ -277,62 +206,17 @@ export function ItemDetail({ itemId }: { itemId: string }) {
           <CardTitle>Điều kiện mở khóa</CardTitle>
           <CardDescription>
             Server đánh giá lúc hoàn thành bài học và sau khi sưu tầm bằng chứng.
-            Vật phẩm đã cấp không bị thu hồi khi đổi điều kiện.
+            Vật phẩm đã cấp không bị thu hồi khi đổi điều kiện — lưu mới tạo
+            revision mới trong lịch sử.
           </CardDescription>
         </CardHeader>
-        <CardContent>
-          <form onSubmit={saveRule} noValidate className="flex flex-col gap-4">
-            <div className="grid gap-4 md:grid-cols-2">
-              <div className="flex flex-col gap-1.5">
-                <Label htmlFor="ruleType">Loại điều kiện</Label>
-                <Select id="ruleType" {...ruleForm.register("ruleType")}>
-                  {RULE_TYPES.map((t) => (
-                    <option key={t.value} value={t.value}>{t.label}</option>
-                  ))}
-                </Select>
-              </div>
-              {ruleType === "LESSON_COMPLETED" ? (
-                <div className="flex flex-col gap-1.5">
-                  <Label htmlFor="lessonId">Bài học *</Label>
-                  <Select id="lessonId" {...ruleForm.register("lessonId")}>
-                    <option value="">— Chọn bài học đã xuất bản —</option>
-                    {(lessonsQuery.data?.content ?? []).map((l) => (
-                      <option key={l.id} value={l.id}>{l.title}</option>
-                    ))}
-                  </Select>
-                </div>
-              ) : (
-                <div className="flex flex-col gap-1.5">
-                  <Label htmlFor="threshold">Ngưỡng *</Label>
-                  <Input id="threshold" type="number" min={1}
-                    {...ruleForm.register("threshold")} />
-                  {ruleForm.formState.errors.threshold && (
-                    <p role="alert" className="text-xs text-error">
-                      Nhập số nguyên dương.
-                    </p>
-                  )}
-                </div>
-              )}
-            </div>
-            {ruleError && (
-              <p role="alert" className="rounded-md bg-error/10 px-3 py-2 text-sm text-error">
-                {ruleError}
-              </p>
-            )}
-            <div className="flex items-center gap-3">
-              <Button type="submit" disabled={ruleForm.formState.isSubmitting}>
-                {ruleForm.formState.isSubmitting ? "Đang lưu..." : "Lưu điều kiện"}
-              </Button>
-              {item.rule && (
-                <p className="text-xs text-ink-muted">
-                  Hiện tại: {RULE_TYPES.find((t) => t.value === item.rule?.ruleType)?.label}
-                  {item.rule.threshold != null ? ` ≥ ${item.rule.threshold}` : ""}
-                </p>
-              )}
-            </div>
-          </form>
+        <CardContent className="flex flex-col gap-4">
+          <ScopeBanner scope={item.scope} />
+          <RuleBuilder item={item} />
         </CardContent>
       </Card>
+
+      <RuleHistoryTable itemId={itemId} />
 
       {saved && (
         <p className="rounded-md bg-success/15 px-3 py-2 text-sm text-ink">

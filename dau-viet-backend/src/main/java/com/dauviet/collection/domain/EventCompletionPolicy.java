@@ -4,6 +4,8 @@ import java.time.Instant;
 import java.util.List;
 import java.util.UUID;
 
+import org.hibernate.annotations.CreationTimestamp;
+
 import org.hibernate.annotations.JdbcTypeCode;
 import org.hibernate.type.SqlTypes;
 
@@ -44,24 +46,63 @@ public class EventCompletionPolicy {
     @Column(name = "status", nullable = false, length = 16)
     private Status status = Status.DRAFT;
 
+    @CreationTimestamp
+    @Column(name = "created_at", nullable = false, updatable = false)
+    private Instant createdAt;
+
+    /**
+     * Mutable tren DRAFT (service guard status==DRAFT truoc khi set).
+     * GAME-06 override: giu policyId on dinh khi admin sua draft —
+     * khong delete/reinsert row.
+     */
     @JdbcTypeCode(SqlTypes.JSON)
     @Column(name = "required_lesson_ids", nullable = false,
-            columnDefinition = "jsonb", updatable = false)
+            columnDefinition = "jsonb")
     private String requiredLessonIdsJson = "[]";
 
     @JdbcTypeCode(SqlTypes.JSON)
     @Column(name = "optional_lesson_ids", nullable = false,
-            columnDefinition = "jsonb", updatable = false)
+            columnDefinition = "jsonb")
     private String optionalLessonIdsJson = "[]";
 
     /** SMALLINT trong DB — entity map Short (Hibernate validate type). */
     @Column(name = "mastery_threshold")
     private Short masteryThreshold;
 
-    @Column(name = "published_at", updatable = false)
+    @Column(name = "published_at")
     private Instant publishedAt;
 
     public EventCompletionPolicy() {
+    }
+
+    /**
+     * Tạo DRAFT mới (copy-on-write): admin không PATCH row DRAFT cũ mà
+     * insert row DRAFT mới cùng `policyVersion` (khi sửa) hoặc version kế
+     * tiếp (khi tạo mới trên PUBLISHED). Required/optional serialize sang
+     * JSON array of UUID strings — giữ shape V22.
+     */
+    public static EventCompletionPolicy draft(UUID eventId, int policyVersion,
+            List<UUID> requiredLessonIds, List<UUID> optionalLessonIds,
+            Short masteryThreshold, ObjectMapper mapper) {
+        EventCompletionPolicy p = new EventCompletionPolicy();
+        p.id = UUID.randomUUID();
+        p.eventId = eventId;
+        p.policyVersion = policyVersion;
+        p.status = Status.DRAFT;
+        p.requiredLessonIdsJson = toJsonArray(requiredLessonIds, mapper);
+        p.optionalLessonIdsJson = toJsonArray(optionalLessonIds, mapper);
+        p.masteryThreshold = masteryThreshold;
+        return p;
+    }
+
+    private static String toJsonArray(List<UUID> ids, ObjectMapper mapper) {
+        try {
+            return mapper.writeValueAsString(
+                    ids == null ? List.of() : ids.stream()
+                            .map(UUID::toString).toList());
+        } catch (Exception e) {
+            throw new IllegalStateException("cannot serialize lesson ids", e);
+        }
     }
 
     public UUID getId() { return id; }
@@ -75,6 +116,28 @@ public class EventCompletionPolicy {
         return masteryThreshold == null ? null : Integer.valueOf(masteryThreshold);
     }
     public Instant getPublishedAt() { return publishedAt; }
+    public Instant getCreatedAt() { return createdAt; }
+
+    /* ---- mutable chỉ trên DRAFT (service guard) ---- */
+
+    public void setStatus(Status status) { this.status = status; }
+    public void setPublishedAt(Instant publishedAt) {
+        this.publishedAt = publishedAt;
+    }
+    /** Chỉ gọi trên DRAFT — admin sửa ngưỡng trước publish. */
+    public void setMasteryThreshold(Short masteryThreshold) {
+        this.masteryThreshold = masteryThreshold;
+    }
+
+    /** Chỉ gọi trên DRAFT — sửa danh sách required giữ nguyên policyId. */
+    public void setRequiredLessonIds(List<UUID> ids, ObjectMapper mapper) {
+        this.requiredLessonIdsJson = toJsonArray(ids, mapper);
+    }
+
+    /** Chỉ gọi trên DRAFT — sửa danh sách optional giữ nguyên policyId. */
+    public void setOptionalLessonIds(List<UUID> ids, ObjectMapper mapper) {
+        this.optionalLessonIdsJson = toJsonArray(ids, mapper);
+    }
 
     /** Parse danh sách lesson required (JSON array of UUID strings). */
     public List<UUID> requiredLessonIds(ObjectMapper mapper) {

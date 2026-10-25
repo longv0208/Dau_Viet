@@ -383,6 +383,109 @@ export const animationTemplatesFixture = {
   ],
 };
 
+/* ---------- GAME-06 gamification ---------- */
+
+/** GET /admin/events/:id/completion-policies — list version desc. */
+export const policiesFixture = [
+  {
+    id: "p1111111-1111-1111-1111-111111111111",
+    eventId: "11111111-1111-1111-1111-111111111111",
+    policyVersion: 2,
+    status: "DRAFT",
+    requiredLessonIds: ["33333333-3333-3333-3333-333333333333"],
+    optionalLessonIds: [],
+    masteryThreshold: 80,
+    publishedAt: null,
+    createdAt: "2026-01-02T00:00:00Z",
+  },
+  {
+    id: "p0000000-0000-0000-0000-000000000001",
+    eventId: "11111111-1111-1111-1111-111111111111",
+    policyVersion: 1,
+    status: "PUBLISHED",
+    requiredLessonIds: ["33333333-3333-3333-3333-333333333333"],
+    optionalLessonIds: [],
+    masteryThreshold: 70,
+    publishedAt: "2026-01-01T00:00:00Z",
+    createdAt: "2026-01-01T00:00:00Z",
+  },
+];
+
+/** PageResponse<AdminDossierSummary>. */
+export const dossiersPageFixture = {
+  ...emptyPageFixture,
+  totalElements: 2,
+  totalPages: 1,
+  content: [
+    {
+      id: "d1111111-1111-1111-1111-111111111111",
+      canonicalCode: "ngo-quyen",
+      dossierType: "PERSON",
+      title: "Ngô Quyền",
+      summary: "Thủ lĩnh trận Bạch Đằng 938.",
+      status: "PUBLISHED",
+      dossierVersion: 1,
+      assetId: null,
+      eventCount: 1,
+      updatedAt: "2026-01-02T00:00:00Z",
+    },
+    {
+      id: "d2222222-2222-2222-2222-222222222222",
+      canonicalCode: "song-bach-dang",
+      dossierType: "LOCATION",
+      title: "Sông Bạch Đằng",
+      summary: "Trận địa thủy chiến năm 938.",
+      status: "DRAFT",
+      dossierVersion: 1,
+      assetId: null,
+      eventCount: 0,
+      updatedAt: "2026-01-03T00:00:00Z",
+    },
+  ],
+};
+
+/** GET /admin/events/:id/dossiers — linked rows theo sort_order. */
+export const eventDossiersFixture = [
+  {
+    dossierId: "d1111111-1111-1111-1111-111111111111",
+    canonicalCode: "ngo-quyen",
+    title: "Ngô Quyền",
+    dossierType: "PERSON",
+    status: "PUBLISHED",
+    displayOrder: 1,
+  },
+];
+
+/** GET /admin/items/:id/rule/history — revision desc. */
+export const ruleHistoryFixture = [
+  {
+    id: "r3333333-3333-3333-3333-333333333333",
+    ruleType: "RULE_V2",
+    lessonId: null,
+    threshold: null,
+    ruleVersion: 2,
+    revision: 2,
+    active: true,
+    conditionJson: { type: "COLLECTION_COUNT", threshold: 5 },
+    ruleMetadata: null,
+    createdAt: "2026-01-03T00:00:00Z",
+    grantCount: 4,
+  },
+  {
+    id: "r2222222-2222-2222-2222-222222222222",
+    ruleType: "COLLECTION_COUNT",
+    lessonId: null,
+    threshold: 3,
+    ruleVersion: 1,
+    revision: 1,
+    active: false,
+    conditionJson: { type: "COLLECTION_COUNT", threshold: 3 },
+    ruleMetadata: null,
+    createdAt: "2026-01-01T00:00:00Z",
+    grantCount: 12,
+  },
+];
+
 /** GET /admin/lesson-templates returns a plain array (not paged). */
 export const templatesFixture = [
   {

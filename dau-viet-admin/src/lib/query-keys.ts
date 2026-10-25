@@ -72,4 +72,20 @@ export const qk = {
     detail: (id: string) => ["animation-scenes", "detail", id] as const,
     versions: (id: string) => ["animation-scenes", "versions", id] as const,
   },
+  policies: {
+    list: (eventId: string) => ["policies", "list", eventId] as const,
+  },
+  eventDossiers: (eventId: string) =>
+    ["event-dossiers", eventId] as const,
+  dossiers: {
+    list: (params?: {
+      page?: number;
+      size?: number;
+      type?: string;
+      status?: string;
+      q?: string;
+    }) => ["dossiers", "list", params ?? {}] as const,
+    detail: (id: string) => ["dossiers", "detail", id] as const,
+  },
+  ruleHistory: (itemId: string) => ["rule-history", itemId] as const,
 };

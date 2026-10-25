@@ -278,6 +278,24 @@ Access token: JWT HS256 (sub = user UUID, claim `role`); access TTL mặc địn
 | PUT | `/admin/animation-scenes/{id}/html-draft` | `multipart/form-data` `file` + `expectedRowVersion` → thay draft HTML của scene `HTML_WEBVIEW`; 409 stale row, 400 scene sai loại — **implemented (V19)** |
 | GET | `/admin/animation-scenes/{id}/html-draft` | Trả `text/html` bytes draft (preview admin; scene `HTML_WEBVIEW` only, 404 khi chưa có draft) — **implemented (V19)** |
 | GET | `/api/v1/animation-versions/{versionId}/html` | Learner fetch HTML đã publish: `text/html; charset=utf-8`, `X-Content-Type-Options: nosniff`, CSP `default-src 'none'; script-src 'unsafe-inline'; style-src 'unsafe-inline'; img-src data:; media-src data:; font-src data:`, `Cache-Control: private, max-age=3600` — **implemented (V19)** |
+| GET | `/admin/events/{eventId}/completion-policies` | List mọi policy version của event (DRAFT/PUBLISHED/ARCHIVED, mới nhất trước) — **implemented GAME-06** |
+| GET | `/admin/events/{eventId}/completion-policies/{policyId}` | Chi tiết một policy version — **implemented GAME-06** |
+| POST | `/admin/events/{eventId}/completion-policies` | Tạo DRAFT `{requiredLessonIds?, optionalLessonIds?, masteryThreshold?}` → 201, `policy_version = max+1` — **implemented GAME-06** |
+| PUT | `/admin/events/{eventId}/completion-policies/{policyId}` | Sửa DRAFT **in-place** (policyId ổn định, user override thay copy-on-write) — 400 khi status ≠ DRAFT — **implemented GAME-06** |
+| POST | `/admin/events/{eventId}/completion-policies/{policyId}/validate` | Dry-run; body rỗng = validate DRAFT hiện tại, body có dữ liệu = validate payload sắp lưu (không ghi DB) → `{valid, errors[{code,message,field}], warnings[], diff{from,to}}` — **implemented GAME-06** |
+| POST | `/admin/events/{eventId}/completion-policies/{policyId}/publish` | Atomic publish (lock event → revalidate → archive PUBLISHED cũ → publish DRAFT); body `{expectedPolicyVersion?}` → 409 `OPTIMISTIC_LOCK_CONFLICT` stale, 422 khi validate fail — **implemented GAME-06** |
+| GET | `/admin/dossiers` | List dossier (`type`, `status`, `q`, page/size ≤100, sort) → `PageResponse<AdminDossierSummaryResponse>` (kèm `eventCount`) — **implemented GAME-06** |
+| POST | `/admin/dossiers` | Tạo dossier DRAFT (`canonicalCode` kebab-case set một lần, `dossierType`, `title`, `summary?`, `description?`, `source{title,author?,citation?,url?,reliability?}` — **không raw JSON**, `assetId?`) → 201; trùng canonicalCode → 409 — **implemented GAME-06** |
+| GET | `/admin/dossiers/{id}` | Detail + `events[]` link + `versions[]` lịch sử + `pendingChanges` + `rowVersion` — **implemented GAME-06** |
+| PUT | `/admin/dossiers/{id}` | Sửa nội dung (DRAFT sửa trực tiếp; PUBLISHED sửa → `pendingChanges` chờ publish version mới) + `expectedRowVersion` optimistic guard → 409 stale — **implemented GAME-06** |
+| POST | `/admin/dossiers/{id}/publish` | Validate → `dossier_version = max+1` → PUBLISHED → snapshot `historical_dossier_versions` (V28) — **implemented GAME-06** |
+| POST | `/admin/dossiers/{id}/archive` | →ARCHIVED; learner đã unlock vẫn đọc được (entitlement không thu hồi) — **implemented GAME-06** |
+| GET | `/admin/events/{eventId}/dossiers` | List dossier đang link event (kèm `displayOrder`) — **implemented GAME-06** |
+| PUT | `/admin/events/{eventId}/dossiers` | Replace-list `[{dossierId, displayOrder≥0, không trùng}]` — mọi dossier phải PUBLISHED → 422 `PolicyValidationException` — **implemented GAME-06** |
+| POST | `/admin/items/{itemId}/rule/validate` | Dry-run rule (parse AST + validate + scope-check giống `PUT /rule`, không ghi DB) → `{valid, errors[], warnings[], normalizedCondition, scope, acceptsRule}` — **implemented GAME-06** |
+| GET | `/admin/items/{itemId}/rule/history` | Mọi revision đã publish (active + inactive) kèm `grantCount` provenance — **implemented GAME-06** |
+| POST | `/admin/rewards/reconcile-unlocks` | Đối soát grant item theo batch (`?batchSize=` default 200, max 1000, `0`=một lần) → `{itemsGranted, usersScanned, batches}` — đã có GAME-05, GAME-06 chỉ thêm UI |
+| POST | `/admin/rewards/backfill` | Bổ sung reward thiếu cho attempt COMPLETED sớm nhất `(user,lesson)` → `{attemptsGranted}` — đã có GAME-05, GAME-06 chỉ thêm UI |
 
 ### Notes đã chốt — Animation Engine (TASK mới 2026-10-23)
 
@@ -533,6 +551,22 @@ Publish chạy PUBLISH-level `DraftValidator` trong một transaction: `SELECT F
 | Mobile | Format | `dart format --set-exit-if-changed lib/` | **PASS** — 0 changed |
 | Mobile | Analyze | `flutter analyze` | **PASS** — 0 issues |
 | Mobile | Unit + widget | `flutter test` | **PASS** — 430/430 |
+
+### Notes đã chốt GAME-06 (Admin Gamification CMS — 2026-10-25)
+
+- **Tất cả route `/api/v1/admin/**` đã gate `CONTENT_ADMIN` bởi `SecurityConfig`** — controller không cần `@PreAuthorize` riêng; anonymous → 401, LEARNER → 403 (IT cover).
+- **Module A — Completion policy admin**: `policy_version = max+1` khi tạo DRAFT; `PUT /{policyId}` sửa **in-place trên row DRAFT** (user override thay copy-on-write — setter chỉ được gọi sau guard `status == DRAFT` ở service, PUBLISHED immutable theo contract). Publish atomic: `findForUpdate` trên `historical_events` → `collectIssues` revalidate (required ≥1, lesson tham chiếu phải PUBLISHED/thuộc event, `masteryThreshold` 0–100) → archive PUBLISHED cũ **`saveAndFlush` trước** khi insert PUBLISHED mới (partial unique `ux_event_policy_published` — nếu defer flush, unique index va → 500) → `publishedAt`. `expectedPolicyVersion` lệch → service throw `org.springframework.dao.OptimisticLockingFailureException` → **409 `OPTIMISTIC_LOCK_CONFLICT`** (GlobalExceptionHandler giờ bắt superclass `OptimisticLockingFailureException`, không chỉ `ObjectOptimisticLockingFailureException`).
+- **Module B — Dossier admin + V28 `historical_dossier_versions`**: `canonicalCode` set một lần khi tạo (kebab-case `^[a-z0-9][a-z0-9-]{1,119}$`, unique → 409). `AdminDossierUpdateRequest` nhận `source` dạng structured `DossierSourceInput` (`title` bắt buộc khi có block source; `reliability ∈ HIGH|MEDIUM|LOW|UNASSESSED`) — **admin không bao giờ gửi raw JSON**; service map sang `{"source":{...}}` trong `source_json`. `validateForPublish` chỉ kiểm `source.title`/`reliability` khi `sourceJson != null` → dossier không source publish được. PUBLISHED vẫn cho `PUT` sửa nội dung → `pendingChanges=true` (nội dung learner đã unlock giữ nguyên ở snapshot pinned); publish mới → `dossier_version = max+1` + insert `historical_dossier_versions` (`status ∈ PUBLISHED|ARCHIVED` theo `chk_dv_status`). `row_version` (V28) optimistic guard `expectedRowVersion` → 409. `PUT /admin/events/{eventId}/dossiers` = **replace-list nguyên tử**: xoá link cũ + insert list mới; mọi `dossierId` phải tồn tại + PUBLISHED (DRAFT/ARCHIVED/không tồn tại → 422), `displayOrder ≥ 0` và không trùng dossierId trong request. Lazy reconcile của learner tự pick up link mới — không fan-out grant khi admin sửa link.
+- **Module C — Item rule validate/history + reconcile UI**: `POST /admin/items/{itemId}/rule/validate` chạy đúng pipeline `ItemConditionParser` + `ItemConditionValidator` + `ItemRuleScopeResolver` như `PUT /rule` nhưng không ghi DB — response `acceptsRule` phản ánh scope guard (item `UNRESOLVED`/`EVENT_SCOPED` từ chối rule global → `valid=false`). `GET /admin/items/{itemId}/rule/history` đọc `item_unlock_rule` append-only — mỗi revision kèm `grantCount` (count `user_inventory.unlock_rule_id`) làm audit trail. `POST /admin/rewards/reconcile-unlocks` + `/backfill` đã tồn tại từ GAME-05 — GAME-06 chỉ thêm UI panel confirm trước khi chạy, hiển thị counter thật từ response.
+- **Admin UI**: tab `gamification` trong Event Workspace (PolicyEditor chọn required/optional lesson bằng checkbox + threshold + validate/publish; DossierLinkTable reorder + link picker), trang `/dossiers` (list + filter type/status + editor source form), Rule Builder V2 trong `/items/[id]` (AST builder không raw JSON, scope banner, history table) + `ReconcilePanel`. Mọi call qua `apiFetch` + React Query.
+
+### Verification results GAME-06 (2026-10-25)
+
+| Module | Check | Command | Result |
+|---|---|---|---|
+| Backend | Unit + IT | `.\mvnw.cmd -B -ntp verify` | **PASS** — 363 IT + 486 unit (AdminCompletionPolicyIT, AdminDossierIT, AdminItemRuleIT + toàn bộ suite cũ), Flyway V28 clean |
+| Admin | Typecheck | `npm run typecheck` | **PASS** |
+| Admin | Unit tests | `npx vitest run` | **PASS** — 288/288 (+13 test mới: policy-editor, dossier-link-table, dossiers-table, reconcile-panel, scope-banner) |
 
 ## Admin client implementation note
 

@@ -1,12 +1,23 @@
 /** TASK-0023 — item catalog + unlock rules DTOs (admin). */
 
+/**
+ * Rule đang gắn item (active). `ruleType` v1 là loại phẳng; V2 dùng
+ * nhãn "RULE_V2" kèm `conditionJson` AST (GAME-05/06).
+ */
 export interface AdminItemRule {
   id: string;
-  ruleType: "LESSON_COMPLETED" | "COLLECTION_COUNT" | "LESSON_COUNT";
+  ruleType: string;
   lessonId?: string | null;
   threshold?: number | null;
   active: boolean;
+  /** 1 = cột phẳng legacy; 2 = AST condition. */
+  ruleVersion?: number | null;
+  conditionJson?: unknown | null;
+  ruleMetadata?: unknown | null;
 }
+
+/** Item scope suy ra từ audit trail (ItemRuleScopeResolver). */
+export type ItemScope = "UNRESOLVED" | "EVENT_SCOPED" | "GLOBAL";
 
 export interface AdminItem {
   id: string;
@@ -20,6 +31,8 @@ export interface AdminItem {
   sourceMetadata?: Record<string, unknown> | null;
   active: boolean;
   rowVersion: number;
+  /** UNRESOLVED | EVENT_SCOPED | GLOBAL — GAME-06 scope banner. */
+  scope?: ItemScope | string | null;
   rule?: AdminItemRule | null;
 }
 
@@ -39,9 +52,15 @@ export interface AdminItemRequest {
   active?: boolean;
 }
 
+/**
+ * PUT /admin/items/{id}/rule — V1 (ruleType phẳng) hoặc V2 (condition AST,
+ * ruleType chỉ là nhãn — server yêu cầu "RULE_V2" hoặc bỏ trống).
+ */
 export interface AdminRuleRequest {
-  ruleType: AdminItemRule["ruleType"];
+  ruleType?: string;
   lessonId?: string | null;
   threshold?: number | null;
   active?: boolean;
+  /** AST { leaf | {all:[…]} | {any:[…]} } — GAME-06 Rule Builder. */
+  condition?: unknown;
 }

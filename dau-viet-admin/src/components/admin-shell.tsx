@@ -1,6 +1,7 @@
 "use client";
 
 import {
+  BookMarked,
   BookOpen,
   Calendar,
   FileText,
@@ -37,6 +38,7 @@ const NAV_ITEMS = [
   { href: "/lessons", label: "Bài học", icon: BookOpen },
   { href: "/evidence", label: "Bằng chứng", icon: FileText },
   { href: "/versions", label: "Phiên bản", icon: History },
+  { href: "/dossiers", label: "Hồ sơ lịch sử", icon: BookMarked },
   { href: "/items", label: "Vật phẩm thưởng", icon: Gift },
 ];
 

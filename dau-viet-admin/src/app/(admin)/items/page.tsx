@@ -3,7 +3,7 @@ import Link from "next/link";
 import { PageHeader } from "@/components/page-header";
 import { Button } from "@/components/ui/button";
 import { ItemsTable } from "@/features/items/items-table";
-import { RewardBackfillButton } from "@/features/items/reward-backfill-button";
+import { ReconcilePanel } from "@/features/items/reconcile-panel";
 
 export const metadata = { title: "Vật phẩm thưởng — Dấu Việt CMS" };
 
@@ -21,7 +21,7 @@ export default function ItemsPage() {
       />
       <ItemsTable />
       <div className="mt-6">
-        <RewardBackfillButton />
+        <ReconcilePanel />
       </div>
     </div>
   );

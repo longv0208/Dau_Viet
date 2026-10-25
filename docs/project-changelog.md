@@ -2,6 +2,30 @@
 
 > Detailed record of significant changes, features và fixes. Newest first.
 
+## 2026-10-25 — GAME-06: Admin Gamification CMS
+
+**Scope:** Admin CMS (Spring Boot + Next.js admin) quản trị gamification — event completion policies, historical dossiers + event links, item rule builder V2 + history, reconcile/backfill panel. Backend authoritative, mọi route `/api/v1/admin/**` gate `CONTENT_ADMIN`; không đụng Flutter, không đụng learning engine internals, không sửa V22–V27. Plan: `plans/261025-0553-game06-admin-gamification-cms/`.
+
+**Database**
+- `V28__historical_dossier_versions.sql` — `historical_dossiers` +`row_version` (optimistic lock admin PUT); bảng `historical_dossier_versions` append-only snapshot mỗi publish (`UNIQUE(dossier_id, dossier_version)`, status CHECK `PUBLISHED|ARCHIVED`, `published_by`), backfill dossier PUBLISHED có sẵn — pin `user_dossier_unlocks.dossier_version` truy vết được nội dung đã duyệt.
+
+**Backend**
+- Module A — `AdminCompletionPolicyController` + `AdminCompletionPolicyService`: `GET/POST/PUT /admin/events/{eventId}/completion-policies[/{policyId}]`, `POST .../validate` (dry-run `{valid,errors,warnings,diff}`), `POST .../publish` atomic (lock event `FOR UPDATE` → revalidate → archive PUBLISHED cũ `saveAndFlush` trước insert mới tránh va `ux_event_policy_published` → publish). `PUT` sửa **in-place trên DRAFT** (policyId ổn định — user override thay copy-on-write; PUBLISHED immutable). `expectedPolicyVersion` lệch → 409 `OPTIMISTIC_LOCK_CONFLICT`; validate fail → 422.
+- Module B — `AdminDossierController` + `AdminDossierService`: dossier CRUD (`GET/POST /admin/dossiers`, `GET/PUT /admin/dossiers/{id}` — `canonicalCode` kebab-case set một lần, `source` structured `DossierSourceInput` **không raw JSON**, `expectedRowVersion` guard), `POST .../publish` (`dossier_version=max+1` + snapshot V28), `POST .../archive` (entitlement đã unlock giữ nguyên), `GET/PUT /admin/events/{eventId}/dossiers` (replace-list nguyên tử — mọi dossier phải PUBLISHED, `displayOrder≥0` không trùng → 422). Sửa nội dung trên PUBLISHED → `pendingChanges` chờ publish version mới.
+- Module C — `AdminItemRuleController`: `POST /admin/items/{itemId}/rule/validate` (đúng pipeline parse+validate+scope-check của `PUT /rule`, không ghi DB → `{valid,errors,warnings,normalizedCondition,scope,acceptsRule}`), `GET .../rule/history` (revision append-only + `grantCount` từ `user_inventory.unlock_rule_id`).
+- `GlobalExceptionHandler` mở rộng bắt `org.springframework.dao.OptimisticLockingFailureException` (superclass — service throw thủ công cho stale guard, trước chỉ bắt `ObjectOptimisticLockingFailureException` → 500 thay vì 409).
+
+**Admin UI**
+- Tab `gamification` trong Event Workspace: `PolicyEditor` (checkbox required/optional lesson, threshold mastered, validate + publish với stale-409 handling), `DossierLinkTable` (reorder + remove + link picker).
+- Trang `/dossiers`: list + filter type/status/q + dossier editor (source form structured, pending-changes banner, publish/archive).
+- `/items/[id]`: Rule Builder V2 (AST builder không raw JSON, scope banner GLOBAL/EVENT_SCOPED/UNRESOLVED, validate trước Save), rule history table, `ReconcilePanel` (confirm dialog → POST reconcile-unlocks/backfill → counter thật).
+
+**Tests & verification**
+- Backend: `AdminCompletionPolicyIT`, `AdminDossierIT`, `AdminItemRuleIT` mới; `AbstractPostgresIT` thêm cleanup `historical_dossier_versions`; `mvnw verify` **PASS 363 IT + 486 unit**, Flyway V28 clean.
+- Admin: `npm run typecheck` PASS; `vitest run` **288/288** (+13 test: policy-editor, dossier-link-table, dossiers-table, reconcile-panel, scope-banner; MSW handlers cho toàn bộ endpoint mới); `npm run build` PASS.
+
+**Docs updated:** `docs/API_SPEC.md`, `docs/DATABASE_DESIGN.md`, `docs/development-roadmap.md`, `docs/project-changelog.md`.
+
 ## 2026-10-25 — GAME-05 FINAL FIX: Grant Provenance & Rule Safety
 
 **Scope:** 4 fix trên commit `32f6428` — grant event-milestone giữ provenance attempt, chặn bypass bảo vệ event-specific bằng rule V1 global, tách schema `rule_version` khỏi `revision` publish monotonic, siết kiểm chứng evidence collectible theo EVIDENCE_SELECT. Không refactor rộng, không tính năng mới — chuẩn bị cho GAME-06.

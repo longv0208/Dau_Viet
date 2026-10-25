@@ -83,4 +83,10 @@ public interface UserInventoryRepository
 
     /** Kiểm tra sở hữu — unlock evaluator bỏ qua item đã cấp. */
     boolean existsByUserIdAndItemId(UUID userId, UUID itemId);
+
+    /**
+     * So grant gan mot rule revision cu the (GAME-06 rule history).
+     * unlock_rule_id la item_unlock_rule.id — provenance tu V24.
+     */
+    long countByUnlockRuleId(UUID unlockRuleId);
 }

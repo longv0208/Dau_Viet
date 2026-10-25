@@ -18,6 +18,8 @@ public record AdminItemResponse(
         JsonNode sourceMetadata,
         boolean active,
         Long rowVersion,
+        /** Scope da duyet cua item (GAME-06): UNRESOLVED | EVENT_SCOPED | GLOBAL. */
+        String scope,
         Rule rule
 ) {
     /**

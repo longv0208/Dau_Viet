@@ -5,11 +5,15 @@ import {
   animationScenesPageFixture,
   animationTemplatesFixture,
   assetsPageFixture,
+  dossiersPageFixture,
   draftFixture,
   emptyPageFixture,
+  eventDossiersFixture,
   eventsPageFixture,
   evidencesPageFixture,
   lessonsPageFixture,
+  policiesFixture,
+  ruleHistoryFixture,
   templatesFixture,
 } from "../fixtures";
 
@@ -35,6 +39,7 @@ const HIDDEN_CONFIG_KEYS = new Set([
 ]);
 
 type AnyObj = Record<string, unknown>;
+type AdminEventDossierLinkRequestRow = { dossierId: string; displayOrder: number };
 
 function stripHiddenDeep(value: unknown): void {
   if (Array.isArray(value)) {
@@ -503,6 +508,204 @@ export const handlers = [
   http.get("*/api/proxy/admin/lesson-templates", () =>
     HttpResponse.json(templatesFixture),
   ),
+
+  /* ---------- GAME-06: completion policies ---------- */
+  http.get("*/api/proxy/admin/events/:eventId/completion-policies", ({ params }) =>
+    HttpResponse.json(
+      policiesFixture.filter((p) => p.eventId === params.eventId),
+    ),
+  ),
+  http.post("*/api/proxy/admin/events/:eventId/completion-policies", async ({ params, request }) => {
+    const body = (await request.json()) as Record<string, unknown>;
+    return HttpResponse.json(
+      {
+        id: "p9999999-9999-9999-9999-999999999999",
+        eventId: params.eventId,
+        policyVersion: 3,
+        status: "DRAFT",
+        requiredLessonIds: body.requiredLessonIds ?? [],
+        optionalLessonIds: body.optionalLessonIds ?? [],
+        masteryThreshold: body.masteryThreshold ?? null,
+        publishedAt: null,
+        createdAt: "2026-01-05T00:00:00Z",
+      },
+      { status: 201 },
+    );
+  }),
+  http.put("*/api/proxy/admin/events/:eventId/completion-policies/:policyId", async ({ params, request }) => {
+    const p = policiesFixture.find((x) => x.id === params.policyId);
+    if (!p) return HttpResponse.json({ code: "POLICY_NOT_FOUND" }, { status: 404 });
+    const body = (await request.json()) as Record<string, unknown>;
+    return HttpResponse.json({ ...p, ...body });
+  }),
+  http.post("*/api/proxy/admin/events/:eventId/completion-policies/:policyId/validate", async ({ request }) => {
+    const body = (await request.json()) as Record<string, unknown>;
+    const required = (body.requiredLessonIds as string[] | undefined) ?? [];
+    const valid = required.length > 0;
+    return HttpResponse.json({
+      valid,
+      errors: valid
+        ? []
+        : [{ code: "REQUIRED_EMPTY", message: "at least one required lesson is needed", field: "requiredLessonIds" }],
+      warnings: [],
+      diff: null,
+    });
+  }),
+  http.post("*/api/proxy/admin/events/:eventId/completion-policies/:policyId/publish", async ({ params, request }) => {
+    const p = policiesFixture.find((x) => x.id === params.policyId);
+    if (!p) return HttpResponse.json({ code: "POLICY_NOT_FOUND" }, { status: 404 });
+    const body = (await request.json().catch(() => ({}))) as Record<string, unknown>;
+    if (body.expectedPolicyVersion !== undefined && body.expectedPolicyVersion !== p.policyVersion) {
+      return HttpResponse.json(
+        { code: "OPTIMISTIC_LOCK_CONFLICT", message: "stale version" },
+        { status: 409 },
+      );
+    }
+    return HttpResponse.json({
+      ...p,
+      status: "PUBLISHED",
+      publishedAt: "2026-01-05T00:00:00Z",
+    });
+  }),
+
+  /* ---------- GAME-06: dossiers ---------- */
+  http.get("*/api/proxy/admin/dossiers", ({ request }) => {
+    const url = new URL(request.url);
+    const type = url.searchParams.get("type");
+    const status = url.searchParams.get("status");
+    const q = (url.searchParams.get("q") ?? "").toLowerCase();
+    let content = dossiersPageFixture.content;
+    if (type) content = content.filter((d) => d.dossierType === type);
+    if (status) content = content.filter((d) => d.status === status);
+    if (q) {
+      content = content.filter(
+        (d) =>
+          d.title.toLowerCase().includes(q) ||
+          d.canonicalCode.toLowerCase().includes(q),
+      );
+    }
+    return HttpResponse.json({
+      ...dossiersPageFixture,
+      content,
+      totalElements: content.length,
+      totalPages: content.length ? 1 : 0,
+    });
+  }),
+  http.post("*/api/proxy/admin/dossiers", async ({ request }) => {
+    const body = (await request.json()) as Record<string, unknown>;
+    if (
+      dossiersPageFixture.content.some((d) => d.canonicalCode === body.canonicalCode)
+    ) {
+      return HttpResponse.json(
+        { code: "VALIDATION_ERROR", message: "canonicalCode already exists" },
+        { status: 400 },
+      );
+    }
+    return HttpResponse.json(
+      {
+        id: "d9999999-9999-9999-9999-999999999999",
+        ...body,
+        status: "DRAFT",
+        dossierVersion: 1,
+        rowVersion: 1,
+        pendingChanges: false,
+        events: [],
+        versions: [],
+        createdAt: "2026-01-05T00:00:00Z",
+        updatedAt: "2026-01-05T00:00:00Z",
+      },
+      { status: 201 },
+    );
+  }),
+  http.get("*/api/proxy/admin/dossiers/:id", ({ params }) => {
+    const d = dossiersPageFixture.content.find((x) => x.id === params.id);
+    if (!d) return HttpResponse.json({ code: "DOSSIER_NOT_FOUND" }, { status: 404 });
+    return HttpResponse.json({
+      ...d,
+      description: null,
+      source: { title: "Đại Việt sử ký toàn thư", author: "Ngô Sĩ Liên" },
+      rowVersion: 1,
+      pendingChanges: false,
+      events: [],
+      versions: [],
+      createdAt: "2026-01-01T00:00:00Z",
+    });
+  }),
+  http.put("*/api/proxy/admin/dossiers/:id", async ({ params, request }) => {
+    const d = dossiersPageFixture.content.find((x) => x.id === params.id);
+    if (!d) return HttpResponse.json({ code: "DOSSIER_NOT_FOUND" }, { status: 404 });
+    const body = (await request.json()) as Record<string, unknown>;
+    if (body.expectedRowVersion !== undefined && body.expectedRowVersion !== 1) {
+      return HttpResponse.json(
+        { code: "OPTIMISTIC_LOCK_CONFLICT", message: "stale rowVersion" },
+        { status: 409 },
+      );
+    }
+    return HttpResponse.json({ ...d, ...body, rowVersion: 2 });
+  }),
+  http.post("*/api/proxy/admin/dossiers/:id/publish", ({ params }) => {
+    const d = dossiersPageFixture.content.find((x) => x.id === params.id);
+    if (!d) return HttpResponse.json({ code: "DOSSIER_NOT_FOUND" }, { status: 404 });
+    return HttpResponse.json({
+      ...d,
+      status: "PUBLISHED",
+      dossierVersion: d.dossierVersion + 1,
+    });
+  }),
+  http.post("*/api/proxy/admin/dossiers/:id/archive", ({ params }) => {
+    const d = dossiersPageFixture.content.find((x) => x.id === params.id);
+    if (!d) return HttpResponse.json({ code: "DOSSIER_NOT_FOUND" }, { status: 404 });
+    return HttpResponse.json({ ...d, status: "ARCHIVED" });
+  }),
+
+  /* ---------- GAME-06: event dossier links ---------- */
+  http.get("*/api/proxy/admin/events/:eventId/dossiers", () =>
+    HttpResponse.json(eventDossiersFixture),
+  ),
+  http.put("*/api/proxy/admin/events/:eventId/dossiers", async ({ request }) => {
+    const body = (await request.json()) as AdminEventDossierLinkRequestRow[];
+    const rows = body
+      .map((l) => {
+        const d = dossiersPageFixture.content.find((x) => x.id === l.dossierId);
+        return d
+          ? {
+              dossierId: d.id,
+              canonicalCode: d.canonicalCode,
+              title: d.title,
+              dossierType: d.dossierType,
+              status: d.status,
+              displayOrder: l.displayOrder,
+            }
+          : null;
+      })
+      .filter(Boolean);
+    return HttpResponse.json(rows);
+  }),
+
+  /* ---------- GAME-06: item rule validate/history ---------- */
+  http.post("*/api/proxy/admin/items/:itemId/rule/validate", async ({ request }) => {
+    const body = (await request.json()) as Record<string, unknown>;
+    const cond = body.condition as Record<string, unknown> | undefined;
+    const valid = !!cond && (cond.type !== undefined || cond.all !== undefined || cond.any !== undefined);
+    return HttpResponse.json({
+      valid,
+      errors: valid ? [] : [{ code: "VALIDATION_FAILED", message: "invalid AST" }],
+      warnings: [],
+      normalizedCondition: cond ?? null,
+      scope: "GLOBAL",
+      acceptsRule: true,
+    });
+  }),
+  http.get("*/api/proxy/admin/items/:itemId/rule/history", () =>
+    HttpResponse.json(ruleHistoryFixture),
+  ),
+  http.post("*/api/proxy/admin/rewards/reconcile-unlocks", () =>
+    HttpResponse.json({ itemsGranted: 4, usersScanned: 120, batches: 1 }),
+  ),
+  http.post("*/api/proxy/admin/rewards/backfill", () =>
+    HttpResponse.json({ attemptsGranted: 7 }),
+  ),
+
   // Evidence library
   http.get("*/api/proxy/admin/evidences", ({ request }) => {
     const url = new URL(request.url);

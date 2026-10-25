@@ -59,8 +59,23 @@ public class EventDossier {
     public EventDossier() {
     }
 
+    /** Link moi — unlockOn mac dinh EVENT_COMPLETED (duy nhat o V1). */
+    public static EventDossier link(UUID eventId, UUID dossierId,
+            int sortOrder) {
+        EventDossier e = new EventDossier();
+        e.eventId = eventId;
+        e.dossierId = dossierId;
+        e.sortOrder = sortOrder;
+        return e;
+    }
+
     public UUID getEventId() { return eventId; }
     public UUID getDossierId() { return dossierId; }
     public String getUnlockOn() { return unlockOn; }
     public Integer getSortOrder() { return sortOrder; }
+
+    /** Admin reorder — PK (event,dossier) van updatable=false. */
+    public void setSortOrder(Integer sortOrder) {
+        this.sortOrder = sortOrder;
+    }
 }

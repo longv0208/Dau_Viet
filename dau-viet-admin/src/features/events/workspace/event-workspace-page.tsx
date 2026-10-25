@@ -13,6 +13,7 @@ import { EventWorkspaceTabs } from "./event-workspace-tabs";
 import { EventOverviewTab } from "./event-overview-tab";
 import { EventLessonsTab } from "./event-lessons-tab";
 import { EventHocLieuTab } from "./event-hoc-lieu-tab";
+import { EventGamificationTab } from "./event-gamification-tab";
 import { EventInfoTab } from "./event-info-tab";
 import type { EventWorkspaceTab } from "./types";
 
@@ -50,6 +51,7 @@ export function EventWorkspacePage({
       {tab === "overview" && <EventOverviewTab event={event} />}
       {tab === "lessons" && <EventLessonsTab event={event} />}
       {tab === "hoc-lieu" && <EventHocLieuTab event={event} />}
+      {tab === "gamification" && <EventGamificationTab event={event} />}
       {tab === "info" && <EventInfoTab event={event} />}
     </div>
   );

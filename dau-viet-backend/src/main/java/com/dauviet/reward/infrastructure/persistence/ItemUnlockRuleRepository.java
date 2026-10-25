@@ -48,4 +48,10 @@ public interface ItemUnlockRuleRepository
     @Query("SELECT COALESCE(MAX(r.revision), 0) FROM ItemUnlockRule r "
             + "WHERE r.itemId = :itemId")
     int findMaxRevision(@Param("itemId") UUID itemId);
+
+    /**
+     * Lich su rule theo revision giam dan — admin history (GAME-06).
+     * revision monotonic per-item nen day la thu tu publish that.
+     */
+    List<ItemUnlockRule> findByItemIdOrderByRevisionDesc(UUID itemId);
 }

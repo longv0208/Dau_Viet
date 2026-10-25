@@ -8,6 +8,10 @@ import { toUserMessage } from "@/lib/api-error";
 import { Button } from "@/components/ui/button";
 
 /**
+ * @deprecated GAME-06 — thay bằng `reconcile-panel.tsx` (batchSize +
+ * confirm + result card). Giữ export để import cũ không vỡ; sẽ xoá sau
+ * khi migrate xong.
+ *
  * Hai thao tác bảo trì server-side (chỉ chạy khi admin bấm, KHÔNG tự động):
  * - Bổ sung thưởng: POST /admin/rewards/backfill — ghi bút toán EXP /
  *   History Points còn thiếu cho attempt COMPLETED cũ (idempotent theo

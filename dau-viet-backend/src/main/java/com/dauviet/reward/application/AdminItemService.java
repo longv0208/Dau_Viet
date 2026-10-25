@@ -41,6 +41,8 @@ public class AdminItemService {
     private final ItemConditionParser conditionParser;
     private final ItemConditionValidator conditionValidator;
     private final ItemRuleScopeResolver scopeResolver;
+    private final com.dauviet.reward.infrastructure.persistence
+            .UserInventoryRepository inventory;
 
     public AdminItemService(ItemCatalogRepository items,
                             ItemUnlockRuleRepository rules,
@@ -49,7 +51,9 @@ public class AdminItemService {
                             ObjectMapper mapper,
                             ItemConditionParser conditionParser,
                             ItemConditionValidator conditionValidator,
-                            ItemRuleScopeResolver scopeResolver) {
+                            ItemRuleScopeResolver scopeResolver,
+                            com.dauviet.reward.infrastructure.persistence
+                                    .UserInventoryRepository inventory) {
         this.items = items;
         this.rules = rules;
         this.lessons = lessons;
@@ -58,6 +62,7 @@ public class AdminItemService {
         this.conditionParser = conditionParser;
         this.conditionValidator = conditionValidator;
         this.scopeResolver = scopeResolver;
+        this.inventory = inventory;
     }
 
     @Transactional(readOnly = true)
@@ -219,6 +224,96 @@ public class AdminItemService {
         }
     }
 
+    /**
+     * Dry-run validate rule (GAME-06 Module C) — chay dung pipeline
+     * buildRule (parse -> validate -> scope) nhung KHONG ghi DB.
+     * Tra errors co cau truc thay vi nem exception de UI hien tat ca
+     * loi cung luc; loi tham chieu (event/lesson khong PUBLISHED) tu
+     * validator duoc map sang VALIDATION_FAILED.
+     */
+    @Transactional(readOnly = true)
+    public com.dauviet.reward.api.dto.AdminRuleValidationResponse validateRule(
+            UUID itemId, AdminRuleRequest req) {
+        load(itemId);
+        var scope = scopeResolver.scopeOf(itemId);
+        var errors = new java.util.ArrayList<
+                com.dauviet.reward.api.dto.AdminRuleValidationResponse.Issue>();
+        var warnings = new java.util.ArrayList<String>();
+        JsonNode normalized = null;
+        boolean accepts = true;
+
+        if (scope != ItemUnlockRule.ItemScope.GLOBAL) {
+            warnings.add("item is " + scope + " — a rule without an "
+                    + "event-scoped leaf will be rejected on publish");
+        }
+
+        try {
+            if (req.condition() != null && !req.condition().isNull()) {
+                String ruleType = req.ruleType();
+                if (ruleType != null && !ruleType.isBlank()
+                        && !ItemUnlockRule.TYPE_RULE_V2.equals(ruleType)) {
+                    errors.add(issue("RULETYPE_CONTRADICTS_AST",
+                            "ruleType '" + ruleType + "' contradicts a v2 "
+                            + "condition — only 'RULE_V2' (or omitted) is "
+                            + "allowed alongside an AST", "ruleType"));
+                } else {
+                    ItemCondition condition =
+                            conditionParser.parse(req.condition());
+                    conditionValidator.validate(condition);
+                    normalized = req.condition();
+                    accepts = scopeResolver.acceptsRule(itemId, condition);
+                    if (!accepts) {
+                        errors.add(issue("SCOPE_REJECTED",
+                                "item is " + scope + " — only a rule with "
+                                + "an event-scoped leaf may be activated",
+                                "condition"));
+                    }
+                }
+            } else {
+                validateV1(req);
+                accepts = scope == ItemUnlockRule.ItemScope.GLOBAL;
+                if (!accepts) {
+                    errors.add(issue("SCOPE_REJECTED",
+                            "item is " + scope + " — a global v1 rule "
+                            + "cannot be activated; publish an "
+                            + "event-scoped v2 rule first", "ruleType"));
+                }
+            }
+        } catch (ItemRuleException | IllegalArgumentException e) {
+            errors.add(issue("VALIDATION_FAILED",
+                    e.getMessage() == null ? "invalid rule" : e.getMessage(),
+                    null));
+        }
+
+        return new com.dauviet.reward.api.dto.AdminRuleValidationResponse(
+                errors.isEmpty(), errors, warnings, normalized,
+                scope.name(), accepts);
+    }
+
+    /**
+     * Lich su revision cua item (GAME-06) — moi nhat truoc, kem
+     * grantCount (user_inventory.unlock_rule_id provenance).
+     */
+    @Transactional(readOnly = true)
+    public java.util.List<com.dauviet.reward.api.dto.AdminRuleHistoryEntry>
+            ruleHistory(UUID itemId) {
+        load(itemId);
+        return rules.findByItemIdOrderByRevisionDesc(itemId).stream()
+                .map(r -> new com.dauviet.reward.api.dto.AdminRuleHistoryEntry(
+                        r.getId(), r.getRuleType(), r.getLessonId(),
+                        r.getThreshold(), r.getRuleVersion(), r.getRevision(),
+                        r.isActive(), parse(r.getConditionJson()),
+                        parse(r.getRuleMetadata()), r.getCreatedAt(),
+                        inventory.countByUnlockRuleId(r.getId())))
+                .toList();
+    }
+
+    private com.dauviet.reward.api.dto.AdminRuleValidationResponse.Issue
+            issue(String code, String message, String field) {
+        return new com.dauviet.reward.api.dto.AdminRuleValidationResponse
+                .Issue(code, message, field);
+    }
+
     private ItemCatalog load(UUID itemId) {
         return items.findById(itemId).orElseThrow(() ->
                 new ResourceNotFoundException("item not found: " + itemId));
@@ -265,6 +360,7 @@ public class AdminItemService {
                 item.getDescription(), item.getCategory(), item.getItemType(),
                 item.getRarity(), item.getAssetId(), parse(item.getSourceMetadata()),
                 item.isActive(), item.getRowVersion(),
+                scopeResolver.scopeOf(item.getId()).name(),
                 r == null ? null : new AdminItemResponse.Rule(
                         r.getId(), r.getRuleType(), r.getLessonId(),
                         r.getThreshold(), r.isActive(), r.getRuleVersion(),

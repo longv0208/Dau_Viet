@@ -341,6 +341,14 @@ public class GlobalExceptionHandler {
                 ex.getMessage(), Map.of());
     }
 
+    @ExceptionHandler(com.dauviet.collection.domain.PolicyValidationException.class)
+    public ResponseEntity<ApiError> handlePolicyValidation(
+            com.dauviet.collection.domain.PolicyValidationException ex) {
+        Map<String, Object> details = Map.of("errors", ex.getErrors());
+        return build(HttpStatus.UNPROCESSABLE_ENTITY, ErrorCode.VALIDATION_ERROR,
+                "Policy validation failed", details);
+    }
+
     /* ---------- animation engine ---------- */
 
     @ExceptionHandler(com.dauviet.animation.domain.AnimationExceptions.TemplateNotFoundException.class)
@@ -413,9 +421,15 @@ public class GlobalExceptionHandler {
         return build(HttpStatus.CONFLICT, ErrorCode.ASSET_IN_USE, ex.getMessage(), details);
     }
 
-    @ExceptionHandler(org.springframework.orm.ObjectOptimisticLockingFailureException.class)
+    /**
+     * GAME-06: bat ca hai — ObjectOptimisticLockingFailure (JPA/Hibernate)
+     * lan OptimisticLockingFailureException (service throw thu cong cho
+     * expectedPolicyVersion/expectedRowVersion mismatch). OLF la superclass
+     * nen mot handler la du; @ExceptionHandler match subclass truoc.
+     */
+    @ExceptionHandler(org.springframework.dao.OptimisticLockingFailureException.class)
     public ResponseEntity<ApiError> handleOptimisticLock(
-            org.springframework.orm.ObjectOptimisticLockingFailureException ex) {
+            org.springframework.dao.OptimisticLockingFailureException ex) {
         return build(HttpStatus.CONFLICT, ErrorCode.OPTIMISTIC_LOCK_CONFLICT,
                 "Resource was modified concurrently; reload and retry", Map.of());
     }
