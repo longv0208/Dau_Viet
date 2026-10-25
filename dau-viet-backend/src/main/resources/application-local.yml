@@ -14,14 +14,14 @@ app:
   seed:
     enabled: true
   security:
+    # Dev-only fallback; production MUST override via JWT_SECRET env.
+    jwt-secret: ${JWT_SECRET:local-dev-secret-change-me-32bytes-minimum-0123456789abcdef}
 
 dauviet:
   energy:
     # Local dev: bật Thể lực để test penalty + ENERGY_DEPLETED UI.
     # Env DAUVIET_ENERGY_ENABLED vẫn override được khi cần.
     enabled: ${DAUVIET_ENERGY_ENABLED:true}
-    # Dev-only fallback; production MUST override via JWT_SECRET env.
-    jwt-secret: ${JWT_SECRET:local-dev-secret-change-me-32bytes-minimum-0123456789abcdef}
 
 logging:
   level:
