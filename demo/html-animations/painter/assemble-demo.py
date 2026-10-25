@@ -19,7 +19,10 @@ PLATES = {
     "river-surface": "river-surface.png",
     "boats-viet": "boats-viet.png",
     "boats-han": "boats-han.png",
+    "boats-han-broken": "boats-han-broken.png",
     "stakes": "stakes.png",
+    "splinters": "splinters.png",
+    "reeds": "reeds.png",
     "mist": "mist.png",
     "vignette": "vignette.png",
 }

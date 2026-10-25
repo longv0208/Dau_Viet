@@ -99,9 +99,9 @@ class _ResultBody extends StatelessWidget {
             ? '${score.toInt()}'
             : score.toStringAsFixed(1))
         : '90';
-    final summary =
-        result.result['summary'] as String? ??
-        result.result['message'] as String?;
+    final summaryRaw =
+        result.result['summary'] ?? result.result['message'];
+    final summary = summaryRaw is String ? summaryRaw : null;
     final title = _str(recapContent?.content ?? const {}, ['title', 'lessonTitle']) ?? 'Bài 1: Nguồn gốc dân tộc';
 
     return Scaffold(
@@ -780,8 +780,15 @@ String? _str(Map<String, dynamic> m, List<String> keys) {
 }
 
 String _srcSuffix(Map<String, dynamic> e) {
-  final src = e['source'] as String?;
-  return (src != null && src.trim().isNotEmpty) ? ' (${src.trim()})' : '';
+  final src = e['source'];
+  String? text;
+  if (src is String) {
+    text = src;
+  } else if (src is Map) {
+    // V30+ embeds source as object {title, author, url, citation} — pick title.
+    text = (src['title'] ?? src['author']) as String?;
+  }
+  return (text != null && text.trim().isNotEmpty) ? ' (${text.trim()})' : '';
 }
 
 String? _firstReadingExcerpt(
