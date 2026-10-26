@@ -213,6 +213,44 @@ class LearningStreakServiceTest {
     }
 
     @Test
+    void stateOfReturnsZeroEffectiveStreakWhenStreakBroken() {
+        // Học 26 + 27 → current=2, longest=2. Bỏ lỡ 28 + 29 (không gọi
+        // recordCompletion). Đọc stateOf vào 30 → chuỗi đã ngắt: aggregate
+        // vẫn lưu current_streak=2 (lần ghi cuối) nhưng HIỆU LỰC = 0.
+        service.recordCompletion(U, LESSON, UUID.randomUUID(),
+                utcOnVnDate(2026, 10, 26, 9, 0));
+        service.recordCompletion(U, LESSON, UUID.randomUUID(),
+                utcOnVnDate(2026, 10, 27, 9, 0));
+        assertThat(streaks.get(U).getCurrentStreak()).isEqualTo(2);
+        // Tick clock tới 30-10 VN — last = 27-10 < today-1 → broken.
+        clock.set(Instant.parse("2026-10-29T17:30:00Z")); // 30-10 00:30 VN
+        var r = service.stateOf(U);
+        assertThat(r.currentStreak()).isZero();
+        assertThat(r.streakAlive()).isFalse();
+        assertThat(r.completedToday()).isFalse();
+        assertThat(r.longestStreak()).isEqualTo(2); // kỷ lục không giảm
+        assertThat(r.lastQualifiedDate())
+                .isEqualTo(LocalDate.of(2026, 10, 27));
+        // Aggregate KHÔNG bị ghi đè — đọc API là read-only.
+        assertThat(streaks.get(U).getCurrentStreak()).isEqualTo(2);
+    }
+
+    @Test
+    void completionAfterBreakRestartsAtOne() {
+        // Sau khi chuỗi ngắt (đọc effective=0), học lại → bắt đầu từ 1.
+        service.recordCompletion(U, LESSON, UUID.randomUUID(),
+                utcOnVnDate(2026, 10, 26, 9, 0));
+        service.recordCompletion(U, LESSON, UUID.randomUUID(),
+                utcOnVnDate(2026, 10, 27, 9, 0));
+        // Học lại vào 30-10 (sau gap 28, 29).
+        var again = service.recordCompletion(U, LESSON, UUID.randomUUID(),
+                utcOnVnDate(2026, 10, 30, 8, 0));
+        assertThat(again).isNotNull();
+        assertThat(again.currentStreak()).isEqualTo(1);
+        assertThat(again.longestStreak()).isEqualTo(2);
+    }
+
+    @Test
     void concurrentSameDayWritesOneDay() {
         // Mock ON CONFLICT: insert lần 2 cùng (user, date) trả 0 — giống
         // hai thiết bị complete đồng thời nhưng PK chặn duplicate.

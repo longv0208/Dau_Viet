@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
+import '../../../core/api/api_config.dart';
 import '../../../core/theme/dau_viet_colors.dart';
 import '../../../core/theme/dau_viet_typography.dart';
 import '../../../core/widgets/dong_son_button.dart';
@@ -7,17 +9,19 @@ import '../../../core/widgets/main_bottom_nav.dart';
 import '../../../core/widgets/parchment_card.dart';
 import '../../../mock/data/mock_saban_data.dart';
 import '../../../mock/models/saban_models.dart';
+import '../../../mock/models/timeline_models.dart';
+import '../../events/data/events_providers.dart';
 
 /// Màn hình M-06: Sa Bàn Chiến Thuật & Bản Đồ Thủy Chiến Sông Bạch Đằng (Battle Saban Screen)
 /// Khớp 100% với đặc tả trong MOBILE_SCREEN_DESIGN.md & ART_DIRECTION.md
-class BattleSabanScreen extends StatefulWidget {
+class BattleSabanScreen extends ConsumerStatefulWidget {
   const BattleSabanScreen({super.key});
 
   @override
-  State<BattleSabanScreen> createState() => _BattleSabanScreenState();
+  ConsumerState<BattleSabanScreen> createState() => _BattleSabanScreenState();
 }
 
-class _BattleSabanScreenState extends State<BattleSabanScreen> {
+class _BattleSabanScreenState extends ConsumerState<BattleSabanScreen> {
   int _currentPhaseIndex = 0;
   SabanMarkerModel? _selectedMarker;
 
@@ -77,7 +81,13 @@ class _BattleSabanScreenState extends State<BattleSabanScreen> {
                               variant: DongSonButtonVariant.primaryCinnabar,
                               height: 48,
                               onPressed: () {
-                                context.go('/campaign/evt_bach_dang_938');
+                                final events = ref.read(eventsListProvider).value?.milestones ?? [];
+                                final bd = events.cast<TimelineMilestoneModel?>().firstWhere(
+                                  (e) => e != null && (e.id.contains('000000000001') || e.title.toLowerCase().contains('bạch đằng')),
+                                  orElse: () => null,
+                                );
+                                final targetId = bd?.id ?? (ApiConfig.useMock ? 'evt_bach_dang_938' : '00000000-0000-0000-0000-000000000001');
+                                context.go('/campaign/$targetId');
                               },
                             ),
                           ),

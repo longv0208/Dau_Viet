@@ -103,11 +103,16 @@ class StreakInfoDto {
   final int longestStreak;
   final DateTime? studyDate;
 
+  /// Đồng hồ server lúc ghi ngày học — mốc freshness thật, client KHÔNG
+  /// bịa từ DateTime.now() (clock skew không làm sai thứ tự).
+  final DateTime? serverTime;
+
   const StreakInfoDto({
     required this.dayRecorded,
     required this.currentStreak,
     required this.longestStreak,
     this.studyDate,
+    this.serverTime,
   });
 
   factory StreakInfoDto.fromJson(Map<String, dynamic> json) {
@@ -116,6 +121,7 @@ class StreakInfoDto {
       currentStreak: (json['currentStreak'] as num?)?.toInt() ?? 0,
       longestStreak: (json['longestStreak'] as num?)?.toInt() ?? 0,
       studyDate: LearningStreakDto._parseDate(json['studyDate']),
+      serverTime: LearningStreakDto._parseInstant(json['serverTime']),
     );
   }
 

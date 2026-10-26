@@ -35,7 +35,10 @@ public record CompleteAttemptResponse(
             int currentStreak,
             int longestStreak,
             /** Ngày VN được công nhận. */
-            java.time.LocalDate studyDate) {
+            java.time.LocalDate studyDate,
+            /** Đồng hồ server lúc ghi — client dùng làm mốc freshness cho
+             * state streak, KHÔNG bịa từ đồng hồ thiết bị (clock skew). */
+            Instant serverTime) {
     }
 
     /** Replay/old-shape path: không có dossier mới trong lần này. */

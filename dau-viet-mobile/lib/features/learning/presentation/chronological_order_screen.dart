@@ -6,6 +6,7 @@ import '../../../core/theme/dau_viet_typography.dart';
 import '../../../core/widgets/bite_sized_completion_modal.dart';
 import '../../../core/widgets/combo_streak_badge_widget.dart';
 import '../../../core/widgets/dong_son_button.dart';
+import '../../../core/widgets/energy_pill.dart';
 import '../../../core/widgets/gold_confetti_overlay.dart';
 import '../../../core/widgets/shimmer_progress_bar.dart';
 import '../../../core/widgets/sound_toggle_button.dart';
@@ -201,11 +202,14 @@ class _ChronologicalOrderScreenState extends State<ChronologicalOrderScreen> {
                                   xpPoints: 80,
                                   accuracy: 1.0,
                                   streakCount: 5,
-                                  multiplier: 2.0,
                                   badgeAsset:
                                       'assets/badges/badge_trace_3_tactics.png',
                                   onContinue: () {
-                                    context.go('/traces/evt_bach_dang_938');
+                                    if (context.canPop()) {
+                                      context.pop();
+                                    } else {
+                                      context.go('/learning/hypothesis');
+                                    }
                                   },
                                 );
                               } else {
@@ -250,7 +254,7 @@ class _ChronologicalOrderScreenState extends State<ChronologicalOrderScreen> {
               if (context.canPop()) {
                 context.pop();
               } else {
-                context.go('/traces/evt_bach_dang_938');
+                context.go('/dashboard');
               }
             },
           ),
@@ -305,7 +309,13 @@ class _ChronologicalOrderScreenState extends State<ChronologicalOrderScreen> {
           ),
           const SoundToggleButton(),
           const SizedBox(width: 8),
-          const ComboStreakBadgeWidget(streakCount: 5, multiplier: 2.0),
+          const EnergyPill(
+            energy: 100,
+            maxEnergy: 100,
+            showHistoryPoints: false,
+          ),
+          const SizedBox(width: 8),
+          const ComboStreakBadgeWidget(streakCount: 5),
         ],
       ),
     );

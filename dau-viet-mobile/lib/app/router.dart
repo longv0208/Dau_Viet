@@ -37,28 +37,25 @@ import '../features/traces/presentation/traces_hub_screen.dart';
 
 /// Đường đi học thật — real mode yêu cầu đăng nhập (guard chuyển về /auth).
 const _learningPrefixes = [
-  '/learning/lesson/',
-  '/learning/attempt/',
-  '/learning/result/',
+  '/learning',
+  '/streak',
   '/map',
   '/collection',
   '/energy',
-  '/streak',
+  '/timeline',
+  '/saban',
 ];
 
 /// Màn demo-only (nội dung hard-code, không có backend thật): giữ trong
 /// USE_MOCK; real mode redirect về dashboard để không lộ dữ liệu bịa.
 /// Reward screens M-18/19/21 cần attemptId hợp lệ — real mode không có.
-/// Timeline/Sa Bàn tường thuật là demo. GAME-03: /energy đã có backend
-/// thật → bỏ khỏi danh sách, gate auth qua _learningPrefixes.
+/// Timeline/Sa Bàn đã được đồng bộ để mở được ở cả 2 chế độ.
 /// Đảo Di Sản (/island) và Túi Đồ (/inventory) là sở hữu/trang trí THẬT
 /// (nguồn /me/inventory) — KHÔNG gate ở đây, để learner mở được mọi lúc.
 const _demoOnlyPrefixes = [
   '/rewards/victory',
   '/rewards/claim',
   '/rewards/artifact',
-  '/timeline',
-  '/saban',
 ];
 
 /// Bộ định tuyến toàn cục của Dấu Việt Mobile (go_router)

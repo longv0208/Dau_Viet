@@ -101,12 +101,40 @@ class _ResultBody extends StatelessWidget {
         ? (score == score.roundToDouble()
               ? '${score.toInt()}'
               : score.toStringAsFixed(1))
-        : '90';
+        : (completed ? '100' : '—');
     final summaryRaw = result.result['summary'] ?? result.result['message'];
     final summary = summaryRaw is String ? summaryRaw : null;
     final title =
         _str(recapContent?.content ?? const {}, ['title', 'lessonTitle']) ??
-        'Bài 1: Nguồn gốc dân tộc';
+        (completed ? 'Hoàn thành bài học' : 'Lượt học lịch sử');
+
+    int earnedExp = 0;
+    int earnedPoints = 0;
+    for (final r in result.rewards) {
+      if (r.rewardType.toUpperCase() == 'EXP') earnedExp += r.amount;
+      if (r.rewardType.toUpperCase() == 'HISTORY_POINTS') {
+        earnedPoints += r.amount;
+      }
+    }
+    final expValue = earnedExp > 0
+        ? '+$earnedExp XP'
+        : (ApiConfig.useMock ? '+50 XP' : (completed ? '+50 XP' : '—'));
+    final thirdBadgeValue = earnedPoints > 0
+        ? '+$earnedPoints'
+        : (result.itemsUnlocked.isNotEmpty
+              ? '+${result.itemsUnlocked.length}'
+              : (ApiConfig.useMock ? '+10' : '—'));
+    final thirdBadgeLabel = earnedPoints > 0 || ApiConfig.useMock
+        ? 'Điểm Sử Ký'
+        : (result.itemsUnlocked.isNotEmpty ? 'Vật phẩm' : 'Phần thưởng');
+    final thirdBadgeIcon = earnedPoints > 0 || ApiConfig.useMock
+        ? Icons.military_tech_rounded
+        : (result.itemsUnlocked.isNotEmpty
+              ? Icons.inventory_2_rounded
+              : Icons.star_rounded);
+    final thirdBadgeColor = earnedPoints > 0 || ApiConfig.useMock
+        ? const Color(0xFFD97706)
+        : const Color(0xFF2D6A4F);
 
     return Scaffold(
       backgroundColor: const Color(0xFFFBF8F1),
@@ -197,7 +225,7 @@ class _ResultBody extends StatelessWidget {
                             icon: Icons.stars_rounded,
                             iconColor: const Color(0xFFD97706),
                             value: scoreStr,
-                            subValue: '/100',
+                            subValue: score != null ? '/100' : null,
                             label: 'Điểm số',
                           ),
                         ),
@@ -207,18 +235,18 @@ class _ResultBody extends StatelessWidget {
                           child: _buildResultBadge(
                             icon: Icons.bolt_rounded,
                             iconColor: const Color(0xFF2D6A4F),
-                            value: '+50 XP',
+                            value: expValue,
                             label: 'Kinh nghiệm',
                           ),
                         ),
                         const SizedBox(width: 8),
-                        // Năng lượng
+                        // Điểm Sử Ký / Vật Phẩm
                         Expanded(
                           child: _buildResultBadge(
-                            icon: Icons.favorite_rounded,
-                            iconColor: const Color(0xFFC2410C),
-                            value: '+1',
-                            label: 'Năng lượng',
+                            icon: thirdBadgeIcon,
+                            iconColor: thirdBadgeColor,
+                            value: thirdBadgeValue,
+                            label: thirdBadgeLabel,
                           ),
                         ),
                       ],
@@ -330,8 +358,18 @@ class _ResultBody extends StatelessWidget {
               ),
               const SizedBox(height: 10),
               OutlinedButton.icon(
-                onPressed: () =>
-                    context.push('/learning/lesson/${result.attemptId}'),
+                onPressed: () {
+                  final targetLessonId =
+                      recapContent?.lessonId ??
+                      (result.rewards.isNotEmpty
+                          ? result.rewards.first.lessonId
+                          : null);
+                  if (targetLessonId != null && targetLessonId.isNotEmpty) {
+                    context.push('/learning/lesson/$targetLessonId');
+                  } else {
+                    context.go('/dashboard');
+                  }
+                },
                 icon: const Icon(
                   Icons.menu_book_rounded,
                   size: 18,

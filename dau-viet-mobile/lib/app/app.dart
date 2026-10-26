@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../core/theme/dau_viet_theme.dart';
 import '../features/energy/data/energy_providers.dart';
+import '../features/streak/data/streak_providers.dart';
 import 'router.dart';
 
 /// Ứng dụng Dấu Việt Mobile Root Widget
@@ -33,6 +34,9 @@ class _DauVietAppState extends ConsumerState<DauVietApp>
     if (state == AppLifecycleState.resumed) {
       // refresh() tự kiểm phiên còn sống — guest/unauth → notifier lo.
       ref.read(energyProvider.notifier).refresh();
+      // STREAK-01: resume có thể đã qua nửa đêm VN → refetch streak để
+      // cập nhật streakAlive/completedToday theo ngày server mới.
+      ref.read(streakProvider.notifier).refresh();
     }
   }
 

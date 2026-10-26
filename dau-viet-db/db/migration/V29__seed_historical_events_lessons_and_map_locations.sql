@@ -19,13 +19,146 @@
 -- mới. 'hai-ba-trung-40' của main giữ nguyên (PR dùng slug khác
 -- 'khoi-nghia-hai-ba-trung-40'). 'ly-thai-to-1010' cũng giữ nguyên.
 --
--- Trước khi DELETE: phải re-link các lessons của main (event_id = d7b0...001)
--- sang UUID PR mới (0000...001) để tránh FK violation — vì lesson của main
--- là dữ liệu lesson quan trọng, không được mất.
+-- FIX (FK order): event đích 0000...001 PHẢI tồn tại trước khi re-link bất kỳ
+-- FK nào. Trên DB đã chạy V20, lessons.event_id trỏ d7b0...001 (FK
+-- lessons_event_id_fkey); UPDATE sang UUID chưa tồn tại → vi phạm FK ngay.
+-- Thứ tự đúng: (a) UPSERT event đích → (b) re-link mọi bảng con → (c) DELETE
+-- event cũ. INSERT batch ở dưới vẫn ON CONFLICT (id) DO UPDATE nên an toàn.
+INSERT INTO historical_events (
+    id, slug, title, era, period, start_year, summary, description, location, cover_asset_key, tags, status, created_at, updated_at
+) VALUES (
+    '00000000-0000-0000-0000-000000000001'::uuid,
+    'bach-dang-938',
+    'Đại Chiến Bạch Đằng 938',
+    'Thời Ngô - Đinh - Tiền Lê (938 - 1009)',
+    'Mùa Đông 938 SCN',
+    938,
+    'Trận thủy chiến kinh điển cắm cọc gỗ lim bịt sắt lợi dụng con nước triều, tiêu diệt hoàn toàn thủy quân Nam Hán của Lưu Hoằng Tháo, chính thức chấm dứt hơn 1.000 năm Bắc thuộc.',
+    'Năm 938, Ngô Quyền lợi dụng địa thế cửa sông Bạch Đằng và quy luật thủy triều để bố trí trận địa cọc ngầm bịt sắt, nhử hạm đội Nam Hán vào trận địa rồi tiêu diệt khi nước rút. Chiến thắng mở ra kỷ nguyên độc lập lâu dài cho Việt Nam.',
+    'Cửa sông Bạch Đằng, Quảng Ninh - Hải Phòng',
+    'events/bach-dang-938/hero.jpg',
+    ARRAY['ngo-quyen', 'thuy-chien', 'bac-thuoc', 'bach-dang'],
+    'PUBLISHED',
+    now(),
+    now()
+)
+ON CONFLICT (id) DO UPDATE SET
+    title = EXCLUDED.title,
+    era = EXCLUDED.era,
+    period = EXCLUDED.period,
+    start_year = EXCLUDED.start_year,
+    summary = EXCLUDED.summary,
+    description = EXCLUDED.description,
+    location = EXCLUDED.location,
+    cover_asset_key = EXCLUDED.cover_asset_key,
+    tags = EXCLUDED.tags,
+    status = EXCLUDED.status,
+    updated_at = now();
+
+-- Re-link mọi bảng con có FK → historical_events(id) về UUID đích TRƯỚC khi
+-- DELETE event cũ. UPDATE no-op an toàn trên DB chưa có dữ liệu cũ.
 UPDATE lessons
 SET event_id = '00000000-0000-0000-0000-000000000001'::uuid,
     updated_at = now()
-WHERE event_id = 'd7b00000-0000-4000-8000-000000000001'::uuid;
+WHERE event_id IN (
+    SELECT id FROM historical_events
+    WHERE slug = 'bach-dang-938'
+      AND id <> '00000000-0000-0000-0000-000000000001'::uuid
+);
+
+UPDATE map_locations
+SET event_id = '00000000-0000-0000-0000-000000000001'::uuid
+WHERE event_id IN (
+    SELECT id FROM historical_events
+    WHERE slug = 'bach-dang-938'
+      AND id <> '00000000-0000-0000-0000-000000000001'::uuid
+);
+
+UPDATE evidences
+SET event_id = '00000000-0000-0000-0000-000000000001'::uuid,
+    updated_at = now()
+WHERE event_id IN (
+    SELECT id FROM historical_events
+    WHERE slug = 'bach-dang-938'
+      AND id <> '00000000-0000-0000-0000-000000000001'::uuid
+);
+
+-- Các bảng runtime/liên kết khác cũng FK → historical_events(id). Phải re-link
+-- hết trước khi DELETE event cũ, kể cả khi một số bảng chưa có trong schema
+-- tại thời điểm V29 chạy (IF EXISTS guard) — chúng có thể được tạo ở migration
+-- sau VÌ lý do merge. Dùng DO block guard theo tên bảng.
+DO $$
+BEGIN
+    IF EXISTS (SELECT 1 FROM information_schema.tables
+               WHERE table_name = 'event_completion_policies') THEN
+        UPDATE event_completion_policies
+        SET event_id = '00000000-0000-0000-0000-000000000001'::uuid
+        WHERE event_id IN (SELECT id FROM historical_events
+            WHERE slug = 'bach-dang-938'
+              AND id <> '00000000-0000-0000-0000-000000000001'::uuid);
+    END IF;
+
+    IF EXISTS (SELECT 1 FROM information_schema.tables
+               WHERE table_name = 'user_event_progress') THEN
+        UPDATE user_event_progress
+        SET event_id = '00000000-0000-0000-0000-000000000001'::uuid
+        WHERE event_id IN (SELECT id FROM historical_events
+            WHERE slug = 'bach-dang-938'
+              AND id <> '00000000-0000-0000-0000-000000000001'::uuid);
+    END IF;
+
+    IF EXISTS (SELECT 1 FROM information_schema.tables
+               WHERE table_name = 'event_dossiers') THEN
+        UPDATE event_dossiers
+        SET event_id = '00000000-0000-0000-0000-000000000001'::uuid
+        WHERE event_id IN (SELECT id FROM historical_events
+            WHERE slug = 'bach-dang-938'
+              AND id <> '00000000-0000-0000-0000-000000000001'::uuid);
+    END IF;
+
+    IF EXISTS (SELECT 1 FROM information_schema.tables
+               WHERE table_name = 'animation_scenes') THEN
+        UPDATE animation_scenes
+        SET event_id = '00000000-0000-0000-0000-000000000001'::uuid
+        WHERE event_id IN (SELECT id FROM historical_events
+            WHERE slug = 'bach-dang-938'
+              AND id <> '00000000-0000-0000-0000-000000000001'::uuid);
+    END IF;
+
+    IF EXISTS (SELECT 1 FROM information_schema.tables
+               WHERE table_name = 'user_evidence') THEN
+        UPDATE user_evidence
+        SET event_id = '00000000-0000-0000-0000-000000000001'::uuid
+        WHERE event_id IN (SELECT id FROM historical_events
+            WHERE slug = 'bach-dang-938'
+              AND id <> '00000000-0000-0000-0000-000000000001'::uuid);
+    END IF;
+END $$;
+
+-- DELETE event cũ sau khi mọi FK đã về UUID đích. Bảng provenance
+-- (user_dossier_unlocks, user_inventory.source_event_id) giữ FK vào event
+-- cũ nếu có row — nhưng đây là dữ liệu user-generated; V29 chạy trước khi
+-- app có user thật nên hiếm. Vẫn re-link để DELETE không bị chặn.
+DO $$
+BEGIN
+    IF EXISTS (SELECT 1 FROM information_schema.tables
+               WHERE table_name = 'user_dossier_unlocks') THEN
+        UPDATE user_dossier_unlocks
+        SET event_id = '00000000-0000-0000-0000-000000000001'::uuid
+        WHERE event_id IN (SELECT id FROM historical_events
+            WHERE slug = 'bach-dang-938'
+              AND id <> '00000000-0000-0000-0000-000000000001'::uuid);
+    END IF;
+    IF EXISTS (SELECT 1 FROM information_schema.columns
+               WHERE table_name = 'user_inventory'
+                 AND column_name = 'source_event_id') THEN
+        UPDATE user_inventory
+        SET source_event_id = '00000000-0000-0000-0000-000000000001'::uuid
+        WHERE source_event_id IN (SELECT id FROM historical_events
+            WHERE slug = 'bach-dang-938'
+              AND id <> '00000000-0000-0000-0000-000000000001'::uuid);
+    END IF;
+END $$;
 
 DELETE FROM historical_events
 WHERE slug = 'bach-dang-938'

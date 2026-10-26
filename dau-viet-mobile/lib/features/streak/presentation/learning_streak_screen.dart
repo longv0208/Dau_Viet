@@ -4,6 +4,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../core/theme/dau_viet_colors.dart';
 import '../../../core/theme/dau_viet_typography.dart';
 import '../../../core/widgets/dong_son_button.dart';
+import '../../learning/data/learning_providers.dart';
 import '../data/streak_dto.dart';
 import '../data/streak_providers.dart';
 
@@ -39,10 +40,12 @@ class _LearningStreakScreenState extends ConsumerState<LearningStreakScreen> {
   @override
   Widget build(BuildContext context) {
     final streakAsync = ref.watch(streakProvider);
+    final sess = streakSessionKeyOf(ref.watch(authSessionProvider));
     final calendarAsync = ref.watch(
       streakCalendarProvider((
         year: _visibleMonth.year,
         month: _visibleMonth.month,
+        sess: sess,
       )),
     );
 

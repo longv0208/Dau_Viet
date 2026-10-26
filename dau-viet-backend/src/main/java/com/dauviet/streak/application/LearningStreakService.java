@@ -110,7 +110,7 @@ public class LearningStreakService {
         log.info("streak advance user={} date={} current={} longest={}",
                 userId, studyDate, s.getCurrentStreak(), s.getLongestStreak());
         return new CompleteAttemptResponse.StreakInfo(true,
-                s.getCurrentStreak(), s.getLongestStreak(), studyDate);
+                s.getCurrentStreak(), s.getLongestStreak(), studyDate, now);
     }
 
     /**
@@ -125,15 +125,28 @@ public class LearningStreakService {
         LocalDate today = LocalDate.ofInstant(now, TZ_HCM);
         UserLearningStreak s = streaks.findById(userId).orElse(null);
 
-        int current = s == null ? 0 : s.getCurrentStreak();
-        int longest = s == null ? 0 : s.getLongestStreak();
+        // STREAK contract: chuỗi HIỆU LỰC tại thời điểm GET — khác với
+        // current_streak lưu trong aggregate. Aggregate giữ giá trị lần ghi
+        // cuối; nếu user đã bỏ lỡ trọn ≥1 ngày (last < hôm qua VN) thì chuỗi
+        // thực tế đã ngắt → trả 0, longest giữ nguyên. KHÔNG ghi reset vào DB
+        // ở đây (read-only); lần complete tiếp theo advanceTo() sẽ đặt
+        // current=1 tự nhiên. Quy tắc:
+        //   last == null        → chưa học         → 0
+        //   last == today       → đã học hôm nay   → sống, giữ aggregate
+        //   last == today - 1   → học hôm qua      → còn cửa, giữ aggregate
+        //   last < today - 1    → bỏ lỡ trọn ngày  → chuỗi ngắt → 0
         LocalDate last = s == null ? null : s.getLastQualifiedDate();
         boolean completedToday = last != null && last.equals(today);
         boolean streakAlive = last != null
                 && (last.equals(today) || last.equals(today.minusDays(1)));
+        int effectiveCurrent = (s == null || !streakAlive)
+                ? 0
+                : s.getCurrentStreak();
+        int longest = s == null ? 0 : s.getLongestStreak();
 
-        return new LearningStreakResponse(current, longest, completedToday,
-                streakAlive, last, today, TZ_HCM.getId(), now);
+        return new LearningStreakResponse(effectiveCurrent, longest,
+                completedToday, streakAlive, last, today, TZ_HCM.getId(),
+                now);
     }
 
     /**

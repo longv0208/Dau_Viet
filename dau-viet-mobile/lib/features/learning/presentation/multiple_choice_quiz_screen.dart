@@ -7,6 +7,7 @@ import '../../../core/widgets/ambient_atmosphere_overlay.dart';
 import '../../../core/widgets/bite_sized_completion_modal.dart';
 import '../../../core/widgets/combo_streak_badge_widget.dart';
 import '../../../core/widgets/dong_son_button.dart';
+import '../../../core/widgets/energy_pill.dart';
 import '../../../core/widgets/gold_confetti_overlay.dart';
 import '../../../core/widgets/interactive_historical_mascot_widget.dart';
 import '../../../core/widgets/parchment_card.dart';
@@ -197,11 +198,14 @@ class _MultipleChoiceQuizScreenState extends State<MultipleChoiceQuizScreen> {
                                   xpPoints: 50,
                                   accuracy: 1.0,
                                   streakCount: 3,
-                                  multiplier: 1.5,
                                   badgeAsset:
                                       'assets/badges/badge_trace_1_context.png',
                                   onContinue: () {
-                                    context.go('/traces/evt_bach_dang_938');
+                                    if (context.canPop()) {
+                                      context.pop();
+                                    } else {
+                                      context.go('/dashboard');
+                                    }
                                   },
                                 );
                               } else {
@@ -302,7 +306,13 @@ class _MultipleChoiceQuizScreenState extends State<MultipleChoiceQuizScreen> {
           ),
           const SoundToggleButton(),
           const SizedBox(width: 8),
-          const ComboStreakBadgeWidget(streakCount: 3, multiplier: 1.5),
+          const EnergyPill(
+            energy: 100,
+            maxEnergy: 100,
+            showHistoryPoints: false,
+          ),
+          const SizedBox(width: 8),
+          const ComboStreakBadgeWidget(streakCount: 3),
         ],
       ),
     );

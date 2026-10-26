@@ -103,12 +103,16 @@ class _ContextReaderScreenState extends State<ContextReaderScreen> {
                       ),
                       const SizedBox(height: 10),
                       DongSonButton(
-                        label: 'Quay Lại Trung Tâm 4 Dấu Vết',
+                        label: 'Quay Lại Trang Chủ',
                         icon: Icons.arrow_back_rounded,
                         variant: DongSonButtonVariant.secondaryParchment,
                         height: 48,
                         onPressed: () {
-                          context.go('/traces/evt_bach_dang_938');
+                          if (context.canPop()) {
+                            context.pop();
+                          } else {
+                            context.go('/dashboard');
+                          }
                         },
                       ),
                       const SizedBox(height: 16),
@@ -145,7 +149,7 @@ class _ContextReaderScreenState extends State<ContextReaderScreen> {
               if (context.canPop()) {
                 context.pop();
               } else {
-                context.go('/traces/evt_bach_dang_938');
+                context.go('/dashboard');
               }
             },
           ),
