@@ -521,6 +521,22 @@ public class GlobalExceptionHandler {
                 ex.getMessage(), Map.of());
     }
 
+    /* ---------- PATH-01: Learning Path 2.0 ---------- */
+
+    @ExceptionHandler(com.dauviet.path.domain.LearningPathExceptions.PathNotFoundException.class)
+    public ResponseEntity<ApiError> handlePathNotFound(
+            com.dauviet.path.domain.LearningPathExceptions.PathNotFoundException ex) {
+        return build(HttpStatus.NOT_FOUND, ErrorCode.NOT_FOUND,
+                ex.getMessage(), Map.of("pathCode", ex.getPathCode()));
+    }
+
+    @ExceptionHandler(com.dauviet.path.domain.LearningPathExceptions.PathValidationException.class)
+    public ResponseEntity<ApiError> handlePathValidation(
+            com.dauviet.path.domain.LearningPathExceptions.PathValidationException ex) {
+        return build(HttpStatus.UNPROCESSABLE_ENTITY, ErrorCode.VALIDATION_ERROR,
+                ex.getMessage(), Map.of("errors", ex.getErrors()));
+    }
+
     /**
      * GAME-06: bat ca hai — ObjectOptimisticLockingFailure (JPA/Hibernate)
      * lan OptimisticLockingFailureException (service throw thu cong cho

@@ -84,6 +84,11 @@ public abstract class AbstractPostgresIT {
         jdbc.update("delete from lesson_results");
         jdbc.update("delete from idempotency_records");
         jdbc.update("delete from learner_attempts");
+        // V33: learning path tables — xoá trước lessons/historical_events
+        jdbc.update("delete from learning_path_lesson_nodes");
+        jdbc.update("delete from learning_path_event_nodes");
+        jdbc.update("delete from learning_path_chapters");
+        jdbc.update("delete from learning_path_versions");
         jdbc.update("update lessons set status = 'DRAFT', current_version_id = null");
         jdbc.update("delete from lesson_versions");
         jdbc.update("delete from lessons");
