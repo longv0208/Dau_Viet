@@ -2,6 +2,7 @@
 
 import { zodResolver } from "@hookform/resolvers/zod";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import dynamic from "next/dynamic";
 import { useState } from "react";
 import { useForm } from "react-hook-form";
 import { z } from "zod";
@@ -25,21 +26,36 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { StatusChip } from "@/components/status-chip";
 import { ErrorState } from "@/components/error-state";
 
-const LAT_RE = /^-?\d+(\.\d+)?$/;
+const PCT_RE = /^\d+(\.\d+)?$/;
 
+// Picker thuần DOM — không cần window ở module scope, nhưng giữ dynamic để
+// nhất quán & tránh SSR render ảnh nặng.
+const LatLngMapPicker = dynamic(
+  () =>
+    import("./lat-lng-map-picker").then((m) => ({
+      default: m.LatLngMapPicker,
+    })),
+  { ssr: false, loading: () => <Skeleton className="h-80 w-full" /> },
+);
+
+/**
+ * Vị trí địa điểm lưu theo % ảnh bản đồ (0–100), KHÔNG phải toạ độ địa lý
+ * thật — mobile render node theo index/percent trên ảnh map của sự kiện.
+ * Cột DB vẫn là latitude/longitude; giá trị 0–100 nằm trong CHECK -90..180.
+ */
 const schema = z.object({
   title: z.string().min(1, "Vui lòng nhập tên địa điểm").max(255, "Tối đa 255 ký tự"),
   description: z.string().max(4000, "Tối đa 4000 ký tự").optional().or(z.literal("")),
   latitude: z
     .string()
-    .min(1, "Vui lòng nhập vĩ độ")
-    .regex(LAT_RE, "Vĩ độ phải là số")
-    .refine((v) => Number(v) >= -90 && Number(v) <= 90, "Vĩ độ từ -90 đến 90"),
+    .min(1, "Vui lòng chọn vị trí trên bản đồ")
+    .regex(PCT_RE, "Vị trí dọc phải là số từ 0 đến 100")
+    .refine((v) => Number(v) >= 0 && Number(v) <= 100, "Vị trí dọc từ 0 đến 100"),
   longitude: z
     .string()
-    .min(1, "Vui lòng nhập kinh độ")
-    .regex(LAT_RE, "Kinh độ phải là số")
-    .refine((v) => Number(v) >= -180 && Number(v) <= 180, "Kinh độ từ -180 đến 180"),
+    .min(1, "Vui lòng chọn vị trí trên bản đồ")
+    .regex(PCT_RE, "Vị trí ngang phải là số từ 0 đến 100")
+    .refine((v) => Number(v) >= 0 && Number(v) <= 100, "Vị trí ngang từ 0 đến 100"),
   unlockLessonId: z.string().optional().or(z.literal("")),
   displayOrder: z
     .string()
@@ -85,7 +101,59 @@ function resolveUnlockLessonId(
  * lesson link rule is enforced server-side (composite FK); the dropdown only
  * lists lessons of this event so admins can't pick a wrong one by accident.
  */
-export function MapLocationsSection({ eventId }: { eventId: string }) {
+/**
+ * Ảnh bản đồ của sự kiện — mirror `_resolveMeta` trong mobile
+ * (historical_map_screen.dart). UUID hậu tố 0001..0005 map sẵn; slug chứa
+ * từ khoá cũng match; fallback = nền hành trình chung.
+ */
+function resolveEventMapImage(slug: string | undefined, eventId: string): {
+  src: string;
+  label: string;
+} {
+  const s = (slug ?? "").toLowerCase();
+  const id = eventId.toLowerCase();
+  const has = (...keys: string[]) =>
+    keys.some((k) => s.includes(k) || id.includes(k));
+
+  if (id.endsWith("000000000001") || has("bach-dang", "938", "bach_dang"))
+    return {
+      src: "/maps/dv_MAP_ngoquyen_bachdang-base_v01.jpg",
+      label: "Bản Đồ Thủy Chiến Bạch Đằng Giang 938",
+    };
+  if (id.endsWith("000000000002") || has("hai-ba", "trung"))
+    return {
+      src: "/maps/map_hai_ba_trung.jpg",
+      label: "Bản Đồ Khởi Nghĩa Hai Bà Trưng (Năm 40)",
+    };
+  if (id.endsWith("000000000003") || has("nhu-nguyet", "1077"))
+    return {
+      src: "/maps/map_nhu_nguyet.jpg",
+      label: "Bản Đồ Phòng Tuyến Sông Như Nguyệt 1077",
+    };
+  if (id.endsWith("000000000004") || has("dien-bien", "1954"))
+    return {
+      src: "/maps/map_dien_bien_phu.jpg",
+      label: "Bản Đồ Chiến Dịch Điện Biên Phủ 1954",
+    };
+  if (id.endsWith("000000000005") || has("hung", "van-lang"))
+    return {
+      src: "/maps/map_van_lang.jpg",
+      label: "Bản Đồ Nước Văn Lang Thời Các Vua Hùng",
+    };
+  return {
+    src: "/maps/vietnam_journey_map_bg.jpg",
+    label: "Bản đồ hành trình Việt Nam",
+  };
+}
+
+export function MapLocationsSection({
+  eventId,
+  eventSlug,
+}: {
+  eventId: string;
+  /** Slug sự kiện — dùng resolve ảnh bản đồ cho picker. */
+  eventSlug?: string;
+}) {
   const qc = useQueryClient();
   const [editing, setEditing] = useState<AdminMapLocation | null>(null);
   const [serverError, setServerError] = useState<string | null>(null);
@@ -125,8 +193,21 @@ export function MapLocationsSection({ eventId }: { eventId: string }) {
     register,
     handleSubmit,
     reset,
+    setValue,
+    watch,
     formState: { errors, isSubmitting },
   } = useForm<FormValues>({ resolver: zodResolver(schema) });
+
+  const watchedLat = watch("latitude");
+  const watchedLng = watch("longitude");
+  const pickerValue = (() => {
+    const lat = Number(watchedLat);
+    const lng = Number(watchedLng);
+    return Number.isFinite(lat) && Number.isFinite(lng) && watchedLat !== "" && watchedLng !== ""
+      ? { lat, lng }
+      : null;
+  })();
+  const mapImage = resolveEventMapImage(eventSlug, eventId);
 
   const invalidate = () =>
     qc.invalidateQueries({ queryKey: qk.mapLocations.list(eventId) });
@@ -331,13 +412,31 @@ export function MapLocationsSection({ eventId }: { eventId: string }) {
             </div>
           </div>
 
+          <div className="flex flex-col gap-1.5">
+            <Label>Vị trí trên bản đồ *</Label>
+            <LatLngMapPicker
+              value={pickerValue}
+              imageSrc={mapImage.src}
+              imageLabel={mapImage.label}
+              onChange={({ lat, lng }) => {
+                setValue("latitude", String(lat), { shouldValidate: true, shouldDirty: true });
+                setValue("longitude", String(lng), { shouldValidate: true, shouldDirty: true });
+              }}
+            />
+            {(errors.latitude || errors.longitude) && (
+              <p role="alert" className="text-xs text-error">
+                {errors.latitude?.message ?? errors.longitude?.message}
+              </p>
+            )}
+          </div>
+
           <div className="grid gap-4 md:grid-cols-2">
             <div className="flex flex-col gap-1.5">
-              <Label htmlFor="ml-lat">Vĩ độ *</Label>
+              <Label htmlFor="ml-lat">Vị trí dọc % (0–100) *</Label>
               <Input
                 id="ml-lat"
                 inputMode="decimal"
-                placeholder="20.9101"
+                placeholder="50"
                 aria-invalid={Boolean(errors.latitude)}
                 {...register("latitude")}
               />
@@ -346,11 +445,11 @@ export function MapLocationsSection({ eventId }: { eventId: string }) {
               )}
             </div>
             <div className="flex flex-col gap-1.5">
-              <Label htmlFor="ml-lng">Kinh độ *</Label>
+              <Label htmlFor="ml-lng">Vị trí ngang % (0–100) *</Label>
               <Input
                 id="ml-lng"
                 inputMode="decimal"
-                placeholder="106.8231"
+                placeholder="50"
                 aria-invalid={Boolean(errors.longitude)}
                 {...register("longitude")}
               />

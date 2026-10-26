@@ -16,6 +16,8 @@ export interface FieldError {
   path: string;
   code: string;
   message: string;
+  /** FE-supplied detail text — ưu tiên `message` khi có. */
+  detail?: string;
 }
 
 export interface BuilderState {

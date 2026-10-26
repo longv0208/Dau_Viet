@@ -11,7 +11,7 @@ export function EventInfoTab({ event }: { event: AdminEventDetail }) {
     <div className="flex flex-col gap-6">
       <EventForm initial={event} />
       <hr className="border-border" />
-      <MapLocationsSection eventId={event.id} />
+      <MapLocationsSection eventId={event.id} eventSlug={event.slug} />
     </div>
   );
 }
