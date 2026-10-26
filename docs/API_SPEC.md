@@ -65,6 +65,8 @@
 | GET | `/me/events/{eventId}/progress` | Tiến độ hoàn thành event của learner — **implemented GAME-04**; 404 khi event không tồn tại, `NOT_CONFIGURED` khi chưa có published policy |
 | GET | `/me/progress` | Resume surface: IN_PROGRESS attempts + completed count — **implemented TASK-0012** |
 | GET | `/me/energy` | Thể lực của learner hiện tại (lazy recovery theo server clock) — **implemented GAME-02**; yêu cầu authenticated |
+| GET | `/me/streak` | Chuỗi ngày học hiện tại (server `Asia/Ho_Chi_Minh`) — **implemented STREAK-01**; authenticated, đọc-only không lazy-create |
+| GET | `/me/streak/calendar` | Các ngày đã học trong khoảng `?from=&to=` (ISO date, ≤92 ngày) — **implemented STREAK-01**; authenticated |
 
 ### Start/resume
 
@@ -161,6 +163,53 @@ Content-Type: application/json
 - `current`, `nextRecoveryAt`, `serverTime` do server tính tuyệt đối — client không gửi balance, không tự tính chu kỳ hồi.
 - Error `409 ENERGY_DEPLETED` (submit graded khi `current = 0`) mang `details {currentEnergy, nextRecoveryAt, serverTime}` để client hiển thị countdown mà không cần gọi thêm endpoint.
 - **Rollout flag (FIX 3)**: `dauviet.energy.enabled` mặc định `false` qua `application.yml` (`DAUVIET_ENERGY_ENABLED` env-override) — penalty + gate no-op khi tắt, chỉ theo dõi trạng thái; `canSubmitGraded` trả `true`. Bật `true` khi GAME-03 Flutter đã xử lý `ENERGY_DEPLETED` + đồng hồ đếm; bật/tắt không reset `user_energy`/`energy_transactions`. Tests bật explicit qua `src/test/resources/application.yml`.
+
+### GET /me/streak — implemented shape (STREAK-01)
+
+`GET /api/v1/me/streak` — authenticated; trả trạng thái Chuỗi Ngày Học của learner. Đọc-only: **không** lazy-create row nào — user chưa học nhận bộ default `current=0`, `streakAlive=false`, `lastQualifiedDate=null` mà DB vẫn trống.
+
+```json
+{
+  "currentStreak": 5,
+  "longestStreak": 12,
+  "completedToday": true,
+  "streakAlive": true,
+  "lastQualifiedDate": "2026-10-26",
+  "today": "2026-10-26",
+  "timezone": "Asia/Ho_Chi_Minh",
+  "serverTime": "2026-10-26T15:30:00Z"
+}
+```
+
+- `streakAlive` = `lastQualifiedDate == today || lastQualifiedDate == today - 1` — phân biệt "đã ghi hôm nay" (`completedToday`) vs "học hôm qua, còn cửa giữ chuỗi" vs "đã đứt". Đọc **không** tự reset `current_streak` — lần complete kế tiếp sẽ set đúng luật trong transaction ghi.
+- `today`, `serverTime` tính theo `Asia/Ho_Chi_Minh` từ `Clock` server — client không gửi ngày, không tự quy đổi múi giờ.
+
+### GET /me/streak/calendar — implemented shape (STREAK-01)
+
+`GET /api/v1/me/streak/calendar?from=YYYY-MM-DD&to=YYYY-MM-DD` — authenticated; danh sách ngày VN có ≥1 attempt COMPLETED trong khoảng, sort ASC. Span tối đa 92 ngày (quá thì server cắt `to = from + 92`). `from > to` → 400 `VALIDATION_ERROR`.
+
+```json
+{
+  "from": "2026-10-01",
+  "to": "2026-10-31",
+  "timezone": "Asia/Ho_Chi_Minh",
+  "days": ["2026-10-20", "2026-10-24", "2026-10-26"],
+  "serverTime": "2026-10-26T15:30:00Z"
+}
+```
+
+### POST /attempts/{id}/complete — additive field (STREAK-01)
+
+`CompleteAttemptResponse` giờ mang thêm `streak` — **chỉ non-null khi server vừa công nhận một ngày học MỚI** (ledger `INSERT ON CONFLICT` thắng). Replay attempt / bài thứ hai cùng ngày / concurrent same-day thua race → `streak = null` — client dùng đây làm điều kiện duy nhất phát animation ngọn lửa (không gọi GET bổ sung, không phát lại).
+
+```json
+"streak": {
+  "dayRecorded": true,
+  "currentStreak": 5,
+  "longestStreak": 12,
+  "studyDate": "2026-10-26"
+}
+```
 
 ### GET /events — implemented shape (TASK-0005)
 

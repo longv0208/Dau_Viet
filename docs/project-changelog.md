@@ -2,6 +2,28 @@
 
 > Detailed record of significant changes, features và fixes. Newest first.
 
+## 2026-10-26 — LEARN-STREAK: Chuỗi Ngày Học — Ngọn Lửa Hào Khí
+
+**Scope:** Daily learning streak end-to-end — PostgreSQL → Spring Boot → Flutter. Streak = số ngày VN liên tiếp có ≥1 attempt COMPLETED, timezone `Asia/Ho_Chi_Minh` tính server-side từ `learner_attempts.completed_at`; streak KHÔNG sinh reward transaction (POINT-03); không đụng GAME-07/GAME-08, không sửa migration đã apply. Plan: `plans/261026-1315-learning-streak/`.
+
+**Database**
+- `V31__learning_streak.sql` — `user_learning_streaks` (current_streak, longest_streak, last_qualified_date — aggregate optimistic row) + `user_learning_streak_days` (ledger `UNIQUE(user_id, study_date)`, `first_attempt_id` provenance). Idempotency 3 lớp: ledger insert `ON CONFLICT`, `advanceTo` no-op same-day, retry-safe. Mirror sang `dau-viet-db/db/migration`; backfill `dau-viet-db/scripts/` replay ngày học từ `learner_attempts` theo VN day.
+
+**Backend**
+- `com.dauviet.streak`: entities + repositories; `LearningStreakService` pessimistic lock (thứ tự lock `learner_attempts` → `days` → `streaks` — no deadlock với completion flow), `recordStudyDay` trả flag "ngày mới được ghi", `advanceTo` — ngày liên tiếp `current+1`, bỏ lỡ reset 1, `longestStreak = max(...)` không giảm, `streakAlive` = last là hôm nay HOẶC hôm qua VN; read path `readOnly` không lazy-create.
+- `LearningStreakController`: `GET /api/v1/me/streak` (currentStreak, longestStreak, completedToday, streakAlive, lastQualifiedDate, today, timezone, serverTime), `GET /api/v1/me/streak/calendar?from&to` (cap 92 ngày, 400 range ngược).
+- Hook `LearnerAttemptService.doComplete` sau reward/event milestone cùng tx; `CompleteAttemptResponse.streak` additive — non-null CHỈ khi ledger ghi ngày mới (null trên replay/bài thứ hai cùng ngày → client không re-animate, không cần gọi thêm API).
+
+**Mobile**
+- `lib/features/streak/data/`: `streak_dto` (`LearningStreakDto`, `LearningStreakCalendarDto`, `StreakInfoDto.tryParse` → null khi `!dayRecorded`), `streak_api_client`, repository interface + api impl (ApiException thẳng lên UI, không fallback mock) + mock (5 ngày demo), `streak_providers` — `StreakController` AsyncNotifier mirror energy (sessionKey, `applyStreakInfo` freshness `serverTime`, `_noRetry`), `streakCalendarProvider` family theo (year, month).
+- UI: route `/streak` + `LearningStreakScreen` (flame hero dim khi chưa cháy, today message 4 trạng thái, stat cards, month calendar chấm đỏ ngày học + viền vàng hôm nay); dashboard thay `'⚡12'`/`'❤️3'` bằng `_EnergyMiniPill`/`_StreakMiniPill` đọc provider thật (placeholder `'—'` khi loading/error) → `/energy`, `/streak`; profile `_StreakCard` + menu tile; lesson player header `_StreakBadge` số thật; result screen `_StreakFlameBanner` animate một-lần (flame elastic + count N-1→N, "Kỷ lục mới!") qua `LessonResultDto.newlyRecordedStreak` — client-only, server GET /result không trả → deep-link không replay animation.
+
+**Tests & verification**
+- Backend: `LearningStreakServiceTest` **14/14**, `LearnerAttemptServiceTest` **19/19**; `mvnw verify` — toàn bộ IT fail do Testcontainers cần Docker (Docker off — pre-existing blocker, không liên quan streak).
+- Mobile: `dart format` clean, `flutter analyze` 0 errors, `flutter test` **438 pass**; dashboard test cập nhật assertion (không còn số hard-code); 2 fail `lesson_player_energy_test` xác nhận pre-existing trên HEAD qua stash/pop.
+
+**Docs updated:** `docs/API_SPEC.md`, `docs/DATABASE_DESIGN.md`, `docs/GAMIFICATION_BUSINESS_RULES.md` (STRK-01..08), `docs/GAMIFICATION_TECHNICAL_CONTRACT.md` (context thứ 7 + §5.1), `docs/development-roadmap.md`, `docs/project-changelog.md`.
+
 ## 2026-10-25 — GAME-06: Admin Gamification CMS
 
 **Scope:** Admin CMS (Spring Boot + Next.js admin) quản trị gamification — event completion policies, historical dossiers + event links, item rule builder V2 + history, reconcile/backfill panel. Backend authoritative, mọi route `/api/v1/admin/**` gate `CONTENT_ADMIN`; không đụng Flutter, không đụng learning engine internals, không sửa V22–V27. Plan: `plans/261025-0553-game06-admin-gamification-cms/`.

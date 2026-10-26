@@ -13,6 +13,8 @@ import '../../auth/data/auth_state.dart';
 import '../../learning/data/learning_providers.dart';
 import '../../rewards/data/reward_dtos.dart';
 import '../../rewards/data/reward_providers.dart';
+import '../../streak/data/streak_dto.dart';
+import '../../streak/data/streak_providers.dart';
 
 /// Tab Cá nhân (P0-02): hồ sơ thật từ GET /users/me (qua auth session)
 /// + thành tích thật từ GET /me/rewards/summary. Không có số liệu nào
@@ -56,6 +58,10 @@ class ProfileScreen extends ConsumerWidget {
                             onRetry: () =>
                                 ref.invalidate(rewardSummaryProvider),
                           ),
+                          const SizedBox(height: 12),
+                          // STREAK-01: chuỗi ngày + kỷ lục thật từ
+                          // GET /me/streak — bấm mở màn chi tiết.
+                          const _StreakCard(),
                           const SizedBox(height: 16),
                           const _SectionLabel('QUẢN LÝ'),
                           const SizedBox(height: 8),
@@ -84,6 +90,12 @@ class ProfileScreen extends ConsumerWidget {
                                 ? 'Viện Thái Y (demo)'
                                 : 'Viện Thái Y — Thể lực',
                             onTap: () => context.go('/energy'),
+                          ),
+                          // STREAK-01: Ngọn Lửa Hào Khí backend thật.
+                          _MenuTile(
+                            icon: Icons.local_fire_department_outlined,
+                            label: 'Ngọn Lửa Hào Khí — Chuỗi ngày học',
+                            onTap: () => context.go('/streak'),
                           ),
                           const SizedBox(height: 16),
                           const _SectionLabel('TÀI KHOẢN'),
@@ -290,6 +302,96 @@ class _StatsCard extends StatelessWidget {
               ],
             ),
           ],
+        ),
+      ),
+    );
+  }
+}
+
+/// STREAK-01: card Chuỗi Ngày Học trên profile — current + longest thật
+/// từ streakProvider; loading/error hiện '—' chứ không bịa số.
+class _StreakCard extends ConsumerWidget {
+  const _StreakCard();
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final streakAsync = ref.watch(streakProvider);
+    return ParchmentCard(
+      backgroundColor: DauVietColors.parchmentContainer,
+      borderColor: DauVietColors.cinnabarRed,
+      borderWidth: 1.5,
+      padding: const EdgeInsets.all(16),
+      child: InkWell(
+        onTap: () => context.push('/streak'),
+        child: streakAsync.when(
+          loading: () => const SizedBox(
+            height: 40,
+            child: Center(
+              child: SizedBox(
+                width: 20,
+                height: 20,
+                child: CircularProgressIndicator(strokeWidth: 2),
+              ),
+            ),
+          ),
+          error: (_, __) => Row(
+            children: [
+              const Icon(
+                Icons.local_fire_department_rounded,
+                color: DauVietColors.cinnabarRed,
+                size: 20,
+              ),
+              const SizedBox(width: 8),
+              Expanded(
+                child: Text(
+                  'Chưa tải được chuỗi ngày học.',
+                  style: DauVietTypography.bodySmall.copyWith(
+                    color: DauVietColors.inkMuted,
+                  ),
+                ),
+              ),
+            ],
+          ),
+          data: (LearningStreakDto s) => Row(
+            children: [
+              Icon(
+                Icons.local_fire_department_rounded,
+                size: 28,
+                color: (s.completedToday || s.streakAlive)
+                    ? DauVietColors.cinnabarRed
+                    : DauVietColors.cinnabarRed.withValues(alpha: 0.35),
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      'CHUỖI NGÀY HỌC',
+                      style: DauVietTypography.labelSmall.copyWith(
+                        color: DauVietColors.inkMuted,
+                        letterSpacing: 0.8,
+                        fontWeight: FontWeight.w800,
+                      ),
+                    ),
+                    const SizedBox(height: 3),
+                    Text(
+                      '${s.currentStreak} ngày liên tiếp — Kỷ lục ${s.longestStreak}',
+                      style: DauVietTypography.bodyMedium.copyWith(
+                        color: DauVietColors.inkText,
+                        fontWeight: FontWeight.w700,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              const Icon(
+                Icons.chevron_right_rounded,
+                size: 20,
+                color: DauVietColors.inkMuted,
+              ),
+            ],
+          ),
         ),
       ),
     );

@@ -31,6 +31,7 @@ import '../features/rewards/presentation/event_victory_screen.dart';
 import '../features/rewards/presentation/reward_claim_screen.dart';
 import '../features/rewards/presentation/warship_artifact_detail_screen.dart';
 import '../features/saban/presentation/battle_saban_screen.dart';
+import '../features/streak/presentation/learning_streak_screen.dart';
 import '../features/timeline/presentation/timeline_screen.dart';
 import '../features/traces/presentation/traces_hub_screen.dart';
 
@@ -42,6 +43,7 @@ const _learningPrefixes = [
   '/map',
   '/collection',
   '/energy',
+  '/streak',
 ];
 
 /// Màn demo-only (nội dung hard-code, không có backend thật): giữ trong
@@ -324,6 +326,13 @@ final appRouter = GoRouter(
       path: '/energy',
       name: 'energy_management',
       builder: (context, state) => const EnergyManagementScreen(),
+    ),
+
+    // STREAK-01: Chi Tiết Chuỗi Ngày Học — Ngọn Lửa Hào Khí
+    GoRoute(
+      path: '/streak',
+      name: 'learning_streak',
+      builder: (context, state) => const LearningStreakScreen(),
     ),
 
     // Demo Showcase Theme

@@ -159,10 +159,7 @@ class _OrderTile extends StatelessWidget {
       decoration: BoxDecoration(
         color: Colors.white,
         borderRadius: BorderRadius.circular(14),
-        border: Border.all(
-          color: const Color(0xFFE5DAC6),
-          width: 1.2,
-        ),
+        border: Border.all(color: const Color(0xFFE5DAC6), width: 1.2),
         boxShadow: [
           BoxShadow(
             color: const Color(0xFF8B4513).withValues(alpha: 0.05),
@@ -213,7 +210,9 @@ class _OrderTile extends StatelessWidget {
               icon: const Icon(Icons.arrow_upward_rounded, size: 18),
               padding: EdgeInsets.zero,
               constraints: const BoxConstraints(minWidth: 32, minHeight: 32),
-              color: index > 0 && enabled ? const Color(0xFF5E6963) : Colors.black12,
+              color: index > 0 && enabled
+                  ? const Color(0xFF5E6963)
+                  : Colors.black12,
               tooltip: 'Di chuyển lên',
               onPressed: index > 0 && enabled ? onUp : null,
             ),
@@ -221,7 +220,9 @@ class _OrderTile extends StatelessWidget {
               icon: const Icon(Icons.arrow_downward_rounded, size: 18),
               padding: EdgeInsets.zero,
               constraints: const BoxConstraints(minWidth: 32, minHeight: 32),
-              color: index < total - 1 && enabled ? const Color(0xFF5E6963) : Colors.black12,
+              color: index < total - 1 && enabled
+                  ? const Color(0xFF5E6963)
+                  : Colors.black12,
               tooltip: 'Di chuyển xuống',
               onPressed: index < total - 1 && enabled ? onDown : null,
             ),

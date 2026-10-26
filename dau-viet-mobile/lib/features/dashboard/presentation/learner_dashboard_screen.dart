@@ -7,8 +7,10 @@ import '../../../core/widgets/dong_son_button.dart';
 import '../../../core/widgets/energy_pill.dart';
 import '../../../core/widgets/main_bottom_nav.dart';
 import '../../auth/data/auth_state.dart';
+import '../../energy/data/energy_providers.dart';
 import '../../events/data/events_providers.dart';
 import '../../learning/data/learning_providers.dart';
+import '../../streak/data/streak_providers.dart';
 
 /// Màn hình M-03: Trang Chủ / Bàn Học Tập Người Học (Learner Dashboard & Homepage)
 /// Được thiết kế lại toàn diện theo chuẩn UI/UX Pro Max & bản sắc Di Sản Dấu Việt:
@@ -40,11 +42,7 @@ class _LearnerDashboardScreenState
           gradient: LinearGradient(
             begin: Alignment.topCenter,
             end: Alignment.bottomCenter,
-            colors: [
-              Color(0xFFFBF8F1),
-              Color(0xFFF7F2E7),
-              Color(0xFFF2EADC),
-            ],
+            colors: [Color(0xFFFBF8F1), Color(0xFFF7F2E7), Color(0xFFF2EADC)],
           ),
         ),
         child: SafeArea(
@@ -57,7 +55,10 @@ class _LearnerDashboardScreenState
               Expanded(
                 child: SingleChildScrollView(
                   physics: const BouncingScrollPhysics(),
-                  padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 10),
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 18,
+                    vertical: 10,
+                  ),
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
@@ -125,10 +126,7 @@ class _LearnerDashboardScreenState
               // Giữ text 'Dấu Việt' cho accessibility & widget test runner
               Opacity(
                 opacity: 0.0,
-                child: Text(
-                  'Dấu Việt',
-                  style: const TextStyle(fontSize: 1),
-                ),
+                child: Text('Dấu Việt', style: const TextStyle(fontSize: 1)),
               ),
               Image.asset(
                 'assets/images/app_logo.png',
@@ -153,7 +151,10 @@ class _LearnerDashboardScreenState
                         borderRadius: BorderRadius.circular(4),
                       ),
                       alignment: Alignment.center,
-                      child: const Text('印', style: TextStyle(color: Colors.white, fontSize: 12)),
+                      child: const Text(
+                        '印',
+                        style: TextStyle(color: Colors.white, fontSize: 12),
+                      ),
                     ),
                   ],
                 ),
@@ -182,7 +183,10 @@ class _LearnerDashboardScreenState
                     decoration: BoxDecoration(
                       shape: BoxShape.circle,
                       color: Colors.white,
-                      border: Border.all(color: const Color(0xFFE5E0D5), width: 1.0),
+                      border: Border.all(
+                        color: const Color(0xFFE5E0D5),
+                        width: 1.0,
+                      ),
                       boxShadow: [
                         BoxShadow(
                           color: Colors.black.withValues(alpha: 0.03),
@@ -239,7 +243,9 @@ class _LearnerDashboardScreenState
                     ),
                     boxShadow: [
                       BoxShadow(
-                        color: DauVietColors.imperialGold.withValues(alpha: 0.25),
+                        color: DauVietColors.imperialGold.withValues(
+                          alpha: 0.25,
+                        ),
                         blurRadius: 6,
                         offset: const Offset(0, 2),
                       ),
@@ -266,7 +272,7 @@ class _LearnerDashboardScreenState
   }
 
   // ===========================================================================
-  // 2. GREETING & STATS ROW: XIN CHÀO, NĂNG LƯỢNG (⚡12) & CHUỖI NGÀY (❤️3)
+  // 2. GREETING & STATS ROW: XIN CHÀO, NĂNG LƯỢNG & CHUỖI NGÀY (real data)
   // ===========================================================================
   Widget _buildGreetingAndStatsRow(String displayName) {
     return Row(
@@ -321,60 +327,18 @@ class _LearnerDashboardScreenState
         ),
         const SizedBox(width: 8),
 
-        // Cụm 2 status pills: ⚡ 12 & ❤️ 3
+        // Cụm 2 status pills: ⚡ Năng lượng (energyProvider) & 🔥 Chuỗi
+        // ngày (streakProvider) — số thật từ server, không hard-code.
         Row(
           mainAxisSize: MainAxisSize.min,
           children: [
-            // Pill 1: ⚡ Năng lượng
-            Container(
-              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-              decoration: BoxDecoration(
-                color: const Color(0xFFFFF9E6),
-                borderRadius: BorderRadius.circular(16),
-                border: Border.all(color: const Color(0xFFFFE082), width: 1.2),
-              ),
-              child: const Row(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  Text('⚡', style: TextStyle(fontSize: 12)),
-                  SizedBox(width: 3),
-                  Text(
-                    '12',
-                    style: TextStyle(
-                      fontSize: 12,
-                      fontWeight: FontWeight.w900,
-                      color: Color(0xFFB45309),
-                    ),
-                  ),
-                ],
-              ),
-            ),
+            // Pill 1: ⚡ Năng lượng — balance thật GET /me/energy.
+            _EnergyMiniPill(),
             const SizedBox(width: 6),
 
-            // Pill 2: ❤️ Chuỗi ngày
-            Container(
-              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-              decoration: BoxDecoration(
-                color: const Color(0xFFFDF2F2),
-                borderRadius: BorderRadius.circular(16),
-                border: Border.all(color: const Color(0xFFFFCDD2), width: 1.2),
-              ),
-              child: const Row(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  Text('❤️', style: TextStyle(fontSize: 12)),
-                  SizedBox(width: 3),
-                  Text(
-                    '3',
-                    style: TextStyle(
-                      fontSize: 12,
-                      fontWeight: FontWeight.w900,
-                      color: Color(0xFFC62828),
-                    ),
-                  ),
-                ],
-              ),
-            ),
+            // Pill 2: 🔥 Chuỗi ngày — currentStreak thật GET /me/streak;
+            // bấm → màn chi tiết Ngọn Lửa Hào Khí (/streak).
+            _StreakMiniPill(),
           ],
         ),
       ],
@@ -410,9 +374,8 @@ class _LearnerDashboardScreenState
               child: Image.asset(
                 'assets/images/landscape_hero_bg.jpg',
                 fit: BoxFit.cover,
-                errorBuilder: (_, __, ___) => Container(
-                  color: const Color(0xFFF4ECE1),
-                ),
+                errorBuilder: (_, __, ___) =>
+                    Container(color: const Color(0xFFF4ECE1)),
               ),
             ),
 
@@ -551,7 +514,9 @@ class _LearnerDashboardScreenState
                         final attempt = progress.inProgress.first;
                         return _buildHeroCtaButton(
                           label: 'Tiếp tục học →',
-                          onTap: () => context.go('/learning/attempt/${attempt.attemptId}'),
+                          onTap: () => context.go(
+                            '/learning/attempt/${attempt.attemptId}',
+                          ),
                         );
                       }
                       // Khi chưa có attempt inProgress → mở sự kiện đầu tiên
@@ -585,7 +550,10 @@ class _LearnerDashboardScreenState
     );
   }
 
-  Widget _buildHeroCtaButton({required String label, required VoidCallback onTap}) {
+  Widget _buildHeroCtaButton({
+    required String label,
+    required VoidCallback onTap,
+  }) {
     return DongSonButton(
       label: label,
       variant: DongSonButtonVariant.heritageGreen,
@@ -1037,9 +1005,8 @@ class _LearnerDashboardScreenState
                 'assets/images/bach_dang_938.jpg',
                 fit: BoxFit.cover,
                 alignment: Alignment.center,
-                errorBuilder: (_, __, ___) => Container(
-                  color: const Color(0xFF2C1810),
-                ),
+                errorBuilder: (_, __, ___) =>
+                    Container(color: const Color(0xFF2C1810)),
               ),
             ),
 
@@ -1175,7 +1142,9 @@ class _LearnerDashboardScreenState
             shape: BoxShape.circle,
             color: completed ? const Color(0xFF2E7D32) : Colors.transparent,
             border: Border.all(
-              color: completed ? const Color(0xFF2E7D32) : const Color(0xFFB0B8B3),
+              color: completed
+                  ? const Color(0xFF2E7D32)
+                  : const Color(0xFFB0B8B3),
               width: 1.5,
             ),
           ),
@@ -1195,7 +1164,9 @@ class _LearnerDashboardScreenState
             style: DauVietTypography.bodySmall.copyWith(
               fontSize: 10.5,
               fontWeight: completed ? FontWeight.w600 : FontWeight.w400,
-              color: completed ? const Color(0xFF1F2421) : const Color(0xFF5E6963),
+              color: completed
+                  ? const Color(0xFF1F2421)
+                  : const Color(0xFF5E6963),
               decoration: completed ? TextDecoration.none : null,
             ),
           ),
@@ -1218,6 +1189,87 @@ class _LearnerDashboardScreenState
           ],
         ),
       ],
+    );
+  }
+}
+
+/// Pill nhỏ ⚡ trên greeting row — balance Thể lực thật từ energyProvider
+/// (GAME-03). Loading/error giữ placeholder '—' thay vì số bịa.
+class _EnergyMiniPill extends ConsumerWidget {
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final energyAsync = ref.watch(energyProvider);
+    final String value = energyAsync.when(
+      data: (e) => '${e.current}',
+      loading: () => '—',
+      error: (_, __) => '—',
+    );
+    return GestureDetector(
+      onTap: () => context.push('/energy'),
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+        decoration: BoxDecoration(
+          color: const Color(0xFFFFF9E6),
+          borderRadius: BorderRadius.circular(16),
+          border: Border.all(color: const Color(0xFFFFE082), width: 1.2),
+        ),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            const Text('⚡', style: TextStyle(fontSize: 12)),
+            const SizedBox(width: 3),
+            Text(
+              value,
+              style: const TextStyle(
+                fontSize: 12,
+                fontWeight: FontWeight.w900,
+                color: Color(0xFFB45309),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+/// Pill nhỏ 🔥 trên greeting row — Chuỗi Ngày Học thật từ streakProvider
+/// (STREAK-01). Bấm → màn chi tiết Ngọn Lửa Hào Khí (/streak).
+/// Loading/error giữ placeholder '—' thay vì số bịa.
+class _StreakMiniPill extends ConsumerWidget {
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final streakAsync = ref.watch(streakProvider);
+    final String value = streakAsync.when(
+      data: (s) => '${s.currentStreak}',
+      loading: () => '—',
+      error: (_, __) => '—',
+    );
+    return GestureDetector(
+      onTap: () => context.push('/streak'),
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+        decoration: BoxDecoration(
+          color: const Color(0xFFFDF2F2),
+          borderRadius: BorderRadius.circular(16),
+          border: Border.all(color: const Color(0xFFFFCDD2), width: 1.2),
+        ),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            const Text('🔥', style: TextStyle(fontSize: 12)),
+            const SizedBox(width: 3),
+            Text(
+              value,
+              style: const TextStyle(
+                fontSize: 12,
+                fontWeight: FontWeight.w900,
+                color: Color(0xFFC62828),
+              ),
+            ),
+          ],
+        ),
+      ),
     );
   }
 }

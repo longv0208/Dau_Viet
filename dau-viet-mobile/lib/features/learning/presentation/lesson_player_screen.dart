@@ -24,6 +24,8 @@ import '../../energy/data/energy_dto.dart';
 import '../../energy/data/energy_providers.dart';
 import '../../map/data/map_providers.dart';
 import '../../rewards/data/reward_providers.dart';
+import '../../streak/data/streak_dto.dart';
+import '../../streak/data/streak_providers.dart';
 import '../data/attempt_dtos.dart';
 import '../data/attempt_repository.dart';
 import '../data/learning_dtos.dart';
@@ -125,6 +127,11 @@ class _LessonPlayerScreenState extends ConsumerState<LessonPlayerScreen> {
   /// GAME-04: dossier ids mở MỚI từ response complete của LẦN này —
   /// truyền vào result screen để hiện cue đúng một lần. Không reset.
   List<String> _newlyUnlockedDossiers = const [];
+
+  /// STREAK-01: ngày học MỚI được công nhận trong lần complete này —
+  /// truyền vào result screen để phát animation ngọn lửa đúng một lần.
+  /// Null khi ngày đã có (replay, bài thứ hai cùng ngày) → không phát lại.
+  StreakInfoDto? _newStreakInfo;
 
   /// Event của lesson đang chơi — resolve lúc _load để invalidate đúng
   /// eventProgressProvider sau complete (null = lesson không gắn event).
@@ -587,6 +594,14 @@ class _LessonPlayerScreenState extends ConsumerState<LessonPlayerScreen> {
       if (complete.newlyUnlockedDossiers.isNotEmpty) {
         _newlyUnlockedDossiers = complete.newlyUnlockedDossiers;
       }
+      // STREAK-01: ngày học mới được công nhận → áp snapshot vào provider
+      // ngay (dashboard/detail cập nhật không cần refetch) và giữ lại để
+      // LessonResultScreen phát animation ngọn lửa đúng một lần.
+      final StreakInfoDto? streakInfo = complete.streak;
+      if (streakInfo != null) {
+        ref.read(streakProvider.notifier).applyStreakInfo(streakInfo);
+        _newStreakInfo = streakInfo;
+      }
       await _fetchResult();
     } on ApiException catch (e) {
       if (!mounted) return;
@@ -623,6 +638,7 @@ class _LessonPlayerScreenState extends ConsumerState<LessonPlayerScreen> {
         rewards: result.rewards,
         itemsUnlocked: result.itemsUnlocked,
         newlyUnlockedDossiers: _newlyUnlockedDossiers,
+        newlyRecordedStreak: _newStreakInfo,
       );
       context.pushReplacement(
         '/learning/result/${widget.attemptId}',
@@ -683,7 +699,8 @@ class _LessonPlayerScreenState extends ConsumerState<LessonPlayerScreen> {
   String _resolveMascotPrompt(_PlayerState st) {
     final cur = st.current;
     final act = cur.activity;
-    if (act == null) return 'Khám phá sử liệu cùng mình nhé! Bạn sẽ làm rất tốt!';
+    if (act == null)
+      return 'Khám phá sử liệu cùng mình nhé! Bạn sẽ làm rất tốt!';
 
     final type = act.type;
     if (type == 'MULTIPLE_CHOICE') {
@@ -735,17 +752,17 @@ class _LessonPlayerScreenState extends ConsumerState<LessonPlayerScreen> {
                         fontSize: 12.5,
                       ),
                     ),
-                  // GAME-03: hint chi phí Thể lực TRƯỚC khi submit — chỉ hiện
-                  // khi server xác nhận activity graded (additive field);
-                  // activity không graded / server cũ → ẩn hoàn toàn.
-                  if (cur.activity!.graded &&
-                      (cur.activity!.incorrectPenalty ?? 0) > 0)
-                    Padding(
-                      padding: const EdgeInsets.only(bottom: 10),
-                      child: _EnergyCostHint(
-                        penalty: cur.activity!.incorrectPenalty!,
+                    // GAME-03: hint chi phí Thể lực TRƯỚC khi submit — chỉ hiện
+                    // khi server xác nhận activity graded (additive field);
+                    // activity không graded / server cũ → ẩn hoàn toàn.
+                    if (cur.activity!.graded &&
+                        (cur.activity!.incorrectPenalty ?? 0) > 0)
+                      Padding(
+                        padding: const EdgeInsets.only(bottom: 10),
+                        child: _EnergyCostHint(
+                          penalty: cur.activity!.incorrectPenalty!,
+                        ),
                       ),
-                    ),
                     const SizedBox(height: 8),
                   ],
                   ActivityRenderer(
@@ -808,34 +825,9 @@ class _LessonPlayerScreenState extends ConsumerState<LessonPlayerScreen> {
                       ),
                     ),
                     const SizedBox(width: 6),
-                    // Huy hiệu ngọn lửa chuỗi học Streak 🔥 12
-                    Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 2),
-                      decoration: BoxDecoration(
-                        color: const Color(0xFFFFF3E0),
-                        borderRadius: BorderRadius.circular(10),
-                        border: Border.all(color: const Color(0xFFFFB74D), width: 1),
-                      ),
-                      child: Row(
-                        mainAxisSize: MainAxisSize.min,
-                        children: [
-                          const Icon(
-                            Icons.local_fire_department_rounded,
-                            size: 13,
-                            color: Color(0xFFE65100),
-                          ),
-                          const SizedBox(width: 2),
-                          Text(
-                            '12',
-                            style: DauVietTypography.labelSmall.copyWith(
-                              color: const Color(0xFFE65100),
-                              fontWeight: FontWeight.w800,
-                              fontSize: 11,
-                            ),
-                          ),
-                        ],
-                      ),
-                    ),
+                    // STREAK-01: huy hiệu ngọn lửa chuỗi học — số thật từ
+                    // streakProvider (server), không hard-code.
+                    _StreakBadge(),
                     const SizedBox(width: 6),
                     Container(
                       padding: const EdgeInsets.symmetric(
@@ -867,10 +859,7 @@ class _LessonPlayerScreenState extends ConsumerState<LessonPlayerScreen> {
                   ],
                 ),
                 const SizedBox(height: 6),
-                ShimmerProgressBar(
-                  progress: cur.progress.fraction,
-                  height: 8,
-                ),
+                ShimmerProgressBar(progress: cur.progress.fraction, height: 8),
               ],
             ),
           ),
@@ -897,10 +886,16 @@ class _LessonPlayerScreenState extends ConsumerState<LessonPlayerScreen> {
         topBorder = const BorderSide(color: Color(0xFF4C7C44), width: 2.0);
       } else if (isError) {
         sheetBg = const Color(0xFFFDEEEC);
-        topBorder = const BorderSide(color: DauVietColors.cinnabarRed, width: 2.0);
+        topBorder = const BorderSide(
+          color: DauVietColors.cinnabarRed,
+          width: 2.0,
+        );
       } else if (isWarning) {
         sheetBg = const Color(0xFFFFF7E6);
-        topBorder = const BorderSide(color: DauVietColors.imperialGold, width: 2.0);
+        topBorder = const BorderSide(
+          color: DauVietColors.imperialGold,
+          width: 2.0,
+        );
       }
     }
 
@@ -980,9 +975,15 @@ class _LessonPlayerScreenState extends ConsumerState<LessonPlayerScreen> {
     final fb = st.feedback;
 
     final title = isSuccess ? 'CHÍNH XÁC! XUẤT SẮC!' : 'CHƯA CHÍNH XÁC RỒI!';
-    final titleColor = isSuccess ? const Color(0xFF1B5E20) : DauVietColors.cinnabarRed;
-    final badgeBg = isSuccess ? const Color(0xFFDDF3E4) : const Color(0xFFFDE8E5);
-    final badgeBorder = isSuccess ? const Color(0xFF4C7C44) : DauVietColors.cinnabarRed;
+    final titleColor = isSuccess
+        ? const Color(0xFF1B5E20)
+        : DauVietColors.cinnabarRed;
+    final badgeBg = isSuccess
+        ? const Color(0xFFDDF3E4)
+        : const Color(0xFFFDE8E5);
+    final badgeBorder = isSuccess
+        ? const Color(0xFF4C7C44)
+        : DauVietColors.cinnabarRed;
 
     return Expanded(
       child: GoldConfettiOverlay(
@@ -1014,7 +1015,10 @@ class _LessonPlayerScreenState extends ConsumerState<LessonPlayerScreen> {
                 const SizedBox(height: 18),
                 // Huy hiệu trạng thái (loại bỏ hoàn toàn icon vui / buồn gây nhiễu trước mascot)
                 Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 6),
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 16,
+                    vertical: 6,
+                  ),
                   decoration: BoxDecoration(
                     color: badgeBg,
                     borderRadius: BorderRadius.circular(20),
@@ -1034,12 +1038,17 @@ class _LessonPlayerScreenState extends ConsumerState<LessonPlayerScreen> {
                 // Thẻ giải thích sử liệu
                 if (fb != null)
                   Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 16,
+                      vertical: 12,
+                    ),
                     decoration: BoxDecoration(
                       color: Colors.white.withValues(alpha: 0.9),
                       borderRadius: BorderRadius.circular(16),
                       border: Border.all(
-                        color: DauVietColors.outlineVariant.withValues(alpha: 0.5),
+                        color: DauVietColors.outlineVariant.withValues(
+                          alpha: 0.5,
+                        ),
                       ),
                       boxShadow: [
                         BoxShadow(
@@ -1111,10 +1120,7 @@ class _LessonPlayerScreenState extends ConsumerState<LessonPlayerScreen> {
       decoration: BoxDecoration(
         color: Colors.white.withValues(alpha: 0.9),
         borderRadius: BorderRadius.circular(14),
-        border: Border.all(
-          color: iconColor.withValues(alpha: 0.4),
-          width: 1.2,
-        ),
+        border: Border.all(color: iconColor.withValues(alpha: 0.4), width: 1.2),
       ),
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.center,
@@ -1199,8 +1205,9 @@ class _LessonPlayerScreenState extends ConsumerState<LessonPlayerScreen> {
                     variant: Tactile3DVariant.primaryCinnabar,
                     height: 50,
                     depth: 4.0,
-                    onPressed:
-                        _completing || _fetchingResult ? () {} : _complete,
+                    onPressed: _completing || _fetchingResult
+                        ? () {}
+                        : _complete,
                   ),
                 ),
               ],
@@ -1393,6 +1400,48 @@ class _EnergyPenaltyToastState extends State<_EnergyPenaltyToast>
       ),
     );
     return Positioned.fill(child: IgnorePointer(child: badge));
+  }
+}
+
+/// STREAK-01: huy hiệu ngọn lửa chuỗi ngày trên thanh header của player —
+/// số thật từ streakProvider (được applyStreakInfo cập nhật ngay khi hoàn
+/// thành bài), loading/error hiện '—' chứ không bịa số.
+class _StreakBadge extends ConsumerWidget {
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final streakAsync = ref.watch(streakProvider);
+    final String value = streakAsync.when(
+      data: (s) => '${s.currentStreak}',
+      loading: () => '—',
+      error: (_, __) => '—',
+    );
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 2),
+      decoration: BoxDecoration(
+        color: const Color(0xFFFFF3E0),
+        borderRadius: BorderRadius.circular(10),
+        border: Border.all(color: const Color(0xFFFFB74D), width: 1),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          const Icon(
+            Icons.local_fire_department_rounded,
+            size: 13,
+            color: Color(0xFFE65100),
+          ),
+          const SizedBox(width: 2),
+          Text(
+            value,
+            style: DauVietTypography.labelSmall.copyWith(
+              color: const Color(0xFFE65100),
+              fontWeight: FontWeight.w800,
+              fontSize: 11,
+            ),
+          ),
+        ],
+      ),
+    );
   }
 }
 

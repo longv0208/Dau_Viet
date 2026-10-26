@@ -141,6 +141,35 @@ erDiagram
 - `event_dossiers` replace semantics (GAME-06): `PUT /admin/events/{eventId}/dossiers` xoá + insert nguyên list trong một tx — mọi `dossierId` phải PUBLISHED (422 khi DRAFT/ARCHIVED/missing), `displayOrder` (map `sort_order`) `>=0` và không trùng dossierId; grant learner theo lazy reconcile — không fan-out khi admin đổi link.
 - `item_unlock_rule` append-only phục vụ `GET /admin/items/{itemId}/rule/history` — `grantCount` từ `user_inventory.unlock_rule_id`; không cần schema mới.
 
+### Bổ sung V31 — Learning Streak (STREAK-01)
+
+- Migration `V31__learning_streak.sql`: hai bảng phục vụ "Chuỗi Ngày Học — Ngọn Lửa Hào Khí". `study_date` luôn là ngày theo `Asia/Ho_Chi_Minh` chuyển từ `learner_attempts.completed_at` (UTC) — server-side, không bao giờ tin client.
+
+**`user_learning_streaks`** — 1 dòng/user, lazy-create lần complete đầu tiên:
+| Column | Type | Notes |
+|---|---|---|
+| user_id | UUID PK → users.id | |
+| current_streak | INTEGER NOT NULL ≥0 | reset về 1 khi bỏ 1 ngày VN |
+| longest_streak | INTEGER NOT NULL ≥0 | kỷ lục, không bao giờ giảm; CHECK longest ≥ current |
+| last_qualified_date | DATE | ngày VN gần nhất có attempt COMPLETED |
+| created_at, updated_at | TIMESTAMPTZ | |
+| row_version | BIGINT | optimistic lock phụ |
+
+**`user_learning_streak_days`** — append-only ledger (ground truth), PK `(user_id, study_date)`:
+| Column | Type | Notes |
+|---|---|---|
+| user_id | UUID → users.id | |
+| study_date | DATE | `(completed_at AT TIME ZONE 'Asia/Ho_Chi_Minh')::date` |
+| lesson_id | UUID → lessons.id | bài của attempt thắng race |
+| learner_attempt_id | UUID → learner_attempts.id | attempt đầu tiên của ngày |
+| completed_at | TIMESTAMPTZ | server-time của attempt thắng race |
+| created_at | TIMESTAMPTZ | |
+
+- Idempotency 3 lớp: (1) `doComplete` chỉ gọi khi attempt flip IN_PROGRESS→COMPLETED lần đầu; (2) `UNIQUE(user_id, study_date)` trên ledger chặn concurrent duplicate — `INSERT ON CONFLICT DO NOTHING` trả 0 → no-op; (3) `UserLearningStreak.advanceTo()` no-op khi `newDate == lastQualifiedDate`.
+- Ghi serialize qua `PESSIMISTIC_WRITE` trên `user_learning_streaks` (cùng pattern EnergyService); lock-order sau `learner_attempts` — `doComplete` đã lock attempt trước.
+- Đọc API (`stateOf`, `calendarOf`) `readOnly=true` KHÔNG lazy-create — user chưa học trả bộ default (current=0) chứ không ghi DB.
+- Backfill: standalone `dau-viet-db/scripts/backfill-learning-streak.sql` (không phải migration) — `\if :{?dry_run}` mặc định dry-run ROLLBACK; DISTINCT ON earliest attempt per (user, study_date); gaps-and-islands streak calc; upsert `GREATEST/CASE` bảo toàn ghi song song mới hơn.
+
 ## 4. Contract snapshot bài học
 
 ```json

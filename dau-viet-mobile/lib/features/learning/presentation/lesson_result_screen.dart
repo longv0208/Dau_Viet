@@ -8,6 +8,7 @@ import '../../../core/theme/dau_viet_typography.dart';
 import '../../../core/widgets/dong_son_button.dart';
 import '../../collection/presentation/unlock_celebration_dialog.dart';
 import '../../../core/widgets/kabi_mascot_widget.dart';
+import '../../streak/data/streak_dto.dart';
 import '../data/attempt_dtos.dart';
 import '../data/learning_dtos.dart';
 import '../data/learning_providers.dart';
@@ -66,7 +67,9 @@ class LessonResultScreen extends ConsumerWidget {
       body: SafeArea(
         child: asyncResult.when(
           loading: () => const Center(
-            child: CircularProgressIndicator(color: DauVietColors.heritageGreen),
+            child: CircularProgressIndicator(
+              color: DauVietColors.heritageGreen,
+            ),
           ),
           error: (e, _) => _ErrorView(
             message: e.toString(),
@@ -96,13 +99,14 @@ class _ResultBody extends StatelessWidget {
     final score = result.score;
     final scoreStr = score != null
         ? (score == score.roundToDouble()
-            ? '${score.toInt()}'
-            : score.toStringAsFixed(1))
+              ? '${score.toInt()}'
+              : score.toStringAsFixed(1))
         : '90';
-    final summaryRaw =
-        result.result['summary'] ?? result.result['message'];
+    final summaryRaw = result.result['summary'] ?? result.result['message'];
     final summary = summaryRaw is String ? summaryRaw : null;
-    final title = _str(recapContent?.content ?? const {}, ['title', 'lessonTitle']) ?? 'Bài 1: Nguồn gốc dân tộc';
+    final title =
+        _str(recapContent?.content ?? const {}, ['title', 'lessonTitle']) ??
+        'Bài 1: Nguồn gốc dân tộc';
 
     return Scaffold(
       backgroundColor: const Color(0xFFFBF8F1),
@@ -158,7 +162,10 @@ class _ResultBody extends StatelessWidget {
                 decoration: BoxDecoration(
                   color: Colors.white,
                   borderRadius: BorderRadius.circular(18),
-                  border: Border.all(color: const Color(0xFFE5DAC6), width: 1.4),
+                  border: Border.all(
+                    color: const Color(0xFFE5DAC6),
+                    width: 1.4,
+                  ),
                   boxShadow: [
                     BoxShadow(
                       color: const Color(0xFF8B4513).withValues(alpha: 0.08),
@@ -220,11 +227,17 @@ class _ResultBody extends StatelessWidget {
 
                     // Lời thoại khích lệ từ Linh vật Kabi
                     Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 12,
+                        vertical: 10,
+                      ),
                       decoration: BoxDecoration(
                         color: const Color(0xFFFBF8F1),
                         borderRadius: BorderRadius.circular(12),
-                        border: Border.all(color: const Color(0xFFE5DAC6), width: 1),
+                        border: Border.all(
+                          color: const Color(0xFFE5DAC6),
+                          width: 1,
+                        ),
                       ),
                       child: Row(
                         children: [
@@ -275,7 +288,8 @@ class _ResultBody extends StatelessWidget {
               // TASK-0023: thưởng + vật phẩm attempt này ĐÃ được server
               // cấp trong transaction complete() — chỉ hiển thị thật,
               // không phát thêm request "nhận thưởng" nào.
-              if (result.rewards.isNotEmpty || result.itemsUnlocked.isNotEmpty) ...[
+              if (result.rewards.isNotEmpty ||
+                  result.itemsUnlocked.isNotEmpty) ...[
                 const SizedBox(height: 14),
                 _RewardsSection(result: result),
               ],
@@ -288,6 +302,15 @@ class _ResultBody extends StatelessWidget {
                 _DossierUnlockBanner(
                   count: result.newlyUnlockedDossiers.length,
                 ),
+              ],
+
+              // STREAK-01: animation ngọn lửa — chỉ khi server vừa công
+              // nhận một ngày học MỚI (newlyRecordedStreak từ complete
+              // response qua extra). Replay/deep-link: field null → không
+              // phát lại, không gọi thêm API.
+              if (result.newlyRecordedStreak != null) ...[
+                const SizedBox(height: 14),
+                _StreakFlameBanner(streak: result.newlyRecordedStreak!),
               ],
 
               // Ôn lại bài học & Tư liệu
@@ -307,8 +330,13 @@ class _ResultBody extends StatelessWidget {
               ),
               const SizedBox(height: 10),
               OutlinedButton.icon(
-                onPressed: () => context.push('/learning/lesson/${result.attemptId}'),
-                icon: const Icon(Icons.menu_book_rounded, size: 18, color: Color(0xFF5E6963)),
+                onPressed: () =>
+                    context.push('/learning/lesson/${result.attemptId}'),
+                icon: const Icon(
+                  Icons.menu_book_rounded,
+                  size: 18,
+                  color: Color(0xFF5E6963),
+                ),
                 label: Text(
                   'Ôn tập lại',
                   style: DauVietTypography.labelLarge.copyWith(
@@ -320,7 +348,9 @@ class _ResultBody extends StatelessWidget {
                 style: OutlinedButton.styleFrom(
                   minimumSize: const Size.fromHeight(48),
                   side: const BorderSide(color: Color(0xFFD8C8B0), width: 1.2),
-                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(14),
+                  ),
                   backgroundColor: Colors.white,
                 ),
               ),
@@ -554,6 +584,98 @@ class _RewardsSection extends StatelessWidget {
               ),
             ),
           ],
+        ],
+      ),
+    );
+  }
+}
+
+/// STREAK-01: banner ngọn lửa chuỗi ngày — số đếm từ N-1 → N bằng
+/// TweenAnimationBuilder, phát đúng một lần khi màn mở với ngày học mới.
+/// Không gọi API, không re-show trên replay (field chỉ đi qua route extra).
+class _StreakFlameBanner extends StatelessWidget {
+  final StreakInfoDto streak;
+  const _StreakFlameBanner({required this.streak});
+
+  @override
+  Widget build(BuildContext context) {
+    final int current = streak.currentStreak;
+    final int previous = current > 0 ? current - 1 : 0;
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+      decoration: BoxDecoration(
+        color: DauVietColors.cinnabarRed.withValues(alpha: 0.08),
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: DauVietColors.cinnabarRed, width: 1.4),
+      ),
+      child: Row(
+        children: [
+          TweenAnimationBuilder<double>(
+            tween: Tween(begin: 0.6, end: 1.0),
+            duration: const Duration(milliseconds: 700),
+            curve: Curves.elasticOut,
+            builder: (context, scale, child) => Transform.scale(
+              scale: scale,
+              child: const Icon(
+                Icons.local_fire_department_rounded,
+                size: 30,
+                color: DauVietColors.cinnabarRed,
+              ),
+            ),
+          ),
+          const SizedBox(width: 10),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  'NGỌN LỬA HÀO KHÍ',
+                  style: DauVietTypography.labelSmall.copyWith(
+                    color: DauVietColors.cinnabarRed,
+                    fontWeight: FontWeight.w800,
+                    letterSpacing: 0.6,
+                  ),
+                ),
+                const SizedBox(height: 3),
+                TweenAnimationBuilder<double>(
+                  tween: Tween(
+                    begin: previous.toDouble(),
+                    end: current.toDouble(),
+                  ),
+                  duration: const Duration(milliseconds: 800),
+                  curve: Curves.easeOutCubic,
+                  builder: (context, value, _) => Text(
+                    'Chuỗi ${value.round()} ngày học liên tiếp',
+                    style: DauVietTypography.bodyMedium.copyWith(
+                      color: DauVietColors.inkText,
+                      fontWeight: FontWeight.w800,
+                      fontSize: 15,
+                    ),
+                  ),
+                ),
+                if (streak.longestStreak > current) ...[
+                  const SizedBox(height: 2),
+                  Text(
+                    'Kỷ lục: ${streak.longestStreak} ngày',
+                    style: DauVietTypography.bodySmall.copyWith(
+                      color: DauVietColors.inkMuted,
+                      fontSize: 11,
+                    ),
+                  ),
+                ] else if (current > 1) ...[
+                  const SizedBox(height: 2),
+                  Text(
+                    'Kỷ lục mới!',
+                    style: DauVietTypography.bodySmall.copyWith(
+                      color: DauVietColors.imperialGold,
+                      fontWeight: FontWeight.w700,
+                      fontSize: 11,
+                    ),
+                  ),
+                ],
+              ],
+            ),
+          ),
         ],
       ),
     );

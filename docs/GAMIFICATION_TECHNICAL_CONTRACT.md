@@ -10,20 +10,21 @@
 
 ## 1. Phân ranh giới domain (domain boundaries)
 
-Hệ thống gamification chia thành 6 bounded context. Mỗi context sở hữu một nguồn truth; không context nào được ghi vào bảng của context khác ngoài contract nêu dưới.
+Hệ thống gamification chia thành 7 bounded context. Mỗi context sở hữu một nguồn truth; không context nào được ghi vào bảng của context khác ngoài contract nêu dưới.
 
 | Context | Module hiện tại | Sở hữu (source of truth) | Được đọc bởi |
 |---|---|---|---|
-| **Learning Runtime** | `com.dauviet.learning` | `learner_attempts`, `activity_attempts`, `lesson_results`, `idempotency_records` | Reward Engine, Progress Read, Energy Service |
+| **Learning Runtime** | `com.dauviet.learning` | `learner_attempts`, `activity_attempts`, `lesson_results`, `idempotency_records` | Reward Engine, Progress Read, Energy Service, Streak Service |
 | **Reward Ledger** | `com.dauviet.reward` | `reward_transactions` (EXP + HISTORY_POINTS credits, append-only) | Wallet Service (bridge), Profile Summary |
 | **Wallet** | (mới, GAME-07/02) | `wallet_accounts`, `wallet_transactions` | Energy Refill, Shop tương lai, Profile |
 | **Energy** | (mới, GAME-02) | `user_energy`, `energy_transactions` | Learning Runtime (gate), Mobile Energy UI |
+| **Learning Streak** | `com.dauviet.streak` (mới, STREAK-01) | `user_learning_streaks`, `user_learning_streak_days` | Mobile Streak UI (dashboard pill, detail, result animation) |
 | **Event/Milestone** | (mới, GAME-04) | `event_completion_policies`, `user_event_progress` | Dossier Unlock, Item Rules, Map |
 | **Collection & Items** | `com.dauviet.collection`, `com.dauviet.reward` | `user_evidence`, `historical_dossiers` (mới), `event_dossiers` (mới), `user_dossier_unlocks` (mới), `item_catalog`, `item_unlock_rule`, `user_inventory` | Profile, Item Rule Engine |
 
 Quy tắc xuyên context:
 
-1. **Một chiều tác động:** Learning Runtime → (Reward, Energy, Event, Collection). Ngược lại chỉ đọc — ví dụ Energy Service được Learning Runtime gọi để gate submit, nhưng Energy không sửa attempt.
+1. **Một chiều tác động:** Learning Runtime → (Reward, Energy, Event, Collection, Streak). Ngược lại chỉ đọc — ví dụ Energy Service được Learning Runtime gọi để gate submit, nhưng Energy không sửa attempt; Streak Service được `doComplete` gọi để ghi ngày học, nhưng Streak không sửa attempt và **không sinh reward** (STRK-05).
 2. **Cùng một transaction vật lý** khi action gốc là `submit` hoặc `complete` (xem §5). Không outbox/event bus trong V1 — độ phức tạp không cần thiết ở quy mô một datasource.
 3. **Đọc chéo hợp lệ:** Wallet đọc `reward_transactions` chỉ một lần qua migration bridge (POINT-09); Profile Summary đọc mọi ledger qua read model.
 4. **Không tạo ledger song song cho cùng một khái niệm:** EXP chỉ sống ở `reward_transactions`; Điểm Sử Ký chi tiêu được chỉ sống ở `wallet_*`; energy chỉ sống ở `user_energy`.
@@ -187,12 +188,21 @@ Chốt thiết kế: penalty ghi **trong `doSubmit`, sau `handler.evaluate` và 
 | Luồng | Phạm vi atomic | Khoá/đảm bảo |
 |---|---|---|
 | `submit()` | pessimistic `findForUpdate(attempt)` → `idempotency.execute` → evaluate → **energy settle** → evidence collect → item eval → `activity_attempts` → cursor → save | Lock attempt trước mọi ghi; `UNIQUE(user,op,key)` + `cause_key` chặn double-debit |
-| `complete()` | lock attempt → idempotency → `markCompleted` → `lesson_results` → `rewardGrants` → `itemUnlocks` → **event eval** (GAME-04) → save | Một tx; reward fail → rollback cả complete |
+| `complete()` | lock attempt → idempotency → `markCompleted` → `lesson_results` → **streak record** (STREAK-01) → `rewardGrants` → `itemUnlocks` → **event eval** (GAME-04) → save | Một tx; reward fail → rollback cả complete + streak |
 | `refill()` (GAME-02/07) | lock `user_energy` → lazy-recover → check ≤80 & rate-limit 24h → lock `wallet_accounts` → debit 30 → credit +min(20, 100−cur) → 2 ledger rows | Thứ tự lock cố định: `user_energy` → `wallet_accounts` (mọi nơi khác phải theo thứ tự này nếu chạm cả hai); `cause_key` từ Idempotency-Key request |
 | `startOrResume` | advisory `pg_advisory_xact_lock(user|lesson)` → check → insert | Partial unique index backstop |
 | Reconcile/backfill | per-rule set-based `INSERT … ON CONFLICT DO NOTHING` | Không lock; idempotent theo UNIQUE |
 
 Energy recovery là **lazy**: không scheduler. Mọi đọc/ghi `user_energy` tính `cycles = floor((now − last_recovery_at)/15min)`, `current = min(100, current + 5*cycles)`, `last_recovery_at += cycles*15min` (phần lẻ bảo tồn); khi current chạm 100 → neo `last_recovery_at = now` (ENGY-08). Wallet/energy debit không bao giờ lớn hơn balance hiện hữu — CHECK ở DB + update có điều kiện `WHERE balance >= :amount` làm backstop (QA-10).
+
+### 5.1 Thiết kế Streak (STREAK-01)
+
+- `user_learning_streaks`: 1 row/user (`current_streak`, `longest_streak`, `last_qualified_date`, `row_version`) — lazy-create lần complete đầu tiên, KHÔNG lazy-create khi đọc.
+- `user_learning_streak_days`: append-only ledger PK `(user_id, study_date)` — ground truth; `study_date = (completed_at AT TIME ZONE 'Asia/Ho_Chi_Minh')::date` tính server-side từ `learner_attempts.completed_at` UTC.
+- **Lock-order:** `learner_attempts` (doComplete) → `user_learning_streak_days` (insertIgnore) → `user_learning_streaks` (PESSIMISTIC_WRITE). Ledger insert trước để UNIQUE quyết race; chỉ tx thắng (inserted=1) mới đụng aggregate — thua race trả `null` StreakInfo.
+- `UserLearningStreak.advanceTo(newDate)`: `== last` → no-op; `== last+1` → `current+1`; còn lại → `current=1`; `longest = max(longest, current)`.
+- Đọc `GET /me/streak` + `/calendar` `readOnly=true`: không reset `current_streak` âm thầm, không lazy-create — `streakAlive` cho UI phân biệt trạng thái.
+- Streak **không ghi `reward_transactions`** (POINT-03) — không EXP/điểm/item nào đính kèm.
 
 ## 6. Thiết kế Wallet
 

@@ -140,7 +140,9 @@ class _MatchingRendererState extends State<MatchingRenderer> {
                 children: [
                   for (final item in left) ...[
                     _LeftMatchCard(
-                      label: (item['label'] ?? item['text'] ?? item['id']) as String,
+                      label:
+                          (item['label'] ?? item['text'] ?? item['id'])
+                              as String,
                       imageAsset: _imageForLeft(
                         (item['label'] ?? item['text'] ?? '') as String,
                         (item['id'] ?? '') as String,
@@ -174,8 +176,8 @@ class _MatchingRendererState extends State<MatchingRenderer> {
                           color: _pairs.containsKey(item['id'])
                               ? const Color(0xFF2D6A4F)
                               : (_activeLeft == item['id']
-                                  ? const Color(0xFFC2410C)
-                                  : const Color(0xFFD8C8B0)),
+                                    ? const Color(0xFFC2410C)
+                                    : const Color(0xFFD8C8B0)),
                         ),
                       ),
                     ),
@@ -192,13 +194,19 @@ class _MatchingRendererState extends State<MatchingRenderer> {
                 children: [
                   for (final item in right) ...[
                     _RightMatchCard(
-                      label: (item['label'] ?? item['text'] ?? item['id']) as String,
+                      label:
+                          (item['label'] ?? item['text'] ?? item['id'])
+                              as String,
                       selected: false,
                       paired: usedRight.contains(item['id']),
-                      enabled: !locked && (_activeLeft != null || usedRight.contains(item['id'])),
+                      enabled:
+                          !locked &&
+                          (_activeLeft != null ||
+                              usedRight.contains(item['id'])),
                       reduceMotion: reduceMotion,
                       onTap: () {
-                        if (usedRight.contains(item['id']) && _activeLeft == null) {
+                        if (usedRight.contains(item['id']) &&
+                            _activeLeft == null) {
                           _unpairRight(item['id'] as String? ?? '');
                         } else {
                           _tapRight(item['id'] as String? ?? '');
@@ -283,7 +291,10 @@ class _LeftMatchCard extends StatelessWidget {
         decoration: BoxDecoration(
           color: bg,
           borderRadius: BorderRadius.circular(14),
-          border: Border.all(color: border, width: (selected || paired) ? 1.8 : 1.2),
+          border: Border.all(
+            color: border,
+            width: (selected || paired) ? 1.8 : 1.2,
+          ),
           boxShadow: [
             BoxShadow(
               color: const Color(0xFF8B4513).withValues(alpha: 0.05),
@@ -316,7 +327,9 @@ class _LeftMatchCard extends StatelessWidget {
                 maxLines: 2,
                 overflow: TextOverflow.ellipsis,
                 style: DauVietTypography.bodyMedium.copyWith(
-                  fontWeight: (selected || paired) ? FontWeight.w800 : FontWeight.w600,
+                  fontWeight: (selected || paired)
+                      ? FontWeight.w800
+                      : FontWeight.w600,
                   fontSize: 12.5,
                   color: const Color(0xFF1F2421),
                 ),
@@ -331,7 +344,11 @@ class _LeftMatchCard extends StatelessWidget {
   Widget _fallbackIcon() {
     return Container(
       color: const Color(0xFFF5EEDB),
-      child: const Icon(Icons.account_balance_rounded, size: 20, color: Color(0xFFB45309)),
+      child: const Icon(
+        Icons.account_balance_rounded,
+        size: 20,
+        color: Color(0xFFB45309),
+      ),
     );
   }
 }

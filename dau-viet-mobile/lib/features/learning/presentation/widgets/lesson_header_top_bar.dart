@@ -1,17 +1,19 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 
-import '../../../../core/theme/dau_viet_colors.dart';
 import '../../../../core/theme/dau_viet_typography.dart';
+import '../../../streak/data/streak_providers.dart';
 
 /// Thanh tiêu đề và tiến độ bài học chuẩn UI/UX Pro Max
 /// Hiển thị nút quay lại, tiêu đề, thanh tiến độ xanh mượt, huy hiệu streak lửa và số câu.
+/// STREAK-01: ngọn lửa đọc số thật từ streakProvider (placeholder '—' khi
+/// loading/error), không còn hard-code.
 class LessonHeaderTopBar extends StatelessWidget {
   final VoidCallback onBack;
   final String title;
   final double progress;
   final int currentStep;
   final int totalSteps;
-  final int streakCount;
 
   const LessonHeaderTopBar({
     super.key,
@@ -20,7 +22,6 @@ class LessonHeaderTopBar extends StatelessWidget {
     required this.progress,
     required this.currentStep,
     required this.totalSteps,
-    this.streakCount = 12,
   });
 
   @override
@@ -63,34 +64,8 @@ class LessonHeaderTopBar extends StatelessWidget {
               ),
               const SizedBox(width: 8),
 
-              // Huy hiệu ngọn lửa chuỗi học Streak 🔥 12
-              Container(
-                padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 3),
-                decoration: BoxDecoration(
-                  color: const Color(0xFFFFF3E0),
-                  borderRadius: BorderRadius.circular(12),
-                  border: Border.all(color: const Color(0xFFFFB74D), width: 1),
-                ),
-                child: Row(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    const Icon(
-                      Icons.local_fire_department_rounded,
-                      size: 14,
-                      color: Color(0xFFE65100),
-                    ),
-                    const SizedBox(width: 3),
-                    Text(
-                      '$streakCount',
-                      style: DauVietTypography.labelSmall.copyWith(
-                        color: const Color(0xFFE65100),
-                        fontWeight: FontWeight.w800,
-                        fontSize: 11,
-                      ),
-                    ),
-                  ],
-                ),
-              ),
+              // Huy hiệu ngọn lửa chuỗi học — số thật từ streakProvider.
+              const _StreakFlameBadge(),
               const SizedBox(width: 8),
 
               // Chỉ số bước 1/4
@@ -124,9 +99,7 @@ class LessonHeaderTopBar extends StatelessWidget {
                 child: Stack(
                   children: [
                     // Đường nền xám nhạt
-                    Container(
-                      color: const Color(0xFFE8DEC8),
-                    ),
+                    Container(color: const Color(0xFFE8DEC8)),
                     // Đoạn tiến độ xanh ngọc
                     FractionallySizedBox(
                       alignment: Alignment.centerLeft,
@@ -134,15 +107,14 @@ class LessonHeaderTopBar extends StatelessWidget {
                       child: Container(
                         decoration: BoxDecoration(
                           gradient: const LinearGradient(
-                            colors: [
-                              Color(0xFF2D6A4F),
-                              Color(0xFF40916C),
-                            ],
+                            colors: [Color(0xFF2D6A4F), Color(0xFF40916C)],
                           ),
                           borderRadius: BorderRadius.circular(6),
                           boxShadow: [
                             BoxShadow(
-                              color: const Color(0xFF2D6A4F).withValues(alpha: 0.35),
+                              color: const Color(
+                                0xFF2D6A4F,
+                              ).withValues(alpha: 0.35),
                               blurRadius: 4,
                               offset: const Offset(0, 1),
                             ),
@@ -153,6 +125,49 @@ class LessonHeaderTopBar extends StatelessWidget {
                   ],
                 ),
               ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+/// Huy hiệu ngọn lửa chuỗi ngày học — đọc số thật từ streakProvider,
+/// hiển thị '—' khi loading/error thay vì số hard-code.
+class _StreakFlameBadge extends ConsumerWidget {
+  const _StreakFlameBadge();
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final streakAsync = ref.watch(streakProvider);
+    final String value = streakAsync.when(
+      data: (s) => '${s.currentStreak}',
+      loading: () => '—',
+      error: (_, _) => '—',
+    );
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 3),
+      decoration: BoxDecoration(
+        color: const Color(0xFFFFF3E0),
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: const Color(0xFFFFB74D), width: 1),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          const Icon(
+            Icons.local_fire_department_rounded,
+            size: 14,
+            color: Color(0xFFE65100),
+          ),
+          const SizedBox(width: 3),
+          Text(
+            value,
+            style: DauVietTypography.labelSmall.copyWith(
+              color: const Color(0xFFE65100),
+              fontWeight: FontWeight.w800,
+              fontSize: 11,
             ),
           ),
         ],
