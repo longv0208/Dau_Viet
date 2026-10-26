@@ -25,6 +25,8 @@ public class ItemCatalog {
     public static final String TYPE_HISTORICAL_REPLICA = "HISTORICAL_REPLICA";
     public static final String TYPE_DIGITAL_EDITION = "DIGITAL_EDITION";
     public static final String TYPE_COMMEMORATIVE_BADGE = "COMMEMORATIVE_BADGE";
+    /** V32: vật phẩm trang trí Đảo Di Sản — mua được, placeable được cấu hình. */
+    public static final String TYPE_DECOR = "DECOR";
 
     @Id
     @Column(name = "id", nullable = false, updatable = false)
@@ -50,6 +52,14 @@ public class ItemCatalog {
 
     @Column(name = "asset_id")
     private UUID assetId;
+
+    /** V32: item có đặt được lên đảo không (decor/cosmetic placeable). */
+    @Column(name = "placeable", nullable = false)
+    private boolean placeable = false;
+
+    /** V32: khóa renderer client (ví dụ "decor.cay_da") — null = không render. */
+    @Column(name = "render_key", length = 80)
+    private String renderKey;
 
     @JdbcTypeCode(SqlTypes.JSON)
     @Column(name = "source_metadata", columnDefinition = "jsonb")
@@ -94,6 +104,8 @@ public class ItemCatalog {
     public UUID getAssetId() { return assetId; }
     public String getSourceMetadata() { return sourceMetadata; }
     public boolean isActive() { return active; }
+    public boolean isPlaceable() { return placeable; }
+    public String getRenderKey() { return renderKey; }
     public Instant getCreatedAt() { return createdAt; }
     public Instant getUpdatedAt() { return updatedAt; }
     public Long getRowVersion() { return rowVersion; }
@@ -106,6 +118,12 @@ public class ItemCatalog {
     public void setItemType(String itemType) { this.itemType = itemType; touch(); }
     public void setRarity(String rarity) { this.rarity = rarity; touch(); }
     public void setAssetId(UUID assetId) { this.assetId = assetId; touch(); }
+    public void setPlaceable(boolean placeable) {
+        this.placeable = placeable; touch();
+    }
+    public void setRenderKey(String renderKey) {
+        this.renderKey = renderKey; touch();
+    }
     public void setSourceMetadata(String sourceMetadata) {
         this.sourceMetadata = sourceMetadata; touch();
     }

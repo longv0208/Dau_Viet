@@ -57,7 +57,20 @@ public abstract class AbstractPostgresIT {
         // không chặn cleanup của IT khác khi nó wipe bảng users.
         jdbc.update("delete from energy_transactions");
         jdbc.update("delete from user_energy");
+        // V31: streak tables — xoá trước learner_attempts/users để FK
+        // user_learning_streaks_user_id_fkey / _days_learner_attempt_fkey
+        // không chặn cleanup của IT khác khi nó wipe bảng users.
+        jdbc.update("delete from user_learning_streak_days");
+        jdbc.update("delete from user_learning_streaks");
         jdbc.update("delete from map_locations");
+        // V32: island/wallet — user-scoped tables (placements FK tới users+inventory+slots,
+        // user_islands/wallet FK tới users); xoá trước khi IT khác wipe users.
+        // Chú ý: island_slots, island_shop_items, island_tier_policies là SEEDED config (V32),
+        // KHÔNG xoá trong clearAuthoringTables để không làm hỏng fixture migration cho các IT chạy sau.
+        jdbc.update("delete from user_island_placements");
+        jdbc.update("delete from user_islands");
+        jdbc.update("delete from wallet_transactions");
+        jdbc.update("delete from wallet_accounts");
         // GAME-04/06: dossier/event-progress tables — trước users/events wipe.
         jdbc.update("delete from user_dossier_unlocks");
         jdbc.update("delete from event_dossiers");

@@ -4,7 +4,6 @@ import 'package:go_router/go_router.dart';
 import '../../../core/theme/dau_viet_colors.dart';
 import '../../../core/theme/dau_viet_typography.dart';
 import '../../../core/widgets/dong_son_button.dart';
-import '../../../core/widgets/energy_pill.dart';
 import '../../../core/widgets/main_bottom_nav.dart';
 import '../../auth/data/auth_state.dart';
 import '../../energy/data/energy_providers.dart';
@@ -170,18 +169,9 @@ class _LearnerDashboardScreenState
             ],
           ),
 
-          // Cụm phải: EnergyPill (GAME-03) + Chuông thông báo + Avatar rùa
+          // Cụm phải: Chuông thông báo & Avatar tròn viền vàng
           Row(
             children: [
-              // GAME-03: EnergyPill đọc provider thật ở real mode (mock mode
-              // giữ số demo). Bấm → Viện Thái Y.
-              EnergyPill(
-                energy: 100,
-                maxEnergy: 100,
-                historyPoints: 150,
-                onEnergyTap: () => context.go('/energy'),
-              ),
-              const SizedBox(width: 10),
               // Nút chuông thông báo có chấm đỏ
               Stack(
                 children: [

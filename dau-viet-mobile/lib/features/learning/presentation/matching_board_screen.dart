@@ -378,42 +378,65 @@ class _MatchingBoardScreenState extends State<MatchingBoardScreen> {
     );
   }
 
-  // Bảng ghép nối hai cột
+  // Bảng ghép nối hai cột: 2 thẻ nối chạy lên ngang hàng nhau
   Widget _buildMatchingGrid() {
+    final rightById = {for (final r in _rightItems) (r['id'] as String): r};
+    final usedRight = _matches.values.toSet();
+    final int rowCount = _leftItems.length;
+    final List<Map<String, dynamic>?> orderedRight =
+        List<Map<String, dynamic>?>.filled(rowCount, null);
+
+    for (var i = 0; i < rowCount; i++) {
+      final leftId = _leftItems[i]['id'] as String;
+      final matchedRid = _matches[leftId];
+      if (matchedRid != null && rightById.containsKey(matchedRid)) {
+        orderedRight[i] = rightById[matchedRid];
+      }
+    }
+    var nextFree = 0;
+    for (final r in _rightItems) {
+      if (usedRight.contains(r['id'])) continue;
+      while (nextFree < rowCount && orderedRight[nextFree] != null) {
+        nextFree++;
+      }
+      if (nextFree < rowCount) orderedRight[nextFree] = r;
+    }
+
     return Column(
-      children: List.generate(_leftItems.length, (index) {
+      children: List.generate(rowCount, (index) {
         final left = _leftItems[index];
-        final right = _rightItems[index];
+        final right = orderedRight[index];
 
         final leftId = left['id'] as String;
-        final rightId = right['id'] as String;
+        final rightId = right?['id'] as String?;
 
         final isLeftSelected = _selectedLeftId == leftId;
         final matchedRightId = _matches[leftId];
-
-        // Tìm xem rightId này có được ghép với left nào không
-        final matchedLeftEntry = _matches.entries
-            .where((e) => e.value == rightId)
-            .firstOrNull;
+        final isRowMatched =
+            matchedRightId != null && matchedRightId == rightId;
 
         return Padding(
           padding: const EdgeInsets.only(bottom: 12),
-          child: Row(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              // Thẻ bên trái (Thực thể lịch sử)
-              Expanded(
-                flex: 5,
-                child: _buildLeftCard(left, isLeftSelected, matchedRightId),
-              ),
-              const SizedBox(width: 8),
+          child: IntrinsicHeight(
+            child: Row(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                // Thẻ bên trái (Thực thể lịch sử)
+                Expanded(
+                  flex: 5,
+                  child: _buildLeftCard(left, isLeftSelected, matchedRightId),
+                ),
+                const SizedBox(width: 8),
 
-              // Thẻ bên phải (Mô tả vai trò)
-              Expanded(
-                flex: 6,
-                child: _buildRightCard(right, matchedLeftEntry?.key),
-              ),
-            ],
+                // Thẻ bên phải (Mô tả vai trò - đã snap lên ngang hàng)
+                Expanded(
+                  flex: 6,
+                  child: right != null
+                      ? _buildRightCard(right, isRowMatched ? leftId : null)
+                      : const SizedBox.shrink(),
+                ),
+              ],
+            ),
           ),
         );
       }),

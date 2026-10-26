@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:go_router/go_router.dart';
 
 import '../../../core/theme/dau_viet_colors.dart';
 import '../../../core/theme/dau_viet_typography.dart';
@@ -55,6 +56,18 @@ class _LearningStreakScreenState extends ConsumerState<LearningStreakScreen> {
         backgroundColor: const Color(0xFFFBF8F1),
         elevation: 0,
         centerTitle: true,
+        leading: IconButton(
+          icon: const Icon(Icons.arrow_back_ios_new_rounded, size: 20),
+          color: DauVietColors.inkText,
+          tooltip: 'Quay lại',
+          onPressed: () {
+            if (context.canPop()) {
+              context.pop();
+            } else {
+              context.go('/profile');
+            }
+          },
+        ),
         title: Text(
           'NGỌN LỬA HÀO KHÍ',
           style: DauVietTypography.labelMedium.copyWith(

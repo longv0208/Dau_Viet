@@ -22,6 +22,8 @@ public record InventoryItemResponse(
         UUID sourceLessonId,
         UUID unlockRuleId,
         Integer unlockRuleVersion,
-        UUID sourceEventId
+        UUID sourceEventId,
+        Boolean placeable,
+        UUID placedSlotId
 ) {
 }

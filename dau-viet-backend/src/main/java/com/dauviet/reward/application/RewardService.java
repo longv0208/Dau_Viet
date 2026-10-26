@@ -58,6 +58,7 @@ public class RewardService {
     private final ItemRuleEvaluator ruleEvaluator;
     private final ItemRuleScopeResolver scopeResolver;
     private final ObjectMapper mapper;
+    private final com.dauviet.island.infrastructure.persistence.UserIslandPlacementRepository placements;
 
     public RewardService(RewardTransactionRepository rewards,
                          UserInventoryRepository inventory,
@@ -73,7 +74,8 @@ public class RewardService {
                          ItemConditionParser conditionParser,
                          ItemRuleEvaluator ruleEvaluator,
                          ItemRuleScopeResolver scopeResolver,
-                         ObjectMapper mapper) {
+                         ObjectMapper mapper,
+                         com.dauviet.island.infrastructure.persistence.UserIslandPlacementRepository placements) {
         this.rewards = rewards;
         this.inventory = inventory;
         this.items = items;
@@ -88,6 +90,7 @@ public class RewardService {
         this.ruleEvaluator = ruleEvaluator;
         this.scopeResolver = scopeResolver;
         this.mapper = mapper;
+        this.placements = placements;
     }
 
     /** Tổng EXP / Điểm Lịch sử + số liệu phụ trợ cho màn hình hành trình. */
@@ -117,13 +120,18 @@ public class RewardService {
                 t.getCreatedAt())));
     }
 
-    /** Vật phẩm đã sở hữu — mới nhất trước, kèm metadata catalog. */
+    /** Vật phẩm đã sở hữu — mới nhất trước, kèm metadata catalog + trạng thái đặt trên Đảo Di Sản. */
     @Transactional(readOnly = true)
     public List<InventoryItemResponse> inventoryList(UUID userId) {
         List<UserInventoryItem> owned =
                 inventory.findByUserIdOrderByAcquiredAtDesc(userId);
         Map<UUID, ItemCatalog> catalog = catalogOf(
                 owned.stream().map(UserInventoryItem::getItemId).toList());
+        Map<UUID, UUID> slotByItem = placements.findByUserId(userId).stream()
+                .collect(java.util.stream.Collectors.toMap(
+                        com.dauviet.island.domain.UserIslandPlacement::getItemId,
+                        com.dauviet.island.domain.UserIslandPlacement::getSlotId,
+                        (existing, replacement) -> existing));
         return owned.stream().map(o -> {
             ItemCatalog item = catalog.get(o.getItemId());
             return new InventoryItemResponse(
@@ -137,7 +145,9 @@ public class RewardService {
                     item == null ? null : item.getAssetId(),
                     o.getAcquiredAt(), o.getAcquisitionSource(),
                     o.getSourceLessonId(), o.getUnlockRuleId(),
-                    o.getUnlockRuleVersion(), o.getSourceEventId());
+                    o.getUnlockRuleVersion(), o.getSourceEventId(),
+                    item != null && item.isPlaceable(),
+                    slotByItem.get(o.getItemId()));
         }).toList();
     }
 
@@ -214,7 +224,9 @@ public class RewardService {
                     item == null ? null : item.getAssetId(),
                     o.getAcquiredAt(), o.getAcquisitionSource(),
                     o.getSourceLessonId(), o.getUnlockRuleId(),
-                    o.getUnlockRuleVersion(), o.getSourceEventId());
+                    o.getUnlockRuleVersion(), o.getSourceEventId(),
+                    item != null && item.isPlaceable(),
+                    null);
         }).toList();
     }
 

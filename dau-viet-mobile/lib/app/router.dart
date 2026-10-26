@@ -25,6 +25,8 @@ import '../features/map/presentation/historical_map_screen.dart';
 import '../features/meta/presentation/energy_management_screen.dart';
 import '../features/onboarding/presentation/onboarding_screen.dart';
 import '../features/profile/presentation/profile_screen.dart';
+import '../features/island/presentation/island_screen.dart';
+import '../features/island/presentation/island_shop_screen.dart';
 import '../features/meta/presentation/heritage_island_screen.dart';
 import '../features/meta/presentation/inventory_screen.dart';
 import '../features/rewards/presentation/event_victory_screen.dart';
@@ -44,6 +46,7 @@ const _learningPrefixes = [
   '/energy',
   '/timeline',
   '/saban',
+  '/island',
 ];
 
 /// Màn demo-only (nội dung hard-code, không có backend thật): giữ trong
@@ -308,7 +311,14 @@ final appRouter = GoRouter(
     GoRoute(
       path: '/island',
       name: 'heritage_island',
-      builder: (context, state) => const HeritageIslandScreen(),
+      builder: (context, state) => const IslandScreen(),
+      routes: [
+        GoRoute(
+          path: 'shop',
+          name: 'island_shop',
+          builder: (context, state) => const IslandShopScreen(),
+        ),
+      ],
     ),
 
     // M-27: Túi Đồ & Kho Quản Lý Cổ Vật Sở Hữu (Inventory)

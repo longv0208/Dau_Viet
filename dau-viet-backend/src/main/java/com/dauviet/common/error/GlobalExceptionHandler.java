@@ -68,6 +68,14 @@ public class GlobalExceptionHandler {
         return build(HttpStatus.BAD_REQUEST, ErrorCode.VALIDATION_ERROR, "Missing required parameter", details);
     }
 
+    @ExceptionHandler(org.springframework.web.bind.MissingRequestHeaderException.class)
+    public ResponseEntity<ApiError> handleMissingHeader(
+            org.springframework.web.bind.MissingRequestHeaderException ex) {
+        Map<String, Object> details = Map.of("header", ex.getHeaderName());
+        return build(HttpStatus.BAD_REQUEST, ErrorCode.VALIDATION_ERROR,
+                "Missing required header: " + ex.getHeaderName(), details);
+    }
+
     @ExceptionHandler(HttpMessageNotReadableException.class)
     public ResponseEntity<ApiError> handleUnreadable(HttpMessageNotReadableException ex) {
         return build(HttpStatus.BAD_REQUEST, ErrorCode.VALIDATION_ERROR, "Malformed request body", Map.of());
@@ -419,6 +427,98 @@ public class GlobalExceptionHandler {
                 ? Map.of()
                 : Map.of("sceneVersionIds", ex.getSceneVersionIds());
         return build(HttpStatus.CONFLICT, ErrorCode.ASSET_IN_USE, ex.getMessage(), details);
+    }
+
+    /* ---------- ISLAND-BE-01: Đảo Di Sản + Wallet + Shop ---------- */
+
+    @ExceptionHandler(com.dauviet.island.domain.IslandExceptions.InsufficientFundsException.class)
+    public ResponseEntity<ApiError> handleInsufficientFunds(
+            com.dauviet.island.domain.IslandExceptions.InsufficientFundsException ex) {
+        Map<String, Object> details = Map.of(
+                "balance", ex.getBalance(), "price", ex.getPrice());
+        return build(HttpStatus.CONFLICT, ErrorCode.INSUFFICIENT_FUNDS,
+                ex.getMessage(), details);
+    }
+
+    @ExceptionHandler(com.dauviet.island.domain.IslandExceptions.ItemNotOwnedException.class)
+    public ResponseEntity<ApiError> handleItemNotOwned(
+            com.dauviet.island.domain.IslandExceptions.ItemNotOwnedException ex) {
+        return build(HttpStatus.FORBIDDEN, ErrorCode.ITEM_NOT_OWNED,
+                ex.getMessage(), Map.of());
+    }
+
+    @ExceptionHandler(com.dauviet.island.domain.IslandExceptions.ItemAlreadyOwnedException.class)
+    public ResponseEntity<ApiError> handleItemAlreadyOwned(
+            com.dauviet.island.domain.IslandExceptions.ItemAlreadyOwnedException ex) {
+        return build(HttpStatus.CONFLICT, ErrorCode.ITEM_ALREADY_OWNED,
+                ex.getMessage(), Map.of());
+    }
+
+    @ExceptionHandler(com.dauviet.island.domain.IslandExceptions.ItemNotPlaceableException.class)
+    public ResponseEntity<ApiError> handleItemNotPlaceable(
+            com.dauviet.island.domain.IslandExceptions.ItemNotPlaceableException ex) {
+        return build(HttpStatus.UNPROCESSABLE_ENTITY, ErrorCode.ITEM_NOT_PLACEABLE,
+                ex.getMessage(), Map.of());
+    }
+
+    @ExceptionHandler(com.dauviet.island.domain.IslandExceptions.SlotLockedException.class)
+    public ResponseEntity<ApiError> handleSlotLocked(
+            com.dauviet.island.domain.IslandExceptions.SlotLockedException ex) {
+        Map<String, Object> details = Map.of(
+                "tierRequired", ex.getTierRequired(),
+                "currentTier", ex.getCurrentTier());
+        return build(HttpStatus.FORBIDDEN, ErrorCode.SLOT_LOCKED,
+                ex.getMessage(), details);
+    }
+
+    @ExceptionHandler(com.dauviet.island.domain.IslandExceptions.SlotOccupiedException.class)
+    public ResponseEntity<ApiError> handleSlotOccupied(
+            com.dauviet.island.domain.IslandExceptions.SlotOccupiedException ex) {
+        return build(HttpStatus.CONFLICT, ErrorCode.SLOT_OCCUPIED,
+                ex.getMessage(), Map.of());
+    }
+
+    @ExceptionHandler(com.dauviet.island.domain.IslandExceptions.SlotNotFoundException.class)
+    public ResponseEntity<ApiError> handleSlotNotFound(
+            com.dauviet.island.domain.IslandExceptions.SlotNotFoundException ex) {
+        return build(HttpStatus.NOT_FOUND, ErrorCode.SLOT_NOT_FOUND,
+                ex.getMessage(), Map.of());
+    }
+
+    @ExceptionHandler(com.dauviet.island.domain.IslandExceptions.IslandUpgradeNotEligibleException.class)
+    public ResponseEntity<ApiError> handleUpgradeNotEligible(
+            com.dauviet.island.domain.IslandExceptions.IslandUpgradeNotEligibleException ex) {
+        Map<String, Object> details = Map.of(
+                "targetTier", ex.getTargetTier(),
+                "requiredEvents", ex.getRequiredEvents(),
+                "currentEvents", ex.getCurrentEvents());
+        return build(HttpStatus.UNPROCESSABLE_ENTITY,
+                ErrorCode.ISLAND_UPGRADE_NOT_ELIGIBLE,
+                ex.getMessage(), details);
+    }
+
+    @ExceptionHandler(com.dauviet.island.domain.IslandExceptions.StaleIslandRevisionException.class)
+    public ResponseEntity<ApiError> handleStaleIslandRevision(
+            com.dauviet.island.domain.IslandExceptions.StaleIslandRevisionException ex) {
+        Map<String, Object> details = Map.of(
+                "expectedRevision", ex.getExpected(),
+                "actualRevision", ex.getActual());
+        return build(HttpStatus.CONFLICT, ErrorCode.STALE_ISLAND_REVISION,
+                ex.getMessage(), details);
+    }
+
+    @ExceptionHandler(com.dauviet.island.domain.IslandExceptions.ItemNotForSaleException.class)
+    public ResponseEntity<ApiError> handleItemNotForSale(
+            com.dauviet.island.domain.IslandExceptions.ItemNotForSaleException ex) {
+        return build(HttpStatus.UNPROCESSABLE_ENTITY, ErrorCode.ITEM_NOT_FOR_SALE,
+                ex.getMessage(), Map.of());
+    }
+
+    @ExceptionHandler(com.dauviet.island.domain.IslandExceptions.FeatureDisabledException.class)
+    public ResponseEntity<ApiError> handleFeatureDisabled(
+            com.dauviet.island.domain.IslandExceptions.FeatureDisabledException ex) {
+        return build(HttpStatus.SERVICE_UNAVAILABLE, ErrorCode.FEATURE_DISABLED,
+                ex.getMessage(), Map.of());
     }
 
     /**

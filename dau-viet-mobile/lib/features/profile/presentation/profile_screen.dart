@@ -80,7 +80,7 @@ class ProfileScreen extends ConsumerWidget {
                           _MenuTile(
                             icon: Icons.landscape_outlined,
                             label: 'Đảo di sản',
-                            onTap: () => context.go('/island'),
+                            onTap: () => context.push('/island'),
                           ),
                           // GAME-03: Viện Thái Y có backend thật — mở
                           // cho cả real mode (mock gắn nhãn demo).
@@ -89,13 +89,13 @@ class ProfileScreen extends ConsumerWidget {
                             label: ApiConfig.useMock
                                 ? 'Viện Thái Y (demo)'
                                 : 'Viện Thái Y — Thể lực',
-                            onTap: () => context.go('/energy'),
+                            onTap: () => context.push('/energy'),
                           ),
                           // STREAK-01: Ngọn Lửa Hào Khí backend thật.
                           _MenuTile(
                             icon: Icons.local_fire_department_outlined,
                             label: 'Ngọn Lửa Hào Khí — Chuỗi ngày học',
-                            onTap: () => context.go('/streak'),
+                            onTap: () => context.push('/streak'),
                           ),
                           const SizedBox(height: 16),
                           const _SectionLabel('TÀI KHOẢN'),
