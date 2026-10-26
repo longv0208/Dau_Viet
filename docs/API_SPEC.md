@@ -68,7 +68,7 @@
 | GET | `/me/streak` | Chuỗi ngày học hiện tại (server `Asia/Ho_Chi_Minh`) — **implemented STREAK-01**; authenticated, đọc-only không lazy-create |
 | GET | `/me/streak/calendar` | Các ngày đã học trong khoảng `?from=&to=` (ISO date, ≤92 ngày) — **implemented STREAK-01**; authenticated |
 | GET | `/learning-path` | Lộ trình học tập Bản đồ Dấu Ấn 2.0 (`?code=HISTORY_MAIN`) — **implemented PATH-01**; public / authenticated |
-| GET | `/learning-path/audit` | Báo cáo kiểm toán chất lượng dữ liệu lộ trình học tập — **implemented PATH-01**; public / authenticated |
+| GET | `/admin/learning-path/audit` | Báo cáo kiểm toán chất lượng dữ liệu lộ trình học tập — **implemented PATH-01**; role CONTENT_ADMIN |
 
 ### Start/resume
 

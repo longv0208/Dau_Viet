@@ -59,6 +59,7 @@ class RewardGrantIT extends AbstractPostgresIT {
         clearAuthoringTables(jdbc);
         jdbc.update("delete from reward_transactions");
         jdbc.update("delete from user_inventory");
+        jdbc.update("delete from island_shop_items");
         jdbc.update("delete from item_unlock_rule");
         jdbc.update("delete from item_catalog");
         jdbc.update("delete from lesson_templates");

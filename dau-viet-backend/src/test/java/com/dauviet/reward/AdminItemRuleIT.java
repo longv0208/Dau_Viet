@@ -49,6 +49,7 @@ class AdminItemRuleIT extends AbstractPostgresIT {
     @BeforeEach
     void setUp() {
         clearAuthoringTables(jdbc);
+        jdbc.update("delete from island_shop_items");
         jdbc.update("delete from item_unlock_rule");
         jdbc.update("delete from item_catalog");
         jdbc.update("delete from historical_events");

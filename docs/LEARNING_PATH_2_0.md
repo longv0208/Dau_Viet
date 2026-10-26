@@ -173,7 +173,9 @@ Mỗi sự kiện trong lộ trình được server đánh giá tự động d�
 }
 ```
 
-### `GET /api/v1/learning-path/audit`
+### `GET /api/v1/admin/learning-path/audit`
+
+- Quyền truy cập: Yêu cầu quyền `CONTENT_ADMIN`. Không cấp quyền truy cập tự do cho learner.
 - **Mục đích**: Báo cáo kiểm toán chất lượng lộ trình và tính sẵn sàng của nội dung.
 - **Tham số**: `code` (mặc định `HISTORY_MAIN`), `version` (optional).
 - **Phản hồi**: Tổng số chương, số sự kiện, số bài học, phân bổ `contentStatusCounts`, danh sách cảnh báo biên tập (`emptyChapters`, `issues`).

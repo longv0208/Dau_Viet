@@ -29,6 +29,7 @@ class YearLabelFormatterTest {
         assertThat(YearLabelFormatter.formatYear(-100, null)).isEqualTo("Khoảng thế kỷ I TCN");
         assertThat(YearLabelFormatter.formatYear(-300, null)).isEqualTo("Khoảng thế kỷ III TCN");
         assertThat(YearLabelFormatter.formatYear(-1000, null)).isEqualTo("Khoảng thế kỷ X TCN");
+        assertThat(YearLabelFormatter.formatYear(-2000, null)).isEqualTo("Khoảng thế kỷ XX TCN");
     }
 
     @Test
@@ -36,6 +37,7 @@ class YearLabelFormatterTest {
     void negativeExactYearsFormat() {
         assertThat(YearLabelFormatter.formatYear(-179, null)).isEqualTo("Năm 179 TCN");
         assertThat(YearLabelFormatter.formatYear(-257, null)).isEqualTo("Năm 257 TCN");
+        assertThat(YearLabelFormatter.formatYear(-111, null)).isEqualTo("Năm 111 TCN");
     }
 
     @Test
@@ -47,9 +49,10 @@ class YearLabelFormatterTest {
     }
 
     @Test
-    @DisplayName("Năm null: Fallback về chuỗi period hoặc rỗng")
+    @DisplayName("Năm null: Fallback về chuỗi period hoặc null")
     void nullYearFallsBack() {
         assertThat(YearLabelFormatter.formatYear(null, "Thời kỳ tiền sử")).isEqualTo("Thời kỳ tiền sử");
-        assertThat(YearLabelFormatter.formatYear(null, null)).isEmpty();
+        assertThat(YearLabelFormatter.formatYear(null, "   ")).isNull();
+        assertThat(YearLabelFormatter.formatYear(null, null)).isNull();
     }
 }

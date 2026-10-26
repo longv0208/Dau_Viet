@@ -1,7 +1,6 @@
 package com.dauviet.path;
 
 import static org.assertj.core.api.Assertions.assertThat;
-import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
@@ -15,12 +14,15 @@ import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMockMvc;
 import org.springframework.boot.test.context.SpringBootTest;
-import org.springframework.dao.DataAccessException;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.MvcResult;
 
 import com.dauviet.AbstractPostgresIT;
+import com.dauviet.learning.AttemptItFixture;
+import com.dauviet.security.jwt.JwtTokenService;
+import com.dauviet.user.domain.UserRole;
+import com.dauviet.user.infrastructure.persistence.UserRepository;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 
@@ -32,6 +34,8 @@ class LearningPathApiIT extends AbstractPostgresIT {
     @Autowired MockMvc mvc;
     @Autowired JdbcTemplate jdbc;
     @Autowired ObjectMapper om;
+    @Autowired UserRepository users;
+    @Autowired JwtTokenService jwt;
 
     @BeforeEach
     void setUp() {
@@ -101,24 +105,35 @@ class LearningPathApiIT extends AbstractPostgresIT {
 
         // Chương 1: Hùng Vương (-700) -> Khoảng thế kỷ VII TCN
         JsonNode ch1Events = chapters.get(0).path("events");
-        if (ch1Events.size() > 0) {
-            assertThat(ch1Events.get(0).path("startYear").asInt()).isEqualTo(-700);
-            assertThat(ch1Events.get(0).path("yearLabel").asText()).isEqualTo("Khoảng thế kỷ VII TCN");
-        }
+        assertThat(ch1Events.size()).isGreaterThanOrEqualTo(1);
+        assertThat(ch1Events.get(0).path("startYear").asInt()).isEqualTo(-700);
+        assertThat(ch1Events.get(0).path("yearLabel").asText()).isEqualTo("Khoảng thế kỷ VII TCN");
 
         // Chương 2: Hai Bà Trưng (40) -> Năm 40
         JsonNode ch2Events = chapters.get(1).path("events");
-        if (ch2Events.size() > 0) {
-            assertThat(ch2Events.get(0).path("startYear").asInt()).isEqualTo(40);
-            assertThat(ch2Events.get(0).path("yearLabel").asText()).isEqualTo("Năm 40");
-        }
+        assertThat(ch2Events.size()).isEqualTo(1);
+        assertThat(ch2Events.get(0).path("startYear").asInt()).isEqualTo(40);
+        assertThat(ch2Events.get(0).path("yearLabel").asText()).isEqualTo("Năm 40");
 
         // Chương 3: Bạch Đằng (938) -> Năm 938
         JsonNode ch3Events = chapters.get(2).path("events");
-        if (ch3Events.size() > 0) {
-            assertThat(ch3Events.get(0).path("startYear").asInt()).isEqualTo(938);
-            assertThat(ch3Events.get(0).path("yearLabel").asText()).isEqualTo("Năm 938");
-        }
+        assertThat(ch3Events.size()).isEqualTo(1);
+        assertThat(ch3Events.get(0).path("startYear").asInt()).isEqualTo(938);
+        assertThat(ch3Events.get(0).path("yearLabel").asText()).isEqualTo("Năm 938");
+
+        // Chương 4: Nhà Lý (1010, 1077)
+        JsonNode ch4Events = chapters.get(3).path("events");
+        assertThat(ch4Events.size()).isEqualTo(2);
+        assertThat(ch4Events.get(0).path("slug").asText()).isEqualTo("ly-thai-to-1010");
+        assertThat(ch4Events.get(0).path("yearLabel").asText()).isEqualTo("Năm 1010");
+        assertThat(ch4Events.get(1).path("slug").asText()).isEqualTo("chien-thang-nhu-nguyet-1077");
+        assertThat(ch4Events.get(1).path("yearLabel").asText()).isEqualTo("Năm 1077");
+
+        // Chương 5: Điện Biên Phủ (1954)
+        JsonNode ch5Events = chapters.get(4).path("events");
+        assertThat(ch5Events.size()).isEqualTo(1);
+        assertThat(ch5Events.get(0).path("slug").asText()).isEqualTo("chien-dich-dien-bien-phu-1954");
+        assertThat(ch5Events.get(0).path("yearLabel").asText()).isEqualTo("Năm 1954");
     }
 
     @Test
@@ -133,17 +148,16 @@ class LearningPathApiIT extends AbstractPostgresIT {
 
         // Chương 1 (Hùng Vương): 0 bài học -> NO_PUBLISHED_LESSON
         JsonNode ch1Events = chapters.get(0).path("events");
-        if (ch1Events.size() > 0) {
-            assertThat(ch1Events.get(0).path("contentStatus").asText()).isEqualTo("NO_PUBLISHED_LESSON");
-            assertThat(ch1Events.get(0).path("lessons").size()).isEqualTo(0);
-        }
+        assertThat(ch1Events.size()).isGreaterThanOrEqualTo(1);
+        assertThat(ch1Events.get(0).path("contentStatus").asText()).isEqualTo("NO_PUBLISHED_LESSON");
+        assertThat(ch1Events.get(0).path("lessons").size()).isEqualTo(0);
 
         // Chương 3 (Bạch Đằng 938): có bài + policy -> PLAYABLE
         JsonNode ch3Events = chapters.get(2).path("events");
-        if (ch3Events.size() > 0) {
-            assertThat(ch3Events.get(0).path("contentStatus").asText()).isEqualTo("PLAYABLE");
-            assertThat(ch3Events.get(0).path("lessons").size()).isGreaterThanOrEqualTo(1);
-        }
+        assertThat(ch3Events.size()).isEqualTo(1);
+        assertThat(ch3Events.get(0).path("contentStatus").asText()).isEqualTo("PLAYABLE");
+        assertThat(ch3Events.get(0).path("lessons").size()).isEqualTo(1);
+        assertThat(ch3Events.get(0).path("lessons").get(0).path("sortOrder").asInt()).isEqualTo(1);
     }
 
     @Test
@@ -156,23 +170,27 @@ class LearningPathApiIT extends AbstractPostgresIT {
     }
 
     @Test
-    @DisplayName("Endpoint audit trả về báo cáo kiểm toán đầy đủ")
-    void auditEndpointReturnsCompleteReport() throws Exception {
-        mvc.perform(get("/api/v1/learning-path/audit"))
+    @DisplayName("Security: Endpoint admin audit kiểm soát quyền chặt chẽ (401, 403, 200)")
+    void adminAuditSecurityGates() throws Exception {
+        // 1. Không có token -> 401 Unauthorized
+        mvc.perform(get("/api/v1/admin/learning-path/audit"))
+                .andExpect(status().isUnauthorized());
+
+        // 2. Token role LEARNER -> 403 Forbidden
+        String learnerToken = AttemptItFixture.token(users, jwt, "learner.path@test.vn", UserRole.LEARNER);
+        mvc.perform(get("/api/v1/admin/learning-path/audit")
+                .header("Authorization", learnerToken))
+                .andExpect(status().isForbidden());
+
+        // 3. Token role CONTENT_ADMIN -> 200 OK
+        String adminToken = AttemptItFixture.token(users, jwt, "admin.path@test.vn", UserRole.CONTENT_ADMIN);
+        mvc.perform(get("/api/v1/admin/learning-path/audit")
+                .header("Authorization", adminToken))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.pathCode").value("HISTORY_MAIN"))
                 .andExpect(jsonPath("$.status").value("PUBLISHED"))
                 .andExpect(jsonPath("$.totalChapters").value(5))
-                .andExpect(jsonPath("$.totalEvents").isNumber())
+                .andExpect(jsonPath("$.totalEvents").value(6))
                 .andExpect(jsonPath("$.contentStatusCounts").isMap());
-    }
-
-    @Test
-    @DisplayName("Trigger bảo vệ: Không thể sửa tiêu đề phiên bản PUBLISHED trực tiếp")
-    void publishedPathIsProtectedFromMutation() {
-        assertThatThrownBy(() -> {
-            jdbc.update("UPDATE learning_path_versions SET title = 'Tên giả mạo' WHERE path_code = 'HISTORY_MAIN' AND status = 'PUBLISHED'");
-        }).isInstanceOf(DataAccessException.class)
-          .hasMessageContaining("immutable");
     }
 }

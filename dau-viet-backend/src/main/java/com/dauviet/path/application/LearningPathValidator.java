@@ -2,6 +2,7 @@ package com.dauviet.path.application;
 
 import java.util.ArrayList;
 import java.util.Collections;
+import java.util.Comparator;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
@@ -17,6 +18,7 @@ import org.springframework.stereotype.Component;
 
 import com.dauviet.collection.domain.EventCompletionPolicy;
 import com.dauviet.collection.infrastructure.persistence.EventCompletionPolicyRepository;
+import com.dauviet.historicalevent.domain.EventStatus;
 import com.dauviet.historicalevent.domain.HistoricalEvent;
 import com.dauviet.historicalevent.infrastructure.persistence.HistoricalEventRepository;
 import com.dauviet.lesson.domain.Lesson;
@@ -46,12 +48,16 @@ public class LearningPathValidator {
 
     private static final Logger log = LoggerFactory.getLogger(LearningPathValidator.class);
 
-    /** Các cặp alias lịch sử đã biết trong dữ liệu seed cần phát hiện */
+    /** Các cặp alias lịch sử đã biết cần phát hiện đối chiếu */
     private static final Map<String, String> KNOWN_ALIASES = Map.of(
             "hai-ba-trung-40", "khoi-nghia-hai-ba-trung-40",
             "khoi-nghia-hai-ba-trung-40", "hai-ba-trung-40",
             "ly-thai-to-1010", "history-thang-long-1010",
             "history-thang-long-1010", "ly-thai-to-1010"
+    );
+
+    private static final Set<String> HAI_BA_TRUNG_SLUGS = Set.of(
+            "hai-ba-trung-40", "khoi-nghia-hai-ba-trung-40"
     );
 
     private final LearningPathVersionRepository versionRepo;
@@ -106,6 +112,10 @@ public class LearningPathValidator {
         Map<UUID, HistoricalEvent> eventsMap = historicalEventRepo.findAllById(eventIds).stream()
                 .collect(Collectors.toMap(HistoricalEvent::getId, Function.identity()));
 
+        List<HistoricalEvent> allDbEvents = historicalEventRepo.findAll();
+        Map<String, HistoricalEvent> allDbEventsBySlug = allDbEvents.stream()
+                .collect(Collectors.toMap(HistoricalEvent::getSlug, Function.identity(), (e1, e2) -> e1));
+
         List<UUID> eventNodeIds = eventNodes.stream().map(LearningPathEventNode::getId).toList();
         List<LearningPathLessonNode> lessonNodes = eventNodeIds.isEmpty()
                 ? Collections.emptyList()
@@ -143,7 +153,8 @@ public class LearningPathValidator {
                 .collect(Collectors.groupingBy(LearningPathLessonNode::getEventNodeId));
 
         Set<UUID> seenEventIds = new HashSet<>();
-        Set<String> seenSlugs = new HashSet<>();
+        Set<String> seenSlugsInPath = new HashSet<>();
+        int haiBaTrungNodeCount = 0;
 
         for (LearningPathChapter chapter : chapters) {
             List<LearningPathEventNode> chapterNodes = nodesByChapter.getOrDefault(chapter.getId(), Collections.emptyList());
@@ -169,13 +180,35 @@ public class LearningPathValidator {
                     continue;
                 }
 
-                // Check alias trùng
                 String slug = event.getSlug();
-                seenSlugs.add(slug);
+                seenSlugsInPath.add(slug);
+
+                if (HAI_BA_TRUNG_SLUGS.contains(slug)) {
+                    haiBaTrungNodeCount++;
+                }
+
+                // Check alias trùng trong DB và trong lộ trình
                 String potentialAlias = KNOWN_ALIASES.get(slug);
-                if (potentialAlias != null && seenSlugs.contains(potentialAlias)) {
-                    issues.add(new AuditIssue("ERROR", "DUPLICATE_HISTORICAL_ALIAS", "Both alias and canonical event appeared in path: " + slug + " and " + potentialAlias, node.getId()));
-                    duplicateAliases.add(new DuplicateAliasReport(slug, event.getId(), potentialAlias, null, "Trùng sự kiện lịch sử qua 2 alias"));
+                if (potentialAlias != null) {
+                    HistoricalEvent aliasInDb = allDbEventsBySlug.get(potentialAlias);
+                    if (aliasInDb != null) {
+                        if (seenSlugsInPath.contains(potentialAlias)) {
+                            issues.add(new AuditIssue("ERROR", "DUPLICATE_HISTORICAL_ALIAS",
+                                    "Both alias and canonical event appeared in path: " + slug + " and " + potentialAlias, node.getId()));
+                            duplicateAliases.add(new DuplicateAliasReport(slug, event.getId(), potentialAlias, aliasDbEventId(aliasInDb),
+                                    "Trùng sự kiện lịch sử qua 2 alias cùng gắn vào lộ trình"));
+                        } else {
+                            issues.add(new AuditIssue("WARNING", "DB_ALIAS_EVENT_EXISTS",
+                                    "Database contains alias event: " + potentialAlias + " (canonical in path: " + slug + ")", aliasInDb.getId()));
+                            duplicateAliases.add(new DuplicateAliasReport(slug, event.getId(), potentialAlias, aliasInDb.getId(),
+                                    "Alias tồn tại trong CSDL nhưng không gắn vào lộ trình (đã chuẩn hóa)"));
+                        }
+                    }
+                }
+
+                if (event.getStatus() != EventStatus.PUBLISHED) {
+                    issues.add(new AuditIssue("WARNING", "UNPUBLISHED_EVENT_IN_PATH",
+                            "Event is " + event.getStatus() + ": " + event.getTitle(), event.getId()));
                 }
 
                 List<LearningPathLessonNode> nodeLessons = lessonsByNode.getOrDefault(node.getId(), Collections.emptyList());
@@ -199,10 +232,27 @@ public class LearningPathValidator {
                     if (!lesson.getEventId().equals(node.getEventId())) {
                         issues.add(new AuditIssue("ERROR", "LESSON_EVENT_MISMATCH", "Lesson belongs to event " + lesson.getEventId() + " but attached to " + node.getEventId(), lNode.getId()));
                     }
-                    if (lesson.getStatus() == LessonStatus.PUBLISHED) {
+                    if (lesson.getStatus() == LessonStatus.PUBLISHED && lesson.getCurrentVersionId() != null) {
                         publishedCount++;
                     } else {
-                        issues.add(new AuditIssue("WARNING", "UNPUBLISHED_LESSON_IN_PATH", "Lesson is " + lesson.getStatus() + ": " + lesson.getTitle(), lesson.getId()));
+                        issues.add(new AuditIssue("WARNING", "UNPUBLISHED_OR_UNPINNED_LESSON",
+                                "Lesson is not published or currentVersionId is null: " + lesson.getTitle(), lesson.getId()));
+                    }
+                }
+
+                // Kiểm tra lesson sort order liên tục nếu có nhiều bài
+                if (nodeLessons.size() > 1) {
+                    List<Integer> sorts = nodeLessons.stream().map(LearningPathLessonNode::getSortOrder).sorted().toList();
+                    boolean sequential = true;
+                    for (int i = 0; i < sorts.size(); i++) {
+                        if (sorts.get(i) != i + 1) {
+                            sequential = false;
+                            break;
+                        }
+                    }
+                    if (!sequential) {
+                        issues.add(new AuditIssue("WARNING", "NEEDS_ORDER_REVIEW",
+                                "Event " + slug + " has multi-lesson order gaps: " + sorts, node.getId()));
                     }
                 }
 
@@ -224,11 +274,30 @@ public class LearningPathValidator {
                         statusStr = "CONTENT_REVIEW_REQUIRED";
                         issues.add(new AuditIssue("ERROR", "POLICY_LESSON_UNSATISFIED", "Policy requires lessons not published/attached to event: " + reqIds, policy.getId()));
                     } else {
-                        statusStr = "PLAYABLE";
+                        // Check that all required lessons belong to the same event
+                        boolean allBelongToEvent = true;
+                        for (UUID reqId : reqIds) {
+                            Lesson l = lessonsMap.get(reqId);
+                            if (l == null || !node.getEventId().equals(l.getEventId()) || l.getStatus() != LessonStatus.PUBLISHED || l.getCurrentVersionId() == null) {
+                                allBelongToEvent = false;
+                                break;
+                            }
+                        }
+                        if (!allBelongToEvent) {
+                            statusStr = "CONTENT_REVIEW_REQUIRED";
+                            issues.add(new AuditIssue("ERROR", "POLICY_LESSON_EVENT_MISMATCH", "Policy requires lessons from different event or unpinned: " + reqIds, policy.getId()));
+                        } else {
+                            statusStr = "PLAYABLE";
+                        }
                     }
                 }
                 statusCounts.put(statusStr, statusCounts.getOrDefault(statusStr, 0L) + 1);
             }
+        }
+
+        if (haiBaTrungNodeCount > 1) {
+            issues.add(new AuditIssue("ERROR", "MULTIPLE_HAI_BA_TRUNG_NODES",
+                    "Hai Bà Trưng appears " + haiBaTrungNodeCount + " times in path; must appear exactly once", version.getId()));
         }
 
         return new PathAuditReport(
@@ -243,6 +312,10 @@ public class LearningPathValidator {
                 duplicateAliases,
                 emptyChapters
         );
+    }
+
+    private UUID aliasDbEventId(HistoricalEvent event) {
+        return event != null ? event.getId() : null;
     }
 
     /**

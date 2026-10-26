@@ -6,9 +6,7 @@ import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
 import com.dauviet.path.api.dto.LearningPathResponse;
-import com.dauviet.path.api.dto.PathAuditReport;
 import com.dauviet.path.application.LearningPathService;
-import com.dauviet.path.application.LearningPathValidator;
 
 /**
  * Controller đọc lộ trình học tập chuẩn hóa (PATH-01).
@@ -19,12 +17,9 @@ import com.dauviet.path.application.LearningPathValidator;
 public class LearningPathController {
 
     private final LearningPathService service;
-    private final LearningPathValidator validator;
 
-    public LearningPathController(LearningPathService service,
-                                  LearningPathValidator validator) {
+    public LearningPathController(LearningPathService service) {
         this.service = service;
-        this.validator = validator;
     }
 
     /**
@@ -37,15 +32,5 @@ public class LearningPathController {
     public LearningPathResponse learningPath(
             @RequestParam(required = false, defaultValue = LearningPathService.DEFAULT_PATH_CODE) String code) {
         return service.getPublishedPath(code);
-    }
-
-    /**
-     * Báo cáo kiểm toán chất lượng nội dung và tính nhất quán dữ liệu lộ trình.
-     */
-    @GetMapping("/audit")
-    public PathAuditReport audit(
-            @RequestParam(required = false, defaultValue = LearningPathService.DEFAULT_PATH_CODE) String code,
-            @RequestParam(required = false) Integer version) {
-        return validator.audit(code, version);
     }
 }

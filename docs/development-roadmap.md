@@ -40,7 +40,7 @@
 ### PATH-01 — delivered (2026-10-27)
 
 - **Schema** — `V33__learning_path_v1.sql`: 4 bảng mới (`learning_path_versions`, `learning_path_chapters`, `learning_path_event_nodes`, `learning_path_lesson_nodes`); version `HISTORY_MAIN` v1; composite FKs bảo vệ toàn vẹn bài học cùng event; trigger bảo vệ tính bất biến của phiên bản PUBLISHED.
-- **Backend** — module `com.dauviet.path`: `LearningPathService`, `LearningPathValidator`, `YearLabelFormatter` (quy ước TCN La Mã, không có năm 0), `LearningPathController` `GET /api/v1/learning-path` + `GET /api/v1/learning-path/audit`.
+- **Backend** — module `com.dauviet.path`: `LearningPathService`, `LearningPathValidator`, `YearLabelFormatter` (quy ước TCN La Mã, không có năm 0), `LearningPathController` `GET /api/v1/learning-path` + `AdminLearningPathController` `GET /api/v1/admin/learning-path/audit`.
 - **Dữ liệu V1** — 5 Chương chuẩn hóa (Buổi đầu dựng nước, Bắc thuộc, Buổi đầu độc lập, Thời nhà Lý, Kháng chiến chống Pháp), Hai Bà Trưng xuất hiện đúng 1 lần duy nhất, đánh giá trung thực `contentStatus` (`PLAYABLE`, `NO_PUBLISHED_LESSON`, `NO_COMPLETION_POLICY`).
 - **Tài liệu** — `docs/LEARNING_PATH_2_0.md` làm nền tảng cho PATH-02, PATH-03, PATH-04, PATH-05.
 - **Tests** — 14/14 tests pass (`YearLabelFormatterTest` 5/5, `LearningPathValidatorTest` 2/2, `LearningPathApiIT` 7/7).

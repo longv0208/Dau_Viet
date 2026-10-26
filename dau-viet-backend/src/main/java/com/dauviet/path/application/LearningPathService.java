@@ -17,6 +17,7 @@ import org.springframework.transaction.annotation.Transactional;
 
 import com.dauviet.collection.domain.EventCompletionPolicy;
 import com.dauviet.collection.infrastructure.persistence.EventCompletionPolicyRepository;
+import com.dauviet.historicalevent.domain.EventStatus;
 import com.dauviet.historicalevent.domain.HistoricalEvent;
 import com.dauviet.historicalevent.infrastructure.persistence.HistoricalEventRepository;
 import com.dauviet.lesson.domain.Lesson;
@@ -129,8 +130,9 @@ public class LearningPathService {
 
             for (LearningPathEventNode eventNode : chapterEventNodes) {
                 HistoricalEvent event = eventsMap.get(eventNode.getEventId());
-                if (event == null) {
-                    log.warn("Historical event {} referenced by node {} does not exist", eventNode.getEventId(), eventNode.getId());
+                if (event == null || event.getStatus() != EventStatus.PUBLISHED) {
+                    log.warn("Historical event {} is missing or not published (status={})",
+                            eventNode.getEventId(), event != null ? event.getStatus() : "NOT_FOUND");
                     continue;
                 }
 
@@ -138,7 +140,7 @@ public class LearningPathService {
                 List<LessonNodeResponse> lessonResponses = new ArrayList<>();
                 for (LearningPathLessonNode lNode : nodeLessonNodes) {
                     Lesson lesson = lessonsMap.get(lNode.getLessonId());
-                    if (lesson == null || lesson.getStatus() != LessonStatus.PUBLISHED) {
+                    if (lesson == null || lesson.getStatus() != LessonStatus.PUBLISHED || lesson.getCurrentVersionId() == null) {
                         continue;
                     }
                     lessonResponses.add(new LessonNodeResponse(
@@ -150,7 +152,7 @@ public class LearningPathService {
                     ));
                 }
 
-                PathContentStatus contentStatus = determineContentStatus(eventNode.getEventId(), lessonResponses, policiesMap.get(event.getId()));
+                PathContentStatus contentStatus = determineContentStatus(eventNode.getEventId(), lessonResponses, policiesMap.get(event.getId()), lessonsMap);
                 String yearLabel = YearLabelFormatter.formatYear(event.getStartYear(), event.getPeriod());
 
                 eventResponses.add(new EventNodeResponse(
@@ -158,7 +160,7 @@ public class LearningPathService {
                         event.getId(),
                         event.getSlug(),
                         event.getTitle(),
-                        event.getStartYear() != null ? event.getStartYear() : 0,
+                        event.getStartYear(),
                         yearLabel,
                         event.getPeriod(),
                         event.getCoverAssetKey(),
@@ -195,12 +197,13 @@ public class LearningPathService {
      * Xác định ContentStatus theo quy tắc nghiêm ngặt:
      * - NO_PUBLISHED_LESSON: 0 bài học công bố
      * - NO_COMPLETION_POLICY: có bài nhưng chưa có published policy
-     * - CONTENT_REVIEW_REQUIRED: policy đòi hỏi bài không tồn tại / chưa công bố
+     * - CONTENT_REVIEW_REQUIRED: policy đòi hỏi bài không tồn tại / chưa công bố / không thuộc event
      * - PLAYABLE: có bài và policy hợp lệ
      */
     private PathContentStatus determineContentStatus(UUID eventId,
                                                     List<LessonNodeResponse> publishedLessons,
-                                                    EventCompletionPolicy policy) {
+                                                    EventCompletionPolicy policy,
+                                                    Map<UUID, Lesson> lessonsMap) {
         if (publishedLessons.isEmpty()) {
             return PathContentStatus.NO_PUBLISHED_LESSON;
         }
@@ -220,6 +223,16 @@ public class LearningPathService {
 
         if (!availableLessonIds.containsAll(requiredIds)) {
             return PathContentStatus.CONTENT_REVIEW_REQUIRED;
+        }
+
+        for (UUID reqLessonId : requiredIds) {
+            Lesson reqLesson = lessonsMap.get(reqLessonId);
+            if (reqLesson == null
+                    || !eventId.equals(reqLesson.getEventId())
+                    || reqLesson.getStatus() != LessonStatus.PUBLISHED
+                    || reqLesson.getCurrentVersionId() == null) {
+                return PathContentStatus.CONTENT_REVIEW_REQUIRED;
+            }
         }
 
         return PathContentStatus.PLAYABLE;
