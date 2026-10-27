@@ -12,6 +12,7 @@ import {
   LayoutDashboard,
   LayoutTemplate,
   LogOut,
+  MapPin,
   Menu,
   PanelLeftClose,
   PanelLeftOpen,
@@ -34,6 +35,7 @@ const NAV_ITEMS = [
   { href: "/dashboard", label: "Tổng quan", icon: LayoutDashboard },
   { href: "/events", label: "Sự kiện", icon: Calendar },
   { href: "/learning-path", label: "Bản đồ Dấu Ấn", icon: Route },
+  { href: "/map-locations", label: "Địa điểm di tích", icon: MapPin },
   { href: "/templates", label: "Mẫu bài học", icon: LayoutTemplate },
   { href: "/assets", label: "Thư viện media", icon: ImageIcon },
   { href: "/animations", label: "Hoạt họa lịch sử", icon: Film },
@@ -85,9 +87,9 @@ function Shell({ user, children }: { user: UserProfileDto; children: React.React
 
   const userBlock = (
     <div className="flex items-center gap-3 border-t border-border p-3">
-        <div className="flex size-9 shrink-0 items-center justify-center rounded-full bg-brand font-semibold text-white">
-          {user.displayName?.charAt(0)?.toUpperCase() ?? "A"}
-        </div>
+      <div className="flex size-9 shrink-0 items-center justify-center rounded-full bg-brand font-semibold text-white">
+        {user.displayName?.charAt(0)?.toUpperCase() ?? "A"}
+      </div>
       <div className="min-w-0 flex-1">
         <p className="truncate text-sm font-medium text-ink">{user.displayName}</p>
         <p className="text-xs text-ink-muted">Quản trị nội dung</p>
@@ -122,19 +124,19 @@ function Shell({ user, children }: { user: UserProfileDto; children: React.React
             )}
           </Link>
           {!collapsed && (
-          <button
-            type="button"
-            onClick={() => setCollapsed((c) => !c)}
-            aria-expanded={!collapsed}
-            aria-label={collapsed ? "Mở rộng thanh bên" : "Thu gọn thanh bên"}
-            className="flex size-10 items-center justify-center rounded-md text-ink-muted hover:bg-surface-alt"
-          >
-            {collapsed ? (
-              <PanelLeftOpen className="size-5" aria-hidden />
-            ) : (
-              <PanelLeftClose className="size-5" aria-hidden />
-            )}
-          </button>
+            <button
+              type="button"
+              onClick={() => setCollapsed((c) => !c)}
+              aria-expanded={!collapsed}
+              aria-label={collapsed ? "Mở rộng thanh bên" : "Thu gọn thanh bên"}
+              className="flex size-10 items-center justify-center rounded-md text-ink-muted hover:bg-surface-alt"
+            >
+              {collapsed ? (
+                <PanelLeftOpen className="size-5" aria-hidden />
+              ) : (
+                <PanelLeftClose className="size-5" aria-hidden />
+              )}
+            </button>
           )}
         </div>
         <div className="flex-1 overflow-y-auto">

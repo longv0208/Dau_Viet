@@ -26,6 +26,7 @@ import { PublishReadinessCard } from "./publish-readiness-card";
 import { StageEditor } from "./stage-editor";
 import { StageNavigator } from "./stage-navigator";
 import { TemplateSeedButton } from "./template-seed-button";
+import { UnlockedLocationsCard } from "./unlocked-locations-card";
 import { makeStage, useBuilder, type FieldError } from "./use-builder";
 import { validateDraftLocally } from "./draft-local-validator";
 import { ValidationPanel } from "./validation-panel";
@@ -369,6 +370,11 @@ function BuilderInner({
             draft={state.draft}
             readOnly={readOnly}
             onChange={(c) => actions.setCompletion(c)}
+          />
+          <UnlockedLocationsCard
+            lessonId={lesson.id}
+            eventId={lesson.eventId}
+            readOnly={readOnly}
           />
           <ValidationPanel
             draft={state.draft}
