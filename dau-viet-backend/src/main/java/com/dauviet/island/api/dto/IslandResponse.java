@@ -14,7 +14,9 @@ import java.util.UUID;
  * không cần hard-code Tier 3 là max. eventsCompleted và nextTierRequiredEvents
  * giữ lại chỉ vì tương thích — KHÔNG dùng để xét eligibility nâng cấp.
  *
- * <p>Khi đảo đã đạt tier tối đa (tier == maxTier):
+ * <p>ISLAND-03: thêm layout metadata (layoutCode, layoutVersionId, canvasWidth,
+ * canvasHeight, themeKey, regions, sceneLayers) để Flutter render data-driven.
+ * Khi đảo đã đạt tier tối đa (tier == maxTier):
  * nextTier=null, nextTierRequiredLevel=null, nextTierRequiredExp=null,
  * nextTierSlotCount=0, canUpgrade=false.
  */
@@ -33,7 +35,16 @@ public record IslandResponse(
         long currentExp,
         int currentLevel,
         Integer nextTierRequiredLevel,
-        Long nextTierRequiredExp
+        Long nextTierRequiredExp,
+        // Layout metadata (ISLAND-03)
+        String layoutCode,
+        UUID layoutVersionId,
+        int layoutVersionNumber,
+        double canvasWidth,
+        double canvasHeight,
+        String themeKey,
+        List<RegionView> regions,
+        List<SceneLayerView> sceneLayers
 ) {
     /** Một ô đất: locked/unlocked + item đang đặt (null = trống). */
     public record SlotView(
@@ -46,7 +57,32 @@ public record IslandResponse(
             UUID placedItemId,
             String placedItemCode,
             String placedRenderKey,
-            Instant placedAt
+            Instant placedAt,
+            // V43 layout fields
+            String stableSlotKey,
+            String regionCode,
+            int zIndex,
+            double anchorX,
+            double anchorY
+    ) {
+    }
+
+    /** Vùng đất: metadata để Flutter vẽ overlay khoá/mở (ISLAND-03). */
+    public record RegionView(
+            String regionCode,
+            int unlockTier,
+            boolean unlocked,
+            String label,
+            String boundsJson
+    ) {
+    }
+
+    /** Scene layer: Flutter render theo render_order ASC (ISLAND-03). */
+    public record SceneLayerView(
+            String layerKey,
+            String layerType,
+            int renderOrder,
+            String assetRef
     ) {
     }
 }

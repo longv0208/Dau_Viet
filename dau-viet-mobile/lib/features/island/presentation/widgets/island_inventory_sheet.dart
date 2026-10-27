@@ -84,7 +84,7 @@ class _IslandInventorySheetState extends ConsumerState<IslandInventorySheet> {
                       ),
                       const SizedBox(height: 2),
                       Text(
-                        'Chọn vật phẩm đặt vào ô: ${widget.targetSlot.slotId}',
+                        'Chọn vật phẩm đặt vào Ô #${widget.targetSlot.zIndex > 0 ? widget.targetSlot.zIndex : widget.targetSlot.slotId.substring(0, widget.targetSlot.slotId.length.clamp(0, 8))}',
                         style: DauVietTypography.bodySmall.copyWith(
                           color: DauVietColors.inkMuted,
                         ),
@@ -244,18 +244,16 @@ class _IslandInventorySheetState extends ConsumerState<IslandInventorySheet> {
     List<CatalogItemDto> catalog,
     Set<String> placedItemIds,
   ) {
-    // Ưu tiên các item category DECOR hoặc có code decor_*
+    // Chỉ hiển thị item category DECOR hoặc có code decor_* mà user đang sở hữu.
+    // Không fallback sang toàn bộ catalog — trong chế độ thực, catalog chứa
+    // mọi item (kể cả chưa mua); chỉ lấy những gì đã owned + là decor.
     final decorPool = catalog.where((item) {
       final isDecorCategory = item.category.toUpperCase() == 'DECOR';
       final isDecorCode = item.code.toLowerCase().startsWith('decor_');
       return isDecorCategory || isDecorCode;
     }).toList();
 
-    // Fallback: nếu user chưa có item decor nào trong catalog server,
-    // nhưng đang ở mock mode hoặc catalog trống, cung cấp danh sách fallback
-    final list = decorPool.isNotEmpty ? decorPool : catalog;
-
-    return list.where((item) {
+    return decorPool.where((item) {
       final isPlaced = placedItemIds.contains(item.itemId);
 
       switch (_selectedFilter) {

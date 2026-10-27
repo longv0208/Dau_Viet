@@ -28,9 +28,10 @@ class _IslandSceneState extends State<IslandScene>
   late final AnimationController _waterController;
   late final Animation<double> _waterRipple;
 
-  // Kích thước canvas ảo cho bản đồ 2.5D
-  static const double _canvasWidth = 960.0;
-  static const double _canvasHeight = 720.0;
+  // Kích thước canvas ảo cho bản đồ 2.5D — đọc từ layout metadata (ISLAND-03).
+  // Fallback 960x720 nếu backend chưa trả layout fields (backward compat).
+  static const double _defaultCanvasWidth = 960.0;
+  static const double _defaultCanvasHeight = 720.0;
 
   @override
   void initState() {
@@ -53,6 +54,14 @@ class _IslandSceneState extends State<IslandScene>
 
   @override
   Widget build(BuildContext context) {
+    // Canvas size từ layout metadata; fallback 960x720 cho mock/backward compat.
+    final canvasWidth = widget.island.canvasWidth > 0
+        ? widget.island.canvasWidth
+        : _defaultCanvasWidth;
+    final canvasHeight = widget.island.canvasHeight > 0
+        ? widget.island.canvasHeight
+        : _defaultCanvasHeight;
+
     // Sắp xếp các slot theo zIndex tăng dần để slot trước đè lên slot sau
     final sortedSlots = List<IslandSlotDto>.from(widget.island.slots)
       ..sort((a, b) {
@@ -74,8 +83,8 @@ class _IslandSceneState extends State<IslandScene>
               onTap: () => widget.onSelectSlot(null),
               behavior: HitTestBehavior.translucent,
               child: SizedBox(
-                width: _canvasWidth,
-                height: _canvasHeight,
+                width: canvasWidth,
+                height: canvasHeight,
                 child: Stack(
                   clipBehavior: Clip.none,
                   children: [
@@ -109,8 +118,8 @@ class _IslandSceneState extends State<IslandScene>
 
                     // 4. Lớp Các Slot Vật Phẩm (Sắp xếp theo zIndex)
                     ...sortedSlots.map((slot) {
-                      final left = (slot.x * _canvasWidth) - 50.0;
-                      final top = (slot.y * _canvasHeight) - 55.0;
+                      final left = (slot.x * canvasWidth) - 50.0;
+                      final top = (slot.y * canvasHeight) - 55.0;
                       final isSelected = slot.slotId == widget.selectedSlotId;
 
                       return Positioned(

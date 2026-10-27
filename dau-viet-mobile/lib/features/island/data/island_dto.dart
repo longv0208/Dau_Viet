@@ -78,6 +78,11 @@ class IslandSlotDto {
   final bool unlocked;
   final List<String> allowedCategories;
   final IslandPlacementDto? placement;
+  // V43 layout fields
+  final String? stableSlotKey;
+  final String? regionCode;
+  final double anchorX;
+  final double anchorY;
 
   const IslandSlotDto({
     required this.slotId,
@@ -88,6 +93,10 @@ class IslandSlotDto {
     this.unlocked = true,
     this.allowedCategories = const ['DECOR'],
     this.placement,
+    this.stableSlotKey,
+    this.regionCode,
+    this.anchorX = 0.5,
+    this.anchorY = 1.0,
   });
 
   bool get isOccupied => placement != null;
@@ -103,6 +112,10 @@ class IslandSlotDto {
     bool? unlocked,
     List<String>? allowedCategories,
     IslandPlacementDto? Function()? placement,
+    String? stableSlotKey,
+    String? regionCode,
+    double? anchorX,
+    double? anchorY,
   }) {
     return IslandSlotDto(
       slotId: slotId ?? this.slotId,
@@ -113,6 +126,10 @@ class IslandSlotDto {
       unlocked: unlocked ?? this.unlocked,
       allowedCategories: allowedCategories ?? this.allowedCategories,
       placement: placement != null ? placement() : this.placement,
+      stableSlotKey: stableSlotKey ?? this.stableSlotKey,
+      regionCode: regionCode ?? this.regionCode,
+      anchorX: anchorX ?? this.anchorX,
+      anchorY: anchorY ?? this.anchorY,
     );
   }
 
@@ -146,8 +163,8 @@ class IslandSlotDto {
       y: (json['coordY'] as num?)?.toDouble() ??
           (json['y'] as num?)?.toDouble() ??
           0.5,
-      zIndex: (json['slotIndex'] as num?)?.toInt() ??
-          (json['zIndex'] as num?)?.toInt() ??
+      zIndex: (json['zIndex'] as num?)?.toInt() ??
+          (json['slotIndex'] as num?)?.toInt() ??
           0,
       unlockTier: (json['tierRequired'] as num?)?.toInt() ??
           (json['unlockTier'] as num?)?.toInt() ??
@@ -157,6 +174,10 @@ class IslandSlotDto {
           ? rawCategories.whereType<String>().toList()
           : const ['DECOR'],
       placement: placement,
+      stableSlotKey: json['stableSlotKey'] as String?,
+      regionCode: json['regionCode'] as String?,
+      anchorX: (json['anchorX'] as num?)?.toDouble() ?? 0.5,
+      anchorY: (json['anchorY'] as num?)?.toDouble() ?? 1.0,
     );
   }
 
@@ -169,7 +190,66 @@ class IslandSlotDto {
     'unlocked': unlocked,
     'allowedCategories': allowedCategories,
     'placement': placement?.toJson(),
+    if (stableSlotKey != null) 'stableSlotKey': stableSlotKey,
+    if (regionCode != null) 'regionCode': regionCode,
+    'anchorX': anchorX,
+    'anchorY': anchorY,
   };
+}
+
+/// Vùng đất trong layout, mở theo Tier (ISLAND-03).
+@immutable
+class IslandLayoutRegionDto {
+  final String regionCode;
+  final int unlockTier;
+  final bool unlocked;
+  final String? label;
+
+  /// JSON string mô tả hình chữ nhật tương đối {x,y,width,height}.
+  final String? boundsJson;
+
+  const IslandLayoutRegionDto({
+    required this.regionCode,
+    required this.unlockTier,
+    this.unlocked = false,
+    this.label,
+    this.boundsJson,
+  });
+
+  factory IslandLayoutRegionDto.fromJson(Map<String, dynamic> json) {
+    return IslandLayoutRegionDto(
+      regionCode: json['regionCode'] as String? ?? '',
+      unlockTier: (json['unlockTier'] as num?)?.toInt() ?? 1,
+      unlocked: json['unlocked'] as bool? ?? false,
+      label: json['label'] as String?,
+      boundsJson: json['boundsJson'] as String?,
+    );
+  }
+}
+
+/// Lớp scene của layout để Flutter render từng layer theo thứ tự (ISLAND-03).
+@immutable
+class IslandSceneLayerDto {
+  final String layerKey;
+  final String layerType;
+  final int renderOrder;
+  final String? assetRef;
+
+  const IslandSceneLayerDto({
+    required this.layerKey,
+    required this.layerType,
+    this.renderOrder = 0,
+    this.assetRef,
+  });
+
+  factory IslandSceneLayerDto.fromJson(Map<String, dynamic> json) {
+    return IslandSceneLayerDto(
+      layerKey: json['layerKey'] as String? ?? '',
+      layerType: json['layerType'] as String? ?? 'STATIC_IMAGE',
+      renderOrder: (json['renderOrder'] as num?)?.toInt() ?? 0,
+      assetRef: json['assetRef'] as String?,
+    );
+  }
 }
 
 /// Tiến độ sự kiện hoàn thành để mở rộng đảo sang Tier tiếp theo.
@@ -232,6 +312,24 @@ class IslandDto {
   // Do NOT use progress.canUpgrade for eligibility — use canUpgrade directly.
   final IslandProgressDto progress;
 
+  // Layout metadata (ISLAND-03) — data-driven canvas; fallback to 960x720.
+  /// layout_key (e.g. 'heritage-village'). Null nếu backend cũ không trả.
+  final String? layoutCode;
+  /// UUID của layout version. Null nếu backend cũ không trả.
+  final String? layoutVersionId;
+  /// Số version layout. 0 nếu không có.
+  final int layoutVersionNumber;
+  /// Chiều rộng canvas ảo (px logic). Fallback 960.
+  final double canvasWidth;
+  /// Chiều cao canvas ảo (px logic). Fallback 720.
+  final double canvasHeight;
+  /// Theme key cho renderer. Null nếu backend chưa set.
+  final String? themeKey;
+  /// Danh sách vùng đất mở theo Tier.
+  final List<IslandLayoutRegionDto> regions;
+  /// Danh sách scene layers theo render_order.
+  final List<IslandSceneLayerDto> sceneLayers;
+
   const IslandDto({
     this.tier = 1,
     this.maxTier = 3,
@@ -244,6 +342,14 @@ class IslandDto {
     this.eventsCompleted = 0,
     this.slots = const [],
     this.progress = const IslandProgressDto(),
+    this.layoutCode,
+    this.layoutVersionId,
+    this.layoutVersionNumber = 0,
+    this.canvasWidth = 960.0,
+    this.canvasHeight = 720.0,
+    this.themeKey,
+    this.regions = const [],
+    this.sceneLayers = const [],
   });
 
   bool get isMaxTier => tier >= maxTier;
@@ -263,6 +369,14 @@ class IslandDto {
     int? eventsCompleted,
     List<IslandSlotDto>? slots,
     IslandProgressDto? progress,
+    String? layoutCode,
+    String? layoutVersionId,
+    int? layoutVersionNumber,
+    double? canvasWidth,
+    double? canvasHeight,
+    String? themeKey,
+    List<IslandLayoutRegionDto>? regions,
+    List<IslandSceneLayerDto>? sceneLayers,
   }) {
     return IslandDto(
       tier: tier ?? this.tier,
@@ -276,11 +390,21 @@ class IslandDto {
       eventsCompleted: eventsCompleted ?? this.eventsCompleted,
       slots: slots ?? this.slots,
       progress: progress ?? this.progress,
+      layoutCode: layoutCode ?? this.layoutCode,
+      layoutVersionId: layoutVersionId ?? this.layoutVersionId,
+      layoutVersionNumber: layoutVersionNumber ?? this.layoutVersionNumber,
+      canvasWidth: canvasWidth ?? this.canvasWidth,
+      canvasHeight: canvasHeight ?? this.canvasHeight,
+      themeKey: themeKey ?? this.themeKey,
+      regions: regions ?? this.regions,
+      sceneLayers: sceneLayers ?? this.sceneLayers,
     );
   }
 
   factory IslandDto.fromJson(Map<String, dynamic> json) {
     final rawSlots = json['slots'];
+    final rawRegions = json['regions'];
+    final rawLayers = json['sceneLayers'];
     final nextReqLevel = (json['nextTierRequiredLevel'] as num?)?.toInt();
     final nextReqExp = (json['nextTierRequiredExp'] as num?)?.toInt();
     final eventsCompleted = (json['eventsCompleted'] as num?)?.toInt() ?? 0;
@@ -311,6 +435,28 @@ class IslandDto {
             (json['nextTierRequiredEvents'] as num?)?.toInt() ?? 0,
         canUpgrade: canUpgrade,
       ),
+      // Layout metadata (ISLAND-03) — null-safe, fallback to defaults
+      layoutCode: json['layoutCode'] as String?,
+      layoutVersionId: json['layoutVersionId'] as String?,
+      layoutVersionNumber:
+          (json['layoutVersionNumber'] as num?)?.toInt() ?? 0,
+      canvasWidth: (json['canvasWidth'] as num?)?.toDouble() ?? 960.0,
+      canvasHeight: (json['canvasHeight'] as num?)?.toDouble() ?? 720.0,
+      themeKey: json['themeKey'] as String?,
+      regions: rawRegions is List
+          ? rawRegions
+                .whereType<Map>()
+                .map((e) => IslandLayoutRegionDto.fromJson(
+                      e.cast<String, dynamic>()))
+                .toList()
+          : const [],
+      sceneLayers: rawLayers is List
+          ? rawLayers
+                .whereType<Map>()
+                .map((e) => IslandSceneLayerDto.fromJson(
+                      e.cast<String, dynamic>()))
+                .toList()
+          : const [],
     );
   }
 
@@ -325,6 +471,12 @@ class IslandDto {
     'canUpgrade': canUpgrade,
     'eventsCompleted': eventsCompleted,
     'slots': slots.map((s) => s.toJson()).toList(),
+    if (layoutCode != null) 'layoutCode': layoutCode,
+    if (layoutVersionId != null) 'layoutVersionId': layoutVersionId,
+    'layoutVersionNumber': layoutVersionNumber,
+    'canvasWidth': canvasWidth,
+    'canvasHeight': canvasHeight,
+    if (themeKey != null) 'themeKey': themeKey,
   };
 }
 

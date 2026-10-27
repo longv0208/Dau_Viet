@@ -30,6 +30,14 @@ public class UserIsland {
     @Column(name = "layout_code", nullable = false, updatable = false)
     private String layoutCode = "heritage-v1";
 
+    /**
+     * FK → island_layout_versions.id (V43). Lưu version layout được dùng
+     * khi tạo đảo — user bị pin vào version này (layout published immutable).
+     * Nullable vì row cũ tạo trước V43 được backfill bằng migration.
+     */
+    @Column(name = "layout_version_id")
+    private java.util.UUID layoutVersionId;
+
     @Version
     @Column(name = "row_version", nullable = false)
     private Long rowVersion;
@@ -58,6 +66,17 @@ public class UserIsland {
     }
 
     /**
+     * Đảo mới với layout version cụ thể (V43). Dùng khi IslandLayoutService
+     * đã xác định default published version.
+     */
+    public static UserIsland create(UUID userId, Instant now,
+                                    UUID layoutVersionId) {
+        UserIsland i = create(userId, now);
+        i.layoutVersionId = layoutVersionId;
+        return i;
+    }
+
+    /**
      * Nâng lên tier mới. Caller (service) đã kiểm tra eligibility +
      * newTier > current; method chỉ ghi nhận — không auto-downgrade.
      */
@@ -80,6 +99,7 @@ public class UserIsland {
     public int getTier() { return tier; }
     public String getLayoutCode() { return layoutCode; }
     public Long getRowVersion() { return rowVersion; }
+    public java.util.UUID getLayoutVersionId() { return layoutVersionId; }
     public Instant getUpgradedAt() { return upgradedAt; }
     public Instant getCreatedAt() { return createdAt; }
     public Instant getUpdatedAt() { return updatedAt; }

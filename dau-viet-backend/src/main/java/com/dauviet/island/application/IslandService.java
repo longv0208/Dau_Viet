@@ -19,10 +19,18 @@ import com.dauviet.collection.infrastructure.persistence.UserEventProgressReposi
 import com.dauviet.island.api.dto.IslandPlacementRequest;
 import com.dauviet.island.api.dto.IslandResponse;
 import com.dauviet.island.domain.IslandExceptions;
+import com.dauviet.island.domain.IslandLayoutDefinition;
+import com.dauviet.island.domain.IslandLayoutRegion;
+import com.dauviet.island.domain.IslandLayoutVersion;
+import com.dauviet.island.domain.IslandSceneLayer;
 import com.dauviet.island.domain.IslandSlot;
 import com.dauviet.island.domain.IslandTierPolicy;
 import com.dauviet.island.domain.UserIsland;
 import com.dauviet.island.domain.UserIslandPlacement;
+import com.dauviet.island.infrastructure.persistence.IslandLayoutDefinitionRepository;
+import com.dauviet.island.infrastructure.persistence.IslandLayoutRegionRepository;
+import com.dauviet.island.infrastructure.persistence.IslandLayoutVersionRepository;
+import com.dauviet.island.infrastructure.persistence.IslandSceneLayerRepository;
 import com.dauviet.island.infrastructure.persistence.IslandSlotRepository;
 import com.dauviet.island.infrastructure.persistence.IslandTierPolicyRepository;
 import com.dauviet.island.infrastructure.persistence.UserIslandPlacementRepository;
@@ -33,8 +41,8 @@ import com.dauviet.reward.infrastructure.persistence.ItemCatalogRepository;
 import com.dauviet.reward.infrastructure.persistence.UserInventoryRepository;
 
 /**
- * Đảo Di Sản (ISLAND-BE-01, ISLAND-01, ISLAND-02): state đọc, upgrade,
- * đặt/gỡ decor.
+ * Đảo Di Sản (ISLAND-BE-01, ISLAND-01, ISLAND-02, ISLAND-03): state đọc,
+ * upgrade, đặt/gỡ decor; trả layout metadata có phiên bản.
  *
  * <p>Lazy-create đảo tier 1 lần đầu đọc/ghi (UserIslandRepository
  * .insertIgnore). Mọi write lock user_islands trước (PESSIMISTIC_WRITE) —
@@ -48,6 +56,10 @@ import com.dauviet.reward.infrastructure.persistence.UserInventoryRepository;
  * đổi, upgrade) đều bumps row_version qua JPA @Version.
  * Place/remove tác động trực tiếp lên user_island_placements nhưng service
  * bump version bằng cách gọi islands.save(island) sau mỗi thao tác thành công.
+ *
+ * <p>Layout versioning (ISLAND-03): buildFullResponse bao gồm layout metadata
+ * (canvasWidth/canvasHeight, themeKey, regions, sceneLayers) từ
+ * island_layout_versions/regions/scene_layers. Flutter render data-driven.
  *
  * <p>Lock-order: user_islands → user_inventory. Service không chạm wallet.
  */
@@ -65,6 +77,10 @@ public class IslandService {
     private final ItemCatalogRepository catalog;
     private final UserEventProgressRepository eventProgress;
     private final AccountLevelService levelService;
+    private final IslandLayoutDefinitionRepository layoutDefs;
+    private final IslandLayoutVersionRepository layoutVersions;
+    private final IslandLayoutRegionRepository layoutRegions;
+    private final IslandSceneLayerRepository sceneLayers;
     private final Clock clock;
     private final boolean enabled;
 
@@ -76,6 +92,10 @@ public class IslandService {
                          ItemCatalogRepository catalog,
                          UserEventProgressRepository eventProgress,
                          AccountLevelService levelService,
+                         IslandLayoutDefinitionRepository layoutDefs,
+                         IslandLayoutVersionRepository layoutVersions,
+                         IslandLayoutRegionRepository layoutRegions,
+                         IslandSceneLayerRepository sceneLayers,
                          Clock clock,
                          @Value("${dauviet.island.enabled:true}")
                          boolean enabled) {
@@ -87,13 +107,17 @@ public class IslandService {
         this.catalog = catalog;
         this.eventProgress = eventProgress;
         this.levelService = levelService;
+        this.layoutDefs = layoutDefs;
+        this.layoutVersions = layoutVersions;
+        this.layoutRegions = layoutRegions;
+        this.sceneLayers = sceneLayers;
         this.clock = clock;
         this.enabled = enabled;
     }
 
     /* ---------- GET /me/island ---------- */
 
-    /** Trạng thái đảo đầy đủ: tier, slots locked/unlocked, placements. */
+    /** Trạng thái đảo đầy đủ: tier, slots locked/unlocked, placements, layout. */
     @Transactional
     public IslandResponse islandOf(UUID userId) {
         requireEnabled();
@@ -171,8 +195,9 @@ public class IslandService {
         IslandSlot slot = slots.findById(slotId)
                 .orElseThrow(() ->
                         new IslandExceptions.SlotNotFoundException(slotId));
-        // Bảo đảm slot thuộc layout hiện tại của user
-        if (!slot.getLayoutCode().equals(island.getLayoutCode())) {
+        // Bảo đảm slot thuộc layout hiện tại của user (ưu tiên layout_version_id,
+        // fallback sang layout_code cho đảo cũ chưa có layout_version_id)
+        if (!isSlotInIslandLayout(slot, island)) {
             throw new IslandExceptions.SlotNotFoundException(slotId);
         }
         if (slot.getTierRequired() > island.getTier()) {
@@ -254,6 +279,19 @@ public class IslandService {
         }
     }
 
+    /**
+     * Kiểm tra slot thuộc layout của island. Ưu tiên layout_version_id (V43),
+     * fallback layout_code để tương thích đảo tạo trước V43 backfill.
+     */
+    private boolean isSlotInIslandLayout(IslandSlot slot, UserIsland island) {
+        if (island.getLayoutVersionId() != null
+                && slot.getLayoutVersionId() != null) {
+            return island.getLayoutVersionId().equals(slot.getLayoutVersionId());
+        }
+        // Legacy: so sánh layout_code
+        return slot.getLayoutCode().equals(island.getLayoutCode());
+    }
+
     private long completedEvents(UUID userId) {
         return eventProgress.countDistinctEventsByMilestone(userId,
                 "EVENT_COMPLETED");
@@ -314,13 +352,24 @@ public class IslandService {
     }
 
     /**
+     * Lấy danh sách slot cho island: ưu tiên layout_version_id (V43),
+     * fallback layout_code (legacy pre-V43).
+     */
+    private List<IslandSlot> slotsForIsland(UserIsland island) {
+        if (island.getLayoutVersionId() != null) {
+            return slots.findByLayoutVersionIdOrderBySlotIndex(
+                    island.getLayoutVersionId());
+        }
+        return slots.findByLayoutCodeOrderBySlotIndex(island.getLayoutCode());
+    }
+
+    /**
      * Build full response sau bất kỳ thao tác nào — đọc lại state hiện tại
      * của island (bao gồm row_version đã flush sau save).
      */
     private IslandResponse buildFullResponse(UserIsland island, UUID userId,
                                              Instant now) {
-        List<IslandSlot> layout = slots.findByLayoutCodeOrderBySlotIndex(
-                island.getLayoutCode());
+        List<IslandSlot> layout = slotsForIsland(island);
         List<UserIslandPlacement> placed = placements.findByUserId(userId);
         Map<UUID, UserIslandPlacement> bySlot = placed.stream()
                 .collect(Collectors.toMap(UserIslandPlacement::getSlotId,
@@ -333,9 +382,38 @@ public class IslandService {
         List<IslandTierPolicy> activePolicies = policies.findActivePolicies();
         int maxTier = maxTierOf(activePolicies);
         Integer nextTier = nextTierOf(island.getTier(), activePolicies);
+
+        // Layout metadata (V43): lấy definition + version + regions + layers
+        IslandLayoutVersion layoutVersion = resolveLayoutVersion(island);
+        IslandLayoutDefinition layoutDef = layoutVersion != null
+                ? layoutDefs.findById(layoutVersion.getDefinitionId()).orElse(null)
+                : null;
+        List<IslandLayoutRegion> regions = layoutVersion != null
+                ? layoutRegions.findByLayoutVersionIdOrderBySortOrderAsc(
+                        layoutVersion.getId())
+                : List.of();
+        List<IslandSceneLayer> layers = layoutVersion != null
+                ? sceneLayers.findByLayoutVersionIdOrderByRenderOrderAsc(
+                        layoutVersion.getId())
+                : List.of();
+
         return buildResponse(island, layout, bySlot, items,
                 exp, currentLevel, eventsCompleted,
-                activePolicies, nextTier, maxTier, now);
+                activePolicies, nextTier, maxTier,
+                layoutDef, layoutVersion, regions, layers, now);
+    }
+
+    /**
+     * Resolve layout version của island: ưu tiên island.layoutVersionId,
+     * fallback tìm published version cho layout_code.
+     */
+    private IslandLayoutVersion resolveLayoutVersion(UserIsland island) {
+        if (island.getLayoutVersionId() != null) {
+            return layoutVersions.findById(island.getLayoutVersionId()).orElse(null);
+        }
+        // Không có layout_version_id (đảo cũ chưa backfill hoặc backfill chưa chạy)
+        // → thử tìm published version của heritage-village
+        return layoutVersions.findPublishedByLayoutKey("heritage-village").orElse(null);
     }
 
     private IslandResponse buildResponse(UserIsland island,
@@ -348,20 +426,31 @@ public class IslandService {
             List<IslandTierPolicy> activePolicies,
             Integer nextTier,
             int maxTier,
+            IslandLayoutDefinition layoutDef,
+            IslandLayoutVersion layoutVersion,
+            List<IslandLayoutRegion> regions,
+            List<IslandSceneLayer> layers,
             Instant now) {
+
         List<IslandResponse.SlotView> slotViews = layout.stream()
                 .map(s -> {
                     UserIslandPlacement p = bySlot.get(s.getId());
-                    ItemCatalog placed = p == null ? null
+                    ItemCatalog placedItem = p == null ? null
                             : items.get(p.getItemId());
                     return new IslandResponse.SlotView(
                             s.getId(), s.getSlotIndex(), s.getTierRequired(),
                             s.getTierRequired() <= island.getTier(),
                             s.getCoordX(), s.getCoordY(),
                             p == null ? null : p.getItemId(),
-                            placed == null ? null : placed.getCode(),
-                            placed == null ? null : placed.getRenderKey(),
-                            p == null ? null : p.getPlacedAt());
+                            placedItem == null ? null : placedItem.getCode(),
+                            placedItem == null ? null : placedItem.getRenderKey(),
+                            p == null ? null : p.getPlacedAt(),
+                            // V43 fields
+                            s.getStableSlotKey(),
+                            s.getRegionCode(),
+                            s.getZIndex(),
+                            s.getAnchorX(),
+                            s.getAnchorY());
                 })
                 .toList();
 
@@ -385,12 +474,45 @@ public class IslandService {
                 && levelService.hasValidConfiguration()
                 && currentLevel >= nextTierRequiredLevel;
 
+        // Layout metadata với fallback an toàn
+        double canvasWidth = layoutDef != null ? layoutDef.getCanvasWidth() : 960.0;
+        double canvasHeight = layoutDef != null ? layoutDef.getCanvasHeight() : 720.0;
+        String themeKey = layoutDef != null ? layoutDef.getThemeKey() : null;
+        String layoutCode = layoutDef != null ? layoutDef.getLayoutKey()
+                : island.getLayoutCode();
+        UUID layoutVersionId = layoutVersion != null ? layoutVersion.getId() : null;
+        int layoutVersionNumber = layoutVersion != null
+                ? layoutVersion.getVersionNumber() : 0;
+
+        // Region views với trạng thái unlocked
+        List<IslandResponse.RegionView> regionViews = regions.stream()
+                .map(r -> new IslandResponse.RegionView(
+                        r.getRegionCode(),
+                        r.getUnlockTier(),
+                        r.getUnlockTier() <= island.getTier(),
+                        r.getLabel(),
+                        r.getBoundsJson()))
+                .toList();
+
+        // Scene layer views
+        List<IslandResponse.SceneLayerView> layerViews = layers.stream()
+                .map(l -> new IslandResponse.SceneLayerView(
+                        l.getLayerKey(),
+                        l.getLayerType(),
+                        l.getRenderOrder(),
+                        l.getAssetRef()))
+                .toList();
+
         return new IslandResponse(
                 island.getTier(), maxTier, island.getRowVersion(),
                 eventsCompleted,
                 nextTier, nextRequiredEvents, nextSlots, canUpgrade,
                 island.getUpgradedAt(), slotViews, now,
                 currentExp, currentLevel, nextTierRequiredLevel,
-                nextTierRequiredExp);
+                nextTierRequiredExp,
+                // Layout metadata
+                layoutCode, layoutVersionId, layoutVersionNumber,
+                canvasWidth, canvasHeight, themeKey,
+                regionViews, layerViews);
     }
 }

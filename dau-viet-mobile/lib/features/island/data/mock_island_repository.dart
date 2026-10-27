@@ -30,6 +30,50 @@ class MockIslandRepository implements IslandRepository {
       nextTierRequiredExp: 500,
       canUpgrade: true,
       eventsCompleted: 1,
+      // Layout metadata (ISLAND-03) — mock heritage-village v1
+      layoutCode: 'heritage-village',
+      layoutVersionNumber: 1,
+      canvasWidth: 960.0,
+      canvasHeight: 720.0,
+      themeKey: 'heritage',
+      regions: [
+        IslandLayoutRegionDto(
+          regionCode: 'TIER_1',
+          unlockTier: 1,
+          unlocked: true,
+          label: 'Khu Trung Tâm',
+        ),
+        IslandLayoutRegionDto(
+          regionCode: 'TIER_2',
+          unlockTier: 2,
+          unlocked: false,
+          label: 'Khu Mở Rộng',
+        ),
+        IslandLayoutRegionDto(
+          regionCode: 'TIER_3',
+          unlockTier: 3,
+          unlocked: false,
+          label: 'Khu Cao Cấp',
+        ),
+      ],
+      sceneLayers: [
+        IslandSceneLayerDto(
+          layerKey: 'water_bg',
+          layerType: 'ANIMATED_WATER',
+          renderOrder: 0,
+        ),
+        IslandSceneLayerDto(
+          layerKey: 'island_base',
+          layerType: 'STATIC_IMAGE',
+          renderOrder: 10,
+          assetRef: 'assets/images/dv_ISL_generic_island-base-tiers_v01.jpg',
+        ),
+        IslandSceneLayerDto(
+          layerKey: 'item_layer',
+          layerType: 'ITEM_LAYER',
+          renderOrder: 30,
+        ),
+      ],
       progress: IslandProgressDto(
         completedEvents: 1,
         nextTierRequiredEvents: 2,

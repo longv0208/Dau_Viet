@@ -137,7 +137,8 @@ public class ShopService {
      * 1. Tải offer + catalog → ITEM_NOT_FOR_SALE / ITEM_NOT_OWNED (404/422)
      * 2. Kiểm tra owned → ITEM_ALREADY_OWNED (409)
      * 3. WalletService.debit → INSUFFICIENT_FUNDS (409) hoặc commit
-     * 4. user_inventory insertIgnoreV2 → 0 = race owned vừa commit (re-throw)
+     * 4. user_inventory insertIgnoreV2 → 0 = race owned vừa commit → throw
+     *    ITEM_ALREADY_OWNED để rollback debit (ISLAND-03 A2 fix).
      */
     private PurchaseResponse doPurchase(UUID userId, PurchaseRequest req,
                                         String idempotencyKey) {
@@ -164,10 +165,12 @@ public class ShopService {
                 "SHOP_PURCHASE", null, null, null, null, null, causeKey);
         if (granted == 0) {
             // UNIQUE(user,item) backstop: item vừa được grant trong tx khác
-            // (hiếm, debit đã commit) — coi như already-owned, không trừ lại
-            // nhưng vẫn trả success (purchase idempotent về mặt hiệu ứng).
-            log.warn("purchase grant conflict user={} item={} — already owned",
+            // (race giữa check existsByUserIdAndItemId và insertIgnoreV2).
+            // Ném exception để debit ở trên được rollback trong cùng transaction.
+            // Idempotency layer ở tầng trên sẽ replay và trả ITEM_ALREADY_OWNED.
+            log.warn("purchase grant conflict user={} item={} — rolling back debit",
                     userId, item.getCode());
+            throw new IslandExceptions.ItemAlreadyOwnedException(item.getId());
         }
         log.info("purchase user={} item={} price={} balanceAfter={}",
                 userId, item.getCode(), price, balanceAfter);

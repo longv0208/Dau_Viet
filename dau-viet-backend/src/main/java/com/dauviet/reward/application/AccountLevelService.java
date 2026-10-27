@@ -18,11 +18,12 @@ import com.dauviet.reward.infrastructure.persistence.RewardTransactionRepository
  * config_version) — không hard-code ngưỡng trong code. EXP là giá trị tích
  * lũy và KHÔNG bị tiêu hao; Level chỉ phản ánh tổng EXP đã kiếm được.
  *
- * <p>Cấu hình hợp lệ phải thỏa mãn:
+ * <p>Cấu hình hợp lệ phải thỏa mãn (ISLAND-03 stricter):
  * <ul>
  *   <li>Có ít nhất một row.</li>
- *   <li>Bắt đầu bằng Level có min_exp = 0.</li>
+ *   <li>Row đầu tiên phải có level=1 và min_exp=0.</li>
  *   <li>min_exp tăng nghiêm ngặt (không có hai level cùng ngưỡng).</li>
+ *   <li>Số level liên tục 1, 2, 3, … — không khoảng trống hay trùng.</li>
  * </ul>
  *
  * <p>Khi cấu hình thiếu hoặc không hợp lệ: log cảnh báo và trả 1 (safe
@@ -131,6 +132,14 @@ public class AccountLevelService {
     /**
      * Lấy danh sách ngưỡng active đã được validate. Empty = cấu hình không
      * hợp lệ; caller không được dùng FALLBACK để suy ra quyền nghiệp vụ.
+     *
+     * <p>Các điều kiện hợp lệ (ISLAND-03 stricter checks):
+     * <ul>
+     *   <li>Có ít nhất một row.</li>
+     *   <li>Row đầu tiên (sort theo min_exp ASC) phải có level=1 và min_exp=0.</li>
+     *   <li>min_exp tăng nghiêm ngặt (không có hai level cùng ngưỡng).</li>
+     *   <li>Các số level liên tục (1, 2, 3, …) — không có khoảng trống hay trùng.</li>
+     * </ul>
      */
     public List<AccountLevelThreshold> findValidatedThresholds() {
         List<AccountLevelThreshold> active = thresholds.findActiveLevels();
@@ -138,18 +147,35 @@ public class AccountLevelService {
             log.warn("account_level_thresholds: no active configuration found");
             return List.of();
         }
-        // Kiểm tra min_exp đầu tiên phải là 0 (Level 1 luôn bắt đầu từ 0 EXP)
+        // Bước 1: min_exp đầu tiên phải là 0 (Level 1 luôn bắt đầu từ 0 EXP)
         if (active.get(0).getMinExp() != 0) {
             log.warn("account_level_thresholds: active config invalid — "
-                    + "first level must have min_exp=0, found {}",
+                    + "first threshold must have min_exp=0, found {}",
                     active.get(0).getMinExp());
             return List.of();
         }
-        // Kiểm tra min_exp tăng nghiêm ngặt
+        // Bước 2: Level đầu tiên phải là 1 (không bắt đầu từ 0 hoặc 2)
+        if (active.get(0).getLevel() != 1) {
+            log.warn("account_level_thresholds: active config invalid — "
+                    + "first level must be 1, found {}",
+                    active.get(0).getLevel());
+            return List.of();
+        }
+        // Bước 3: min_exp tăng nghiêm ngặt + level liên tục (1, 2, 3, …)
         for (int i = 1; i < active.size(); i++) {
-            if (active.get(i).getMinExp() <= active.get(i - 1).getMinExp()) {
+            AccountLevelThreshold prev = active.get(i - 1);
+            AccountLevelThreshold curr = active.get(i);
+            if (curr.getMinExp() <= prev.getMinExp()) {
                 log.warn("account_level_thresholds: active config invalid — "
-                        + "min_exp not strictly increasing at index {}", i);
+                        + "min_exp not strictly increasing at index {} "
+                        + "(prev={}, curr={})", i, prev.getMinExp(), curr.getMinExp());
+                return List.of();
+            }
+            if (curr.getLevel() != prev.getLevel() + 1) {
+                log.warn("account_level_thresholds: active config invalid — "
+                        + "level numbers not contiguous at index {} "
+                        + "(prev level={}, curr level={})",
+                        i, prev.getLevel(), curr.getLevel());
                 return List.of();
             }
         }
