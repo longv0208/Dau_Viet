@@ -118,21 +118,45 @@ class IslandSlotDto {
 
   factory IslandSlotDto.fromJson(Map<String, dynamic> json) {
     final rawCategories = json['allowedCategories'];
+    // Backend SlotView fields: slotId, slotIndex, tierRequired, unlocked,
+    // coordX, coordY, placedItemId, placedItemCode, placedRenderKey, placedAt.
+    // Fall-back to legacy field names so MockIslandRepository still works.
+    final placedItemId = json['placedItemId'] as String?;
+    final placedItemCode = json['placedItemCode'] as String?;
+    final placedRenderKey = json['placedRenderKey'] as String?;
+    // Build placement from flat backend fields, or from legacy nested map
+    IslandPlacementDto? placement;
+    if (placedItemId != null) {
+      placement = IslandPlacementDto(
+        itemId: placedItemId,
+        code: placedItemCode ?? '',
+        name: placedItemCode ?? '',
+        renderKey: placedRenderKey,
+      );
+    } else if (json['placement'] is Map) {
+      placement = IslandPlacementDto.fromJson(
+        (json['placement'] as Map).cast<String, dynamic>(),
+      );
+    }
     return IslandSlotDto(
       slotId: json['slotId'] as String? ?? '',
-      x: (json['x'] as num?)?.toDouble() ?? 0.5,
-      y: (json['y'] as num?)?.toDouble() ?? 0.5,
-      zIndex: (json['zIndex'] as num?)?.toInt() ?? 0,
-      unlockTier: (json['unlockTier'] as num?)?.toInt() ?? 1,
+      x: (json['coordX'] as num?)?.toDouble() ??
+          (json['x'] as num?)?.toDouble() ??
+          0.5,
+      y: (json['coordY'] as num?)?.toDouble() ??
+          (json['y'] as num?)?.toDouble() ??
+          0.5,
+      zIndex: (json['slotIndex'] as num?)?.toInt() ??
+          (json['zIndex'] as num?)?.toInt() ??
+          0,
+      unlockTier: (json['tierRequired'] as num?)?.toInt() ??
+          (json['unlockTier'] as num?)?.toInt() ??
+          1,
       unlocked: json['unlocked'] as bool? ?? true,
       allowedCategories: rawCategories is List
           ? rawCategories.whereType<String>().toList()
           : const ['DECOR'],
-      placement: json['placement'] is Map
-          ? IslandPlacementDto.fromJson(
-              (json['placement'] as Map).cast<String, dynamic>(),
-            )
-          : null,
+      placement: placement,
     );
   }
 
@@ -188,61 +212,118 @@ class IslandProgressDto {
 class IslandDto {
   final int tier;
   final int maxTier;
-  final int revision;
-  final IslandProgressDto progress;
+  /// row_version từ backend (field: rowVersion). Dùng làm expectedRevision.
+  final int rowVersion;
+  /// EXP tích lũy của tài khoản (không tiêu hao).
+  final int currentExp;
+  /// Level tài khoản hiện tại (backend tính từ EXP).
+  final int currentLevel;
+  /// Level tối thiểu để nâng lên tier kế tiếp (null nếu đã max tier).
+  final int? nextTierRequiredLevel;
+  /// EXP tối thiểu tương ứng với nextTierRequiredLevel (null nếu đã max tier).
+  final int? nextTierRequiredExp;
+  /// Backend xác nhận user có quyền nâng cấp không.
+  final bool canUpgrade;
+  /// Số sự kiện hoàn thành (chỉ còn để tương thích, không dùng xét eligibility).
+  final int eventsCompleted;
   final List<IslandSlotDto> slots;
+
+  // Kept for backwards compat with mock / old screens that still read progress.
+  // Do NOT use progress.canUpgrade for eligibility — use canUpgrade directly.
+  final IslandProgressDto progress;
 
   const IslandDto({
     this.tier = 1,
     this.maxTier = 3,
-    this.revision = 0,
-    this.progress = const IslandProgressDto(),
+    this.rowVersion = 0,
+    this.currentExp = 0,
+    this.currentLevel = 1,
+    this.nextTierRequiredLevel,
+    this.nextTierRequiredExp,
+    this.canUpgrade = false,
+    this.eventsCompleted = 0,
     this.slots = const [],
+    this.progress = const IslandProgressDto(),
   });
 
   bool get isMaxTier => tier >= maxTier;
 
+  /// Alias kept for providers that still reference island.revision.
+  int get revision => rowVersion;
+
   IslandDto copyWith({
     int? tier,
     int? maxTier,
-    int? revision,
-    IslandProgressDto? progress,
+    int? rowVersion,
+    int? currentExp,
+    int? currentLevel,
+    int? nextTierRequiredLevel,
+    int? nextTierRequiredExp,
+    bool? canUpgrade,
+    int? eventsCompleted,
     List<IslandSlotDto>? slots,
+    IslandProgressDto? progress,
   }) {
     return IslandDto(
       tier: tier ?? this.tier,
       maxTier: maxTier ?? this.maxTier,
-      revision: revision ?? this.revision,
-      progress: progress ?? this.progress,
+      rowVersion: rowVersion ?? this.rowVersion,
+      currentExp: currentExp ?? this.currentExp,
+      currentLevel: currentLevel ?? this.currentLevel,
+      nextTierRequiredLevel: nextTierRequiredLevel ?? this.nextTierRequiredLevel,
+      nextTierRequiredExp: nextTierRequiredExp ?? this.nextTierRequiredExp,
+      canUpgrade: canUpgrade ?? this.canUpgrade,
+      eventsCompleted: eventsCompleted ?? this.eventsCompleted,
       slots: slots ?? this.slots,
+      progress: progress ?? this.progress,
     );
   }
 
   factory IslandDto.fromJson(Map<String, dynamic> json) {
     final rawSlots = json['slots'];
+    final nextReqLevel = (json['nextTierRequiredLevel'] as num?)?.toInt();
+    final nextReqExp = (json['nextTierRequiredExp'] as num?)?.toInt();
+    final eventsCompleted = (json['eventsCompleted'] as num?)?.toInt() ?? 0;
+    final canUpgrade = json['canUpgrade'] as bool? ?? false;
     return IslandDto(
       tier: (json['tier'] as num?)?.toInt() ?? 1,
       maxTier: (json['maxTier'] as num?)?.toInt() ?? 3,
-      revision: (json['revision'] as num?)?.toInt() ?? 0,
-      progress: IslandProgressDto.fromJson(
-        json['progress'] is Map
-            ? (json['progress'] as Map).cast<String, dynamic>()
-            : null,
-      ),
+      // Backend field is rowVersion (ISLAND-02); fall back to revision for mock
+      rowVersion: (json['rowVersion'] as num?)?.toInt() ??
+          (json['revision'] as num?)?.toInt() ??
+          0,
+      currentExp: (json['currentExp'] as num?)?.toInt() ?? 0,
+      currentLevel: (json['currentLevel'] as num?)?.toInt() ?? 1,
+      nextTierRequiredLevel: nextReqLevel,
+      nextTierRequiredExp: nextReqExp,
+      canUpgrade: canUpgrade,
+      eventsCompleted: eventsCompleted,
       slots: rawSlots is List
           ? rawSlots
                 .whereType<Map>()
                 .map((e) => IslandSlotDto.fromJson(e.cast<String, dynamic>()))
                 .toList()
           : const [],
+      // Keep progress populated for any code still reading it
+      progress: IslandProgressDto(
+        completedEvents: eventsCompleted,
+        nextTierRequiredEvents:
+            (json['nextTierRequiredEvents'] as num?)?.toInt() ?? 0,
+        canUpgrade: canUpgrade,
+      ),
     );
   }
 
   Map<String, dynamic> toJson() => {
     'tier': tier,
     'maxTier': maxTier,
-    'revision': revision,
-    'progress': progress.toJson(),
+    'rowVersion': rowVersion,
+    'currentExp': currentExp,
+    'currentLevel': currentLevel,
+    'nextTierRequiredLevel': nextTierRequiredLevel,
+    'nextTierRequiredExp': nextTierRequiredExp,
+    'canUpgrade': canUpgrade,
+    'eventsCompleted': eventsCompleted,
     'slots': slots.map((s) => s.toJson()).toList(),
   };
 }
@@ -255,13 +336,16 @@ class ShopItemDto {
   final String name;
   final String? description;
   final String category;
-  final int price;
-  final String currency;
-  final int? requiredLevel;
-  final bool owned;
+  /// Giá tính bằng Điểm Sử Ký. null = chưa mở bán (purchasable=false).
+  final int? pricePoints;
+  /// Backend xác nhận item có thể mua không (active=true và price != null).
+  final bool purchasable;
   final String? renderKey;
   final String? assetId;
   final bool placeable;
+  /// Phản ánh trạng thái sở hữu từ inventory (mock hoặc enriched client-side).
+  /// Backend ShopItemResponse không trả field này — mặc định false từ listing.
+  final bool owned;
 
   const ShopItemDto({
     required this.itemId,
@@ -269,14 +353,16 @@ class ShopItemDto {
     required this.name,
     this.description,
     this.category = 'DECOR',
-    required this.price,
-    this.currency = 'HISTORY_POINTS',
-    this.requiredLevel,
-    this.owned = false,
+    this.pricePoints,
+    this.purchasable = false,
     this.renderKey,
     this.assetId,
     this.placeable = true,
+    this.owned = false,
   });
+
+  /// Tiện ích: giá để hiển thị (0 nếu chưa mở bán).
+  int get price => pricePoints ?? 0;
 
   String get assetPath => resolveIslandAsset(renderKey, code, assetId);
 
@@ -287,13 +373,15 @@ class ShopItemDto {
       name: json['name'] as String? ?? '',
       description: json['description'] as String?,
       category: json['category'] as String? ?? 'DECOR',
-      price: (json['price'] as num?)?.toInt() ?? 0,
-      currency: json['currency'] as String? ?? 'HISTORY_POINTS',
-      requiredLevel: (json['requiredLevel'] as num?)?.toInt(),
-      owned: json['owned'] as bool? ?? false,
+      // Backend: pricePoints (Long, nullable). Legacy mock may use price.
+      pricePoints: (json['pricePoints'] as num?)?.toInt() ??
+          (json['price'] as num?)?.toInt(),
+      purchasable: json['purchasable'] as bool? ?? false,
       renderKey: json['renderKey'] as String?,
       assetId: json['assetId'] as String?,
       placeable: json['placeable'] as bool? ?? true,
+      // owned không có trong backend listing — default false.
+      owned: json['owned'] as bool? ?? false,
     );
   }
 
@@ -303,13 +391,12 @@ class ShopItemDto {
     'name': name,
     'description': description,
     'category': category,
-    'price': price,
-    'currency': currency,
-    'requiredLevel': requiredLevel,
-    'owned': owned,
+    'pricePoints': pricePoints,
+    'purchasable': purchasable,
     'renderKey': renderKey,
     'assetId': assetId,
     'placeable': placeable,
+    'owned': owned,
   };
 }
 

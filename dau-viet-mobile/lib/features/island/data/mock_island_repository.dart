@@ -23,11 +23,17 @@ class MockIslandRepository implements IslandRepository {
     _island = const IslandDto(
       tier: 1,
       maxTier: 3,
-      revision: 1,
+      rowVersion: 1,
+      currentExp: 1200,
+      currentLevel: 3,
+      nextTierRequiredLevel: 2,
+      nextTierRequiredExp: 500,
+      canUpgrade: true,
+      eventsCompleted: 1,
       progress: IslandProgressDto(
         completedEvents: 1,
         nextTierRequiredEvents: 2,
-        canUpgrade: false,
+        canUpgrade: true,
       ),
       slots: [
         IslandSlotDto(
@@ -91,8 +97,8 @@ class MockIslandRepository implements IslandRepository {
         description:
             'Cây đa cổ thụ che bóng mát cho di sản đảo, kết nối cội nguồn.',
         category: 'DECOR',
-        price: 100,
-        currency: 'HISTORY_POINTS',
+        pricePoints: 100,
+        purchasable: true,
         renderKey: 'decor_cay_da',
         owned: false,
       ),
@@ -102,8 +108,8 @@ class MockIslandRepository implements IslandRepository {
         name: 'Nhà Tranh Cổ Truyền',
         description: 'Kiến trúc mộc mạc lưu giữ hồn quê Việt thời Ngô dựng cờ.',
         category: 'DECOR',
-        price: 200,
-        currency: 'HISTORY_POINTS',
+        pricePoints: 200,
+        purchasable: true,
         renderKey: 'decor_nha_tranh',
         owned: true,
       ),
@@ -114,8 +120,8 @@ class MockIslandRepository implements IslandRepository {
         description:
             'Đầm sen thơm ngát, điểm tô cảnh sắc thanh tịnh cho đảo di sản.',
         category: 'DECOR',
-        price: 300,
-        currency: 'HISTORY_POINTS',
+        pricePoints: 300,
+        purchasable: true,
         renderKey: 'decor_ho_sen',
         owned: false,
       ),
@@ -131,7 +137,7 @@ class MockIslandRepository implements IslandRepository {
   @override
   Future<IslandDto> upgradeIsland(int expectedRevision) async {
     await Future.delayed(const Duration(milliseconds: 200));
-    if (expectedRevision != _island.revision) {
+    if (expectedRevision != _island.rowVersion) {
       throw const ApiException(
         ApiError(
           code: 'REVISION_CONFLICT',
@@ -151,7 +157,8 @@ class MockIslandRepository implements IslandRepository {
 
     _island = _island.copyWith(
       tier: newTier,
-      revision: _island.revision + 1,
+      rowVersion: _island.rowVersion + 1,
+      canUpgrade: false,
       progress: const IslandProgressDto(
         completedEvents: 2,
         nextTierRequiredEvents: 4,
@@ -170,7 +177,7 @@ class MockIslandRepository implements IslandRepository {
     required String idempotencyKey,
   }) async {
     await Future.delayed(const Duration(milliseconds: 200));
-    if (expectedRevision != _island.revision) {
+    if (expectedRevision != _island.rowVersion) {
       throw const ApiException(
         ApiError(
           code: 'REVISION_CONFLICT',
@@ -205,7 +212,7 @@ class MockIslandRepository implements IslandRepository {
     }).toList();
 
     _island = _island.copyWith(
-      revision: _island.revision + 1,
+      rowVersion: _island.rowVersion + 1,
       slots: updatedSlots,
     );
     return _island;
@@ -218,7 +225,7 @@ class MockIslandRepository implements IslandRepository {
     String? idempotencyKey,
   }) async {
     await Future.delayed(const Duration(milliseconds: 200));
-    if (expectedRevision != _island.revision) {
+    if (expectedRevision != _island.rowVersion) {
       throw const ApiException(
         ApiError(
           code: 'REVISION_CONFLICT',
@@ -236,7 +243,7 @@ class MockIslandRepository implements IslandRepository {
     }).toList();
 
     _island = _island.copyWith(
-      revision: _island.revision + 1,
+      rowVersion: _island.rowVersion + 1,
       slots: updatedSlots,
     );
     return _island;
@@ -245,6 +252,7 @@ class MockIslandRepository implements IslandRepository {
   @override
   Future<List<ShopItemDto>> getShopItems() async {
     await Future.delayed(const Duration(milliseconds: 150));
+    // Enrich with ownership from _ownedItemIds
     return _shopItems.map((item) {
       return ShopItemDto(
         itemId: item.itemId,
@@ -252,9 +260,8 @@ class MockIslandRepository implements IslandRepository {
         name: item.name,
         description: item.description,
         category: item.category,
-        price: item.price,
-        currency: item.currency,
-        requiredLevel: item.requiredLevel,
+        pricePoints: item.pricePoints,
+        purchasable: item.purchasable,
         owned: _ownedItemIds.contains(item.itemId),
         renderKey: item.renderKey,
         assetId: item.assetId,

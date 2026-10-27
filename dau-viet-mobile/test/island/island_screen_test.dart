@@ -126,12 +126,17 @@ void main() {
 
   group('IslandUpgradePanel Widget Tests', () {
     testWidgets(
-      'Upgrade panel shows progression and correct button when canUpgrade=false',
+      'Upgrade panel shows EXP progression and correct button when canUpgrade=false',
       (tester) async {
         const island = IslandDto(
           tier: 1,
           maxTier: 3,
-          revision: 1,
+          rowVersion: 1,
+          currentExp: 200,
+          currentLevel: 1,
+          nextTierRequiredLevel: 2,
+          nextTierRequiredExp: 500,
+          canUpgrade: false,
           progress: IslandProgressDto(
             completedEvents: 1,
             nextTierRequiredEvents: 2,
@@ -149,8 +154,7 @@ void main() {
         await pumpAsync(tester);
 
         expect(find.text('MỞ RỘNG ĐẢO DI SẢN'), findsOneWidget);
-        expect(find.text('1 / 2'), findsOneWidget);
-        expect(find.text('TIẾP TỤC HÀNH TRÌNH KHẢO CỔ'), findsOneWidget);
+        expect(find.text('TIẾP TỤC HỌC ĐỂ TÍCH LŨY EXP'), findsOneWidget);
       },
     );
 
@@ -160,7 +164,12 @@ void main() {
       const island = IslandDto(
         tier: 1,
         maxTier: 3,
-        revision: 1,
+        rowVersion: 1,
+        currentExp: 600,
+        currentLevel: 2,
+        nextTierRequiredLevel: 2,
+        nextTierRequiredExp: 500,
+        canUpgrade: true,
         progress: IslandProgressDto(
           completedEvents: 2,
           nextTierRequiredEvents: 2,

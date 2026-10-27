@@ -7,23 +7,20 @@ import java.util.UUID;
 /**
  * GET /api/v1/me/island — trạng thái đảo + slot map đầy đủ để client render.
  *
- * <p>Mở rộng ISLAND-01: thêm level/EXP để client hiển thị tiến trình nâng
- * cấp. Tương thích ngược — eventsCompleted và nextTierRequiredEvents giữ
- * nguyên nhưng KHÔNG dùng để xét eligibility nữa; chỉ mang ý nghĩa thống kê.
+ * <p>ISLAND-01: thêm currentExp, currentLevel, nextTierRequiredLevel,
+ * nextTierRequiredExp — eligibility dựa theo Level tài khoản.
  *
- * <p>Khi đảo đã đạt tier tối đa: nextTier=null, nextTierRequiredLevel=null,
- * nextTierRequiredExp=null, nextTierSlotCount=0, canUpgrade=false.
+ * <p>ISLAND-02: thêm maxTier suy ra từ active island policies để Flutter
+ * không cần hard-code Tier 3 là max. eventsCompleted và nextTierRequiredEvents
+ * giữ lại chỉ vì tương thích — KHÔNG dùng để xét eligibility nâng cấp.
  *
- * <p>Fields (ISLAND-01):
- * <ul>
- *   <li>currentExp — EXP tích lũy hiện tại (không tiêu hao).</li>
- *   <li>currentLevel — Level tài khoản tính từ EXP.</li>
- *   <li>nextTierRequiredLevel — Level yêu cầu để nâng nextTier; null nếu đã max.</li>
- *   <li>nextTierRequiredExp — EXP tối thiểu tương ứng; null nếu đã max.</li>
- * </ul>
+ * <p>Khi đảo đã đạt tier tối đa (tier == maxTier):
+ * nextTier=null, nextTierRequiredLevel=null, nextTierRequiredExp=null,
+ * nextTierSlotCount=0, canUpgrade=false.
  */
 public record IslandResponse(
         int tier,
+        int maxTier,
         long rowVersion,
         long eventsCompleted,
         Integer nextTier,

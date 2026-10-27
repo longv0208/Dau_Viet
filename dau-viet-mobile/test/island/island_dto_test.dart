@@ -117,15 +117,16 @@ void main() {
     });
 
     test('ShopItemDto parsing and asset resolution', () {
+      // Backend now uses pricePoints (not price) and purchasable (not currency/owned).
+      // Legacy 'price' field is still accepted as fallback for mocks.
       final json = {
         'itemId': 'item-cay-da-001',
         'code': 'decor_cay_da',
         'name': 'Cây Đa Di Sản',
         'description': 'Cây đa cổ thụ.',
         'category': 'DECOR',
-        'price': 100,
-        'currency': 'HISTORY_POINTS',
-        'requiredLevel': 1,
+        'pricePoints': 100,
+        'purchasable': true,
         'owned': true,
         'renderKey': 'decor_cay_da',
         'placeable': true,
@@ -136,8 +137,9 @@ void main() {
       expect(item.itemId, 'item-cay-da-001');
       expect(item.code, 'decor_cay_da');
       expect(item.name, 'Cây Đa Di Sản');
-      expect(item.price, 100);
-      expect(item.currency, 'HISTORY_POINTS');
+      expect(item.price, 100); // getter delegates to pricePoints
+      expect(item.pricePoints, 100);
+      expect(item.purchasable, true);
       expect(item.owned, true);
       expect(item.placeable, true);
       expect(item.assetPath, 'assets/items/decor_cay_da.png');

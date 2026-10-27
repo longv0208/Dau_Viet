@@ -12,11 +12,22 @@ import com.dauviet.reward.infrastructure.persistence.AccountLevelThresholdReposi
 import com.dauviet.reward.infrastructure.persistence.RewardTransactionRepository;
 
 /**
- * Dịch vụ tính Level tài khoản từ tổng EXP tích lũy (ISLAND-01).
+ * Dịch vụ tính Level tài khoản từ tổng EXP tích lũy (ISLAND-01, ISLAND-02).
  *
- * <p>Level được suy ra từ bảng account_level_thresholds đang active —
- * không hard-code ngưỡng trong code. EXP là giá trị tích lũy và KHÔNG
- * bị tiêu hao; Level chỉ phản ánh tổng EXP đã kiếm được.
+ * <p>Level được suy ra từ bảng account_level_thresholds đang active (cao nhất
+ * config_version) — không hard-code ngưỡng trong code. EXP là giá trị tích
+ * lũy và KHÔNG bị tiêu hao; Level chỉ phản ánh tổng EXP đã kiếm được.
+ *
+ * <p>Cấu hình hợp lệ phải thỏa mãn:
+ * <ul>
+ *   <li>Có ít nhất một row.</li>
+ *   <li>Bắt đầu bằng Level có min_exp = 0.</li>
+ *   <li>min_exp tăng nghiêm ngặt (không có hai level cùng ngưỡng).</li>
+ * </ul>
+ *
+ * <p>Khi cấu hình thiếu hoặc không hợp lệ: log cảnh báo và trả 1 (safe
+ * default). Caller quan trọng (IslandService) phải kiểm tra cấu hình riêng
+ * — không được dùng level 1 mặc định để suy ra quyền nâng đảo.
  *
  * <p>Edge cases được xử lý:
  * <ul>
@@ -24,9 +35,7 @@ import com.dauviet.reward.infrastructure.persistence.RewardTransactionRepository
  *   <li>EXP đúng bằng ngưỡng → đủ điều kiện level đó.</li>
  *   <li>EXP nằm giữa hai ngưỡng → lấy level thấp hơn.</li>
  *   <li>EXP lớn hơn ngưỡng level cao nhất → giữ level cao nhất có cấu hình.</li>
- *   <li>Không có cấu hình active → trả level 1 an toàn, log cảnh báo.</li>
- *   <li>Cấu hình không liên tục hoặc trùng ngưỡng → sort theo min_exp ASC,
- *       lấy row có min_exp lớn nhất ≤ EXP (hành vi ổn định).</li>
+ *   <li>Không có cấu hình active → trả FALLBACK_LEVEL = 1, log warn.</li>
  * </ul>
  */
 @Service
@@ -35,7 +44,7 @@ public class AccountLevelService {
     private static final org.slf4j.Logger log =
             org.slf4j.LoggerFactory.getLogger(AccountLevelService.class);
 
-    /** Level tối thiểu trả về khi không có cấu hình hợp lệ. */
+    /** Trả về khi không có cấu hình hợp lệ — an toàn nhưng không grant quyền. */
     private static final int FALLBACK_LEVEL = 1;
 
     private final RewardTransactionRepository rewards;
@@ -71,27 +80,26 @@ public class AccountLevelService {
     }
 
     /**
-     * Tính level từ một giá trị EXP đã biết (tái dùng khi đã có EXP sẵn).
-     * Không truy vấn thêm DB.
+     * Tính level từ một giá trị EXP đã biết. Không truy vấn thêm DB.
+     * Gọi {@link #findValidatedThresholds()} để lấy cấu hình đã validate.
      *
      * @param exp EXP tích lũy (≥ 0)
      * @return level (≥ 1)
      */
     public int levelForExp(long exp) {
-        List<AccountLevelThreshold> active = thresholds.findActiveLevels();
+        List<AccountLevelThreshold> active = findValidatedThresholds();
         if (active.isEmpty()) {
-            log.warn("account_level_thresholds: no active configuration found; "
-                    + "defaulting to level {}", FALLBACK_LEVEL);
+            // Đã log trong findValidatedThresholds
             return FALLBACK_LEVEL;
         }
         // Thresholds đã sort theo min_exp ASC từ repository.
-        // Duyệt từ cuối về đầu: lấy level cao nhất có min_exp ≤ exp.
-        AccountLevelThreshold result = active.get(0); // ít nhất level 1
+        // Duyệt: lấy level cao nhất có min_exp ≤ exp.
+        AccountLevelThreshold result = active.get(0);
         for (AccountLevelThreshold t : active) {
             if (exp >= t.getMinExp()) {
                 result = t;
             } else {
-                break; // đã sort ASC, không cần đọc thêm
+                break; // đã sort ASC
             }
         }
         return result.getLevel();
@@ -105,10 +113,46 @@ public class AccountLevelService {
      * @return min_exp của level đó, hoặc -1 nếu không có trong cấu hình
      */
     public long minExpForLevel(int targetLevel) {
-        return thresholds.findActiveLevels().stream()
+        return findValidatedThresholds().stream()
                 .filter(t -> t.getLevel() == targetLevel)
                 .mapToLong(AccountLevelThreshold::getMinExp)
                 .findFirst()
                 .orElse(-1L);
+    }
+
+    /**
+     * Kiểm tra cấu hình hợp lệ: có thể tính level hay không.
+     * Trả {@code true} nếu cấu hình active đủ điều kiện dùng.
+     */
+    public boolean hasValidConfiguration() {
+        return !findValidatedThresholds().isEmpty();
+    }
+
+    /**
+     * Lấy danh sách ngưỡng active đã được validate. Empty = cấu hình không
+     * hợp lệ; caller không được dùng FALLBACK để suy ra quyền nghiệp vụ.
+     */
+    public List<AccountLevelThreshold> findValidatedThresholds() {
+        List<AccountLevelThreshold> active = thresholds.findActiveLevels();
+        if (active.isEmpty()) {
+            log.warn("account_level_thresholds: no active configuration found");
+            return List.of();
+        }
+        // Kiểm tra min_exp đầu tiên phải là 0 (Level 1 luôn bắt đầu từ 0 EXP)
+        if (active.get(0).getMinExp() != 0) {
+            log.warn("account_level_thresholds: active config invalid — "
+                    + "first level must have min_exp=0, found {}",
+                    active.get(0).getMinExp());
+            return List.of();
+        }
+        // Kiểm tra min_exp tăng nghiêm ngặt
+        for (int i = 1; i < active.size(); i++) {
+            if (active.get(i).getMinExp() <= active.get(i - 1).getMinExp()) {
+                log.warn("account_level_thresholds: active config invalid — "
+                        + "min_exp not strictly increasing at index {}", i);
+                return List.of();
+            }
+        }
+        return active;
     }
 }

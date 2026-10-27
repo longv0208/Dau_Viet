@@ -9,19 +9,31 @@ import org.springframework.data.jpa.repository.Query;
 import com.dauviet.reward.domain.AccountLevelThreshold;
 
 /**
- * Truy cập account_level_thresholds (V38). Chỉ đọc; ghi qua migration/CMS sau.
- * findActiveLevels trả toàn bộ config active, sort theo min_exp ASC — caller
- * dùng để tính level tuyến tính từ EXP.
+ * Truy cập account_level_thresholds (V38). Chỉ đọc; ghi qua migration/CMS.
+ *
+ * <p>Cơ chế active version: config_version cao nhất trong số các version có
+ * ít nhất một row active là version đang hiệu lực. Điều này đảm bảo chỉ một
+ * bộ ngưỡng duy nhất được sử dụng — không trộn row từ nhiều config_version.
+ * Khi migrate lên cấu hình mới, deactivate toàn bộ rows version cũ và insert
+ * rows version mới với active=true.
  */
 public interface AccountLevelThresholdRepository
         extends JpaRepository<AccountLevelThreshold, UUID> {
 
     /**
-     * Tất cả bản ghi của config_version đang active, sort theo min_exp ASC.
-     * Đảm bảo repository tải một bộ cấu hình duy nhất (partial unique index
-     * ux_acct_level_active ngăn nhiều config_version active đồng thời).
+     * Tất cả ngưỡng của config_version đang active cao nhất, sort theo
+     * min_exp ASC. Subquery chọn MAX(config_version) trong các version có ít
+     * nhất một row active — không trộn rows của nhiều version khác nhau.
      */
-    @Query("SELECT t FROM AccountLevelThreshold t WHERE t.active = true "
-         + "ORDER BY t.minExp ASC")
+    @Query("""
+            SELECT t FROM AccountLevelThreshold t
+            WHERE t.active = true
+              AND t.configVersion = (
+                  SELECT MAX(t2.configVersion)
+                  FROM AccountLevelThreshold t2
+                  WHERE t2.active = true
+              )
+            ORDER BY t.minExp ASC
+            """)
     List<AccountLevelThreshold> findActiveLevels();
 }

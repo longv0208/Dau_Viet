@@ -4,7 +4,6 @@ import java.time.Clock;
 import java.time.Instant;
 import java.util.List;
 import java.util.Map;
-import java.util.Optional;
 import java.util.UUID;
 import java.util.function.Function;
 import java.util.stream.Collectors;
@@ -34,24 +33,23 @@ import com.dauviet.reward.infrastructure.persistence.ItemCatalogRepository;
 import com.dauviet.reward.infrastructure.persistence.UserInventoryRepository;
 
 /**
- * Đảo Di Sản (ISLAND-BE-01, ISLAND-01): state đọc, upgrade, đặt/gỡ decor.
+ * Đảo Di Sản (ISLAND-BE-01, ISLAND-01, ISLAND-02): state đọc, upgrade,
+ * đặt/gỡ decor.
  *
  * <p>Lazy-create đảo tier 1 lần đầu đọc/ghi (UserIslandRepository
  * .insertIgnore). Mọi write lock user_islands trước (PESSIMISTIC_WRITE) —
- * serialize toàn bộ mutation đảo của một user; placement kiểm tra
- * SLOT_LOCKED/SLOT_OCCUPIED/ITEM_* bên trong lock, không race hai thiết bị.
+ * serialize toàn bộ mutation đảo của một user.
  *
- * <p>expectedRevision: client gửi user_islands.row_version đã đọc; lệch
- * → 409 STALE_ISLAND_REVISION — hai thiết bị ghi tuần tự phát hiện lệch
- * nhau, client reload rồi retry.
+ * <p>Tier eligibility (ISLAND-01+02): dựa theo Level tài khoản tính từ EXP.
+ * Không dùng EVENT_COMPLETED. Nếu policy cho tier kế tiếp thiếu required_level
+ * hoặc level_thresholds không hợp lệ → chặn nâng cấp an toàn.
  *
- * <p>Tier eligibility (ISLAND-01): dựa theo Level tài khoản tính từ EXP tích
- * lũy — không dùng EVENT_COMPLETED để xét quyền nâng cấp. eventsCompleted
- * vẫn được tính và trả về trong response nhưng chỉ mang ý nghĩa thống kê.
+ * <p>Revision (ISLAND-02): mọi write thành công (place, remove khi có thay
+ * đổi, upgrade) đều bumps row_version qua JPA @Version.
+ * Place/remove tác động trực tiếp lên user_island_placements nhưng service
+ * bump version bằng cách gọi islands.save(island) sau mỗi thao tác thành công.
  *
- * <p>Lock-order: user_islands → (wallet_accounts khi mua — ShopService)
- * → user_inventory. Service này không chạm wallet; ShopService gọi
- * riêng và tự lock.
+ * <p>Lock-order: user_islands → user_inventory. Service không chạm wallet.
  */
 @Service
 public class IslandService {
@@ -101,30 +99,15 @@ public class IslandService {
         requireEnabled();
         Instant now = Instant.now(clock);
         UserIsland island = ensureIsland(userId, now);
-        List<IslandSlot> layout = slots.findByLayoutCodeOrderBySlotIndex(
-                island.getLayoutCode());
-        List<UserIslandPlacement> placed = placements.findByUserId(userId);
-        Map<UUID, UserIslandPlacement> bySlot = placed.stream()
-                .collect(Collectors.toMap(UserIslandPlacement::getSlotId,
-                        Function.identity()));
-        Map<UUID, ItemCatalog> items = catalogOf(placed.stream()
-                .map(UserIslandPlacement::getItemId).toList());
-        long exp = levelService.totalExp(userId);
-        int currentLevel = levelService.levelForExp(exp);
-        long eventsCompleted = completedEvents(userId);
-        List<IslandTierPolicy> activePolicies = policies.findActivePolicies();
-        Integer nextTier = nextTierOf(island.getTier(), activePolicies);
-        return buildResponse(island, layout, bySlot, items,
-                exp, currentLevel, eventsCompleted,
-                activePolicies, nextTier, now);
+        return buildFullResponse(island, userId, now);
     }
 
     /* ---------- POST /me/island/upgrade ---------- */
 
     /**
      * Nâng cấp lên tier kế tiếp đủ điều kiện (user-initiated, không tự
-     * động). Eligibility kiểm tra theo Level tài khoản (ISLAND-01), không
-     * theo EVENT_COMPLETED. Server là nguồn sự thật duy nhất về quyền nâng.
+     * động). Eligibility kiểm tra theo Level tài khoản (ISLAND-01/02).
+     * Nếu cấu hình Level hoặc Tier policy không hợp lệ → chặn an toàn.
      *
      * @return IslandResponse mới sau upgrade
      */
@@ -137,33 +120,46 @@ public class IslandService {
         List<IslandTierPolicy> activePolicies = policies.findActivePolicies();
         Integer nextTier = nextTierOf(island.getTier(), activePolicies);
         if (nextTier == null) {
-            // Đã ở tier tối đa theo config hiện tại.
+            // Đã ở tier tối đa
             throw new IslandExceptions.IslandUpgradeNotEligibleException(
                     island.getTier() + 1, -1, completedEvents(userId));
         }
+        // Lấy required_level từ policy — null là cấu hình chưa hợp lệ
+        Integer requiredLevel = requiredLevelForStrict(nextTier, activePolicies);
+        if (requiredLevel == null) {
+            log.error("island upgrade blocked: island_tier_policies tier={} "
+                    + "missing required_level in active config_version", nextTier);
+            throw new IslandExceptions.IslandConfigurationInvalidException(nextTier);
+        }
+        // Kiểm tra Level tài khoản — từ chối nếu config Level không hợp lệ
+        if (!levelService.hasValidConfiguration()) {
+            log.error("island upgrade blocked: account_level_thresholds "
+                    + "configuration invalid or missing");
+            throw new IslandExceptions.IslandConfigurationInvalidException(nextTier);
+        }
         long exp = levelService.totalExp(userId);
         int currentLevel = levelService.levelForExp(exp);
-        int requiredLevel = requiredLevelFor(nextTier, activePolicies);
         if (currentLevel < requiredLevel) {
             long requiredExp = levelService.minExpForLevel(requiredLevel);
+            // requiredExp = -1 nếu level không có trong bảng ngưỡng
+            // → vẫn chặn vì currentLevel < requiredLevel đã là đủ
             throw new IslandExceptions.IslandUpgradeInsufficientLevelException(
-                    nextTier, requiredLevel, currentLevel, exp, requiredExp);
+                    nextTier, requiredLevel, currentLevel, exp,
+                    requiredExp < 0 ? 0L : requiredExp);
         }
         island.upgradeTo(nextTier, now);
-        islands.save(island);
+        islands.save(island); // bumps @Version (row_version)
         log.info("island upgraded user={} tier={} level={} exp={}",
                 userId, nextTier, currentLevel, exp);
-        return islandOf(userId);
+        return buildFullResponse(island, userId, now);
     }
 
     /* ---------- PUT /me/island/placements/{slotId} ---------- */
 
     /**
-     * Đặt vật phẩm vào ô đất. Kiểm tra theo thứ tự: slot tồn tại → đảo đủ
-     * tier → item tồn tại trong catalog → user sở hữu → item placeable →
-     * slot trống → item chưa đặt chỗ khác → insert.
-     *
-     * @return IslandResponse mới sau đặt
+     * Đặt vật phẩm vào ô đất. Kiểm tra: slot tồn tại → layout đúng → đảo
+     * đủ tier → item tồn tại → user sở hữu → placeable → slot trống →
+     * item chưa đặt ở slot khác → insert → bump revision.
      */
     @Transactional(propagation = Propagation.REQUIRED)
     public IslandResponse placeItem(UUID userId, UUID slotId,
@@ -175,14 +171,17 @@ public class IslandService {
         IslandSlot slot = slots.findById(slotId)
                 .orElseThrow(() ->
                         new IslandExceptions.SlotNotFoundException(slotId));
+        // Bảo đảm slot thuộc layout hiện tại của user
+        if (!slot.getLayoutCode().equals(island.getLayoutCode())) {
+            throw new IslandExceptions.SlotNotFoundException(slotId);
+        }
         if (slot.getTierRequired() > island.getTier()) {
             throw new IslandExceptions.SlotLockedException(
                     slot.getTierRequired(), island.getTier());
         }
         ItemCatalog item = catalog.findById(req.itemId())
                 .orElseThrow(() ->
-                        new IslandExceptions.ItemNotOwnedException(
-                                req.itemId()));
+                        new IslandExceptions.ItemNotOwnedException(req.itemId()));
         if (!inventory.existsByUserIdAndItemId(userId, req.itemId())) {
             throw new IslandExceptions.ItemNotOwnedException(req.itemId());
         }
@@ -196,14 +195,20 @@ public class IslandService {
             throw new IslandExceptions.ItemAlreadyOwnedException(req.itemId());
         }
         placements.insertIgnore(userId, slotId, req.itemId());
+        // Bump revision — place thành công luôn tăng row_version
+        island.touch(now);
+        islands.save(island);
         log.info("island placement user={} slot={} item={}",
                 userId, slotId, req.itemId());
-        return islandOf(userId);
+        return buildFullResponse(island, userId, now);
     }
 
     /* ---------- DELETE /me/island/placements/{slotId} ---------- */
 
-    /** Gỡ vật phẩm khỏi ô đất; slot trống → no-op 204. */
+    /**
+     * Gỡ vật phẩm khỏi ô đất. Bump revision chỉ khi có row thực sự bị xóa.
+     * Slot trống → no-op, revision không thay đổi.
+     */
     @Transactional(propagation = Propagation.REQUIRED)
     public IslandResponse removePlacement(UUID userId, UUID slotId,
                                           Long expectedRevision) {
@@ -213,10 +218,12 @@ public class IslandService {
         checkRevision(island, expectedRevision);
         int removed = placements.deleteByUserIdAndSlotId(userId, slotId);
         if (removed > 0) {
-            log.info("island placement removed user={} slot={}",
-                    userId, slotId);
+            // Bump revision — remove thực sự làm thay đổi trạng thái đảo
+            island.touch(now);
+            islands.save(island);
+            log.info("island placement removed user={} slot={}", userId, slotId);
         }
-        return islandOf(userId);
+        return buildFullResponse(island, userId, now);
     }
 
     /* ---------- internals ---------- */
@@ -225,8 +232,6 @@ public class IslandService {
         if (!enabled) throw new IslandExceptions.FeatureDisabledException();
     }
 
-    /** Lazy-create đảo tier 1 rồi đọc lại (race: insertIgnore trả 0 → row
-     *  của kẻ thắng commit-visible trong tx này). */
     private UserIsland ensureIsland(UUID userId, Instant now) {
         islands.insertIgnore(userId, now);
         return islands.findById(userId)
@@ -234,7 +239,6 @@ public class IslandService {
                         "user_islands insert lost for " + userId));
     }
 
-    /** Lock user_islands rồi lazy-create nếu chưa có (ghi trước, đọc sau). */
     private UserIsland lockIsland(UUID userId, Instant now) {
         islands.insertIgnore(userId, now);
         return islands.findForUpdate(userId)
@@ -242,7 +246,6 @@ public class IslandService {
                         "user_islands insert lost for " + userId));
     }
 
-    /** expectedRevision null → không kiểm; lệch → 409 STALE_ISLAND_REVISION. */
     private void checkRevision(UserIsland island, Long expectedRevision) {
         if (expectedRevision != null
                 && !expectedRevision.equals(island.getRowVersion())) {
@@ -251,16 +254,11 @@ public class IslandService {
         }
     }
 
-    /**
-     * Số sự kiện THẬT đã EVENT_COMPLETED — chỉ thống kê từ ISLAND-01,
-     * không dùng để xét eligibility nâng cấp đảo.
-     */
     private long completedEvents(UUID userId) {
         return eventProgress.countDistinctEventsByMilestone(userId,
                 "EVENT_COMPLETED");
     }
 
-    /** Tier kế tiếp trong config active; null = đã max. */
     private Integer nextTierOf(int currentTier,
                                List<IslandTierPolicy> activePolicies) {
         return activePolicies.stream()
@@ -270,82 +268,25 @@ public class IslandService {
                 .orElse(null);
     }
 
+    private int maxTierOf(List<IslandTierPolicy> activePolicies) {
+        return activePolicies.stream()
+                .mapToInt(IslandTierPolicy::getTier)
+                .max()
+                .orElse(1); // fallback an toàn nếu policy rỗng
+    }
+
     /**
-     * Level yêu cầu để nâng lên tier. Ưu tiên required_level (ISLAND-01);
-     * nếu null (row V32 cũ) dùng required_completed_events làm phương án
-     * fallback ≥ 0 → không xét level (backward compat).
-     * Trả Integer.MAX_VALUE nếu không tìm thấy policy cho tier đó.
+     * Level yêu cầu của tier theo policy. Trả null nếu required_level chưa
+     * được set (cấu hình cũ hoặc cấu hình chưa hợp lệ). Không fallback sang
+     * 1 — caller phải chặn upgrade khi nhận null.
      */
-    private int requiredLevelFor(int tier, List<IslandTierPolicy> activePolicies) {
+    private Integer requiredLevelForStrict(int tier,
+                                           List<IslandTierPolicy> activePolicies) {
         return activePolicies.stream()
                 .filter(p -> p.getTier() == tier)
-                .map(p -> p.getRequiredLevel() != null
-                        ? p.getRequiredLevel()
-                        : 1) // cũ không có required_level → coi như level 1
+                .map(IslandTierPolicy::getRequiredLevel)
                 .findFirst()
-                .orElse(Integer.MAX_VALUE);
-    }
-
-    private Map<UUID, ItemCatalog> catalogOf(List<UUID> itemIds) {
-        if (itemIds.isEmpty()) return Map.of();
-        return catalog.findAllById(itemIds).stream()
-                .collect(Collectors.toMap(ItemCatalog::getId,
-                        Function.identity()));
-    }
-
-    private IslandResponse buildResponse(UserIsland island,
-            List<IslandSlot> layout,
-            Map<UUID, UserIslandPlacement> bySlot,
-            Map<UUID, ItemCatalog> items,
-            long currentExp,
-            int currentLevel,
-            long eventsCompleted,
-            List<IslandTierPolicy> activePolicies,
-            Integer nextTier,
-            Instant now) {
-        List<IslandResponse.SlotView> slotViews = layout.stream()
-                .map(s -> {
-                    UserIslandPlacement p = bySlot.get(s.getId());
-                    ItemCatalog placed = p == null ? null
-                            : items.get(p.getItemId());
-                    return new IslandResponse.SlotView(
-                            s.getId(), s.getSlotIndex(), s.getTierRequired(),
-                            s.getTierRequired() <= island.getTier(),
-                            s.getCoordX(), s.getCoordY(),
-                            p == null ? null : p.getItemId(),
-                            placed == null ? null : placed.getCode(),
-                            placed == null ? null : placed.getRenderKey(),
-                            p == null ? null : p.getPlacedAt());
-                })
-                .toList();
-
-        // Tính next-tier info cho response.
-        int nextRequiredEvents = nextTier == null ? -1
-                : requiredEventsFor(nextTier, activePolicies);
-        int nextSlots = nextTier == null ? 0
-                : slotCountFor(nextTier, activePolicies);
-
-        Integer nextTierRequiredLevel = nextTier == null ? null
-                : requiredLevelFor(nextTier, activePolicies);
-        Long nextTierRequiredExp = (nextTier == null || nextTierRequiredLevel == null)
-                ? null
-                : levelService.minExpForLevel(nextTierRequiredLevel);
-        // Nếu minExpForLevel trả -1 (level không có trong config) → null
-        if (nextTierRequiredExp != null && nextTierRequiredExp < 0) {
-            nextTierRequiredExp = null;
-        }
-
-        // canUpgrade: dựa theo Level, không theo sự kiện.
-        boolean canUpgrade = nextTier != null
-                && nextTierRequiredLevel != null
-                && currentLevel >= nextTierRequiredLevel;
-
-        return new IslandResponse(
-                island.getTier(), island.getRowVersion(), eventsCompleted,
-                nextTier, nextRequiredEvents, nextSlots, canUpgrade,
-                island.getUpgradedAt(), slotViews, now,
-                currentExp, currentLevel, nextTierRequiredLevel,
-                nextTierRequiredExp);
+                .orElse(null);
     }
 
     private int requiredEventsFor(int tier,
@@ -363,5 +304,93 @@ public class IslandService {
                 .map(IslandTierPolicy::getSlotCount)
                 .findFirst()
                 .orElse(0);
+    }
+
+    private Map<UUID, ItemCatalog> catalogOf(List<UUID> itemIds) {
+        if (itemIds.isEmpty()) return Map.of();
+        return catalog.findAllById(itemIds).stream()
+                .collect(Collectors.toMap(ItemCatalog::getId,
+                        Function.identity()));
+    }
+
+    /**
+     * Build full response sau bất kỳ thao tác nào — đọc lại state hiện tại
+     * của island (bao gồm row_version đã flush sau save).
+     */
+    private IslandResponse buildFullResponse(UserIsland island, UUID userId,
+                                             Instant now) {
+        List<IslandSlot> layout = slots.findByLayoutCodeOrderBySlotIndex(
+                island.getLayoutCode());
+        List<UserIslandPlacement> placed = placements.findByUserId(userId);
+        Map<UUID, UserIslandPlacement> bySlot = placed.stream()
+                .collect(Collectors.toMap(UserIslandPlacement::getSlotId,
+                        Function.identity()));
+        Map<UUID, ItemCatalog> items = catalogOf(placed.stream()
+                .map(UserIslandPlacement::getItemId).toList());
+        long exp = levelService.totalExp(userId);
+        int currentLevel = levelService.levelForExp(exp);
+        long eventsCompleted = completedEvents(userId);
+        List<IslandTierPolicy> activePolicies = policies.findActivePolicies();
+        int maxTier = maxTierOf(activePolicies);
+        Integer nextTier = nextTierOf(island.getTier(), activePolicies);
+        return buildResponse(island, layout, bySlot, items,
+                exp, currentLevel, eventsCompleted,
+                activePolicies, nextTier, maxTier, now);
+    }
+
+    private IslandResponse buildResponse(UserIsland island,
+            List<IslandSlot> layout,
+            Map<UUID, UserIslandPlacement> bySlot,
+            Map<UUID, ItemCatalog> items,
+            long currentExp,
+            int currentLevel,
+            long eventsCompleted,
+            List<IslandTierPolicy> activePolicies,
+            Integer nextTier,
+            int maxTier,
+            Instant now) {
+        List<IslandResponse.SlotView> slotViews = layout.stream()
+                .map(s -> {
+                    UserIslandPlacement p = bySlot.get(s.getId());
+                    ItemCatalog placed = p == null ? null
+                            : items.get(p.getItemId());
+                    return new IslandResponse.SlotView(
+                            s.getId(), s.getSlotIndex(), s.getTierRequired(),
+                            s.getTierRequired() <= island.getTier(),
+                            s.getCoordX(), s.getCoordY(),
+                            p == null ? null : p.getItemId(),
+                            placed == null ? null : placed.getCode(),
+                            placed == null ? null : placed.getRenderKey(),
+                            p == null ? null : p.getPlacedAt());
+                })
+                .toList();
+
+        int nextRequiredEvents = nextTier == null ? -1
+                : requiredEventsFor(nextTier, activePolicies);
+        int nextSlots = nextTier == null ? 0
+                : slotCountFor(nextTier, activePolicies);
+
+        // requiredLevel từ policy (null = cấu hình chưa set → canUpgrade=false)
+        Integer nextTierRequiredLevel = nextTier == null ? null
+                : requiredLevelForStrict(nextTier, activePolicies);
+        Long nextTierRequiredExp = null;
+        if (nextTierRequiredLevel != null) {
+            long minExp = levelService.minExpForLevel(nextTierRequiredLevel);
+            nextTierRequiredExp = minExp >= 0 ? minExp : null;
+        }
+
+        // canUpgrade: chỉ true khi có level config hợp lệ VÀ đủ level
+        boolean canUpgrade = nextTier != null
+                && nextTierRequiredLevel != null
+                && levelService.hasValidConfiguration()
+                && currentLevel >= nextTierRequiredLevel;
+
+        return new IslandResponse(
+                island.getTier(), maxTier, island.getRowVersion(),
+                eventsCompleted,
+                nextTier, nextRequiredEvents, nextSlots, canUpgrade,
+                island.getUpgradedAt(), slotViews, now,
+                currentExp, currentLevel, nextTierRequiredLevel,
+                nextTierRequiredExp);
     }
 }

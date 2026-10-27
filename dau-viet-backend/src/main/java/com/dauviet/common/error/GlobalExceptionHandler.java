@@ -536,6 +536,17 @@ public class GlobalExceptionHandler {
                 ex.getMessage(), Map.of());
     }
 
+    /** 503 — Cấu hình Island (tier policy hoặc level thresholds) không hợp lệ (ISLAND-02). */
+    @ExceptionHandler(com.dauviet.island.domain.IslandExceptions.IslandConfigurationInvalidException.class)
+    public ResponseEntity<ApiError> handleIslandConfigurationInvalid(
+            com.dauviet.island.domain.IslandExceptions.IslandConfigurationInvalidException ex) {
+        Map<String, Object> details = Map.of("targetTier", ex.getTargetTier());
+        return build(HttpStatus.SERVICE_UNAVAILABLE,
+                ErrorCode.ISLAND_CONFIGURATION_INVALID,
+                "Island configuration is invalid or incomplete; contact support",
+                details);
+    }
+
     /* ---------- PATH-01: Learning Path 2.0 ---------- */
 
     @ExceptionHandler(com.dauviet.path.domain.LearningPathExceptions.PathNotFoundException.class)

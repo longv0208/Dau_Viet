@@ -166,4 +166,21 @@ public final class IslandExceptions {
             super("island feature is disabled");
         }
     }
+
+    /**
+     * 503 — island_tier_policies hoặc account_level_thresholds không hợp lệ
+     * hoặc thiếu cấu hình cho tier được yêu cầu (ISLAND-02).
+     * Trả 503 để phân biệt rõ với 422 (user chưa đủ điều kiện): đây là lỗi
+     * cấu hình phía server, không phải lỗi người dùng.
+     */
+    public static class IslandConfigurationInvalidException extends RuntimeException {
+        private final int targetTier;
+
+        public IslandConfigurationInvalidException(int targetTier) {
+            super("island configuration invalid for tier upgrade to " + targetTier);
+            this.targetTier = targetTier;
+        }
+
+        public int getTargetTier() { return targetTier; }
+    }
 }

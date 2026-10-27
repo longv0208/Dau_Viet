@@ -188,15 +188,10 @@ final islandWalletProvider = FutureProvider.autoDispose<WalletDto>(
     if (ApiConfig.useMock) {
       return repo.getWallet();
     }
-    try {
-      return await ref.read(authRepositoryProvider).withAuth(repo.getWallet);
-    } catch (_) {
-      // Fallback: nếu /me/wallet chưa bật, lấy historyPoints từ /me/rewards/summary
-      final summary = await ref
-          .read(authRepositoryProvider)
-          .withAuth(() => ref.read(rewardRepositoryProvider).summary());
-      return WalletDto(historyPoints: summary.historyPoints, exp: summary.exp);
-    }
+    // Không fallback sang rewardSummary: historyPoints trong summary là giá
+    // trị tích lũy suốt đời, không phải số dư hiện có trong ví. Nếu
+    // /me/wallet thất bại thì rethrow để UI hiển thị trạng thái lỗi.
+    return ref.read(authRepositoryProvider).withAuth(repo.getWallet);
   },
 );
 

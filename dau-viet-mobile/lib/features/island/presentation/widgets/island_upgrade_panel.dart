@@ -6,7 +6,9 @@ import '../../../../core/theme/dau_viet_typography.dart';
 import '../../../../core/widgets/tactile_3d_button.dart';
 import '../../data/island_dto.dart';
 
-/// Modal / Bottom sheet hiển thị tiến độ và thao tác mở rộng Đảo Di Sản.
+/// Modal / Bottom sheet hiển thị tiến độ EXP / Level và thao tác mở rộng
+/// Đảo Di Sản. Eligibility hoàn toàn đến từ backend (island.canUpgrade).
+/// ISLAND-02: thay thế hiển thị số sự kiện bằng EXP + Level.
 class IslandUpgradePanel extends StatelessWidget {
   final IslandDto island;
   final VoidCallback onUpgrade;
@@ -19,12 +21,41 @@ class IslandUpgradePanel extends StatelessWidget {
     this.isUpgrading = false,
   });
 
+  static String _tierName(int tier) {
+    switch (tier) {
+      case 1:
+        return 'Nhỏ';
+      case 2:
+        return 'Vừa';
+      case 3:
+        return 'Lớn';
+      default:
+        return 'Cấp $tier';
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
-    final progress = island.progress;
     final currentTier = island.tier;
-    final nextTier = (currentTier + 1).clamp(1, island.maxTier);
+    final nextTier = island.isMaxTier ? currentTier : (currentTier + 1);
     final isMax = island.isMaxTier;
+
+    final currentExp = island.currentExp;
+    final currentLevel = island.currentLevel;
+    final nextReqLevel = island.nextTierRequiredLevel;
+    final nextReqExp = island.nextTierRequiredExp;
+    final canUpgrade = island.canUpgrade;
+
+    // Tiến độ EXP tới ngưỡng yêu cầu (0.0–1.0)
+    final double progressFraction = (nextReqExp != null && nextReqExp > 0)
+        ? (currentExp / nextReqExp).clamp(0.0, 1.0)
+        : (canUpgrade ? 1.0 : 0.0);
+
+    // Số EXP còn thiếu
+    final int expRemaining =
+        (nextReqExp != null && currentExp < nextReqExp)
+            ? (nextReqExp - currentExp)
+            : 0;
 
     return Container(
       padding: const EdgeInsets.fromLTRB(20, 16, 20, 28),
@@ -78,8 +109,8 @@ class IslandUpgradePanel extends StatelessWidget {
                     ),
                     Text(
                       isMax
-                          ? 'Đảo đã đạt quy mô cực đại'
-                          : 'Khai khẩn thêm lãnh thổ từ Cấp $currentTier lên Cấp $nextTier',
+                          ? 'Đảo Di Sản đã đạt quy mô lớn nhất'
+                          : 'Từ Đảo ${_tierName(currentTier)} lên Đảo ${_tierName(nextTier)}',
                       style: DauVietTypography.bodySmall.copyWith(
                         color: DauVietColors.inkMuted,
                       ),
@@ -111,7 +142,7 @@ class IslandUpgradePanel extends StatelessWidget {
               children: [
                 _buildTierBadge(
                   title: 'Hiện Tại',
-                  tier: currentTier,
+                  label: 'Đảo ${_tierName(currentTier)}',
                   color: DauVietColors.heritageGreen,
                 ),
                 const Icon(
@@ -121,7 +152,7 @@ class IslandUpgradePanel extends StatelessWidget {
                 ),
                 _buildTierBadge(
                   title: 'Mục Tiêu',
-                  tier: isMax ? currentTier : nextTier,
+                  label: isMax ? 'Tối Đa' : 'Đảo ${_tierName(nextTier)}',
                   color: isMax
                       ? DauVietColors.inkMuted
                       : DauVietColors.cinnabarRed,
@@ -131,14 +162,42 @@ class IslandUpgradePanel extends StatelessWidget {
           ),
           const SizedBox(height: 20),
 
-          // Thanh tiến độ sự kiện
-          if (!isMax) ...[
+          // EXP / Level hiện tại
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+            decoration: BoxDecoration(
+              color: DauVietColors.parchmentDim,
+              borderRadius: BorderRadius.circular(12),
+            ),
+            child: Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                Text(
+                  'Cấp tài khoản',
+                  style: DauVietTypography.bodyMedium.copyWith(
+                    color: DauVietColors.inkMuted,
+                  ),
+                ),
+                Text(
+                  'Cấp $currentLevel  ·  $currentExp EXP',
+                  style: DauVietTypography.bodyMedium.copyWith(
+                    fontWeight: FontWeight.bold,
+                    color: DauVietColors.inkText,
+                  ),
+                ),
+              ],
+            ),
+          ),
+          const SizedBox(height: 12),
+
+          // Thanh tiến độ EXP (chỉ hiện khi chưa max và có ngưỡng)
+          if (!isMax && nextReqExp != null) ...[
             Row(
               mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [
                 Expanded(
                   child: Text(
-                    'Sự kiện lịch sử hoàn thành',
+                    'EXP để mở Đảo ${_tierName(nextTier)}',
                     style: DauVietTypography.bodyMedium.copyWith(
                       fontWeight: FontWeight.bold,
                       color: DauVietColors.inkText,
@@ -146,7 +205,7 @@ class IslandUpgradePanel extends StatelessWidget {
                   ),
                 ),
                 Text(
-                  '${progress.completedEvents} / ${progress.nextTierRequiredEvents}',
+                  '$currentExp / $nextReqExp',
                   style: DauVietTypography.bodyMedium.copyWith(
                     fontWeight: FontWeight.bold,
                     color: DauVietColors.cinnabarRed,
@@ -158,7 +217,7 @@ class IslandUpgradePanel extends StatelessWidget {
             ClipRRect(
               borderRadius: BorderRadius.circular(8),
               child: LinearProgressIndicator(
-                value: progress.progressFraction,
+                value: progressFraction,
                 minHeight: 12,
                 backgroundColor: DauVietColors.outlineVariant.withValues(
                   alpha: 0.4,
@@ -179,11 +238,14 @@ class IslandUpgradePanel extends StatelessWidget {
               borderRadius: BorderRadius.circular(12),
             ),
             child: Text(
-              isMax
-                  ? 'Tuyệt vời! Đảo của bạn đã khai mở toàn bộ các phân khu di sản.'
-                  : progress.canUpgrade
-                  ? 'Chúc mừng! Bạn đã tích lũy đủ thành tựu lịch sử để mở rộng đảo sang Cấp $nextTier. Hãy nhấn nút để khai mở các vị trí mới!'
-                  : 'Cần hoàn thành thêm ${progress.nextTierRequiredEvents - progress.completedEvents} sự kiện lịch sử trên Hành trình để đủ điều kiện mở rộng đảo.',
+              _buildHintText(
+                isMax: isMax,
+                canUpgrade: canUpgrade,
+                nextTier: nextTier,
+                nextReqLevel: nextReqLevel,
+                nextReqExp: nextReqExp,
+                expRemaining: expRemaining,
+              ),
               style: DauVietTypography.bodyMedium.copyWith(
                 fontSize: 13,
                 color: DauVietColors.inkText,
@@ -194,7 +256,7 @@ class IslandUpgradePanel extends StatelessWidget {
           const SizedBox(height: 20),
 
           // Nút hành động
-          if (progress.canUpgrade && !isMax)
+          if (canUpgrade && !isMax)
             Tactile3DButton(
               label: 'MỞ RỘNG ĐẢO NGAY',
               icon: Icons.auto_awesome_rounded,
@@ -204,8 +266,8 @@ class IslandUpgradePanel extends StatelessWidget {
             )
           else if (!isMax)
             Tactile3DButton(
-              label: 'TIẾP TỤC HÀNH TRÌNH KHẢO CỔ',
-              icon: Icons.map_rounded,
+              label: 'TIẾP TỤC HỌC ĐỂ TÍCH LŨY EXP',
+              icon: Icons.school_rounded,
               variant: Tactile3DVariant.secondaryParchment,
               onPressed: () {
                 Navigator.of(context).pop();
@@ -214,7 +276,7 @@ class IslandUpgradePanel extends StatelessWidget {
             )
           else
             Tactile3DButton(
-              label: 'ĐÃ ĐẠT QUY MÔ TỐI ĐA',
+              label: 'ĐÃ ĐẠT QUY MÔ LỚN NHẤT',
               variant: Tactile3DVariant.secondaryParchment,
               onPressed: null,
             ),
@@ -223,9 +285,32 @@ class IslandUpgradePanel extends StatelessWidget {
     );
   }
 
+  String _buildHintText({
+    required bool isMax,
+    required bool canUpgrade,
+    required int nextTier,
+    required int? nextReqLevel,
+    required int? nextReqExp,
+    required int expRemaining,
+  }) {
+    if (isMax) {
+      return 'Tuyệt vời! Đảo Di Sản của bạn đã đạt quy mô lớn nhất.';
+    }
+    if (canUpgrade) {
+      return 'Chúc mừng! Bạn đã đủ điều kiện mở rộng sang Đảo ${_tierName(nextTier)}. '
+          'Hãy nhấn nút để khai mở các vị trí mới!';
+    }
+    if (nextReqLevel != null && nextReqExp != null) {
+      return 'Cần đạt Cấp $nextReqLevel (tối thiểu $nextReqExp EXP) để mở Đảo '
+          '${_tierName(nextTier)}. Còn $expRemaining EXP nữa — tiếp tục hoàn '
+          'thành các bài học để tích lũy.';
+    }
+    return 'Tiếp tục hoàn thành các bài học để tích lũy EXP và mở rộng Đảo Di Sản.';
+  }
+
   Widget _buildTierBadge({
     required String title,
-    required int tier,
+    required String label,
     required Color color,
   }) {
     return Column(
@@ -252,11 +337,11 @@ class IslandUpgradePanel extends StatelessWidget {
             ],
           ),
           child: Text(
-            'CẤP $tier',
+            label.toUpperCase(),
             style: DauVietTypography.bodyMedium.copyWith(
               color: Colors.white,
               fontWeight: FontWeight.bold,
-              fontSize: 14,
+              fontSize: 13,
             ),
           ),
         ),

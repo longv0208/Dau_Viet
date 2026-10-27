@@ -67,6 +67,15 @@ public class UserIsland {
         this.updatedAt = now;
     }
 
+    /**
+     * Cập nhật updatedAt để JPA @Version tăng row_version sau khi save.
+     * Dùng sau place/remove placement thành công — placement không thay đổi
+     * UserIsland trực tiếp, nhưng revision phải tăng để client detect conflict.
+     */
+    public void touch(Instant now) {
+        this.updatedAt = now;
+    }
+
     public UUID getUserId() { return userId; }
     public int getTier() { return tier; }
     public String getLayoutCode() { return layoutCode; }

@@ -68,6 +68,8 @@ public enum ErrorCode {
     // ISLAND-01: Level-based eligibility (V38)
     ISLAND_UPGRADE_INSUFFICIENT_LEVEL,
     STALE_ISLAND_REVISION,
+    // ISLAND-02: server-side config invalid (tier policy or level thresholds missing)
+    ISLAND_CONFIGURATION_INVALID,
     ITEM_NOT_FOR_SALE,
     FEATURE_DISABLED,
     INTERNAL_ERROR

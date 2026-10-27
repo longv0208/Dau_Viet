@@ -38,6 +38,8 @@ class IslandApiClient {
   }
 
   /// Gỡ vật phẩm khỏi slot và cất về kho với expectedRevision.
+  /// expectedRevision được truyền qua query-parameter, không phải request body
+  /// (backend dùng @RequestParam Long expectedRevision trên DELETE endpoint).
   Future<IslandDto> removePlacement({
     required String slotId,
     required int expectedRevision,
@@ -45,10 +47,10 @@ class IslandApiClient {
   }) async {
     final json = await _client.delete(
       '/api/v1/me/island/placements/$slotId',
+      query: {'expectedRevision': expectedRevision},
       headers: idempotencyKey != null
           ? {'Idempotency-Key': idempotencyKey}
           : null,
-      body: {'expectedRevision': expectedRevision},
     );
     return IslandDto.fromJson(json);
   }
