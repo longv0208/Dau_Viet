@@ -55,6 +55,7 @@ public record IslandResponse(
             String placedItemCode,
             String placedItemName,
             String placedRenderKey,
+            UUID placedAssetId,
             Instant placedAt,
             // V44 layout fields
             String stableSlotKey,
@@ -66,6 +67,35 @@ public record IslandResponse(
             double heightNorm,
             List<String> allowedCategories
     ) {
+        public SlotView(
+                UUID slotId,
+                int slotIndex,
+                int tierRequired,
+                boolean unlocked,
+                double coordX,
+                double coordY,
+                UUID placedItemId,
+                String placedItemCode,
+                String placedItemName,
+                String placedRenderKey,
+                Instant placedAt,
+                String stableSlotKey,
+                String regionCode,
+                int zIndex,
+                double anchorX,
+                double anchorY,
+                double widthNorm,
+                double heightNorm,
+                List<String> allowedCategories
+        ) {
+            this(
+                    slotId, slotIndex, tierRequired, unlocked, coordX, coordY,
+                    placedItemId, placedItemCode, placedItemName, placedRenderKey, null, placedAt,
+                    stableSlotKey, regionCode, zIndex, anchorX, anchorY,
+                    widthNorm, heightNorm, allowedCategories
+            );
+        }
+
         public SlotView(
                 UUID slotId,
                 int slotIndex,
@@ -88,7 +118,7 @@ public record IslandResponse(
         ) {
             this(
                     slotId, slotIndex, tierRequired, unlocked, coordX, coordY,
-                    placedItemId, placedItemCode, placedItemCode, placedRenderKey, placedAt,
+                    placedItemId, placedItemCode, placedItemCode, placedRenderKey, null, placedAt,
                     stableSlotKey, regionCode, zIndex, anchorX, anchorY,
                     widthNorm, heightNorm, allowedCategories
             );

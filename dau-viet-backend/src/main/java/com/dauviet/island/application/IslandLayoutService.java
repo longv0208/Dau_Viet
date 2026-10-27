@@ -101,9 +101,6 @@ public class IslandLayoutService {
     public Optional<DefaultPublishedLayout> findDefaultPublishedLayout() {
         Optional<IslandLayoutVersion> verOpt = versions.findDefaultPublishedVersion();
         if (verOpt.isEmpty()) {
-            verOpt = versions.findPublishedByLayoutKey(DEFAULT_LAYOUT_KEY);
-        }
-        if (verOpt.isEmpty()) {
             return Optional.empty();
         }
         IslandLayoutVersion ver = verOpt.get();
@@ -173,30 +170,23 @@ public class IslandLayoutService {
         if (definitions.findByLayoutKey(key).isPresent()) {
             throw new IllegalArgumentException("Layout key already exists: " + key);
         }
+        if (Boolean.TRUE.equals(req.defaultLayout())) {
+            throw new IllegalArgumentException(
+                    "Không thể đặt bố cục mới làm mặc định khi chưa có phiên bản PUBLISHED. Vui lòng tạo bố cục, kiểm tra và xuất bản (Publish) trước khi đặt làm mặc định.");
+        }
         Instant now = Instant.now(clock);
         UUID defId = UUID.randomUUID();
         double cw = req.canvasWidth() != null ? req.canvasWidth() : 960.0;
         double ch = req.canvasHeight() != null ? req.canvasHeight() : 720.0;
 
-        // Serialize thao tác chuyển default bằng PESSIMISTIC_WRITE trên các default hiện có
-        List<IslandLayoutDefinition> currentDefaults = definitions.lockAllDefaults();
-        boolean isDefault = Boolean.TRUE.equals(req.defaultLayout()) || currentDefaults.isEmpty();
-
-        // Hủy mặc định cũ và flush TRƯỚC khi bật mặc định mới để không bao giờ vi phạm ux_island_layout_def_default
-        if (isDefault && !currentDefaults.isEmpty()) {
-            for (IslandLayoutDefinition oldDef : currentDefaults) {
-                oldDef.setDefaultLayout(false, now);
-                definitions.save(oldDef);
-            }
-            definitions.flush();
-        }
-
+        // Bố cục mới tạo chỉ có DRAFT v1 nên luôn khởi tạo với defaultLayout = false
+        // để không bao giờ xóa cờ default của bố cục PUBLISHED đang hoạt động.
         IslandLayoutDefinition def = IslandLayoutDefinition.create(
                 defId, key, req.name().trim(),
                 req.description() != null ? req.description().trim() : null,
                 cw, ch,
                 req.themeKey() != null && !req.themeKey().isBlank() ? req.themeKey().trim() : "heritage",
-                isDefault, now
+                false, now
         );
         definitions.saveAndFlush(def);
 
@@ -218,9 +208,8 @@ public class IslandLayoutService {
                 req.themeKey(), !hasPublishedOrArchived, now
         );
         if (Boolean.TRUE.equals(req.defaultLayout()) && !def.isDefaultLayout()) {
-            // Bố cục mặc định phải có phiên bản PUBLISHED để không tạo khoảng trống cho user mới
-            if (versions.findPublishedByDefinitionId(layoutId).isEmpty()
-                    && findDefaultPublishedLayout().isPresent()) {
+            // Bố cục mặc định bắt buộc phải có phiên bản PUBLISHED hợp lệ trước khi nhận cờ mặc định
+            if (versions.findPublishedByDefinitionId(layoutId).isEmpty()) {
                 throw new IllegalArgumentException(
                         "Chỉ có thể đặt làm bố cục mặc định sau khi bố cục này đã có phiên bản PUBLISHED");
             }
@@ -340,6 +329,59 @@ public class IslandLayoutService {
         IslandLayoutDefinition def = definitions.findById(ver.getDefinitionId())
                 .orElseThrow(() -> new ResourceNotFoundException("Island layout not found: " + ver.getDefinitionId()));
 
+        List<RegionDto> incomingRegions = req.regions() != null ? req.regions() : List.of();
+        List<SlotDto> incomingSlots = req.slots() != null ? req.slots() : List.of();
+        List<SceneLayerDto> incomingLayers = req.sceneLayers() != null ? req.sceneLayers() : List.of();
+
+        // Kiểm tra trùng khóa / chỉ mục trước khi ghi để không tự ý đổi tên âm thầm làm sai lệch cấu hình Admin
+        List<ValidationError> snapshotKeyErrors = new ArrayList<>();
+        Set<String> checkRegionCodes = new HashSet<>();
+        for (int i = 0; i < incomingRegions.size(); i++) {
+            RegionDto r = incomingRegions.get(i);
+            String code = r.regionCode() != null && !r.regionCode().isBlank()
+                    ? r.regionCode().trim()
+                    : "REGION_" + (i + 1);
+            if (!checkRegionCodes.add(code)) {
+                snapshotKeyErrors.add(new ValidationError(
+                        "REGION", code, "regionCode", "DUPLICATE_REGION_CODE",
+                        "Trùng mã vùng đất (regionCode): " + code));
+            }
+        }
+        Set<String> checkSlotKeys = new HashSet<>();
+        Set<Integer> checkSlotIndices = new HashSet<>();
+        for (int i = 0; i < incomingSlots.size(); i++) {
+            SlotDto s = incomingSlots.get(i);
+            int slotIndex = s.slotIndex() > 0 ? s.slotIndex() : (i + 1);
+            String key = s.stableSlotKey() != null && !s.stableSlotKey().isBlank()
+                    ? s.stableSlotKey().trim()
+                    : "slot_" + slotIndex;
+            if (!checkSlotKeys.add(key)) {
+                snapshotKeyErrors.add(new ValidationError(
+                        "SLOT", key, "stableSlotKey", "DUPLICATE_SLOT_KEY",
+                        "Trùng khóa định danh slot (stableSlotKey): " + key));
+            }
+            if (!checkSlotIndices.add(slotIndex)) {
+                snapshotKeyErrors.add(new ValidationError(
+                        "SLOT", key, "slotIndex", "DUPLICATE_SLOT_INDEX",
+                        "Slot '" + key + "' bị trùng chỉ mục (slotIndex): " + slotIndex));
+            }
+        }
+        Set<String> checkLayerKeys = new HashSet<>();
+        for (int i = 0; i < incomingLayers.size(); i++) {
+            SceneLayerDto l = incomingLayers.get(i);
+            String lKey = l.layerKey() != null && !l.layerKey().isBlank()
+                    ? l.layerKey().trim()
+                    : "layer_" + (i + 1);
+            if (!checkLayerKeys.add(lKey)) {
+                snapshotKeyErrors.add(new ValidationError(
+                        "LAYER", lKey, "layerKey", "DUPLICATE_LAYER_KEY",
+                        "Trùng khóa lớp cảnh quan (layerKey): " + lKey));
+            }
+        }
+        if (!snapshotKeyErrors.isEmpty()) {
+            throw new IslandLayoutValidationException(snapshotKeyErrors);
+        }
+
         Instant now = Instant.now(clock);
 
         // 1. Update regions safely in-place without duplicate UUID conflicts
@@ -350,7 +392,6 @@ public class IslandLayoutService {
         Map<String, IslandLayoutRegion> existingRegionByCode = existingRegions.stream()
                 .collect(Collectors.toMap(IslandLayoutRegion::getRegionCode, r -> r, (a, b) -> a));
 
-        List<RegionDto> incomingRegions = req.regions() != null ? req.regions() : List.of();
         Set<UUID> keptRegionIds = new HashSet<>();
         List<IslandLayoutRegion> matchedRegions = new ArrayList<>();
         for (RegionDto r : incomingRegions) {
@@ -381,17 +422,12 @@ public class IslandLayoutService {
         regions.flush();
 
         int idx = 1;
-        Set<String> seenCodes = new HashSet<>();
         for (int i = 0; i < incomingRegions.size(); i++) {
             RegionDto r = incomingRegions.get(i);
             IslandLayoutRegion existingReg = matchedRegions.get(i);
             String code = r.regionCode() != null && !r.regionCode().isBlank()
                     ? r.regionCode().trim()
                     : "REGION_" + idx;
-            if (!seenCodes.add(code)) {
-                code = code + "_" + idx;
-                seenCodes.add(code);
-            }
             int unlockTier = r.unlockTier() > 0 ? r.unlockTier() : 1;
             String boundsJson = r.boundsJson() != null && !r.boundsJson().isBlank()
                     ? r.boundsJson()
@@ -419,7 +455,6 @@ public class IslandLayoutService {
                 .filter(s -> s.getStableSlotKey() != null)
                 .collect(Collectors.toMap(IslandSlot::getStableSlotKey, s -> s, (a, b) -> a));
 
-        List<SlotDto> incomingSlots = req.slots() != null ? req.slots() : List.of();
         Set<UUID> keptSlotIds = new HashSet<>();
         List<IslandSlot> matchedSlots = new ArrayList<>();
         for (SlotDto s : incomingSlots) {
@@ -462,23 +497,14 @@ public class IslandLayoutService {
         }
         slots.flush();
 
-        Set<Integer> usedIndices = new HashSet<>();
-        Set<String> usedKeys = new HashSet<>();
         for (int i = 0; i < incomingSlots.size(); i++) {
             SlotDto s = incomingSlots.get(i);
             IslandSlot existingSlot = matchedSlots.get(i);
             int slotCounter = i + 1;
             int slotIndex = s.slotIndex() > 0 ? s.slotIndex() : slotCounter;
-            while (!usedIndices.add(slotIndex)) {
-                slotIndex++;
-            }
             String key = s.stableSlotKey() != null && !s.stableSlotKey().isBlank()
                     ? s.stableSlotKey().trim()
                     : "slot_" + slotIndex;
-            if (!usedKeys.add(key)) {
-                key = key + "_" + slotIndex;
-                usedKeys.add(key);
-            }
             String allowedJson = serializeAllowedCategories(s.allowedCategories());
             double w = s.widthNorm() > 0 ? s.widthNorm() : 0.10;
             double h = s.heightNorm() > 0 ? s.heightNorm() : 0.12;
@@ -510,7 +536,6 @@ public class IslandLayoutService {
         Map<String, IslandSceneLayer> existingLayerByKey = existingLayers.stream()
                 .collect(Collectors.toMap(IslandSceneLayer::getLayerKey, l -> l, (a, b) -> a));
 
-        List<SceneLayerDto> incomingLayers = req.sceneLayers() != null ? req.sceneLayers() : List.of();
         Set<UUID> keptLayerIds = new HashSet<>();
         List<IslandSceneLayer> matchedLayers = new ArrayList<>();
         for (SceneLayerDto l : incomingLayers) {
@@ -541,19 +566,14 @@ public class IslandLayoutService {
         sceneLayers.flush();
 
         int lIdx = 1;
-        Set<String> seenLayerKeys = new HashSet<>();
         for (int i = 0; i < incomingLayers.size(); i++) {
             SceneLayerDto l = incomingLayers.get(i);
             IslandSceneLayer existingLayer = matchedLayers.get(i);
             String lKey = l.layerKey() != null && !l.layerKey().isBlank()
                     ? l.layerKey().trim()
                     : "layer_" + lIdx;
-            if (!seenLayerKeys.add(lKey)) {
-                lKey = lKey + "_" + lIdx;
-                seenLayerKeys.add(lKey);
-            }
             String layerType = l.layerType() != null ? l.layerType().trim().toUpperCase() : "STATIC_IMAGE";
-            String assetRef = l.assetRef() != null && !l.assetRef().isBlank() ? l.assetRef().trim() : null;
+            String assetRef = normalizeLayerAssetRef(l.assetRef());
             String visRule = l.visibilityRuleJson() != null && !l.visibilityRuleJson().isBlank()
                     ? l.visibilityRuleJson()
                     : "{\"minTier\":1,\"maxTier\":3}";
@@ -616,12 +636,37 @@ public class IslandLayoutService {
         ver.publish(now);
         versions.saveAndFlush(ver);
 
+        // Nếu toàn hệ thống chưa có bố cục mặc định nào đang sở hữu phiên bản PUBLISHED,
+        // tự động đặt bố cục vừa xuất bản này làm mặc định cho người dùng mới.
+        if (versions.findDefaultPublishedVersion().isEmpty()) {
+            List<IslandLayoutDefinition> currentDefaults = definitions.lockAllDefaults();
+            for (IslandLayoutDefinition oldDef : currentDefaults) {
+                if (!oldDef.getId().equals(def.getId())) {
+                    oldDef.setDefaultLayout(false, now);
+                    definitions.save(oldDef);
+                }
+            }
+            definitions.flush();
+            def.setDefaultLayout(true, now);
+        }
+
         def.updateMetadata(null, null, null, null, null, false, now);
         definitions.saveAndFlush(def);
 
         log.info("Published island layout version id={} layoutKey={} v={}",
                 ver.getId(), def.getLayoutKey(), ver.getVersionNumber());
         return getVersion(versionId);
+    }
+
+    private String normalizeLayerAssetRef(String rawRef) {
+        if (rawRef == null || rawRef.isBlank()) {
+            return null;
+        }
+        String trimmed = rawRef.trim();
+        if (trimmed.startsWith("/api/v1/admin/assets/")) {
+            return "/api/v1/assets/" + trimmed.substring("/api/v1/admin/assets/".length());
+        }
+        return trimmed;
     }
 
     @Transactional

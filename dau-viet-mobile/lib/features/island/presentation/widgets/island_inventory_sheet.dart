@@ -433,6 +433,9 @@ class _IslandInventorySheetState extends ConsumerState<IslandInventorySheet> {
     required bool isCurrentSlotItem,
   }) {
     final assetPath = resolveIslandAsset(item.renderKey, item.code, item.assetId);
+    final remoteUrl =
+        resolveIslandRemoteAssetUrl(item.assetId) ??
+        resolveIslandRemoteAssetUrl(item.renderKey);
     final bool isAllowedCategory = _isAllowedInTargetSlot(item);
     final bool slotIsEmpty = widget.targetSlot.isEmpty;
     final bool canPlaceHere =
@@ -478,6 +481,22 @@ class _IslandInventorySheetState extends ConsumerState<IslandInventorySheet> {
                 if (assetPath != null)
                   Image.asset(
                     assetPath,
+                    fit: BoxFit.contain,
+                    errorBuilder: (context, error, stackTrace) =>
+                        remoteUrl != null
+                        ? Image.network(
+                            remoteUrl,
+                            headers: islandAuthHeaders(),
+                            fit: BoxFit.contain,
+                            errorBuilder: (context, error, stackTrace) =>
+                                _buildNeutralArtwork(item),
+                          )
+                        : _buildNeutralArtwork(item),
+                  )
+                else if (remoteUrl != null)
+                  Image.network(
+                    remoteUrl,
+                    headers: islandAuthHeaders(),
                     fit: BoxFit.contain,
                     errorBuilder: (context, error, stackTrace) =>
                         _buildNeutralArtwork(item),

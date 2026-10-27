@@ -3,6 +3,42 @@ import 'dart:ui';
 
 import 'package:flutter/foundation.dart';
 
+import '../../../core/api/api_client.dart';
+import '../../../core/api/api_config.dart';
+
+final RegExp _uuidRegExp = RegExp(
+  r'^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$',
+);
+
+/// Header xác thực Bearer cho `Image.network` khi tải tài nguyên qua `/api/v1/assets/{id}/content`.
+Map<String, String>? islandAuthHeaders() {
+  final token = ApiClient.authTokenProvider?.call();
+  if (token == null || token.isEmpty) return null;
+  return {'Authorization': 'Bearer $token'};
+}
+
+/// Chuyển đổi `assetId` (UUID) hoặc đường dẫn `/api/v1/assets/...` thành URL đầy đủ
+/// dành cho người học (tuyệt đối không gọi `/api/v1/admin/assets/...` từ mobile).
+String? resolveIslandRemoteAssetUrl(String? rawRefOrAssetId) {
+  if (rawRefOrAssetId == null) return null;
+  final trimmed = rawRefOrAssetId.trim();
+  if (trimmed.isEmpty) return null;
+  if (_uuidRegExp.hasMatch(trimmed)) {
+    return '${ApiConfig.baseUrl}/api/v1/assets/$trimmed/content';
+  }
+  if (trimmed.startsWith('/api/v1/admin/assets/')) {
+    final rest = trimmed.substring('/api/v1/admin/assets/'.length);
+    return '${ApiConfig.baseUrl}/api/v1/assets/$rest';
+  }
+  if (trimmed.startsWith('/api/v1/assets/')) {
+    return '${ApiConfig.baseUrl}$trimmed';
+  }
+  if (trimmed.startsWith('http://') || trimmed.startsWith('https://')) {
+    return trimmed.replaceFirst('/api/v1/admin/assets/', '/api/v1/assets/');
+  }
+  return null;
+}
+
 /// Trả về đường dẫn asset cục bộ đã đóng gói dựa vào renderKey hoặc code.
 /// Trả về null nếu vật phẩm chưa có tranh minh họa cục bộ tương ứng —
 /// tuyệt đối KHÔNG biến mọi vật phẩm lạ thành `decor_nha_tranh.png`.
@@ -75,6 +111,10 @@ class IslandPlacementDto {
   });
 
   String? get assetPath => resolveIslandAsset(renderKey, code, assetId);
+
+  String? get remoteAssetUrl =>
+      resolveIslandRemoteAssetUrl(assetId) ??
+      resolveIslandRemoteAssetUrl(renderKey);
 
   factory IslandPlacementDto.fromJson(Map<String, dynamic> json) {
     final code = json['code'] as String? ?? '';
@@ -183,6 +223,7 @@ class IslandSlotDto {
     final placedItemCode = json['placedItemCode'] as String?;
     final placedItemName = json['placedItemName'] as String?;
     final placedRenderKey = json['placedRenderKey'] as String?;
+    final placedAssetId = json['placedAssetId'] as String?;
     // Build placement from flat backend fields, or from legacy nested map
     IslandPlacementDto? placement;
     if (placedItemId != null) {
@@ -195,6 +236,7 @@ class IslandSlotDto {
             ? placedItemName
             : _friendlyItemNameFromCode(placedItemCode, placedRenderKey),
         renderKey: placedRenderKey,
+        assetId: placedAssetId,
       );
     } else if (json['placement'] is Map) {
       placement = IslandPlacementDto.fromJson(
@@ -458,9 +500,20 @@ class IslandDto {
     }
   }
 
-  /// Số slot đã mở khóa hiện tại.
-  int get unlockedSlotCount =>
-      slots.where((s) => s.unlocked || s.unlockTier <= tier).length;
+  /// Số slot đã mở khóa hiện tại (tính cả điều kiện vùng đất chứa slot đã mở khóa).
+  int get unlockedSlotCount {
+    final regionUnlockByCode = <String, int>{
+      for (final r in regions) r.regionCode: r.unlockTier,
+    };
+    return slots.where((s) {
+      final slotUnlocked = s.unlocked && s.unlockTier <= tier;
+      if (!slotUnlocked) return false;
+      if (s.regionCode != null && regionUnlockByCode.containsKey(s.regionCode)) {
+        return regionUnlockByCode[s.regionCode]! <= tier;
+      }
+      return true;
+    }).length;
+  }
 
   /// Alias kept for providers that still reference island.revision.
   int get revision => rowVersion;
@@ -635,6 +688,10 @@ class ShopItemDto {
   bool get isForSale => purchasable && pricePoints != null && pricePoints! > 0;
 
   String? get assetPath => resolveIslandAsset(renderKey, code, assetId);
+
+  String? get remoteAssetUrl =>
+      resolveIslandRemoteAssetUrl(assetId) ??
+      resolveIslandRemoteAssetUrl(renderKey);
 
   ShopItemDto copyWith({bool? owned, bool? ownershipVerified}) {
     return ShopItemDto(

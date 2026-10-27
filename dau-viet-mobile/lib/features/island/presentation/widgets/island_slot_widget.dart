@@ -398,9 +398,17 @@ class _IslandSlotWidgetState extends State<IslandSlotWidget>
                     fit: BoxFit.contain,
                     alignment: Alignment.bottomCenter,
                     errorBuilder: (context, error, stackTrace) =>
-                        _buildFallbackItemRepresentation(placement, artW, artH),
+                        _buildRemoteOrFallbackItemRepresentation(
+                          placement,
+                          artW,
+                          artH,
+                        ),
                   )
-                : _buildFallbackItemRepresentation(placement, artW, artH),
+                : _buildRemoteOrFallbackItemRepresentation(
+                    placement,
+                    artW,
+                    artH,
+                  ),
           ),
         ),
         if (isSelected)
@@ -410,6 +418,25 @@ class _IslandSlotWidgetState extends State<IslandSlotWidget>
           ),
       ],
     );
+  }
+
+  Widget _buildRemoteOrFallbackItemRepresentation(
+    IslandPlacementDto placement,
+    double width,
+    double height,
+  ) {
+    final remoteUrl = placement.remoteAssetUrl;
+    if (remoteUrl != null) {
+      return Image.network(
+        remoteUrl,
+        headers: islandAuthHeaders(),
+        fit: BoxFit.contain,
+        alignment: Alignment.bottomCenter,
+        errorBuilder: (context, error, stackTrace) =>
+            _buildFallbackItemRepresentation(placement, width, height),
+      );
+    }
+    return _buildFallbackItemRepresentation(placement, width, height);
   }
 
   static bool _isKnownSeededDioramaKey(String key) {

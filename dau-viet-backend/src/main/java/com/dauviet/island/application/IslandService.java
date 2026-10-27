@@ -238,8 +238,17 @@ public class IslandService {
         if (placements.findByUserIdAndItemId(userId, req.itemId()).isPresent()) {
             throw new IslandExceptions.ItemAlreadyOwnedException(req.itemId());
         }
-        placements.insertIgnore(userId, slotId, req.itemId());
-        // Bump revision — place thành công luôn tăng row_version
+        int inserted = placements.insertIgnore(userId, slotId, req.itemId());
+        if (inserted != 1) {
+            if (placements.findByUserIdAndSlotId(userId, slotId).isPresent()) {
+                throw new IslandExceptions.SlotOccupiedException(slotId);
+            }
+            if (placements.findByUserIdAndItemId(userId, req.itemId()).isPresent()) {
+                throw new IslandExceptions.ItemAlreadyOwnedException(req.itemId());
+            }
+            throw new IslandExceptions.SlotOccupiedException(slotId);
+        }
+        // Bump revision — chỉ khi insert thực sự thành công (inserted == 1)
         island.touch(now);
         islands.saveAndFlush(island);
         log.info("island placement user={} slot={} item={}",
@@ -507,6 +516,7 @@ public class IslandService {
                             placedItem == null ? null : placedItem.getCode(),
                             placedItem == null ? null : placedItem.getName(),
                             placedItem == null ? null : placedItem.getRenderKey(),
+                            placedItem == null ? null : placedItem.getAssetId(),
                             p == null ? null : p.getPlacedAt(),
                             // V43/V44 fields
                             s.getStableSlotKey(),
@@ -569,13 +579,13 @@ public class IslandService {
                         r.getBoundsJson()))
                 .toList();
 
-        // Scene layer views
+        // Scene layer views (chuẩn hóa assetRef nếu trỏ nhầm vào /api/v1/admin/assets/...)
         List<IslandResponse.SceneLayerView> layerViews = layers.stream()
                 .map(l -> new IslandResponse.SceneLayerView(
                         l.getLayerKey(),
                         l.getLayerType(),
                         l.getRenderOrder(),
-                        l.getAssetRef(),
+                        normalizeLearnerAssetRef(l.getAssetRef()),
                         l.getVisibilityRuleJson()))
                 .toList();
 
@@ -590,5 +600,16 @@ public class IslandService {
                 layoutCode, layoutVersionId, layoutVersionNumber,
                 canvasWidth, canvasHeight, themeKey,
                 regionViews, layerViews);
+    }
+
+    private String normalizeLearnerAssetRef(String rawRef) {
+        if (rawRef == null || rawRef.isBlank()) {
+            return null;
+        }
+        String trimmed = rawRef.trim();
+        if (trimmed.startsWith("/api/v1/admin/assets/")) {
+            return "/api/v1/assets/" + trimmed.substring("/api/v1/admin/assets/".length());
+        }
+        return trimmed;
     }
 }

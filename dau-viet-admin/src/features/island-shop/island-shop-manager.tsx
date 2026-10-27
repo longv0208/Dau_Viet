@@ -274,9 +274,20 @@ export function IslandShopManager() {
                         </td>
                         <td className="px-3 py-3">
                           <div className="flex items-center gap-2.5">
-                            <div className="flex size-10 shrink-0 items-center justify-center rounded-lg border border-amber-300/70 bg-amber-50 text-amber-800">
-                              <Sparkles className="size-5" />
-                            </div>
+                            {offer.assetId ? (
+                              <div className="relative flex size-10 shrink-0 items-center justify-center overflow-hidden rounded-lg border border-amber-300/70 bg-amber-50 text-amber-800">
+                                {/* eslint-disable-next-line @next/next/no-img-element */}
+                                <img
+                                  src={`/api/proxy/assets/${offer.assetId}/content`}
+                                  alt={offer.name}
+                                  className="size-full object-contain p-1"
+                                />
+                              </div>
+                            ) : (
+                              <div className="flex size-10 shrink-0 items-center justify-center rounded-lg border border-amber-300/70 bg-amber-50 text-amber-800">
+                                <Sparkles className="size-5" />
+                              </div>
+                            )}
                             <div className="min-w-0">
                               <code className="block truncate text-xs font-medium text-ink">
                                 {offer.renderKey ?? "Chưa gán renderKey"}

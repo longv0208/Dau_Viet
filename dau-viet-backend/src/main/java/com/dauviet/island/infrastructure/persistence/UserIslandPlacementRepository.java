@@ -32,13 +32,13 @@ public interface UserIslandPlacementRepository
 
     boolean existsBySlotId(UUID slotId);
 
-    /** Đặt vật phẩm; đã chiếm slot hoặc đã đặt item → 0. */
+    /** Đặt vật phẩm; đã chiếm slot hoặc đã đặt item → 0 (xử lý cả PK (user_id, slot_id) và UNIQUE (user_id, item_id)). */
     @Modifying
     @Query(value = """
             INSERT INTO user_island_placements
                 (user_id, slot_id, item_id, placed_at)
             VALUES (:userId, :slotId, :itemId, now())
-            ON CONFLICT (user_id, slot_id) DO NOTHING
+            ON CONFLICT DO NOTHING
             """, nativeQuery = true)
     int insertIgnore(@Param("userId") UUID userId,
                      @Param("slotId") UUID slotId,

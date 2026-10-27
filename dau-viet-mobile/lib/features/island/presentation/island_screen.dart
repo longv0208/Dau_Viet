@@ -50,9 +50,11 @@ class _IslandScreenState extends ConsumerState<IslandScreen>
   int? _expandingFromTier;
   int? _expandingToTier;
   IslandDto? _completedUpgradeIsland;
+  bool _finishingExpansion = false;
 
-  // Trạng thái hướng dẫn người chơi gắn với userId (Part C)
+  // Trạng thái hướng dẫn người chơi gắn với userId (Part C / ISLAND-08 Part B)
   String? _loadedOnboardingUserId;
+  int? _loadedOnboardingTier;
   bool _showWelcomeCard = false;
   bool _showSlotStepHint = false;
   bool _showUpgradeReadyToast = false;
@@ -61,56 +63,109 @@ class _IslandScreenState extends ConsumerState<IslandScreen>
       TransformationController();
 
   @override
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) return;
+      final island = ref.read(islandControllerProvider).asData?.value;
+      if (island != null) {
+        _syncOnboardingForCurrentUser(island);
+      }
+    });
+  }
+
+  @override
   void dispose() {
+    _expansionController?.stop();
     _expansionController?.dispose();
+    _expansionController = null;
     _transformationController.dispose();
     super.dispose();
   }
 
-  String _currentUserId() {
+  /// Trả về `userId` đã xác thực (hoặc `'mock_user'` khi chạy chế độ demo).
+  /// Trả về `null` nếu chưa có phiên đăng nhập hợp lệ — tuyệt đối không dùng chung `'guest'`.
+  String? _currentAuthenticatedUserId() {
     final auth = ref.read(authSessionProvider);
-    return auth.profile?.id ?? 'guest';
+    final profileId = auth.profile?.id.trim();
+    if (auth.isAuthenticated && profileId != null && profileId.isNotEmpty) {
+      return profileId;
+    }
+    if (ref.read(useMockEventsProvider)) {
+      return 'mock_user';
+    }
+    return null;
   }
 
-  Future<void> _ensureOnboardingLoaded(IslandDto island) async {
-    final userId = _currentUserId();
-    if (_loadedOnboardingUserId == userId) return;
-    _loadedOnboardingUserId = userId;
+  void _resetTransientUserUiState() {
+    _expansionController?.stop();
+    _expansionController?.dispose();
+    _expansionController = null;
+    _expandingFromTier = null;
+    _expandingToTier = null;
+    _completedUpgradeIsland = null;
+    _finishingExpansion = false;
+    _loadedOnboardingUserId = null;
+    _loadedOnboardingTier = null;
+    _showWelcomeCard = false;
+    _showSlotStepHint = false;
+    _showUpgradeReadyToast = false;
+    _selectedSlotId = null;
+  }
+
+  Future<void> _syncOnboardingForCurrentUser(IslandDto island) async {
+    final userId = _currentAuthenticatedUserId();
+    if (userId == null) return;
+    if (_loadedOnboardingUserId == userId &&
+        _loadedOnboardingTier == island.tier) {
+      return;
+    }
+    final expectedUserId = userId;
+    final expectedTier = island.tier;
+    _loadedOnboardingUserId = expectedUserId;
+    _loadedOnboardingTier = expectedTier;
 
     try {
       final prefs = await SharedPreferences.getInstance();
-      final doneKey = 'dv_island_onboarding_done_$userId';
+      if (!mounted || _currentAuthenticatedUserId() != expectedUserId) return;
+      final latestIsland = ref.read(islandControllerProvider).asData?.value;
+      if (latestIsland != null && latestIsland.tier != expectedTier) return;
+
+      final doneKey = 'dv_island_onboarding_done_$expectedUserId';
       final upgradeHintKey =
-          'dv_island_upgrade_hint_${userId}_tier_${island.tier}';
+          'dv_island_upgrade_hint_${expectedUserId}_tier_$expectedTier';
 
       final onboardingDone = prefs.getBool(doneKey) ?? false;
       final upgradeHintSeen = prefs.getBool(upgradeHintKey) ?? false;
 
-      if (!mounted) return;
-      if (!onboardingDone && island.tier == 1) {
+      if (!onboardingDone && expectedTier == 1) {
         setState(() {
           _showWelcomeCard = true;
+          _showUpgradeReadyToast = false;
         });
       } else if (island.canUpgrade && !island.isMaxTier && !upgradeHintSeen) {
-        await prefs.setBool(upgradeHintKey, true);
-        if (!mounted) return;
         setState(() {
           _showUpgradeReadyToast = true;
         });
+        await prefs.setBool(upgradeHintKey, true);
       }
     } catch (_) {}
   }
 
   Future<void> _markOnboardingCompleted({required bool exploreSlot}) async {
-    final userId = _currentUserId();
+    final userId = _currentAuthenticatedUserId();
     setState(() {
       _showWelcomeCard = false;
       _showSlotStepHint = exploreSlot;
     });
-    try {
-      final prefs = await SharedPreferences.getInstance();
-      await prefs.setBool('dv_island_onboarding_done_$userId', true);
-    } catch (_) {}
+    if (userId != null) {
+      try {
+        final prefs = await SharedPreferences.getInstance();
+        if (mounted && _currentAuthenticatedUserId() == userId) {
+          await prefs.setBool('dv_island_onboarding_done_$userId', true);
+        }
+      } catch (_) {}
+    }
 
     if (exploreSlot && mounted) {
       final island = ref.read(islandControllerProvider).asData?.value;
@@ -130,6 +185,27 @@ class _IslandScreenState extends ConsumerState<IslandScreen>
 
   @override
   Widget build(BuildContext context) {
+    ref.listen<AuthSessionState>(authSessionProvider, (previous, next) {
+      final prevId = previous?.profile?.id;
+      final nextId = next.profile?.id;
+      if (!next.isAuthenticated || prevId != nextId) {
+        if (mounted) {
+          setState(_resetTransientUserUiState);
+        }
+        final currentIsland = ref.read(islandControllerProvider).asData?.value;
+        if (next.isAuthenticated && currentIsland != null) {
+          _syncOnboardingForCurrentUser(currentIsland);
+        }
+      }
+    });
+
+    ref.listen<AsyncValue<IslandDto>>(islandControllerProvider, (previous, next) {
+      final island = next.asData?.value;
+      if (island != null) {
+        _syncOnboardingForCurrentUser(island);
+      }
+    });
+
     final islandAsync = ref.watch(islandControllerProvider);
     final walletAsync = ref.watch(islandWalletProvider);
 
@@ -154,10 +230,7 @@ class _IslandScreenState extends ConsumerState<IslandScreen>
                     ),
                   ),
                   error: (error, stack) => _buildErrorView(error),
-                  data: (island) {
-                    _ensureOnboardingLoaded(island);
-                    return _buildIslandContent(island);
-                  },
+                  data: (island) => _buildIslandContent(island),
                 ),
               ),
             ],
@@ -1011,6 +1084,7 @@ class _IslandScreenState extends ConsumerState<IslandScreen>
           MediaQuery.maybeDisableAnimationsOf(context) ?? false;
       if (reduceMotion) {
         setState(() {
+          _confettiTriggerCount++;
           _resetCameraVersion++;
           _showUpgradeReadyToast = false;
         });
@@ -1049,12 +1123,14 @@ class _IslandScreenState extends ConsumerState<IslandScreen>
     required int toTier,
     required IslandDto updatedIsland,
   }) {
+    _expansionController?.stop();
     _expansionController?.dispose();
     final controller = AnimationController(
       vsync: this,
       duration: const Duration(milliseconds: 2600),
     );
     _expansionController = controller;
+    _finishingExpansion = false;
 
     setState(() {
       _expandingFromTier = fromTier;
@@ -1078,7 +1154,15 @@ class _IslandScreenState extends ConsumerState<IslandScreen>
   }
 
   void _finishExpansionSequence({required bool showCompletionDialog}) {
+    if (_finishingExpansion) return;
+    _finishingExpansion = true;
+
     final completedIsland = _completedUpgradeIsland;
+    _expansionController?.stop();
+    _expansionController?.dispose();
+    _expansionController = null;
+
+    if (!mounted) return;
     setState(() {
       _expandingFromTier = null;
       _expandingToTier = null;

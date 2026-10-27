@@ -43,7 +43,6 @@ export function IslandLayoutList() {
   const [themeKey, setThemeKey] = useState("heritage");
   const [canvasWidth, setCanvasWidth] = useState("960");
   const [canvasHeight, setCanvasHeight] = useState("720");
-  const [defaultLayout, setDefaultLayout] = useState(false);
 
   const layoutsQuery = useQuery({
     queryKey: ["admin-island-layouts"],
@@ -65,7 +64,7 @@ export function IslandLayoutList() {
         themeKey: themeKey.trim() || "heritage",
         canvasWidth: Number(canvasWidth) || 960,
         canvasHeight: Number(canvasHeight) || 720,
-        defaultLayout,
+        defaultLayout: false,
       });
       const initialDraft = created.versions.find((v) => v.status === "DRAFT");
       if (initialDraft) {
@@ -156,7 +155,6 @@ export function IslandLayoutList() {
             setThemeKey("heritage");
             setCanvasWidth("960");
             setCanvasHeight("720");
-            setDefaultLayout(false);
             setShowCreateModal(true);
           }}
         >
@@ -324,18 +322,26 @@ export function IslandLayoutList() {
                             Phiên bản
                           </Button>
 
-                          {!layout.defaultLayout && hasPublished && (
-                            <Button
-                              size="sm"
-                              variant="ghost"
-                              disabled={setDefaultMutation.isPending}
-                              onClick={() =>
-                                setDefaultMutation.mutate(layout.id)
-                              }
-                            >
-                              Đặt mặc định
-                            </Button>
-                          )}
+                          {!layout.defaultLayout &&
+                            (hasPublished ? (
+                              <Button
+                                size="sm"
+                                variant="ghost"
+                                disabled={setDefaultMutation.isPending}
+                                onClick={() =>
+                                  setDefaultMutation.mutate(layout.id)
+                                }
+                              >
+                                Đặt mặc định
+                              </Button>
+                            ) : (
+                              <span
+                                className="inline-flex items-center rounded-md border border-border bg-surface-alt px-2.5 py-1 text-[11px] text-ink-muted"
+                                title="Bố cục chỉ có thể đặt làm mặc định sau khi đã xuất bản ít nhất 1 phiên bản PUBLISHED"
+                              >
+                                Chưa thể đặt mặc định (cần Publish)
+                              </span>
+                            ))}
                         </div>
                       </td>
                     </tr>
@@ -535,15 +541,9 @@ export function IslandLayoutList() {
                 </div>
               </div>
 
-              <label className="flex items-center gap-2 pt-1 text-sm text-ink">
-                <input
-                  type="checkbox"
-                  checked={defaultLayout}
-                  onChange={(e) => setDefaultLayout(e.target.checked)}
-                  className="size-4 rounded border-border"
-                />
-                Đặt làm bố cục mặc định cho đảo mới (defaultLayout)
-              </label>
+              <div className="rounded-lg border border-amber-200 bg-amber-50/70 px-3 py-2 text-xs text-amber-900">
+                Bố cục mới được khởi tạo với bản nháp <strong>DRAFT v1</strong>. Để tránh gián đoạn cho người học mới, bạn sẽ đặt làm bố cục mặc định sau khi kiểm tra và xuất bản (<strong>Publish</strong>).
+              </div>
             </div>
 
             <div className="mt-6 flex justify-end gap-2">

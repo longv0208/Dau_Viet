@@ -2,7 +2,6 @@ import 'dart:math' as math;
 
 import 'package:flutter/material.dart';
 
-import '../../../../core/api/api_config.dart';
 import '../../../../core/theme/dau_viet_colors.dart';
 import '../../../../core/theme/dau_viet_typography.dart';
 import '../../data/island_dto.dart';
@@ -74,6 +73,24 @@ class IslandScene extends StatefulWidget {
   State<IslandScene> createState() => _IslandSceneState();
 }
 
+class _CachedLandGeometry {
+  final String key;
+  final List<IslandSlotDto> sortedSlots;
+  final List<(IslandLayoutRegionDto, Rect)> lockedRegions;
+  final Path baseLandPath;
+  final Path fullUnlockedLandPath;
+  final Path? newlyExpandedLandPath;
+
+  const _CachedLandGeometry({
+    required this.key,
+    required this.sortedSlots,
+    required this.lockedRegions,
+    required this.baseLandPath,
+    required this.fullUnlockedLandPath,
+    required this.newlyExpandedLandPath,
+  });
+}
+
 class _IslandSceneState extends State<IslandScene>
     with SingleTickerProviderStateMixin {
   late final AnimationController _waterController;
@@ -89,6 +106,7 @@ class _IslandSceneState extends State<IslandScene>
   String? _lastFittedVersionId;
   int _lastResetCameraVersion = 0;
   Matrix4? _expansionCameraStartMatrix;
+  _CachedLandGeometry? _cachedGeometry;
 
   @override
   void initState() {
@@ -166,14 +184,16 @@ class _IslandSceneState extends State<IslandScene>
     List<Rect> expandingRects,
     List<Rect> allUnlockedRects,
     List<(IslandLayoutRegionDto, Rect)> lockedRegions,
-  }) _resolveRegions(double canvasWidth, double canvasHeight) {
+  }) _resolveRegions(
+    double canvasWidth,
+    double canvasHeight, {
+    int? overrideTargetTier,
+  }) {
     final transition = widget.expansionTransition;
-    final baseTier = transition != null
-        ? transition.fromTier
-        : widget.island.tier;
-    final targetTier = transition != null
-        ? transition.toTier
-        : widget.island.tier;
+    final baseTier = overrideTargetTier ??
+        (transition != null ? transition.fromTier : widget.island.tier);
+    final targetTier = overrideTargetTier ??
+        (transition != null ? transition.toTier : widget.island.tier);
 
     final baseUnlockedRects = <Rect>[];
     final expandingRects = <Rect>[];
@@ -184,35 +204,41 @@ class _IslandSceneState extends State<IslandScene>
       for (final r in widget.island.regions) {
         final norm = r.parseNormalizedBounds();
         if (norm == null) continue;
-        final pixelRect = Rect.fromLTWH(
-          norm.left * canvasWidth,
-          norm.top * canvasHeight,
-          norm.width * canvasWidth,
-          norm.height * canvasHeight,
-        );
-        final isUnlockedInTarget =
-            r.unlocked || r.unlockTier <= targetTier;
+        final rawLeft = (norm.left * canvasWidth).clamp(0.0, canvasWidth);
+        final rawTop = (norm.top * canvasHeight).clamp(0.0, canvasHeight);
+        final rawRight =
+            ((norm.left + norm.width) * canvasWidth).clamp(0.0, canvasWidth);
+        final rawBottom =
+            ((norm.top + norm.height) * canvasHeight).clamp(0.0, canvasHeight);
+        if (rawRight - rawLeft <= 4.0 || rawBottom - rawTop <= 4.0) continue;
+
+        final pixelRect = Rect.fromLTRB(rawLeft, rawTop, rawRight, rawBottom);
+        final isUnlockedInTarget = overrideTargetTier != null
+            ? r.unlockTier <= targetTier
+            : (r.unlocked && r.unlockTier <= targetTier) ||
+                  r.unlockTier <= targetTier;
         if (!isUnlockedInTarget) {
           lockedRegions.add((r, pixelRect));
         } else {
           allUnlockedRects.add(pixelRect);
-          if (transition != null && r.unlockTier > baseTier) {
+          if (overrideTargetTier == null &&
+              transition != null &&
+              r.unlockTier > baseTier) {
             expandingRects.add(pixelRect);
           } else {
             baseUnlockedRects.add(pixelRect);
           }
         }
       }
-    }
-
-    if (allUnlockedRects.isEmpty) {
+    } else {
+      // Chỉ suy diễn vùng đất từ slot khi layout hoàn toàn không khai báo regions (legacy)
       final unlockedSlotRects = <Rect>[];
       for (final s in widget.island.slots) {
-        if (s.unlocked || s.unlockTier <= targetTier) {
+        if (s.unlocked && s.unlockTier <= targetTier) {
           final sw = (s.widthNorm * canvasWidth).clamp(72.0, 150.0);
           final sh = (s.heightNorm * canvasHeight).clamp(76.0, 160.0);
-          final cx = s.x * canvasWidth;
-          final cy = s.y * canvasHeight;
+          final cx = (s.x * canvasWidth).clamp(0.0, canvasWidth);
+          final cy = (s.y * canvasHeight).clamp(0.0, canvasHeight);
           unlockedSlotRects.add(
             Rect.fromCenter(
               center: Offset(cx, cy - sh * 0.15),
@@ -227,9 +253,13 @@ class _IslandSceneState extends State<IslandScene>
         for (final r in unlockedSlotRects.skip(1)) {
           combined = combined.expandToInclude(r);
         }
-        final inflated = combined.inflate(28);
-        baseUnlockedRects.add(inflated);
-        allUnlockedRects.add(inflated);
+        final inflated = combined.inflate(28).intersect(
+          Rect.fromLTWH(0, 0, canvasWidth, canvasHeight),
+        );
+        if (inflated.width > 4 && inflated.height > 4) {
+          baseUnlockedRects.add(inflated);
+          allUnlockedRects.add(inflated);
+        }
       }
     }
 
@@ -242,7 +272,7 @@ class _IslandSceneState extends State<IslandScene>
   }
 
   /// Kiểm tra hai hình chữ nhật vùng đất có thực sự chồng lấn hoặc kề sát nhau
-  /// và không bị một vùng khóa nào chắn ở giữa hay không (ISLAND-07 Part A5).
+  /// và không bị một vùng khóa nào chắn ở giữa hay không (ISLAND-07 Part A5 / ISLAND-08 C2).
   static bool _areRegionsDirectlyAdjacent(
     Rect a,
     Rect b,
@@ -251,30 +281,25 @@ class _IslandSceneState extends State<IslandScene>
     final overlapX = math.min(a.right, b.right) - math.max(a.left, b.left);
     final overlapY = math.min(a.bottom, b.bottom) - math.max(a.top, b.top);
 
-    // Chồng lấn trực tiếp
-    if (overlapX > 12.0 && overlapY > 12.0) {
-      return true;
-    }
-
-    // Kề sát theo chiều dọc (khoảng cách <= 24px và phần giao ngang >= 48px)
     final verticalGap = math.max(a.top, b.top) - math.min(a.bottom, b.bottom);
     final horizontalGap =
         math.max(a.left, b.left) - math.min(a.right, b.right);
 
+    final directlyOverlapping = overlapX > 12.0 && overlapY > 12.0;
     final verticallyAdjacent = verticalGap <= 24.0 && overlapX >= 48.0;
     final horizontallyAdjacent = horizontalGap <= 24.0 && overlapY >= 48.0;
 
-    if (!verticallyAdjacent && !horizontallyAdjacent) {
+    if (!directlyOverlapping &&
+        !verticallyAdjacent &&
+        !horizontallyAdjacent) {
       return false;
     }
 
     // Kiểm tra có vùng khóa nào chắn giữa tâm hai vùng không
     final bridgeCheck = Rect.fromPoints(a.center, b.center).inflate(6);
     for (final (_, lockedRect) in lockedRegions) {
-      final inter = bridgeCheck.intersect(lockedRect.deflate(12));
-      if (inter.width > 8 && inter.height > 8 &&
-          !a.overlaps(lockedRect) &&
-          !b.overlaps(lockedRect)) {
+      final inter = bridgeCheck.intersect(lockedRect.deflate(8));
+      if (inter.width > 6 && inter.height > 6) {
         return false;
       }
     }
@@ -282,7 +307,8 @@ class _IslandSceneState extends State<IslandScene>
   }
 
   /// Xây dựng đường bao địa hình (Path) cho danh sách vùng đất:
-  /// Chỉ nối cầu đất giữa những cặp vùng thực sự liền kề hoặc chồng lấn (A5).
+  /// Chỉ nối cầu đất giữa những cặp vùng thực sự liền kề hoặc chồng lấn (A5)
+  /// và trừ bỏ phần diện tích của vùng khóa không nằm trong vùng đã mở (C2).
   static Path _buildConnectedLandmassPath(
     List<Rect> rects,
     List<(IslandLayoutRegionDto, Rect)> lockedRegions,
@@ -335,18 +361,70 @@ class _IslandSceneState extends State<IslandScene>
             combined = Path.combine(PathOperation.union, combined, bridge);
           }
         }
+
+        final overlapTop = math.max(a.top, b.top) + 24.0;
+        final overlapBottom = math.min(a.bottom, b.bottom) - 24.0;
+        if (overlapBottom > overlapTop) {
+          final left = math.min(a.right - 28.0, b.right - 28.0);
+          final right = math.max(a.left + 28.0, b.left + 28.0);
+          if (right > left) {
+            final hBridge = Path()
+              ..addRRect(
+                RRect.fromRectAndRadius(
+                  Rect.fromLTRB(left, overlapTop, right, overlapBottom),
+                  const Radius.circular(42),
+                ),
+              );
+            combined = Path.combine(PathOperation.union, combined, hBridge);
+          }
+        }
       }
     }
 
-    // Loại trừ tuyệt đối phần diện tích của vùng chưa mở (nếu vùng chưa mở không thuộc rects)
+    // Loại trừ phần diện tích vùng đang khóa nằm ngoài các vùng đã mở để cầu đất không bao giờ đè qua vùng khóa
+    if (lockedRegions.isNotEmpty) {
+      Path rawUnlockedUnion = Path();
+      for (int i = 0; i < rects.length; i++) {
+        final r = rects[i];
+        final radius = math.min(r.width, r.height) * 0.40;
+        final p = Path()
+          ..addRRect(RRect.fromRectAndRadius(r, Radius.circular(radius)));
+        rawUnlockedUnion = i == 0
+            ? p
+            : Path.combine(PathOperation.union, rawUnlockedUnion, p);
+      }
+
+      for (final (_, lockedRect) in lockedRegions) {
+        final lockedRadius =
+            math.min(lockedRect.width, lockedRect.height) * 0.36;
+        final lockedPath = Path()
+          ..addRRect(
+            RRect.fromRectAndRadius(lockedRect, Radius.circular(lockedRadius)),
+          );
+        final strictlyLocked = Path.combine(
+          PathOperation.difference,
+          lockedPath,
+          rawUnlockedUnion,
+        );
+        combined = Path.combine(
+          PathOperation.difference,
+          combined,
+          strictlyLocked,
+        );
+      }
+    }
+
     return combined;
   }
 
-  /// Tính ma trận camera căn vừa khít vùng đất đã mở với khoảng đệm hợp lý (Part A1).
+  /// Tính ma trận camera căn vừa khít vùng đất đã mở với khoảng đệm hợp lý (Part A1 / C1).
   Matrix4 _computeTargetCameraMatrix(Size viewportSize, {int? forTier}) {
+    if (viewportSize.width <= 0 || viewportSize.height <= 0) {
+      return Matrix4.identity();
+    }
     final cw = _canvasWidth;
     final ch = _canvasHeight;
-    final regionInfo = _resolveRegions(cw, ch);
+    final regionInfo = _resolveRegions(cw, ch, overrideTargetTier: forTier);
 
     Rect focusBounds;
     if (regionInfo.allUnlockedRects.isNotEmpty) {
@@ -468,31 +546,66 @@ class _IslandSceneState extends State<IslandScene>
     return visible;
   }
 
-  @override
-  Widget build(BuildContext context) {
-    final canvasWidth = _canvasWidth;
-    final canvasHeight = _canvasHeight;
+  _CachedLandGeometry _ensureCachedGeometry(
+    double canvasWidth,
+    double canvasHeight,
+  ) {
+    final transition = widget.expansionTransition;
+    final cacheKey = [
+      widget.island.layoutVersionId ?? widget.island.layoutCode ?? 'default',
+      widget.island.rowVersion,
+      widget.island.tier,
+      transition?.fromTier ?? -1,
+      transition?.toTier ?? -1,
+      canvasWidth.toStringAsFixed(1),
+      canvasHeight.toStringAsFixed(1),
+      widget.island.slots.length,
+      widget.island.regions.length,
+    ].join('|');
 
-    final sortedSlots = List<IslandSlotDto>.from(widget.island.slots)
+    final existing = _cachedGeometry;
+    if (existing != null && existing.key == cacheKey) {
+      return existing;
+    }
+
+    final regionUnlockByCode = <String, int>{
+      for (final r in widget.island.regions) r.regionCode: r.unlockTier,
+    };
+
+    final effectiveTier = transition != null
+        ? transition.toTier
+        : widget.island.tier;
+
+    final sortedSlots = widget.island.slots.map((s) {
+      final regionLocked =
+          s.regionCode != null &&
+          regionUnlockByCode.containsKey(s.regionCode) &&
+          regionUnlockByCode[s.regionCode]! > effectiveTier;
+      final slotUnlocked =
+          !regionLocked && s.unlocked && s.unlockTier <= effectiveTier;
+      return s.unlocked == slotUnlocked ? s : s.copyWith(unlocked: slotUnlocked);
+    }).toList()
       ..sort((a, b) {
         if (a.zIndex != b.zIndex) return a.zIndex.compareTo(b.zIndex);
         return a.y.compareTo(b.y);
       });
 
-    final layers = _effectiveLayers();
     final regionInfo = _resolveRegions(canvasWidth, canvasHeight);
+    final allowFallback = widget.island.regions.isEmpty;
 
     final baseLandPath = _buildConnectedLandmassPath(
       regionInfo.baseUnlockedRects,
       regionInfo.lockedRegions,
       canvasWidth,
       canvasHeight,
+      allowFallbackWhenEmpty: allowFallback,
     );
     final fullUnlockedLandPath = _buildConnectedLandmassPath(
       regionInfo.allUnlockedRects,
       regionInfo.lockedRegions,
       canvasWidth,
       canvasHeight,
+      allowFallbackWhenEmpty: allowFallback,
     );
     final newlyExpandedLandPath = regionInfo.expandingRects.isEmpty
         ? null
@@ -501,6 +614,30 @@ class _IslandSceneState extends State<IslandScene>
             fullUnlockedLandPath,
             baseLandPath,
           );
+
+    final built = _CachedLandGeometry(
+      key: cacheKey,
+      sortedSlots: sortedSlots,
+      lockedRegions: regionInfo.lockedRegions,
+      baseLandPath: baseLandPath,
+      fullUnlockedLandPath: fullUnlockedLandPath,
+      newlyExpandedLandPath: newlyExpandedLandPath,
+    );
+    _cachedGeometry = built;
+    return built;
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final canvasWidth = _canvasWidth;
+    final canvasHeight = _canvasHeight;
+
+    final layers = _effectiveLayers();
+    final geom = _ensureCachedGeometry(canvasWidth, canvasHeight);
+    final sortedSlots = geom.sortedSlots;
+    final baseLandPath = geom.baseLandPath;
+    final fullUnlockedLandPath = geom.fullUnlockedLandPath;
+    final newlyExpandedLandPath = geom.newlyExpandedLandPath;
 
     return LayoutBuilder(
       builder: (context, constraints) {
@@ -544,7 +681,7 @@ class _IslandSceneState extends State<IslandScene>
                         canvasWidth: canvasWidth,
                         canvasHeight: canvasHeight,
                         sortedSlots: sortedSlots,
-                        lockedRegions: regionInfo.lockedRegions,
+                        lockedRegions: geom.lockedRegions,
                         baseLandPath: baseLandPath,
                         fullUnlockedLandPath: fullUnlockedLandPath,
                         newlyExpandedLandPath: newlyExpandedLandPath,
@@ -760,17 +897,11 @@ class _IslandSceneState extends State<IslandScene>
     if (ref == null || ref.isEmpty) {
       return _buildFallbackIslandSurface();
     }
-    if (ref.startsWith('http://') || ref.startsWith('https://')) {
+    final remoteUrl = resolveIslandRemoteAssetUrl(ref);
+    if (remoteUrl != null) {
       return Image.network(
-        ref,
-        fit: BoxFit.cover,
-        errorBuilder: (_, __, ___) => _buildFallbackIslandSurface(),
-      );
-    }
-    if (ref.startsWith('/api/')) {
-      final base = ApiConfig.baseUrl.replaceAll(RegExp(r'/+$'), '');
-      return Image.network(
-        '$base$ref',
+        remoteUrl,
+        headers: islandAuthHeaders(),
         fit: BoxFit.cover,
         errorBuilder: (_, __, ___) => _buildFallbackIslandSurface(),
       );
