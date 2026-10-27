@@ -16,6 +16,9 @@ import com.dauviet.learning.contract.LessonCompletion;
  * STREAK-01 additive: `streak*` chỉ set khi ngày học được công nhận lần đầu —
  * client dùng để chạy animation lửa N → N+1. Replay vào nhánh
  * alreadyCompleted trả null (không phát lại animation).
+ *
+ * MAP-V2 additive: `newlyUnlockedLocations` chứa các địa điểm di tích vừa mở
+ * khóa mới trong cùng transaction complete.
  */
 public record CompleteAttemptResponse(
         UUID attemptId,
@@ -25,7 +28,26 @@ public record CompleteAttemptResponse(
         LessonCompletion completion,
         AttemptProgressResponse.Progress progress,
         List<UUID> newlyUnlockedDossiers,
-        StreakInfo streak) {
+        StreakInfo streak,
+        List<UnlockedLocationCue> newlyUnlockedLocations) {
+
+    public CompleteAttemptResponse {
+        newlyUnlockedDossiers = newlyUnlockedDossiers == null ? List.of() : List.copyOf(newlyUnlockedDossiers);
+        newlyUnlockedLocations = newlyUnlockedLocations == null ? List.of() : List.copyOf(newlyUnlockedLocations);
+    }
+
+    public CompleteAttemptResponse(
+            UUID attemptId,
+            String status,
+            boolean alreadyCompleted,
+            Instant completedAt,
+            LessonCompletion completion,
+            AttemptProgressResponse.Progress progress,
+            List<UUID> newlyUnlockedDossiers,
+            StreakInfo streak) {
+        this(attemptId, status, alreadyCompleted, completedAt, completion,
+                progress, newlyUnlockedDossiers, streak, List.of());
+    }
 
     /** Thông tin streak do server trả sau khi ghi nhận ngày học. */
     public record StreakInfo(
@@ -41,13 +63,22 @@ public record CompleteAttemptResponse(
             Instant serverTime) {
     }
 
-    /** Replay/old-shape path: không có dossier mới trong lần này. */
+    /** Thông tin địa điểm di tích vừa mở khóa trong lượt hoàn thành bài học. */
+    public record UnlockedLocationCue(
+            UUID locationId,
+            String slug,
+            String title,
+            String kind,
+            UUID coverAssetId) {
+    }
+
+    /** Replay/old-shape path: không có dossier/location mới trong lần này. */
     public static CompleteAttemptResponse of(UUID attemptId, String status,
             boolean alreadyCompleted, Instant completedAt,
             LessonCompletion completion,
             AttemptProgressResponse.Progress progress) {
         return new CompleteAttemptResponse(attemptId, status, alreadyCompleted,
-                completedAt, completion, progress, List.of(), null);
+                completedAt, completion, progress, List.of(), null, List.of());
     }
 
     /** Full-shape: completion mới + optional streak info (null khi không ghi). */
@@ -58,6 +89,18 @@ public record CompleteAttemptResponse(
             List<UUID> newlyUnlockedDossiers, StreakInfo streak) {
         return new CompleteAttemptResponse(attemptId, status, alreadyCompleted,
                 completedAt, completion, progress, newlyUnlockedDossiers,
-                streak);
+                streak, List.of());
+    }
+
+    /** Full-shape kèm danh sách địa điểm vừa mở khóa. */
+    public static CompleteAttemptResponse withStreakAndLocations(UUID attemptId,
+            String status, boolean alreadyCompleted, Instant completedAt,
+            LessonCompletion completion,
+            AttemptProgressResponse.Progress progress,
+            List<UUID> newlyUnlockedDossiers, StreakInfo streak,
+            List<UnlockedLocationCue> newlyUnlockedLocations) {
+        return new CompleteAttemptResponse(attemptId, status, alreadyCompleted,
+                completedAt, completion, progress, newlyUnlockedDossiers,
+                streak, newlyUnlockedLocations);
     }
 }

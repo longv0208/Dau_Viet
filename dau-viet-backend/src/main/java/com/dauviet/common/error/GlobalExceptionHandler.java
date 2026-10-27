@@ -559,6 +559,13 @@ public class GlobalExceptionHandler {
                 ex.getMessage(), Map.of("reason", "LEARNING_PATH_LOCKED"));
     }
 
+    @ExceptionHandler(com.dauviet.path.domain.LearningPathExceptions.PathNodeInvalidParentException.class)
+    public ResponseEntity<ApiError> handlePathNodeInvalidParent(
+            com.dauviet.path.domain.LearningPathExceptions.PathNodeInvalidParentException ex) {
+        return build(HttpStatus.UNPROCESSABLE_ENTITY, ErrorCode.PATH_NODE_INVALID_PARENT,
+                ex.getMessage(), Map.of());
+    }
+
     /**
      * GAME-06: bat ca hai — ObjectOptimisticLockingFailure (JPA/Hibernate)
      * lan OptimisticLockingFailureException (service throw thu cong cho

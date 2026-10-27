@@ -393,3 +393,20 @@ Bản ghi bất biến được `POST /admin/lessons/{id}/publish` ghi vào `les
 - `Dau_Viet_BA_MVP_Learning_Framework.docx`: mục 2–8, đặc biệt Event ≠ Lesson, schema Stage/Activity, requirement ENG-01…10, versioning, publish.
 - `Functional_Requirements_Dau_Viet_MVP.docx`: FR-01…46; tiến độ, collection, map và interaction.
 - Tài liệu này là **technical proposal**, không tự tuyên bố tất cả những lựa chọn schema là yêu cầu BA đã duyệt.
+
+
+### Bổ sung V38–V41 — Learning Path Hierarchy, Per-Period Progression & Heritage Locations V2
+
+- **`V38__learning_path_hierarchy.sql`**:
+  - `learning_path_chapters`: thêm `parent_id UUID REFERENCES learning_path_chapters(id) ON DELETE RESTRICT`, `node_type VARCHAR(16) NOT NULL DEFAULT 'PERIOD' CHECK (node_type IN ('ERA','PERIOD','PHASE'))`, `chk_chapter_no_self_parent CHECK (parent_id IS NULL OR parent_id <> id)`.
+  - `historical_events`: thêm `end_year INTEGER`, `date_precision VARCHAR(16) NOT NULL DEFAULT 'EXACT' CHECK (date_precision IN ('EXACT','CIRCA','CENTURY','PERIOD'))`, `chk_event_year_range CHECK (end_year IS NULL OR start_year IS NULL OR start_year <= end_year)`.
+- **`V39__heritage_locations.sql`**:
+  - `map_locations`: gỡ `fk_map_location_unlock_lesson_same_event`, cho phép `event_id` NULL, thêm `slug VARCHAR(120) UNIQUE`, `kind VARCHAR(32) NOT NULL DEFAULT 'HERITAGE_SITE'`, `coordinate_precision VARCHAR(24) NOT NULL DEFAULT 'EXACT'`, `visibility VARCHAR(24) NOT NULL DEFAULT 'ALWAYS_VISIBLE'`, `unlock_rule_mode VARCHAR(16) NOT NULL DEFAULT 'ANY'`, `cover_asset_id UUID REFERENCES assets(id)`, `short_summary VARCHAR(500)`.
+  - `map_location_events (location_id, event_id, role, sort_order)`: liên kết N–N giữa địa điểm và sự kiện; backfill từ `map_locations.event_id`.
+  - `map_location_unlock_lessons (location_id, lesson_id)`: danh sách bài học mở khóa địa điểm (hỗ trợ `ANY` / `ALL` xuyên sự kiện); backfill từ `map_locations.unlock_lesson_id`.
+  - `map_location_media (id, location_id, media_type, title, caption, asset_id, external_url, visibility, sort_order)`: tư liệu đa phương tiện (`IMAGE_2D`, `PANORAMA_360`, `AUDIO_GUIDE`, `DOCUMENTARY_CLIP`), `visibility ∈ ('PUBLIC_PREVIEW', 'UNLOCKED_ONLY')`.
+  - `user_location_unlocks (user_id, location_id, source_lesson_id, source_attempt_id, unlocked_at)`: ledger append-only lưu vết mở khóa địa điểm.
+- **`V40__user_path_period_state.sql`**:
+  - `user_path_period_state (user_id, path_code, period_chapter_id, last_touched_at)`: lưu thời kỳ người học tương tác gần nhất để phục vụ `lastPeriodCode` và con trỏ `current` theo từng thời kỳ.
+- **`V41__seed_history_main_v2.sql`**:
+  - Archive `HISTORY_MAIN` v1 và phát hành `HISTORY_MAIN` v2 (`PUBLISHED`) với cây `ERA -> PERIOD -> EVENT -> LESSON`, nâng các sự kiện có policy hợp lệ lên `REQUIRED` và gắn đầy đủ các bài học `PUBLISHED`.

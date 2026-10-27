@@ -51,6 +51,17 @@ public abstract class AbstractPostgresIT {
                 historical_event_canonical_aliases, lesson_versions, lessons, evidences CASCADE
             """);
         // TRUNCATE assets CASCADE would also erase item_catalog and seeded island shop config.
+        jdbc.execute("""
+            DO $$
+            BEGIN
+                IF to_regclass('public.user_location_unlocks') IS NOT NULL THEN
+                    TRUNCATE TABLE user_location_unlocks, map_location_media, map_location_unlock_lessons, map_location_events CASCADE;
+                END IF;
+                IF to_regclass('public.user_path_period_state') IS NOT NULL THEN
+                    TRUNCATE TABLE user_path_period_state CASCADE;
+                END IF;
+            END $$;
+            """);
         jdbc.update("UPDATE item_catalog SET asset_id = NULL WHERE asset_id IS NOT NULL");
         jdbc.update("DELETE FROM assets");
     }

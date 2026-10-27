@@ -98,6 +98,12 @@ public class LearnerAttemptService {
     private final TransactionTemplate txTemplate;
     private final EntityManager entityManager;
     private final com.dauviet.path.application.LearnerPathProgressionService pathProgression;
+    @org.springframework.beans.factory.annotation.Autowired(required = false)
+    private List<LessonCompletionHook> completionHooks = List.of();
+
+    public void setCompletionHooks(List<LessonCompletionHook> completionHooks) {
+        this.completionHooks = completionHooks == null ? List.of() : List.copyOf(completionHooks);
+    }
 
     public LearnerAttemptService(LearnerAttemptRepository attempts,
                                  ActivityAttemptRepository activityAttempts,
@@ -491,6 +497,7 @@ public class LearnerAttemptService {
                 .orElse(null);
         java.util.Set<UUID> newlyUnlockedDossiers = java.util.Set.of();
         CompleteAttemptResponse.StreakInfo streak = null;
+        List<CompleteAttemptResponse.UnlockedLocationCue> newlyUnlockedLocations = new java.util.ArrayList<>();
         if (completedVersion != null) {
             UUID lessonId = completedVersion.getLessonId();
             // STREAK-01: ghi nhận ngày học (VN timezone) cùng transaction.
@@ -520,10 +527,19 @@ public class LearnerAttemptService {
             }
             itemUnlocks.evaluateAfterLessonCompletion(userId, lessonId,
                     a.getId());
+            if (completionHooks != null) {
+                for (LessonCompletionHook hook : completionHooks) {
+                    List<CompleteAttemptResponse.UnlockedLocationCue> unlocked =
+                            hook.onLessonCompleted(userId, lessonId, a.getId());
+                    if (unlocked != null && !unlocked.isEmpty()) {
+                        newlyUnlockedLocations.addAll(unlocked);
+                    }
+                }
+            }
         }
-        return CompleteAttemptResponse.withStreak(a.getId(),
+        return CompleteAttemptResponse.withStreakAndLocations(a.getId(),
                 a.getStatus().name(), false, a.getCompletedAt(), verdict,
-                progress, List.copyOf(newlyUnlockedDossiers), streak);
+                progress, List.copyOf(newlyUnlockedDossiers), streak, newlyUnlockedLocations);
     }
 
     /**
