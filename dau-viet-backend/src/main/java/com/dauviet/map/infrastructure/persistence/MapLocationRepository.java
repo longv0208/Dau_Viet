@@ -19,19 +19,30 @@ public interface MapLocationRepository extends JpaRepository<MapLocation, UUID> 
 
     Optional<MapLocation> findByIdAndEventId(UUID id, UUID eventId);
 
-    /**
-     * All PUBLISHED locations of PUBLISHED events — learner map surface.
-     * Single query, no N+1 (event join filter only).
-     */
-    @Query("select m from MapLocation m, HistoricalEvent e "
-         + "where m.eventId = e.id and e.status = 'PUBLISHED' "
-         + "and m.status = :status order by coalesce(e.startYear, 0) asc, m.displayOrder asc, m.title asc")
+    Optional<MapLocation> findBySlug(String slug);
+
+    @Query("select m from MapLocation m order by m.displayOrder asc, m.title asc")
+    List<MapLocation> findAllOrderedForAdmin();
+
+    @Query("select m from MapLocation m left join HistoricalEvent e on m.eventId = e.id "
+         + "where m.status = :status "
+         + "and ((m.eventId is not null and e.status = 'PUBLISHED') "
+         + "  or (m.eventId is null and ("
+         + "        not exists (select 1 from MapLocationEvent mle where mle.id.locationId = m.id) "
+         + "     or exists (select 1 from MapLocationEvent mle, HistoricalEvent he "
+         + "                where mle.id.locationId = m.id and mle.id.eventId = he.id and he.status = 'PUBLISHED')"
+         + "  ))) "
+         + "order by coalesce(e.startYear, 0) asc, m.displayOrder asc, m.title asc")
     List<MapLocation> findVisibleForLearner(@Param("status") MapLocationStatus status);
 
-    @Query("select m from MapLocation m "
+    @Query("select m from MapLocation m left join HistoricalEvent e on m.eventId = e.id "
          + "where m.id = :id and m.status = :status "
-         + "and m.eventId in (select e.id from HistoricalEvent e "
-         + "                  where e.status = 'PUBLISHED')")
+         + "and ((m.eventId is not null and e.status = 'PUBLISHED') "
+         + "  or (m.eventId is null and ("
+         + "        not exists (select 1 from MapLocationEvent mle where mle.id.locationId = m.id) "
+         + "     or exists (select 1 from MapLocationEvent mle, HistoricalEvent he "
+         + "                where mle.id.locationId = m.id and mle.id.eventId = he.id and he.status = 'PUBLISHED')"
+         + "  )))")
     Optional<MapLocation> findVisibleForLearnerById(
             @Param("id") UUID id, @Param("status") MapLocationStatus status);
 }

@@ -32,4 +32,10 @@ public final class LearningPathExceptions {
             return errors;
         }
     }
+
+    public static class PathNodeInvalidParentException extends RuntimeException {
+        public PathNodeInvalidParentException(String message) {
+            super(message);
+        }
+    }
 }

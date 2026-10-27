@@ -38,13 +38,6 @@ import com.dauviet.path.infrastructure.persistence.LearningPathVersionRepository
 
 /**
  * Dịch vụ cung cấp dữ liệu lộ trình học tập Lịch sử Việt Nam chuẩn hóa (PATH-01).
- * Đảm bảo:
- * <ul>
- *   <li>Chỉ trả phiên bản PUBLISHED hiện hành.</li>
- *   <li>Thứ tự nhất quán: Chapter sort_order -> Event sort_order -> Lesson sort_order.</li>
- *   <li>Không phát sinh N+1 queries thông qua batch-loading.</li>
- *   <li>Không bao giờ trả private answer keys hoặc draft_json.</li>
- * </ul>
  */
 @Service
 public class LearningPathService {
@@ -79,12 +72,6 @@ public class LearningPathService {
         this.readiness = readiness;
     }
 
-    /**
-     * Lấy lộ trình đã xuất bản theo mã (mặc định HISTORY_MAIN).
-     *
-     * @param pathCode mã lộ trình, null hoặc rỗng -> HISTORY_MAIN
-     * @return cấu trúc cây toàn vẹn: version -> chapters -> event nodes -> lesson nodes
-     */
     @Transactional(readOnly = true)
     public LearningPathResponse getPublishedPath(String pathCode) {
         String effectiveCode = (pathCode == null || pathCode.isBlank()) ? DEFAULT_PATH_CODE : pathCode.trim();
@@ -161,6 +148,8 @@ public class LearningPathService {
                         event.getSlug(),
                         event.getTitle(),
                         event.getStartYear(),
+                        event.getEndYear(),
+                        event.getDatePrecision(),
                         yearLabel,
                         event.getPeriod(),
                         event.getCoverAssetKey(),
@@ -173,6 +162,8 @@ public class LearningPathService {
 
             chapterResponses.add(new ChapterResponse(
                     chapter.getId(),
+                    chapter.getParentId(),
+                    chapter.getNodeType(),
                     chapter.getCode(),
                     chapter.getTitle(),
                     chapter.getDescription(),
@@ -193,5 +184,4 @@ public class LearningPathService {
                 chapterResponses
         );
     }
-
 }

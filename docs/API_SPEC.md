@@ -622,3 +622,54 @@ Publish chạy PUBLISH-level `DraftValidator` trong một transaction: `SELECT F
 ## Admin client implementation note
 
 `dau-viet-admin` (TASK-0013) consumes this contract through a same-origin BFF layer: the browser only talks to `/api/auth/*` and `/api/proxy/*` inside the Next.js app, which forwards to `/api/v1/*` on `BACKEND_URL`. The refresh token is held in an HttpOnly `dv_refresh` cookie; access tokens live in browser memory only. See `docs/admin-runbook.md` for the full flow.
+
+
+### Notes đã chốt Luồng Học Lịch Sử & Địa Điểm Di Tích 2.0 (V38–V41)
+
+#### 1. Learning Path 2.0 Hierarchy & Per-Period Progression
+- **`GET /api/v1/learning-path`** & **`GET /api/v1/me/learning-path`**:
+  - Mỗi phần tử trong `chapters[]` trả thêm `parentId` (`UUID | null`) và `nodeType` (`ERA | PERIOD | PHASE`).
+  - `events[]` trả thêm `endYear` (`Integer | null`) và `datePrecision` (`EXACT | CIRCA | CENTURY | PERIOD`).
+  - `GET /api/v1/me/learning-path` tự động nâng cấp `enrolledVersion` của learner lên phiên bản `PUBLISHED` mới nhất của `HISTORY_MAIN` và trả thêm:
+    - `periodProgress[]`: `[{chapterId, code, title, completedEvents, requiredEvents, completedLessons, requiredLessons, percent}]`
+    - `currentByPeriod`: map `periodCode -> {chapterId, eventNodeId, lessonId}`
+    - `lastPeriodCode`: mã thời kỳ người học tương tác gần nhất (hoặc thời kỳ đầu tiên chưa hoàn thành)
+    - `current`: con trỏ `{chapterId, eventNodeId, lessonId}` của `lastPeriodCode`.
+- **`POST /api/v1/me/learning-path/periods/{periodCode}/touch`**:
+  - Authenticated learner; cập nhật `user_path_period_state.last_touched_at` cho `periodCode` thuộc `HISTORY_MAIN` hiện hành → trả `200 {periodCode, chapterId, touchedAt}`. Nếu `periodCode` không tồn tại hoặc không phải `PERIOD` → `404 NOT_FOUND`.
+- **Admin Path Hierarchy (`CONTENT_ADMIN`)**:
+  - `POST /api/v1/admin/learning-path/versions/{id}/chapters` & `PATCH .../chapters/{chapterId}` nhận thêm `parentId` (`UUID | null`) và `nodeType` (`ERA | PERIOD | PHASE`, mặc định `PERIOD`).
+  - Vi phạm quy tắc phân cấp (`ERA` có parent, `PERIOD` trỏ vào non-ERA, `PHASE` không trỏ vào `PERIOD`, gắn event vào `ERA`, chu trình, hoặc xóa node còn con) → `422 PATH_NODE_INVALID_PARENT`.
+
+#### 2. Heritage Locations V2 & Unlock Engine
+- **`GET /api/v1/map/locations`** (query optional `?periodCode=&eventId=&kind=&unlocked=`):
+  - Trả danh sách địa điểm `PUBLISHED` (loại bỏ `HIDDEN_UNTIL_UNLOCKED` khi `unlocked=false`).
+  - Mỗi phần tử giữ nguyên các trường v1 (`id, eventId, eventTitle, title, description, latitude, longitude, unlockState, requiredLesson`) và bổ sung:
+    - `slug`, `shortSummary`, `kind`, `coordinatePrecision`, `visibility`, `unlockMode` (`NONE | ANY | ALL`), `unlocked` (`boolean`), `coverAssetId`, `eventIds[]`, `unlockLessons[]` (`{lessonId, title, completed, accessible}`).
+- **`GET /api/v1/map/locations/{id}`**:
+  - Trả chi tiết địa điểm kèm `events[]` (`{eventId, title, yearLabel, role}`) và `media[]` (`{id, mediaType, title, caption, assetId, assetUrl, externalUrl, visibility, sortOrder}`).
+  - **Bảo mật nội dung**: khi `unlocked=false`, server tự động lọc bỏ toàn bộ phần tử `media[]` có `visibility == 'UNLOCKED_ONLY'`.
+- **`POST /api/v1/attempts/{attemptId}/complete`**:
+  - `CompleteAttemptResponse` bổ sung trường additive `newlyUnlockedLocations`:
+    ```json
+    "newlyUnlockedLocations": [
+      {
+        "locationId": "uuid",
+        "slug": "bai-coc-bach-dang",
+        "title": "Bãi cọc Bạch Đằng (Yên Giang)",
+        "kind": "HERITAGE_SITE",
+        "coverAssetId": "uuid"
+      }
+    ]
+    ```
+  - Đánh giá mở khóa địa điểm trong cùng transaction `doComplete` qua `LessonCompletionHook`.
+- **Admin Heritage Locations (`CONTENT_ADMIN`)**:
+  - `GET /api/v1/admin/map-locations?q=&kind=&status=&eventId=&page=&size=`
+  - `POST /api/v1/admin/map-locations`
+  - `GET /api/v1/admin/map-locations/{id}`
+  - `PATCH /api/v1/admin/map-locations/{id}?expectedRowVersion=`
+  - `POST /api/v1/admin/map-locations/{id}/status?status=DRAFT|PUBLISHED|ARCHIVED&expectedRowVersion=`
+  - `PUT /api/v1/admin/map-locations/{id}/events` (`[{eventId, role, sortOrder}]`)
+  - `PUT /api/v1/admin/map-locations/{id}/unlock-lessons` (`{unlockRuleMode: "NONE"|"ANY"|"ALL", lessonIds: [UUID]}`)
+  - `PUT /api/v1/admin/map-locations/{id}/media` (`[{mediaType, title, caption, assetId, externalUrl, visibility, sortOrder}]`)
+  - Các endpoint legacy `/api/v1/admin/events/{eventId}/map-locations` được giữ nguyên để tương thích ngược.

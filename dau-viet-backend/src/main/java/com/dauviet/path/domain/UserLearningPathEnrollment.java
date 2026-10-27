@@ -2,8 +2,9 @@ package com.dauviet.path.domain;
 
 import java.io.Serializable;
 import java.time.Instant;
-import java.util.UUID;
 import java.util.Objects;
+import java.util.UUID;
+
 import jakarta.persistence.Column;
 import jakarta.persistence.Embeddable;
 import jakarta.persistence.EmbeddedId;
@@ -35,5 +36,10 @@ public class UserLearningPathEnrollment {
         this.id = new Key(userId, pathCode); this.pathVersionId = pathVersionId;
         this.enrolledAt = Instant.now(); this.updatedAt = this.enrolledAt;
     }
+    public Key getId() { return id; }
     public UUID getPathVersionId() { return pathVersionId; }
+    public void setPathVersionId(UUID pathVersionId) {
+        this.pathVersionId = pathVersionId;
+        this.updatedAt = Instant.now();
+    }
 }

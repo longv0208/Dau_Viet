@@ -199,3 +199,41 @@ Mỗi sự kiện trong lộ trình được server đánh giá tự động d�
 
 4. **PATH-05 (Mobile Flutter Integration)**:
    - Đồng bộ màn hình Timeline và Sa Bàn di sản tiêu thụ API `GET /api/v1/learning-path` và `GET /api/v1/me/learning-path`.
+
+
+---
+
+## 8. Nâng Cấp Kiến Trúc Luồng Học Lịch Sử & Địa Điểm Di Tích (V38–V41)
+
+### 8.1. Phân cấp cây học tập (Hierarchy: `ERA -> PERIOD -> PHASE -> EVENT -> LESSON`)
+- Tái sử dụng bảng `learning_path_chapters` làm cây phân cấp (`parent_id UUID`, `node_type VARCHAR(16) NOT NULL DEFAULT 'PERIOD'` trong `{ERA, PERIOD, PHASE}`).
+- Quy tắc phân cấp nghiêm ngặt (`PATH_NODE_INVALID_PARENT` 422):
+  - `ERA`: `parent_id IS NULL` (nút gốc Thời đại).
+  - `PERIOD`: `parent_id` có thể `NULL` (backward-compatible) hoặc trỏ tới `ERA` cùng `path_version_id`.
+  - `PHASE`: `parent_id` bắt buộc trỏ tới `PERIOD` cùng `path_version_id`.
+  - `learning_path_event_nodes.chapter_id`: chỉ được gắn vào `PERIOD` hoặc `PHASE` (không gắn trực tiếp vào `ERA`).
+- Niên đại sự kiện (`historical_events`): bổ sung `end_year INTEGER` và `date_precision VARCHAR(16) NOT NULL DEFAULT 'EXACT'` (`EXACT`, `CIRCA`, `CENTURY`, `PERIOD`).
+
+### 8.2. Khóa bài học tuần tự theo từng Thời kỳ (`PERIOD`) & Tự động nâng cấp phiên bản
+- **Phạm vi khóa (`Per-Period Sequential Locking`)**:
+  - Mỗi `PERIOD` là một luồng học độc lập — bài/sự kiện đầu tiên của **mọi** `PERIOD` luôn ở trạng thái `AVAILABLE`.
+  - Bên trong một `PERIOD`, thứ tự các sự kiện `REQUIRED` được mở tuần tự theo cây (`PERIOD` events + `PHASE` child events theo `sort_order`).
+  - Các bài học `PUBLISHED` nằm ngoài lộ trình (`status == null` trong projection) được phép học tự do, không tính vào tiến độ thời kỳ.
+- **Tự động nâng cấp phiên bản lộ trình**:
+  - Vì tiến độ hoàn thành (`learner_attempts`, `user_event_progress`) lưu độc lập với `path_version_id`, khi có phiên bản `PUBLISHED` mới của `HISTORY_MAIN`, `enrolledVersion()` tự động chuyển `user_learning_path_enrollments.path_version_id` sang bản `PUBLISHED` mới nhất ngay ở lần đọc tiếp theo.
+- **Ghi nhận thời kỳ đang học (`user_path_period_state`)**:
+  - Endpoint `POST /api/v1/me/learning-path/periods/{periodCode}/touch` cập nhật `last_touched_at` để phản hồi `GET /api/v1/me/learning-path` trả về `lastPeriodCode` và `current` của thời kỳ gần nhất.
+
+### 8.3. Địa điểm Di tích độc lập (`map_locations` v2 — V39)
+- Địa điểm di tích là thực thể độc lập (`map_locations.event_id` nullable), liên kết N–N với sự kiện qua `map_location_events(location_id, event_id, role, sort_order)`.
+- Thuộc tính phân loại địa điểm:
+  - `slug VARCHAR(120) UNIQUE`
+  - `kind VARCHAR(32)` (`HERITAGE_SITE`, `BATTLEFIELD`, `ANCIENT_CAPITAL`, `ARCHAEOLOGICAL_SITE`, `MEMORIAL`, `SCHEMATIC_REGION`)
+  - `coordinate_precision VARCHAR(24)` (`EXACT`, `APPROXIMATE`, `SCHEMATIC_ONLY`)
+  - `visibility VARCHAR(24)` (`ALWAYS_VISIBLE`, `HIDDEN_UNTIL_UNLOCKED`)
+  - `unlock_rule_mode VARCHAR(16)` (`NONE`, `ANY`, `ALL`) kết hợp bảng `map_location_unlock_lessons(location_id, lesson_id)` (bỏ giới hạn cùng event).
+- Media sau mở khóa (`map_location_media` + `assets`):
+  - Lưu trữ `asset_id` (`IMAGE_2D`, `PANORAMA_360`, `AUDIO_GUIDE`, `DOCUMENTARY_CLIP`) với `visibility ∈ {PUBLIC_PREVIEW, UNLOCKED_ONLY}`.
+  - Khi địa điểm đang `LOCKED`, Learner API ẩn toàn bộ bản ghi `UNLOCKED_ONLY` (không trả `assetId`/`assetUrl`).
+- Sổ cái mở khóa địa điểm (`user_location_unlocks`):
+  - Đánh giá ngay trong cùng transaction `LearnerAttemptService.doComplete()` thông qua `LessonCompletionHook`, đồng thời trả về `newlyUnlockedLocations[]` trong `CompleteAttemptResponse`.

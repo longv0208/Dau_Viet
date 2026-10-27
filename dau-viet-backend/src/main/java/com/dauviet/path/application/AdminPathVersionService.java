@@ -45,14 +45,26 @@ public class AdminPathVersionService {
         AdminPathAccess.require(source.getStatus() == LearningPathStatus.PUBLISHED,
                 "Clone source must be the current PUBLISHED version");
         var target = newDraft(source.getPathCode(), source.getTitle(), source.getDescription());
+        access.deferSortConstraints();
         var chapterIds = new HashMap<UUID, UUID>();
-        for (var chapter : chapters.findByPathVersionIdOrderBySortOrderAsc(sourceId)) {
-            var copy = new LearningPathChapter(null, target.getId(), chapter.getCode(), chapter.getTitle(),
-                    chapter.getDescription(), chapter.getStartYear(), chapter.getEndYear(),
-                    chapter.getPeriodLabel(), chapter.getSortOrder(), chapter.getThemeKey());
+        var copyBySourceId = new HashMap<UUID, LearningPathChapter>();
+        var sourceChapters = chapters.findByPathVersionIdOrderBySortOrderAsc(sourceId);
+        for (var chapter : sourceChapters) {
+            var copy = new LearningPathChapter(null, target.getId(), null, chapter.getNodeType(),
+                    chapter.getCode(), chapter.getTitle(), chapter.getDescription(),
+                    chapter.getStartYear(), chapter.getEndYear(), chapter.getPeriodLabel(),
+                    chapter.getSortOrder(), chapter.getThemeKey());
             chapters.save(copy);
             chapterIds.put(chapter.getId(), copy.getId());
+            copyBySourceId.put(chapter.getId(), copy);
         }
+        chapters.flush();
+        for (var chapter : sourceChapters) {
+            if (chapter.getParentId() != null) {
+                copyBySourceId.get(chapter.getId()).setParentId(chapterIds.get(chapter.getParentId()));
+            }
+        }
+        chapters.flush();
         for (var event : events.findByPathVersionIdOrderBySortOrderAsc(sourceId)) {
             var copy = new LearningPathEventNode(null, chapterIds.get(event.getChapterId()), target.getId(),
                     event.getEventId(), event.getSortOrder());
