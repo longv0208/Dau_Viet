@@ -26,6 +26,10 @@ class _IslandScreenState extends ConsumerState<IslandScreen> {
   String? _selectedSlotId;
   bool _isMutating = false;
   bool _showUpgradeCelebration = false;
+  bool _dismissedIntroBanner = false;
+  bool _isSheetOpen = false;
+  int _resetCameraVersion = 0;
+
   final TransformationController _transformationController =
       TransformationController();
 
@@ -47,7 +51,7 @@ class _IslandScreenState extends ConsumerState<IslandScreen> {
         child: SafeArea(
           child: Column(
             children: [
-              // Header thanh tiêu đề & chỉ số thật
+              // Header gọn gàng phân biệt rõ Quy mô Đảo và Level Tài Khoản
               _buildHeader(
                 context,
                 islandAsync.asData?.value,
@@ -73,14 +77,18 @@ class _IslandScreenState extends ConsumerState<IslandScreen> {
     );
   }
 
-  /// Header chứa nút quay lại, tiêu đề, Badge cấp đảo thật, Điểm Sử Ký thật và các nút chức năng.
+  /// Header tối ưu cho màn hình nhỏ (ISLAND-06 Part D1):
+  /// - Nút quay về
+  /// - Tên Đảo Di Sản + Quy mô hiện tại (Đảo nhỏ / Đảo vừa / Đảo lớn)
+  /// - Phụ đề Level tài khoản & EXP (tách bạch rõ với Tier của đảo)
+  /// - Chỉ số Điểm Sử Ký + Nút Cửa hàng + Nút Mở rộng đảo
   Widget _buildHeader(
     BuildContext context,
     IslandDto? island,
     WalletDto? wallet,
   ) {
     return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 6),
       decoration: BoxDecoration(
         color: DauVietColors.parchmentSurface,
         border: const Border(
@@ -96,11 +104,12 @@ class _IslandScreenState extends ConsumerState<IslandScreen> {
       ),
       child: Row(
         children: [
-          // Nút quay về
           IconButton(
+            visualDensity: VisualDensity.compact,
             icon: const Icon(
               Icons.arrow_back_ios_new_rounded,
               color: DauVietColors.woodBrown,
+              size: 20,
             ),
             onPressed: () {
               if (context.canPop()) {
@@ -111,30 +120,31 @@ class _IslandScreenState extends ConsumerState<IslandScreen> {
             },
           ),
 
-          // Tiêu đề & Cấp đảo
           Expanded(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               mainAxisSize: MainAxisSize.min,
               children: [
-                Wrap(
-                  crossAxisAlignment: WrapCrossAlignment.center,
-                  spacing: 6,
-                  runSpacing: 2,
+                Row(
                   children: [
-                    Text(
-                      'ĐẢO DI SẢN',
-                      style: DauVietTypography.headlineSmall.copyWith(
-                        fontWeight: FontWeight.bold,
-                        color: DauVietColors.cinnabarRed,
-                        letterSpacing: 0.5,
-                        fontSize: 14,
+                    Flexible(
+                      child: Text(
+                        'ĐẢO DI SẢN',
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: DauVietTypography.headlineSmall.copyWith(
+                          fontWeight: FontWeight.bold,
+                          color: DauVietColors.cinnabarRed,
+                          letterSpacing: 0.4,
+                          fontSize: 13,
+                        ),
                       ),
                     ),
-                    if (island != null)
+                    if (island != null) ...[
+                      const SizedBox(width: 6),
                       Container(
                         padding: const EdgeInsets.symmetric(
-                          horizontal: 6,
+                          horizontal: 7,
                           vertical: 2,
                         ),
                         decoration: BoxDecoration(
@@ -142,20 +152,27 @@ class _IslandScreenState extends ConsumerState<IslandScreen> {
                           borderRadius: BorderRadius.circular(8),
                         ),
                         child: Text(
-                          'CẤP ${island.tier}',
+                          island.tierScaleLabel,
                           style: DauVietTypography.bodySmall.copyWith(
                             color: Colors.white,
                             fontWeight: FontWeight.bold,
-                            fontSize: 9,
+                            fontSize: 10,
                           ),
                         ),
                       ),
+                    ],
                   ],
                 ),
+                const SizedBox(height: 1),
                 Text(
-                  'Không gian di sản cá nhân',
+                  island != null
+                      ? 'Level tài khoản ${island.currentLevel} · ${island.currentExp} EXP'
+                      : 'Không gian di sản cá nhân',
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
                   style: DauVietTypography.bodySmall.copyWith(
                     color: DauVietColors.inkMuted,
+                    fontSize: 11,
                   ),
                 ),
               ],
@@ -166,13 +183,13 @@ class _IslandScreenState extends ConsumerState<IslandScreen> {
           GestureDetector(
             onTap: () => context.push('/island/shop'),
             child: Container(
-              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+              padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 5),
               decoration: BoxDecoration(
                 color: DauVietColors.parchmentContainer,
-                borderRadius: BorderRadius.circular(16),
+                borderRadius: BorderRadius.circular(14),
                 border: Border.all(
                   color: DauVietColors.imperialGold,
-                  width: 1.5,
+                  width: 1.4,
                 ),
               ),
               child: Row(
@@ -181,7 +198,7 @@ class _IslandScreenState extends ConsumerState<IslandScreen> {
                   const Icon(
                     Icons.stars_rounded,
                     color: DauVietColors.imperialGold,
-                    size: 18,
+                    size: 16,
                   ),
                   const SizedBox(width: 4),
                   Text(
@@ -189,45 +206,78 @@ class _IslandScreenState extends ConsumerState<IslandScreen> {
                     style: DauVietTypography.bodySmall.copyWith(
                       fontWeight: FontWeight.bold,
                       color: DauVietColors.woodBrown,
+                      fontSize: 12,
                     ),
                   ),
                 ],
               ),
             ),
           ),
-          const SizedBox(width: 8),
+          const SizedBox(width: 4),
 
           // Nút Cửa Hàng
           IconButton(
-            tooltip: 'Cửa Hàng',
+            visualDensity: VisualDensity.compact,
+            tooltip: 'Cửa Hàng Di Sản',
             icon: const Icon(
               Icons.storefront_rounded,
               color: DauVietColors.cinnabarRed,
+              size: 22,
             ),
             onPressed: () => context.push('/island/shop'),
           ),
 
-          // Nút Mở Rộng Đảo
-          IconButton(
-            tooltip: 'Mở Rộng Đảo',
-            icon: const Icon(
-              Icons.landscape_rounded,
-              color: DauVietColors.heritageGreen,
-            ),
-            onPressed: island != null ? () => _openUpgradePanel(island) : null,
+          // Nút Mở Rộng Đảo (có chấm sáng báo hiệu khi đủ điều kiện nâng cấp)
+          Stack(
+            clipBehavior: Clip.none,
+            children: [
+              IconButton(
+                visualDensity: VisualDensity.compact,
+                tooltip: 'Mở Rộng Đảo',
+                icon: const Icon(
+                  Icons.landscape_rounded,
+                  color: DauVietColors.heritageGreen,
+                  size: 22,
+                ),
+                onPressed: island != null
+                    ? () => _openUpgradePanel(island)
+                    : null,
+              ),
+              if (island != null && island.canUpgrade && !island.isMaxTier)
+                Positioned(
+                  right: 6,
+                  top: 6,
+                  child: Container(
+                    width: 9,
+                    height: 9,
+                    decoration: BoxDecoration(
+                      color: DauVietColors.cinnabarRed,
+                      shape: BoxShape.circle,
+                      border: Border.all(
+                        color: DauVietColors.parchmentSurface,
+                        width: 1.5,
+                      ),
+                    ),
+                  ),
+                ),
+            ],
           ),
         ],
       ),
     );
   }
 
-  /// Thân màn hình đảo: Canvas isometric 2.5D + Card chi tiết slot docked ở đáy.
+  /// Thân màn hình đảo: Canvas 2.5D + Hướng dẫn ngữ cảnh lần đầu + Card chi tiết slot.
   Widget _buildIslandContent(IslandDto island) {
-    // Tìm slot đang được chọn (nếu có)
     final selectedSlot = island.slots.cast<IslandSlotDto?>().firstWhere(
       (s) => s?.slotId == _selectedSlotId,
       orElse: () => null,
     );
+    final placedCount = island.slots.where((s) => s.isOccupied).length;
+    final showContextualGuide =
+        !_dismissedIntroBanner &&
+        selectedSlot == null &&
+        (placedCount == 0 || (island.canUpgrade && !island.isMaxTier));
 
     return Stack(
       children: [
@@ -237,6 +287,7 @@ class _IslandScreenState extends ConsumerState<IslandScreen> {
             island: island,
             selectedSlotId: _selectedSlotId,
             transformationController: _transformationController,
+            resetCameraVersion: _resetCameraVersion,
             onSelectSlot: (slot) {
               setState(() {
                 _selectedSlotId = slot?.slotId;
@@ -245,12 +296,21 @@ class _IslandScreenState extends ConsumerState<IslandScreen> {
           ),
         ),
 
-        // 2. Card chi tiết slot nổi ở phía dưới màn hình khi có slot được chọn
+        // 2. Chỉ dẫn ngữ cảnh gọn nhẹ cho người dùng mới hoặc khi đủ điều kiện mở rộng (Part D2)
+        if (showContextualGuide)
+          Positioned(
+            left: 12,
+            right: 58,
+            top: 10,
+            child: _buildContextualGuideBanner(island, placedCount),
+          ),
+
+        // 3. Card chi tiết slot nổi ở phía dưới màn hình khi có slot được chọn (Part D4)
         if (selectedSlot != null)
           Positioned(
             left: 0,
             right: 0,
-            bottom: 8,
+            bottom: 6,
             child: IslandSlotDetailCard(
               slot: selectedSlot,
               isMutating: _isMutating,
@@ -261,25 +321,90 @@ class _IslandScreenState extends ConsumerState<IslandScreen> {
             ),
           ),
 
-        // 3. Nút đặt lại góc nhìn zoom (Reset Camera) ở góc trên bên phải
+        // 4. Nút đặt lại góc nhìn chuẩn theo quy mô đảo (Reset Camera - Part B7)
         Positioned(
-          top: 12,
-          right: 12,
+          top: 10,
+          right: 10,
           child: FloatingActionButton.small(
             heroTag: 'btn_reset_zoom',
             backgroundColor: DauVietColors.parchmentSurface.withValues(
-              alpha: 0.9,
+              alpha: 0.92,
             ),
             foregroundColor: DauVietColors.woodBrown,
             elevation: 2,
-            tooltip: 'Đặt lại góc nhìn',
+            tooltip: 'Căn giữa Đảo Di Sản',
             onPressed: () {
-              _transformationController.value = Matrix4.identity();
+              setState(() {
+                _resetCameraVersion++;
+              });
             },
             child: const Icon(Icons.center_focus_strong_rounded, size: 20),
           ),
         ),
       ],
+    );
+  }
+
+  Widget _buildContextualGuideBanner(IslandDto island, int placedCount) {
+    final canUpgradeNow = island.canUpgrade && !island.isMaxTier;
+
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+      decoration: BoxDecoration(
+        color: DauVietColors.parchmentSurface.withValues(alpha: 0.94),
+        borderRadius: BorderRadius.circular(14),
+        border: Border.all(
+          color: canUpgradeNow
+              ? DauVietColors.imperialGold
+              : DauVietColors.outlineVariant,
+          width: 1.2,
+        ),
+        boxShadow: const [
+          BoxShadow(
+            color: Colors.black12,
+            blurRadius: 8,
+            offset: Offset(0, 3),
+          ),
+        ],
+      ),
+      child: Row(
+        children: [
+          Icon(
+            canUpgradeNow
+                ? Icons.auto_awesome_rounded
+                : Icons.touch_app_rounded,
+            size: 18,
+            color: canUpgradeNow
+                ? DauVietColors.cinnabarRed
+                : DauVietColors.heritageGreen,
+          ),
+          const SizedBox(width: 8),
+          Expanded(
+            child: GestureDetector(
+              onTap: canUpgradeNow ? () => _openUpgradePanel(island) : null,
+              child: Text(
+                canUpgradeNow
+                    ? 'Đủ Level mở rộng đảo! Chạm vào đây để khai mở vùng đất mới.'
+                    : 'Chạm ô trống (+) để đặt vật phẩm. Học bài nhận EXP nâng Level mở rộng đảo.',
+                style: DauVietTypography.bodySmall.copyWith(
+                  color: DauVietColors.inkText,
+                  fontSize: 11.5,
+                  fontWeight: FontWeight.w600,
+                ),
+              ),
+            ),
+          ),
+          const SizedBox(width: 4),
+          GestureDetector(
+            onTap: () => setState(() => _dismissedIntroBanner = true),
+            child: const Icon(
+              Icons.close_rounded,
+              size: 16,
+              color: DauVietColors.inkMuted,
+            ),
+          ),
+        ],
+      ),
     );
   }
 
@@ -326,17 +451,23 @@ class _IslandScreenState extends ConsumerState<IslandScreen> {
     );
   }
 
-  /// Mở Bottom Sheet Túi Đồ để chọn vật phẩm đặt lên slot.
-  void _openInventorySheet(IslandSlotDto slot) {
-    showModalBottomSheet(
-      context: context,
-      isScrollControlled: true,
-      backgroundColor: Colors.transparent,
-      builder: (ctx) => IslandInventorySheet(
-        targetSlot: slot,
-        onSelectItem: (itemId) => _placeItem(slot, itemId),
-      ),
-    );
+  /// Mở Bottom Sheet Túi Đồ để chọn vật phẩm đặt lên slot (chặn mở chồng nhiều sheet).
+  Future<void> _openInventorySheet(IslandSlotDto slot) async {
+    if (_isSheetOpen) return;
+    _isSheetOpen = true;
+    try {
+      await showModalBottomSheet(
+        context: context,
+        isScrollControlled: true,
+        backgroundColor: Colors.transparent,
+        builder: (ctx) => IslandInventorySheet(
+          targetSlot: slot,
+          onSelectItem: (itemId) => _placeItem(slot, itemId),
+        ),
+      );
+    } finally {
+      _isSheetOpen = false;
+    }
   }
 
   /// Thực hiện đặt vật phẩm lên ô.
@@ -350,10 +481,8 @@ class _IslandScreenState extends ConsumerState<IslandScreen> {
 
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text(
-            'Đã đặt vật phẩm vào vị trí ${slot.slotId} thành công!',
-          ),
+        const SnackBar(
+          content: Text('Đã đặt vật phẩm lên Đảo Di Sản thành công!'),
           backgroundColor: DauVietColors.heritageGreen,
         ),
       );
@@ -389,10 +518,8 @@ class _IslandScreenState extends ConsumerState<IslandScreen> {
 
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text(
-            'Đã cất vật phẩm ở vị trí ${slot.slotId} về kho an toàn.',
-          ),
+        const SnackBar(
+          content: Text('Đã cất vật phẩm về kho an toàn.'),
           backgroundColor: DauVietColors.heritageGreen,
         ),
       );
@@ -417,21 +544,27 @@ class _IslandScreenState extends ConsumerState<IslandScreen> {
     }
   }
 
-  /// Mở panel tiến trình mở rộng Đảo Di Sản.
-  void _openUpgradePanel(IslandDto island) {
-    showModalBottomSheet(
-      context: context,
-      isScrollControlled: true,
-      backgroundColor: Colors.transparent,
-      builder: (ctx) => IslandUpgradePanel(
-        island: island,
-        isUpgrading: _isMutating,
-        onUpgrade: () async {
-          Navigator.of(ctx).pop();
-          _executeUpgrade();
-        },
-      ),
-    );
+  /// Mở panel tiến trình mở rộng Đảo Di Sản (chặn mở chồng nhiều sheet).
+  Future<void> _openUpgradePanel(IslandDto island) async {
+    if (_isSheetOpen) return;
+    _isSheetOpen = true;
+    try {
+      await showModalBottomSheet(
+        context: context,
+        isScrollControlled: true,
+        backgroundColor: Colors.transparent,
+        builder: (ctx) => IslandUpgradePanel(
+          island: island,
+          isUpgrading: _isMutating,
+          onUpgrade: () {
+            Navigator.of(ctx).pop();
+            _executeUpgrade();
+          },
+        ),
+      );
+    } finally {
+      _isSheetOpen = false;
+    }
   }
 
   /// Thực hiện nâng cấp đảo sang tier tiếp theo.
@@ -442,12 +575,15 @@ class _IslandScreenState extends ConsumerState<IslandScreen> {
       await ref.read(islandControllerProvider.notifier).upgrade();
 
       if (!mounted) return;
-      setState(() => _showUpgradeCelebration = true);
+      setState(() {
+        _showUpgradeCelebration = true;
+        _resetCameraVersion++;
+      });
 
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
           content: Text(
-            'Chúc mừng! Đảo Di Sản của bạn đã được mở rộng thành công!',
+            'Chúc mừng! Đảo Di Sản của bạn đã được mở rộng thêm vùng đất mới!',
           ),
           backgroundColor: DauVietColors.heritageGreen,
         ),

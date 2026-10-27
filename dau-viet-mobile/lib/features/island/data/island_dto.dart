@@ -40,6 +40,23 @@ String? resolveIslandAsset(String? renderKey, String? code, [String? assetId]) {
   return null;
 }
 
+String _friendlyItemNameFromCode(String? code, String? renderKey) {
+  final raw = (code ?? renderKey ?? '').toLowerCase().trim();
+  if (raw.contains('cay_da')) return 'Cây đa cổ thụ';
+  if (raw.contains('nha_tranh')) return 'Nhà tranh vách đất';
+  if (raw.contains('ho_sen')) return 'Hồ sen';
+  if (raw.contains('cau_kieu')) return 'Cầu kiều mái cong';
+  if (raw.contains('bui_tre')) return 'Bụi Tre Làng Cổ';
+  if (raw.contains('gieng_co')) return 'Giếng Cổ Đá Xanh';
+  if (raw.contains('cong_lang')) return 'Cổng Làng Đá Ong';
+  if (raw.contains('den_long')) return 'Đèn Lồng Phố Cổ';
+  if (raw.contains('dinh_lang')) return 'Đình Làng Mái Đao';
+  if (raw.contains('thuyen_rong')) return 'Thuyền Rồng Bến Nước';
+  if (raw.contains('thap_but')) return 'Tháp Bút Truyền Thống';
+  if (raw.contains('khue_van')) return 'Khuê Văn Các Thu Nhỏ';
+  return code ?? 'Vật phẩm di sản';
+}
+
 /// Thông tin vật phẩm đặt trên một slot của đảo.
 @immutable
 class IslandPlacementDto {
@@ -60,11 +77,16 @@ class IslandPlacementDto {
   String? get assetPath => resolveIslandAsset(renderKey, code, assetId);
 
   factory IslandPlacementDto.fromJson(Map<String, dynamic> json) {
+    final code = json['code'] as String? ?? '';
+    final renderKey = json['renderKey'] as String?;
+    final rawName = json['name'] as String?;
     return IslandPlacementDto(
       itemId: json['itemId'] as String? ?? '',
-      code: json['code'] as String? ?? '',
-      name: json['name'] as String? ?? '',
-      renderKey: json['renderKey'] as String?,
+      code: code,
+      name: (rawName != null && rawName.isNotEmpty && rawName != code)
+          ? rawName
+          : _friendlyItemNameFromCode(code, renderKey),
+      renderKey: renderKey,
       assetId: json['assetId'] as String?,
     );
   }
@@ -159,6 +181,7 @@ class IslandSlotDto {
     // Fall-back to legacy field names so MockIslandRepository still works.
     final placedItemId = json['placedItemId'] as String?;
     final placedItemCode = json['placedItemCode'] as String?;
+    final placedItemName = json['placedItemName'] as String?;
     final placedRenderKey = json['placedRenderKey'] as String?;
     // Build placement from flat backend fields, or from legacy nested map
     IslandPlacementDto? placement;
@@ -166,7 +189,11 @@ class IslandSlotDto {
       placement = IslandPlacementDto(
         itemId: placedItemId,
         code: placedItemCode ?? '',
-        name: placedItemCode ?? '',
+        name: (placedItemName != null &&
+                placedItemName.isNotEmpty &&
+                placedItemName != placedItemCode)
+            ? placedItemName
+            : _friendlyItemNameFromCode(placedItemCode, placedRenderKey),
         renderKey: placedRenderKey,
       );
     } else if (json['placement'] is Map) {
@@ -362,6 +389,8 @@ class IslandDto {
   final int? nextTierRequiredLevel;
   /// EXP tối thiểu tương ứng với nextTierRequiredLevel (null nếu đã max tier).
   final int? nextTierRequiredExp;
+  /// Tổng số slot khi nâng lên tier kế tiếp (0 nếu đã max tier).
+  final int nextTierSlotCount;
   /// Backend xác nhận user có quyền nâng cấp không.
   final bool canUpgrade;
   /// Số sự kiện hoàn thành (chỉ còn để tương thích, không dùng xét eligibility).
@@ -398,6 +427,7 @@ class IslandDto {
     this.currentLevel = 1,
     this.nextTierRequiredLevel,
     this.nextTierRequiredExp,
+    this.nextTierSlotCount = 0,
     this.canUpgrade = false,
     this.eventsCompleted = 0,
     this.slots = const [],
@@ -414,6 +444,24 @@ class IslandDto {
 
   bool get isMaxTier => tier >= maxTier;
 
+  /// Tên quy mô đảo theo Tier (Đảo nhỏ / Đảo vừa / Đảo lớn).
+  String get tierScaleLabel {
+    switch (tier) {
+      case 1:
+        return 'Đảo nhỏ';
+      case 2:
+        return 'Đảo vừa';
+      case 3:
+        return 'Đảo lớn';
+      default:
+        return 'Đảo cấp $tier';
+    }
+  }
+
+  /// Số slot đã mở khóa hiện tại.
+  int get unlockedSlotCount =>
+      slots.where((s) => s.unlocked || s.unlockTier <= tier).length;
+
   /// Alias kept for providers that still reference island.revision.
   int get revision => rowVersion;
 
@@ -425,6 +473,7 @@ class IslandDto {
     int? currentLevel,
     int? nextTierRequiredLevel,
     int? nextTierRequiredExp,
+    int? nextTierSlotCount,
     bool? canUpgrade,
     int? eventsCompleted,
     List<IslandSlotDto>? slots,
@@ -446,6 +495,7 @@ class IslandDto {
       currentLevel: currentLevel ?? this.currentLevel,
       nextTierRequiredLevel: nextTierRequiredLevel ?? this.nextTierRequiredLevel,
       nextTierRequiredExp: nextTierRequiredExp ?? this.nextTierRequiredExp,
+      nextTierSlotCount: nextTierSlotCount ?? this.nextTierSlotCount,
       canUpgrade: canUpgrade ?? this.canUpgrade,
       eventsCompleted: eventsCompleted ?? this.eventsCompleted,
       slots: slots ?? this.slots,
@@ -480,6 +530,7 @@ class IslandDto {
       currentLevel: (json['currentLevel'] as num?)?.toInt() ?? 1,
       nextTierRequiredLevel: nextReqLevel,
       nextTierRequiredExp: nextReqExp,
+      nextTierSlotCount: (json['nextTierSlotCount'] as num?)?.toInt() ?? 0,
       canUpgrade: canUpgrade,
       eventsCompleted: eventsCompleted,
       slots: rawSlots is List

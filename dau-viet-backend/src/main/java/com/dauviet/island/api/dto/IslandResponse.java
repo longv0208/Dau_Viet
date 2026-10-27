@@ -53,6 +53,7 @@ public record IslandResponse(
             double coordY,
             UUID placedItemId,
             String placedItemCode,
+            String placedItemName,
             String placedRenderKey,
             Instant placedAt,
             // V44 layout fields
@@ -65,6 +66,33 @@ public record IslandResponse(
             double heightNorm,
             List<String> allowedCategories
     ) {
+        public SlotView(
+                UUID slotId,
+                int slotIndex,
+                int tierRequired,
+                boolean unlocked,
+                double coordX,
+                double coordY,
+                UUID placedItemId,
+                String placedItemCode,
+                String placedRenderKey,
+                Instant placedAt,
+                String stableSlotKey,
+                String regionCode,
+                int zIndex,
+                double anchorX,
+                double anchorY,
+                double widthNorm,
+                double heightNorm,
+                List<String> allowedCategories
+        ) {
+            this(
+                    slotId, slotIndex, tierRequired, unlocked, coordX, coordY,
+                    placedItemId, placedItemCode, placedItemCode, placedRenderKey, placedAt,
+                    stableSlotKey, regionCode, zIndex, anchorX, anchorY,
+                    widthNorm, heightNorm, allowedCategories
+            );
+        }
     }
 
     /** Vùng đất: metadata để Flutter vẽ overlay khoá/mở (ISLAND-03/04). */

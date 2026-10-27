@@ -107,8 +107,8 @@ export function IslandShopManager() {
   });
 
   const updateMutation = useMutation({
-    mutationFn: ({ id, req }: { id: string; req: UpdateShopOfferRequest }) =>
-      islandShopApi.updateOffer(id, req),
+    mutationFn: ({ itemId, req }: { itemId: string; req: UpdateShopOfferRequest }) =>
+      islandShopApi.updateOffer(itemId, req),
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ["island-shop"] });
       setEditingOffer(null);
@@ -119,7 +119,7 @@ export function IslandShopManager() {
   });
 
   const removeMutation = useMutation({
-    mutationFn: (offerId: string) => islandShopApi.removeOffer(offerId),
+    mutationFn: (itemId: string) => islandShopApi.removeOffer(itemId),
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ["island-shop"] });
       setActionError(null);
@@ -182,7 +182,7 @@ export function IslandShopManager() {
     }
     const parsedSort = Number(editSortOrder) || 0;
     updateMutation.mutate({
-      id: editingOffer.offerId,
+      itemId: editingOffer.itemId,
       req: {
         pricePoints: editUnpriced ? null : parsedPrice,
         clearPrice: editUnpriced,
@@ -238,7 +238,7 @@ export function IslandShopManager() {
         <CardHeader>
           <CardTitle>Danh sách vật phẩm trong Shop ({offers.length})</CardTitle>
           <CardDescription>
-            Chỉ những vật phẩm có <code>placeable = true</code>, đang <code>active</code> trong Catalog và có giá <code>pricePoints &gt; 0</code> mới cho phép học viên mua trên ứng dụng.
+            Chỉ những vật phẩm có <code>purchasable = true</code> (đang bật bán, có giá &gt; 0, có <code>placeable = true</code> và đang hiển thị trong Catalog) mới cho phép học viên mua trên ứng dụng.
           </CardDescription>
         </CardHeader>
         <CardContent>
@@ -266,14 +266,9 @@ export function IslandShopManager() {
                 </thead>
                 <tbody className="divide-y divide-border">
                   {offers.map((offer) => {
-                    const isPurchasable =
-                      offer.active &&
-                      offer.catalogActive &&
-                      offer.placeable &&
-                      offer.pricePoints != null &&
-                      offer.pricePoints > 0;
+                    const isPurchasable = offer.purchasable;
                     return (
-                      <tr key={offer.offerId} className="hover:bg-surface-alt/50">
+                      <tr key={offer.itemId} className="hover:bg-surface-alt/50">
                         <td className="py-3 pr-3 font-mono text-xs text-ink-muted">
                           #{offer.sortOrder}
                         </td>
@@ -343,7 +338,9 @@ export function IslandShopManager() {
                                 ? "Đang mở bán"
                                 : offer.pricePoints == null
                                   ? "Chưa mở bán"
-                                  : "Tạm dừng bán"}
+                                  : !offer.active
+                                    ? "Tạm dừng bán"
+                                    : "Không đủ điều kiện bán"}
                             </span>
                             {(!offer.catalogActive || !offer.placeable) && (
                               <span className="text-[11px] text-error">
@@ -382,7 +379,7 @@ export function IslandShopManager() {
                                     `Gỡ "${offer.name}" khỏi Cửa hàng Đảo Di Sản? Vật phẩm trong Catalog và kho người chơi vẫn được giữ nguyên.`,
                                   )
                                 ) {
-                                  removeMutation.mutate(offer.offerId);
+                                  removeMutation.mutate(offer.itemId);
                                 }
                               }}
                               title="Gỡ khỏi Shop"
@@ -595,11 +592,7 @@ export function IslandShopManager() {
               </div>
               <div>
                 <span className="inline-block rounded-xl bg-[#D48B19] px-3 py-2 text-xs font-extrabold text-white">
-                  {previewOffer.active &&
-                  previewOffer.pricePoints != null &&
-                  previewOffer.pricePoints > 0
-                    ? "MUA"
-                    : "CHƯA BÁN"}
+                  {previewOffer.purchasable ? "MUA" : "CHƯA BÁN"}
                 </span>
               </div>
             </div>

@@ -505,6 +505,7 @@ public class IslandService {
                             s.getCoordX(), s.getCoordY(),
                             p == null ? null : p.getItemId(),
                             placedItem == null ? null : placedItem.getCode(),
+                            placedItem == null ? null : placedItem.getName(),
                             placedItem == null ? null : placedItem.getRenderKey(),
                             p == null ? null : p.getPlacedAt(),
                             // V43/V44 fields

@@ -5,54 +5,83 @@
 -- without stacking duplicate items. Does NOT auto-grant free items.
 -- ============================================================
 
-INSERT INTO item_catalog (code, name, description, category, rarity, item_type, stackable, active, placeable, render_key)
+INSERT INTO item_catalog (
+    id, code, name, description, category, item_type, rarity,
+    placeable, render_key, source_metadata, active
+)
 VALUES
-    ('decor_bui_tre', 'Bụi Tre Làng Cổ', 'Khóm tre xanh rì rào đầu làng, biểu tượng sức sống kiên cường của làng quê Việt.', 'DECOR', 'COMMON', 'DECOR', FALSE, TRUE, TRUE, 'decor.bui_tre'),
-    ('decor_gieng_co', 'Giếng Cổ Đá Xanh', 'Giếng làng xây bằng đá xanh rêu phong, nơi lưu giữ mạch nguồn văn hóa.', 'DECOR', 'COMMON', 'DECOR', FALSE, TRUE, TRUE, 'decor.gieng_co'),
-    ('decor_cong_lang', 'Cổng Làng Đá Ong', 'Cổng làng cổ kính xây bằng đá ong Xứ Đoài với mái vòm truyền thống.', 'DECOR', 'UNCOMMON', 'DECOR', FALSE, TRUE, TRUE, 'decor.cong_lang'),
-    ('decor_den_long_hoi_an', 'Đèn Lồng Phố Cổ', 'Cụm đèn lồng lụa rực rỡ thắp sáng góc đảo di sản về đêm.', 'DECOR', 'UNCOMMON', 'DECOR', FALSE, TRUE, TRUE, 'decor.den_long_hoi_an'),
-    ('decor_dinh_lang', 'Đình Làng Mái Đao', 'Ngôi đình cổ với mái đao cong vút, không gian sinh hoạt văn hóa cộng đồng.', 'DECOR', 'RARE', 'DECOR', FALSE, TRUE, TRUE, 'decor.dinh_lang'),
-    ('decor_thuyen_rong', 'Thuyền Rồng Bến Nước', 'Chiếc thuyền rồng chạm khắc tinh xảo neo đậu bên bến nước di sản.', 'DECOR', 'RARE', 'DECOR', FALSE, TRUE, TRUE, 'decor.thuyen_rong'),
-    ('decor_thap_but', 'Tháp Bút Truyền Thống', 'Ngọn tháp đá vươn cao tượng trưng cho tinh thần hiếu học ngàn đời.', 'DECOR', 'EPIC', 'DECOR', FALSE, TRUE, TRUE, 'decor.thap_but'),
-    ('decor_khue_van_cac', 'Khuê Văn Các Thu Nhỏ', 'Mô phỏng lầu Khuê Văn biểu tượng văn hiến Thăng Long - Hà Nội.', 'DECOR', 'EPIC', 'DECOR', FALSE, TRUE, TRUE, 'decor.khue_van_cac')
+    ('d7d00000-0000-4000-8000-000000000005', 'DECOR_BUI_TRE',
+     'Bụi Tre Làng Cổ',
+     'Khóm tre xanh rì rào đầu làng trang trí Đảo Di Sản, biểu tượng sức sống kiên cường của làng quê Việt.',
+     'DECOR', 'DECOR', 'COMMON',
+     TRUE, 'decor.bui_tre',
+     '{"note":"Vật phẩm trang trí Đảo Di Sản, không phải hiện vật lịch sử"}'::jsonb,
+     TRUE),
+    ('d7d00000-0000-4000-8000-000000000006', 'DECOR_GIENG_CO',
+     'Giếng Cổ Đá Xanh',
+     'Giếng làng xây bằng đá xanh rêu phong trang trí Đảo Di Sản, nơi lưu giữ mạch nguồn văn hóa.',
+     'DECOR', 'DECOR', 'COMMON',
+     TRUE, 'decor.gieng_co',
+     '{"note":"Vật phẩm trang trí Đảo Di Sản, không phải hiện vật lịch sử"}'::jsonb,
+     TRUE),
+    ('d7d00000-0000-4000-8000-000000000007', 'DECOR_CONG_LANG',
+     'Cổng Làng Đá Ong',
+     'Cổng làng cổ kính xây bằng đá ong Xứ Đoài với mái vòm truyền thống trang trí Đảo Di Sản.',
+     'DECOR', 'DECOR', 'UNCOMMON',
+     TRUE, 'decor.cong_lang',
+     '{"note":"Vật phẩm trang trí Đảo Di Sản, không phải hiện vật lịch sử"}'::jsonb,
+     TRUE),
+    ('d7d00000-0000-4000-8000-000000000008', 'DECOR_DEN_LONG_HOI_AN',
+     'Đèn Lồng Phố Cổ',
+     'Cụm đèn lồng lụa rực rỡ thắp sáng góc Đảo Di Sản.',
+     'DECOR', 'DECOR', 'UNCOMMON',
+     TRUE, 'decor.den_long_hoi_an',
+     '{"note":"Vật phẩm trang trí Đảo Di Sản, không phải hiện vật lịch sử"}'::jsonb,
+     TRUE),
+    ('d7d00000-0000-4000-8000-000000000009', 'DECOR_DINH_LANG',
+     'Đình Làng Mái Đao',
+     'Ngôi đình cổ với mái đao cong vút trang trí Đảo Di Sản, không gian sinh hoạt văn hóa cộng đồng.',
+     'DECOR', 'DECOR', 'RARE',
+     TRUE, 'decor.dinh_lang',
+     '{"note":"Vật phẩm trang trí Đảo Di Sản, không phải hiện vật lịch sử"}'::jsonb,
+     TRUE),
+    ('d7d00000-0000-4000-8000-000000000010', 'DECOR_THUYEN_RONG',
+     'Thuyền Rồng Bến Nước',
+     'Chiếc thuyền rồng chạm khắc tinh xảo neo đậu bên bến nước Đảo Di Sản.',
+     'DECOR', 'DECOR', 'RARE',
+     TRUE, 'decor.thuyen_rong',
+     '{"note":"Vật phẩm trang trí Đảo Di Sản, không phải hiện vật lịch sử"}'::jsonb,
+     TRUE),
+    ('d7d00000-0000-4000-8000-000000000011', 'DECOR_THAP_BUT',
+     'Tháp Bút Truyền Thống',
+     'Mô hình Tháp Bút đá vươn cao trang trí Đảo Di Sản, tượng trưng cho tinh thần hiếu học ngàn đời.',
+     'DECOR', 'DECOR', 'EPIC',
+     TRUE, 'decor.thap_but',
+     '{"note":"Vật phẩm trang trí Đảo Di Sản, không phải hiện vật lịch sử"}'::jsonb,
+     TRUE),
+    ('d7d00000-0000-4000-8000-000000000012', 'DECOR_KHUE_VAN_CAC',
+     'Khuê Văn Các Thu Nhỏ',
+     'Mô hình lầu Khuê Văn trang trí Đảo Di Sản, biểu tượng văn hiến Thăng Long - Hà Nội.',
+     'DECOR', 'DECOR', 'EPIC',
+     TRUE, 'decor.khue_van_cac',
+     '{"note":"Vật phẩm trang trí Đảo Di Sản, không phải hiện vật lịch sử"}'::jsonb,
+     TRUE)
 ON CONFLICT (code) DO UPDATE
 SET placeable = TRUE,
-    render_key = COALESCE(item_catalog.render_key, EXCLUDED.render_key);
+    render_key = COALESCE(item_catalog.render_key, EXCLUDED.render_key),
+    updated_at = now();
 
 INSERT INTO island_shop_items (item_id, price_points, active, sort_order)
-SELECT id,
-       CASE code
-           WHEN 'decor_bui_tre' THEN 120
-           WHEN 'decor_gieng_co' THEN 150
-           WHEN 'decor_cong_lang' THEN 180
-           WHEN 'decor_den_long_hoi_an' THEN 200
-           WHEN 'decor_dinh_lang' THEN 250
-           WHEN 'decor_thuyen_rong' THEN 280
-           WHEN 'decor_thap_but' THEN 320
-           WHEN 'decor_khue_van_cac' THEN 350
-           ELSE 150
-       END,
-       TRUE,
-       CASE code
-           WHEN 'decor_bui_tre' THEN 5
-           WHEN 'decor_gieng_co' THEN 6
-           WHEN 'decor_cong_lang' THEN 7
-           WHEN 'decor_den_long_hoi_an' THEN 8
-           WHEN 'decor_dinh_lang' THEN 9
-           WHEN 'decor_thuyen_rong' THEN 10
-           WHEN 'decor_thap_but' THEN 11
-           WHEN 'decor_khue_van_cac' THEN 12
-           ELSE 99
-       END
-FROM item_catalog
-WHERE code IN (
-    'decor_bui_tre',
-    'decor_gieng_co',
-    'decor_cong_lang',
-    'decor_den_long_hoi_an',
-    'decor_dinh_lang',
-    'decor_thuyen_rong',
-    'decor_thap_but',
-    'decor_khue_van_cac'
-)
+SELECT c.id, v.price, TRUE, v.sort_order
+FROM item_catalog c
+JOIN (VALUES
+    ('DECOR_BUI_TRE',         120, 5),
+    ('DECOR_GIENG_CO',        150, 6),
+    ('DECOR_CONG_LANG',       180, 7),
+    ('DECOR_DEN_LONG_HOI_AN', 200, 8),
+    ('DECOR_DINH_LANG',       250, 9),
+    ('DECOR_THUYEN_RONG',     280, 10),
+    ('DECOR_THAP_BUT',        320, 11),
+    ('DECOR_KHUE_VAN_CAC',    350, 12)
+) AS v(code, price, sort_order) ON v.code = c.code
 ON CONFLICT (item_id) DO NOTHING;
