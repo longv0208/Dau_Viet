@@ -6,6 +6,10 @@ import '../../../../core/widgets/tactile_3d_button.dart';
 import '../../data/island_dto.dart';
 
 /// Card thông tin chi tiết gọn gàng nổi ở đáy màn hình khi người học chạm vào một slot.
+/// Tối ưu luồng thao tác (ISLAND-07 Part A2):
+/// - Khi slot đang có vật phẩm: chỉ hiển thị thao tác "CẤT VÀO KHO" rõ ràng,
+///   không gọi `placeItem()` trực tiếp lên slot đang bị chiếm (`SLOT_OCCUPIED`).
+/// - Sau khi cất thành công, slot chuyển sang trống và cho phép chọn vật phẩm mới ngay.
 class IslandSlotDetailCard extends StatelessWidget {
   final IslandSlotDto slot;
   final VoidCallback onClose;
@@ -144,7 +148,7 @@ class IslandSlotDetailCard extends StatelessWidget {
         height: 40,
         icon: Icons.landscape_rounded,
         variant: Tactile3DVariant.secondaryParchment,
-        onPressed: onUpgradeInfo,
+        onPressed: isMutating ? null : onUpgradeInfo,
       );
     }
 
@@ -155,34 +159,18 @@ class IslandSlotDetailCard extends StatelessWidget {
         icon: Icons.add_business_rounded,
         variant: Tactile3DVariant.heritageGreen,
         isLoading: isMutating,
-        onPressed: onChooseItem,
+        onPressed: isMutating ? null : onChooseItem,
       );
     }
 
-    return Row(
-      children: [
-        Expanded(
-          child: Tactile3DButton(
-            label: 'ĐỔI VẬT PHẨM',
-            height: 40,
-            icon: Icons.swap_horiz_rounded,
-            variant: Tactile3DVariant.secondaryParchment,
-            isLoading: isMutating,
-            onPressed: onChooseItem,
-          ),
-        ),
-        const SizedBox(width: 10),
-        Expanded(
-          child: Tactile3DButton(
-            label: 'CẤT VÀO KHO',
-            height: 40,
-            icon: Icons.archive_outlined,
-            variant: Tactile3DVariant.dangerRed,
-            isLoading: isMutating,
-            onPressed: onRemoveItem,
-          ),
-        ),
-      ],
+    // Khi slot đang có vật phẩm: cất về kho trước để ô trống rồi mới đặt vật phẩm khác
+    return Tactile3DButton(
+      label: 'CẤT VÀO KHO (ĐỂ ĐỔI VẬT PHẨM)',
+      height: 40,
+      icon: Icons.archive_outlined,
+      variant: Tactile3DVariant.dangerRed,
+      isLoading: isMutating,
+      onPressed: isMutating ? null : onRemoveItem,
     );
   }
 
@@ -199,8 +187,10 @@ class IslandSlotDetailCard extends StatelessWidget {
   }
 
   String _titleText() {
-    if (slot.isLocked) return 'Vị trí thuộc ${_scaleNameForTier(slot.unlockTier)}';
-    if (slot.isEmpty) return '${_shortSlotLabel()} — Đang trống';
+    if (slot.isLocked) {
+      return 'Vị trí thuộc ${_scaleNameForTier(slot.unlockTier)}';
+    }
+    if (slot.isEmpty) return '${_shortSlotLabel()} — Vị trí đặt vật phẩm';
     return slot.placement!.name;
   }
 
@@ -209,18 +199,18 @@ class IslandSlotDetailCard extends StatelessWidget {
       return '${_shortSlotLabel()} • Mở khóa khi nâng cấp lên ${_scaleNameForTier(slot.unlockTier)}';
     }
     if (slot.isEmpty) {
-      return '${_shortSlotLabel()} • Sẵn sàng đặt vật phẩm trang trí';
+      return '${_shortSlotLabel()} • Ô đất trống sẵn sàng trang trí';
     }
     return '${_shortSlotLabel()} • Đang trưng bày trên Đảo Di Sản';
   }
 
   String _descriptionText() {
     if (slot.isLocked) {
-      return 'Hoàn thành bài học để tích lũy EXP, nâng Cấp tài khoản và mở rộng sang ${_scaleNameForTier(slot.unlockTier)}.';
+      return 'Hoàn thành bài học để tích lũy EXP, nâng Level tài khoản và mở rộng sang ${_scaleNameForTier(slot.unlockTier)}.';
     }
     if (slot.isEmpty) {
-      return 'Chọn một vật phẩm trang trí từ Kho vật phẩm của bạn để tô điểm cho không gian di sản.';
+      return 'Đây là vị trí trang trí trên đảo của bạn. Mở Kho vật phẩm để chọn công trình văn hóa hoặc mô hình lịch sử đã sở hữu.';
     }
-    return 'Bạn có thể đổi sang vật phẩm khác hoặc cất về kho bất kỳ lúc nào mà không làm mất vật phẩm.';
+    return 'Cất vật phẩm này về kho nếu bạn muốn để trống vị trí hoặc chọn một vật phẩm khác thay thế.';
   }
 }

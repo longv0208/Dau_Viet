@@ -8,16 +8,54 @@ import '../../../../core/theme/dau_viet_typography.dart';
 import '../../data/island_dto.dart';
 import 'island_slot_widget.dart';
 
-/// Canvas 2.5D Vietnamese Heritage Illustrated Diorama hiển thị Đảo Di Sản,
-/// hỗ trợ pan & zoom qua [InteractiveViewer] và tự động mở rộng diện tích đất
-/// thực tế theo các vùng (regions) đã mở khóa ở Tier 1 (Đảo nhỏ), Tier 2 (Đảo vừa),
-/// Tier 3 (Đảo lớn).
+/// Trạng thái chuyển tiếp khi người học mở rộng Đảo Di Sản từ `fromTier` sang `toTier`
+/// (ISLAND-07 Part B).
+@immutable
+class IslandExpansionTransition {
+  final int fromTier;
+  final int toTier;
+  /// Tiến độ chung của chuỗi animation (0.0 -> 1.0).
+  final double progress;
+
+  const IslandExpansionTransition({
+    required this.fromTier,
+    required this.toTier,
+    required this.progress,
+  });
+
+  /// Phase 2 (0.00 -> 0.38): Camera di chuyển mượt tới bao quát vùng đất mới.
+  double get cameraProgress =>
+      Curves.easeInOutCubic.transform((progress / 0.38).clamp(0.0, 1.0));
+
+  /// Phase 3 (0.24 -> 0.74): Vùng đất mới (`fromTier < unlockTier <= toTier`) hiện rõ dần.
+  double get landRevealProgress => Curves.easeOutCubic.transform(
+    ((progress - 0.24) / 0.50).clamp(0.0, 1.0),
+  );
+
+  /// Phase 4 (0.64 -> 1.00): Các slot mới mở xuất hiện lần lượt nhẹ nhàng.
+  double get slotRevealProgress =>
+      ((progress - 0.64) / 0.36).clamp(0.0, 1.0);
+}
+
+/// Canvas 2.5D Vietnamese Heritage Illustrated Diorama hiển thị Đảo Di Sản.
+/// Tối ưu (ISLAND-07):
+/// - A1: Auto-fit camera dựa trên kích thước thực tế của viewport và vùng đất đã mở,
+///   cho phép thu nhỏ tới `minScale = 0.28` để không cắt đảo trên màn hình nhỏ.
+/// - A4: Chỉ dùng fallback layers khi `sceneLayers.isEmpty` (legacy); tôn trọng tuyệt đối
+///   danh sách và thứ tự layer đã publish của Admin.
+/// - A5: Chỉ nối hai vùng đất khi chúng thực sự chồng lấn hoặc kề sát nhau và không có
+///   vùng khóa chắn giữa.
+/// - B3: Hỗ trợ chuỗi animation mở rộng vùng đất mới + mở slot mới.
 class IslandScene extends StatefulWidget {
   final IslandDto island;
   final String? selectedSlotId;
   final ValueChanged<IslandSlotDto?> onSelectSlot;
   final TransformationController? transformationController;
   final int resetCameraVersion;
+  final IslandExpansionTransition? expansionTransition;
+  final String? activeEffectSlotId;
+  final int placementEffectToken;
+  final int removalEffectToken;
 
   const IslandScene({
     super.key,
@@ -26,6 +64,10 @@ class IslandScene extends StatefulWidget {
     required this.onSelectSlot,
     this.transformationController,
     this.resetCameraVersion = 0,
+    this.expansionTransition,
+    this.activeEffectSlotId,
+    this.placementEffectToken = 0,
+    this.removalEffectToken = 0,
   });
 
   @override
@@ -39,11 +81,14 @@ class _IslandSceneState extends State<IslandScene>
 
   static const double _defaultCanvasWidth = 960.0;
   static const double _defaultCanvasHeight = 720.0;
+  static const double _viewerMinScale = 0.28;
+  static const double _viewerMaxScale = 2.40;
 
   Size? _lastViewportSize;
   int? _lastFittedTier;
   String? _lastFittedVersionId;
   int _lastResetCameraVersion = 0;
+  Matrix4? _expansionCameraStartMatrix;
 
   @override
   void initState() {
@@ -62,6 +107,26 @@ class _IslandSceneState extends State<IslandScene>
   @override
   void didUpdateWidget(covariant IslandScene oldWidget) {
     super.didUpdateWidget(oldWidget);
+
+    // Khi bắt đầu chuỗi animation mở rộng đảo: chụp lại ma trận camera hiện tại
+    // để nội suy mượt mà từ góc nhìn đang đứng tới vùng đất mới (Phase 2).
+    if (widget.expansionTransition != null &&
+        oldWidget.expansionTransition == null) {
+      _expansionCameraStartMatrix =
+          widget.transformationController?.value.clone();
+    } else if (widget.expansionTransition == null &&
+        oldWidget.expansionTransition != null) {
+      _expansionCameraStartMatrix = null;
+    }
+
+    if (widget.expansionTransition != null && _lastViewportSize != null) {
+      _applyInterpolatedExpansionCamera(
+        _lastViewportSize!,
+        widget.expansionTransition!,
+      );
+      return;
+    }
+
     final tierChanged = widget.island.tier != oldWidget.island.tier;
     final layoutChanged =
         widget.island.layoutVersionId != oldWidget.island.layoutVersionId;
@@ -92,13 +157,27 @@ class _IslandSceneState extends State<IslandScene>
       ? widget.island.canvasHeight
       : _defaultCanvasHeight;
 
-  /// Giải mã danh sách vùng đã mở và vùng chưa mở từ `island.regions` (hoặc suy
-  /// từ toạ độ slot theo `unlockTier` nếu layout chưa khai báo regions).
+  /// Phân tách các vùng đất theo Tier:
+  /// - `baseUnlockedRects`: đã mở từ trước (`unlockTier <= baseTier`)
+  /// - `expandingRects`: đang mở mới trong chuỗi animation (`fromTier < unlockTier <= toTier`)
+  /// - `lockedRegions`: chưa mở (`unlockTier > toTier`)
   ({
-    List<Rect> unlockedRects,
+    List<Rect> baseUnlockedRects,
+    List<Rect> expandingRects,
+    List<Rect> allUnlockedRects,
     List<(IslandLayoutRegionDto, Rect)> lockedRegions,
   }) _resolveRegions(double canvasWidth, double canvasHeight) {
-    final unlockedRects = <Rect>[];
+    final transition = widget.expansionTransition;
+    final baseTier = transition != null
+        ? transition.fromTier
+        : widget.island.tier;
+    final targetTier = transition != null
+        ? transition.toTier
+        : widget.island.tier;
+
+    final baseUnlockedRects = <Rect>[];
+    final expandingRects = <Rect>[];
+    final allUnlockedRects = <Rect>[];
     final lockedRegions = <(IslandLayoutRegionDto, Rect)>[];
 
     if (widget.island.regions.isNotEmpty) {
@@ -111,52 +190,108 @@ class _IslandSceneState extends State<IslandScene>
           norm.width * canvasWidth,
           norm.height * canvasHeight,
         );
-        if (r.unlocked || r.unlockTier <= widget.island.tier) {
-          unlockedRects.add(pixelRect);
-        } else {
+        final isUnlockedInTarget =
+            r.unlocked || r.unlockTier <= targetTier;
+        if (!isUnlockedInTarget) {
           lockedRegions.add((r, pixelRect));
+        } else {
+          allUnlockedRects.add(pixelRect);
+          if (transition != null && r.unlockTier > baseTier) {
+            expandingRects.add(pixelRect);
+          } else {
+            baseUnlockedRects.add(pixelRect);
+          }
         }
       }
     }
 
-    // Bảo đảm mọi slot đã mở đều nằm gọn trong phần đất hiển thị
-    final unlockedSlotRects = <Rect>[];
-    for (final s in widget.island.slots) {
-      if (s.unlocked || s.unlockTier <= widget.island.tier) {
-        final sw = (s.widthNorm * canvasWidth).clamp(72.0, 150.0);
-        final sh = (s.heightNorm * canvasHeight).clamp(76.0, 160.0);
-        final cx = s.x * canvasWidth;
-        final cy = s.y * canvasHeight;
-        unlockedSlotRects.add(
-          Rect.fromCenter(
-            center: Offset(cx, cy - sh * 0.15),
-            width: sw * 1.45,
-            height: sh * 1.25,
-          ),
-        );
+    if (allUnlockedRects.isEmpty) {
+      final unlockedSlotRects = <Rect>[];
+      for (final s in widget.island.slots) {
+        if (s.unlocked || s.unlockTier <= targetTier) {
+          final sw = (s.widthNorm * canvasWidth).clamp(72.0, 150.0);
+          final sh = (s.heightNorm * canvasHeight).clamp(76.0, 160.0);
+          final cx = s.x * canvasWidth;
+          final cy = s.y * canvasHeight;
+          unlockedSlotRects.add(
+            Rect.fromCenter(
+              center: Offset(cx, cy - sh * 0.15),
+              width: sw * 1.45,
+              height: sh * 1.25,
+            ),
+          );
+        }
+      }
+      if (unlockedSlotRects.isNotEmpty) {
+        Rect combined = unlockedSlotRects.first;
+        for (final r in unlockedSlotRects.skip(1)) {
+          combined = combined.expandToInclude(r);
+        }
+        final inflated = combined.inflate(28);
+        baseUnlockedRects.add(inflated);
+        allUnlockedRects.add(inflated);
       }
     }
 
-    if (unlockedRects.isEmpty && unlockedSlotRects.isNotEmpty) {
-      Rect combined = unlockedSlotRects.first;
-      for (final r in unlockedSlotRects.skip(1)) {
-        combined = combined.expandToInclude(r);
-      }
-      unlockedRects.add(combined.inflate(28));
-    }
-
-    return (unlockedRects: unlockedRects, lockedRegions: lockedRegions);
+    return (
+      baseUnlockedRects: baseUnlockedRects,
+      expandingRects: expandingRects,
+      allUnlockedRects: allUnlockedRects,
+      lockedRegions: lockedRegions,
+    );
   }
 
-  /// Xây dựng đường bao địa hình (Path) liên tục cho các vùng đất đã mở.
-  /// Khi mở từ Tier 1 -> Tier 2 -> Tier 3, các vùng đất liền kề được nối mượt
-  /// thành một hòn đảo thống nhất, không bị tách rời thành 3 hình chữ nhật cứng.
-  static Path _buildConnectedLandmassPath(
-    List<Rect> unlockedRects,
-    double canvasWidth,
-    double canvasHeight,
+  /// Kiểm tra hai hình chữ nhật vùng đất có thực sự chồng lấn hoặc kề sát nhau
+  /// và không bị một vùng khóa nào chắn ở giữa hay không (ISLAND-07 Part A5).
+  static bool _areRegionsDirectlyAdjacent(
+    Rect a,
+    Rect b,
+    List<(IslandLayoutRegionDto, Rect)> lockedRegions,
   ) {
-    if (unlockedRects.isEmpty) {
+    final overlapX = math.min(a.right, b.right) - math.max(a.left, b.left);
+    final overlapY = math.min(a.bottom, b.bottom) - math.max(a.top, b.top);
+
+    // Chồng lấn trực tiếp
+    if (overlapX > 12.0 && overlapY > 12.0) {
+      return true;
+    }
+
+    // Kề sát theo chiều dọc (khoảng cách <= 24px và phần giao ngang >= 48px)
+    final verticalGap = math.max(a.top, b.top) - math.min(a.bottom, b.bottom);
+    final horizontalGap =
+        math.max(a.left, b.left) - math.min(a.right, b.right);
+
+    final verticallyAdjacent = verticalGap <= 24.0 && overlapX >= 48.0;
+    final horizontallyAdjacent = horizontalGap <= 24.0 && overlapY >= 48.0;
+
+    if (!verticallyAdjacent && !horizontallyAdjacent) {
+      return false;
+    }
+
+    // Kiểm tra có vùng khóa nào chắn giữa tâm hai vùng không
+    final bridgeCheck = Rect.fromPoints(a.center, b.center).inflate(6);
+    for (final (_, lockedRect) in lockedRegions) {
+      final inter = bridgeCheck.intersect(lockedRect.deflate(12));
+      if (inter.width > 8 && inter.height > 8 &&
+          !a.overlaps(lockedRect) &&
+          !b.overlaps(lockedRect)) {
+        return false;
+      }
+    }
+    return true;
+  }
+
+  /// Xây dựng đường bao địa hình (Path) cho danh sách vùng đất:
+  /// Chỉ nối cầu đất giữa những cặp vùng thực sự liền kề hoặc chồng lấn (A5).
+  static Path _buildConnectedLandmassPath(
+    List<Rect> rects,
+    List<(IslandLayoutRegionDto, Rect)> lockedRegions,
+    double canvasWidth,
+    double canvasHeight, {
+    bool allowFallbackWhenEmpty = true,
+  }) {
+    if (rects.isEmpty) {
+      if (!allowFallbackWhenEmpty) return Path();
       final fallback = Rect.fromCenter(
         center: Offset(canvasWidth * 0.5, canvasHeight * 0.32),
         width: canvasWidth * 0.72,
@@ -166,47 +301,93 @@ class _IslandSceneState extends State<IslandScene>
         ..addRRect(RRect.fromRectAndRadius(fallback, const Radius.circular(90)));
     }
 
-    final sorted = List<Rect>.from(unlockedRects)
-      ..sort((a, b) => a.top.compareTo(b.top));
-
     Path combined = Path();
-    for (int i = 0; i < sorted.length; i++) {
-      final r = sorted[i];
-      // Bo tròn tự nhiên để tạo dáng đảo hữu cơ
-      final radius = math.min(r.width, r.height) * 0.42;
+    for (int i = 0; i < rects.length; i++) {
+      final r = rects[i];
+      final radius = math.min(r.width, r.height) * 0.40;
       final part = Path()
         ..addRRect(RRect.fromRectAndRadius(r, Radius.circular(radius)));
       combined = i == 0
           ? part
           : Path.combine(PathOperation.union, combined, part);
+    }
 
-      // Nếu có vùng liền kề phía trên, tạo dải đất nối liền hai vùng
-      if (i > 0) {
-        final prev = sorted[i - 1];
-        final bridgeLeft = math.max(prev.left, r.left) + 28.0;
-        final bridgeRight = math.min(prev.right, r.right) - 28.0;
-        if (bridgeRight > bridgeLeft) {
-          final bridgeTop = math.min(prev.bottom - 36.0, r.top);
-          final bridgeBottom = math.max(r.top + 36.0, prev.bottom);
-          final bridgeRect = Rect.fromLTRB(
-            bridgeLeft,
-            bridgeTop,
-            bridgeRight,
-            bridgeBottom,
-          );
-          final bridgePath = Path()
-            ..addRRect(
-              RRect.fromRectAndRadius(bridgeRect, const Radius.circular(48)),
-            );
-          combined = Path.combine(PathOperation.union, combined, bridgePath);
+    // Chỉ tạo dải nối mềm giữa các cặp vùng thực sự liền kề/chồng lấn
+    for (int i = 0; i < rects.length; i++) {
+      for (int j = i + 1; j < rects.length; j++) {
+        final a = rects[i];
+        final b = rects[j];
+        if (!_areRegionsDirectlyAdjacent(a, b, lockedRegions)) continue;
+
+        final overlapLeft = math.max(a.left, b.left) + 24.0;
+        final overlapRight = math.min(a.right, b.right) - 24.0;
+        if (overlapRight > overlapLeft) {
+          final top = math.min(a.bottom - 28.0, b.bottom - 28.0);
+          final bottom = math.max(a.top + 28.0, b.top + 28.0);
+          if (bottom > top) {
+            final bridge = Path()
+              ..addRRect(
+                RRect.fromRectAndRadius(
+                  Rect.fromLTRB(overlapLeft, top, overlapRight, bottom),
+                  const Radius.circular(42),
+                ),
+              );
+            combined = Path.combine(PathOperation.union, combined, bridge);
+          }
         }
       }
     }
+
+    // Loại trừ tuyệt đối phần diện tích của vùng chưa mở (nếu vùng chưa mở không thuộc rects)
     return combined;
   }
 
-  /// Tự động căn chỉnh camera (scale + translate) theo quy mô đảo hiện tại
-  /// để Tier 1 không bị quá nhỏ, Tier 2 & 3 nhìn rõ phần đất mở rộng.
+  /// Tính ma trận camera căn vừa khít vùng đất đã mở với khoảng đệm hợp lý (Part A1).
+  Matrix4 _computeTargetCameraMatrix(Size viewportSize, {int? forTier}) {
+    final cw = _canvasWidth;
+    final ch = _canvasHeight;
+    final regionInfo = _resolveRegions(cw, ch);
+
+    Rect focusBounds;
+    if (regionInfo.allUnlockedRects.isNotEmpty) {
+      focusBounds = regionInfo.allUnlockedRects.first;
+      for (final r in regionInfo.allUnlockedRects.skip(1)) {
+        focusBounds = focusBounds.expandToInclude(r);
+      }
+      // Padding вокруг vùng đất đã mở để bờ đảo không chạm sát mép màn hình
+      const padX = 44.0;
+      const padTop = 44.0;
+      final padBottom = widget.island.isMaxTier ? 52.0 : 84.0;
+      focusBounds = Rect.fromLTRB(
+        math.max(0.0, focusBounds.left - padX),
+        math.max(0.0, focusBounds.top - padTop),
+        math.min(cw, focusBounds.right + padX),
+        math.min(ch, focusBounds.bottom + padBottom),
+      );
+    } else {
+      focusBounds = Rect.fromLTWH(0, 0, cw, ch);
+    }
+
+    final safeWidth = math.max(120.0, focusBounds.width);
+    final safeHeight = math.max(120.0, focusBounds.height);
+
+    // Cho phép thu nhỏ theo đúng tỷ lệ thực tế của màn hình (tối thiểu _viewerMinScale = 0.28)
+    final scaleX = (viewportSize.width * 0.94) / safeWidth;
+    final scaleY = (viewportSize.height * 0.90) / safeHeight;
+    final targetScale = math.min(scaleX, scaleY).clamp(
+      _viewerMinScale,
+      1.18,
+    );
+
+    final focusCenter = focusBounds.center;
+    final tx = (viewportSize.width / 2.0) - (focusCenter.dx * targetScale);
+    final ty = (viewportSize.height / 2.0) - (focusCenter.dy * targetScale);
+
+    return Matrix4.identity()
+      ..translateByDouble(tx, ty, 0.0, 1.0)
+      ..scaleByDouble(targetScale, targetScale, 1.0, 1.0);
+  }
+
   void _applyAutoFitCamera(Size viewportSize) {
     final controller = widget.transformationController;
     if (controller == null ||
@@ -215,58 +396,41 @@ class _IslandSceneState extends State<IslandScene>
       return;
     }
 
-    final cw = _canvasWidth;
-    final ch = _canvasHeight;
-    final regionInfo = _resolveRegions(cw, ch);
-
-    Rect focusBounds;
-    if (regionInfo.unlockedRects.isNotEmpty) {
-      focusBounds = regionInfo.unlockedRects.first;
-      for (final r in regionInfo.unlockedRects.skip(1)) {
-        focusBounds = focusBounds.expandToInclude(r);
-      }
-      // Mở rộng nhẹ xuống phía dưới để người học thấy gợi ý bờ nước / vùng kế tiếp
-      focusBounds = Rect.fromLTRB(
-        (focusBounds.left - 36).clamp(0.0, cw),
-        (focusBounds.top - 42).clamp(0.0, ch),
-        (focusBounds.right + 36).clamp(0.0, cw),
-        (focusBounds.bottom + (widget.island.isMaxTier ? 48 : 96)).clamp(
-          0.0,
-          ch,
-        ),
-      );
-    } else {
-      focusBounds = Rect.fromLTWH(0, 0, cw, ch);
-    }
-
-    final scaleX = viewportSize.width / focusBounds.width;
-    final scaleY = viewportSize.height / focusBounds.height;
-    final minScaleForTier = widget.island.tier == 1
-        ? 0.82
-        : (widget.island.tier == 2 ? 0.72 : 0.65);
-    final maxScaleForTier = widget.island.tier == 1 ? 1.22 : 1.08;
-    final targetScale = (math.min(scaleX, scaleY) * 0.92).clamp(
-      minScaleForTier,
-      maxScaleForTier,
-    );
-
-    final focusCenter = focusBounds.center;
-    final tx = (viewportSize.width / 2.0) - (focusCenter.dx * targetScale);
-    final ty = (viewportSize.height / 2.0) - (focusCenter.dy * targetScale);
-
-    controller.value = Matrix4.identity()
-      ..translateByDouble(tx, ty, 0.0, 1.0)
-      ..scaleByDouble(targetScale, targetScale, 1.0, 1.0);
-
+    controller.value = _computeTargetCameraMatrix(viewportSize);
     _lastFittedTier = widget.island.tier;
     _lastFittedVersionId = widget.island.layoutVersionId;
   }
 
+  void _applyInterpolatedExpansionCamera(
+    Size viewportSize,
+    IslandExpansionTransition transition,
+  ) {
+    final controller = widget.transformationController;
+    if (controller == null ||
+        viewportSize.width <= 0 ||
+        viewportSize.height <= 0) {
+      return;
+    }
+    final targetMatrix = _computeTargetCameraMatrix(
+      viewportSize,
+      forTier: transition.toTier,
+    );
+    final startMatrix = _expansionCameraStartMatrix ?? targetMatrix;
+    final t = transition.cameraProgress;
+    controller.value = Matrix4Tween(
+      begin: startMatrix,
+      end: targetMatrix,
+    ).transform(t);
+    _lastFittedTier = widget.island.tier;
+    _lastFittedVersionId = widget.island.layoutVersionId;
+  }
+
+  /// Danh sách scene layers (Part A4):
+  /// - Chỉ dùng fallback mặc định khi `widget.island.sceneLayers.isEmpty` (layout legacy).
+  /// - Khi layout đã có `sceneLayers`, tôn trọng nguyên trạng cấu hình và `renderOrder`
+  ///   của Admin, không tự ý chèn thêm layer.
   List<IslandSceneLayerDto> _effectiveLayers() {
-    final raw = widget.island.sceneLayers
-        .where((l) => l.isVisibleForTier(widget.island.tier))
-        .toList();
-    if (raw.isEmpty) {
+    if (widget.island.sceneLayers.isEmpty) {
       return const [
         IslandSceneLayerDto(
           layerKey: 'water_bg',
@@ -296,29 +460,12 @@ class _IslandSceneState extends State<IslandScene>
         ),
       ];
     }
-    raw.sort((a, b) => a.renderOrder.compareTo(b.renderOrder));
-    final hasRegionOverlay = raw.any((l) => l.layerType == 'REGION_OVERLAY');
-    final hasItemLayer = raw.any((l) => l.layerType == 'ITEM_LAYER');
-    if (!hasRegionOverlay) {
-      raw.add(
-        const IslandSceneLayerDto(
-          layerKey: 'auto_region_overlay',
-          layerType: 'REGION_OVERLAY',
-          renderOrder: 25,
-        ),
-      );
-    }
-    if (!hasItemLayer) {
-      raw.add(
-        const IslandSceneLayerDto(
-          layerKey: 'auto_item_layer',
-          layerType: 'ITEM_LAYER',
-          renderOrder: 30,
-        ),
-      );
-    }
-    raw.sort((a, b) => a.renderOrder.compareTo(b.renderOrder));
-    return raw;
+
+    final visible = widget.island.sceneLayers
+        .where((l) => l.isVisibleForTier(widget.island.tier))
+        .toList()
+      ..sort((a, b) => a.renderOrder.compareTo(b.renderOrder));
+    return visible;
   }
 
   @override
@@ -334,22 +481,41 @@ class _IslandSceneState extends State<IslandScene>
 
     final layers = _effectiveLayers();
     final regionInfo = _resolveRegions(canvasWidth, canvasHeight);
-    final unlockedLandPath = _buildConnectedLandmassPath(
-      regionInfo.unlockedRects,
+
+    final baseLandPath = _buildConnectedLandmassPath(
+      regionInfo.baseUnlockedRects,
+      regionInfo.lockedRegions,
       canvasWidth,
       canvasHeight,
     );
+    final fullUnlockedLandPath = _buildConnectedLandmassPath(
+      regionInfo.allUnlockedRects,
+      regionInfo.lockedRegions,
+      canvasWidth,
+      canvasHeight,
+    );
+    final newlyExpandedLandPath = regionInfo.expandingRects.isEmpty
+        ? null
+        : Path.combine(
+            PathOperation.difference,
+            fullUnlockedLandPath,
+            baseLandPath,
+          );
 
     return LayoutBuilder(
       builder: (context, constraints) {
         final viewportSize = Size(constraints.maxWidth, constraints.maxHeight);
-        final needsInitialFit =
+        final sizeChanged =
             _lastViewportSize == null ||
+            (viewportSize.width - _lastViewportSize!.width).abs() > 2.0 ||
+            (viewportSize.height - _lastViewportSize!.height).abs() > 2.0;
+        final needsInitialFit =
+            sizeChanged ||
             _lastFittedTier != widget.island.tier ||
             _lastFittedVersionId != widget.island.layoutVersionId;
         _lastViewportSize = viewportSize;
 
-        if (needsInitialFit) {
+        if (needsInitialFit && widget.expansionTransition == null) {
           WidgetsBinding.instance.addPostFrameCallback((_) {
             if (!mounted) return;
             _applyAutoFitCamera(viewportSize);
@@ -359,9 +525,9 @@ class _IslandSceneState extends State<IslandScene>
         return ClipRect(
           child: InteractiveViewer(
             transformationController: widget.transformationController,
-            minScale: 0.58,
-            maxScale: 2.2,
-            boundaryMargin: const EdgeInsets.all(140),
+            minScale: _viewerMinScale,
+            maxScale: _viewerMaxScale,
+            boundaryMargin: const EdgeInsets.all(180),
             constrained: false,
             child: GestureDetector(
               onTap: () => widget.onSelectSlot(null),
@@ -378,9 +544,10 @@ class _IslandSceneState extends State<IslandScene>
                         canvasWidth: canvasWidth,
                         canvasHeight: canvasHeight,
                         sortedSlots: sortedSlots,
-                        unlockedRects: regionInfo.unlockedRects,
                         lockedRegions: regionInfo.lockedRegions,
-                        unlockedLandPath: unlockedLandPath,
+                        baseLandPath: baseLandPath,
+                        fullUnlockedLandPath: fullUnlockedLandPath,
+                        newlyExpandedLandPath: newlyExpandedLandPath,
                       ),
                   ],
                 ),
@@ -397,9 +564,10 @@ class _IslandSceneState extends State<IslandScene>
     required double canvasWidth,
     required double canvasHeight,
     required List<IslandSlotDto> sortedSlots,
-    required List<Rect> unlockedRects,
     required List<(IslandLayoutRegionDto, Rect)> lockedRegions,
-    required Path unlockedLandPath,
+    required Path baseLandPath,
+    required Path fullUnlockedLandPath,
+    required Path? newlyExpandedLandPath,
   }) {
     switch (layer.layerType) {
       case 'ANIMATED_WATER':
@@ -418,7 +586,9 @@ class _IslandSceneState extends State<IslandScene>
                 assetRef: layer.assetRef,
                 canvasWidth: canvasWidth,
                 canvasHeight: canvasHeight,
-                unlockedLandPath: unlockedLandPath,
+                baseLandPath: baseLandPath,
+                fullUnlockedLandPath: fullUnlockedLandPath,
+                newlyExpandedLandPath: newlyExpandedLandPath,
                 sortedSlots: sortedSlots,
               ),
             ),
@@ -433,7 +603,9 @@ class _IslandSceneState extends State<IslandScene>
                 assetRef: null,
                 canvasWidth: canvasWidth,
                 canvasHeight: canvasHeight,
-                unlockedLandPath: unlockedLandPath,
+                baseLandPath: baseLandPath,
+                fullUnlockedLandPath: fullUnlockedLandPath,
+                newlyExpandedLandPath: newlyExpandedLandPath,
                 sortedSlots: sortedSlots,
               ),
             ),
@@ -451,7 +623,7 @@ class _IslandSceneState extends State<IslandScene>
                     return CustomPaint(
                       painter: _WaterAmbientPainter(
                         progress: _waterRipple.value,
-                        unlockedLandPath: unlockedLandPath,
+                        unlockedLandPath: fullUnlockedLandPath,
                       ),
                     );
                   },
@@ -463,7 +635,7 @@ class _IslandSceneState extends State<IslandScene>
       case 'REGION_OVERLAY':
         return _buildRegionOverlayWidgets(
           layerKey: layer.layerKey,
-          unlockedLandPath: unlockedLandPath,
+          unlockedLandPath: fullUnlockedLandPath,
           lockedRegions: lockedRegions,
         );
       case 'ITEM_LAYER':
@@ -478,45 +650,107 @@ class _IslandSceneState extends State<IslandScene>
     }
   }
 
-  /// Vẽ khối đất Đảo Di Sản giới hạn đúng theo các Region đã mở khóa:
-  /// 1. Bờ đất nổi 2.5D (vách đất nâu ấm + viền cát vàng + bọt sóng ven bờ).
-  /// 2. Mặt đảo được clip theo `unlockedLandPath` (không lộ vùng đất chưa mở).
-  /// 3. Đường làng lát gạch nối nhẹ giữa các ô đã mở.
+  /// Vẽ khối đất Đảo Di Sản theo các Region đã mở khóa và hiệu ứng xuất hiện vùng đất mới (Phase 3).
   Widget _buildClippedIslandTerrain({
     required String? assetRef,
     required double canvasWidth,
     required double canvasHeight,
-    required Path unlockedLandPath,
+    required Path baseLandPath,
+    required Path fullUnlockedLandPath,
+    required Path? newlyExpandedLandPath,
     required List<IslandSlotDto> sortedSlots,
   }) {
+    final transition = widget.expansionTransition;
     final unlockedSlotCenters = sortedSlots
         .where((s) => s.unlocked || s.unlockTier <= widget.island.tier)
         .map((s) => Offset(s.x * canvasWidth, s.y * canvasHeight))
         .toList();
 
+    // Khi không có transition mở rộng: vẽ toàn bộ đất đã mở liền mạch
+    if (transition == null || newlyExpandedLandPath == null) {
+      return Stack(
+        fit: StackFit.expand,
+        children: [
+          CustomPaint(
+            painter: _IslandCliffAndShorePainter(
+              landPath: fullUnlockedLandPath,
+            ),
+          ),
+          ClipPath(
+            clipper: _LandmassPathClipper(fullUnlockedLandPath),
+            child: Stack(
+              fit: StackFit.expand,
+              children: [
+                _buildRawStaticImageOrFallback(assetRef),
+                CustomPaint(
+                  painter: _VillageTerrainAccentPainter(
+                    landPath: fullUnlockedLandPath,
+                    unlockedSlotCenters: unlockedSlotCenters,
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ],
+      );
+    }
+
+    // Khi đang chạy Phase 3 (mở rộng đảo):
+    // - Phần đất cũ (`baseLandPath`) giữ nguyên 100%.
+    // - Phần đất mới (`newlyExpandedLandPath`) dần hiện rõ từ lớp sương biển kèm ánh sáng ven bờ.
+    final reveal = transition.landRevealProgress;
+    final newBounds = newlyExpandedLandPath.getBounds();
+
     return Stack(
       fit: StackFit.expand,
       children: [
-        // Lớp vách đá/bờ đất 2.5D phía dưới mặt đảo
+        // 1. Phần đất cũ giữ nguyên
         CustomPaint(
-          painter: _IslandCliffAndShorePainter(landPath: unlockedLandPath),
+          painter: _IslandCliffAndShorePainter(landPath: baseLandPath),
         ),
-        // Lớp mặt đất được cắt theo đúng diện tích đã mở của Tier hiện tại
         ClipPath(
-          clipper: _LandmassPathClipper(unlockedLandPath),
-          child: Stack(
-            fit: StackFit.expand,
-            children: [
-              _buildRawStaticImageOrFallback(assetRef),
-              CustomPaint(
-                painter: _VillageTerrainAccentPainter(
-                  landPath: unlockedLandPath,
-                  unlockedSlotCenters: unlockedSlotCenters,
-                ),
-              ),
-            ],
-          ),
+          clipper: _LandmassPathClipper(baseLandPath),
+          child: _buildRawStaticImageOrFallback(assetRef),
         ),
+
+        // 2. Phần đất mới nổi dần lên với sóng nước & viền sáng ấm
+        if (reveal > 0.01)
+          Opacity(
+            opacity: reveal,
+            child: Transform.scale(
+              scale: 0.94 + (0.06 * reveal),
+              alignment: Alignment(
+                ((newBounds.center.dx / canvasWidth) * 2.0) - 1.0,
+                ((newBounds.center.dy / canvasHeight) * 2.0) - 1.0,
+              ),
+              child: Stack(
+                fit: StackFit.expand,
+                children: [
+                  CustomPaint(
+                    painter: _IslandCliffAndShorePainter(
+                      landPath: fullUnlockedLandPath,
+                      expansionGlowProgress: reveal,
+                    ),
+                  ),
+                  ClipPath(
+                    clipper: _LandmassPathClipper(fullUnlockedLandPath),
+                    child: Stack(
+                      fit: StackFit.expand,
+                      children: [
+                        _buildRawStaticImageOrFallback(assetRef),
+                        CustomPaint(
+                          painter: _VillageTerrainAccentPainter(
+                            landPath: fullUnlockedLandPath,
+                            unlockedSlotCenters: unlockedSlotCenters,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
       ],
     );
   }
@@ -548,8 +782,6 @@ class _IslandSceneState extends State<IslandScene>
     );
   }
 
-  /// Vẽ silhouette bãi bồi mờ cho các vùng đất tương lai chưa mở khóa,
-  /// dùng `PathOperation.difference` để tuyệt đối không đè lên đất đã mở.
   List<Widget> _buildRegionOverlayWidgets({
     required String layerKey,
     required Path unlockedLandPath,
@@ -580,6 +812,17 @@ class _IslandSceneState extends State<IslandScene>
     required double canvasHeight,
     required List<IslandSlotDto> sortedSlots,
   }) {
+    final transition = widget.expansionTransition;
+    final newlyUnlockedSlots = transition == null
+        ? const <IslandSlotDto>[]
+        : sortedSlots
+              .where(
+                (s) =>
+                    s.unlockTier > transition.fromTier &&
+                    s.unlockTier <= transition.toTier,
+              )
+              .toList();
+
     return [
       Positioned.fill(
         key: ValueKey('layer_$layerKey'),
@@ -588,7 +831,13 @@ class _IslandSceneState extends State<IslandScene>
             clipBehavior: Clip.none,
             children: [
               for (final slot in sortedSlots)
-                _buildPositionedSlot(slot, canvasWidth, canvasHeight),
+                _buildPositionedSlot(
+                  slot: slot,
+                  canvasWidth: canvasWidth,
+                  canvasHeight: canvasHeight,
+                  transition: transition,
+                  newlyUnlockedSlots: newlyUnlockedSlots,
+                ),
             ],
           ),
         ),
@@ -596,19 +845,37 @@ class _IslandSceneState extends State<IslandScene>
     ];
   }
 
-  Widget _buildPositionedSlot(
-    IslandSlotDto slot,
-    double canvasWidth,
-    double canvasHeight,
-  ) {
+  Widget _buildPositionedSlot({
+    required IslandSlotDto slot,
+    required double canvasWidth,
+    required double canvasHeight,
+    required IslandExpansionTransition? transition,
+    required List<IslandSlotDto> newlyUnlockedSlots,
+  }) {
     final slotWidth = (slot.widthNorm * canvasWidth).clamp(74.0, 156.0);
     final slotHeight = (slot.heightNorm * canvasHeight).clamp(82.0, 168.0);
     final rawLeft = (slot.x * canvasWidth) - (slotWidth * slot.anchorX);
     final rawTop = (slot.y * canvasHeight) - (slotHeight * slot.anchorY);
-    // Giữ vật phẩm không bị cắt khi sát mép canvas
     final left = rawLeft.clamp(8.0, canvasWidth - slotWidth - 8.0);
     final top = rawTop.clamp(8.0, canvasHeight - slotHeight - 8.0);
     final isSelected = slot.slotId == widget.selectedSlotId;
+
+    // Tính tiến độ xuất hiện staggered cho các slot mới mở ở Phase 4
+    double revealProgress = 1.0;
+    if (transition != null &&
+        slot.unlockTier > transition.fromTier &&
+        slot.unlockTier <= transition.toTier) {
+      final idx = newlyUnlockedSlots.indexWhere((s) => s.slotId == slot.slotId);
+      final count = math.max(1, newlyUnlockedSlots.length);
+      final staggerStart = (idx.clamp(0, count - 1) / count) * 0.45;
+      final rawP = transition.slotRevealProgress;
+      revealProgress = ((rawP - staggerStart) / (1.0 - staggerStart)).clamp(
+        0.0,
+        1.0,
+      );
+    }
+
+    final isEffectTarget = widget.activeEffectSlotId == slot.slotId;
 
     return Positioned(
       key: ValueKey('slot_${slot.slotId}'),
@@ -619,12 +886,14 @@ class _IslandSceneState extends State<IslandScene>
         width: slotWidth,
         height: slotHeight,
         isSelected: isSelected,
+        revealProgress: revealProgress,
+        placementEffectToken: isEffectTarget ? widget.placementEffectToken : 0,
+        removalEffectToken: isEffectTarget ? widget.removalEffectToken : 0,
         onTap: () => widget.onSelectSlot(slot),
       ),
     );
   }
 
-  /// Nền sông nước làng quê Việt Nam ấm áp, có chiều sâu
   Widget _buildWaterBackground() {
     return Container(
       decoration: const BoxDecoration(
@@ -632,9 +901,9 @@ class _IslandSceneState extends State<IslandScene>
           center: Alignment(0.0, -0.1),
           radius: 0.95,
           colors: [
-            Color(0xFF8CC5D6), // Xanh ngọc nước nông quanh đảo
-            Color(0xFF5A9AB3), // Xanh sông sâu vừa
-            Color(0xFF39728C), // Xanh lam rìa ngoài
+            Color(0xFF8CC5D6),
+            Color(0xFF5A9AB3),
+            Color(0xFF39728C),
           ],
           stops: [0.0, 0.62, 1.0],
         ),
@@ -642,7 +911,6 @@ class _IslandSceneState extends State<IslandScene>
     );
   }
 
-  /// Bề mặt thảo nguyên xanh ấm khi không có ảnh nền
   Widget _buildFallbackIslandSurface() {
     return Container(
       decoration: const BoxDecoration(
@@ -674,16 +942,17 @@ class _LandmassPathClipper extends CustomClipper<Path> {
   }
 }
 
-/// Vẽ bờ đất 2.5D (vách đất nâu trầm + bờ cỏ/cát vàng + sóng nước ven bờ)
-/// bao quanh đúng phần diện tích đảo đã mở khóa.
 class _IslandCliffAndShorePainter extends CustomPainter {
   final Path landPath;
+  final double? expansionGlowProgress;
 
-  const _IslandCliffAndShorePainter({required this.landPath});
+  const _IslandCliffAndShorePainter({
+    required this.landPath,
+    this.expansionGlowProgress,
+  });
 
   @override
   void paint(Canvas canvas, Size size) {
-    // 1. Bóng đổ mềm dưới nước
     canvas.drawPath(
       landPath.shift(const Offset(0, 22)),
       Paint()
@@ -691,7 +960,6 @@ class _IslandCliffAndShorePainter extends CustomPainter {
         ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 14),
     );
 
-    // 2. Bọt nước / sóng nông bao quanh bờ đảo
     canvas.drawPath(
       landPath.shift(const Offset(0, 8)),
       Paint()
@@ -701,7 +969,6 @@ class _IslandCliffAndShorePainter extends CustomPainter {
         ..strokeJoin = StrokeJoin.round,
     );
 
-    // 3. Vách đất 2.5D phía nam tạo độ dày khối diorama
     canvas.drawPath(
       landPath.shift(const Offset(0, 14)),
       Paint()
@@ -715,7 +982,6 @@ class _IslandCliffAndShorePainter extends CustomPainter {
         ..style = PaintingStyle.fill,
     );
 
-    // 4. Viền bờ cát / đất phù sa ấm quanh mép đảo
     canvas.drawPath(
       landPath,
       Paint()
@@ -724,15 +990,31 @@ class _IslandCliffAndShorePainter extends CustomPainter {
         ..strokeWidth = 10
         ..strokeJoin = StrokeJoin.round,
     );
+
+    // Ánh sáng vàng dịu và vòng gợn sóng quanh bờ đất mới mở (Phase 3)
+    if (expansionGlowProgress != null) {
+      final p = expansionGlowProgress!.clamp(0.0, 1.0);
+      final glowAlpha = (1.0 - (p - 0.5).abs() * 1.6).clamp(0.0, 1.0) * 0.65;
+      if (glowAlpha > 0.02) {
+        canvas.drawPath(
+          landPath,
+          Paint()
+            ..color = DauVietColors.imperialGold.withValues(alpha: glowAlpha)
+            ..style = PaintingStyle.stroke
+            ..strokeWidth = 16 + (p * 10)
+            ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 8),
+        );
+      }
+    }
   }
 
   @override
   bool shouldRepaint(covariant _IslandCliffAndShorePainter oldDelegate) {
-    return oldDelegate.landPath != landPath;
+    return oldDelegate.landPath != landPath ||
+        oldDelegate.expansionGlowProgress != expansionGlowProgress;
   }
 }
 
-/// Vẽ đường làng uốn lượn nhẹ và viền cỏ xanh bên trong vùng đất đã mở.
 class _VillageTerrainAccentPainter extends CustomPainter {
   final Path landPath;
   final List<Offset> unlockedSlotCenters;
@@ -744,7 +1026,6 @@ class _VillageTerrainAccentPainter extends CustomPainter {
 
   @override
   void paint(Canvas canvas, Size size) {
-    // Viền cỏ xanh tự nhiên dọc bờ đảo
     canvas.drawPath(
       landPath,
       Paint()
@@ -753,7 +1034,6 @@ class _VillageTerrainAccentPainter extends CustomPainter {
         ..strokeWidth = 14,
     );
 
-    // Đường đất làng quê nối nhẹ giữa các ô đã mở
     if (unlockedSlotCenters.length >= 2) {
       final pathPaint = Paint()
         ..color = const Color(0x55D9B982)
@@ -781,9 +1061,6 @@ class _VillageTerrainAccentPainter extends CustomPainter {
   }
 }
 
-/// Painter vẽ hình bóng (silhouette) bãi bồi xa trong sương cho các vùng đất
-/// thuộc Tier chưa mở, dùng `PathOperation.difference` để không bao giờ chạm
-/// vào diện tích đất đã mở.
 class _LockedRegionSilhouettePainter extends CustomPainter {
   final List<(IslandLayoutRegionDto, Rect)> lockedRegions;
   final Path unlockedLandPath;
@@ -806,7 +1083,6 @@ class _LockedRegionSilhouettePainter extends CustomPainter {
 
   @override
   void paint(Canvas canvas, Size size) {
-    // Mở rộng nhẹ vùng loại trừ để phần gợi ý vùng khóa luôn cách bờ đảo đã mở một khoảng nước nhỏ
     final exclusionBounds = unlockedLandPath.shift(const Offset(0, 12));
 
     final silhouetteFill = Paint()
@@ -896,7 +1172,6 @@ class _LockedRegionSilhouettePainter extends CustomPainter {
   }
 }
 
-/// Painter vẽ các đường gợn sóng nước lấp lánh trên mặt sông ngoài đảo.
 class _WaterAmbientPainter extends CustomPainter {
   final double progress;
   final Path unlockedLandPath;

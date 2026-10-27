@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:go_router/go_router.dart';
 
 import '../../../../core/theme/dau_viet_colors.dart';
 import '../../../../core/theme/dau_viet_typography.dart';
@@ -184,24 +185,75 @@ class _IslandInventorySheetState extends ConsumerState<IslandInventorySheet> {
                 final filteredItems = _filterItems(catalog, placedItemIds);
 
                 if (filteredItems.isEmpty) {
+                  final hasAnyOwnedPlaceable = catalog.any(
+                    (it) => it.owned && it.placeable,
+                  );
                   return Center(
-                    child: Padding(
-                      padding: const EdgeInsets.all(32),
+                    child: SingleChildScrollView(
+                      padding: const EdgeInsets.all(24),
                       child: Column(
                         mainAxisSize: MainAxisSize.min,
                         children: [
                           const Icon(
                             Icons.inventory_2_outlined,
-                            size: 54,
+                            size: 48,
                             color: DauVietColors.inkMuted,
                           ),
-                          const SizedBox(height: 12),
+                          const SizedBox(height: 10),
                           Text(
-                            _emptyMessage(),
+                            hasAnyOwnedPlaceable
+                                ? _emptyMessage()
+                                : 'Kho của bạn hiện chưa có vật phẩm trang trí nào.',
                             textAlign: TextAlign.center,
                             style: DauVietTypography.bodyMedium.copyWith(
-                              color: DauVietColors.inkMuted,
+                              color: DauVietColors.inkText,
+                              fontWeight: FontWeight.bold,
                             ),
+                          ),
+                          const SizedBox(height: 6),
+                          Text(
+                            hasAnyOwnedPlaceable
+                                ? 'Bạn có thể đổi bộ lọc hoặc ghé Cửa Hàng Di Sản để sưu tầm thêm.'
+                                : 'Hãy dùng Điểm Sử Ký mua vật phẩm tại Cửa Hàng Di Sản hoặc hoàn thành bài học lịch sử để nhận phần thưởng.',
+                            textAlign: TextAlign.center,
+                            style: DauVietTypography.bodySmall.copyWith(
+                              color: DauVietColors.inkMuted,
+                              height: 1.35,
+                            ),
+                          ),
+                          const SizedBox(height: 16),
+                          Wrap(
+                            spacing: 10,
+                            runSpacing: 10,
+                            alignment: WrapAlignment.center,
+                            children: [
+                              SizedBox(
+                                width: 170,
+                                child: Tactile3DButton(
+                                  label: 'ĐẾN CỬA HÀNG',
+                                  height: 38,
+                                  icon: Icons.storefront_rounded,
+                                  variant: Tactile3DVariant.primaryCinnabar,
+                                  onPressed: () {
+                                    Navigator.of(context).pop();
+                                    context.push('/island/shop');
+                                  },
+                                ),
+                              ),
+                              SizedBox(
+                                width: 170,
+                                child: Tactile3DButton(
+                                  label: 'HÀNH TRÌNH HỌC',
+                                  height: 38,
+                                  icon: Icons.school_rounded,
+                                  variant: Tactile3DVariant.secondaryParchment,
+                                  onPressed: () {
+                                    Navigator.of(context).pop();
+                                    context.go('/dashboard');
+                                  },
+                                ),
+                              ),
+                            ],
                           ),
                         ],
                       ),
@@ -382,12 +434,19 @@ class _IslandInventorySheetState extends ConsumerState<IslandInventorySheet> {
   }) {
     final assetPath = resolveIslandAsset(item.renderKey, item.code, item.assetId);
     final bool isAllowedCategory = _isAllowedInTargetSlot(item);
+    final bool slotIsEmpty = widget.targetSlot.isEmpty;
     final bool canPlaceHere =
-        item.owned && item.placeable && !isPlaced && isAllowedCategory;
+        slotIsEmpty &&
+        item.owned &&
+        item.placeable &&
+        !isPlaced &&
+        isAllowedCategory;
 
     String buttonLabel = 'ĐẶT';
     if (isCurrentSlotItem) {
       buttonLabel = 'ĐANG Ở Ô NÀY';
+    } else if (!slotIsEmpty) {
+      buttonLabel = 'Ô ĐANG CÓ ĐỒ';
     } else if (isPlaced) {
       buttonLabel = 'ĐÃ ĐẶT Ô KHÁC';
     } else if (!item.placeable) {

@@ -5,16 +5,22 @@ import '../../../../core/theme/dau_viet_typography.dart';
 import '../../data/island_dto.dart';
 
 /// Widget biểu diễn một ô (slot) và vật phẩm đặt trên Đảo Di Sản 2.5D.
-/// Tối ưu hiệu năng (ISLAND-06 Part C & E):
-/// - Chỉ chạy AnimationController khi `isSelected == true`.
-/// - Phân biệt rõ: ô khóa (mờ nhẹ), ô trống (thềm cỏ/đá mời đặt), và ô đã có
-///   vật phẩm (vật phẩm là thành phần chính của cảnh quan, không đóng khung card).
+/// Tối ưu hiệu năng & hiệu ứng (ISLAND-07 Part D & E):
+/// - Không tạo AnimationController cho các slot tĩnh không được chọn.
+/// - Hiệu ứng one-shot nhẹ khi vừa đặt thành công (`placementEffectToken`) hoặc
+///   vừa gỡ thành công (`removalEffectToken`) trên đúng slot đó.
+/// - Hỗ trợ `revealProgress` (0..1) khi slot mới được khai mở trong animation mở rộng đảo.
+/// - Vật phẩm có renderKey chưa xác định dùng placeholder trung tính hiển thị đúng
+///   tên và nhóm, tuyệt đối không vẽ nhầm công trình khác.
 class IslandSlotWidget extends StatefulWidget {
   final IslandSlotDto slot;
   final bool isSelected;
   final VoidCallback? onTap;
   final double width;
   final double height;
+  final int placementEffectToken;
+  final int removalEffectToken;
+  final double revealProgress;
 
   const IslandSlotWidget({
     super.key,
@@ -23,6 +29,9 @@ class IslandSlotWidget extends StatefulWidget {
     this.onTap,
     this.width = 100.0,
     this.height = 110.0,
+    this.placementEffectToken = 0,
+    this.removalEffectToken = 0,
+    this.revealProgress = 1.0,
   });
 
   @override
@@ -30,9 +39,12 @@ class IslandSlotWidget extends StatefulWidget {
 }
 
 class _IslandSlotWidgetState extends State<IslandSlotWidget>
-    with SingleTickerProviderStateMixin {
+    with TickerProviderStateMixin {
   AnimationController? _pulseController;
   Animation<double>? _pulseAnimation;
+
+  AnimationController? _oneShotController;
+  bool _isPlacementOneShot = true;
 
   @override
   void initState() {
@@ -51,6 +63,14 @@ class _IslandSlotWidgetState extends State<IslandSlotWidget>
       _pulseController?.stop();
       _pulseController?.value = 0.0;
     }
+
+    if (widget.placementEffectToken > oldWidget.placementEffectToken &&
+        widget.placementEffectToken > 0) {
+      _triggerOneShot(isPlacement: true);
+    } else if (widget.removalEffectToken > oldWidget.removalEffectToken &&
+        widget.removalEffectToken > 0) {
+      _triggerOneShot(isPlacement: false);
+    }
   }
 
   void _ensurePulseRunning() {
@@ -58,7 +78,7 @@ class _IslandSlotWidgetState extends State<IslandSlotWidget>
       vsync: this,
       duration: const Duration(milliseconds: 1400),
     );
-    _pulseAnimation ??= Tween<double>(begin: 0.98, end: 1.04).animate(
+    _pulseAnimation ??= Tween<double>(begin: 0.98, end: 1.03).animate(
       CurvedAnimation(parent: controller, curve: Curves.easeInOut),
     );
     if (!controller.isAnimating) {
@@ -66,14 +86,33 @@ class _IslandSlotWidgetState extends State<IslandSlotWidget>
     }
   }
 
+  void _triggerOneShot({required bool isPlacement}) {
+    final reduceMotion =
+        MediaQuery.maybeDisableAnimationsOf(context) ?? false;
+    if (reduceMotion) return;
+
+    _isPlacementOneShot = isPlacement;
+    final controller = _oneShotController ??= AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 520),
+    );
+    controller.forward(from: 0.0);
+  }
+
   @override
   void dispose() {
     _pulseController?.dispose();
+    _oneShotController?.dispose();
     super.dispose();
   }
 
   @override
   Widget build(BuildContext context) {
+    final reveal = widget.revealProgress.clamp(0.0, 1.0);
+    if (reveal <= 0.01) {
+      return SizedBox(width: widget.width, height: widget.height);
+    }
+
     final slot = widget.slot;
     final isSelected = widget.isSelected;
 
@@ -83,12 +122,73 @@ class _IslandSlotWidgetState extends State<IslandSlotWidget>
       child: _buildSlotStack(slot, isSelected),
     );
 
+    if (_oneShotController != null) {
+      content = AnimatedBuilder(
+        animation: _oneShotController!,
+        builder: (context, child) {
+          final t = _oneShotController!.value;
+          if (!_oneShotController!.isAnimating && (t == 0.0 || t == 1.0)) {
+            return child!;
+          }
+          final curveT = Curves.easeOutBack.transform(t.clamp(0.0, 1.0));
+          final scale = _isPlacementOneShot
+              ? (0.82 + (0.18 * curveT))
+              : (0.92 + (0.08 * Curves.easeOut.transform(t)));
+          final glowAlpha = (1.0 - t).clamp(0.0, 1.0) * 0.75;
+
+          return Stack(
+            alignment: Alignment.center,
+            clipBehavior: Clip.none,
+            children: [
+              Positioned(
+                bottom: 6,
+                child: IgnorePointer(
+                  child: Container(
+                    width: widget.width * (0.75 + 0.25 * t),
+                    height: widget.width * (0.38 + 0.14 * t),
+                    decoration: BoxDecoration(
+                      borderRadius: BorderRadius.all(
+                        Radius.elliptical(
+                          widget.width,
+                          widget.width * 0.5,
+                        ),
+                      ),
+                      border: Border.all(
+                        color: (_isPlacementOneShot
+                                ? DauVietColors.imperialGold
+                                : DauVietColors.natureGreen)
+                            .withValues(alpha: glowAlpha),
+                        width: 2.5,
+                      ),
+                    ),
+                  ),
+                ),
+              ),
+              Transform.scale(scale: scale, child: child),
+            ],
+          );
+        },
+        child: content,
+      );
+    }
+
     if (isSelected && _pulseAnimation != null) {
       content = AnimatedBuilder(
         animation: _pulseAnimation!,
         builder: (context, child) =>
             Transform.scale(scale: _pulseAnimation!.value, child: child),
         child: content,
+      );
+    }
+
+    if (reveal < 0.999) {
+      final eased = Curves.easeOutBack.transform(reveal);
+      content = Opacity(
+        opacity: reveal,
+        child: Transform.scale(
+          scale: 0.76 + (0.24 * eased),
+          child: content,
+        ),
       );
     }
 
@@ -109,8 +209,7 @@ class _IslandSlotWidgetState extends State<IslandSlotWidget>
     return _buildOccupiedSlot(slot, isSelected);
   }
 
-  /// Trạng thái 1: Slot đang bị khóa theo Tier — hiển thị cột mốc đá mờ nhẹ,
-  /// không che cảnh quan và không lặp lại quá nhiều chữ.
+  /// Trạng thái 1: Slot đang bị khóa theo Tier — hiển thị cột mốc đá mờ nhẹ.
   Widget _buildLockedSlot(IslandSlotDto slot, bool isSelected) {
     final baseW = (widget.width * 0.56).clamp(42.0, 68.0);
     final baseH = (baseW * 0.52).clamp(22.0, 36.0);
@@ -174,7 +273,6 @@ class _IslandSlotWidgetState extends State<IslandSlotWidget>
       alignment: Alignment.center,
       clipBehavior: Clip.none,
       children: [
-        // Đế thềm đá/cỏ isometric mềm mại
         Positioned(
           bottom: 10,
           child: Container(
@@ -203,8 +301,6 @@ class _IslandSlotWidgetState extends State<IslandSlotWidget>
             ),
           ),
         ),
-
-        // Nút cộng nhỏ hài hòa với nền đất
         Positioned(
           bottom: 10 + (baseH * 0.28),
           child: Container(
@@ -234,7 +330,6 @@ class _IslandSlotWidgetState extends State<IslandSlotWidget>
             ),
           ),
         ),
-
         if (isSelected)
           Positioned(
             bottom: -4,
@@ -257,7 +352,6 @@ class _IslandSlotWidgetState extends State<IslandSlotWidget>
       alignment: Alignment.center,
       clipBehavior: Clip.none,
       children: [
-        // 1. Bóng đổ mềm trên mặt đất và vòng sáng khi được chọn
         Positioned(
           bottom: 8,
           child: Container(
@@ -293,8 +387,6 @@ class _IslandSlotWidgetState extends State<IslandSlotWidget>
             ),
           ),
         ),
-
-        // 2. Công trình / vật phẩm trang trí 2.5D neo chân xuống mặt đất
         Positioned(
           bottom: 14,
           child: SizedBox(
@@ -306,13 +398,11 @@ class _IslandSlotWidgetState extends State<IslandSlotWidget>
                     fit: BoxFit.contain,
                     alignment: Alignment.bottomCenter,
                     errorBuilder: (context, error, stackTrace) =>
-                        _buildHeritageDioramaPiece(placement, artW, artH),
+                        _buildFallbackItemRepresentation(placement, artW, artH),
                   )
-                : _buildHeritageDioramaPiece(placement, artW, artH),
+                : _buildFallbackItemRepresentation(placement, artW, artH),
           ),
         ),
-
-        // 3. Nhãn tên chỉ nổi rõ khi đang chọn (hoặc pill siêu gọn)
         if (isSelected)
           Positioned(
             bottom: -6,
@@ -322,17 +412,81 @@ class _IslandSlotWidgetState extends State<IslandSlotWidget>
     );
   }
 
-  /// Minh họa diorama 2.5D trung tính theo chủ đề văn hóa Việt khi vật phẩm
-  /// chưa có file PNG riêng trong bundle — tuyệt đối không dùng nhầm ảnh nhà tranh.
-  Widget _buildHeritageDioramaPiece(
+  static bool _isKnownSeededDioramaKey(String key) {
+    return key == 'decor.bui_tre' ||
+        key == 'decor_bui_tre' ||
+        key == 'decor.gieng_co' ||
+        key == 'decor_gieng_co' ||
+        key == 'decor.cong_lang' ||
+        key == 'decor_cong_lang' ||
+        key == 'decor.den_long_hoi_an' ||
+        key == 'decor_den_long_hoi_an' ||
+        key == 'decor.dinh_lang' ||
+        key == 'decor_dinh_lang' ||
+        key == 'decor.thuyen_rong' ||
+        key == 'decor_thuyen_rong' ||
+        key == 'decor.thap_but' ||
+        key == 'decor_thap_but' ||
+        key == 'decor.khue_van_cac' ||
+        key == 'decor_khue_van_cac';
+  }
+
+  /// Nếu là 1 trong 8 vật phẩm di sản chuẩn của V45 thì vẽ biểu tượng diorama đúng loại;
+  /// nếu là vật phẩm mới có renderKey chưa xác định thì hiển thị huy hiệu trung tính
+  /// kèm đúng tên vật phẩm (không vẽ bừa công trình khác).
+  Widget _buildFallbackItemRepresentation(
     IslandPlacementDto placement,
     double width,
     double height,
   ) {
-    return CustomPaint(
-      size: Size(width, height),
-      painter: _HeritageMiniaturePainter(
-        keyToken: (placement.renderKey ?? placement.code).toLowerCase(),
+    final keyToken = (placement.renderKey ?? placement.code).toLowerCase().trim();
+    if (_isKnownSeededDioramaKey(keyToken)) {
+      return CustomPaint(
+        size: Size(width, height),
+        painter: _HeritageMiniaturePainter(keyToken: keyToken),
+      );
+    }
+
+    return Center(
+      child: Container(
+        width: (width * 0.74).clamp(52.0, 86.0),
+        height: (height * 0.74).clamp(52.0, 86.0),
+        padding: const EdgeInsets.all(6),
+        decoration: BoxDecoration(
+          color: DauVietColors.parchmentContainer.withValues(alpha: 0.95),
+          borderRadius: BorderRadius.circular(16),
+          border: Border.all(color: DauVietColors.imperialGold, width: 1.8),
+          boxShadow: const [
+            BoxShadow(
+              color: Colors.black26,
+              blurRadius: 6,
+              offset: Offset(0, 3),
+            ),
+          ],
+        ),
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            const Icon(
+              Icons.account_balance_rounded,
+              size: 24,
+              color: DauVietColors.woodBrown,
+            ),
+            const SizedBox(height: 3),
+            Text(
+              placement.name,
+              maxLines: 2,
+              overflow: TextOverflow.ellipsis,
+              textAlign: TextAlign.center,
+              style: DauVietTypography.bodySmall.copyWith(
+                fontSize: 8.5,
+                fontWeight: FontWeight.bold,
+                color: DauVietColors.woodBrown,
+                height: 1.1,
+              ),
+            ),
+          ],
+        ),
       ),
     );
   }
@@ -375,8 +529,6 @@ class _IslandSlotWidgetState extends State<IslandSlotWidget>
   }
 }
 
-/// Vẽ mô hình kiến trúc / cảnh quan di sản Việt Nam 2.5D (diorama) cho các vật phẩm
-/// mới trong catalog chưa có PNG cục bộ, giúp mỗi loại vật phẩm có hình dáng đặc trưng.
 class _HeritageMiniaturePainter extends CustomPainter {
   final String keyToken;
 
@@ -387,7 +539,6 @@ class _HeritageMiniaturePainter extends CustomPainter {
     final cx = size.width * 0.5;
     final bottom = size.height * 0.92;
 
-    // Thềm đá ong / thảm cỏ chân công trình
     final plinthRect = Rect.fromCenter(
       center: Offset(cx, bottom - 6),
       width: size.width * 0.72,
@@ -402,18 +553,17 @@ class _HeritageMiniaturePainter extends CustomPainter {
       Paint()..color = const Color(0xFFA3B86C),
     );
 
-    if (keyToken.contains('bui_tre') || keyToken.contains('cay')) {
+    if (keyToken.contains('bui_tre')) {
       _paintBambooGrove(canvas, cx, bottom - 10, size);
-    } else if (keyToken.contains('gieng') || keyToken.contains('sen')) {
+    } else if (keyToken.contains('gieng_co')) {
       _paintAncientWell(canvas, cx, bottom - 8, size);
-    } else if (keyToken.contains('thuyen')) {
+    } else if (keyToken.contains('thuyen_rong')) {
       _paintDragonBoat(canvas, cx, bottom - 8, size);
     } else if (keyToken.contains('den_long')) {
       _paintLanternPavilion(canvas, cx, bottom - 10, size);
     } else if (keyToken.contains('thap_but')) {
       _paintStoneTower(canvas, cx, bottom - 10, size);
     } else {
-      // Đình làng / Khuê Văn Các / Cổng làng mái đao truyền thống
       _paintHeritagePavilion(canvas, cx, bottom - 10, size);
     }
   }
@@ -500,7 +650,8 @@ class _HeritageMiniaturePainter extends CustomPainter {
       polePaint,
     );
     for (final dx in [-14.0, 0.0, 14.0]) {
-      final dy = dx == 0 ? baseY - size.height * 0.54 : baseY - size.height * 0.40;
+      final dy =
+          dx == 0 ? baseY - size.height * 0.54 : baseY - size.height * 0.40;
       canvas.drawOval(
         Rect.fromCenter(center: Offset(cx + dx, dy), width: 12, height: 15),
         Paint()..color = const Color(0xFFD9381E),
@@ -522,7 +673,8 @@ class _HeritageMiniaturePainter extends CustomPainter {
           Rect.fromCenter(center: Offset(cx, y), width: w, height: 10),
           const Radius.circular(2),
         ),
-        Paint()..color = i.isEven ? const Color(0xFF78716C) : const Color(0xFF9CA3AF),
+        Paint()
+          ..color = i.isEven ? const Color(0xFF78716C) : const Color(0xFF9CA3AF),
       );
     }
     final tip = Path()
@@ -539,7 +691,6 @@ class _HeritageMiniaturePainter extends CustomPainter {
     double baseY,
     Size size,
   ) {
-    // Thân gỗ & cột đình
     final bodyRect = Rect.fromCenter(
       center: Offset(cx, baseY - 14),
       width: size.width * 0.44,
@@ -555,7 +706,6 @@ class _HeritageMiniaturePainter extends CustomPainter {
       Paint()..color = const Color(0xFFEAB308),
     );
 
-    // Mái đao cong truyền thống
     final roof = Path()
       ..moveTo(cx - size.width * 0.36, baseY - 22)
       ..quadraticBezierTo(

@@ -2,14 +2,16 @@ import 'dart:math' as math;
 import 'package:flutter/material.dart';
 
 /// Hiệu ứng pháo hoa ánh vàng & cánh sen bay (Gold Confetti / Particle Overlay)
-/// Dùng để ăn mừng khi người học vượt qua câu đố khó hoặc đạt chuỗi combo chiến thắng
+/// Dùng để ăn mừng khi người học vượt qua câu đố khó hoặc mở rộng Đảo Di Sản.
 class GoldConfettiOverlay extends StatefulWidget {
   final bool trigger;
+  final int triggerCount;
   final Widget child;
 
   const GoldConfettiOverlay({
     super.key,
     required this.trigger,
+    this.triggerCount = 0,
     required this.child,
   });
 
@@ -31,7 +33,7 @@ class _GoldConfettiOverlayState extends State<GoldConfettiOverlay>
       duration: const Duration(milliseconds: 2200),
     );
 
-    if (widget.trigger) {
+    if (widget.trigger || widget.triggerCount > 0) {
       _startConfetti();
     }
   }
@@ -39,14 +41,19 @@ class _GoldConfettiOverlayState extends State<GoldConfettiOverlay>
   @override
   void didUpdateWidget(covariant GoldConfettiOverlay oldWidget) {
     super.didUpdateWidget(oldWidget);
-    if (widget.trigger && !oldWidget.trigger) {
-      _startConfetti();
+    final triggeredByBool = widget.trigger && !oldWidget.trigger;
+    final triggeredByCount = widget.triggerCount > oldWidget.triggerCount;
+    if (triggeredByBool || triggeredByCount) {
+      final reduceMotion =
+          MediaQuery.maybeDisableAnimationsOf(context) ?? false;
+      if (!reduceMotion) {
+        _startConfetti();
+      }
     }
   }
 
   void _startConfetti() {
     _particles.clear();
-    // Tạo 50 hạt ánh kim hoàng gia
     for (int i = 0; i < 50; i++) {
       _particles.add(_Particle.random(_random));
     }
@@ -67,7 +74,8 @@ class _GoldConfettiOverlayState extends State<GoldConfettiOverlay>
         AnimatedBuilder(
           animation: _controller,
           builder: (context, _) {
-            if (!_controller.isAnimating && _controller.value == 1.0) {
+            if (!_controller.isAnimating &&
+                (_controller.value == 0.0 || _controller.value == 1.0)) {
               return const SizedBox.shrink();
             }
 
@@ -113,23 +121,21 @@ class _Particle {
 
   factory _Particle.random(math.Random random) {
     final colors = [
-      const Color(0xFFE7B451), // Vàng hoàng gia
-      const Color(0xFFFFD572), // Vàng sáng
-      const Color(0xFFA51F18), // Đỏ chu sa
-      const Color(0xFFE28D78), // Cánh sen
-      const Color(0xFFD4AF37), // Đồng cổ
+      const Color(0xFFE7B451),
+      const Color(0xFFFFD572),
+      const Color(0xFFA51F18),
+      const Color(0xFFE28D78),
+      const Color(0xFFD4AF37),
     ];
 
     final type =
         _ParticleType.values[random.nextInt(_ParticleType.values.length)];
 
     return _Particle(
-      startX:
-          0.2 +
-          (random.nextDouble() * 0.6), // Tỏa ra từ giữa màn hình (20% - 80%)
-      startY: 0.35 + (random.nextDouble() * 0.2), // Tầm cao 35% - 55%
+      startX: 0.2 + (random.nextDouble() * 0.6),
+      startY: 0.35 + (random.nextDouble() * 0.2),
       vx: (random.nextDouble() - 0.5) * 450,
-      vy: -220 - (random.nextDouble() * 320), // Bắn lên trên
+      vy: -220 - (random.nextDouble() * 320),
       size: 6.0 + (random.nextDouble() * 7.0),
       rotationSpeed: (random.nextDouble() - 0.5) * 12.0,
       color: colors[random.nextInt(colors.length)],
@@ -149,8 +155,7 @@ class _ConfettiPainter extends CustomPainter {
     if (progress == 0.0 || progress == 1.0) return;
 
     final t = progress;
-    final gravity =
-        700.0 * t * t; // Trọng lực kéo xuống theo thời gian bình phương
+    final gravity = 700.0 * t * t;
     final opacity = (1.0 - t).clamp(0.0, 1.0);
 
     for (final p in particles) {
