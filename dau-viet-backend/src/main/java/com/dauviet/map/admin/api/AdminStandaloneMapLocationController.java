@@ -3,6 +3,10 @@ package com.dauviet.map.admin.api;
 import java.util.List;
 import java.util.UUID;
 
+import jakarta.validation.Valid;
+import jakarta.validation.constraints.Max;
+import jakarta.validation.constraints.Min;
+
 import org.springframework.http.HttpStatus;
 import org.springframework.validation.annotation.Validated;
 import org.springframework.web.bind.annotation.GetMapping;
@@ -16,6 +20,7 @@ import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.ResponseStatus;
 import org.springframework.web.bind.annotation.RestController;
 
+import com.dauviet.common.api.PageResponse;
 import com.dauviet.map.admin.AdminMapLocationService;
 import com.dauviet.map.admin.dto.AdminStandaloneMapLocationDtos.EventLinkInput;
 import com.dauviet.map.admin.dto.AdminStandaloneMapLocationDtos.MediaInput;
@@ -23,8 +28,6 @@ import com.dauviet.map.admin.dto.AdminStandaloneMapLocationDtos.ReplaceUnlockLes
 import com.dauviet.map.admin.dto.AdminStandaloneMapLocationDtos.StandaloneLocationRequest;
 import com.dauviet.map.admin.dto.AdminStandaloneMapLocationDtos.StandaloneLocationResponse;
 import com.dauviet.map.domain.MapLocationStatus;
-
-import jakarta.validation.Valid;
 
 /**
  * Standalone admin API for heritage locations (/api/v1/admin/map-locations).
@@ -48,6 +51,17 @@ public class AdminStandaloneMapLocationController {
             @RequestParam(required = false) MapLocationStatus status,
             @RequestParam(required = false) UUID eventId) {
         return service.listStandalone(q, kind, status, eventId);
+    }
+
+    @GetMapping(params = "page")
+    public PageResponse<StandaloneLocationResponse> listPaged(
+            @RequestParam(defaultValue = "0") @Min(0) int page,
+            @RequestParam(defaultValue = "10") @Min(1) @Max(100) int size,
+            @RequestParam(required = false) String q,
+            @RequestParam(required = false) String kind,
+            @RequestParam(required = false) MapLocationStatus status,
+            @RequestParam(required = false) UUID eventId) {
+        return service.listStandalonePage(q, kind, status, eventId, page, size);
     }
 
     @PostMapping

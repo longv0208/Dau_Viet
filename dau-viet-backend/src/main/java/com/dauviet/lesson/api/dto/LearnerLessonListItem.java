@@ -6,5 +6,13 @@ import java.util.UUID;
 public record LearnerLessonListItem(
         UUID id,
         String title,
-        String centralQuestion) {
+        String centralQuestion,
+        UUID coverAssetId,
+        String coverImageUrl) {
+    public LearnerLessonListItem(
+            UUID id,
+            String title,
+            String centralQuestion) {
+        this(id, title, centralQuestion, null, null);
+    }
 }

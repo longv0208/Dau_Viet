@@ -9,6 +9,7 @@ export interface AdminLessonSummary {
   title: string;
   status: LessonStatus;
   currentVersionId: string | null;
+  coverAssetId?: string | null;
   rowVersion: number;
 }
 
@@ -23,6 +24,7 @@ export interface AdminLessonDetail {
   draftJson: string;
   status: LessonStatus;
   currentVersionId: string | null;
+  coverAssetId?: string | null;
   rowVersion: number;
   createdBy: string;
   updatedBy: string;
@@ -38,6 +40,7 @@ export interface AdminLessonCreateRequest {
   centralQuestion: string;
   objectivesJson?: string;
   draftJson?: string;
+  coverAssetId?: string | null;
 }
 
 /** AdminLessonUpdateRequest — PATCH /admin/lessons/{id}. */
@@ -47,6 +50,8 @@ export interface AdminLessonUpdateRequest {
   centralQuestion?: string;
   objectivesJson?: string;
   expectedRowVersion?: number;
+  coverAssetId?: string | null;
+  clearCoverAsset?: boolean;
 }
 
 /** LessonTemplateResponse — template catalogue entry (GET returns List, not paged). */

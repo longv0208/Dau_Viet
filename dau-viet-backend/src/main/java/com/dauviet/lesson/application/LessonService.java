@@ -2,8 +2,10 @@ package com.dauviet.lesson.application;
 
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Set;
 import java.util.UUID;
 
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.domain.Specification;
@@ -19,6 +21,8 @@ import com.dauviet.lesson.api.dto.AdminLessonSummaryResponse;
 import com.dauviet.lesson.api.dto.AdminLessonUpdateRequest;
 import com.dauviet.lesson.api.dto.PublishReadinessResponse;
 import com.dauviet.lesson.api.mapper.AdminLessonMapper;
+import com.dauviet.lesson.domain.Asset;
+import com.dauviet.lesson.domain.AssetNotFoundException;
 import com.dauviet.lesson.domain.InvalidStatusTransitionException;
 import com.dauviet.lesson.domain.Lesson;
 import com.dauviet.lesson.domain.LessonNotFoundException;
@@ -30,11 +34,10 @@ import com.dauviet.lesson.draft.DraftValidationException;
 import com.dauviet.lesson.draft.DraftValidator;
 import com.dauviet.lesson.draft.FieldError;
 import com.dauviet.lesson.draft.ValidationLevel;
-
-import com.fasterxml.jackson.databind.JsonNode;
-
+import com.dauviet.lesson.infrastructure.persistence.AssetRepository;
 import com.dauviet.lesson.infrastructure.persistence.LessonRepository;
 import com.dauviet.lesson.infrastructure.persistence.LessonTemplateRepository;
+import com.fasterxml.jackson.databind.JsonNode;
 
 import jakarta.persistence.criteria.Predicate;
 
@@ -47,6 +50,12 @@ import jakarta.persistence.criteria.Predicate;
 @Service
 public class LessonService {
 
+    private static final Set<String> ALLOWED_COVER_MIMES = Set.of(
+            "image/jpeg",
+            "image/png",
+            "image/webp"
+    );
+
     private final LessonRepository lessons;
     private final LessonTemplateRepository templates;
     private final HistoricalEventRepository events;
@@ -56,6 +65,7 @@ public class LessonService {
     private final LearnerProjectionService learnerProjection;
     private final com.dauviet.lesson.draft.SnapshotBuilder snapshotBuilder;
     private final com.fasterxml.jackson.databind.ObjectMapper objectMapper;
+    private final AssetRepository assets;
 
     public LessonService(LessonRepository lessons,
                          LessonTemplateRepository templates,
@@ -66,6 +76,21 @@ public class LessonService {
                          LearnerProjectionService learnerProjection,
                          com.dauviet.lesson.draft.SnapshotBuilder snapshotBuilder,
                          com.fasterxml.jackson.databind.ObjectMapper objectMapper) {
+        this(lessons, templates, events, mapper, draftValidator, readiness,
+                learnerProjection, snapshotBuilder, objectMapper, null);
+    }
+
+    @Autowired
+    public LessonService(LessonRepository lessons,
+                         LessonTemplateRepository templates,
+                         HistoricalEventRepository events,
+                         AdminLessonMapper mapper,
+                         DraftValidator draftValidator,
+                         PublishReadinessEvaluator readiness,
+                         LearnerProjectionService learnerProjection,
+                         com.dauviet.lesson.draft.SnapshotBuilder snapshotBuilder,
+                         com.fasterxml.jackson.databind.ObjectMapper objectMapper,
+                         AssetRepository assets) {
         this.lessons = lessons;
         this.templates = templates;
         this.events = events;
@@ -75,6 +100,7 @@ public class LessonService {
         this.learnerProjection = learnerProjection;
         this.snapshotBuilder = snapshotBuilder;
         this.objectMapper = objectMapper;
+        this.assets = assets;
     }
 
     @Transactional
@@ -86,6 +112,9 @@ public class LessonService {
                 .orElseThrow(() -> new TemplateNotFoundException("Template not found: " + req.templateId()));
         if (!Boolean.TRUE.equals(tpl.getEnabled())) {
             throw new TemplateDisabledException("Template disabled: " + tpl.getCode());
+        }
+        if (req.coverAssetId() != null) {
+            validateCoverAsset(req.coverAssetId());
         }
         String objectives = req.objectivesJson() == null
                 ? "[]" : DraftValidator.requireJsonArray(req.objectivesJson(), "objectivesJson");
@@ -100,6 +129,7 @@ public class LessonService {
         l.setCentralQuestion(req.centralQuestion());
         l.setObjectivesJson(objectives);
         l.setDraftJson(draft);
+        l.setCoverAssetId(req.coverAssetId());
         l.setStatus(LessonStatus.DRAFT);
         l.setCreatedBy(adminId);
         l.setUpdatedBy(adminId);
@@ -137,6 +167,9 @@ public class LessonService {
         if (l.getStatus() == LessonStatus.ARCHIVED) {
             throw new InvalidStatusTransitionException("archived lesson cannot be edited");
         }
+        if (Boolean.TRUE.equals(req.clearCoverAsset()) && req.coverAssetId() != null) {
+            throw new IllegalArgumentException("Cannot specify both coverAssetId and clearCoverAsset=true");
+        }
         if (req.templateId() != null && !req.templateId().equals(l.getTemplateId())) {
             // Rebinding the template reshapes the draft, so only allow it while
             // the lesson is still a draft (published snapshot is immutable anyway).
@@ -156,6 +189,12 @@ public class LessonService {
         if (req.centralQuestion() != null) l.setCentralQuestion(req.centralQuestion());
         if (req.objectivesJson() != null) {
             l.setObjectivesJson(DraftValidator.requireJsonArray(req.objectivesJson(), "objectivesJson"));
+        }
+        if (Boolean.TRUE.equals(req.clearCoverAsset())) {
+            l.setCoverAssetId(null);
+        } else if (req.coverAssetId() != null) {
+            validateCoverAsset(req.coverAssetId());
+            l.setCoverAssetId(req.coverAssetId());
         }
         l.setUpdatedBy(adminId);
         return mapper.toResponse(lessons.saveAndFlush(l));
@@ -252,6 +291,22 @@ public class LessonService {
         if (expected != null && !expected.equals(l.getRowVersion())) {
             throw new org.springframework.orm.ObjectOptimisticLockingFailureException(
                     Lesson.class, l.getId());
+        }
+    }
+
+    private void validateCoverAsset(UUID coverAssetId) {
+        if (assets == null) {
+            return;
+        }
+        Asset asset = assets.findById(coverAssetId)
+                .filter(a -> "ACTIVE".equals(a.getState()))
+                .orElseThrow(() -> new AssetNotFoundException(
+                        "Ảnh bìa không tồn tại hoặc không ở trạng thái ACTIVE: " + coverAssetId));
+        String mime = asset.getMimeType() == null ? "" : asset.getMimeType().toLowerCase();
+        if (!ALLOWED_COVER_MIMES.contains(mime)) {
+            throw new IllegalArgumentException(
+                    "Ảnh bìa bài học chỉ chấp nhận định dạng JPEG, PNG hoặc WebP (định dạng hiện tại: "
+                            + asset.getMimeType() + ")");
         }
     }
 }

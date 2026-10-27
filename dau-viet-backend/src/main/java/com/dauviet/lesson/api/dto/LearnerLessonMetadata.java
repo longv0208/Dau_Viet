@@ -11,5 +11,17 @@ public record LearnerLessonMetadata(
         UUID eventId,
         UUID currentVersionId,
         int versionNo,
-        Instant publishedAt) {
+        Instant publishedAt,
+        UUID coverAssetId,
+        String coverImageUrl) {
+    public LearnerLessonMetadata(
+            UUID id,
+            String title,
+            String centralQuestion,
+            UUID eventId,
+            UUID currentVersionId,
+            int versionNo,
+            Instant publishedAt) {
+        this(id, title, centralQuestion, eventId, currentVersionId, versionNo, publishedAt, null, null);
+    }
 }

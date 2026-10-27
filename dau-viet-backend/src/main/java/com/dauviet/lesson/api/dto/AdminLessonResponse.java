@@ -14,10 +14,29 @@ public record AdminLessonResponse(
         String draftJson,
         String status,
         UUID currentVersionId,
+        UUID coverAssetId,
         Long rowVersion,
         UUID createdBy,
         UUID updatedBy,
         Instant createdAt,
         Instant updatedAt
 ) {
+    public AdminLessonResponse(
+            UUID id,
+            UUID eventId,
+            UUID templateId,
+            String title,
+            String centralQuestion,
+            String objectivesJson,
+            String draftJson,
+            String status,
+            UUID currentVersionId,
+            Long rowVersion,
+            UUID createdBy,
+            UUID updatedBy,
+            Instant createdAt,
+            Instant updatedAt) {
+        this(id, eventId, templateId, title, centralQuestion, objectivesJson, draftJson,
+                status, currentVersionId, null, rowVersion, createdBy, updatedBy, createdAt, updatedAt);
+    }
 }

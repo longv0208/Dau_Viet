@@ -32,7 +32,17 @@ public interface ItemCatalogRepository
     @Query("""
             SELECT i FROM ItemCatalog i
             WHERE (:active IS NULL OR i.active = :active)
+              AND (:itemType IS NULL OR i.itemType = :itemType)
+              AND (:qPattern IS NULL OR LOWER(i.name) LIKE :qPattern OR LOWER(i.code) LIKE :qPattern)
             ORDER BY i.code ASC
             """)
-    Page<ItemCatalog> search(@Param("active") Boolean active, Pageable pageable);
+    Page<ItemCatalog> search(
+            @Param("active") Boolean active,
+            @Param("itemType") String itemType,
+            @Param("qPattern") String qPattern,
+            Pageable pageable);
+
+    default Page<ItemCatalog> search(Boolean active, Pageable pageable) {
+        return search(active, null, null, pageable);
+    }
 }

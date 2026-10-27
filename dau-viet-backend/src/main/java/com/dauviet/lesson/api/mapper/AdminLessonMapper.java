@@ -14,13 +14,14 @@ public class AdminLessonMapper {
         return new AdminLessonResponse(
                 l.getId(), l.getEventId(), l.getTemplateId(), l.getTitle(),
                 l.getCentralQuestion(), l.getObjectivesJson(), l.getDraftJson(),
-                l.getStatus().name(), l.getCurrentVersionId(), l.getRowVersion(),
-                l.getCreatedBy(), l.getUpdatedBy(), l.getCreatedAt(), l.getUpdatedAt());
+                l.getStatus().name(), l.getCurrentVersionId(), l.getCoverAssetId(),
+                l.getRowVersion(), l.getCreatedBy(), l.getUpdatedBy(),
+                l.getCreatedAt(), l.getUpdatedAt());
     }
 
     public AdminLessonSummaryResponse toSummary(Lesson l) {
         return new AdminLessonSummaryResponse(
                 l.getId(), l.getEventId(), l.getTitle(), l.getStatus().name(),
-                l.getCurrentVersionId(), l.getRowVersion());
+                l.getCurrentVersionId(), l.getCoverAssetId(), l.getRowVersion());
     }
 }

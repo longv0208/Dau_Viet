@@ -145,10 +145,10 @@ export function DossiersTable() {
         emptyDescription="Tạo hồ sơ đầu tiên để liên kết vào sự kiện."
       />
 
-      {data && data.totalPages > 1 && (
+      {data && data.totalElements > 0 && (
         <div className="flex items-center justify-between text-sm text-ink-muted">
           <span>
-            Trang {data.page + 1} / {data.totalPages} · {data.totalElements} hồ
+            Trang {data.page + 1} / {Math.max(1, data.totalPages)} · {data.totalElements} hồ
             sơ
           </span>
           <div className="flex gap-2">
@@ -161,7 +161,7 @@ export function DossiersTable() {
             </Button>
             <Button
               variant="secondary"
-              disabled={data.page >= data.totalPages - 1}
+              disabled={data.page >= Math.max(1, data.totalPages) - 1}
               onClick={() => setPage((p) => p + 1)}
             >
               Sau

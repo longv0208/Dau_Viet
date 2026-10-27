@@ -198,6 +198,20 @@ public class AdminMapLocationService {
     }
 
     @Transactional(readOnly = true)
+    public com.dauviet.common.api.PageResponse<StandaloneLocationResponse> listStandalonePage(
+            String q, String kind, MapLocationStatus status, UUID eventId, int page, int size) {
+        List<StandaloneLocationResponse> all = listStandalone(q, kind, status, eventId);
+        int safeSize = Math.max(1, Math.min(size, 100));
+        int safePage = Math.max(0, page);
+        long total = all.size();
+        int totalPages = (int) Math.ceil((double) total / safeSize);
+        int fromIndex = Math.min(safePage * safeSize, all.size());
+        int toIndex = Math.min(fromIndex + safeSize, all.size());
+        List<StandaloneLocationResponse> slice = all.subList(fromIndex, toIndex);
+        return new com.dauviet.common.api.PageResponse<>(slice, safePage, safeSize, total, totalPages);
+    }
+
+    @Transactional(readOnly = true)
     public StandaloneLocationResponse getStandalone(UUID locationId) {
         MapLocation l = loadStandalone(locationId);
         return toStandaloneResponse(l);

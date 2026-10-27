@@ -26,14 +26,21 @@ function VersionCard({ version, disabled, onClone }: {
     <article className="rounded-xl border border-border bg-white p-5 shadow-sm">
       <div className="flex flex-wrap items-start justify-between gap-3">
         <div>
-          <p className="text-xs font-medium uppercase tracking-wider text-ink-muted">Phiên bản {version.versionNo}</p>
+          <div className="flex flex-wrap items-center gap-2">
+            <span className="rounded bg-surface px-2 py-0.5 font-mono text-xs font-semibold text-ink-muted">
+              {version.pathCode}
+            </span>
+            <p className="text-xs font-medium uppercase tracking-wider text-ink-muted">
+              Phiên bản {version.versionNo}
+            </p>
+          </div>
           <h3 className="mt-1 font-display text-lg font-semibold">{version.title}</h3>
           {version.description && <p className="mt-1 text-sm text-ink-muted">{version.description}</p>}
         </div>
         <StatusChip status={version.status} />
       </div>
       {detail.isPending ? <p className="my-5 text-sm text-ink-muted" role="status">Đang tải cấu trúc...</p> : detail.isError ? (
-        <div className="my-3 text-sm text-error" role="alert">Chưa tải được số liệu. <button className="underline" onClick={() => void detail.refetch()}>Thử lại</button></div>
+        <div className="my-3 text-sm text-error" role="alert">Chưa tải được số liệu: {pathError(detail.error)} <button className="underline" onClick={() => void detail.refetch()}>Thử lại</button></div>
       ) : (
         <dl className="my-5 grid grid-cols-2 gap-3 text-sm sm:grid-cols-4">
           {[["Chương", detail.data?.chapters.length ?? 0], ["Sự kiện", events.length], ["Bắt buộc", required], ["Tham khảo", events.length - required]].map(([label, value]) => (
@@ -41,7 +48,7 @@ function VersionCard({ version, disabled, onClone }: {
           ))}
         </dl>
       )}
-      <p className="text-xs text-ink-muted">{version.publishedAt ? `Xuất bản: ${new Date(version.publishedAt).toLocaleString("vi-VN")}` : "Chưa xuất bản"}</p>
+      <p className="text-xs text-ink-muted">{version.publishedAt ? `Xuất bản: ${new Date(version.publishedAt).toLocaleString("vi-VN")}` : `Cập nhật: ${new Date(version.updatedAt).toLocaleString("vi-VN")} · Chưa xuất bản`}</p>
       <div className="mt-4 flex flex-wrap gap-2">
         <Button asChild variant={version.status === "DRAFT" ? "default" : "secondary"} size="sm">
           <Link href={`/learning-path/${version.id}/edit`}>{version.status === "DRAFT" ? "Thiết kế / xuất bản" : "Xem lộ trình"}</Link>
@@ -54,8 +61,8 @@ function VersionCard({ version, disabled, onClone }: {
 }
 
 export function PathVersions() {
-  const [code, setCode] = useState(DEFAULT_PATH_CODE);
-  const [filter, setFilter] = useState(code);
+  const [code, setCode] = useState("ALL");
+  const [filter, setFilter] = useState("");
   const [open, setOpen] = useState(false);
   const query = usePathVersions(code);
   const cache = useQueryClient();
@@ -82,10 +89,15 @@ export function PathVersions() {
         <Button onClick={() => { mutation.reset(); setOpen(true); }} disabled={mutation.isPending}><Plus aria-hidden />Tạo lộ trình mới</Button>
       } />
       <div className="mb-6 flex flex-wrap items-center justify-between gap-3 rounded-lg border border-border bg-white p-4">
-        <form className="flex flex-wrap items-center gap-2" onSubmit={e => { e.preventDefault(); setCode(filter.trim() || DEFAULT_PATH_CODE); }}>
+        <form className="flex flex-wrap items-center gap-2" onSubmit={e => { e.preventDefault(); setCode(filter.trim() || "ALL"); }}>
           <Label htmlFor="path-code-filter">Mã lộ trình</Label>
-          <Input id="path-code-filter" value={filter} onChange={e => setFilter(e.target.value)} maxLength={64} className="w-52" />
-          <Button type="submit" variant="secondary">Xem</Button>
+          <Input id="path-code-filter" value={filter} onChange={e => setFilter(e.target.value)} placeholder="Tất cả (ví dụ: HISTORY_MAIN)" maxLength={64} className="w-60" />
+          <Button type="submit" variant="secondary">Lọc</Button>
+          {code !== "ALL" && (
+            <Button type="button" variant="ghost" size="sm" onClick={() => { setFilter(""); setCode("ALL"); }}>
+              Xem tất cả
+            </Button>
+          )}
         </form>
         <Button variant="ghost" disabled={query.isFetching} onClick={() => void query.refetch()}><RefreshCw aria-hidden />Làm mới</Button>
       </div>
@@ -107,7 +119,7 @@ export function PathVersions() {
           const form = new FormData(e.currentTarget);
           mutation.mutate({ pathCode: String(form.get("pathCode")).trim(), title: String(form.get("title")).trim(), description: String(form.get("description") ?? "") });
         }}>
-          <div><Label htmlFor="new-path-code">Mã lộ trình</Label><Input id="new-path-code" name="pathCode" defaultValue={code} maxLength={64} required /></div>
+          <div><Label htmlFor="new-path-code">Mã lộ trình</Label><Input id="new-path-code" name="pathCode" defaultValue={code === "ALL" ? DEFAULT_PATH_CODE : code} maxLength={64} required /></div>
           <div><Label htmlFor="new-path-title">Tên lộ trình</Label><Input id="new-path-title" name="title" maxLength={255} required /></div>
           <div><Label htmlFor="new-path-description">Mô tả</Label><Textarea id="new-path-description" name="description" rows={3} /></div>
           {mutation.isError && <p role="alert" className="text-sm text-error">{pathError(mutation.error)}</p>}

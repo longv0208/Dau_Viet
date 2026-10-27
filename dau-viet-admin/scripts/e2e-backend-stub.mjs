@@ -39,7 +39,7 @@ const EMPTY_PAGE = { content: [], page: 0, size: 20, totalElements: 0, totalPage
 const LEARNER_HIDDEN_KEYS = new Set([
   "correctOptionIds", "multiCorrect", "correctPairs", "correctOrder",
   "expectedOrder", "acceptedSequences", "requiredEvidenceIds",
-  "expectedHypothesis", "answerKey", "answer", "key", "expected",
+  "expectedHypothesis", "answerKey", "answer", "key", "expected", "acceptedEvidenceIds", "acceptedCombos", "expectedRelations",
 ]);
 const ACTIVITY_SERVER_ONLY = new Set(["validation"]);
 const STAGE_SERVER_ONLY = new Set(["requiredEvidenceIds"]);
@@ -176,6 +176,7 @@ function enrichDraft(draft) {
     for (const a of s.activities ?? []) {
       for (const id of a.evidenceRefs ?? []) ids.add(String(id));
       const cfg = a.config ?? {};
+      for (const eo of cfg.evidenceOptions ?? []) if (eo?.id) ids.add(String(eo.id));
       for (const f of ["visibleEvidenceIds", "requiredEvidenceIds", "visibleSourceIds"]) {
         for (const id of cfg[f] ?? []) ids.add(String(id));
       }
@@ -694,6 +695,7 @@ const server = http.createServer(async (req, res) => {
         centralQuestion: body.centralQuestion,
         objectivesJson: body.objectivesJson ?? "[]",
         draftJson: body.draftJson ?? "{}",
+        coverAssetId: body.coverAssetId ?? null,
         status: "DRAFT",
         currentVersionId: null,
         rowVersion: 1,
@@ -727,6 +729,7 @@ const server = http.createServer(async (req, res) => {
         templateId: body.templateId ?? lesson.templateId,
         centralQuestion: body.centralQuestion ?? lesson.centralQuestion,
         objectivesJson: body.objectivesJson ?? lesson.objectivesJson,
+        coverAssetId: body.clearCoverAsset === true ? null : (body.coverAssetId !== undefined ? body.coverAssetId : (lesson.coverAssetId ?? null)),
         rowVersion: lesson.rowVersion + 1,
         updatedAt: NOW,
       });

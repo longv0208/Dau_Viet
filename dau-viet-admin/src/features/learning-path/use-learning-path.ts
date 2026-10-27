@@ -6,14 +6,42 @@ import { ApiClientError } from "@/lib/api-error";
 import type { PathAudit, PathDetail } from "@/lib/dto/learning-path";
 import { DEFAULT_PATH_CODE, pathApi, pathKeys, type PathMethod } from "./path-api";
 
-export function pathError(error: unknown): string {
+export function pathError(error: unknown, fallback = "Không thể kết nối máy chủ. Dữ liệu đã lưu vẫn được giữ nguyên."): string {
   if (error instanceof ApiClientError) {
-    if (error.isConflict) return "Lộ trình đã được chỉnh ở nơi khác. Tải lại dữ liệu trước khi tiếp tục.";
+    if (error.isConflict) {
+      const reason = typeof error.details.reason === "string" ? error.details.reason : undefined;
+      return reason || "Lộ trình đã được chỉnh ở nơi khác. Tải lại dữ liệu trước khi tiếp tục.";
+    }
     if (error.isForbidden) return "Bạn không có quyền quản trị lộ trình.";
-    const details = Array.isArray(error.details.errors) ? error.details.errors.filter(v => typeof v === "string").join("; ") : "";
-    return details || error.message;
+    const reason = typeof error.details.reason === "string" ? error.details.reason : undefined;
+    const cause = typeof error.details.cause === "string" ? error.details.cause : undefined;
+    const details = Array.isArray(error.details.errors)
+      ? error.details.errors
+          .map((item) =>
+            typeof item === "string"
+              ? item
+              : typeof item === "object" && item && "message" in item
+                ? String((item as { message: unknown }).message)
+                : "",
+          )
+          .filter(Boolean)
+          .join("; ")
+      : "";
+    const rawMsg =
+      reason ||
+      details ||
+      (error.message && error.message !== "An unexpected error occurred" ? error.message : undefined) ||
+      cause;
+    if (rawMsg) {
+      const trace = error.traceId ? ` (Mã lỗi: ${error.code} · Trace: ${error.traceId.slice(0, 8)})` : ` (Mã lỗi: ${error.code})`;
+      return `${rawMsg}${trace}`;
+    }
+    return `Lỗi máy chủ (${error.status} ${error.code})${error.traceId ? ` · Trace: ${error.traceId.slice(0, 8)}` : ""}. Vui lòng kiểm tra dữ liệu và thử lại.`;
   }
-  return "Không thể kết nối máy chủ. Dữ liệu đã lưu vẫn được giữ nguyên.";
+  if (error instanceof Error && error.message) {
+    return error.message;
+  }
+  return fallback;
 }
 
 export function usePathVersions(code = DEFAULT_PATH_CODE) {
@@ -22,8 +50,10 @@ export function usePathVersions(code = DEFAULT_PATH_CODE) {
 
 export function usePathVersion(versionId: string) {
   return useQuery({
-    queryKey: pathKeys.detail(versionId), queryFn: () => pathApi.detail(versionId),
-    enabled: Boolean(versionId), refetchOnWindowFocus: false,
+    queryKey: pathKeys.detail(versionId),
+    queryFn: () => pathApi.detail(versionId),
+    enabled: Boolean(versionId),
+    refetchOnWindowFocus: false,
   });
 }
 
@@ -96,9 +126,13 @@ export function usePathEditor(versionId: string) {
     if (conflict) return null;
     return run(async () => {
       const current = latest();
-      if (!current || current.version.status !== "DRAFT" || !checked
-          || checked.revision !== current.version.revision
-          || checked.report.issues.some(issue => issue.level === "ERROR")) {
+      if (
+        !current ||
+        current.version.status !== "DRAFT" ||
+        !checked ||
+        checked.revision !== current.version.revision ||
+        checked.report.issues.some((issue) => issue.level === "ERROR")
+      ) {
         setError("Kiểm tra lại lộ trình và xử lý các lỗi trước khi xuất bản.");
         return null;
       }
@@ -118,7 +152,18 @@ export function usePathEditor(versionId: string) {
     });
   }
 
-  return { query, detail: query.data, busy, error, conflict, validation,
+  return {
+    query,
+    detail: query.data,
+    busy,
+    error,
+    conflict,
+    validation,
     validatedRevision: validation ? checked?.revision ?? null : null,
-    change, validate, publish, reload, clearError: () => setError(null) };
+    change,
+    validate,
+    publish,
+    reload,
+    clearError: () => setError(null),
+  };
 }

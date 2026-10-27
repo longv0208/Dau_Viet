@@ -13,6 +13,16 @@ public record AdminLessonCreateRequest(
         @NotBlank @Size(max = 255) String title,
         @NotBlank String centralQuestion,
         String objectivesJson,
-        String draftJson
+        String draftJson,
+        UUID coverAssetId
 ) {
+    public AdminLessonCreateRequest(
+            UUID eventId,
+            UUID templateId,
+            String title,
+            String centralQuestion,
+            String objectivesJson,
+            String draftJson) {
+        this(eventId, templateId, title, centralQuestion, objectivesJson, draftJson, null);
+    }
 }

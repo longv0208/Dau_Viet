@@ -68,7 +68,19 @@ public class AdminItemService {
     @Transactional(readOnly = true)
     public PageResponse<AdminItemResponse> list(Boolean active,
                                                 Pageable pageable) {
-        var page = items.search(active, pageable);
+        return list(active, null, null, pageable);
+    }
+
+    @Transactional(readOnly = true)
+    public PageResponse<AdminItemResponse> list(Boolean active,
+                                                String itemType,
+                                                String q,
+                                                Pageable pageable) {
+        String normalizedType = (itemType == null || itemType.isBlank()) ? null : itemType.trim();
+        String qPattern = (q == null || q.isBlank())
+                ? null
+                : "%" + q.trim().toLowerCase(java.util.Locale.ROOT) + "%";
+        var page = items.search(active, normalizedType, qPattern, pageable);
         Map<UUID, ItemUnlockRule> ruleByItem = activeRules(page.getContent()
                 .stream().map(ItemCatalog::getId).toList());
         return PageResponse.from(page.map(i -> toResponse(i, ruleByItem)));

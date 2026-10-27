@@ -1,7 +1,9 @@
 package com.dauviet.path.application;
 
 import java.time.Instant;
+import java.util.ArrayList;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.UUID;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -47,21 +49,42 @@ public class AdminPathVersionService {
         var target = newDraft(source.getPathCode(), source.getTitle(), source.getDescription());
         access.deferSortConstraints();
         var chapterIds = new HashMap<UUID, UUID>();
-        var copyBySourceId = new HashMap<UUID, LearningPathChapter>();
         var sourceChapters = chapters.findByPathVersionIdOrderBySortOrderAsc(sourceId);
         for (var chapter : sourceChapters) {
-            var copy = new LearningPathChapter(null, target.getId(), null, chapter.getNodeType(),
-                    chapter.getCode(), chapter.getTitle(), chapter.getDescription(),
-                    chapter.getStartYear(), chapter.getEndYear(), chapter.getPeriodLabel(),
-                    chapter.getSortOrder(), chapter.getThemeKey());
-            chapters.save(copy);
-            chapterIds.put(chapter.getId(), copy.getId());
-            copyBySourceId.put(chapter.getId(), copy);
+            chapterIds.put(chapter.getId(), UUID.randomUUID());
         }
-        chapters.flush();
-        for (var chapter : sourceChapters) {
-            if (chapter.getParentId() != null) {
-                copyBySourceId.get(chapter.getId()).setParentId(chapterIds.get(chapter.getParentId()));
+        var remaining = new ArrayList<>(sourceChapters);
+        var insertedSourceIds = new HashSet<UUID>();
+        while (!remaining.isEmpty()) {
+            boolean progressed = false;
+            var iterator = remaining.iterator();
+            while (iterator.hasNext()) {
+                var chapter = iterator.next();
+                UUID srcParentId = chapter.getParentId();
+                if (srcParentId == null || insertedSourceIds.contains(srcParentId) || !chapterIds.containsKey(srcParentId)) {
+                    UUID newId = chapterIds.get(chapter.getId());
+                    UUID newParentId = srcParentId == null ? null : chapterIds.get(srcParentId);
+                    var copy = new LearningPathChapter(newId, target.getId(), newParentId, chapter.getNodeType(),
+                            chapter.getCode(), chapter.getTitle(), chapter.getDescription(),
+                            chapter.getStartYear(), chapter.getEndYear(), chapter.getPeriodLabel(),
+                            chapter.getSortOrder(), chapter.getThemeKey());
+                    chapters.save(copy);
+                    insertedSourceIds.add(chapter.getId());
+                    iterator.remove();
+                    progressed = true;
+                }
+            }
+            if (!progressed) {
+                for (var chapter : remaining) {
+                    UUID newId = chapterIds.get(chapter.getId());
+                    UUID newParentId = chapter.getParentId() == null ? null : chapterIds.get(chapter.getParentId());
+                    var copy = new LearningPathChapter(newId, target.getId(), newParentId, chapter.getNodeType(),
+                            chapter.getCode(), chapter.getTitle(), chapter.getDescription(),
+                            chapter.getStartYear(), chapter.getEndYear(), chapter.getPeriodLabel(),
+                            chapter.getSortOrder(), chapter.getThemeKey());
+                    chapters.save(copy);
+                }
+                break;
             }
         }
         chapters.flush();

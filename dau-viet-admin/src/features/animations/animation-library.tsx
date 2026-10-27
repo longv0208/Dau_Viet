@@ -266,27 +266,29 @@ export function AnimationLibrary() {
         emptyDescription="Kéo thả một tệp .html vào vùng tải lên ở trên để tạo hoạt họa đầu tiên."
       />
 
-      {totalPages > 1 && (
-        <div className="flex items-center gap-3 text-sm text-ink-muted">
-          <Button
-            variant="outline"
-            size="sm"
-            disabled={page === 0}
-            onClick={() => setPage((p) => p - 1)}
-          >
-            ← Trước
-          </Button>
+      {(query.data?.totalElements ?? 0) > 0 && (
+        <div className="flex items-center justify-between text-sm text-ink-muted">
           <span>
-            Trang {page + 1}/{totalPages}
+            Trang {page + 1} / {Math.max(1, totalPages)} ({query.data?.totalElements ?? 0} hoạt họa)
           </span>
-          <Button
-            variant="outline"
-            size="sm"
-            disabled={page + 1 >= totalPages}
-            onClick={() => setPage((p) => p + 1)}
-          >
-            Sau →
-          </Button>
+          <div className="flex gap-2">
+            <Button
+              variant="secondary"
+              size="sm"
+              disabled={page === 0}
+              onClick={() => setPage((p) => p - 1)}
+            >
+              Trước
+            </Button>
+            <Button
+              variant="secondary"
+              size="sm"
+              disabled={page + 1 >= Math.max(1, totalPages)}
+              onClick={() => setPage((p) => p + 1)}
+            >
+              Sau
+            </Button>
+          </div>
         </div>
       )}
     </div>

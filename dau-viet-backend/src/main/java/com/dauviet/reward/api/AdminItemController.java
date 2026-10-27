@@ -42,11 +42,13 @@ public class AdminItemController {
     @GetMapping
     public PageResponse<AdminItemResponse> list(
             @RequestParam(required = false) Boolean active,
+            @RequestParam(required = false) String itemType,
+            @RequestParam(required = false) String q,
             @RequestParam(defaultValue = "0") int page,
-            @RequestParam(defaultValue = "50") int size) {
+            @RequestParam(defaultValue = "20") int size) {
         Pageable pageable = PageRequest.of(Math.max(0, page),
                 Math.min(Math.max(1, size), MAX_PAGE_SIZE));
-        return service.list(active, pageable);
+        return service.list(active, itemType, q, pageable);
     }
 
     @GetMapping("/{itemId}")

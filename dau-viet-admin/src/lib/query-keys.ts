@@ -28,7 +28,8 @@ export const qk = {
     detail: (id: string) => ["lessons", "detail", id] as const,
   },
   templates: {
-    list: () => ["templates", "list"] as const,
+    list: (params?: { page?: number; size?: number; enabled?: boolean; q?: string }) =>
+      params ? (["templates", "list", params] as const) : (["templates", "list"] as const),
   },
   evidences: {
     list: (params?: {
@@ -41,13 +42,15 @@ export const qk = {
     detail: (id: string) => ["evidences", "detail", id] as const,
   },
   assets: {
-    list: (params?: { page?: number; size?: number }) =>
+    list: (params?: { page?: number; size?: number; q?: string }) =>
       ["assets", "list", params ?? {}] as const,
     detail: (id: string) => ["assets", "detail", id] as const,
   },
   mapLocations: {
     list: (eventId: string) => ["map-locations", "list", eventId] as const,
     standaloneList: (params?: {
+      page?: number;
+      size?: number;
       q?: string;
       kind?: string;
       status?: string;
@@ -59,12 +62,12 @@ export const qk = {
     content: (id: string) => ["learner", "content", id] as const,
   },
   items: {
-    list: (params?: { page?: number; size?: number; active?: boolean }) =>
+    list: (params?: { page?: number; size?: number; active?: boolean; itemType?: string; q?: string }) =>
       ["items", "list", params ?? {}] as const,
     detail: (id: string) => ["items", "detail", id] as const,
   },
   versions: {
-    list: (lessonId: string, params?: { page?: number; size?: number }) =>
+    list: (lessonId: string, params?: { page?: number; size?: number; q?: string }) =>
       ["versions", "list", lessonId, params ?? {}] as const,
     detail: (lessonId: string, versionId: string) =>
       ["versions", "detail", lessonId, versionId] as const,

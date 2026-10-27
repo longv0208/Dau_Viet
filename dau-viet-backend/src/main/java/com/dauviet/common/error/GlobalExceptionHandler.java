@@ -1,4 +1,4 @@
-﻿package com.dauviet.common.error;
+package com.dauviet.common.error;
 
 import java.util.HashMap;
 import java.util.Map;
@@ -605,12 +605,45 @@ public class GlobalExceptionHandler {
                 "Resource was modified concurrently; reload and retry", Map.of());
     }
 
+    @ExceptionHandler(org.springframework.dao.DataIntegrityViolationException.class)
+    public ResponseEntity<ApiError> handleDataIntegrityViolation(
+            org.springframework.dao.DataIntegrityViolationException ex) {
+        String traceId = MDC.get(TraceIdFilter.MDC_KEY);
+        String raw = ex.getMostSpecificCause() != null && ex.getMostSpecificCause().getMessage() != null
+                ? ex.getMostSpecificCause().getMessage()
+                : (ex.getMessage() != null ? ex.getMessage() : "Data integrity violation");
+        log.warn("Data integrity violation traceId={}: {}", traceId, raw);
+        String friendly = resolveDataIntegrityMessage(raw);
+        return build(HttpStatus.CONFLICT, ErrorCode.VALIDATION_ERROR,
+                friendly, Map.of("reason", friendly, "cause", raw));
+    }
+
     @ExceptionHandler(Exception.class)
     public ResponseEntity<ApiError> handleGeneric(Exception ex) {
         String traceId = MDC.get(TraceIdFilter.MDC_KEY);
         log.error("Unhandled exception traceId={}", traceId, ex);
+        String reason = ex.getMessage() != null && !ex.getMessage().isBlank()
+                ? ex.getMessage()
+                : ex.getClass().getSimpleName();
         return build(HttpStatus.INTERNAL_SERVER_ERROR, ErrorCode.INTERNAL_ERROR,
-                "An unexpected error occurred", Map.of());
+                "Lỗi máy chủ: " + reason, Map.of("reason", reason));
+    }
+
+    private static String resolveDataIntegrityMessage(String raw) {
+        if (raw == null) return "Dữ liệu bị trùng hoặc vi phạm ràng buộc cơ sở dữ liệu.";
+        if (raw.contains("ux_path_chapter_version_sort")) {
+            return "Thứ tự sắp xếp (sort_order) của đơn vị chương/thời kỳ bị trùng trong cùng cấp cha.";
+        }
+        if (raw.contains("ux_path_chapter_version_code") || raw.contains("learning_path_chapters_path_version_id_code_key")) {
+            return "Mã chương/thời kỳ (code) đã tồn tại trong phiên bản lộ trình này.";
+        }
+        if (raw.contains("learning_path_versions")) {
+            return "Phiên bản lộ trình hoặc bản nháp của mã lộ trình này đã tồn tại.";
+        }
+        if (raw.contains("duplicate key")) {
+            return "Dữ liệu bị trùng khóa duy nhất trong cơ sở dữ liệu: " + raw;
+        }
+        return "Vi phạm ràng buộc dữ liệu: " + raw;
     }
 
     private ResponseEntity<ApiError> build(HttpStatus status, ErrorCode code,

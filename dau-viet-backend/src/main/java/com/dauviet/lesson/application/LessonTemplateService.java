@@ -1,8 +1,11 @@
 package com.dauviet.lesson.application;
 
 import java.util.List;
+import java.util.Locale;
 import java.util.UUID;
 
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -41,6 +44,14 @@ public class LessonTemplateService {
     @Transactional(readOnly = true)
     public List<LessonTemplateResponse> listEnabled() {
         return templates.findAllByEnabledTrue().stream().map(this::toDto).toList();
+    }
+
+    @Transactional(readOnly = true)
+    public Page<LessonTemplateResponse> list(Boolean enabled, String q, Pageable pageable) {
+        String qPattern = (q == null || q.isBlank())
+                ? null
+                : "%" + q.trim().toLowerCase(Locale.ROOT) + "%";
+        return templates.search(enabled, qPattern, pageable).map(this::toDto);
     }
 
     @Transactional(readOnly = true)
