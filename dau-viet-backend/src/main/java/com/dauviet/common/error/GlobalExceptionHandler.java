@@ -537,6 +537,13 @@ public class GlobalExceptionHandler {
                 ex.getMessage(), Map.of("errors", ex.getErrors()));
     }
 
+    @ExceptionHandler(com.dauviet.path.domain.LessonLockedByPathException.class)
+    public ResponseEntity<ApiError> handleLessonLockedByPath(
+            com.dauviet.path.domain.LessonLockedByPathException ex) {
+        return build(HttpStatus.FORBIDDEN, ErrorCode.LESSON_LOCKED_BY_PATH,
+                ex.getMessage(), Map.of("reason", "LEARNING_PATH_LOCKED"));
+    }
+
     /**
      * GAME-06: bat ca hai — ObjectOptimisticLockingFailure (JPA/Hibernate)
      * lan OptimisticLockingFailureException (service throw thu cong cho

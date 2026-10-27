@@ -19,7 +19,9 @@ export function SortableList<T>({ items, scope, getId, disabled, onReorder, chil
   const move = async (from: number, to: number) => {
     if (disabled || from === to || from < 0 || to < 0 || to >= items.length) return;
     const ids = items.map(getId);
-    const [id] = ids.splice(from, 1);
+    const removed = ids.splice(from, 1);
+    const id = removed[0];
+    if (id === undefined) return;
     ids.splice(to, 0, id);
     const result = await onReorder(ids);
     if (result != null) setAnnouncement(`Đã lưu thứ tự mới, vị trí ${to + 1}.`);

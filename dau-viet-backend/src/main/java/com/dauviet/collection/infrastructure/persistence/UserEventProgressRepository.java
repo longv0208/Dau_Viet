@@ -1,5 +1,6 @@
 package com.dauviet.collection.infrastructure.persistence;
 
+import java.util.Set;
 import java.util.UUID;
 
 import org.springframework.data.jpa.repository.JpaRepository;
@@ -45,6 +46,14 @@ public interface UserEventProgressRepository
     boolean exists(@Param("userId") UUID userId,
                    @Param("eventId") UUID eventId,
                    @Param("milestone") String milestone);
+
+    @Query("select p.eventId from UserEventProgress p "
+         + "where p.userId = :userId and p.milestone = :milestone "
+         + "and p.eventId in :eventIds")
+    Set<UUID> findEventIdsByUserAndMilestoneAndEventIdIn(
+            @Param("userId") UUID userId,
+            @Param("milestone") String milestone,
+            @Param("eventIds") Set<UUID> eventIds);
 
     /**
      * Policy version đã cấp milestone EVENT_COMPLETED của (user,event) —

@@ -97,6 +97,7 @@ public class LearnerAttemptService {
     private final ObjectMapper mapper;
     private final TransactionTemplate txTemplate;
     private final EntityManager entityManager;
+    private final com.dauviet.path.application.LearnerPathProgressionService pathProgression;
 
     public LearnerAttemptService(LearnerAttemptRepository attempts,
                                  ActivityAttemptRepository activityAttempts,
@@ -128,7 +129,8 @@ public class LearnerAttemptService {
                                  ObjectMapper mapper,
                                  org.springframework.transaction
                                          .PlatformTransactionManager txManager,
-                                 EntityManager entityManager) {
+                                 EntityManager entityManager,
+                                 com.dauviet.path.application.LearnerPathProgressionService pathProgression) {
         this.attempts = attempts;
         this.activityAttempts = activityAttempts;
         this.lessonResults = lessonResults;
@@ -151,6 +153,7 @@ public class LearnerAttemptService {
         this.mapper = mapper;
         this.txTemplate = new TransactionTemplate(txManager);
         this.entityManager = entityManager;
+        this.pathProgression = pathProgression;
     }
 
     /**
@@ -202,6 +205,10 @@ public class LearnerAttemptService {
         if (lesson.getStatus() != LessonStatus.PUBLISHED || lesson.getCurrentVersionId() == null) {
             throw new LessonNotPublishedException("lesson is not published: " + lessonId);
         }
+
+        // A legacy in-flight attempt already returned above can always resume.
+        // New attempts are gated by the learner's pinned path on the server.
+        pathProgression.requireLessonAvailableForNewAttempt(userId, lessonId);
         UUID versionId = lesson.getCurrentVersionId();
 
         SnapshotModel model = snapshotOf(versionId);

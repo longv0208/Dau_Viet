@@ -116,19 +116,19 @@ class LearningPathImmutabilityIT extends AbstractPostgresIT {
                     + "VALUES (?::uuid, ?::uuid, 'NEW_CH', 'New Title', 'Period', 100, 200, 99, 'THEME')",
                     UUID.randomUUID().toString(), publishedVersionId.toString());
         }).isInstanceOf(DataAccessException.class)
-          .hasMessageContaining("Cannot modify chapters");
+          .hasMessageContaining("Cannot modify nodes");
 
         // 5. Không thể sửa chapter thuộc version PUBLISHED
         assertThatThrownBy(() -> {
             jdbc.update("UPDATE learning_path_chapters SET title = 'Hacked Chapter' WHERE id = ?::uuid", chapterId.toString());
         }).isInstanceOf(DataAccessException.class)
-          .hasMessageContaining("Cannot modify chapters");
+          .hasMessageContaining("Cannot modify nodes");
 
         // 6. Không thể xóa chapter thuộc version PUBLISHED
         assertThatThrownBy(() -> {
             jdbc.update("DELETE FROM learning_path_chapters WHERE id = ?::uuid", chapterId.toString());
         }).isInstanceOf(DataAccessException.class)
-          .hasMessageContaining("Cannot modify chapters");
+          .hasMessageContaining("Cannot modify nodes");
 
         // 7. Không thể thêm event node vào version PUBLISHED
         assertThatThrownBy(() -> {
@@ -136,19 +136,19 @@ class LearningPathImmutabilityIT extends AbstractPostgresIT {
                     + "VALUES (?::uuid, ?::uuid, ?::uuid, ?::uuid, 99)",
                     UUID.randomUUID().toString(), chapterId.toString(), publishedVersionId.toString(), eventId.toString());
         }).isInstanceOf(DataAccessException.class)
-          .hasMessageContaining("Cannot modify event nodes");
+          .hasMessageContaining("Cannot modify nodes");
 
         // 8. Không thể sửa event node thuộc version PUBLISHED
         assertThatThrownBy(() -> {
             jdbc.update("UPDATE learning_path_event_nodes SET sort_order = 99 WHERE id = ?::uuid", eventNodeId.toString());
         }).isInstanceOf(DataAccessException.class)
-          .hasMessageContaining("Cannot modify event nodes");
+          .hasMessageContaining("Cannot modify nodes");
 
         // 9. Không thể xóa event node thuộc version PUBLISHED
         assertThatThrownBy(() -> {
             jdbc.update("DELETE FROM learning_path_event_nodes WHERE id = ?::uuid", eventNodeId.toString());
         }).isInstanceOf(DataAccessException.class)
-          .hasMessageContaining("Cannot modify event nodes");
+          .hasMessageContaining("Cannot modify nodes");
 
         // 10. Không thể thêm lesson node vào event node của version PUBLISHED
         assertThatThrownBy(() -> {
@@ -156,7 +156,7 @@ class LearningPathImmutabilityIT extends AbstractPostgresIT {
                     + "VALUES (?::uuid, ?::uuid, ?::uuid, ?::uuid, 99)",
                     UUID.randomUUID().toString(), eventNodeId.toString(), eventId.toString(), UUID.randomUUID().toString());
         }).isInstanceOf(DataAccessException.class)
-          .hasMessageContaining("Cannot modify lesson nodes");
+          .hasMessageContaining("Cannot modify nodes");
     }
 
     @Test
