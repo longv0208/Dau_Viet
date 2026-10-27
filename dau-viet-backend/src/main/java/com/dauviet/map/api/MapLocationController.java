@@ -8,17 +8,13 @@ import org.springframework.security.oauth2.jwt.Jwt;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
 import com.dauviet.common.security.JwtSubjectExtractor;
 import com.dauviet.map.api.dto.MapLocationDto;
 import com.dauviet.map.application.MapLocationService;
 
-/**
- * Learner Historical Map endpoints (FR-35..38). Authenticated; unlock state
- * computed server-side for the token subject — no client-supplied userId or
- * completion claims are honoured.
- */
 @RestController
 @RequestMapping("/api/v1/map/locations")
 public class MapLocationController {
@@ -33,8 +29,13 @@ public class MapLocationController {
     }
 
     @GetMapping
-    public List<MapLocationDto> list(@AuthenticationPrincipal Jwt jwt) {
-        return service.listForLearner(subjects.userId(jwt));
+    public List<MapLocationDto> list(
+            @AuthenticationPrincipal Jwt jwt,
+            @RequestParam(required = false) String periodCode,
+            @RequestParam(required = false) UUID eventId,
+            @RequestParam(required = false) String kind,
+            @RequestParam(required = false) Boolean unlocked) {
+        return service.listForLearner(subjects.userId(jwt), periodCode, eventId, kind, unlocked);
     }
 
     @GetMapping("/{locationId}")
