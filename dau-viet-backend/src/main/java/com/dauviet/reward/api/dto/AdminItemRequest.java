@@ -23,6 +23,8 @@ public record AdminItemRequest(
         UUID assetId,
         Boolean clearAsset,
         JsonNode sourceMetadata,
-        Boolean active
+        Boolean active,
+        Boolean placeable,
+        @Size(max = 80) String renderKey
 ) {
 }

@@ -355,19 +355,36 @@ export function IslandBuilderWorkspace({ versionId }: { versionId: string }) {
 
   const saveMutation = useMutation({
     mutationFn: async () => {
-      if (!snapshot) throw new Error("Chưa tải dữ liệu");
+      if (!snapshot || !versionQuery.data) throw new Error("Chưa tải dữ liệu");
+      const meta = versionQuery.data;
+      if (
+        snapshot.canvasWidth !== meta.canvasWidth ||
+        snapshot.canvasHeight !== meta.canvasHeight ||
+        snapshot.themeKey !== (meta.themeKey ?? "heritage")
+      ) {
+        await islandBuilderApi.updateLayout(meta.definitionId, {
+          canvasWidth: snapshot.canvasWidth,
+          canvasHeight: snapshot.canvasHeight,
+          themeKey: snapshot.themeKey,
+        });
+      }
       return islandBuilderApi.saveDraftSnapshot(versionId, {
         expectedRevision: rowVersion,
-        canvasWidth: snapshot.canvasWidth,
-        canvasHeight: snapshot.canvasHeight,
-        themeKey: snapshot.themeKey,
         regions: snapshot.regions,
-        sceneLayers: snapshot.sceneLayers,
         slots: snapshot.slots,
+        sceneLayers: snapshot.sceneLayers,
       });
     },
     onSuccess: (saved: VersionDetailDto) => {
       setRowVersion(saved.rowVersion);
+      setSnapshot({
+        canvasWidth: saved.canvasWidth,
+        canvasHeight: saved.canvasHeight,
+        themeKey: saved.themeKey ?? "heritage",
+        regions: saved.regions,
+        sceneLayers: saved.sceneLayers,
+        slots: saved.slots,
+      });
       setIsDirty(false);
       setBannerMessage({
         type: "success",
@@ -386,12 +403,9 @@ export function IslandBuilderWorkspace({ versionId }: { versionId: string }) {
       if (isDirty && versionQuery.data?.status === "DRAFT" && snapshot) {
         const saved = await islandBuilderApi.saveDraftSnapshot(versionId, {
           expectedRevision: rowVersion,
-          canvasWidth: snapshot.canvasWidth,
-          canvasHeight: snapshot.canvasHeight,
-          themeKey: snapshot.themeKey,
           regions: snapshot.regions,
-          sceneLayers: snapshot.sceneLayers,
           slots: snapshot.slots,
+          sceneLayers: snapshot.sceneLayers,
         });
         setRowVersion(saved.rowVersion);
         setIsDirty(false);
@@ -424,12 +438,9 @@ export function IslandBuilderWorkspace({ versionId }: { versionId: string }) {
       if (isDirty && snapshot) {
         const saved = await islandBuilderApi.saveDraftSnapshot(versionId, {
           expectedRevision: currentRev,
-          canvasWidth: snapshot.canvasWidth,
-          canvasHeight: snapshot.canvasHeight,
-          themeKey: snapshot.themeKey,
           regions: snapshot.regions,
-          sceneLayers: snapshot.sceneLayers,
           slots: snapshot.slots,
+          sceneLayers: snapshot.sceneLayers,
         });
         currentRev = saved.rowVersion;
         setRowVersion(currentRev);
@@ -586,12 +597,13 @@ export function IslandBuilderWorkspace({ versionId }: { versionId: string }) {
       const found = snapshot?.slots.find(
         (s) =>
           s.stableSlotKey === err.objectKey ||
-          `SLOT_${s.slotIndex}` === err.objectKey,
+          `SLOT_${s.slotIndex}` === err.objectKey ||
+          `slot_${s.slotIndex}` === err.objectKey,
       );
       if (found) setSelected({ type: "SLOT", key: found.stableSlotKey });
     } else if (err.objectType === "REGION") {
       setSelected({ type: "REGION", key: err.objectKey });
-    } else if (err.objectType === "SCENE_LAYER") {
+    } else if (err.objectType === "LAYER") {
       setSelected({ type: "SCENE_LAYER", key: err.objectKey });
     }
     setRightCollapsed(false);
@@ -671,7 +683,7 @@ export function IslandBuilderWorkspace({ versionId }: { versionId: string }) {
           <div className="h-5 w-px bg-border" />
           <div>
             <div className="flex items-center gap-2">
-              <span className="font-bold text-ink">{meta.layoutTitle}</span>
+              <span className="font-bold text-ink">{meta.layoutName}</span>
               <span className="rounded bg-surface-alt px-1.5 py-0.5 font-mono text-xs text-ink-muted">
                 v{meta.versionNumber}
               </span>
@@ -931,7 +943,7 @@ export function IslandBuilderWorkspace({ versionId }: { versionId: string }) {
                       selected?.type === "SCENE_LAYER" &&
                       selected.key === layer.layerKey;
                     const hasErr = errorKeys.has(
-                      `SCENE_LAYER:${layer.layerKey}`,
+                      `LAYER:${layer.layerKey}`,
                     );
                     return (
                       <div
@@ -2374,7 +2386,7 @@ export function IslandBuilderWorkspace({ versionId }: { versionId: string }) {
               Xác nhận xuất bản bố cục v{meta.versionNumber}
             </h3>
             <p className="mt-2 text-xs leading-relaxed text-ink-muted">
-              Khi xuất bản <strong>{meta.layoutTitle}</strong> (Phiên bản{" "}
+              Khi xuất bản <strong>{meta.layoutName}</strong> (Phiên bản{" "}
               <strong>v{meta.versionNumber}</strong>):
             </p>
             <ul className="mt-2 list-disc space-y-1 pl-5 text-xs text-ink">

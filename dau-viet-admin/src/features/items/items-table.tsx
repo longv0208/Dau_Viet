@@ -12,6 +12,7 @@ const TYPE_LABELS: Record<AdminItem["itemType"], string> = {
   HISTORICAL_REPLICA: "Mô hình",
   DIGITAL_EDITION: "Phiên bản số",
   COMMEMORATIVE_BADGE: "Huy hiệu",
+  DECOR: "Trang trí Đảo Di Sản",
 };
 
 const RULE_LABELS: Record<string, string> = {
@@ -60,6 +61,26 @@ export function ItemsTable() {
       key: "itemType",
       header: "Loại",
       cell: (r) => TYPE_LABELS[r.itemType] ?? r.itemType,
+    },
+    {
+      key: "placeable",
+      header: "Đặt lên đảo",
+      cell: (r) => (
+        <div className="flex flex-col gap-0.5">
+          <span
+            className={
+              r.placeable
+                ? "inline-flex w-fit items-center rounded-full bg-brand/15 px-2 py-0.5 text-xs font-medium text-brand"
+                : "text-xs text-ink-muted"
+            }
+          >
+            {r.placeable ? "Có thể đặt" : "Không"}
+          </span>
+          {r.renderKey && (
+            <code className="text-[11px] text-ink-muted">{r.renderKey}</code>
+          )}
+        </div>
+      ),
     },
     {
       key: "rule",

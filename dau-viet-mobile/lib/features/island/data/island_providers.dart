@@ -220,11 +220,19 @@ final islandShopItemsProvider = FutureProvider.autoDispose<List<ShopItemDto>>(
                   item.owned ||
                   ownedIds.contains(item.itemId) ||
                   ownedCodes.contains(item.code),
+              ownershipVerified: true,
             ),
           )
           .toList();
     } catch (_) {
-      return items;
+      return items
+          .map(
+            (item) => item.copyWith(
+              owned: false,
+              ownershipVerified: false,
+            ),
+          )
+          .toList();
     }
   },
 );

@@ -24,6 +24,7 @@ public record InventoryItemResponse(
         Integer unlockRuleVersion,
         UUID sourceEventId,
         Boolean placeable,
+        String renderKey,
         UUID placedSlotId
 ) {
 }

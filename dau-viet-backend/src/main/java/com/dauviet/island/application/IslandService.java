@@ -218,6 +218,20 @@ public class IslandService {
         if (!item.isPlaceable()) {
             throw new IslandExceptions.ItemNotPlaceableException(req.itemId());
         }
+        List<String> allowedCats = layoutService.parseAllowedCategories(
+                slot.getAllowedCategoriesJson());
+        if (!allowedCats.isEmpty()) {
+            String cat = item.getCategory() != null
+                    ? item.getCategory().trim().toUpperCase() : "";
+            String type = item.getItemType() != null
+                    ? item.getItemType().trim().toUpperCase() : "";
+            boolean categoryAllowed = allowedCats.stream()
+                    .map(c -> c.trim().toUpperCase())
+                    .anyMatch(c -> c.equals(cat) || c.equals(type) || "ALL".equals(c));
+            if (!categoryAllowed) {
+                throw new IslandExceptions.ItemNotPlaceableException(req.itemId());
+            }
+        }
         if (placements.findByUserIdAndSlotId(userId, slotId).isPresent()) {
             throw new IslandExceptions.SlotOccupiedException(slotId);
         }
@@ -278,8 +292,8 @@ public class IslandService {
         if (existing.getLayoutVersionId() == null) {
             var defLayout = layoutService.requireDefaultPublishedLayout();
             existing.pinLayoutVersion(
-                    defLayout.definition().getLayoutKey(),
                     defLayout.version().getId(),
+                    defLayout.definition().getLayoutKey(),
                     now);
             islands.saveAndFlush(existing);
         }
@@ -302,8 +316,8 @@ public class IslandService {
         if (existing.getLayoutVersionId() == null) {
             var defLayout = layoutService.requireDefaultPublishedLayout();
             existing.pinLayoutVersion(
-                    defLayout.definition().getLayoutKey(),
                     defLayout.version().getId(),
+                    defLayout.definition().getLayoutKey(),
                     now);
             islands.saveAndFlush(existing);
         }
@@ -445,17 +459,21 @@ public class IslandService {
     }
 
     /**
-     * Resolve layout version của island: ưu tiên island.layoutVersionId
-     * (chấp nhận cả PUBLISHED và ARCHIVED cho đảo đã ghim),
-     * fallback tìm default published version.
+     * Resolve layout version của island:
+     * - Khi user đã pin vào một layoutVersionId (PUBLISHED hoặc ARCHIVED),
+     *   bắt buộc đọc đúng version đó. Nếu version đã pin không tồn tại hoặc
+     *   không hợp lệ, báo lỗi cấu hình chứ KHÔNG tự chuyển user sang version
+     *   published khác khi chưa có migration placement.
+     * - Chỉ khi layoutVersionId == null mới dùng default published version.
      */
     private IslandLayoutVersion resolveLayoutVersion(UserIsland island) {
-        if (island.getLayoutVersionId() != null) {
-            IslandLayoutVersion pinned = layoutService.findPinnedVersion(
-                    island.getLayoutVersionId());
-            if (pinned != null) {
-                return pinned;
-            }
+        UUID pinnedId = island.getLayoutVersionId();
+        if (pinnedId != null) {
+            return layoutService.findPinnedVersion(pinnedId)
+                    .orElseThrow(() ->
+                            new IslandExceptions.IslandConfigurationInvalidException(
+                                    "Pinned island layout version not found or not readable: "
+                                            + pinnedId));
         }
         return layoutService.requireDefaultPublishedLayout().version();
     }

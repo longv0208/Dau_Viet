@@ -39,6 +39,7 @@ import com.dauviet.island.infrastructure.persistence.IslandTierPolicyRepository;
 import com.dauviet.island.infrastructure.persistence.UserIslandPlacementRepository;
 import com.dauviet.lesson.domain.InvalidStatusTransitionException;
 import com.dauviet.lesson.infrastructure.persistence.AssetRepository;
+import com.dauviet.reward.application.AccountLevelService;
 import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
@@ -66,6 +67,7 @@ public class IslandLayoutService {
     private final IslandTierPolicyRepository policies;
     private final UserIslandPlacementRepository placements;
     private final AssetRepository assets;
+    private final AccountLevelService levelService;
     private final ObjectMapper objectMapper;
     private final Clock clock;
 
@@ -77,6 +79,7 @@ public class IslandLayoutService {
                                IslandTierPolicyRepository policies,
                                UserIslandPlacementRepository placements,
                                AssetRepository assets,
+                               AccountLevelService levelService,
                                ObjectMapper objectMapper,
                                Clock clock) {
         this.definitions = definitions;
@@ -87,6 +90,7 @@ public class IslandLayoutService {
         this.policies = policies;
         this.placements = placements;
         this.assets = assets;
+        this.levelService = levelService;
         this.objectMapper = objectMapper;
         this.clock = clock;
     }
@@ -173,7 +177,19 @@ public class IslandLayoutService {
         UUID defId = UUID.randomUUID();
         double cw = req.canvasWidth() != null ? req.canvasWidth() : 960.0;
         double ch = req.canvasHeight() != null ? req.canvasHeight() : 720.0;
-        boolean isDefault = Boolean.TRUE.equals(req.defaultLayout()) || definitions.count() == 0;
+
+        // Serialize thao tác chuyển default bằng PESSIMISTIC_WRITE trên các default hiện có
+        List<IslandLayoutDefinition> currentDefaults = definitions.lockAllDefaults();
+        boolean isDefault = Boolean.TRUE.equals(req.defaultLayout()) || currentDefaults.isEmpty();
+
+        // Hủy mặc định cũ và flush TRƯỚC khi bật mặc định mới để không bao giờ vi phạm ux_island_layout_def_default
+        if (isDefault && !currentDefaults.isEmpty()) {
+            for (IslandLayoutDefinition oldDef : currentDefaults) {
+                oldDef.setDefaultLayout(false, now);
+                definitions.save(oldDef);
+            }
+            definitions.flush();
+        }
 
         IslandLayoutDefinition def = IslandLayoutDefinition.create(
                 defId, key, req.name().trim(),
@@ -183,11 +199,8 @@ public class IslandLayoutService {
                 isDefault, now
         );
         definitions.saveAndFlush(def);
-        if (isDefault) {
-            definitions.clearOtherDefaults(defId);
-        }
 
-        // Tạo ngay Draft v1 có sẵn khung chuẩn 3 vùng, 12 slot, 4 layer để admin chỉnh sửa nhanh
+        // Tạo ngay Draft v1 có sẵn khung chuẩn 3 vùng, 12 slot, 5 layer để admin chỉnh sửa nhanh
         createStarterDraft(def, 1, now);
         return getLayout(defId);
     }
@@ -204,13 +217,27 @@ public class IslandLayoutService {
                 req.canvasWidth(), req.canvasHeight(),
                 req.themeKey(), !hasPublishedOrArchived, now
         );
-        if (Boolean.TRUE.equals(req.defaultLayout())) {
+        if (Boolean.TRUE.equals(req.defaultLayout()) && !def.isDefaultLayout()) {
+            // Bố cục mặc định phải có phiên bản PUBLISHED để không tạo khoảng trống cho user mới
+            if (versions.findPublishedByDefinitionId(layoutId).isEmpty()
+                    && findDefaultPublishedLayout().isPresent()) {
+                throw new IllegalArgumentException(
+                        "Chỉ có thể đặt làm bố cục mặc định sau khi bố cục này đã có phiên bản PUBLISHED");
+            }
+            List<IslandLayoutDefinition> currentDefaults = definitions.lockAllDefaults();
+            for (IslandLayoutDefinition oldDef : currentDefaults) {
+                if (!oldDef.getId().equals(layoutId)) {
+                    oldDef.setDefaultLayout(false, now);
+                    definitions.save(oldDef);
+                }
+            }
+            definitions.flush();
             def.setDefaultLayout(true, now);
-            definitions.saveAndFlush(def);
-            definitions.clearOtherDefaults(layoutId);
-        } else {
-            definitions.saveAndFlush(def);
+        } else if (Boolean.FALSE.equals(req.defaultLayout()) && def.isDefaultLayout()) {
+            throw new IllegalArgumentException(
+                    "Không thể tắt trạng thái mặc định trực tiếp; vui lòng chọn một bố cục khác làm mặc định thay thế.");
         }
+        definitions.saveAndFlush(def);
         return getLayout(layoutId);
     }
 
@@ -315,47 +342,104 @@ public class IslandLayoutService {
 
         Instant now = Instant.now(clock);
 
-        // 1. Update regions
-        regions.deleteByLayoutVersionId(versionId);
-        regions.flush();
-        if (req.regions() != null) {
-            int idx = 1;
-            Set<String> seenCodes = new HashSet<>();
-            for (RegionDto r : req.regions()) {
-                String code = r.regionCode() != null ? r.regionCode().trim() : "REGION_" + idx;
-                if (!seenCodes.add(code)) {
-                    code = code + "_" + idx;
+        // 1. Update regions safely in-place without duplicate UUID conflicts
+        List<IslandLayoutRegion> existingRegions =
+                regions.findByLayoutVersionIdOrderBySortOrderAsc(versionId);
+        Map<UUID, IslandLayoutRegion> existingRegionById = existingRegions.stream()
+                .collect(Collectors.toMap(IslandLayoutRegion::getId, r -> r));
+        Map<String, IslandLayoutRegion> existingRegionByCode = existingRegions.stream()
+                .collect(Collectors.toMap(IslandLayoutRegion::getRegionCode, r -> r, (a, b) -> a));
+
+        List<RegionDto> incomingRegions = req.regions() != null ? req.regions() : List.of();
+        Set<UUID> keptRegionIds = new HashSet<>();
+        List<IslandLayoutRegion> matchedRegions = new ArrayList<>();
+        for (RegionDto r : incomingRegions) {
+            IslandLayoutRegion match = null;
+            if (r.id() != null && existingRegionById.containsKey(r.id()) && !keptRegionIds.contains(r.id())) {
+                match = existingRegionById.get(r.id());
+            } else if (r.regionCode() != null) {
+                IslandLayoutRegion byCode = existingRegionByCode.get(r.regionCode().trim());
+                if (byCode != null && !keptRegionIds.contains(byCode.getId())) {
+                    match = byCode;
                 }
-                IslandLayoutRegion entity = IslandLayoutRegion.create(
-                        r.id() != null ? r.id() : UUID.randomUUID(),
-                        versionId, code,
-                        r.unlockTier() > 0 ? r.unlockTier() : 1,
-                        r.label(),
-                        r.boundsJson() != null && !r.boundsJson().isBlank()
-                                ? r.boundsJson()
-                                : "{\"x\":0.05,\"y\":0.05,\"width\":0.9,\"height\":0.3}",
-                        r.sortOrder() > 0 ? r.sortOrder() : idx,
-                        now
-                );
-                regions.save(entity);
-                idx++;
             }
-            regions.flush();
+            if (match != null) {
+                keptRegionIds.add(match.getId());
+            }
+            matchedRegions.add(match);
         }
 
-        // 2. Update slots safely (check placements before deleting any existing slot)
+        for (IslandLayoutRegion oldReg : existingRegions) {
+            if (!keptRegionIds.contains(oldReg.getId())) {
+                regions.delete(oldReg);
+            } else {
+                oldReg.update("__tmp_" + oldReg.getId(), oldReg.getUnlockTier(),
+                        oldReg.getLabel(), oldReg.getBoundsJson(), oldReg.getSortOrder());
+                regions.save(oldReg);
+            }
+        }
+        regions.flush();
+
+        int idx = 1;
+        Set<String> seenCodes = new HashSet<>();
+        for (int i = 0; i < incomingRegions.size(); i++) {
+            RegionDto r = incomingRegions.get(i);
+            IslandLayoutRegion existingReg = matchedRegions.get(i);
+            String code = r.regionCode() != null && !r.regionCode().isBlank()
+                    ? r.regionCode().trim()
+                    : "REGION_" + idx;
+            if (!seenCodes.add(code)) {
+                code = code + "_" + idx;
+                seenCodes.add(code);
+            }
+            int unlockTier = r.unlockTier() > 0 ? r.unlockTier() : 1;
+            String boundsJson = r.boundsJson() != null && !r.boundsJson().isBlank()
+                    ? r.boundsJson()
+                    : "{\"x\":0.05,\"y\":0.05,\"width\":0.9,\"height\":0.3}";
+            int sortOrder = r.sortOrder() > 0 ? r.sortOrder() : idx;
+
+            if (existingReg != null) {
+                existingReg.update(code, unlockTier, r.label(), boundsJson, sortOrder);
+                regions.save(existingReg);
+            } else {
+                regions.save(IslandLayoutRegion.create(
+                        UUID.randomUUID(), versionId, code, unlockTier,
+                        r.label(), boundsJson, sortOrder, now
+                ));
+            }
+            idx++;
+        }
+        regions.flush();
+
+        // 2. Update slots safely (preserve slot IDs & stableSlotKey; forbid deleting slot with placement)
         List<IslandSlot> existingSlots = slots.findByLayoutVersionIdOrderBySlotIndex(versionId);
         Map<UUID, IslandSlot> existingById = existingSlots.stream()
                 .collect(Collectors.toMap(IslandSlot::getId, s -> s));
+        Map<String, IslandSlot> existingByKey = existingSlots.stream()
+                .filter(s -> s.getStableSlotKey() != null)
+                .collect(Collectors.toMap(IslandSlot::getStableSlotKey, s -> s, (a, b) -> a));
 
         List<SlotDto> incomingSlots = req.slots() != null ? req.slots() : List.of();
-        Set<UUID> incomingIds = incomingSlots.stream()
-                .map(SlotDto::id)
-                .filter(java.util.Objects::nonNull)
-                .collect(Collectors.toSet());
+        Set<UUID> keptSlotIds = new HashSet<>();
+        List<IslandSlot> matchedSlots = new ArrayList<>();
+        for (SlotDto s : incomingSlots) {
+            IslandSlot match = null;
+            if (s.id() != null && existingById.containsKey(s.id()) && !keptSlotIds.contains(s.id())) {
+                match = existingById.get(s.id());
+            } else if (s.stableSlotKey() != null) {
+                IslandSlot byKey = existingByKey.get(s.stableSlotKey().trim());
+                if (byKey != null && !keptSlotIds.contains(byKey.getId())) {
+                    match = byKey;
+                }
+            }
+            if (match != null) {
+                keptSlotIds.add(match.getId());
+            }
+            matchedSlots.add(match);
+        }
 
         for (IslandSlot oldSlot : existingSlots) {
-            if (!incomingIds.contains(oldSlot.getId())) {
+            if (!keptSlotIds.contains(oldSlot.getId())) {
                 if (placements.existsBySlotId(oldSlot.getId())) {
                     throw new IllegalArgumentException(
                             "Không thể xóa slot '" + oldSlot.getStableSlotKey() + "' vì đang có người dùng đặt vật phẩm");
@@ -365,11 +449,9 @@ public class IslandLayoutService {
         }
         slots.flush();
 
-        // To avoid temporary unique constraint collision on (layout_version_id, slot_index) or stable_slot_key,
-        // first shift existing remaining slots to temporary negative indices/keys
         int tempIdx = -1;
         for (IslandSlot oldSlot : existingSlots) {
-            if (incomingIds.contains(oldSlot.getId())) {
+            if (keptSlotIds.contains(oldSlot.getId())) {
                 oldSlot.update(tempIdx, oldSlot.getTierRequired(), oldSlot.getCoordX(), oldSlot.getCoordY(),
                         "__tmp_" + oldSlot.getId(), oldSlot.getRegionCode(), oldSlot.getZIndex(),
                         oldSlot.getAnchorX(), oldSlot.getAnchorY(), oldSlot.getWidthNorm(), oldSlot.getHeightNorm(),
@@ -380,15 +462,21 @@ public class IslandLayoutService {
         }
         slots.flush();
 
-        int slotCounter = 1;
+        Set<Integer> usedIndices = new HashSet<>();
         Set<String> usedKeys = new HashSet<>();
-        for (SlotDto s : incomingSlots) {
+        for (int i = 0; i < incomingSlots.size(); i++) {
+            SlotDto s = incomingSlots.get(i);
+            IslandSlot existingSlot = matchedSlots.get(i);
+            int slotCounter = i + 1;
             int slotIndex = s.slotIndex() > 0 ? s.slotIndex() : slotCounter;
+            while (!usedIndices.add(slotIndex)) {
+                slotIndex++;
+            }
             String key = s.stableSlotKey() != null && !s.stableSlotKey().isBlank()
                     ? s.stableSlotKey().trim()
                     : "slot_" + slotIndex;
             if (!usedKeys.add(key)) {
-                key = key + "_" + slotCounter;
+                key = key + "_" + slotIndex;
                 usedKeys.add(key);
             }
             String allowedJson = serializeAllowedCategories(s.allowedCategories());
@@ -397,54 +485,91 @@ public class IslandLayoutService {
             double ax = s.anchorX() >= 0 && s.anchorX() <= 1 ? s.anchorX() : 0.5;
             double ay = s.anchorY() >= 0 && s.anchorY() <= 1 ? s.anchorY() : 1.0;
 
-            if (s.id() != null && existingById.containsKey(s.id())) {
-                IslandSlot existing = existingById.get(s.id());
-                existing.update(
-                        slotCounter, s.tierRequired(), s.coordX(), s.coordY(),
+            if (existingSlot != null) {
+                existingSlot.update(
+                        slotIndex, s.tierRequired(), s.coordX(), s.coordY(),
                         key, s.regionCode(), s.zIndex(), ax, ay, w, h, allowedJson
                 );
-                slots.save(existing);
+                slots.save(existingSlot);
             } else {
                 IslandSlot created = IslandSlot.create(
                         UUID.randomUUID(), def.getLayoutKey(), versionId,
-                        slotCounter, s.tierRequired(), s.coordX(), s.coordY(),
+                        slotIndex, s.tierRequired(), s.coordX(), s.coordY(),
                         key, s.regionCode(), s.zIndex(), ax, ay, w, h, allowedJson, now
                 );
                 slots.save(created);
             }
-            slotCounter++;
         }
         slots.flush();
 
-        // 3. Update scene layers
-        sceneLayers.deleteByLayoutVersionId(versionId);
-        sceneLayers.flush();
-        if (req.sceneLayers() != null) {
-            int lIdx = 1;
-            Set<String> seenLayerKeys = new HashSet<>();
-            for (SceneLayerDto l : req.sceneLayers()) {
-                String lKey = l.layerKey() != null && !l.layerKey().isBlank()
-                        ? l.layerKey().trim()
-                        : "layer_" + lIdx;
-                if (!seenLayerKeys.add(lKey)) {
-                    lKey = lKey + "_" + lIdx;
+        // 3. Update scene layers safely in-place without duplicate UUID conflicts
+        List<IslandSceneLayer> existingLayers =
+                sceneLayers.findByLayoutVersionIdOrderByRenderOrderAsc(versionId);
+        Map<UUID, IslandSceneLayer> existingLayerById = existingLayers.stream()
+                .collect(Collectors.toMap(IslandSceneLayer::getId, l -> l));
+        Map<String, IslandSceneLayer> existingLayerByKey = existingLayers.stream()
+                .collect(Collectors.toMap(IslandSceneLayer::getLayerKey, l -> l, (a, b) -> a));
+
+        List<SceneLayerDto> incomingLayers = req.sceneLayers() != null ? req.sceneLayers() : List.of();
+        Set<UUID> keptLayerIds = new HashSet<>();
+        List<IslandSceneLayer> matchedLayers = new ArrayList<>();
+        for (SceneLayerDto l : incomingLayers) {
+            IslandSceneLayer match = null;
+            if (l.id() != null && existingLayerById.containsKey(l.id()) && !keptLayerIds.contains(l.id())) {
+                match = existingLayerById.get(l.id());
+            } else if (l.layerKey() != null) {
+                IslandSceneLayer byKey = existingLayerByKey.get(l.layerKey().trim());
+                if (byKey != null && !keptLayerIds.contains(byKey.getId())) {
+                    match = byKey;
                 }
-                IslandSceneLayer entity = IslandSceneLayer.create(
-                        l.id() != null ? l.id() : UUID.randomUUID(),
-                        versionId, lKey,
-                        l.layerType() != null ? l.layerType().trim().toUpperCase() : "STATIC_IMAGE",
-                        l.renderOrder(),
-                        l.assetRef() != null && !l.assetRef().isBlank() ? l.assetRef().trim() : null,
-                        l.visibilityRuleJson() != null && !l.visibilityRuleJson().isBlank()
-                                ? l.visibilityRuleJson()
-                                : "{\"minTier\":1,\"maxTier\":3}",
-                        now
-                );
-                sceneLayers.save(entity);
-                lIdx++;
             }
-            sceneLayers.flush();
+            if (match != null) {
+                keptLayerIds.add(match.getId());
+            }
+            matchedLayers.add(match);
         }
+
+        for (IslandSceneLayer oldLayer : existingLayers) {
+            if (!keptLayerIds.contains(oldLayer.getId())) {
+                sceneLayers.delete(oldLayer);
+            } else {
+                oldLayer.update("__tmp_" + oldLayer.getId(), oldLayer.getLayerType(),
+                        oldLayer.getRenderOrder(), oldLayer.getAssetRef(), oldLayer.getVisibilityRuleJson());
+                sceneLayers.save(oldLayer);
+            }
+        }
+        sceneLayers.flush();
+
+        int lIdx = 1;
+        Set<String> seenLayerKeys = new HashSet<>();
+        for (int i = 0; i < incomingLayers.size(); i++) {
+            SceneLayerDto l = incomingLayers.get(i);
+            IslandSceneLayer existingLayer = matchedLayers.get(i);
+            String lKey = l.layerKey() != null && !l.layerKey().isBlank()
+                    ? l.layerKey().trim()
+                    : "layer_" + lIdx;
+            if (!seenLayerKeys.add(lKey)) {
+                lKey = lKey + "_" + lIdx;
+                seenLayerKeys.add(lKey);
+            }
+            String layerType = l.layerType() != null ? l.layerType().trim().toUpperCase() : "STATIC_IMAGE";
+            String assetRef = l.assetRef() != null && !l.assetRef().isBlank() ? l.assetRef().trim() : null;
+            String visRule = l.visibilityRuleJson() != null && !l.visibilityRuleJson().isBlank()
+                    ? l.visibilityRuleJson()
+                    : "{\"minTier\":1,\"maxTier\":3}";
+
+            if (existingLayer != null) {
+                existingLayer.update(lKey, layerType, l.renderOrder(), assetRef, visRule);
+                sceneLayers.save(existingLayer);
+            } else {
+                sceneLayers.save(IslandSceneLayer.create(
+                        UUID.randomUUID(), versionId, lKey, layerType,
+                        l.renderOrder(), assetRef, visRule, now
+                ));
+            }
+            lIdx++;
+        }
+        sceneLayers.flush();
 
         ver.touch(now);
         versions.saveAndFlush(ver);
@@ -508,6 +633,19 @@ public class IslandLayoutService {
         }
         checkRevision(ver, expectedRevision);
 
+        if (ver.isPublished()) {
+            IslandLayoutDefinition def = definitions.findLockedById(ver.getDefinitionId())
+                    .orElseThrow(() -> new ResourceNotFoundException("Island layout not found: " + ver.getDefinitionId()));
+            Optional<DefaultPublishedLayout> currentDefaultPub = findDefaultPublishedLayout();
+            boolean isCurrentDefaultPublished = def.isDefaultLayout()
+                    || (currentDefaultPub.isPresent()
+                            && currentDefaultPub.get().version().getId().equals(versionId));
+            if (isCurrentDefaultPublished) {
+                throw new InvalidStatusTransitionException(
+                        "Không thể lưu trữ (archive) phiên bản PUBLISHED mặc định cuối cùng khi chưa xuất bản phiên bản mới thay thế cho người dùng mới.");
+            }
+        }
+
         Instant now = Instant.now(clock);
         ver.archive(now);
         versions.saveAndFlush(ver);
@@ -520,22 +658,34 @@ public class IslandLayoutService {
         List<ValidationError> errors = new ArrayList<>();
         UUID versionId = ver.getId();
 
+        if (!levelService.hasValidConfiguration()) {
+            errors.add(new ValidationError("POLICY", "account_level_thresholds", "levelConfig",
+                    "INVALID_LEVEL_CONFIG",
+                    "Hệ thống chưa có cấu hình ngưỡng cấp độ tài khoản (account_level_thresholds) hợp lệ."));
+        }
+
         List<IslandTierPolicy> activePolicies = policies.findActivePolicies();
         if (activePolicies.isEmpty()) {
             errors.add(new ValidationError("POLICY", "island_tier_policies", "policy",
-                    "MISSING_TIER_POLICY", "Hệ thống chưa có cấu hình island_tier_policies đang active."));
+                    "MISSING_TIER_POLICY",
+                    "Hệ thống chưa có cấu hình island_tier_policies đang active; không được phép xuất bản dựa trên ngưỡng tự đoán."));
         }
         Map<Integer, Integer> policySlotCounts = new HashMap<>();
         Set<Integer> validTiers = new HashSet<>();
         for (IslandTierPolicy p : activePolicies) {
             policySlotCounts.put(p.getTier(), p.getSlotCount());
             validTiers.add(p.getTier());
-        }
-        if (validTiers.isEmpty()) {
-            validTiers.addAll(Set.of(1, 2, 3));
-            policySlotCounts.put(1, 4);
-            policySlotCounts.put(2, 8);
-            policySlotCounts.put(3, 12);
+            Integer reqLvl = p.getRequiredLevel();
+            if (reqLvl == null || reqLvl < 1) {
+                errors.add(new ValidationError("POLICY", "TIER_" + p.getTier(), "requiredLevel",
+                        "MISSING_REQUIRED_LEVEL",
+                        "Chính sách Tier " + p.getTier() + " thiếu required_level hợp lệ."));
+            } else if (!levelService.hasValidConfiguration() || levelService.minExpForLevel(reqLvl) < 0) {
+                errors.add(new ValidationError("POLICY", "TIER_" + p.getTier(), "requiredLevel",
+                        "MISSING_LEVEL_THRESHOLD",
+                        "Chính sách Tier " + p.getTier() + " yêu cầu Level " + reqLvl
+                                + " nhưng không tìm thấy ngưỡng EXP tương ứng trong account_level_thresholds."));
+            }
         }
 
         List<IslandLayoutRegion> verRegions = regions.findByLayoutVersionIdOrderBySortOrderAsc(versionId);
@@ -728,9 +878,11 @@ public class IslandLayoutService {
 
     private void validateAssetRefIfUuid(String layerKey, String assetRef, List<ValidationError> errors) {
         String candidate = assetRef.trim();
-        // Nếu là /api/v1/admin/assets/{uuid}/content hoặc trực tiếp {uuid}
         if (candidate.startsWith("/api/v1/admin/assets/") && candidate.endsWith("/content")) {
             candidate = candidate.substring("/api/v1/admin/assets/".length(),
+                    candidate.length() - "/content".length());
+        } else if (candidate.startsWith("/api/v1/assets/") && candidate.endsWith("/content")) {
+            candidate = candidate.substring("/api/v1/assets/".length(),
                     candidate.length() - "/content".length());
         }
         try {

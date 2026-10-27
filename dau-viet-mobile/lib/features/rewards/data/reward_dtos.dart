@@ -72,6 +72,9 @@ class InventoryItemDto {
   final String itemType;
   final String rarity;
   final String? assetId;
+  final String? renderKey;
+  final bool placeable;
+  final String? placedSlotId;
   final String? acquiredAt;
   final String? acquisitionSource;
   final String? sourceLessonId;
@@ -88,6 +91,9 @@ class InventoryItemDto {
     required this.itemType,
     required this.rarity,
     this.assetId,
+    this.renderKey,
+    this.placeable = false,
+    this.placedSlotId,
     this.acquiredAt,
     this.acquisitionSource,
     this.sourceLessonId,
@@ -96,23 +102,34 @@ class InventoryItemDto {
     this.sourceEventId,
   });
 
-  factory InventoryItemDto.fromJson(Map<String, dynamic> json) =>
-      InventoryItemDto(
-        itemId: json['itemId'] as String? ?? '',
-        code: json['code'] as String? ?? '',
-        name: json['name'] as String? ?? '',
-        description: json['description'] as String?,
-        category: json['category'] as String? ?? '',
-        itemType: json['itemType'] as String? ?? '',
-        rarity: json['rarity'] as String? ?? 'COMMON',
-        assetId: json['assetId'] as String?,
-        acquiredAt: json['acquiredAt'] as String?,
-        acquisitionSource: json['acquisitionSource'] as String?,
-        sourceLessonId: json['sourceLessonId'] as String?,
-        unlockRuleId: json['unlockRuleId'] as String?,
-        unlockRuleVersion: (json['unlockRuleVersion'] as num?)?.toInt(),
-        sourceEventId: json['sourceEventId'] as String?,
-      );
+  factory InventoryItemDto.fromJson(Map<String, dynamic> json) {
+    final category = json['category'] as String? ?? '';
+    final itemType = json['itemType'] as String? ?? '';
+    final code = json['code'] as String? ?? '';
+    return InventoryItemDto(
+      itemId: json['itemId'] as String? ?? '',
+      code: code,
+      name: json['name'] as String? ?? '',
+      description: json['description'] as String?,
+      category: category,
+      itemType: itemType,
+      rarity: json['rarity'] as String? ?? 'COMMON',
+      assetId: json['assetId'] as String?,
+      renderKey: json['renderKey'] as String?,
+      placeable:
+          json['placeable'] as bool? ??
+          (category.toUpperCase() == 'DECOR' ||
+              itemType.toUpperCase() == 'DECOR' ||
+              code.toLowerCase().startsWith('decor_')),
+      placedSlotId: json['placedSlotId'] as String?,
+      acquiredAt: json['acquiredAt'] as String?,
+      acquisitionSource: json['acquisitionSource'] as String?,
+      sourceLessonId: json['sourceLessonId'] as String?,
+      unlockRuleId: json['unlockRuleId'] as String?,
+      unlockRuleVersion: (json['unlockRuleVersion'] as num?)?.toInt(),
+      sourceEventId: json['sourceEventId'] as String?,
+    );
+  }
 }
 
 /// Một node điều kiện mở khóa (GAME-05): hoặc leaf (type + current/required
@@ -261,6 +278,9 @@ class CatalogItemDto {
   final String itemType;
   final String rarity;
   final String? assetId;
+  final String? renderKey;
+  final bool placeable;
+  final String? placedSlotId;
   final bool owned;
   final String? acquiredAt;
   final ItemRequirementDto? requirement;
@@ -275,32 +295,47 @@ class CatalogItemDto {
     required this.itemType,
     required this.rarity,
     this.assetId,
+    this.renderKey,
+    this.placeable = false,
+    this.placedSlotId,
     this.owned = false,
     this.acquiredAt,
     this.requirement,
     this.sourceNote,
   });
 
-  factory CatalogItemDto.fromJson(Map<String, dynamic> json) => CatalogItemDto(
-    itemId: json['itemId'] as String? ?? '',
-    code: json['code'] as String? ?? '',
-    name: json['name'] as String? ?? '',
-    description: json['description'] as String?,
-    category: json['category'] as String? ?? '',
-    itemType: json['itemType'] as String? ?? '',
-    rarity: json['rarity'] as String? ?? 'COMMON',
-    assetId: json['assetId'] as String?,
-    owned: json['owned'] as bool? ?? false,
-    acquiredAt: json['acquiredAt'] as String?,
-    requirement: json['requirement'] is Map
-        ? ItemRequirementDto.fromJson(
-            (json['requirement'] as Map).cast<String, dynamic>(),
-          )
-        : null,
-    sourceNote: json['sourceMetadata'] is Map
-        ? (json['sourceMetadata'] as Map)['note'] as String?
-        : null,
-  );
+  factory CatalogItemDto.fromJson(Map<String, dynamic> json) {
+    final category = json['category'] as String? ?? '';
+    final itemType = json['itemType'] as String? ?? '';
+    final code = json['code'] as String? ?? '';
+    return CatalogItemDto(
+      itemId: json['itemId'] as String? ?? '',
+      code: code,
+      name: json['name'] as String? ?? '',
+      description: json['description'] as String?,
+      category: category,
+      itemType: itemType,
+      rarity: json['rarity'] as String? ?? 'COMMON',
+      assetId: json['assetId'] as String?,
+      renderKey: json['renderKey'] as String?,
+      placeable:
+          json['placeable'] as bool? ??
+          (category.toUpperCase() == 'DECOR' ||
+              itemType.toUpperCase() == 'DECOR' ||
+              code.toLowerCase().startsWith('decor_')),
+      placedSlotId: json['placedSlotId'] as String?,
+      owned: json['owned'] as bool? ?? false,
+      acquiredAt: json['acquiredAt'] as String?,
+      requirement: json['requirement'] is Map
+          ? ItemRequirementDto.fromJson(
+              (json['requirement'] as Map).cast<String, dynamic>(),
+            )
+          : null,
+      sourceNote: json['sourceMetadata'] is Map
+          ? (json['sourceMetadata'] as Map)['note'] as String?
+          : null,
+    );
+  }
 }
 
 /// PageResponse backend envelope cho GET /me/rewards/transactions.

@@ -18,6 +18,7 @@ const CRUMB_LABELS: Record<string, string> = {
   "learning-path": "Bản đồ Dấu Ấn",
   "map-locations": "Địa điểm di tích",
   "island-builder": "Đảo Di Sản",
+  "island-shop": "Cửa hàng Đảo Di Sản",
   edit: "Thiết kế",
   lessons: "Bài học",
   evidence: "Bằng chứng",

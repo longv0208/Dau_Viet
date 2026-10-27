@@ -152,6 +152,7 @@ public class RewardService {
                     o.getSourceLessonId(), o.getUnlockRuleId(),
                     o.getUnlockRuleVersion(), o.getSourceEventId(),
                     item != null && item.isPlaceable(),
+                    item == null ? null : item.getRenderKey(),
                     slotByItem.get(o.getItemId()));
         }).toList();
     }
@@ -191,12 +192,19 @@ public class RewardService {
                                 .map(ItemUnlockRule::getLessonId).orElse(null))
                         .filter(java.util.Objects::nonNull)
                         .collect(Collectors.toSet()));
+        Map<UUID, UUID> slotByItem = placements.findByUserId(userId).stream()
+                .collect(java.util.stream.Collectors.toMap(
+                        com.dauviet.island.domain.UserIslandPlacement::getItemId,
+                        com.dauviet.island.domain.UserIslandPlacement::getSlotId,
+                        (existing, replacement) -> existing));
         return all.stream().map(i -> {
             UserInventoryItem ownedRow = ownedByItem.get(i.getId());
             return new CatalogItemResponse(
                     i.getId(), i.getCode(), i.getName(), i.getDescription(),
                     i.getCategory(), i.getItemType(), i.getRarity(),
-                    i.getAssetId(), parse(i.getSourceMetadata()),
+                    i.getAssetId(), i.getRenderKey(), i.isPlaceable(),
+                    slotByItem.get(i.getId()),
+                    parse(i.getSourceMetadata()),
                     ownedRow != null,
                     ownedRow == null ? null : ownedRow.getAcquiredAt(),
                     requirement(i, ctx, lessonTitles));
@@ -231,6 +239,7 @@ public class RewardService {
                     o.getSourceLessonId(), o.getUnlockRuleId(),
                     o.getUnlockRuleVersion(), o.getSourceEventId(),
                     item != null && item.isPlaceable(),
+                    item == null ? null : item.getRenderKey(),
                     null);
         }).toList();
     }

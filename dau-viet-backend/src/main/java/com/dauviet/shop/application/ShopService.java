@@ -98,13 +98,14 @@ public class ShopService {
         return offers.stream()
                 .map(offer -> {
                     ItemCatalog item = items.get(offer.getItemId());
-                    if (item == null) return null;
+                    if (item == null || !item.isActive()) return null;
                     return new ShopItemResponse(
                             item.getId(), item.getCode(), item.getName(),
                             item.getDescription(), item.getCategory(),
                             item.getItemType(), item.getRarity(),
                             item.getAssetId(), item.getRenderKey(),
-                            offer.getPricePoints(), offer.isForSale());
+                            offer.getPricePoints(),
+                            offer.isForSale() && item.isActive() && item.isPlaceable());
                 })
                 .filter(java.util.Objects::nonNull)
                 .toList();
@@ -150,7 +151,7 @@ public class ShopService {
                 .orElseThrow(() ->
                         new IslandExceptions.ItemNotForSaleException(
                                 req.itemId()));
-        if (!offer.isForSale()) {
+        if (!offer.isForSale() || !item.isActive() || !item.isPlaceable()) {
             throw new IslandExceptions.ItemNotForSaleException(req.itemId());
         }
         if (inventory.existsByUserIdAndItemId(userId, req.itemId())) {

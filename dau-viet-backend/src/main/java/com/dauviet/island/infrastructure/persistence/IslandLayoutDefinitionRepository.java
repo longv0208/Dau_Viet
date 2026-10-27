@@ -30,7 +30,11 @@ public interface IslandLayoutDefinitionRepository
     @Query("SELECT d FROM IslandLayoutDefinition d WHERE d.id = :id")
     Optional<IslandLayoutDefinition> findLockedById(@Param("id") UUID id);
 
-    @Modifying
+    @Lock(LockModeType.PESSIMISTIC_WRITE)
+    @Query("SELECT d FROM IslandLayoutDefinition d WHERE d.defaultLayout = true")
+    List<IslandLayoutDefinition> lockAllDefaults();
+
+    @Modifying(flushAutomatically = true, clearAutomatically = false)
     @Query("UPDATE IslandLayoutDefinition d SET d.defaultLayout = false WHERE d.defaultLayout = true AND d.id <> :keepId")
     void clearOtherDefaults(@Param("keepId") UUID keepId);
 }

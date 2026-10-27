@@ -25,11 +25,13 @@ export interface AdminItem {
   name: string;
   description: string;
   category: string;
-  itemType: "HISTORICAL_REPLICA" | "DIGITAL_EDITION" | "COMMEMORATIVE_BADGE";
+  itemType: "HISTORICAL_REPLICA" | "DIGITAL_EDITION" | "COMMEMORATIVE_BADGE" | "DECOR";
   rarity: "COMMON" | "UNCOMMON" | "RARE" | "EPIC";
   assetId?: string | null;
   sourceMetadata?: Record<string, unknown> | null;
   active: boolean;
+  placeable?: boolean;
+  renderKey?: string | null;
   rowVersion: number;
   /** UNRESOLVED | EVENT_SCOPED | GLOBAL — GAME-06 scope banner. */
   scope?: ItemScope | string | null;
@@ -50,6 +52,8 @@ export interface AdminItemRequest {
   /** Gửi {} để xoá source metadata có chủ đích; bỏ qua field = giữ nguyên. */
   sourceMetadata?: Record<string, unknown> | null;
   active?: boolean;
+  placeable?: boolean;
+  renderKey?: string | null;
 }
 
 /**

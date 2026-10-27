@@ -17,6 +17,8 @@ public record AdminItemResponse(
         UUID assetId,
         JsonNode sourceMetadata,
         boolean active,
+        boolean placeable,
+        String renderKey,
         Long rowVersion,
         /** Scope da duyet cua item (GAME-06): UNRESOLVED | EVENT_SCOPED | GLOBAL. */
         String scope,

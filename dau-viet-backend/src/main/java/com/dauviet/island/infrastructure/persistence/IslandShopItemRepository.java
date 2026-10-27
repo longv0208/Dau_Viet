@@ -29,4 +29,7 @@ public interface IslandShopItemRepository
     @Query("SELECT s FROM IslandShopItem s WHERE s.active = true "
          + "ORDER BY s.sortOrder ASC")
     List<IslandShopItem> findAllActiveOrdered();
+
+    @Query("SELECT s FROM IslandShopItem s ORDER BY s.sortOrder ASC")
+    List<IslandShopItem> findAllOrdered();
 }

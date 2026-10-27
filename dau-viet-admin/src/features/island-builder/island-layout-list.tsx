@@ -36,14 +36,14 @@ export function IslandLayoutList() {
   const [selectedLayoutId, setSelectedLayoutId] = useState<string | null>(null);
   const [actionError, setActionError] = useState<string | null>(null);
 
-  // Form tạo layout mới
+  // Form tạo layout mới (khớp đúng CreateLayoutRequest: layoutKey, name, description, canvasWidth, canvasHeight, themeKey, defaultLayout)
   const [layoutKey, setLayoutKey] = useState("");
-  const [title, setTitle] = useState("");
+  const [name, setName] = useState("");
   const [description, setDescription] = useState("");
   const [themeKey, setThemeKey] = useState("heritage");
   const [canvasWidth, setCanvasWidth] = useState("960");
   const [canvasHeight, setCanvasHeight] = useState("720");
-  const [isDefault, setIsDefault] = useState(false);
+  const [defaultLayout, setDefaultLayout] = useState(false);
 
   const layoutsQuery = useQuery({
     queryKey: ["admin-island-layouts"],
@@ -60,20 +60,24 @@ export function IslandLayoutList() {
     mutationFn: async () => {
       const created = await islandBuilderApi.createLayout({
         layoutKey: layoutKey.trim(),
-        title: title.trim(),
+        name: name.trim(),
         description: description.trim() || null,
         themeKey: themeKey.trim() || "heritage",
         canvasWidth: Number(canvasWidth) || 960,
         canvasHeight: Number(canvasHeight) || 720,
-        isDefault,
+        defaultLayout,
       });
+      const initialDraft = created.versions.find((v) => v.status === "DRAFT");
+      if (initialDraft) {
+        return initialDraft.id;
+      }
       const draft = await islandBuilderApi.createDraft(created.id);
-      return draft;
+      return draft.id;
     },
-    onSuccess: (draft) => {
+    onSuccess: (draftVersionId) => {
       qc.invalidateQueries({ queryKey: ["admin-island-layouts"] });
       setShowCreateModal(false);
-      router.push(`/island-builder/${draft.id}`);
+      router.push(`/island-builder/${draftVersionId}`);
     },
     onError: (err) => setActionError(toUserMessage(err)),
   });
@@ -104,7 +108,7 @@ export function IslandLayoutList() {
 
   const setDefaultMutation = useMutation({
     mutationFn: (layoutId: string) =>
-      islandBuilderApi.updateLayout(layoutId, { isDefault: true }),
+      islandBuilderApi.updateLayout(layoutId, { defaultLayout: true }),
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ["admin-island-layouts"] });
     },
@@ -147,12 +151,12 @@ export function IslandLayoutList() {
           onClick={() => {
             setActionError(null);
             setLayoutKey("");
-            setTitle("");
+            setName("");
             setDescription("");
             setThemeKey("heritage");
             setCanvasWidth("960");
             setCanvasHeight("720");
-            setIsDefault(false);
+            setDefaultLayout(false);
             setShowCreateModal(true);
           }}
         >
@@ -200,9 +204,9 @@ export function IslandLayoutList() {
                       <td className="px-4 py-3.5">
                         <div className="flex items-center gap-2">
                           <span className="font-semibold text-ink">
-                            {layout.title}
+                            {layout.name}
                           </span>
-                          {layout.isDefault && (
+                          {layout.defaultLayout && (
                             <span className="inline-flex items-center gap-1 rounded-full bg-amber-100 px-2 py-0.5 text-[11px] font-semibold text-amber-800">
                               <Sparkles className="size-3" />
                               Mặc định
@@ -250,12 +254,12 @@ export function IslandLayoutList() {
                           )}
                           {!hasDraft && hasPublished && (
                             <span className="rounded bg-emerald-50 px-2 py-0.5 text-xs font-medium text-emerald-700">
-                              Đang hoạt động
+                              {layout.latestStatus}
                             </span>
                           )}
                           {!hasDraft && !hasPublished && (
                             <span className="rounded bg-gray-100 px-2 py-0.5 text-xs font-medium text-gray-600">
-                              Khởi tạo
+                              {layout.latestStatus}
                             </span>
                           )}
                         </div>
@@ -320,7 +324,7 @@ export function IslandLayoutList() {
                             Phiên bản
                           </Button>
 
-                          {!layout.isDefault && hasPublished && (
+                          {!layout.defaultLayout && hasPublished && (
                             <Button
                               size="sm"
                               variant="ghost"
@@ -350,7 +354,7 @@ export function IslandLayoutList() {
             <div className="flex items-center gap-2">
               <Layers className="size-5 text-brand" />
               <h3 className="text-base font-semibold text-ink">
-                Lịch sử phiên bản — {detailQuery.data?.title ?? "..."}
+                Lịch sử phiên bản — {detailQuery.data?.name ?? "..."}
               </h3>
             </div>
             <div className="flex items-center gap-2">
@@ -381,9 +385,8 @@ export function IslandLayoutList() {
                   <tr>
                     <th className="px-3 py-2">Phiên bản</th>
                     <th className="px-3 py-2">Trạng thái</th>
-                    <th className="px-3 py-2">Vùng đất</th>
-                    <th className="px-3 py-2">Tổng Slot</th>
-                    <th className="px-3 py-2">Scene Layers</th>
+                    <th className="px-3 py-2">Revision</th>
+                    <th className="px-3 py-2">Xuất bản lúc</th>
                     <th className="px-3 py-2">Cập nhật</th>
                     <th className="px-3 py-2 text-right">Hành động</th>
                   </tr>
@@ -407,14 +410,13 @@ export function IslandLayoutList() {
                           {ver.status}
                         </span>
                       </td>
-                      <td className="px-3 py-2.5 text-xs">
-                        {ver.regionCount} vùng
+                      <td className="px-3 py-2.5 font-mono text-xs">
+                        #{ver.rowVersion}
                       </td>
-                      <td className="px-3 py-2.5 text-xs">
-                        {ver.slotCount} ô đất
-                      </td>
-                      <td className="px-3 py-2.5 text-xs">
-                        {ver.layerCount} lớp
+                      <td className="px-3 py-2.5 text-xs text-ink-muted">
+                        {ver.publishedAt
+                          ? new Date(ver.publishedAt).toLocaleString("vi-VN")
+                          : "—"}
                       </td>
                       <td className="px-3 py-2.5 text-xs text-ink-muted">
                         {new Date(ver.updatedAt).toLocaleString("vi-VN")}
@@ -485,12 +487,12 @@ export function IslandLayoutList() {
               </div>
 
               <div>
-                <Label htmlFor="layout-title">Tên hiển thị</Label>
+                <Label htmlFor="layout-name">Tên hiển thị (name)</Label>
                 <Input
-                  id="layout-title"
+                  id="layout-name"
                   placeholder="vd: Đảo Hoàng Thành Thăng Long"
-                  value={title}
-                  onChange={(e) => setTitle(e.target.value)}
+                  value={name}
+                  onChange={(e) => setName(e.target.value)}
                 />
               </div>
 
@@ -536,11 +538,11 @@ export function IslandLayoutList() {
               <label className="flex items-center gap-2 pt-1 text-sm text-ink">
                 <input
                   type="checkbox"
-                  checked={isDefault}
-                  onChange={(e) => setIsDefault(e.target.checked)}
+                  checked={defaultLayout}
+                  onChange={(e) => setDefaultLayout(e.target.checked)}
                   className="size-4 rounded border-border"
                 />
-                Đặt làm bố cục mặc định cho đảo mới
+                Đặt làm bố cục mặc định cho đảo mới (defaultLayout)
               </label>
             </div>
 
@@ -554,7 +556,7 @@ export function IslandLayoutList() {
               <Button
                 disabled={
                   !layoutKey.trim() ||
-                  !title.trim() ||
+                  !name.trim() ||
                   createLayoutMutation.isPending
                 }
                 onClick={() => createLayoutMutation.mutate()}

@@ -106,13 +106,13 @@ public class AdminIslandLayoutController {
     public VersionDetailResponse publishVersion(
             @PathVariable UUID versionId,
             @Valid @RequestBody RevisionRequest req) {
-        return layoutService.publishVersion(versionId, req);
+        return layoutService.publishVersion(versionId, req.expectedRevision());
     }
 
     @PostMapping("/versions/{versionId}/archive")
     public VersionDetailResponse archiveVersion(
             @PathVariable UUID versionId,
             @Valid @RequestBody RevisionRequest req) {
-        return layoutService.archiveVersion(versionId, req);
+        return layoutService.archiveVersion(versionId, req.expectedRevision());
     }
 }

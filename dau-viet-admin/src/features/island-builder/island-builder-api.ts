@@ -5,17 +5,18 @@ import type { AdminAsset } from "@/lib/dto/evidence";
 export interface LayoutSummaryDto {
   id: string;
   layoutKey: string;
-  title: string;
+  name: string;
   description: string | null;
-  themeKey: string | null;
   canvasWidth: number;
   canvasHeight: number;
-  isDefault: boolean;
+  themeKey: string | null;
+  defaultLayout: boolean;
   versionCount: number;
-  publishedVersionId: string | null;
   publishedVersionNumber: number | null;
-  latestDraftVersionId: string | null;
+  publishedVersionId: string | null;
   latestDraftVersionNumber: number | null;
+  latestDraftVersionId: string | null;
+  latestStatus: string;
   updatedAt: string;
 }
 
@@ -25,10 +26,8 @@ export interface VersionSummaryDto {
   versionNumber: number;
   status: "DRAFT" | "PUBLISHED" | "ARCHIVED";
   rowVersion: number;
-  slotCount: number;
-  regionCount: number;
-  layerCount: number;
   publishedAt: string | null;
+  archivedAt: string | null;
   createdAt: string;
   updatedAt: string;
 }
@@ -36,15 +35,21 @@ export interface VersionSummaryDto {
 export interface LayoutDetailDto {
   id: string;
   layoutKey: string;
-  title: string;
+  name: string;
   description: string | null;
-  themeKey: string | null;
   canvasWidth: number;
   canvasHeight: number;
-  isDefault: boolean;
+  themeKey: string | null;
+  defaultLayout: boolean;
   createdAt: string;
   updatedAt: string;
   versions: VersionSummaryDto[];
+}
+
+export interface TierPolicySummaryDto {
+  tier: number;
+  slotCount: number;
+  requiredLevel: number | null;
 }
 
 export interface RegionDto {
@@ -75,8 +80,8 @@ export interface SlotDto {
   id?: string | null;
   slotIndex: number;
   stableSlotKey: string;
-  regionCode: string | null;
   tierRequired: number;
+  regionCode: string | null;
   coordX: number;
   coordY: number;
   zIndex: number;
@@ -91,24 +96,26 @@ export interface VersionDetailDto {
   id: string;
   definitionId: string;
   layoutKey: string;
-  layoutTitle: string;
-  themeKey: string | null;
+  layoutName: string;
   canvasWidth: number;
   canvasHeight: number;
-  isDefaultLayout: boolean;
+  themeKey: string | null;
+  defaultLayout: boolean;
   versionNumber: number;
   status: "DRAFT" | "PUBLISHED" | "ARCHIVED";
   rowVersion: number;
   publishedAt: string | null;
+  archivedAt: string | null;
   createdAt: string;
   updatedAt: string;
   regions: RegionDto[];
-  sceneLayers: SceneLayerDto[];
   slots: SlotDto[];
+  sceneLayers: SceneLayerDto[];
+  tierPolicies: TierPolicySummaryDto[];
 }
 
 export interface ValidationErrorDto {
-  objectType: "VERSION" | "REGION" | "SLOT" | "SCENE_LAYER";
+  objectType: "POLICY" | "REGION" | "SLOT" | "LAYER";
   objectKey: string;
   field: string;
   code: string;
@@ -116,38 +123,34 @@ export interface ValidationErrorDto {
 }
 
 export interface ValidationReportDto {
-  versionId: string;
   valid: boolean;
   errors: ValidationErrorDto[];
 }
 
 export interface CreateLayoutPayload {
   layoutKey: string;
-  title: string;
+  name: string;
   description?: string | null;
-  themeKey?: string | null;
   canvasWidth?: number;
   canvasHeight?: number;
-  isDefault?: boolean;
+  themeKey?: string | null;
+  defaultLayout?: boolean;
 }
 
 export interface UpdateLayoutPayload {
-  title?: string;
+  name?: string;
   description?: string | null;
-  themeKey?: string | null;
   canvasWidth?: number;
   canvasHeight?: number;
-  isDefault?: boolean;
+  themeKey?: string | null;
+  defaultLayout?: boolean;
 }
 
 export interface UpdateDraftSnapshotPayload {
-  expectedRevision?: number | null;
-  canvasWidth?: number;
-  canvasHeight?: number;
-  themeKey?: string | null;
+  expectedRevision: number;
   regions: RegionDto[];
-  sceneLayers: SceneLayerDto[];
   slots: SlotDto[];
+  sceneLayers: SceneLayerDto[];
 }
 
 export const islandBuilderApi = {
@@ -197,21 +200,21 @@ export const islandBuilderApi = {
       `/admin/island-layouts/versions/${versionId}/validate`,
     ),
 
-  publishVersion: (versionId: string, expectedRevision?: number | null) =>
+  publishVersion: (versionId: string, expectedRevision: number) =>
     apiFetch<VersionDetailDto>(
       `/admin/island-layouts/versions/${versionId}/publish`,
       {
         method: "POST",
-        body: JSON.stringify({ expectedRevision: expectedRevision ?? null }),
+        body: JSON.stringify({ expectedRevision }),
       },
     ),
 
-  archiveVersion: (versionId: string, expectedRevision?: number | null) =>
+  archiveVersion: (versionId: string, expectedRevision: number) =>
     apiFetch<VersionDetailDto>(
       `/admin/island-layouts/versions/${versionId}/archive`,
       {
         method: "POST",
-        body: JSON.stringify({ expectedRevision: expectedRevision ?? null }),
+        body: JSON.stringify({ expectedRevision }),
       },
     ),
 

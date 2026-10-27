@@ -88,6 +88,10 @@ public class AdminItemService {
         }
         ItemCatalog item = ItemCatalog.create(req.code(), req.name(),
                 req.category(), req.itemType());
+        if (ItemCatalog.TYPE_DECOR.equalsIgnoreCase(req.itemType())
+                && req.placeable() == null) {
+            item.setPlaceable(true);
+        }
         apply(item, req);
         return toResponse(items.save(item), Map.of());
     }
@@ -341,6 +345,22 @@ public class AdminItemService {
                     ? null : req.sourceMetadata().toString());
         }
         if (req.active() != null) item.setActive(req.active());
+        if (req.renderKey() != null) {
+            item.setRenderKey(req.renderKey().isBlank() ? null : req.renderKey().trim());
+        }
+        if (req.placeable() != null) {
+            String effectiveType = item.getItemType();
+            if (Boolean.TRUE.equals(req.placeable())
+                    && (ItemCatalog.TYPE_DIGITAL_EDITION.equalsIgnoreCase(effectiveType)
+                        || ItemCatalog.TYPE_COMMEMORATIVE_BADGE.equalsIgnoreCase(effectiveType))) {
+                throw new IllegalArgumentException(
+                        "Loại vật phẩm " + effectiveType + " không hỗ trợ đặt lên Đảo Di Sản (placeable=true).");
+            }
+            item.setPlaceable(req.placeable());
+        } else if (ItemCatalog.TYPE_DIGITAL_EDITION.equalsIgnoreCase(item.getItemType())
+                || ItemCatalog.TYPE_COMMEMORATIVE_BADGE.equalsIgnoreCase(item.getItemType())) {
+            item.setPlaceable(false);
+        }
     }
 
     private Map<UUID, ItemUnlockRule> activeRules(
@@ -359,7 +379,8 @@ public class AdminItemService {
                 item.getId(), item.getCode(), item.getName(),
                 item.getDescription(), item.getCategory(), item.getItemType(),
                 item.getRarity(), item.getAssetId(), parse(item.getSourceMetadata()),
-                item.isActive(), item.getRowVersion(),
+                item.isActive(), item.isPlaceable(), item.getRenderKey(),
+                item.getRowVersion(),
                 scopeResolver.scopeOf(item.getId()).name(),
                 r == null ? null : new AdminItemResponse.Rule(
                         r.getId(), r.getRuleType(), r.getLessonId(),

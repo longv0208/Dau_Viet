@@ -3,7 +3,7 @@
 import { zodResolver } from "@hookform/resolvers/zod";
 import { useQueryClient } from "@tanstack/react-query";
 import { useRouter } from "next/navigation";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useForm } from "react-hook-form";
 import { z } from "zod";
 
@@ -17,19 +17,37 @@ import { Label } from "@/components/ui/label";
 import { Select } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
 
-const CODE_RE = /^[A-Z0-9]+(?:_[A-Z0-9]+)*$/;
+const CODE_RE = /^[A-Za-z0-9]+(?:_[A-Za-z0-9]+)*$/;
+
+const RENDER_KEY_SUGGESTIONS = [
+  "decor.cay_da",
+  "decor.nha_tranh",
+  "decor.ho_sen",
+  "decor.cau_kieu",
+  "decor.bui_tre",
+  "decor.gieng_co",
+  "decor.cong_lang",
+  "decor.den_long_hoi_an",
+  "decor.dinh_lang",
+  "decor.thuyen_rong",
+  "decor.thap_but",
+  "decor.khue_van_cac",
+];
 
 const schema = z.object({
   code: z
     .string()
     .min(1, "Vui lòng nhập mã vật phẩm")
     .max(80, "Tối đa 80 ký tự")
-    .regex(CODE_RE, "Mã chỉ gồm chữ HOA, số và gạch dưới (vd: MO_HINH_X)"),
+    .regex(CODE_RE, "Mã chỉ gồm chữ cái, số và gạch dưới (vd: DECOR_DEN_LONG hoặc decor_den_long)"),
   name: z.string().min(1, "Vui lòng nhập tên vật phẩm").max(160),
   description: z.string().optional().or(z.literal("")),
   category: z.string().min(1, "Vui lòng chọn nhóm").max(48),
-  itemType: z.enum(["HISTORICAL_REPLICA", "DIGITAL_EDITION", "COMMEMORATIVE_BADGE"]),
+  itemType: z.enum(["HISTORICAL_REPLICA", "DIGITAL_EDITION", "COMMEMORATIVE_BADGE", "DECOR"]),
   rarity: z.enum(["COMMON", "UNCOMMON", "RARE", "EPIC"]),
+  placeable: z.boolean(),
+  renderKey: z.string().max(120).optional().or(z.literal("")),
+  assetId: z.string().optional().or(z.literal("")),
 });
 
 type FormValues = z.infer<typeof schema>;
@@ -43,10 +61,32 @@ export function ItemCreateForm() {
   const form = useForm<FormValues>({
     resolver: zodResolver(schema),
     defaultValues: {
-      code: "", name: "", description: "", category: "MO_HINH",
-      itemType: "HISTORICAL_REPLICA", rarity: "COMMON",
+      code: "",
+      name: "",
+      description: "",
+      category: "DECOR",
+      itemType: "DECOR",
+      rarity: "COMMON",
+      placeable: true,
+      renderKey: "",
+      assetId: "",
     },
   });
+
+  const watchedItemType = form.watch("itemType");
+  const isNonPlaceableType =
+    watchedItemType === "DIGITAL_EDITION" || watchedItemType === "COMMEMORATIVE_BADGE";
+
+  useEffect(() => {
+    if (watchedItemType === "DECOR") {
+      form.setValue("placeable", true);
+      if (form.getValues("category") !== "DECOR") {
+        form.setValue("category", "DECOR");
+      }
+    } else if (isNonPlaceableType) {
+      form.setValue("placeable", false);
+    }
+  }, [watchedItemType, isNonPlaceableType, form]);
 
   const onSubmit = form.handleSubmit(async (v) => {
     setServerError(null);
@@ -59,6 +99,9 @@ export function ItemCreateForm() {
         itemType: v.itemType,
         rarity: v.rarity,
         active: true,
+        placeable: isNonPlaceableType ? false : v.placeable,
+        renderKey: v.renderKey?.trim() || null,
+        assetId: v.assetId?.trim() || null,
       };
       const created = await apiFetch<AdminItem>("/admin/items", {
         method: "POST",
@@ -76,8 +119,8 @@ export function ItemCreateForm() {
       <CardHeader>
         <CardTitle>Vật phẩm mới</CardTitle>
         <CardDescription>
-          Mã dùng để nhận diện trong API — không đổi sau khi tạo. Điều kiện
-          mở khóa cấu hình ở trang chi tiết sau khi tạo.
+          Mã dùng để nhận diện trong API — không đổi sau khi tạo. Vật phẩm có{" "}
+          <code>placeable = true</code> có thể đưa lên Cửa hàng Đảo Di Sản và đặt vào ô trên đảo.
         </CardDescription>
       </CardHeader>
       <CardContent>
@@ -85,8 +128,11 @@ export function ItemCreateForm() {
           <div className="grid gap-4 md:grid-cols-2">
             <div className="flex flex-col gap-1.5">
               <Label htmlFor="code">Mã *</Label>
-              <Input id="code" placeholder="MO_HINH_TRONG_DONG"
-                {...form.register("code")} />
+              <Input
+                id="code"
+                placeholder="decor_dinh_lang hoặc MO_HINH_TRONG_DONG"
+                {...form.register("code")}
+              />
               {form.formState.errors.code && (
                 <p role="alert" className="text-xs text-error">
                   {form.formState.errors.code.message}
@@ -95,8 +141,11 @@ export function ItemCreateForm() {
             </div>
             <div className="flex flex-col gap-1.5">
               <Label htmlFor="name">Tên hiển thị *</Label>
-              <Input id="name" placeholder="Mô hình trống đồng"
-                {...form.register("name")} />
+              <Input
+                id="name"
+                placeholder="Đình Làng Mái Đao"
+                {...form.register("name")}
+              />
               {form.formState.errors.name && (
                 <p role="alert" className="text-xs text-error">
                   {form.formState.errors.name.message}
@@ -104,19 +153,21 @@ export function ItemCreateForm() {
               )}
             </div>
             <div className="flex flex-col gap-1.5">
-              <Label htmlFor="category">Nhóm</Label>
+              <Label htmlFor="category">Nhóm (Category)</Label>
               <Select id="category" {...form.register("category")}>
-                <option value="MO_HINH">Mô hình</option>
-                <option value="PHIEN_BAN_SO">Phiên bản số</option>
-                <option value="HUY_HIEU">Huy hiệu</option>
+                <option value="DECOR">Trang trí Đảo Di Sản (DECOR)</option>
+                <option value="MO_HINH">Mô hình (MO_HINH)</option>
+                <option value="PHIEN_BAN_SO">Phiên bản số (PHIEN_BAN_SO)</option>
+                <option value="HUY_HIEU">Huy hiệu (HUY_HIEU)</option>
               </Select>
             </div>
             <div className="flex flex-col gap-1.5">
-              <Label htmlFor="itemType">Loại</Label>
+              <Label htmlFor="itemType">Loại vật phẩm (Item Type)</Label>
               <Select id="itemType" {...form.register("itemType")}>
-                <option value="HISTORICAL_REPLICA">Mô hình</option>
-                <option value="DIGITAL_EDITION">Phiên bản số</option>
-                <option value="COMMEMORATIVE_BADGE">Huy hiệu</option>
+                <option value="DECOR">Trang trí Đảo Di Sản (DECOR)</option>
+                <option value="HISTORICAL_REPLICA">Mô hình (HISTORICAL_REPLICA)</option>
+                <option value="DIGITAL_EDITION">Phiên bản số (DIGITAL_EDITION)</option>
+                <option value="COMMEMORATIVE_BADGE">Huy hiệu (COMMEMORATIVE_BADGE)</option>
               </Select>
             </div>
             <div className="flex flex-col gap-1.5">
@@ -128,12 +179,52 @@ export function ItemCreateForm() {
                 <option value="EPIC">Sử thi</option>
               </Select>
             </div>
+            <div className="flex flex-col gap-1.5">
+              <Label htmlFor="renderKey">Render Key (Artwork / Sprite Key)</Label>
+              <Input
+                id="renderKey"
+                list="render-key-suggestions"
+                placeholder="vd: decor.dinh_lang"
+                {...form.register("renderKey")}
+              />
+              <datalist id="render-key-suggestions">
+                {RENDER_KEY_SUGGESTIONS.map((rk) => (
+                  <option key={rk} value={rk} />
+                ))}
+              </datalist>
+            </div>
+            <div className="flex flex-col gap-1.5">
+              <Label htmlFor="assetId">Asset UUID (tùy chọn)</Label>
+              <Input
+                id="assetId"
+                placeholder="UUID media asset nếu có"
+                {...form.register("assetId")}
+              />
+            </div>
+            <div className="flex flex-col justify-center gap-1.5 pt-4">
+              <label className="flex items-center gap-2 text-sm font-medium text-ink">
+                <input
+                  type="checkbox"
+                  disabled={isNonPlaceableType}
+                  {...form.register("placeable")}
+                />
+                Có thể đặt lên Đảo Di Sản (placeable)
+              </label>
+              {isNonPlaceableType && (
+                <p className="text-xs text-ink-muted">
+                  Phiên bản số và Huy hiệu không thể đặt lên đảo.
+                </p>
+              )}
+            </div>
           </div>
           <div className="flex flex-col gap-1.5">
             <Label htmlFor="description">Mô tả</Label>
-            <Textarea id="description" rows={3}
-              placeholder="Ghi rõ là mô hình / phiên bản số / huy hiệu — không mô tả như cổ vật thật."
-              {...form.register("description")} />
+            <Textarea
+              id="description"
+              rows={3}
+              placeholder="Ghi rõ là vật phẩm trang trí đảo / mô hình / phiên bản số / huy hiệu — không mô tả như cổ vật thật."
+              {...form.register("description")}
+            />
           </div>
           {serverError && (
             <p role="alert" className="rounded-md bg-error/10 px-3 py-2 text-sm text-error">
@@ -144,8 +235,11 @@ export function ItemCreateForm() {
             <Button type="submit" disabled={form.formState.isSubmitting}>
               {form.formState.isSubmitting ? "Đang tạo..." : "Tạo vật phẩm"}
             </Button>
-            <Button type="button" variant="secondary"
-              onClick={() => router.push("/items")}>
+            <Button
+              type="button"
+              variant="secondary"
+              onClick={() => router.push("/items")}
+            >
               Huỷ
             </Button>
           </div>

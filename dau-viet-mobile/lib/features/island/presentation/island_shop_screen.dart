@@ -7,6 +7,7 @@ import '../../../core/api/api_exception.dart';
 import '../../../core/theme/dau_viet_colors.dart';
 import '../../../core/theme/dau_viet_typography.dart';
 import '../../../core/widgets/tactile_3d_button.dart';
+import '../../rewards/data/reward_providers.dart';
 import '../data/island_dto.dart';
 import '../data/island_providers.dart';
 
@@ -101,6 +102,7 @@ class _IslandShopScreenState extends ConsumerState<IslandShopScreen> {
                   label: 'THỬ LẠI',
                   variant: Tactile3DVariant.secondaryParchment,
                   onPressed: () {
+                    ref.invalidate(inventoryItemsProvider);
                     ref.invalidate(islandShopItemsProvider);
                     ref.invalidate(islandWalletProvider);
                   },
@@ -128,33 +130,81 @@ class _IslandShopScreenState extends ConsumerState<IslandShopScreen> {
           final bool walletLoaded =
               walletAsync.hasValue && !walletAsync.hasError;
           final currentPoints = walletAsync.asData?.value.historyPoints ?? 0;
+          final bool ownershipVerified =
+              items.every((it) => it.ownershipVerified);
 
           return RefreshIndicator(
             color: DauVietColors.cinnabarRed,
             onRefresh: () async {
+              ref.invalidate(inventoryItemsProvider);
               ref.invalidate(islandShopItemsProvider);
               ref.invalidate(islandWalletProvider);
             },
-            child: ListView.separated(
+            child: ListView(
               padding: const EdgeInsets.fromLTRB(16, 12, 16, 32),
               physics: const AlwaysScrollableScrollPhysics(
                 parent: BouncingScrollPhysics(),
               ),
-              itemCount: items.length,
-              separatorBuilder: (context, index) => const SizedBox(height: 16),
-              itemBuilder: (context, index) {
-                final item = items[index];
-                final isPurchasing = _inFlightPurchaseItemIds.contains(
-                  item.itemId,
-                );
-
-                return _buildShopItemCard(
-                  item: item,
-                  walletLoaded: walletLoaded,
-                  currentPoints: currentPoints,
-                  isPurchasing: isPurchasing,
-                );
-              },
+              children: [
+                if (!ownershipVerified) ...[
+                  Container(
+                    padding: const EdgeInsets.all(12),
+                    decoration: BoxDecoration(
+                      color: const Color(0xFFFFF8E1),
+                      borderRadius: BorderRadius.circular(14),
+                      border: Border.all(
+                        color: DauVietColors.imperialGold,
+                        width: 1.5,
+                      ),
+                    ),
+                    child: Row(
+                      children: [
+                        const Icon(
+                          Icons.warning_amber_rounded,
+                          color: DauVietColors.woodBrown,
+                          size: 24,
+                        ),
+                        const SizedBox(width: 10),
+                        Expanded(
+                          child: Text(
+                            'Chưa xác minh được Túi đồ. Tạm khóa thao tác mua để tránh mua trùng.',
+                            style: DauVietTypography.bodySmall.copyWith(
+                              color: DauVietColors.inkText,
+                              fontWeight: FontWeight.w600,
+                            ),
+                          ),
+                        ),
+                        const SizedBox(width: 8),
+                        TextButton(
+                          onPressed: () {
+                            ref.invalidate(inventoryItemsProvider);
+                            ref.invalidate(islandShopItemsProvider);
+                          },
+                          child: const Text(
+                            'TẢI LẠI',
+                            style: TextStyle(
+                              fontWeight: FontWeight.bold,
+                              color: DauVietColors.cinnabarRed,
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                  const SizedBox(height: 16),
+                ],
+                for (int i = 0; i < items.length; i++) ...[
+                  if (i > 0) const SizedBox(height: 16),
+                  _buildShopItemCard(
+                    item: items[i],
+                    walletLoaded: walletLoaded,
+                    currentPoints: currentPoints,
+                    isPurchasing: _inFlightPurchaseItemIds.contains(
+                      items[i].itemId,
+                    ),
+                  ),
+                ],
+              ],
             ),
           );
         },
@@ -193,6 +243,41 @@ class _IslandShopScreenState extends ConsumerState<IslandShopScreen> {
     );
   }
 
+  Widget _buildNeutralItemArtwork(ShopItemDto item) {
+    final key = (item.renderKey ?? item.code).toLowerCase();
+    IconData icon = Icons.temple_buddhist_rounded;
+    if (key.contains('tre') || key.contains('cay')) {
+      icon = Icons.park_rounded;
+    } else if (key.contains('gieng') || key.contains('sen')) {
+      icon = Icons.water_drop_rounded;
+    } else if (key.contains('den_long')) {
+      icon = Icons.light_rounded;
+    } else if (key.contains('thuyen') || key.contains('cau')) {
+      icon = Icons.sailing_rounded;
+    } else if (key.contains('thap') || key.contains('khue_van')) {
+      icon = Icons.account_balance_rounded;
+    }
+
+    return Column(
+      mainAxisAlignment: MainAxisAlignment.center,
+      children: [
+        Icon(icon, size: 38, color: DauVietColors.woodBrown),
+        const SizedBox(height: 4),
+        Text(
+          item.name,
+          maxLines: 1,
+          overflow: TextOverflow.ellipsis,
+          textAlign: TextAlign.center,
+          style: DauVietTypography.bodySmall.copyWith(
+            fontSize: 9,
+            fontWeight: FontWeight.bold,
+            color: DauVietColors.woodBrown,
+          ),
+        ),
+      ],
+    );
+  }
+
   Widget _buildShopItemCard({
     required ShopItemDto item,
     required bool walletLoaded,
@@ -204,7 +289,10 @@ class _IslandShopScreenState extends ConsumerState<IslandShopScreen> {
         item.pricePoints != null && item.pricePoints! > 0;
     final bool isForSale = item.purchasable && hasValidPrice;
     final bool canAfford =
-        walletLoaded && isForSale && currentPoints >= item.pricePoints!;
+        walletLoaded &&
+        item.ownershipVerified &&
+        isForSale &&
+        currentPoints >= item.pricePoints!;
 
     return Container(
       padding: const EdgeInsets.all(16),
@@ -212,7 +300,7 @@ class _IslandShopScreenState extends ConsumerState<IslandShopScreen> {
         color: DauVietColors.parchmentContainer,
         borderRadius: BorderRadius.circular(20),
         border: Border.all(
-          color: (item.owned || !isForSale)
+          color: (item.owned || !isForSale || !item.ownershipVerified)
               ? DauVietColors.outlineVariant
               : DauVietColors.imperialGoldLight,
           width: 1.5,
@@ -228,7 +316,7 @@ class _IslandShopScreenState extends ConsumerState<IslandShopScreen> {
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          // Ảnh lớn artwork vật phẩm
+          // Ảnh lớn artwork vật phẩm hoặc biểu tượng di sản trung tính
           Container(
             width: 90,
             height: 90,
@@ -238,15 +326,14 @@ class _IslandShopScreenState extends ConsumerState<IslandShopScreen> {
               borderRadius: BorderRadius.circular(16),
               border: Border.all(color: DauVietColors.outlineVariant),
             ),
-            child: Image.asset(
-              assetPath,
-              fit: BoxFit.contain,
-              errorBuilder: (context, error, stackTrace) => const Icon(
-                Icons.account_balance_rounded,
-                size: 40,
-                color: DauVietColors.woodBrown,
-              ),
-            ),
+            child: assetPath != null
+                ? Image.asset(
+                    assetPath,
+                    fit: BoxFit.contain,
+                    errorBuilder: (context, error, stackTrace) =>
+                        _buildNeutralItemArtwork(item),
+                  )
+                : _buildNeutralItemArtwork(item),
           ),
           const SizedBox(width: 14),
 
@@ -305,7 +392,10 @@ class _IslandShopScreenState extends ConsumerState<IslandShopScreen> {
                               : 'Chưa mở bán',
                           style: DauVietTypography.bodyMedium.copyWith(
                             fontWeight: FontWeight.bold,
-                            color: (item.owned || !isForSale || !walletLoaded)
+                            color: (item.owned ||
+                                    !isForSale ||
+                                    !walletLoaded ||
+                                    !item.ownershipVerified)
                                 ? DauVietColors.inkMuted
                                 : (canAfford
                                       ? DauVietColors.heritageGreen
@@ -315,8 +405,29 @@ class _IslandShopScreenState extends ConsumerState<IslandShopScreen> {
                       ],
                     ),
 
-                    // Nút Mua / Đã sở hữu / Chưa mở bán
-                    if (item.owned)
+                    // Nút Mua / Đã sở hữu / Chưa mở bán / Chờ xác minh kho
+                    if (!item.ownershipVerified)
+                      Container(
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 10,
+                          vertical: 6,
+                        ),
+                        decoration: BoxDecoration(
+                          color: DauVietColors.parchmentDim,
+                          borderRadius: BorderRadius.circular(12),
+                          border: Border.all(
+                            color: DauVietColors.outlineVariant,
+                          ),
+                        ),
+                        child: Text(
+                          'CHỜ TẢI KHO',
+                          style: DauVietTypography.bodySmall.copyWith(
+                            fontWeight: FontWeight.bold,
+                            color: DauVietColors.inkMuted,
+                          ),
+                        ),
+                      )
+                    else if (item.owned)
                       Container(
                         padding: const EdgeInsets.symmetric(
                           horizontal: 14,
@@ -370,7 +481,10 @@ class _IslandShopScreenState extends ConsumerState<IslandShopScreen> {
                               ? Tactile3DVariant.primaryCinnabar
                               : Tactile3DVariant.secondaryParchment,
                           isLoading: isPurchasing,
-                          onPressed: (walletLoaded && canAfford && !isPurchasing)
+                          onPressed: (walletLoaded &&
+                                  item.ownershipVerified &&
+                                  canAfford &&
+                                  !isPurchasing)
                               ? () => _confirmPurchase(item, currentPoints)
                               : null,
                         ),
@@ -387,7 +501,10 @@ class _IslandShopScreenState extends ConsumerState<IslandShopScreen> {
 
   /// Mở hộp thoại xác nhận mua vật phẩm.
   Future<void> _confirmPurchase(ShopItemDto item, int currentPoints) async {
-    if (item.owned || !item.isForSale || item.pricePoints == null) {
+    if (!item.ownershipVerified ||
+        item.owned ||
+        !item.isForSale ||
+        item.pricePoints == null) {
       return;
     }
     if (currentPoints < item.pricePoints!) {

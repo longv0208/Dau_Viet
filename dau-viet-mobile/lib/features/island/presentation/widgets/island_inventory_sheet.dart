@@ -9,7 +9,9 @@ import '../../../rewards/data/reward_providers.dart';
 import '../../data/island_dto.dart';
 import '../../data/island_providers.dart';
 
-enum _InventoryFilter { all, placeable, placed, unplaced }
+enum _InventoryFilter { placeable, unplaced, placed, owned, all }
+
+enum _TypeFilter { all, decor, replica }
 
 /// Bottom sheet chọn vật phẩm từ Túi Đồ để đặt lên một ô trên Đảo Di Sản.
 class IslandInventorySheet extends ConsumerStatefulWidget {
@@ -29,6 +31,7 @@ class IslandInventorySheet extends ConsumerStatefulWidget {
 
 class _IslandInventorySheetState extends ConsumerState<IslandInventorySheet> {
   _InventoryFilter _selectedFilter = _InventoryFilter.placeable;
+  _TypeFilter _selectedTypeFilter = _TypeFilter.all;
 
   @override
   Widget build(BuildContext context) {
@@ -45,7 +48,7 @@ class _IslandInventorySheetState extends ConsumerState<IslandInventorySheet> {
 
     return Container(
       constraints: BoxConstraints(
-        maxHeight: MediaQuery.of(context).size.height * 0.75,
+        maxHeight: MediaQuery.of(context).size.height * 0.78,
       ),
       decoration: const BoxDecoration(
         color: DauVietColors.parchmentSurface,
@@ -68,7 +71,7 @@ class _IslandInventorySheetState extends ConsumerState<IslandInventorySheet> {
             ),
           ),
           Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 8),
+            padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 6),
             child: Row(
               children: [
                 Expanded(
@@ -103,10 +106,10 @@ class _IslandInventorySheetState extends ConsumerState<IslandInventorySheet> {
             ),
           ),
 
-          // 2. Filter Chips
+          // 2. Filter Chips (Trạng thái)
           SingleChildScrollView(
             scrollDirection: Axis.horizontal,
-            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
+            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 2),
             child: Row(
               children: [
                 _buildFilterChip('Có thể đặt', _InventoryFilter.placeable),
@@ -115,11 +118,28 @@ class _IslandInventorySheetState extends ConsumerState<IslandInventorySheet> {
                 const SizedBox(width: 8),
                 _buildFilterChip('Đang đặt', _InventoryFilter.placed),
                 const SizedBox(width: 8),
+                _buildFilterChip('Đã sở hữu', _InventoryFilter.owned),
+                const SizedBox(width: 8),
                 _buildFilterChip('Tất cả', _InventoryFilter.all),
               ],
             ),
           ),
-          const Divider(height: 16, color: DauVietColors.outlineVariant),
+
+          // 2b. Filter Chips (Loại vật phẩm)
+          SingleChildScrollView(
+            scrollDirection: Axis.horizontal,
+            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 2),
+            child: Row(
+              children: [
+                _buildTypeChip('Tất cả loại', _TypeFilter.all),
+                const SizedBox(width: 8),
+                _buildTypeChip('Trang trí (DECOR)', _TypeFilter.decor),
+                const SizedBox(width: 8),
+                _buildTypeChip('Mô hình (REPLICA)', _TypeFilter.replica),
+              ],
+            ),
+          ),
+          const Divider(height: 12, color: DauVietColors.outlineVariant),
 
           // 3. Grid danh sách vật phẩm
           Expanded(
@@ -151,18 +171,19 @@ class _IslandInventorySheetState extends ConsumerState<IslandInventorySheet> {
                       Tactile3DButton(
                         label: 'THỬ LẠI',
                         variant: Tactile3DVariant.secondaryParchment,
-                        onPressed: () =>
-                            ref.invalidate(inventoryCatalogProvider),
+                        onPressed: () {
+                          ref.invalidate(inventoryCatalogProvider);
+                          ref.invalidate(inventoryItemsProvider);
+                        },
                       ),
                     ],
                   ),
                 ),
               ),
               data: (catalog) {
-                // Lọc vật phẩm trang trí
-                final decorItems = _filterItems(catalog, placedItemIds);
+                final filteredItems = _filterItems(catalog, placedItemIds);
 
-                if (decorItems.isEmpty) {
+                if (filteredItems.isEmpty) {
                   return Center(
                     child: Padding(
                       padding: const EdgeInsets.all(32),
@@ -194,12 +215,14 @@ class _IslandInventorySheetState extends ConsumerState<IslandInventorySheet> {
                     crossAxisCount: 2,
                     crossAxisSpacing: 12,
                     mainAxisSpacing: 12,
-                    childAspectRatio: 0.78,
+                    childAspectRatio: 0.76,
                   ),
-                  itemCount: decorItems.length,
+                  itemCount: filteredItems.length,
                   itemBuilder: (context, index) {
-                    final item = decorItems[index];
-                    final isPlaced = placedItemIds.contains(item.itemId);
+                    final item = filteredItems[index];
+                    final isPlaced =
+                        placedItemIds.contains(item.itemId) ||
+                        item.placedSlotId != null;
                     final isCurrentSlotItem =
                         widget.targetSlot.placement?.itemId == item.itemId;
 
@@ -240,31 +263,74 @@ class _IslandInventorySheetState extends ConsumerState<IslandInventorySheet> {
     );
   }
 
+  Widget _buildTypeChip(String label, _TypeFilter typeFilter) {
+    final isSelected = _selectedTypeFilter == typeFilter;
+    return ChoiceChip(
+      label: Text(label),
+      selected: isSelected,
+      onSelected: (selected) {
+        if (selected) setState(() => _selectedTypeFilter = typeFilter);
+      },
+      selectedColor: DauVietColors.woodBrown,
+      backgroundColor: DauVietColors.parchmentContainer,
+      labelStyle: DauVietTypography.bodySmall.copyWith(
+        fontSize: 11,
+        fontWeight: FontWeight.bold,
+        color: isSelected ? Colors.white : DauVietColors.inkText,
+      ),
+      side: BorderSide(
+        color: isSelected
+            ? DauVietColors.woodBrown
+            : DauVietColors.outlineVariant,
+      ),
+    );
+  }
+
+  bool _isAllowedInTargetSlot(CatalogItemDto item) {
+    final allowed = widget.targetSlot.allowedCategories
+        .map((c) => c.trim().toUpperCase())
+        .where((c) => c.isNotEmpty)
+        .toSet();
+    if (allowed.isEmpty) return true;
+    final cat = item.category.trim().toUpperCase();
+    final type = item.itemType.trim().toUpperCase();
+    return allowed.contains(cat) || allowed.contains(type);
+  }
+
   List<CatalogItemDto> _filterItems(
     List<CatalogItemDto> catalog,
     Set<String> placedItemIds,
   ) {
-    // Chỉ hiển thị item category DECOR hoặc có code decor_* mà user đang sở hữu.
-    // Không fallback sang toàn bộ catalog — trong chế độ thực, catalog chứa
-    // mọi item (kể cả chưa mua); chỉ lấy những gì đã owned + là decor.
-    final decorPool = catalog.where((item) {
-      final isDecorCategory = item.category.toUpperCase() == 'DECOR';
-      final isDecorCode = item.code.toLowerCase().startsWith('decor_');
-      return isDecorCategory || isDecorCode;
+    final byType = catalog.where((item) {
+      switch (_selectedTypeFilter) {
+        case _TypeFilter.all:
+          return item.placeable ||
+              item.category.toUpperCase() == 'DECOR' ||
+              item.itemType.toUpperCase() == 'DECOR' ||
+              item.itemType.toUpperCase() == 'HISTORICAL_REPLICA';
+        case _TypeFilter.decor:
+          return item.category.toUpperCase() == 'DECOR' ||
+              item.itemType.toUpperCase() == 'DECOR';
+        case _TypeFilter.replica:
+          return item.itemType.toUpperCase() == 'HISTORICAL_REPLICA';
+      }
     }).toList();
 
-    return decorPool.where((item) {
-      final isPlaced = placedItemIds.contains(item.itemId);
+    return byType.where((item) {
+      final isPlaced =
+          placedItemIds.contains(item.itemId) || item.placedSlotId != null;
 
       switch (_selectedFilter) {
-        case _InventoryFilter.all:
-          return true;
         case _InventoryFilter.placeable:
-          return item.owned;
-        case _InventoryFilter.placed:
-          return item.owned && isPlaced;
+          return item.owned && item.placeable && !isPlaced;
         case _InventoryFilter.unplaced:
           return item.owned && !isPlaced;
+        case _InventoryFilter.placed:
+          return item.owned && isPlaced;
+        case _InventoryFilter.owned:
+          return item.owned;
+        case _InventoryFilter.all:
+          return true;
       }
     }).toList();
   }
@@ -273,12 +339,40 @@ class _IslandInventorySheetState extends ConsumerState<IslandInventorySheet> {
     switch (_selectedFilter) {
       case _InventoryFilter.placed:
         return 'Chưa có vật phẩm nào đang đặt trên đảo.';
-      case _InventoryFilter.unplaced:
-        return 'Không còn vật phẩm trang trí rảnh rỗi trong kho. Bạn có thể ghé Cửa Hàng để mua thêm!';
       case _InventoryFilter.placeable:
+      case _InventoryFilter.unplaced:
+        return 'Không còn vật phẩm trang trí rảnh rỗi trong kho. Bạn có thể ghé Cửa Hàng Di Sản để mua thêm!';
+      case _InventoryFilter.owned:
       case _InventoryFilter.all:
-        return 'Bạn chưa sở hữu vật phẩm trang trí nào. Hãy ghé Cửa Hàng Điểm Sử Ký để mua đồ trang trí nhé!';
+        return 'Bạn chưa sở hữu vật phẩm trang trí nào phù hợp. Hãy ghé Cửa Hàng Di Sản nhé!';
     }
+  }
+
+  Widget _buildNeutralArtwork(CatalogItemDto item) {
+    final key = (item.renderKey ?? item.code).toLowerCase();
+    IconData icon = Icons.temple_buddhist_rounded;
+    if (key.contains('tre') || key.contains('cay')) {
+      icon = Icons.park_rounded;
+    } else if (key.contains('gieng') || key.contains('sen')) {
+      icon = Icons.water_drop_rounded;
+    } else if (key.contains('den_long')) {
+      icon = Icons.light_rounded;
+    } else if (key.contains('thuyen') || key.contains('cau')) {
+      icon = Icons.sailing_rounded;
+    } else if (key.contains('thap') || key.contains('khue_van')) {
+      icon = Icons.account_balance_rounded;
+    }
+
+    return Container(
+      width: 64,
+      height: 64,
+      decoration: BoxDecoration(
+        color: DauVietColors.parchmentSurface,
+        borderRadius: BorderRadius.circular(14),
+        border: Border.all(color: DauVietColors.outlineVariant),
+      ),
+      child: Icon(icon, size: 36, color: DauVietColors.woodBrown),
+    );
   }
 
   Widget _buildItemCard({
@@ -286,7 +380,21 @@ class _IslandInventorySheetState extends ConsumerState<IslandInventorySheet> {
     required bool isPlaced,
     required bool isCurrentSlotItem,
   }) {
-    final assetPath = resolveIslandAsset(null, item.code, item.assetId);
+    final assetPath = resolveIslandAsset(item.renderKey, item.code, item.assetId);
+    final bool isAllowedCategory = _isAllowedInTargetSlot(item);
+    final bool canPlaceHere =
+        item.owned && item.placeable && !isPlaced && isAllowedCategory;
+
+    String buttonLabel = 'ĐẶT';
+    if (isCurrentSlotItem) {
+      buttonLabel = 'ĐANG Ở Ô NÀY';
+    } else if (isPlaced) {
+      buttonLabel = 'ĐÃ ĐẶT Ô KHÁC';
+    } else if (!item.placeable) {
+      buttonLabel = 'KHÔNG ĐẶT ĐƯỢC';
+    } else if (!isAllowedCategory) {
+      buttonLabel = 'KHÁC NHÓM Ô';
+    }
 
     return Container(
       padding: const EdgeInsets.all(12),
@@ -303,23 +411,26 @@ class _IslandInventorySheetState extends ConsumerState<IslandInventorySheet> {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          // Ảnh vật phẩm
+          // Ảnh vật phẩm hoặc biểu tượng di sản trung tính
           Expanded(
             child: Stack(
               alignment: Alignment.center,
               children: [
-                Image.asset(
-                  assetPath,
-                  fit: BoxFit.contain,
-                  errorBuilder: (context, error, stackTrace) => const Icon(
-                    Icons.account_balance_rounded,
-                    size: 48,
-                    color: DauVietColors.woodBrown,
-                  ),
-                ),
+                if (assetPath != null)
+                  Image.asset(
+                    assetPath,
+                    fit: BoxFit.contain,
+                    errorBuilder: (context, error, stackTrace) =>
+                        _buildNeutralArtwork(item),
+                  )
+                else
+                  _buildNeutralArtwork(item),
                 if (!item.owned)
                   Container(
-                    color: Colors.black45,
+                    decoration: BoxDecoration(
+                      color: Colors.black45,
+                      borderRadius: BorderRadius.circular(12),
+                    ),
                     child: const Center(
                       child: Icon(
                         Icons.lock_rounded,
@@ -338,11 +449,13 @@ class _IslandInventorySheetState extends ConsumerState<IslandInventorySheet> {
                         vertical: 2,
                       ),
                       decoration: BoxDecoration(
-                        color: DauVietColors.woodBrown,
+                        color: isCurrentSlotItem
+                            ? DauVietColors.cinnabarRed
+                            : DauVietColors.woodBrown,
                         borderRadius: BorderRadius.circular(8),
                       ),
                       child: Text(
-                        'Đang đặt',
+                        isCurrentSlotItem ? 'Ô hiện tại' : 'Đang đặt',
                         style: DauVietTypography.bodySmall.copyWith(
                           fontSize: 9,
                           color: Colors.white,
@@ -369,7 +482,9 @@ class _IslandInventorySheetState extends ConsumerState<IslandInventorySheet> {
           ),
           const SizedBox(height: 2),
           Text(
-            item.owned ? 'Đã sở hữu' : 'Chưa mở khóa',
+            item.owned
+                ? (item.placeable ? 'Có thể trang trí' : 'Vật phẩm sưu tầm')
+                : 'Chưa sở hữu',
             style: DauVietTypography.bodySmall.copyWith(
               fontSize: 10,
               color: item.owned
@@ -379,23 +494,23 @@ class _IslandInventorySheetState extends ConsumerState<IslandInventorySheet> {
           ),
           const SizedBox(height: 8),
 
-          // Nút đặt
+          // Nút đặt (chỉ kích hoạt khi owned && placeable && !isPlaced && isAllowedCategory)
           SizedBox(
             height: 34,
             child: item.owned
                 ? Tactile3DButton(
-                    label: isCurrentSlotItem ? 'ĐANG Ở Ô NÀY' : 'ĐẶT',
+                    label: buttonLabel,
                     height: 34,
                     depth: 2,
-                    variant: isCurrentSlotItem
-                        ? Tactile3DVariant.secondaryParchment
-                        : Tactile3DVariant.heritageGreen,
-                    onPressed: isCurrentSlotItem
-                        ? null
-                        : () {
+                    variant: canPlaceHere
+                        ? Tactile3DVariant.heritageGreen
+                        : Tactile3DVariant.secondaryParchment,
+                    onPressed: canPlaceHere
+                        ? () {
                             Navigator.of(context).pop();
                             widget.onSelectItem(item.itemId);
-                          },
+                          }
+                        : null,
                   )
                 : const SizedBox.shrink(),
           ),

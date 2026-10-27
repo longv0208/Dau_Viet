@@ -209,9 +209,13 @@ class _IslandSlotWidgetState extends State<IslandSlotWidget>
       );
     }
 
-    // Đã đặt vật phẩm: hiển thị tranh minh họa 2.5D
+    // Đã đặt vật phẩm: hiển thị tranh minh họa 2.5D hoặc biểu tượng di sản trung tính
     final placement = slot.placement!;
     final asset = placement.assetPath;
+
+    if (asset == null) {
+      return _buildNeutralPlacementBadge(placement);
+    }
 
     return Image.asset(
       asset,
@@ -219,21 +223,46 @@ class _IslandSlotWidgetState extends State<IslandSlotWidget>
       height: 76,
       fit: BoxFit.contain,
       errorBuilder: (context, error, stackTrace) {
-        return Container(
-          width: 50,
-          height: 50,
-          decoration: BoxDecoration(
-            color: DauVietColors.parchmentContainer,
-            shape: BoxShape.circle,
-            border: Border.all(color: DauVietColors.imperialGold),
-          ),
-          child: const Icon(
-            Icons.account_balance_rounded,
-            color: DauVietColors.woodBrown,
-            size: 28,
-          ),
-        );
+        return _buildNeutralPlacementBadge(placement);
       },
+    );
+  }
+
+  Widget _buildNeutralPlacementBadge(IslandPlacementDto placement) {
+    final key = (placement.renderKey ?? placement.code).toLowerCase();
+    IconData icon = Icons.temple_buddhist_rounded;
+    if (key.contains('tre') || key.contains('cay')) {
+      icon = Icons.park_rounded;
+    } else if (key.contains('gieng') || key.contains('sen')) {
+      icon = Icons.water_drop_rounded;
+    } else if (key.contains('den_long')) {
+      icon = Icons.light_rounded;
+    } else if (key.contains('thuyen') || key.contains('cau')) {
+      icon = Icons.sailing_rounded;
+    } else if (key.contains('thap') || key.contains('khue_van')) {
+      icon = Icons.account_balance_rounded;
+    }
+
+    return Container(
+      width: 56,
+      height: 56,
+      decoration: BoxDecoration(
+        color: DauVietColors.parchmentContainer,
+        shape: BoxShape.circle,
+        border: Border.all(color: DauVietColors.imperialGold, width: 2),
+        boxShadow: const [
+          BoxShadow(
+            color: Colors.black26,
+            offset: Offset(0, 3),
+            blurRadius: 6,
+          ),
+        ],
+      ),
+      child: Icon(
+        icon,
+        color: DauVietColors.woodBrown,
+        size: 30,
+      ),
     );
   }
 

@@ -3,33 +3,41 @@ import 'dart:ui';
 
 import 'package:flutter/foundation.dart';
 
-/// Trả về đường dẫn asset cục bộ dựa vào renderKey, code hoặc assetId.
-String resolveIslandAsset(String? renderKey, String? code, [String? assetId]) {
-  final key = (renderKey ?? code ?? assetId ?? '').toLowerCase().trim();
-  if (key.contains('nha_tranh') ||
-      key.contains('nhatranh') ||
-      key.contains('nha')) {
-    return 'assets/items/decor_nha_tranh.png';
+/// Trả về đường dẫn asset cục bộ đã đóng gói dựa vào renderKey hoặc code.
+/// Trả về null nếu vật phẩm chưa có tranh minh họa cục bộ tương ứng —
+/// tuyệt đối KHÔNG biến mọi vật phẩm lạ thành `decor_nha_tranh.png`.
+String? resolveIslandAsset(String? renderKey, String? code, [String? assetId]) {
+  final rk = (renderKey ?? '').toLowerCase().trim();
+  final cd = (code ?? '').toLowerCase().trim();
+
+  if (rk.startsWith('assets/') && !rk.contains('..')) {
+    return renderKey!.trim();
   }
-  if (key.contains('cau_kieu') ||
-      key.contains('caukieu') ||
-      key.contains('cau') ||
-      key.contains('thuyen')) {
-    return 'assets/items/decor_cau_kieu.png';
+
+  for (final token in [rk, cd]) {
+    if (token.isEmpty) continue;
+    if (token == 'decor.nha_tranh' ||
+        token == 'decor_nha_tranh' ||
+        token == 'nha_tranh') {
+      return 'assets/items/decor_nha_tranh.png';
+    }
+    if (token == 'decor.cau_kieu' ||
+        token == 'decor_cau_kieu' ||
+        token == 'cau_kieu') {
+      return 'assets/items/decor_cau_kieu.png';
+    }
+    if (token == 'decor.ho_sen' ||
+        token == 'decor_ho_sen' ||
+        token == 'ho_sen') {
+      return 'assets/items/decor_ho_sen.png';
+    }
+    if (token == 'decor.cay_da' ||
+        token == 'decor_cay_da' ||
+        token == 'cay_da') {
+      return 'assets/items/decor_cay_da.png';
+    }
   }
-  if (key.contains('ho_sen') ||
-      key.contains('hosen') ||
-      key.contains('sen') ||
-      key.contains('gieng')) {
-    return 'assets/items/decor_ho_sen.png';
-  }
-  if (key.contains('cay_da') ||
-      key.contains('cayda') ||
-      key.contains('cay') ||
-      key.contains('truc')) {
-    return 'assets/items/decor_cay_da.png';
-  }
-  return 'assets/items/decor_nha_tranh.png';
+  return null;
 }
 
 /// Thông tin vật phẩm đặt trên một slot của đảo.
@@ -49,7 +57,7 @@ class IslandPlacementDto {
     this.assetId,
   });
 
-  String get assetPath => resolveIslandAsset(renderKey, code, assetId);
+  String? get assetPath => resolveIslandAsset(renderKey, code, assetId);
 
   factory IslandPlacementDto.fromJson(Map<String, dynamic> json) {
     return IslandPlacementDto(
@@ -550,6 +558,9 @@ class ShopItemDto {
   /// Phản ánh trạng thái sở hữu từ inventory (mock hoặc enriched client-side).
   /// Backend ShopItemResponse không trả field này — mặc định false từ listing.
   final bool owned;
+  /// True chỉ khi đã đối chiếu thành công với `/me/inventory`.
+  /// Nếu tải inventory thất bại, `ownershipVerified = false` để khóa nút MUA.
+  final bool ownershipVerified;
 
   const ShopItemDto({
     required this.itemId,
@@ -563,6 +574,7 @@ class ShopItemDto {
     this.assetId,
     this.placeable = true,
     this.owned = false,
+    this.ownershipVerified = true,
   });
 
   /// Tiện ích: giá để hiển thị (0 nếu chưa mở bán).
@@ -571,9 +583,9 @@ class ShopItemDto {
   /// Vật phẩm chỉ được phép mua khi purchasable = true và có giá > 0.
   bool get isForSale => purchasable && pricePoints != null && pricePoints! > 0;
 
-  String get assetPath => resolveIslandAsset(renderKey, code, assetId);
+  String? get assetPath => resolveIslandAsset(renderKey, code, assetId);
 
-  ShopItemDto copyWith({bool? owned}) {
+  ShopItemDto copyWith({bool? owned, bool? ownershipVerified}) {
     return ShopItemDto(
       itemId: itemId,
       code: code,
@@ -586,6 +598,7 @@ class ShopItemDto {
       assetId: assetId,
       placeable: placeable,
       owned: owned ?? this.owned,
+      ownershipVerified: ownershipVerified ?? this.ownershipVerified,
     );
   }
 

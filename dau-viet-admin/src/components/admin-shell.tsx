@@ -18,6 +18,7 @@ import {
   PanelLeftClose,
   PanelLeftOpen,
   Route,
+  Store,
 } from "lucide-react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
@@ -38,6 +39,7 @@ const NAV_ITEMS = [
   { href: "/learning-path", label: "Bản đồ Dấu Ấn", icon: Route },
   { href: "/map-locations", label: "Địa điểm di tích", icon: MapPin },
   { href: "/island-builder", label: "Đảo Di Sản", icon: Compass },
+  { href: "/island-shop", label: "Cửa hàng Đảo Di Sản", icon: Store },
   { href: "/templates", label: "Mẫu bài học", icon: LayoutTemplate },
   { href: "/assets", label: "Thư viện media", icon: ImageIcon },
   { href: "/animations", label: "Hoạt họa lịch sử", icon: Film },
