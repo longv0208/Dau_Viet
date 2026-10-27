@@ -1,6 +1,7 @@
 export type PathStatus = "DRAFT" | "PUBLISHED" | "ARCHIVED";
 export type ParticipationType = "REQUIRED" | "EXPLORATION_ONLY";
 export type ContentStatus = "PLAYABLE" | "NO_PUBLISHED_LESSON" | "NO_COMPLETION_POLICY" | "CONTENT_REVIEW_REQUIRED";
+export type PathNodeType = "ERA" | "PERIOD" | "PHASE";
 
 export interface PathVersion {
   id: string;
@@ -23,12 +24,16 @@ export interface ChapterInput {
   endYear: number;
   periodLabel: string;
   themeKey: string;
+  parentId?: string | null;
+  nodeType?: PathNodeType;
 }
 
 export interface PathChapter {
   chapter: Omit<ChapterInput, "description"> & {
     id: string;
     pathVersionId: string;
+    parentId: string | null;
+    nodeType: PathNodeType;
     description: string | null;
     sortOrder: number;
   };
@@ -46,6 +51,8 @@ export interface PathEvent {
   };
   title: string | null;
   startYear: number | null;
+  endYear?: number | null;
+  datePrecision?: string | null;
   eventStatus: PathStatus | null;
   canonicalEventId: string;
   alias: boolean;

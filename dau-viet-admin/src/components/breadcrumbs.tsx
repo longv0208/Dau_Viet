@@ -16,6 +16,7 @@ const CRUMB_LABELS: Record<string, string> = {
   dashboard: "Tổng quan",
   events: "Sự kiện",
   "learning-path": "Bản đồ Dấu Ấn",
+  "map-locations": "Địa điểm di tích",
   edit: "Thiết kế",
   lessons: "Bài học",
   evidence: "Bằng chứng",

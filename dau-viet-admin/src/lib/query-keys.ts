@@ -47,6 +47,13 @@ export const qk = {
   },
   mapLocations: {
     list: (eventId: string) => ["map-locations", "list", eventId] as const,
+    standaloneList: (params?: {
+      q?: string;
+      kind?: string;
+      status?: string;
+      eventId?: string;
+    }) => ["map-locations", "standalone", params ?? {}] as const,
+    standaloneDetail: (id: string) => ["map-locations", "standalone", "detail", id] as const,
   },
   learner: {
     content: (id: string) => ["learner", "content", id] as const,
