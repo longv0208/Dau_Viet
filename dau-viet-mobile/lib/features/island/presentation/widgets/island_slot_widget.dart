@@ -429,7 +429,7 @@ class _IslandSlotWidgetState extends State<IslandSlotWidget>
     if (remoteUrl != null) {
       return Image.network(
         remoteUrl,
-        headers: islandAuthHeaders(),
+        headers: islandAuthHeaders(remoteUrl),
         fit: BoxFit.contain,
         alignment: Alignment.bottomCenter,
         errorBuilder: (context, error, stackTrace) =>

@@ -486,7 +486,7 @@ class _IslandInventorySheetState extends ConsumerState<IslandInventorySheet> {
                         remoteUrl != null
                         ? Image.network(
                             remoteUrl,
-                            headers: islandAuthHeaders(),
+                            headers: islandAuthHeaders(remoteUrl),
                             fit: BoxFit.contain,
                             errorBuilder: (context, error, stackTrace) =>
                                 _buildNeutralArtwork(item),
@@ -496,7 +496,7 @@ class _IslandInventorySheetState extends ConsumerState<IslandInventorySheet> {
                 else if (remoteUrl != null)
                   Image.network(
                     remoteUrl,
-                    headers: islandAuthHeaders(),
+                    headers: islandAuthHeaders(remoteUrl),
                     fit: BoxFit.contain,
                     errorBuilder: (context, error, stackTrace) =>
                         _buildNeutralArtwork(item),

@@ -607,9 +607,36 @@ public class IslandService {
             return null;
         }
         String trimmed = rawRef.trim();
-        if (trimmed.startsWith("/api/v1/admin/assets/")) {
-            return "/api/v1/assets/" + trimmed.substring("/api/v1/admin/assets/".length());
+        if (trimmed.contains("..") || trimmed.contains("@") || trimmed.contains("?") || trimmed.contains("#")) {
+            return null;
         }
-        return trimmed;
+        if (trimmed.startsWith("/api/v1/admin/assets/") && trimmed.endsWith("/content")) {
+            String idPart = trimmed.substring(
+                    "/api/v1/admin/assets/".length(),
+                    trimmed.length() - "/content".length());
+            try {
+                return "/api/v1/assets/" + UUID.fromString(idPart) + "/content";
+            } catch (IllegalArgumentException ex) {
+                return null;
+            }
+        }
+        if (trimmed.startsWith("/api/v1/assets/") && trimmed.endsWith("/content")) {
+            String idPart = trimmed.substring(
+                    "/api/v1/assets/".length(),
+                    trimmed.length() - "/content".length());
+            try {
+                return "/api/v1/assets/" + UUID.fromString(idPart) + "/content";
+            } catch (IllegalArgumentException ex) {
+                return null;
+            }
+        }
+        try {
+            return "/api/v1/assets/" + UUID.fromString(trimmed) + "/content";
+        } catch (IllegalArgumentException ignored) {
+        }
+        if (trimmed.startsWith("assets/")) {
+            return trimmed;
+        }
+        return null;
     }
 }

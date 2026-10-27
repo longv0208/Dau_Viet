@@ -334,7 +334,7 @@ class _IslandShopScreenState extends ConsumerState<IslandShopScreen> {
                         item.remoteAssetUrl != null
                         ? Image.network(
                             item.remoteAssetUrl!,
-                            headers: islandAuthHeaders(),
+                            headers: islandAuthHeaders(item.remoteAssetUrl),
                             fit: BoxFit.contain,
                             errorBuilder: (context, error, stackTrace) =>
                                 _buildNeutralItemArtwork(item),
@@ -344,7 +344,7 @@ class _IslandShopScreenState extends ConsumerState<IslandShopScreen> {
                 : item.remoteAssetUrl != null
                 ? Image.network(
                     item.remoteAssetUrl!,
-                    headers: islandAuthHeaders(),
+                    headers: islandAuthHeaders(item.remoteAssetUrl),
                     fit: BoxFit.contain,
                     errorBuilder: (context, error, stackTrace) =>
                         _buildNeutralItemArtwork(item),

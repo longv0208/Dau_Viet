@@ -3,12 +3,14 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
+import '../../../core/api/api_config.dart';
 import '../../../core/api/api_exception.dart';
 import '../../../core/theme/dau_viet_colors.dart';
 import '../../../core/theme/dau_viet_typography.dart';
 import '../../../core/widgets/gold_confetti_overlay.dart';
 import '../../../core/widgets/tactile_3d_button.dart';
-import '../../events/data/events_providers.dart';
+import '../../auth/data/auth_state.dart';
+import '../../learning/data/learning_providers.dart';
 import '../data/island_dto.dart';
 import '../data/island_providers.dart';
 import 'widgets/island_inventory_sheet.dart';
@@ -88,10 +90,12 @@ class _IslandScreenState extends ConsumerState<IslandScreen>
   String? _currentAuthenticatedUserId() {
     final auth = ref.read(authSessionProvider);
     final profileId = auth.profile?.id.trim();
-    if (auth.isAuthenticated && profileId != null && profileId.isNotEmpty) {
+    if (auth.status == AuthStatus.authenticated &&
+        profileId != null &&
+        profileId.isNotEmpty) {
       return profileId;
     }
-    if (ref.read(useMockEventsProvider)) {
+    if (auth.status == AuthStatus.guest && ApiConfig.useMock) {
       return 'mock_user';
     }
     return null;
@@ -185,15 +189,17 @@ class _IslandScreenState extends ConsumerState<IslandScreen>
 
   @override
   Widget build(BuildContext context) {
-    ref.listen<AuthSessionState>(authSessionProvider, (previous, next) {
+    ref.listen<AuthState>(authSessionProvider, (previous, next) {
       final prevId = previous?.profile?.id;
       final nextId = next.profile?.id;
-      if (!next.isAuthenticated || prevId != nextId) {
+      final prevStatus = previous?.status;
+      final nextStatus = next.status;
+      if (prevStatus != nextStatus || prevId != nextId) {
         if (mounted) {
           setState(_resetTransientUserUiState);
         }
         final currentIsland = ref.read(islandControllerProvider).asData?.value;
-        if (next.isAuthenticated && currentIsland != null) {
+        if (currentIsland != null && _currentAuthenticatedUserId() != null) {
           _syncOnboardingForCurrentUser(currentIsland);
         }
       }

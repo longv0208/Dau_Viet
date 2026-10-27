@@ -351,10 +351,15 @@ public class IslandLayoutService {
         Set<Integer> checkSlotIndices = new HashSet<>();
         for (int i = 0; i < incomingSlots.size(); i++) {
             SlotDto s = incomingSlots.get(i);
-            int slotIndex = s.slotIndex() > 0 ? s.slotIndex() : (i + 1);
+            int slotIndex = s.slotIndex() != 0 ? s.slotIndex() : (i + 1);
             String key = s.stableSlotKey() != null && !s.stableSlotKey().isBlank()
                     ? s.stableSlotKey().trim()
                     : "slot_" + slotIndex;
+            if (slotIndex < 1 || slotIndex > 64) {
+                snapshotKeyErrors.add(new ValidationError(
+                        "SLOT", key, "slotIndex", "INVALID_SLOT_INDEX",
+                        "Chỉ mục slot (slotIndex) phải nằm trong khoảng 1..64: " + slotIndex));
+            }
             if (!checkSlotKeys.add(key)) {
                 snapshotKeyErrors.add(new ValidationError(
                         "SLOT", key, "stableSlotKey", "DUPLICATE_SLOT_KEY",
@@ -377,6 +382,10 @@ public class IslandLayoutService {
                         "LAYER", lKey, "layerKey", "DUPLICATE_LAYER_KEY",
                         "Trùng khóa lớp cảnh quan (layerKey): " + lKey));
             }
+            String layerType = l.layerType() != null ? l.layerType().trim().toUpperCase() : "STATIC_IMAGE";
+            if ("STATIC_IMAGE".equals(layerType) && l.assetRef() != null && !l.assetRef().isBlank()) {
+                validateAssetRefStrict(lKey, l.assetRef(), snapshotKeyErrors);
+            }
         }
         if (!snapshotKeyErrors.isEmpty()) {
             throw new IslandLayoutValidationException(snapshotKeyErrors);
@@ -384,7 +393,7 @@ public class IslandLayoutService {
 
         Instant now = Instant.now(clock);
 
-        // 1. Update regions safely in-place without duplicate UUID conflicts
+        // 1. Update regions safely in-place without temporary invalid codes
         List<IslandLayoutRegion> existingRegions =
                 regions.findByLayoutVersionIdOrderBySortOrderAsc(versionId);
         Map<UUID, IslandLayoutRegion> existingRegionById = existingRegions.stream()
@@ -413,10 +422,6 @@ public class IslandLayoutService {
         for (IslandLayoutRegion oldReg : existingRegions) {
             if (!keptRegionIds.contains(oldReg.getId())) {
                 regions.delete(oldReg);
-            } else {
-                oldReg.update("__tmp_" + oldReg.getId(), oldReg.getUnlockTier(),
-                        oldReg.getLabel(), oldReg.getBoundsJson(), oldReg.getSortOrder());
-                regions.save(oldReg);
             }
         }
         regions.flush();
@@ -447,7 +452,7 @@ public class IslandLayoutService {
         }
         regions.flush();
 
-        // 2. Update slots safely (preserve slot IDs & stableSlotKey; forbid deleting slot with placement)
+        // 2. Update slots safely in-place (preserve slot UUIDs & stableSlotKey; never write slot_index outside 1..64)
         List<IslandSlot> existingSlots = slots.findByLayoutVersionIdOrderBySlotIndex(versionId);
         Map<UUID, IslandSlot> existingById = existingSlots.stream()
                 .collect(Collectors.toMap(IslandSlot::getId, s -> s));
@@ -484,19 +489,6 @@ public class IslandLayoutService {
         }
         slots.flush();
 
-        int tempIdx = -1;
-        for (IslandSlot oldSlot : existingSlots) {
-            if (keptSlotIds.contains(oldSlot.getId())) {
-                oldSlot.update(tempIdx, oldSlot.getTierRequired(), oldSlot.getCoordX(), oldSlot.getCoordY(),
-                        "__tmp_" + oldSlot.getId(), oldSlot.getRegionCode(), oldSlot.getZIndex(),
-                        oldSlot.getAnchorX(), oldSlot.getAnchorY(), oldSlot.getWidthNorm(), oldSlot.getHeightNorm(),
-                        oldSlot.getAllowedCategoriesJson());
-                slots.save(oldSlot);
-                tempIdx--;
-            }
-        }
-        slots.flush();
-
         for (int i = 0; i < incomingSlots.size(); i++) {
             SlotDto s = incomingSlots.get(i);
             IslandSlot existingSlot = matchedSlots.get(i);
@@ -528,7 +520,7 @@ public class IslandLayoutService {
         }
         slots.flush();
 
-        // 3. Update scene layers safely in-place without duplicate UUID conflicts
+        // 3. Update scene layers safely in-place without temporary keys
         List<IslandSceneLayer> existingLayers =
                 sceneLayers.findByLayoutVersionIdOrderByRenderOrderAsc(versionId);
         Map<UUID, IslandSceneLayer> existingLayerById = existingLayers.stream()
@@ -557,10 +549,6 @@ public class IslandLayoutService {
         for (IslandSceneLayer oldLayer : existingLayers) {
             if (!keptLayerIds.contains(oldLayer.getId())) {
                 sceneLayers.delete(oldLayer);
-            } else {
-                oldLayer.update("__tmp_" + oldLayer.getId(), oldLayer.getLayerType(),
-                        oldLayer.getRenderOrder(), oldLayer.getAssetRef(), oldLayer.getVisibilityRuleJson());
-                sceneLayers.save(oldLayer);
             }
         }
         sceneLayers.flush();
@@ -663,10 +651,34 @@ public class IslandLayoutService {
             return null;
         }
         String trimmed = rawRef.trim();
-        if (trimmed.startsWith("/api/v1/admin/assets/")) {
-            return "/api/v1/assets/" + trimmed.substring("/api/v1/admin/assets/".length());
+        if (trimmed.startsWith("/api/v1/admin/assets/") && trimmed.endsWith("/content")) {
+            String candidate = trimmed.substring(
+                    "/api/v1/admin/assets/".length(),
+                    trimmed.length() - "/content".length());
+            try {
+                UUID id = UUID.fromString(candidate);
+                return "/api/v1/assets/" + id + "/content";
+            } catch (IllegalArgumentException ignored) {
+                return trimmed;
+            }
         }
-        return trimmed;
+        if (trimmed.startsWith("/api/v1/assets/") && trimmed.endsWith("/content")) {
+            String candidate = trimmed.substring(
+                    "/api/v1/assets/".length(),
+                    trimmed.length() - "/content".length());
+            try {
+                UUID id = UUID.fromString(candidate);
+                return "/api/v1/assets/" + id + "/content";
+            } catch (IllegalArgumentException ignored) {
+                return trimmed;
+            }
+        }
+        try {
+            UUID id = UUID.fromString(trimmed);
+            return "/api/v1/assets/" + id + "/content";
+        } catch (IllegalArgumentException ignored) {
+            return trimmed;
+        }
     }
 
     @Transactional
@@ -888,11 +900,8 @@ public class IslandLayoutService {
                 if (ref == null || ref.isBlank()) {
                     errors.add(new ValidationError("LAYER", lKey, "assetRef",
                             "MISSING_REQUIRED_ASSET", "Layer ảnh tĩnh '" + lKey + "' bắt buộc phải chọn asset hoặc đường dẫn ảnh."));
-                } else if (ref.toLowerCase().startsWith("data:") || ref.toLowerCase().contains("<script") || ref.toLowerCase().startsWith("javascript:")) {
-                    errors.add(new ValidationError("LAYER", lKey, "assetRef",
-                            "INVALID_ASSET_REF", "Layer '" + lKey + "' không được phép nhúng base64 trực tiếp hoặc script."));
                 } else {
-                    validateAssetRefIfUuid(lKey, ref, errors);
+                    validateAssetRefStrict(lKey, ref, errors);
                 }
             }
 
@@ -921,14 +930,37 @@ public class IslandLayoutService {
         return errors;
     }
 
-    private void validateAssetRefIfUuid(String layerKey, String assetRef, List<ValidationError> errors) {
+    private void validateAssetRefStrict(String layerKey, String assetRef, List<ValidationError> errors) {
         String candidate = assetRef.trim();
+        String lower = candidate.toLowerCase();
+        if (lower.startsWith("data:")
+                || lower.startsWith("javascript:")
+                || lower.startsWith("http://")
+                || lower.startsWith("https://")
+                || lower.startsWith("//")
+                || lower.contains("<script")
+                || candidate.contains("..")
+                || candidate.contains("@")
+                || candidate.contains("?")
+                || candidate.contains("#")) {
+            errors.add(new ValidationError("LAYER", layerKey, "assetRef",
+                    "INVALID_ASSET_REF",
+                    "Layer '" + layerKey + "' chỉ cho phép gắn Asset trong Media Library (/api/v1/assets/{id}/content) hoặc đường dẫn ảnh nội bộ hợp lệ (assets/...), không cho phép URL ngoài."));
+            return;
+        }
         if (candidate.startsWith("/api/v1/admin/assets/") && candidate.endsWith("/content")) {
             candidate = candidate.substring("/api/v1/admin/assets/".length(),
                     candidate.length() - "/content".length());
         } else if (candidate.startsWith("/api/v1/assets/") && candidate.endsWith("/content")) {
             candidate = candidate.substring("/api/v1/assets/".length(),
                     candidate.length() - "/content".length());
+        } else if (candidate.startsWith("assets/")) {
+            if (!candidate.matches("^assets/[a-zA-Z0-9._/-]+\\.(png|jpg|jpeg|webp)$")) {
+                errors.add(new ValidationError("LAYER", layerKey, "assetRef",
+                        "INVALID_ASSET_REF",
+                        "Đường dẫn ảnh nội bộ của layer '" + layerKey + "' không đúng định dạng cho phép (assets/.../*.png|jpg|webp)."));
+            }
+            return;
         }
         try {
             UUID assetId = UUID.fromString(candidate);
@@ -936,8 +968,10 @@ public class IslandLayoutService {
                 errors.add(new ValidationError("LAYER", layerKey, "assetRef",
                         "ASSET_NOT_FOUND", "Asset '" + assetId + "' gắn với layer '" + layerKey + "' không tồn tại hoặc không ở trạng thái ACTIVE."));
             }
-        } catch (IllegalArgumentException ignored) {
-            // Đường dẫn tương đối tĩnh (ví dụ assets/images/...) -> hợp lệ
+        } catch (IllegalArgumentException ex) {
+            errors.add(new ValidationError("LAYER", layerKey, "assetRef",
+                    "INVALID_ASSET_REF",
+                    "Tham chiếu asset '" + assetRef + "' của layer '" + layerKey + "' không hợp lệ (cần UUID Media Library hoặc đường dẫn assets/...)."));
         }
     }
 

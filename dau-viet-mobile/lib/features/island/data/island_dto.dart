@@ -10,31 +10,112 @@ final RegExp _uuidRegExp = RegExp(
   r'^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$',
 );
 
-/// Header xác thực Bearer cho `Image.network` khi tải tài nguyên qua `/api/v1/assets/{id}/content`.
-Map<String, String>? islandAuthHeaders() {
+final RegExp _learnerAssetPathRegExp = RegExp(
+  r'^/api/v1/assets/([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12})/content$',
+);
+
+final RegExp _adminAssetPathRegExp = RegExp(
+  r'^/api/v1/admin/assets/([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12})/content$',
+);
+
+int _effectivePort(Uri uri) {
+  if (uri.hasPort && uri.port > 0) return uri.port;
+  return uri.scheme.toLowerCase() == 'https' ? 443 : 80;
+}
+
+bool _isSameOriginAsBackend(Uri uri) {
+  final base = Uri.tryParse(ApiConfig.baseUrl.trim());
+  if (base == null || !base.hasScheme || !base.hasAuthority) return false;
+  if (!uri.hasScheme || !uri.hasAuthority || uri.userInfo.isNotEmpty) {
+    return false;
+  }
+  final schemeStr = uri.scheme.toLowerCase();
+  if (schemeStr != 'http' && schemeStr != 'https') return false;
+  return schemeStr == base.scheme.toLowerCase() &&
+      uri.host.toLowerCase() == base.host.toLowerCase() &&
+      _effectivePort(uri) == _effectivePort(base);
+}
+
+/// Kiểm tra URL có đúng là endpoint `/api/v1/assets/{uuid}/content` thuộc cùng origin
+/// (scheme + host + port) với backend Dấu Việt và không chứa userinfo/query/fragment.
+bool isTrustedBackendAssetUrl(String? url) {
+  if (url == null || url.trim().isEmpty) return false;
+  final uri = Uri.tryParse(url.trim());
+  if (uri == null || !_isSameOriginAsBackend(uri)) return false;
+  if (uri.userInfo.isNotEmpty ||
+      uri.hasQuery ||
+      uri.fragment.isNotEmpty ||
+      uri.path.contains('..')) {
+    return false;
+  }
+  final base = Uri.parse(ApiConfig.baseUrl.trim());
+  final basePrefix = base.path.replaceAll(RegExp(r'/+$'), '');
+  final relPath = basePrefix.isNotEmpty && uri.path.startsWith(basePrefix)
+      ? uri.path.substring(basePrefix.length)
+      : uri.path;
+  return _learnerAssetPathRegExp.hasMatch(relPath);
+}
+
+/// Chỉ đính kèm Bearer token khi `targetUrl` thuộc đúng origin backend Dấu Việt
+/// và đúng endpoint `/api/v1/assets/{uuid}/content`. Tuyệt đối không gửi token ra domain ngoài.
+Map<String, String>? islandAuthHeaders(String? targetUrl) {
+  if (!isTrustedBackendAssetUrl(targetUrl)) return null;
   final token = ApiClient.authTokenProvider?.call();
   if (token == null || token.isEmpty) return null;
   return {'Authorization': 'Bearer $token'};
 }
 
-/// Chuyển đổi `assetId` (UUID) hoặc đường dẫn `/api/v1/assets/...` thành URL đầy đủ
-/// dành cho người học (tuyệt đối không gọi `/api/v1/admin/assets/...` từ mobile).
+/// Chuyển đổi `assetId` (UUID) hoặc đường dẫn `/api/v1/assets/{uuid}/content` thành URL hợp lệ.
+/// Không tự ý biến URL admin của domain ngoài thành URL learner.
 String? resolveIslandRemoteAssetUrl(String? rawRefOrAssetId) {
   if (rawRefOrAssetId == null) return null;
   final trimmed = rawRefOrAssetId.trim();
-  if (trimmed.isEmpty) return null;
+  if (trimmed.isEmpty ||
+      trimmed.contains('..') ||
+      trimmed.contains('\\') ||
+      trimmed.contains('@') ||
+      trimmed.contains('?') ||
+      trimmed.contains('#')) {
+    return null;
+  }
+  final cleanBase = ApiConfig.baseUrl.trim().replaceAll(RegExp(r'/+$'), '');
   if (_uuidRegExp.hasMatch(trimmed)) {
-    return '${ApiConfig.baseUrl}/api/v1/assets/$trimmed/content';
+    return '$cleanBase/api/v1/assets/$trimmed/content';
   }
-  if (trimmed.startsWith('/api/v1/admin/assets/')) {
-    final rest = trimmed.substring('/api/v1/admin/assets/'.length);
-    return '${ApiConfig.baseUrl}/api/v1/assets/$rest';
+  final learnerMatch = _learnerAssetPathRegExp.firstMatch(trimmed);
+  if (learnerMatch != null) {
+    return '$cleanBase/api/v1/assets/${learnerMatch.group(1)}/content';
   }
-  if (trimmed.startsWith('/api/v1/assets/')) {
-    return '${ApiConfig.baseUrl}$trimmed';
+  final adminMatch = _adminAssetPathRegExp.firstMatch(trimmed);
+  if (adminMatch != null) {
+    return '$cleanBase/api/v1/assets/${adminMatch.group(1)}/content';
   }
   if (trimmed.startsWith('http://') || trimmed.startsWith('https://')) {
-    return trimmed.replaceFirst('/api/v1/admin/assets/', '/api/v1/assets/');
+    final uri = Uri.tryParse(trimmed);
+    if (uri == null ||
+        !uri.hasScheme ||
+        !uri.hasAuthority ||
+        uri.userInfo.isNotEmpty ||
+        uri.hasQuery ||
+        uri.fragment.isNotEmpty) {
+      return null;
+    }
+    if (_isSameOriginAsBackend(uri)) {
+      final base = Uri.parse(cleanBase);
+      final basePrefix = base.path.replaceAll(RegExp(r'/+$'), '');
+      final relPath = basePrefix.isNotEmpty && uri.path.startsWith(basePrefix)
+          ? uri.path.substring(basePrefix.length)
+          : uri.path;
+      final sameOriginLearner = _learnerAssetPathRegExp.firstMatch(relPath);
+      if (sameOriginLearner != null) {
+        return '$cleanBase/api/v1/assets/${sameOriginLearner.group(1)}/content';
+      }
+      final sameOriginAdmin = _adminAssetPathRegExp.firstMatch(relPath);
+      if (sameOriginAdmin != null) {
+        return '$cleanBase/api/v1/assets/${sameOriginAdmin.group(1)}/content';
+      }
+      return null;
+    }
   }
   return null;
 }

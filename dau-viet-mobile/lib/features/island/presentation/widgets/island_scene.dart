@@ -901,7 +901,7 @@ class _IslandSceneState extends State<IslandScene>
     if (remoteUrl != null) {
       return Image.network(
         remoteUrl,
-        headers: islandAuthHeaders(),
+        headers: islandAuthHeaders(remoteUrl),
         fit: BoxFit.cover,
         errorBuilder: (_, __, ___) => _buildFallbackIslandSurface(),
       );
