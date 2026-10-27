@@ -12,7 +12,7 @@ public final class LearningPathItFixture {
                 SELECT count(en.id)
                 FROM learning_path_event_nodes en
                 JOIN learning_path_versions v ON v.id = en.path_version_id
-                WHERE v.path_code = 'HISTORY_MAIN' AND v.version_no = 1
+                WHERE v.path_code = 'HISTORY_MAIN' AND v.version_no = 1 AND v.status = 'PUBLISHED'
                 """,
                 Integer.class);
 

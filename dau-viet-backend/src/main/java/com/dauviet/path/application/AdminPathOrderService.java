@@ -3,6 +3,7 @@ package com.dauviet.path.application;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import java.util.UUID;
 import java.util.function.Function;
 import java.util.function.ObjIntConsumer;
@@ -31,8 +32,19 @@ public class AdminPathOrderService {
     public AdminPathResponse chapters(UUID versionId, AdminPathRequests.ChaptersOrder request) {
         access.draft(versionId, request.expectedRevision());
         access.deferSortConstraints();
-        reorder(request.chapterIds(), chapters.findByPathVersionIdOrderBySortOrderAsc(versionId),
-                LearningPathChapter::getId, LearningPathChapter::setSortOrder);
+        List<LearningPathChapter> allInVersion = chapters.findByPathVersionIdOrderBySortOrderAsc(versionId);
+        List<LearningPathChapter> scope = allInVersion;
+        if (request.parentId() != null) {
+            scope = allInVersion.stream().filter(c -> Objects.equals(c.getParentId(), request.parentId())).toList();
+        } else if (request.chapterIds() != null && request.chapterIds().size() < allInVersion.size() && !request.chapterIds().isEmpty()) {
+            UUID firstId = request.chapterIds().get(0);
+            LearningPathChapter first = allInVersion.stream().filter(c -> c.getId().equals(firstId)).findFirst().orElse(null);
+            if (first != null) {
+                UUID inferredParent = first.getParentId();
+                scope = allInVersion.stream().filter(c -> Objects.equals(c.getParentId(), inferredParent)).toList();
+            }
+        }
+        reorder(request.chapterIds(), scope, LearningPathChapter::getId, LearningPathChapter::setSortOrder);
         chapters.flush();
         return read.detail(versionId);
     }

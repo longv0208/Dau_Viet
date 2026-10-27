@@ -18,17 +18,25 @@ public class AdminPathEventService {
     private final LearningPathLessonNodeRepository lessons;
     private final HistoricalEventRepository historicalEvents;
     private final LearningPathValidator validator;
+    private final PathHierarchyValidator hierarchyValidator;
 
     public AdminPathEventService(AdminPathAccess access, AdminPathReadService read,
             LearningPathEventNodeRepository events, LearningPathLessonNodeRepository lessons,
-            HistoricalEventRepository historicalEvents, LearningPathValidator validator) {
-        this.access = access; this.read = read; this.events = events; this.lessons = lessons;
-        this.historicalEvents = historicalEvents; this.validator = validator;
+            HistoricalEventRepository historicalEvents, LearningPathValidator validator,
+            PathHierarchyValidator hierarchyValidator) {
+        this.access = access;
+        this.read = read;
+        this.events = events;
+        this.lessons = lessons;
+        this.historicalEvents = historicalEvents;
+        this.validator = validator;
+        this.hierarchyValidator = hierarchyValidator;
     }
 
     public AdminPathResponse add(UUID versionId, UUID chapterId, AdminPathRequests.Event request) {
         access.draft(versionId, request.expectedRevision());
-        access.chapter(versionId, chapterId);
+        var chapter = access.chapter(versionId, chapterId);
+        hierarchyValidator.validateEventAttachmentChapter(chapter);
         var event = historicalEvents.findById(request.eventId()).orElseThrow(() ->
                 new LearningPathExceptions.PathNotFoundException("event " + request.eventId()));
         AdminPathAccess.require(event.getStatus() != EventStatus.ARCHIVED, "Archived events cannot be added to a path");
@@ -45,7 +53,8 @@ public class AdminPathEventService {
         access.draft(versionId, request.expectedRevision());
         var node = access.event(versionId, id);
         if (request.chapterId() != null && !request.chapterId().equals(node.getChapterId())) {
-            access.chapter(versionId, request.chapterId());
+            var targetChapter = access.chapter(versionId, request.chapterId());
+            hierarchyValidator.validateEventAttachmentChapter(targetChapter);
             UUID oldChapter = node.getChapterId();
             int order = events.findByChapterIdOrderBySortOrderAsc(request.chapterId()).stream()
                     .mapToInt(LearningPathEventNode::getSortOrder).max().orElse(0) + 1;

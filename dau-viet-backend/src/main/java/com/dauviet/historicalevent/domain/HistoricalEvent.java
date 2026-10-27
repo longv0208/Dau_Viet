@@ -49,6 +49,12 @@ public class HistoricalEvent {
     @Column(name = "start_year")
     private Integer startYear;
 
+    @Column(name = "end_year")
+    private Integer endYear;
+
+    @Column(name = "date_precision", nullable = false, length = 16)
+    private String datePrecision = "EXACT";
+
     @Column(name = "summary", nullable = false, columnDefinition = "text")
     private String summary;
 
@@ -108,6 +114,14 @@ public class HistoricalEvent {
 
     public Integer getStartYear() { return startYear; }
     public void setStartYear(Integer startYear) { this.startYear = startYear; }
+
+    public Integer getEndYear() { return endYear; }
+    public void setEndYear(Integer endYear) { this.endYear = endYear; }
+
+    public String getDatePrecision() { return datePrecision != null ? datePrecision : "EXACT"; }
+    public void setDatePrecision(String datePrecision) {
+        this.datePrecision = (datePrecision == null || datePrecision.isBlank()) ? "EXACT" : datePrecision;
+    }
 
     public String getSummary() { return summary; }
     public void setSummary(String summary) { this.summary = summary; }

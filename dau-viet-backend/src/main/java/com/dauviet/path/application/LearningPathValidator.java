@@ -5,6 +5,7 @@ import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 import java.util.Set;
 import java.util.UUID;
 import java.util.function.Function;
@@ -41,6 +42,7 @@ public class LearningPathValidator {
     private final EventCompletionPolicyRepository policies;
     private final PathEventIdentity identities;
     private final PathReadiness readiness;
+    private final PathHierarchyValidator hierarchyValidator;
 
     public LearningPathValidator(LearningPathVersionRepository versions, LearningPathChapterRepository chapters,
             LearningPathEventNodeRepository nodes, LearningPathLessonNodeRepository lessonNodes,
@@ -49,6 +51,7 @@ public class LearningPathValidator {
         this.versions = versions; this.chapters = chapters; this.nodes = nodes; this.lessonNodes = lessonNodes;
         this.events = events; this.lessons = lessons; this.policies = policies;
         this.identities = identities; this.readiness = readiness;
+        this.hierarchyValidator = new PathHierarchyValidator(chapters, nodes);
     }
 
     public PathAuditReport audit(String pathCode, Integer versionNo) {
@@ -83,27 +86,43 @@ public class LearningPathValidator {
         List<DuplicateAliasReport> duplicates = new ArrayList<>();
         List<String> empty = new ArrayList<>();
         Map<String, Long> counts = new HashMap<>();
-        Set<Integer> chapterSorts = new HashSet<>();
+        Map<Optional<UUID>, Set<Integer>> chapterSortsByParent = new HashMap<>();
+        Map<Optional<UUID>, Integer> previousChapterYearByParent = new HashMap<>();
         Set<String> chapterCodes = new HashSet<>();
         Set<UUID> seenCanonical = new HashSet<>();
         Set<UUID> seenEvents = new HashSet<>();
         Set<UUID> seenLessons = new HashSet<>();
-        Integer previousChapterYear = null;
-        Integer previousEventYear = null;
+        Set<UUID> parentIdsWithChildren = chapterList.stream()
+                .map(LearningPathChapter::getParentId)
+                .filter(java.util.Objects::nonNull)
+                .collect(Collectors.toSet());
         if (chapterList.isEmpty()) issue(issues, "ERROR", "EMPTY_PATH", "Path must contain at least one chapter", version.getId());
+        for (String hErr : hierarchyValidator.collectHierarchyAuditErrors(chapterList, nodeList)) {
+            issue(issues, "ERROR", "INVALID_HIERARCHY", hErr, version.getId());
+        }
         if (version.getStatus() == LearningPathStatus.DRAFT && LearningPathService.DEFAULT_PATH_CODE.equals(version.getPathCode())
                 && nodeList.stream().noneMatch(node -> node.getParticipationType() == ParticipationType.REQUIRED)) {
             issue(issues, "ERROR", "NO_REQUIRED_EVENT", "A new main learning path must contain at least one REQUIRED event", version.getId());
         }
         for (LearningPathChapter chapter : chapterList) {
+            Optional<UUID> parentKey = Optional.ofNullable(chapter.getParentId());
+            Set<Integer> chapterSorts = chapterSortsByParent.computeIfAbsent(parentKey, k -> new HashSet<>());
             checkSort(issues, chapterSorts, chapter.getSortOrder(), chapter.getId(), "CHAPTER");
             if (!chapterCodes.add(chapter.getCode())) issue(issues, "ERROR", "DUPLICATE_CHAPTER_CODE", "Chapter code is repeated", chapter.getId());
             if (chapter.getStartYear() > chapter.getEndYear()) issue(issues, "ERROR", "INVALID_CHAPTER_YEARS", "startYear " + chapter.getStartYear() + " > endYear " + chapter.getEndYear(), chapter.getId());
-            if (previousChapterYear != null && chapter.getStartYear() < previousChapterYear) issue(issues, "WARNING", "CHAPTER_CHRONOLOGY", "Chapter dates go backwards in admin order", chapter.getId());
-            previousChapterYear = chapter.getStartYear();
+            Integer previousChapterYear = previousChapterYearByParent.get(parentKey);
+            if (previousChapterYear != null && chapter.getStartYear() < previousChapterYear) {
+                issue(issues, "WARNING", "CHAPTER_CHRONOLOGY", "Chapter dates go backwards in admin order", chapter.getId());
+            }
+            previousChapterYearByParent.put(parentKey, chapter.getStartYear());
             List<LearningPathEventNode> inChapter = nodeList.stream().filter(n -> chapter.getId().equals(n.getChapterId())).toList();
-            if (inChapter.isEmpty()) { empty.add(chapter.getCode()); issue(issues, "WARNING", "EMPTY_CHAPTER", "Chapter has no events", chapter.getId()); }
+            boolean hasChildChapters = parentIdsWithChildren.contains(chapter.getId());
+            if (inChapter.isEmpty() && !hasChildChapters && chapter.getNodeType() != PathNodeType.ERA) {
+                empty.add(chapter.getCode());
+                issue(issues, "WARNING", "EMPTY_CHAPTER", "Chapter has no events", chapter.getId());
+            }
             Set<Integer> eventSorts = new HashSet<>();
+            Integer previousEventYear = null;
             for (LearningPathEventNode node : inChapter) {
                 checkSort(issues, eventSorts, node.getSortOrder(), node.getId(), "EVENT");
                 if (!seenEvents.add(node.getEventId())) issue(issues, "ERROR", "DUPLICATE_EVENT_IN_PATH", "Event is repeated", node.getId());

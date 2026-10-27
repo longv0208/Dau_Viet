@@ -1,10 +1,12 @@
 package com.dauviet.path.application;
 
+import java.util.Objects;
 import java.util.UUID;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import com.dauviet.path.api.dto.*;
 import com.dauviet.path.domain.LearningPathChapter;
+import com.dauviet.path.domain.PathNodeType;
 import com.dauviet.path.infrastructure.persistence.*;
 
 @Service
@@ -14,10 +16,16 @@ public class AdminPathChapterService {
     private final AdminPathReadService read;
     private final LearningPathChapterRepository chapters;
     private final LearningPathEventNodeRepository events;
+    private final PathHierarchyValidator hierarchyValidator;
 
     public AdminPathChapterService(AdminPathAccess access, AdminPathReadService read,
-            LearningPathChapterRepository chapters, LearningPathEventNodeRepository events) {
-        this.access = access; this.read = read; this.chapters = chapters; this.events = events;
+            LearningPathChapterRepository chapters, LearningPathEventNodeRepository events,
+            PathHierarchyValidator hierarchyValidator) {
+        this.access = access;
+        this.read = read;
+        this.chapters = chapters;
+        this.events = events;
+        this.hierarchyValidator = hierarchyValidator;
     }
 
     public AdminPathResponse add(UUID versionId, AdminPathRequests.Chapter request) {
@@ -25,10 +33,14 @@ public class AdminPathChapterService {
         validateFields(request.code(), request.title(), request.startYear(), request.endYear(),
                 request.periodLabel(), request.themeKey());
         uniqueCode(versionId, null, request.code());
+        PathNodeType nodeType = hierarchyValidator.parseNodeType(request.nodeType());
+        hierarchyValidator.validateParentAssignment(versionId, null, request.parentId(), nodeType);
         int order = chapters.findByPathVersionIdOrderBySortOrderAsc(versionId).stream()
+                .filter(c -> Objects.equals(c.getParentId(), request.parentId()))
                 .mapToInt(LearningPathChapter::getSortOrder).max().orElse(0) + 1;
-        chapters.saveAndFlush(new LearningPathChapter(null, versionId, request.code(), request.title(),
-                request.description(), request.startYear(), request.endYear(), request.periodLabel(), order, request.themeKey()));
+        chapters.saveAndFlush(new LearningPathChapter(null, versionId, request.parentId(), nodeType,
+                request.code(), request.title(), request.description(), request.startYear(),
+                request.endYear(), request.periodLabel(), order, request.themeKey()));
         return read.detail(versionId);
     }
 
@@ -43,7 +55,23 @@ public class AdminPathChapterService {
         String theme = value(request.themeKey(), chapter.getThemeKey());
         validateFields(code, title, start, end, period, theme);
         uniqueCode(versionId, id, code);
-        chapter.update(code, title, value(request.description(), chapter.getDescription()), start, end, period, theme);
+        UUID parentId = Boolean.TRUE.equals(request.clearParent())
+                ? null
+                : (request.parentId() != null ? request.parentId() : chapter.getParentId());
+        PathNodeType nodeType = request.nodeType() != null
+                ? hierarchyValidator.parseNodeType(request.nodeType())
+                : chapter.getNodeType();
+        hierarchyValidator.validateParentAssignment(versionId, id, parentId, nodeType);
+        boolean parentChanged = !Objects.equals(parentId, chapter.getParentId());
+        if (parentChanged) {
+            access.deferSortConstraints();
+            int nextOrder = chapters.findByPathVersionIdOrderBySortOrderAsc(versionId).stream()
+                    .filter(c -> !c.getId().equals(id) && Objects.equals(c.getParentId(), parentId))
+                    .mapToInt(LearningPathChapter::getSortOrder).max().orElse(0) + 1;
+            chapter.setSortOrder(nextOrder);
+        }
+        chapter.update(parentId, nodeType, code, title,
+                value(request.description(), chapter.getDescription()), start, end, period, theme);
         chapters.flush();
         return read.detail(versionId);
     }
@@ -51,12 +79,16 @@ public class AdminPathChapterService {
     public AdminPathResponse delete(UUID versionId, UUID id, Long revision) {
         access.draft(versionId, revision);
         var chapter = access.chapter(versionId, id);
+        hierarchyValidator.validateCanDeleteChapter(versionId, id);
         AdminPathAccess.require(events.findByChapterIdOrderBySortOrderAsc(id).isEmpty(),
                 "Move or remove all event nodes before deleting a chapter");
+        UUID parentId = chapter.getParentId();
         chapters.delete(chapter);
         chapters.flush();
         access.deferSortConstraints();
-        var remaining = chapters.findByPathVersionIdOrderBySortOrderAsc(versionId);
+        var remaining = chapters.findByPathVersionIdOrderBySortOrderAsc(versionId).stream()
+                .filter(c -> Objects.equals(c.getParentId(), parentId))
+                .toList();
         for (int i = 0; i < remaining.size(); i++) remaining.get(i).setSortOrder(i + 1);
         chapters.flush();
         return read.detail(versionId);

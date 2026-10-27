@@ -15,4 +15,6 @@ public interface LearningPathChapterRepository extends JpaRepository<LearningPat
     List<LearningPathChapter> findByPathVersionIdOrderBySortOrderAsc(UUID pathVersionId);
 
     Optional<LearningPathChapter> findByPathVersionIdAndCode(UUID pathVersionId, String code);
+
+    boolean existsByPathVersionIdAndParentId(UUID pathVersionId, UUID parentId);
 }
