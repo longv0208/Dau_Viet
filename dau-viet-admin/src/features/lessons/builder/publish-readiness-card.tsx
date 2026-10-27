@@ -55,23 +55,24 @@ function IssueList({
     <ul className="flex flex-col gap-1">
       {items.map((e, i) => {
         const target = draft ? resolveErrorPath(draft, e.path ?? "") : null;
-        const where = draft ? describePath(draft, e.path ?? "") : null;
+        const where = describePath(draft, e.path ?? "");
+        const detail = e.detail;
         const body = (
           <>
             {where && (
               <span className="block text-[10px] font-medium text-ink-muted">{where}</span>
             )}
             <span className={tone === "error" ? "text-error" : "text-ink"}>
-              {(e.code && CODE_MESSAGES[e.code]) ?? "Cần xem lại nội dung đã nhập"}
+              {detail ?? (e.code && CODE_MESSAGES[e.code]) ?? "Cần xem lại nội dung đã nhập"}
             </span>
           </>
         );
         return (
           <li key={`${e.path ?? ""}-${i}`}>
-            {clickable ? (
+            {clickable && target?.stageId != null ? (
               <button
                 type="button"
-                onClick={() => onJump?.(target?.stageId ?? null, target?.activityId ?? null)}
+                onClick={() => onJump?.(target.stageId, target.activityId)}
                 className="w-full rounded px-2 py-1 text-left hover:bg-surface-alt"
               >
                 {body}

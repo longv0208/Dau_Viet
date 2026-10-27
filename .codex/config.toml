@@ -1,0 +1,2 @@
+[mcp_servers.lottiefiles-creator]
+command = "npx -y @lottiefiles/creator-mcp@latest"

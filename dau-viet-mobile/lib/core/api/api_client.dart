@@ -113,6 +113,54 @@ class ApiClient {
     }
   }
 
+  /// PUT `path` với JSON body; `headers` cho phép truyền Idempotency-Key v.v.
+  Future<Map<String, dynamic>> put(
+    String path, {
+    Object? body,
+    Map<String, dynamic>? query,
+    Map<String, String>? headers,
+  }) async {
+    try {
+      final Response<dynamic> response = await _dio.put<dynamic>(
+        path,
+        data: body,
+        queryParameters: query,
+        options: _authOptions(headers),
+      );
+      final Object? data = response.data;
+      if (data == null || (data is String && data.isEmpty)) {
+        return const {};
+      }
+      return _requireMap(data);
+    } on DioException catch (e) {
+      throw _mapDioException(e);
+    }
+  }
+
+  /// DELETE `path`; `headers` cho phép truyền Idempotency-Key v.v.
+  Future<Map<String, dynamic>> delete(
+    String path, {
+    Object? body,
+    Map<String, dynamic>? query,
+    Map<String, String>? headers,
+  }) async {
+    try {
+      final Response<dynamic> response = await _dio.delete<dynamic>(
+        path,
+        data: body,
+        queryParameters: query,
+        options: _authOptions(headers),
+      );
+      final Object? data = response.data;
+      if (data == null || (data is String && data.isEmpty)) {
+        return const {};
+      }
+      return _requireMap(data);
+    } on DioException catch (e) {
+      throw _mapDioException(e);
+    }
+  }
+
   /// GET bytes thô — dùng cho learner asset endpoint (image bytes, có auth).
   Future<List<int>> getBytes(String path) async {
     try {

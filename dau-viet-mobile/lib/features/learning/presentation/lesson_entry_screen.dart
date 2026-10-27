@@ -8,6 +8,7 @@ import '../../../core/theme/dau_viet_colors.dart';
 import '../../../core/theme/dau_viet_typography.dart';
 import '../../../core/widgets/async_state_view.dart';
 import '../../../core/widgets/dong_son_button.dart';
+import '../../streak/data/streak_providers.dart';
 import '../data/attempt_dtos.dart';
 import '../data/attempt_repository.dart';
 import '../data/learning_dtos.dart';
@@ -111,58 +112,25 @@ class _LessonEntryScreenState extends ConsumerState<LessonEntryScreen> {
           ),
         ),
         centerTitle: true,
-        actions: [
-          // Huy hiệu ngọn lửa Streak 🔥 12
+        actions: const [
+          // Huy hiệu ngọn lửa Streak — số thật từ streakProvider (STREAK-01).
           Padding(
-            padding: const EdgeInsets.only(right: 16),
-            child: Center(
-              child: Container(
-                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-                decoration: BoxDecoration(
-                  color: const Color(0xFFFFF3E0),
-                  borderRadius: BorderRadius.circular(12),
-                  border: Border.all(color: const Color(0xFFFFB74D), width: 1),
-                ),
-                child: Row(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    const Icon(
-                      Icons.local_fire_department_rounded,
-                      size: 15,
-                      color: Color(0xFFE65100),
-                    ),
-                    const SizedBox(width: 4),
-                    Text(
-                      '12',
-                      style: DauVietTypography.labelSmall.copyWith(
-                        color: const Color(0xFFE65100),
-                        fontWeight: FontWeight.w800,
-                        fontSize: 11.5,
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-            ),
+            padding: EdgeInsets.only(right: 16),
+            child: Center(child: _StreakAppBarBadge()),
           ),
         ],
       ),
       body: SafeArea(
         child: metaAsync.when(
-          loading: () => AsyncStateView.loading(message: 'Đang mở sử liệu bài học...'),
+          loading: () =>
+              AsyncStateView.loading(message: 'Đang mở sử liệu bài học...'),
           error: (error, _) => AsyncStateView.error(
             error: error,
             onRetry: () =>
                 ref.invalidate(_lessonMetadataProvider(widget.lessonId)),
           ),
           data: (meta) {
-            // Xác định ảnh hero bài học
-            final isHungVuong = meta.title.toLowerCase().contains('hùng') ||
-                meta.title.toLowerCase().contains('dân tộc') ||
-                meta.title.toLowerCase().contains('văn lang');
-            final heroAsset = isHungVuong
-                ? 'assets/images/lesson_hero_lac_long_quan_au_co.jpg'
-                : 'assets/images/bach_dang_938.jpg';
+            // Ảnh hero: dùng icon fallback, không đoán tên từ title
 
             return Stack(
               children: [
@@ -201,7 +169,9 @@ class _LessonEntryScreenState extends ConsumerState<LessonEntryScreen> {
                             ),
                             boxShadow: [
                               BoxShadow(
-                                color: const Color(0xFF8B4513).withValues(alpha: 0.12),
+                                color: const Color(
+                                  0xFF8B4513,
+                                ).withValues(alpha: 0.12),
                                 blurRadius: 12,
                                 offset: const Offset(0, 4),
                               ),
@@ -209,16 +179,12 @@ class _LessonEntryScreenState extends ConsumerState<LessonEntryScreen> {
                           ),
                           child: AspectRatio(
                             aspectRatio: 16 / 10,
-                            child: Image.asset(
-                              heroAsset,
-                              fit: BoxFit.cover,
-                              errorBuilder: (_, __, ___) => Container(
-                                color: const Color(0xFFEFE8DA),
-                                child: const Icon(
-                                  Icons.account_balance_rounded,
-                                  size: 48,
-                                  color: DauVietColors.heritageGreen,
-                                ),
+                            child: Container(
+                              color: const Color(0xFFEFE8DA),
+                              child: const Icon(
+                                Icons.account_balance_rounded,
+                                size: 64,
+                                color: DauVietColors.heritageGreen,
                               ),
                             ),
                           ),
@@ -226,27 +192,7 @@ class _LessonEntryScreenState extends ConsumerState<LessonEntryScreen> {
                       ),
                       const SizedBox(height: 14),
 
-                      // 2. Huy hiệu Chương học
-                      Align(
-                        alignment: Alignment.centerLeft,
-                        child: Container(
-                          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-                          decoration: BoxDecoration(
-                            color: const Color(0xFFFFF3E0),
-                            borderRadius: BorderRadius.circular(16),
-                            border: Border.all(color: const Color(0xFFFFCC80), width: 1),
-                          ),
-                          child: Text(
-                            'Chương 1 • Buổi đầu dựng nước',
-                            style: DauVietTypography.labelSmall.copyWith(
-                              color: const Color(0xFFB45309),
-                              fontWeight: FontWeight.w800,
-                              fontSize: 11,
-                            ),
-                          ),
-                        ),
-                      ),
-                      const SizedBox(height: 8),
+                      // 2. (Chapter badge removed — data not available from this API)
 
                       // 3. Tiêu đề bài học
                       Text(
@@ -262,9 +208,10 @@ class _LessonEntryScreenState extends ConsumerState<LessonEntryScreen> {
 
                       // 4. Đoạn mô tả / Câu hỏi trung tâm
                       Text(
-                        (meta.centralQuestion != null && meta.centralQuestion!.isNotEmpty)
+                        (meta.centralQuestion != null &&
+                                meta.centralQuestion!.isNotEmpty)
                             ? meta.centralQuestion!
-                            : 'Tìm hiểu truyền thuyết Lạc Long Quân - Âu Cơ, sự ra đời của người Việt và những nét văn hóa đầu tiên của dân tộc.',
+                            : '',
                         style: DauVietTypography.bodyMedium.copyWith(
                           fontSize: 13,
                           color: const Color(0xFF5E6963),
@@ -273,47 +220,22 @@ class _LessonEntryScreenState extends ConsumerState<LessonEntryScreen> {
                       ),
                       const SizedBox(height: 16),
 
-                      // 5. Ba thẻ thống kê trực quan hàng ngang chuẩn UI Pro Max
-                      Row(
-                        children: [
-                          Expanded(
-                            child: _buildStatCard(
-                              icon: Icons.timer_outlined,
-                              iconColor: const Color(0xFFB45309),
-                              value: '15 phút',
-                              label: 'thời lượng',
-                            ),
-                          ),
-                          const SizedBox(width: 8),
-                          Expanded(
-                            child: _buildStatCard(
-                              icon: Icons.menu_book_rounded,
-                              iconColor: const Color(0xFF2D6A4F),
-                              value: '4 hoạt động',
-                              label: 'trong bài',
-                            ),
-                          ),
-                          const SizedBox(width: 8),
-                          Expanded(
-                            child: _buildStatCard(
-                              icon: Icons.stars_rounded,
-                              iconColor: const Color(0xFFD97706),
-                              value: '+50 XP',
-                              label: 'phần thưởng',
-                            ),
-                          ),
-                        ],
-                      ),
-                      const SizedBox(height: 16),
+                      // 5. (Stat cards removed — durations/rewards not available from metadata API)
 
                       // Trạng thái Resume (nếu có bài đang học dở)
                       if (resume != null) ...[
                         Container(
-                          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 14,
+                            vertical: 10,
+                          ),
                           decoration: BoxDecoration(
                             color: const Color(0xFFE8F5E9),
                             borderRadius: BorderRadius.circular(12),
-                            border: Border.all(color: const Color(0xFFA5D6A7), width: 1),
+                            border: Border.all(
+                              color: const Color(0xFFA5D6A7),
+                              width: 1,
+                            ),
                           ),
                           child: Row(
                             children: [
@@ -346,9 +268,14 @@ class _LessonEntryScreenState extends ConsumerState<LessonEntryScreen> {
                         Container(
                           padding: const EdgeInsets.all(12),
                           decoration: BoxDecoration(
-                            color: DauVietColors.cinnabarRed.withValues(alpha: 0.08),
+                            color: DauVietColors.cinnabarRed.withValues(
+                              alpha: 0.08,
+                            ),
                             borderRadius: BorderRadius.circular(10),
-                            border: Border.all(color: DauVietColors.cinnabarRed, width: 1),
+                            border: Border.all(
+                              color: DauVietColors.cinnabarRed,
+                              width: 1,
+                            ),
                           ),
                           child: Text(
                             _startError!,
@@ -383,49 +310,43 @@ class _LessonEntryScreenState extends ConsumerState<LessonEntryScreen> {
       ),
     );
   }
+}
 
-  Widget _buildStatCard({
-    required IconData icon,
-    required Color iconColor,
-    required String value,
-    required String label,
-  }) {
+/// Huy hiệu ngọn lửa trên AppBar — số streak thật từ streakProvider,
+/// placeholder '—' khi loading/error (STREAK-01, không hard-code).
+class _StreakAppBarBadge extends ConsumerWidget {
+  const _StreakAppBarBadge();
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final streakAsync = ref.watch(streakProvider);
+    final String value = streakAsync.when(
+      data: (s) => '${s.currentStreak}',
+      loading: () => '—',
+      error: (_, __) => '—',
+    );
     return Container(
-      padding: const EdgeInsets.symmetric(vertical: 10, horizontal: 8),
+      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
       decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(14),
-        border: Border.all(color: const Color(0xFFE5DAC6), width: 1.2),
-        boxShadow: [
-          BoxShadow(
-            color: const Color(0xFF8B4513).withValues(alpha: 0.05),
-            blurRadius: 6,
-            offset: const Offset(0, 2),
-          ),
-        ],
+        color: const Color(0xFFFFF3E0),
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: const Color(0xFFFFB74D), width: 1),
       ),
-      child: Column(
+      child: Row(
         mainAxisSize: MainAxisSize.min,
         children: [
-          Icon(icon, size: 22, color: iconColor),
-          const SizedBox(height: 4),
+          const Icon(
+            Icons.local_fire_department_rounded,
+            size: 15,
+            color: Color(0xFFE65100),
+          ),
+          const SizedBox(width: 4),
           Text(
             value,
-            textAlign: TextAlign.center,
             style: DauVietTypography.labelSmall.copyWith(
+              color: const Color(0xFFE65100),
               fontWeight: FontWeight.w800,
-              fontSize: 12,
-              color: const Color(0xFF1F2421),
-            ),
-          ),
-          const SizedBox(height: 1),
-          Text(
-            label,
-            textAlign: TextAlign.center,
-            style: DauVietTypography.bodySmall.copyWith(
-              fontSize: 10,
-              color: const Color(0xFF75807A),
-              fontWeight: FontWeight.w600,
+              fontSize: 11.5,
             ),
           ),
         ],

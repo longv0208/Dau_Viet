@@ -25,6 +25,12 @@ public interface EventCompletionPolicyRepository
     Optional<EventCompletionPolicy> findPublishedByEventId(
             @Param("eventId") UUID eventId);
 
+    /** Các policy PUBLISHED của danh sách event. */
+    @Query("select p from EventCompletionPolicy p "
+         + "where p.eventId in :eventIds and p.status = 'PUBLISHED'")
+    List<EventCompletionPolicy> findPublishedByEventIdIn(
+            @Param("eventIds") java.util.Collection<UUID> eventIds);
+
     /** Mọi version của event, mới nhất trước — admin history list. */
     List<EventCompletionPolicy> findByEventIdOrderByPolicyVersionDesc(
             UUID eventId);

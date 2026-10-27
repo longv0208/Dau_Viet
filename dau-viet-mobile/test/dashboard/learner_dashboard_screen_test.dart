@@ -22,10 +22,13 @@ void main() {
       expect(find.text('Dấu Việt'), findsOneWidget);
       expect(find.byIcon(Icons.notifications_none_rounded), findsOneWidget);
 
-      // 2. Greeting & Status Row
+      // 2. Greeting & Status Row — STREAK-01: 2 pill giờ đọc provider
+      // thật; không có backend trong test nên số hiển thị '—' chứ không
+      // còn hard-code '12'/'3'. Kiểm icon streak pill còn đó (⚡ cũng
+      // xuất hiện trong quest rewards nên assert số lượng, không exactly).
       expect(find.text('Xin chào,'), findsOneWidget);
-      expect(find.text('12'), findsOneWidget);
-      expect(find.text('3'), findsOneWidget);
+      expect(find.text('🔥'), findsOneWidget);
+      expect(find.text('—'), findsNWidgets(2)); // energy + streak placeholder
 
       // 3. Hero Banner Card
       expect(find.text('Bắt đầu hành trình'), findsOneWidget);

@@ -64,6 +64,7 @@ class LearnerAttemptServiceTest {
                 mock(com.dauviet.reward.application.RewardService.class),
                 mock(com.dauviet.energy.application.EnergyService.class),
                 mock(com.dauviet.energy.application.EnergyProperties.class),
+                mock(com.dauviet.streak.application.LearningStreakService.class),
                 new GradedActivityClassifier(),
                 OM, mock(org.springframework.transaction.PlatformTransactionManager.class),
                 mock(jakarta.persistence.EntityManager.class));
@@ -326,6 +327,7 @@ class LearnerAttemptServiceTest {
                 mock(com.dauviet.reward.application.RewardService.class),
                 mock(com.dauviet.energy.application.EnergyService.class),
                 mock(com.dauviet.energy.application.EnergyProperties.class),
+                mock(com.dauviet.streak.application.LearningStreakService.class),
                 new GradedActivityClassifier(),
                 OM, mock(org.springframework.transaction.PlatformTransactionManager.class),
                 mock(jakarta.persistence.EntityManager.class));

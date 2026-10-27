@@ -4,6 +4,8 @@ export interface PublishIssue {
   path?: string;
   code?: string;
   message: string;
+  /** FE-side detail text (local validator) — ghi đè message khi hiển thị. */
+  detail?: string;
 }
 
 /**

@@ -4,6 +4,7 @@ library;
 
 import '../../energy/data/energy_dto.dart';
 import '../../rewards/data/reward_dtos.dart';
+import '../../streak/data/streak_dto.dart';
 
 class AttemptProgressDto {
   final int completedRequired;
@@ -278,6 +279,11 @@ class CompleteResultDto {
   /// khi replay/đã grant. Client hiện cue một lần, không re-show.
   final List<String> newlyUnlockedDossiers;
 
+  /// STREAK-01 additive: thông tin Chuỗi Ngày Học — chỉ non-null khi
+  /// server công nhận một ngày học MỚI (điều kiện phát animation ngọn
+  /// lửa tăng ở LessonResultScreen). Null khi replay/ngày đã tính.
+  final StreakInfoDto? streak;
+
   const CompleteResultDto({
     required this.attemptId,
     required this.status,
@@ -286,6 +292,7 @@ class CompleteResultDto {
     required this.completion,
     required this.progress,
     this.newlyUnlockedDossiers = const [],
+    this.streak,
   });
 
   factory CompleteResultDto.fromJson(Map<String, dynamic> json) =>
@@ -304,6 +311,7 @@ class CompleteResultDto {
             (json['newlyUnlockedDossiers'] as List? ?? const [])
                 .whereType<String>()
                 .toList(),
+        streak: StreakInfoDto.tryParse(json['streak']),
       );
 }
 
@@ -328,6 +336,12 @@ class LessonResultDto {
   /// complete trả; getResult không có — rỗng khi deep-link/reload).
   final List<String> newlyUnlockedDossiers;
 
+  /// STREAK-01 (client-only): ngày học MỚI được công nhận trong lần
+  /// complete này — LessonPlayerScreen gắn vào enriched DTO truyền qua
+  /// route extra; server KHÔNG trả field này trong GET /result (deep-link
+  /// /reload không phát lại animation). Null = không phát animation.
+  final StreakInfoDto? newlyRecordedStreak;
+
   const LessonResultDto({
     required this.attemptId,
     required this.lessonVersionId,
@@ -339,6 +353,7 @@ class LessonResultDto {
     this.rewards = const [],
     this.itemsUnlocked = const [],
     this.newlyUnlockedDossiers = const [],
+    this.newlyRecordedStreak,
   });
 
   factory LessonResultDto.fromJson(

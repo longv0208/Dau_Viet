@@ -17,3 +17,9 @@ repomix-output.xml
 **/target/
 **/build/
 **/.dart_tool/
+
+# Database backups/dumps — chứa dữ liệu cá nhân (password hash, refresh
+# token, email). KHÔNG commit; giữ ngoài repo (xem docs/DATABASE_DESIGN.md).
+backups/
+**/*.dump
+**/*.backup

@@ -92,10 +92,12 @@ public class LearnerAttemptService {
     private final com.dauviet.reward.application.RewardService rewardService;
     private final com.dauviet.energy.application.EnergyService energyService;
     private final com.dauviet.energy.application.EnergyProperties energyProps;
+    private final com.dauviet.streak.application.LearningStreakService streakService;
     private final GradedActivityClassifier gradedClassifier;
     private final ObjectMapper mapper;
     private final TransactionTemplate txTemplate;
     private final EntityManager entityManager;
+    private final com.dauviet.path.application.LearnerPathProgressionService pathProgression;
 
     public LearnerAttemptService(LearnerAttemptRepository attempts,
                                  ActivityAttemptRepository activityAttempts,
@@ -121,11 +123,14 @@ public class LearnerAttemptService {
                                          .EnergyService energyService,
                                  com.dauviet.energy.application
                                          .EnergyProperties energyProps,
+                                 com.dauviet.streak.application
+                                         .LearningStreakService streakService,
                                  GradedActivityClassifier gradedClassifier,
                                  ObjectMapper mapper,
                                  org.springframework.transaction
                                          .PlatformTransactionManager txManager,
-                                 EntityManager entityManager) {
+                                 EntityManager entityManager,
+                                 com.dauviet.path.application.LearnerPathProgressionService pathProgression) {
         this.attempts = attempts;
         this.activityAttempts = activityAttempts;
         this.lessonResults = lessonResults;
@@ -143,10 +148,12 @@ public class LearnerAttemptService {
         this.rewardService = rewardService;
         this.energyService = energyService;
         this.energyProps = energyProps;
+        this.streakService = streakService;
         this.gradedClassifier = gradedClassifier;
         this.mapper = mapper;
         this.txTemplate = new TransactionTemplate(txManager);
         this.entityManager = entityManager;
+        this.pathProgression = pathProgression;
     }
 
     /**
@@ -198,6 +205,10 @@ public class LearnerAttemptService {
         if (lesson.getStatus() != LessonStatus.PUBLISHED || lesson.getCurrentVersionId() == null) {
             throw new LessonNotPublishedException("lesson is not published: " + lessonId);
         }
+
+        // A legacy in-flight attempt already returned above can always resume.
+        // New attempts are gated by the learner's pinned path on the server.
+        pathProgression.requireLessonAvailableForNewAttempt(userId, lessonId);
         UUID versionId = lesson.getCurrentVersionId();
 
         SnapshotModel model = snapshotOf(versionId);
@@ -479,8 +490,18 @@ public class LearnerAttemptService {
         LessonVersion completedVersion = versions.findById(a.getLessonVersionId())
                 .orElse(null);
         java.util.Set<UUID> newlyUnlockedDossiers = java.util.Set.of();
+        CompleteAttemptResponse.StreakInfo streak = null;
         if (completedVersion != null) {
             UUID lessonId = completedVersion.getLessonId();
+            // STREAK-01: ghi nhận ngày học (VN timezone) cùng transaction.
+            // Idempotent bên trong: complete replay vào nhánh
+            // alreadyCompleted ở trên không tới đây; concurrent same-day
+            // chịu UNIQUE(user_id, study_date). streakService không phát
+            // sinh reward ledger — chuỗi ngày học là milestone riêng, tách
+            // khỏi EXP/Điểm Sử Ký (POINT-03). Trả StreakInfo khi ngày được
+            // công nhận mới để client chạy animation lửa một lần.
+            streak = streakService.recordCompletion(userId, lessonId,
+                    a.getId(), a.getCompletedAt());
             rewardGrants.grantFirstCompletion(userId, lessonId, a.getId());
             // GAME-04 + GAME-05 ordering: ghi milestone event TRƯỚC khi đánh
             // giá item rules — leaf EVENT_COMPLETED/EVENT_MASTERED/
@@ -500,9 +521,9 @@ public class LearnerAttemptService {
             itemUnlocks.evaluateAfterLessonCompletion(userId, lessonId,
                     a.getId());
         }
-        return new CompleteAttemptResponse(a.getId(), a.getStatus().name(),
-                false, a.getCompletedAt(), verdict, progress,
-                List.copyOf(newlyUnlockedDossiers));
+        return CompleteAttemptResponse.withStreak(a.getId(),
+                a.getStatus().name(), false, a.getCompletedAt(), verdict,
+                progress, List.copyOf(newlyUnlockedDossiers), streak);
     }
 
     /**

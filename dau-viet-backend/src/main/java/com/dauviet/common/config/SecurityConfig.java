@@ -60,7 +60,8 @@ public class SecurityConfig {
             .logout(logout -> logout.disable())
             .authorizeHttpRequests(auth -> auth
                 .requestMatchers(org.springframework.http.HttpMethod.GET,
-                        "/api/v1/events", "/api/v1/events/*").permitAll()
+                        "/api/v1/events", "/api/v1/events/*",
+                        "/api/v1/learning-path", "/api/v1/learning-path/**").permitAll()
                 // Learner content surface: authenticated users only (AC-10);
                 // events catalogue stays public.
                 .requestMatchers(org.springframework.http.HttpMethod.GET,

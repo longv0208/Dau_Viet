@@ -1,6 +1,12 @@
 /** Single source of TanStack Query key builders — prevents key drift. */
 
 export const qk = {
+  learningPath: {
+    all: ["learning-path"] as const,
+    lists: ["learning-path", "versions"] as const,
+    list: (code: string) => ["learning-path", "versions", code] as const,
+    detail: (id: string) => ["learning-path", "detail", id] as const,
+  },
   admin: {
     ping: () => ["admin", "ping"] as const,
   },

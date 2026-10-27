@@ -6,10 +6,12 @@ import Link from "next/link";
 import { useSearchParams } from "next/navigation";
 import { useMemo, useState } from "react";
 
-import { apiFetch } from "@/lib/api-client";
+import { apiFetch, toQuery } from "@/lib/api-client";
 import { ApiClientError, toUserMessage } from "@/lib/api-error";
 import { parseReturnTo, withReturnTo } from "@/lib/return-to";
 import type { AdminLessonDetail } from "@/lib/dto/lesson";
+import type { PageResponse } from "@/lib/dto/common";
+import type { Evidence } from "@/lib/dto/evidence";
 import { qk } from "@/lib/query-keys";
 import { Button } from "@/components/ui/button";
 import { ErrorState } from "@/components/error-state";
@@ -25,6 +27,7 @@ import { StageEditor } from "./stage-editor";
 import { StageNavigator } from "./stage-navigator";
 import { TemplateSeedButton } from "./template-seed-button";
 import { makeStage, useBuilder, type FieldError } from "./use-builder";
+import { validateDraftLocally } from "./draft-local-validator";
 import { ValidationPanel } from "./validation-panel";
 
 interface ServerErrorItem {
@@ -137,6 +140,31 @@ function BuilderInner({
 
   useUnsavedChangesGuard(state.dirty && !readOnly);
 
+  // Danh mục bằng chứng của event — để message lỗi show title thay vì UUID.
+  const evidencesQuery = useQuery({
+    queryKey: ["evidences", "catalog", lesson.eventId],
+    queryFn: async () => {
+      const pageSize = 100;
+      const first = await apiFetch<PageResponse<Evidence>>(
+        `/admin/evidences${toQuery({ eventId: lesson.eventId, size: pageSize, page: 0 })}`,
+      );
+      const rest = await Promise.all(
+        Array.from({ length: Math.max(0, first.totalPages - 1) }, (_, i) =>
+          apiFetch<PageResponse<Evidence>>(
+            `/admin/evidences${toQuery({ eventId: lesson.eventId, size: pageSize, page: i + 1 })}`,
+          ),
+        ),
+      );
+      return rest.reduce<Evidence[]>((acc, p) => acc.concat(p.content), [...first.content]);
+    },
+    staleTime: 30_000,
+  });
+  const evidenceTitleMap = useMemo(() => {
+    const m = new Map<string, string>();
+    for (const e of evidencesQuery.data ?? []) m.set(e.id, e.title);
+    return m;
+  }, [evidencesQuery.data]);
+
   const saveMutation = useMutation({
     // Capture revision + draft tại thời điểm bấm Lưu — nếu người dùng sửa tiếp
     // trong lúc PUT đang chạy, markSaved sẽ giữ dirty (không mất thay đổi mới).
@@ -200,7 +228,39 @@ function BuilderInner({
           <Button
             className="ml-auto"
             disabled={!state.dirty || saveMutation.isPending}
-            onClick={() => saveMutation.mutate()}
+            onClick={() => {
+              // Chặn submit khi client-side đã thấy lỗi — đỡ round-trip PUT
+              // và giữ nguyên vị trí lỗi để jump tới.
+              const localErrors = validateDraftLocally(state.draft, {
+                evidenceTitle: (id) => evidenceTitleMap.get(id),
+              });
+              if (localErrors.length > 0) {
+                const fields: FieldError[] = localErrors.map((e) => ({
+                  path: e.path,
+                  code: e.code,
+                  message: e.detail ?? e.code,
+                  detail: e.detail,
+                }));
+                actions.setErrors(fields);
+                const first = localErrors[0];
+                if (first) {
+                  // Jump tới stage/activity đầu tiên bị lỗi.
+                  const m = /stages\[id=([^\]]+)\].*?activities\[(\d+)\]/.exec(first.path);
+                  if (m && m[1] && m[2] != null) {
+                    actions.selectStage(m[1]);
+                    const st = state.draft.stages.find((x) => x.id === m[1]);
+                    const actIdx = Number(m[2]);
+                    const act = st?.activities[actIdx];
+                    if (act) actions.selectActivity(act.id);
+                  }
+                }
+                setSaveError(
+                  `Bản nháp còn ${localErrors.length} lỗi cấu hình — xem danh sách bên phải.`,
+                );
+                return;
+              }
+              saveMutation.mutate();
+            }}
           >
             <Save className="size-4" />
             {saveMutation.isPending ? "Đang lưu..." : "Lưu nháp"}

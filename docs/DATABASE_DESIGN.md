@@ -72,6 +72,10 @@ erDiagram
 | `historical_dossier_versions` | `id`, `dossier_id` → historical_dossiers, `dossier_version`, `dossier_type`, `title`, `summary`, `description`, `source_json` JSONB, `asset_id`, `status`, `published_at`, `published_by` → users | **V28 (GAME-06)** — append-only snapshot nội dung mỗi lần publish; `UNIQUE (dossier_id, dossier_version)`; `status` CHECK `IN ('PUBLISHED','ARCHIVED')`; `source_json` CHECK `jsonb_typeof='object'`. `user_dossier_unlocks.dossier_version` pin nội dung admin đã duyệt lúc grant — doc-side truy vết được đúng version learner sở hữu. V28 backfill snapshot cho dossier PUBLISHED có sẵn từ V22 (idempotent `NOT EXISTS`) |
 | `event_dossiers` | `event_id` → historical_events, `dossier_id` → historical_dossiers, `unlock_on`, `sort_order` | **V22** — quan hệ n-n chính thức duy nhất sinh unlock (không so khớp tên/tag). PK `(event_id, dossier_id)`; `unlock_on` ∈ `EVENT_COMPLETED` (CHECK); index `(dossier_id)` cho reverse lookup |
 | `user_dossier_unlocks` | `user_id` → users, `dossier_id` → historical_dossiers, `event_id` → historical_events (nguồn mở đầu tiên), `dossier_version`, `granted_at` | **V22** — quyền mở hồ sơ, PK `(user_id, dossier_id)` (canonical dedup — một dossier không sở hữu 2 lần kể cả khi link nhiều event); `event_id` + `dossier_version` giữ provenance lần mở đầu tiên; `insertIgnore` idempotent; insert >0 = mở mới (trả cho cue `newlyUnlockedDossiers`) |
+| `learning_path_versions` | `id`, `path_code`, `version_no`, `title`, `description`, `status`, `published_at`, `created_at`, `updated_at` | **V33 (PATH-01)** — phiên bản lộ trình học tập duy nhất (`HISTORY_MAIN`); `status` ∈ `DRAFT/PUBLISHED/ARCHIVED`; partial unique index `ux_learning_path_active_published` đảm bảo tối đa 1 version PUBLISHED/path_code; trigger bảo vệ tính bất biến |
+| `learning_path_chapters` | `id`, `path_version_id` → learning_path_versions, `code`, `title`, `description`, `start_year`, `end_year`, `period_label`, `sort_order`, `theme_key` | **V33 (PATH-01)** — chương/thời kỳ lịch sử; `sort_order` xác định thứ tự; `theme_key` metadata định hình artwork; `CHECK start_year <= end_year` |
+| `learning_path_event_nodes` | `id`, `chapter_id`, `path_version_id`, `event_id` → historical_events, `sort_order`, `created_at` | **V33 (PATH-01)** — sự kiện trong chương; Unique `(path_version_id, event_id)` ngăn trùng sự kiện trong cùng version lộ trình |
+| `learning_path_lesson_nodes` | `id`, `event_node_id`, `event_id`, `lesson_id` → lessons, `sort_order`, `created_at` | **V33 (PATH-01)** — thứ tự bài học trong sự kiện; Composite FK `(event_id, lesson_id)` đảm bảo bài học thuộc đúng sự kiện ở tầng DB; Unique `(event_node_id, lesson_id)` |
 
 ### Bổ sung V14+V15 — Animation Engine
 
@@ -140,6 +144,35 @@ erDiagram
 - `event_completion_policies` mutability (GAME-06): `PUT /{policyId}` sửa **in-place trên row DRAFT** (policyId ổn định — user override thay copy-on-write; guard `status='DRAFT'` ở service, PUBLISHED immutable giữ nguyên). Publish atomic: lock event `FOR UPDATE` → revalidate → archive PUBLISHED cũ **`saveAndFlush` trước** khi ghi PUBLISHED mới (tránh va partial unique `ux_event_policy_published` khi flush defer) → `published_at`.
 - `event_dossiers` replace semantics (GAME-06): `PUT /admin/events/{eventId}/dossiers` xoá + insert nguyên list trong một tx — mọi `dossierId` phải PUBLISHED (422 khi DRAFT/ARCHIVED/missing), `displayOrder` (map `sort_order`) `>=0` và không trùng dossierId; grant learner theo lazy reconcile — không fan-out khi admin đổi link.
 - `item_unlock_rule` append-only phục vụ `GET /admin/items/{itemId}/rule/history` — `grantCount` từ `user_inventory.unlock_rule_id`; không cần schema mới.
+
+### Bổ sung V31 — Learning Streak (STREAK-01)
+
+- Migration `V31__learning_streak.sql`: hai bảng phục vụ "Chuỗi Ngày Học — Ngọn Lửa Hào Khí". `study_date` luôn là ngày theo `Asia/Ho_Chi_Minh` chuyển từ `learner_attempts.completed_at` (UTC) — server-side, không bao giờ tin client.
+
+**`user_learning_streaks`** — 1 dòng/user, lazy-create lần complete đầu tiên:
+| Column | Type | Notes |
+|---|---|---|
+| user_id | UUID PK → users.id | |
+| current_streak | INTEGER NOT NULL ≥0 | reset về 1 khi bỏ 1 ngày VN |
+| longest_streak | INTEGER NOT NULL ≥0 | kỷ lục, không bao giờ giảm; CHECK longest ≥ current |
+| last_qualified_date | DATE | ngày VN gần nhất có attempt COMPLETED |
+| created_at, updated_at | TIMESTAMPTZ | |
+| row_version | BIGINT | optimistic lock phụ |
+
+**`user_learning_streak_days`** — append-only ledger (ground truth), PK `(user_id, study_date)`:
+| Column | Type | Notes |
+|---|---|---|
+| user_id | UUID → users.id | |
+| study_date | DATE | `(completed_at AT TIME ZONE 'Asia/Ho_Chi_Minh')::date` |
+| lesson_id | UUID → lessons.id | bài của attempt thắng race |
+| learner_attempt_id | UUID → learner_attempts.id | attempt đầu tiên của ngày |
+| completed_at | TIMESTAMPTZ | server-time của attempt thắng race |
+| created_at | TIMESTAMPTZ | |
+
+- Idempotency 3 lớp: (1) `doComplete` chỉ gọi khi attempt flip IN_PROGRESS→COMPLETED lần đầu; (2) `UNIQUE(user_id, study_date)` trên ledger chặn concurrent duplicate — `INSERT ON CONFLICT DO NOTHING` trả 0 → no-op; (3) `UserLearningStreak.advanceTo()` no-op khi `newDate == lastQualifiedDate`.
+- Ghi serialize qua `PESSIMISTIC_WRITE` trên `user_learning_streaks` (cùng pattern EnergyService); lock-order sau `learner_attempts` — `doComplete` đã lock attempt trước.
+- Đọc API (`stateOf`, `calendarOf`) `readOnly=true` KHÔNG lazy-create — user chưa học trả bộ default (current=0) chứ không ghi DB.
+- Backfill: standalone `dau-viet-db/scripts/backfill-learning-streak.sql` (không phải migration) — `\if :{?dry_run}` mặc định dry-run ROLLBACK; DISTINCT ON earliest attempt per (user, study_date); gaps-and-islands streak calc; upsert `GREATEST/CASE` bảo toàn ghi song song mới hơn.
 
 ## 4. Contract snapshot bài học
 

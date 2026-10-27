@@ -7,6 +7,7 @@ import '../../../core/widgets/ambient_atmosphere_overlay.dart';
 import '../../../core/widgets/bite_sized_completion_modal.dart';
 import '../../../core/widgets/combo_streak_badge_widget.dart';
 import '../../../core/widgets/dong_son_button.dart';
+import '../../../core/widgets/energy_pill.dart';
 import '../../../core/widgets/gold_confetti_overlay.dart';
 import '../../../core/widgets/interactive_historical_mascot_widget.dart';
 import '../../../core/widgets/parchment_card.dart';
@@ -203,7 +204,6 @@ class _HypothesisVerificationScreenState
                                   xpPoints: 90,
                                   accuracy: 1.0,
                                   streakCount: 6,
-                                  multiplier: 2.0,
                                   badgeAsset:
                                       'assets/badges/badge_trace_4_archaeology.png',
                                   onContinue: () {
@@ -253,7 +253,7 @@ class _HypothesisVerificationScreenState
               if (context.canPop()) {
                 context.pop();
               } else {
-                context.go('/traces/evt_bach_dang_938');
+                context.go('/dashboard');
               }
             },
           ),
@@ -308,7 +308,13 @@ class _HypothesisVerificationScreenState
           ),
           const SoundToggleButton(),
           const SizedBox(width: 8),
-          const ComboStreakBadgeWidget(streakCount: 6, multiplier: 2.0),
+          const EnergyPill(
+            energy: 100,
+            maxEnergy: 100,
+            showHistoryPoints: false,
+          ),
+          const SizedBox(width: 8),
+          const ComboStreakBadgeWidget(streakCount: 6),
         ],
       ),
     );

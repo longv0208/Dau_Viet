@@ -36,8 +36,14 @@ class _MultipleChoiceRendererState extends State<MultipleChoiceRenderer> {
 
   bool _isTrueFalse(List<Map<String, dynamic>> options) {
     if (options.length != 2) return false;
-    final l0 = (options[0]['label'] ?? options[0]['text'] ?? '').toString().toLowerCase().trim();
-    final l1 = (options[1]['label'] ?? options[1]['text'] ?? '').toString().toLowerCase().trim();
+    final l0 = (options[0]['label'] ?? options[0]['text'] ?? '')
+        .toString()
+        .toLowerCase()
+        .trim();
+    final l1 = (options[1]['label'] ?? options[1]['text'] ?? '')
+        .toString()
+        .toLowerCase()
+        .trim();
     return (l0.contains('đúng') && l1.contains('sai')) ||
         (l0.contains('sai') && l1.contains('đúng')) ||
         (l0 == 'true' && l1 == 'false') ||
@@ -133,7 +139,9 @@ class _MultipleChoiceRendererState extends State<MultipleChoiceRenderer> {
     // Tìm ID của nút Đúng và Sai
     String trueId = options[0]['id'] as String? ?? '';
     String falseId = options[1]['id'] as String? ?? '';
-    final l0 = (options[0]['label'] ?? options[0]['text'] ?? '').toString().toLowerCase();
+    final l0 = (options[0]['label'] ?? options[0]['text'] ?? '')
+        .toString()
+        .toLowerCase();
     if (l0.contains('sai') || l0 == 'false') {
       trueId = options[1]['id'] as String? ?? '';
       falseId = options[0]['id'] as String? ?? '';
@@ -142,7 +150,8 @@ class _MultipleChoiceRendererState extends State<MultipleChoiceRenderer> {
     final isTrueSelected = _selected.contains(trueId);
     final isFalseSelected = _selected.contains(falseId);
 
-    final String? imagePath = (widget.activity.config['image'] as String?) ??
+    final String? imagePath =
+        (widget.activity.config['image'] as String?) ??
         (widget.activity.config['illustration'] as String?) ??
         (widget.activity.config['sceneImage'] as String?);
 
@@ -172,7 +181,11 @@ class _MultipleChoiceRendererState extends State<MultipleChoiceRenderer> {
                   fit: BoxFit.cover,
                   errorBuilder: (_, __, ___) => Container(
                     color: const Color(0xFFF3ECE0),
-                    child: const Icon(Icons.image_outlined, size: 48, color: Color(0xFFB45309)),
+                    child: const Icon(
+                      Icons.image_outlined,
+                      size: 48,
+                      color: Color(0xFFB45309),
+                    ),
                   ),
                 ),
               ),
@@ -197,7 +210,8 @@ class _MultipleChoiceRendererState extends State<MultipleChoiceRenderer> {
             ],
           ),
           child: Text(
-            question ?? 'Thời Hùng Vương, người Việt đã biết trồng lúa nước, làm nhà sàn và sống thành các làng bản.',
+            question ??
+                'Thời Hùng Vương, người Việt đã biết trồng lúa nước, làm nhà sàn và sống thành các làng bản.',
             textAlign: TextAlign.center,
             style: DauVietTypography.headlineMedium.copyWith(
               fontSize: 15,
@@ -220,16 +234,22 @@ class _MultipleChoiceRendererState extends State<MultipleChoiceRenderer> {
                   duration: const Duration(milliseconds: 150),
                   padding: const EdgeInsets.symmetric(vertical: 14),
                   decoration: BoxDecoration(
-                    color: isTrueSelected ? const Color(0xFF2D6A4F) : const Color(0xFFE8F5E9),
+                    color: isTrueSelected
+                        ? const Color(0xFF2D6A4F)
+                        : const Color(0xFFE8F5E9),
                     borderRadius: BorderRadius.circular(16),
                     border: Border.all(
-                      color: isTrueSelected ? const Color(0xFF1B4332) : const Color(0xFFA5D6A7),
+                      color: isTrueSelected
+                          ? const Color(0xFF1B4332)
+                          : const Color(0xFFA5D6A7),
                       width: isTrueSelected ? 2.2 : 1.2,
                     ),
                     boxShadow: isTrueSelected
                         ? [
                             BoxShadow(
-                              color: const Color(0xFF2D6A4F).withValues(alpha: 0.35),
+                              color: const Color(
+                                0xFF2D6A4F,
+                              ).withValues(alpha: 0.35),
                               blurRadius: 8,
                               offset: const Offset(0, 3),
                             ),
@@ -242,7 +262,9 @@ class _MultipleChoiceRendererState extends State<MultipleChoiceRenderer> {
                       Icon(
                         Icons.check_circle_rounded,
                         size: 20,
-                        color: isTrueSelected ? Colors.white : const Color(0xFF2E7D32),
+                        color: isTrueSelected
+                            ? Colors.white
+                            : const Color(0xFF2E7D32),
                       ),
                       const SizedBox(width: 8),
                       Text(
@@ -250,7 +272,9 @@ class _MultipleChoiceRendererState extends State<MultipleChoiceRenderer> {
                         style: DauVietTypography.labelLarge.copyWith(
                           fontSize: 16,
                           fontWeight: FontWeight.w800,
-                          color: isTrueSelected ? Colors.white : const Color(0xFF1B5E20),
+                          color: isTrueSelected
+                              ? Colors.white
+                              : const Color(0xFF1B5E20),
                         ),
                       ),
                     ],
@@ -268,16 +292,22 @@ class _MultipleChoiceRendererState extends State<MultipleChoiceRenderer> {
                   duration: const Duration(milliseconds: 150),
                   padding: const EdgeInsets.symmetric(vertical: 14),
                   decoration: BoxDecoration(
-                    color: isFalseSelected ? const Color(0xFFC2410C) : const Color(0xFFFFEBEE),
+                    color: isFalseSelected
+                        ? const Color(0xFFC2410C)
+                        : const Color(0xFFFFEBEE),
                     borderRadius: BorderRadius.circular(16),
                     border: Border.all(
-                      color: isFalseSelected ? const Color(0xFF9A3412) : const Color(0xFFFFCDD2),
+                      color: isFalseSelected
+                          ? const Color(0xFF9A3412)
+                          : const Color(0xFFFFCDD2),
                       width: isFalseSelected ? 2.2 : 1.2,
                     ),
                     boxShadow: isFalseSelected
                         ? [
                             BoxShadow(
-                              color: const Color(0xFFC2410C).withValues(alpha: 0.35),
+                              color: const Color(
+                                0xFFC2410C,
+                              ).withValues(alpha: 0.35),
                               blurRadius: 8,
                               offset: const Offset(0, 3),
                             ),
@@ -290,7 +320,9 @@ class _MultipleChoiceRendererState extends State<MultipleChoiceRenderer> {
                       Icon(
                         Icons.cancel_rounded,
                         size: 20,
-                        color: isFalseSelected ? Colors.white : const Color(0xFFC62828),
+                        color: isFalseSelected
+                            ? Colors.white
+                            : const Color(0xFFC62828),
                       ),
                       const SizedBox(width: 8),
                       Text(
@@ -298,7 +330,9 @@ class _MultipleChoiceRendererState extends State<MultipleChoiceRenderer> {
                         style: DauVietTypography.labelLarge.copyWith(
                           fontSize: 16,
                           fontWeight: FontWeight.w800,
-                          color: isFalseSelected ? Colors.white : const Color(0xFFB71C1C),
+                          color: isFalseSelected
+                              ? Colors.white
+                              : const Color(0xFFB71C1C),
                         ),
                       ),
                     ],
@@ -320,7 +354,11 @@ class _MultipleChoiceRendererState extends State<MultipleChoiceRenderer> {
           ),
           child: Row(
             children: [
-              const Icon(Icons.lightbulb_outline_rounded, size: 16, color: Color(0xFFD97706)),
+              const Icon(
+                Icons.lightbulb_outline_rounded,
+                size: 16,
+                color: Color(0xFFD97706),
+              ),
               const SizedBox(width: 6),
               Expanded(
                 child: Text(
@@ -372,13 +410,19 @@ class _OptionTile extends StatelessWidget {
   // Chọn icon minh hoạ phù hợp theo ngữ cảnh hoặc vị trí lựa chọn
   IconData _iconForOption(String label, int idx) {
     final l = label.toLowerCase();
-    if (l.contains('sông') || l.contains('nước') || l.contains('thuyền') || l.contains('biển')) {
+    if (l.contains('sông') ||
+        l.contains('nước') ||
+        l.contains('thuyền') ||
+        l.contains('biển')) {
       return Icons.waves_rounded;
     }
     if (l.contains('núi') || l.contains('rừng') || l.contains('đồi')) {
       return Icons.terrain_rounded;
     }
-    if (l.contains('làng') || l.contains('nhà') || l.contains('thành') || l.contains('ấp')) {
+    if (l.contains('làng') ||
+        l.contains('nhà') ||
+        l.contains('thành') ||
+        l.contains('ấp')) {
       return Icons.cottage_rounded;
     }
     if (l.contains('hang') || l.contains('động')) {
@@ -429,14 +473,18 @@ class _OptionTile extends StatelessWidget {
                     : const Color(0xFFF5EEDB),
                 borderRadius: BorderRadius.circular(10),
                 border: Border.all(
-                  color: selected ? const Color(0xFF2D6A4F) : const Color(0xFFE5DAC6),
+                  color: selected
+                      ? const Color(0xFF2D6A4F)
+                      : const Color(0xFFE5DAC6),
                   width: 1,
                 ),
               ),
               child: Icon(
                 iconData,
                 size: 20,
-                color: selected ? const Color(0xFF2D6A4F) : const Color(0xFF8B4513),
+                color: selected
+                    ? const Color(0xFF2D6A4F)
+                    : const Color(0xFF8B4513),
               ),
             ),
             const SizedBox(width: 12),
@@ -449,8 +497,8 @@ class _OptionTile extends StatelessWidget {
                   color: selected
                       ? const Color(0xFF1B4332)
                       : (enabled
-                          ? const Color(0xFF1F2421)
-                          : const Color(0xFF75807A)),
+                            ? const Color(0xFF1F2421)
+                            : const Color(0xFF75807A)),
                   fontSize: 14.5,
                   fontWeight: selected ? FontWeight.w700 : FontWeight.w600,
                   height: 1.35,

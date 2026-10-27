@@ -616,6 +616,25 @@ Tên bảng final do task thiết kế kỹ thuật quyết định sau khi scan
 
 ---
 
+## 16b. Chuỗi Ngày Học — Ngọn Lửa Hào Khí (Learning Streak)
+
+| ID | Quy định |
+|---|---|
+| `STRK-01` | Streak = số ngày VN liên tiếp có ≥1 attempt `COMPLETED`. Chỉ `COMPLETED` mới đếm — `IN_PROGRESS`/`ABANDONED`/`startOrResume` không sinh ngày học. |
+| `STRK-02` | Timezone nghiệp vụ `Asia/Ho_Chi_Minh`. `study_date = (completed_at AT TIME ZONE 'Asia/Ho_Chi_Minh')::date` — server tính từ `completed_at` UTC của attempt, **không bao giờ tin client time**. Request chỉ mang JWT + attemptId. |
+| `STRK-03` | Nhiều attempt complete trong cùng `study_date` = đúng 1 ngày. Ledger `user_learning_streak_days` PK `(user_id, study_date)` là ground truth; `INSERT ON CONFLICT DO NOTHING` trả 0 → không đụng aggregate. |
+| `STRK-04` | Bỏ ≥1 ngày VN không học → `current_streak` reset về 1 ở lần complete kế tiếp. `longest_streak` không bao giờ giảm (`CHECK longest ≥ current`). |
+| `STRK-05` | Streak **không sinh reward transaction** (POINT-03): không EXP, không Điểm Sử Ký, không item, không dossier. Ngọn lửa là động lực tự thân — không ghi `reward_transactions`. |
+| `STRK-06` | Idempotent + concurrency-safe: hai thiết bị complete cùng ngày của cùng user → đúng 1 ngày (UNIQUE ledger + `PESSIMISTIC_WRITE` trên `user_learning_streaks`, lock-order sau `learner_attempts`). Ghi streak trong **cùng transaction** `doComplete` — attempt rollback thì streak rollback cùng. |
+| `STRK-07` | `streakAlive = (lastQualifiedDate == today) OR (lastQualifiedDate == today - 1)` — cho UI phân biệt "đã ghi hôm nay" (`completedToday`) vs "học hôm qua, còn cửa giữ" vs "đã đứt". Đọc API **không** âm thầm reset `current_streak` và **không** lazy-create row (readOnly=true). |
+| `STRK-08` | Backfill một lần từ `learner_attempts` COMPLETED — script riêng `dau-viet-db/scripts/backfill-learning-streak.sql`, KHÔNG phải Flyway migration; mặc định dry-run ROLLBACK (`\set dry_run off` mới COMMIT); gaps-and-islands tính streak; upsert `GREATEST/CASE` bảo toàn ghi song song mới hơn. |
+
+**Response additive `CompleteAttemptResponse.streak`** (STRK-API): non-null **chỉ** khi server vừa công nhận ngày học MỚI (`dayRecorded=true`, `currentStreak`, `longestStreak`, `studyDate`). Replay/ngày đã có → `null` — đây là điều kiện duy nhất cho mobile phát animation ngọn lửa N→N+1 (không gọi thêm API, không phát lại).
+
+**Khác biệt với Combo Streak:** `ComboStreakBadgeWidget` đếm chuỗi **câu trả lời đúng liên tiếp trong một bài** (client-side, session tạm) — khái niệm hoàn toàn khác, không đụng vào tài liệu này.
+
+---
+
 ## 17. Các quyết định đóng băng và quản lý thay đổi
 
 ### 17.1 Quyết định V1 đã thống nhất làm baseline

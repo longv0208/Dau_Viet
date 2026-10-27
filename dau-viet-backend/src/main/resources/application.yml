@@ -43,6 +43,9 @@ app:
 
 
 dauviet:
+  shop:
+    # ISLAND-BE-01: true = cho phép mua vật phẩm shop Đảo Di Sản.
+    enabled: ${DAUVIET_SHOP_ENABLED:true}
   energy:
     # GAME-02 rollout flag (FIX 3): false = safe default for prod/dev while
     # GAME-03 Flutter chưa xử lý ENERGY_DEPLETED. Bật qua env

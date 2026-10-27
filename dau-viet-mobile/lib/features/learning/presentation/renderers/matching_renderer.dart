@@ -96,14 +96,18 @@ class _MatchingRendererState extends State<MatchingRenderer> {
 
     // Right column "snap-to-row": slot i = right da noi voi left[i]
     // (null = cho trong); right chua noi xep duoi giu nguyen thu tu goc —
-    // cap nhom gon, de nhin quan he 1-1. left.length == right.length.
+    // cap nhom gon, de nhin quan he 1-1.
     final rightById = {for (final r in right) (r['id'] as String? ?? ''): r};
-    final int rowCount = left.length;
+    final int rowCount = left.length > right.length
+        ? left.length
+        : right.length;
     final List<Map<String, dynamic>?> orderedRight =
         List<Map<String, dynamic>?>.filled(rowCount, null);
-    for (var i = 0; i < rowCount; i++) {
+    for (var i = 0; i < left.length; i++) {
       final rid = _pairs[left[i]['id']];
-      if (rid != null) orderedRight[i] = rightById[rid];
+      if (rid != null && rightById.containsKey(rid)) {
+        orderedRight[i] = rightById[rid];
+      }
     }
     var nextFree = 0;
     for (final r in right) {
@@ -130,89 +134,19 @@ class _MatchingRendererState extends State<MatchingRenderer> {
           ),
         ),
         const SizedBox(height: 6),
-        Row(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            // Cột bên trái: Nhân vật / Hiện vật
-            Expanded(
-              flex: 4,
-              child: Column(
-                children: [
-                  for (final item in left) ...[
-                    _LeftMatchCard(
-                      label: (item['label'] ?? item['text'] ?? item['id']) as String,
-                      imageAsset: _imageForLeft(
-                        (item['label'] ?? item['text'] ?? '') as String,
-                        (item['id'] ?? '') as String,
-                      ),
-                      selected: _activeLeft == item['id'],
-                      paired: _pairs.containsKey(item['id']),
-                      enabled: !locked,
-                      reduceMotion: reduceMotion,
-                      onTap: () => _tapLeft(item['id'] as String? ?? ''),
-                    ),
-                    const SizedBox(height: 8),
-                  ],
-                ],
-              ),
-            ),
-
-            // Điểm neo kết nối giữa hai cột
-            SizedBox(
-              width: 22,
-              child: Column(
-                children: [
-                  for (final item in left) ...[
-                    Container(
-                      height: 58,
-                      alignment: Alignment.center,
-                      child: Container(
-                        width: 10,
-                        height: 10,
-                        decoration: BoxDecoration(
-                          shape: BoxShape.circle,
-                          color: _pairs.containsKey(item['id'])
-                              ? const Color(0xFF2D6A4F)
-                              : (_activeLeft == item['id']
-                                  ? const Color(0xFFC2410C)
-                                  : const Color(0xFFD8C8B0)),
-                        ),
-                      ),
-                    ),
-                    const SizedBox(height: 8),
-                  ],
-                ],
-              ),
-            ),
-
-            // Cột bên phải: Thông tin mô tả
-            Expanded(
-              flex: 5,
-              child: Column(
-                children: [
-                  for (final item in right) ...[
-                    _RightMatchCard(
-                      label: (item['label'] ?? item['text'] ?? item['id']) as String,
-                      selected: false,
-                      paired: usedRight.contains(item['id']),
-                      enabled: !locked && (_activeLeft != null || usedRight.contains(item['id'])),
-                      reduceMotion: reduceMotion,
-                      onTap: () {
-                        if (usedRight.contains(item['id']) && _activeLeft == null) {
-                          _unpairRight(item['id'] as String? ?? '');
-                        } else {
-                          _tapRight(item['id'] as String? ?? '');
-                        }
-                      },
-                    ),
-                    const SizedBox(height: 8),
-                  ],
-                ],
-              ),
-            ),
-          ],
-        ),
-        const SizedBox(height: 10),
+        // Danh sách các hàng ghép đôi: 2 thẻ nối chạy lên ngang hàng nhau, tự co giãn theo độ dài văn bản
+        for (var i = 0; i < rowCount; i++) ...[
+          _buildMatchRow(
+            index: i,
+            leftItem: i < left.length ? left[i] : null,
+            rightItem: orderedRight[i],
+            locked: locked,
+            reduceMotion: reduceMotion,
+            usedRight: usedRight,
+          ),
+          const SizedBox(height: 10),
+        ],
+        const SizedBox(height: 6),
         Text(
           'Đã ghép ${_pairs.length}/${left.length}',
           textAlign: TextAlign.center,
@@ -238,6 +172,123 @@ class _MatchingRendererState extends State<MatchingRenderer> {
           }),
         ),
       ],
+    );
+  }
+
+  Widget _buildMatchRow({
+    required int index,
+    required Map<String, dynamic>? leftItem,
+    required Map<String, dynamic>? rightItem,
+    required bool locked,
+    required bool reduceMotion,
+    required Set<String> usedRight,
+  }) {
+    final String? leftId = leftItem?['id'] as String?;
+    final String? rightId = rightItem?['id'] as String?;
+
+    // Hàng này được xem là đã ghép nối nếu leftId và rightId đã kết nối với nhau
+    final bool isRowPaired =
+        leftId != null && rightId != null && _pairs[leftId] == rightId;
+
+    final bool isLeftSelected = leftId != null && _activeLeft == leftId;
+    final bool isRightUsed = rightId != null && usedRight.contains(rightId);
+
+    return IntrinsicHeight(
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          // 1. Thẻ bên trái: Nhân vật / Hiện vật
+          Expanded(
+            flex: 4,
+            child: leftItem != null
+                ? _LeftMatchCard(
+                    label:
+                        (leftItem['label'] ??
+                                leftItem['text'] ??
+                                leftItem['id'])
+                            as String,
+                    imageAsset: _imageForLeft(
+                      (leftItem['label'] ?? leftItem['text'] ?? '') as String,
+                      (leftItem['id'] ?? '') as String,
+                    ),
+                    selected: isLeftSelected,
+                    paired: isRowPaired,
+                    enabled: !locked,
+                    reduceMotion: reduceMotion,
+                    onTap: () {
+                      if (leftId != null) _tapLeft(leftId);
+                    },
+                  )
+                : const SizedBox.shrink(),
+          ),
+
+          // 2. Điểm neo kết nối giữa hai thẻ trong cùng một hàng
+          _ConnectorDot(isPaired: isRowPaired, isActive: isLeftSelected),
+
+          // 3. Thẻ bên phải: Thông tin mô tả đã snap lên ngang hàng với thẻ trái
+          Expanded(
+            flex: 5,
+            child: rightItem != null
+                ? _RightMatchCard(
+                    label:
+                        (rightItem['label'] ??
+                                rightItem['text'] ??
+                                rightItem['id'])
+                            as String,
+                    selected: false,
+                    paired: isRowPaired,
+                    enabled: !locked && (_activeLeft != null || isRightUsed),
+                    reduceMotion: reduceMotion,
+                    onTap: () {
+                      if (rightId == null) return;
+                      if (isRightUsed && _activeLeft == null) {
+                        _unpairRight(rightId);
+                      } else {
+                        _tapRight(rightId);
+                      }
+                    },
+                  )
+                : const SizedBox.shrink(),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _ConnectorDot extends StatelessWidget {
+  final bool isPaired;
+  final bool isActive;
+
+  const _ConnectorDot({required this.isPaired, required this.isActive});
+
+  @override
+  Widget build(BuildContext context) {
+    final Color dotColor = isPaired
+        ? const Color(0xFF2D6A4F)
+        : (isActive ? const Color(0xFFC2410C) : const Color(0xFFD8C8B0));
+
+    return SizedBox(
+      width: 22,
+      child: Center(
+        child: Container(
+          width: 10,
+          height: 10,
+          decoration: BoxDecoration(
+            shape: BoxShape.circle,
+            color: dotColor,
+            boxShadow: isPaired
+                ? [
+                    BoxShadow(
+                      color: const Color(0xFF2D6A4F).withValues(alpha: 0.35),
+                      blurRadius: 4,
+                      offset: const Offset(0, 1),
+                    ),
+                  ]
+                : null,
+          ),
+        ),
+      ),
     );
   }
 }
@@ -278,12 +329,15 @@ class _LeftMatchCard extends StatelessWidget {
       onTap: enabled ? onTap : null,
       borderRadius: BorderRadius.circular(14),
       child: Container(
-        height: 58,
-        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 6),
+        constraints: const BoxConstraints(minHeight: 58),
+        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 8),
         decoration: BoxDecoration(
           color: bg,
           borderRadius: BorderRadius.circular(14),
-          border: Border.all(color: border, width: (selected || paired) ? 1.8 : 1.2),
+          border: Border.all(
+            color: border,
+            width: (selected || paired) ? 1.8 : 1.2,
+          ),
           boxShadow: [
             BoxShadow(
               color: const Color(0xFF8B4513).withValues(alpha: 0.05),
@@ -313,12 +367,13 @@ class _LeftMatchCard extends StatelessWidget {
             Expanded(
               child: Text(
                 label,
-                maxLines: 2,
-                overflow: TextOverflow.ellipsis,
                 style: DauVietTypography.bodyMedium.copyWith(
-                  fontWeight: (selected || paired) ? FontWeight.w800 : FontWeight.w600,
+                  fontWeight: (selected || paired)
+                      ? FontWeight.w800
+                      : FontWeight.w600,
                   fontSize: 12.5,
                   color: const Color(0xFF1F2421),
+                  height: 1.3,
                 ),
               ),
             ),
@@ -331,7 +386,11 @@ class _LeftMatchCard extends StatelessWidget {
   Widget _fallbackIcon() {
     return Container(
       color: const Color(0xFFF5EEDB),
-      child: const Icon(Icons.account_balance_rounded, size: 20, color: Color(0xFFB45309)),
+      child: const Icon(
+        Icons.account_balance_rounded,
+        size: 20,
+        color: Color(0xFFB45309),
+      ),
     );
   }
 }
@@ -367,8 +426,8 @@ class _RightMatchCard extends StatelessWidget {
       onTap: enabled ? onTap : null,
       borderRadius: BorderRadius.circular(14),
       child: Container(
-        height: 58,
-        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+        constraints: const BoxConstraints(minHeight: 58),
+        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
         decoration: BoxDecoration(
           color: bg,
           borderRadius: BorderRadius.circular(14),
@@ -384,13 +443,11 @@ class _RightMatchCard extends StatelessWidget {
         alignment: Alignment.centerLeft,
         child: Text(
           label,
-          maxLines: 2,
-          overflow: TextOverflow.ellipsis,
           style: DauVietTypography.bodySmall.copyWith(
             fontWeight: paired ? FontWeight.w700 : FontWeight.w500,
             fontSize: 11.5,
             color: paired ? const Color(0xFF1B4332) : const Color(0xFF3D4842),
-            height: 1.3,
+            height: 1.35,
           ),
         ),
       ),

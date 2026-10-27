@@ -31,7 +31,10 @@ class MockAttemptRepository implements AttemptRepository {
               'id': 'o1',
               'label': '50 con theo mẹ lên núi, 50 con theo cha xuống biển',
             },
-            {'id': 'o2', 'label': 'Cùng nhau ở lại đồng bằng xây dựng xóm làng'},
+            {
+              'id': 'o2',
+              'label': 'Cùng nhau ở lại đồng bằng xây dựng xóm làng',
+            },
             {'id': 'o3', 'label': 'Di cư sang phương Bắc để khai khẩn đất mới'},
             {
               'id': 'o4',
@@ -40,7 +43,8 @@ class MockAttemptRepository implements AttemptRepository {
           ],
         },
         'feedback': {
-          'correct': 'Chính xác! Lạc Long Quân đưa 50 con xuống biển, Âu Cơ đưa 50 con lên núi.',
+          'correct':
+              'Chính xác! Lạc Long Quân đưa 50 con xuống biển, Âu Cơ đưa 50 con lên núi.',
           'wrong': 'Chưa chính xác, hãy nhớ lại câu chuyện bọc trăm trứng nhé.',
         },
       },
@@ -74,7 +78,9 @@ class MockAttemptRepository implements AttemptRepository {
             },
           ],
         },
-        'feedback': {'correct': 'Tuyệt vời! Bạn đã ghép chính xác toàn bộ tư liệu.'},
+        'feedback': {
+          'correct': 'Tuyệt vời! Bạn đã ghép chính xác toàn bộ tư liệu.',
+        },
       },
     },
     {
@@ -86,7 +92,8 @@ class MockAttemptRepository implements AttemptRepository {
       'activity': {
         'id': 'act-order',
         'type': 'DRAG_ORDER',
-        'instruction': 'Hãy sắp xếp các sự kiện theo đúng trình tự thời gian nhé!',
+        'instruction':
+            'Hãy sắp xếp các sự kiện theo đúng trình tự thời gian nhé!',
         'config': {
           'items': [
             {'id': 's1', 'label': 'Lạc Long Quân kết duyên cùng Âu Cơ'},
@@ -101,19 +108,18 @@ class MockAttemptRepository implements AttemptRepository {
             },
           ],
         },
-        'feedback': {'correct': 'Chính xác! Trình tự thời gian đã hoàn toàn đúng.'},
+        'feedback': {
+          'correct': 'Chính xác! Trình tự thời gian đã hoàn toàn đúng.',
+        },
       },
     },
     {
-      'stage': {
-        'id': 'st-tf',
-        'type': 'CONCLUSION',
-        'title': 'Đúng / Sai',
-      },
+      'stage': {'id': 'st-tf', 'type': 'CONCLUSION', 'title': 'Đúng / Sai'},
       'activity': {
         'id': 'act-tf',
         'type': 'MULTIPLE_CHOICE',
-        'instruction': 'Quan sát tranh minh họa và nhận định xem đúng hay sai nhé!',
+        'instruction':
+            'Quan sát tranh minh họa và nhận định xem đúng hay sai nhé!',
         'config': {
           'question':
               'Thời Hùng Vương, người Việt đã biết trồng lúa nước, làm nhà sàn và sống thành các làng bản.',

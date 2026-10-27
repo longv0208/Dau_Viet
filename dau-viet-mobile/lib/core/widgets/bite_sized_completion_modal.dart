@@ -5,7 +5,10 @@ import '../theme/dau_viet_typography.dart';
 import 'dong_son_button.dart';
 import 'gold_confetti_overlay.dart';
 
-/// Modal tổng kết nhanh sau mỗi hoạt động học tập (Bite-sized Completion Modal) chuẩn Duolingo
+/// Modal tổng kết nhanh sau mỗi hoạt động học tập (Bite-sized Completion Modal) chuẩn Duolingo.
+/// LƯU Ý: `multiplier` chỉ là nhãn hiển thị — Reward Engine KHÔNG có hệ số
+/// nhân Điểm Sử Ký/EXP (mọi first-completion grant +100 EXP / +50 Sử Ký
+/// phẳng). Không truyền giá trị > 1.0 từ call-site.
 /// Cung cấp vòng lặp tưởng thưởng phấn khích:
 /// - Huy hiệu chiến công nảy lên (Spring scale animation)
 /// - Âm thanh mở rương / chiến thắng cổ điển
@@ -31,7 +34,7 @@ class BiteSizedCompletionModal extends StatefulWidget {
     required this.xpPoints,
     this.accuracy = 1.0,
     this.streakCount = 3,
-    this.multiplier = 1.5,
+    this.multiplier = 1.0,
     this.badgeAsset = 'assets/badges/badge_trace_1_context.png',
     required this.onContinue,
   });
@@ -45,7 +48,7 @@ class BiteSizedCompletionModal extends StatefulWidget {
     required int xpPoints,
     double accuracy = 1.0,
     int streakCount = 3,
-    double multiplier = 1.5,
+    double multiplier = 1.0,
     String badgeAsset = 'assets/badges/badge_trace_1_context.png',
     required VoidCallback onContinue,
   }) {

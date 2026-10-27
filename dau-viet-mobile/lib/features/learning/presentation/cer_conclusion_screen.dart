@@ -7,6 +7,7 @@ import '../../../core/widgets/ambient_atmosphere_overlay.dart';
 import '../../../core/widgets/bite_sized_completion_modal.dart';
 import '../../../core/widgets/combo_streak_badge_widget.dart';
 import '../../../core/widgets/dong_son_button.dart';
+import '../../../core/widgets/energy_pill.dart';
 import '../../../core/widgets/interactive_historical_mascot_widget.dart';
 import '../../../core/widgets/parchment_card.dart';
 import '../../../core/widgets/sound_toggle_button.dart';
@@ -153,7 +154,6 @@ class _CerConclusionScreenState extends State<CerConclusionScreen> {
                                 xpPoints: 100,
                                 accuracy: 1.0,
                                 streakCount: 7,
-                                multiplier: 2.0,
                                 badgeAsset:
                                     'assets/badges/badge_trace_1_context.png',
                                 onContinue: () {
@@ -204,7 +204,7 @@ class _CerConclusionScreenState extends State<CerConclusionScreen> {
               if (context.canPop()) {
                 context.pop();
               } else {
-                context.go('/traces/evt_bach_dang_938');
+                context.go('/dashboard');
               }
             },
           ),
@@ -259,7 +259,13 @@ class _CerConclusionScreenState extends State<CerConclusionScreen> {
           ),
           const SoundToggleButton(),
           const SizedBox(width: 8),
-          const ComboStreakBadgeWidget(streakCount: 7, multiplier: 2.0),
+          const EnergyPill(
+            energy: 100,
+            maxEnergy: 100,
+            showHistoryPoints: false,
+          ),
+          const SizedBox(width: 8),
+          const ComboStreakBadgeWidget(streakCount: 7),
         ],
       ),
     );

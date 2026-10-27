@@ -95,6 +95,14 @@ public interface LearnerAttemptRepository extends JpaRepository<LearnerAttempt, 
     java.util.Set<UUID> findDistinctCompletedLessonIds(
             @Param("userId") UUID userId);
 
+    /** Lesson identities for unfinished attempts, including attempts pinned to older versions. */
+    @Query("select distinct v.lessonId "
+         + "from LearnerAttempt a, LessonVersion v "
+         + "where a.lessonVersionId = v.id "
+         + "and a.userId = :userId and a.status = 'IN_PROGRESS'")
+    java.util.Set<UUID> findDistinctInProgressLessonIds(
+            @Param("userId") UUID userId);
+
     /** Pessimistic write lock — serializes concurrent submits on one attempt. */
     @Lock(LockModeType.PESSIMISTIC_WRITE)
     @Query("select a from LearnerAttempt a where a.id = :id")

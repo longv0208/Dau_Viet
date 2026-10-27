@@ -36,46 +36,22 @@ public abstract class AbstractPostgresIT {
         registry.add("spring.jpa.hibernate.ddl-auto", () -> "validate");
     }
 
-    /**
-     * Clear authoring tables (activity_attempts → learner_attempts →
-     * lessons → evidences → assets) so ITs that wipe `users` or
-     * `historical_events` do not hit FK violations from rows left behind by
-     * the learning/lesson/evidence ITs. Bypasses the immutable
-     * lesson_versions trigger + chk_lesson_published_version for cleanup only.
-     * Call BEFORE users.deleteAll() / delete from historical_events.
-     */
-    protected static void clearAuthoringTables(
-            org.springframework.jdbc.core.JdbcTemplate jdbc) {
-        jdbc.update("set session_replication_role = replica");
-        jdbc.update("delete from animation_scene_asset_refs");
-        jdbc.update("delete from animation_scene_versions");
-        jdbc.update("delete from animation_scenes");
-        jdbc.update("delete from animation_templates");
-        jdbc.update("delete from user_inventory");
-        jdbc.update("delete from reward_transactions");
-        // GAME-02: energy tables — xoá trước learner_attempts/users để FK
-        // không chặn cleanup của IT khác khi nó wipe bảng users.
-        jdbc.update("delete from energy_transactions");
-        jdbc.update("delete from user_energy");
-        jdbc.update("delete from map_locations");
-        // GAME-04/06: dossier/event-progress tables — trước users/events wipe.
-        jdbc.update("delete from user_dossier_unlocks");
-        jdbc.update("delete from event_dossiers");
-        jdbc.update("delete from user_event_progress");
-        // V28: version snapshots phai xoa truoc historical_dossiers.
-        jdbc.update("delete from historical_dossier_versions");
-        jdbc.update("delete from historical_dossiers");
-        jdbc.update("delete from event_completion_policies");
-        jdbc.update("delete from user_evidence");
-        jdbc.update("delete from activity_attempts");
-        jdbc.update("delete from lesson_results");
-        jdbc.update("delete from idempotency_records");
-        jdbc.update("delete from learner_attempts");
-        jdbc.update("update lessons set status = 'DRAFT', current_version_id = null");
-        jdbc.update("delete from lesson_versions");
-        jdbc.update("delete from lessons");
-        jdbc.update("delete from evidences");
-        jdbc.update("delete from assets");
-        jdbc.update("set session_replication_role = origin");
+    /** Test-only cleanup uses TRUNCATE so immutable rows need no trigger bypass.
+     * Seeded island configuration remains intact; callers may then delete users/events. */
+    protected static void clearAuthoringTables(org.springframework.jdbc.core.JdbcTemplate jdbc) {
+        jdbc.execute("""
+            TRUNCATE TABLE animation_scene_asset_refs, animation_scene_versions,
+                animation_scenes, animation_templates, user_inventory, reward_transactions,
+                energy_transactions, user_energy, user_learning_streak_days, user_learning_streaks,
+                map_locations, user_island_placements, user_islands, wallet_transactions, wallet_accounts,
+                user_dossier_unlocks, event_dossiers, user_event_progress, historical_dossier_versions,
+                historical_dossiers, event_completion_policies, user_evidence, activity_attempts,
+                lesson_results, idempotency_records, learner_attempts, learning_path_lesson_nodes,
+                learning_path_event_nodes, learning_path_chapters, learning_path_versions,
+                historical_event_canonical_aliases, lesson_versions, lessons, evidences CASCADE
+            """);
+        // TRUNCATE assets CASCADE would also erase item_catalog and seeded island shop config.
+        jdbc.update("UPDATE item_catalog SET asset_id = NULL WHERE asset_id IS NOT NULL");
+        jdbc.update("DELETE FROM assets");
     }
 }

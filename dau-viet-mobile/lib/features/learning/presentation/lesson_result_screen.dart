@@ -8,6 +8,7 @@ import '../../../core/theme/dau_viet_typography.dart';
 import '../../../core/widgets/dong_son_button.dart';
 import '../../collection/presentation/unlock_celebration_dialog.dart';
 import '../../../core/widgets/kabi_mascot_widget.dart';
+import '../../streak/data/streak_dto.dart';
 import '../data/attempt_dtos.dart';
 import '../data/learning_dtos.dart';
 import '../data/learning_providers.dart';
@@ -66,7 +67,9 @@ class LessonResultScreen extends ConsumerWidget {
       body: SafeArea(
         child: asyncResult.when(
           loading: () => const Center(
-            child: CircularProgressIndicator(color: DauVietColors.heritageGreen),
+            child: CircularProgressIndicator(
+              color: DauVietColors.heritageGreen,
+            ),
           ),
           error: (e, _) => _ErrorView(
             message: e.toString(),
@@ -96,13 +99,42 @@ class _ResultBody extends StatelessWidget {
     final score = result.score;
     final scoreStr = score != null
         ? (score == score.roundToDouble()
-            ? '${score.toInt()}'
-            : score.toStringAsFixed(1))
-        : '90';
-    final summary =
-        result.result['summary'] as String? ??
-        result.result['message'] as String?;
-    final title = _str(recapContent?.content ?? const {}, ['title', 'lessonTitle']) ?? 'Bài 1: Nguồn gốc dân tộc';
+              ? '${score.toInt()}'
+              : score.toStringAsFixed(1))
+        : (completed ? '100' : '—');
+    final summaryRaw = result.result['summary'] ?? result.result['message'];
+    final summary = summaryRaw is String ? summaryRaw : null;
+    final title =
+        _str(recapContent?.content ?? const {}, ['title', 'lessonTitle']) ??
+        (completed ? 'Hoàn thành bài học' : 'Lượt học lịch sử');
+
+    int earnedExp = 0;
+    int earnedPoints = 0;
+    for (final r in result.rewards) {
+      if (r.rewardType.toUpperCase() == 'EXP') earnedExp += r.amount;
+      if (r.rewardType.toUpperCase() == 'HISTORY_POINTS') {
+        earnedPoints += r.amount;
+      }
+    }
+    final expValue = earnedExp > 0
+        ? '+$earnedExp XP'
+        : '—';
+    final thirdBadgeValue = earnedPoints > 0
+        ? '+$earnedPoints'
+        : (result.itemsUnlocked.isNotEmpty
+              ? '+${result.itemsUnlocked.length}'
+              : '—');
+    final thirdBadgeLabel = earnedPoints > 0
+        ? 'Điểm Sử Ký'
+        : (result.itemsUnlocked.isNotEmpty ? 'Vật phẩm' : 'Phần thưởng');
+    final thirdBadgeIcon = earnedPoints > 0
+        ? Icons.military_tech_rounded
+        : (result.itemsUnlocked.isNotEmpty
+              ? Icons.inventory_2_rounded
+              : Icons.star_rounded);
+    final thirdBadgeColor = earnedPoints > 0
+        ? const Color(0xFFD97706)
+        : const Color(0xFF2D6A4F);
 
     return Scaffold(
       backgroundColor: const Color(0xFFFBF8F1),
@@ -158,7 +190,10 @@ class _ResultBody extends StatelessWidget {
                 decoration: BoxDecoration(
                   color: Colors.white,
                   borderRadius: BorderRadius.circular(18),
-                  border: Border.all(color: const Color(0xFFE5DAC6), width: 1.4),
+                  border: Border.all(
+                    color: const Color(0xFFE5DAC6),
+                    width: 1.4,
+                  ),
                   boxShadow: [
                     BoxShadow(
                       color: const Color(0xFF8B4513).withValues(alpha: 0.08),
@@ -190,7 +225,7 @@ class _ResultBody extends StatelessWidget {
                             icon: Icons.stars_rounded,
                             iconColor: const Color(0xFFD97706),
                             value: scoreStr,
-                            subValue: '/100',
+                            subValue: score != null ? '/100' : null,
                             label: 'Điểm số',
                           ),
                         ),
@@ -200,18 +235,18 @@ class _ResultBody extends StatelessWidget {
                           child: _buildResultBadge(
                             icon: Icons.bolt_rounded,
                             iconColor: const Color(0xFF2D6A4F),
-                            value: '+50 XP',
+                            value: expValue,
                             label: 'Kinh nghiệm',
                           ),
                         ),
                         const SizedBox(width: 8),
-                        // Năng lượng
+                        // Điểm Sử Ký / Vật Phẩm
                         Expanded(
                           child: _buildResultBadge(
-                            icon: Icons.favorite_rounded,
-                            iconColor: const Color(0xFFC2410C),
-                            value: '+1',
-                            label: 'Năng lượng',
+                            icon: thirdBadgeIcon,
+                            iconColor: thirdBadgeColor,
+                            value: thirdBadgeValue,
+                            label: thirdBadgeLabel,
                           ),
                         ),
                       ],
@@ -220,11 +255,17 @@ class _ResultBody extends StatelessWidget {
 
                     // Lời thoại khích lệ từ Linh vật Kabi
                     Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 12,
+                        vertical: 10,
+                      ),
                       decoration: BoxDecoration(
                         color: const Color(0xFFFBF8F1),
                         borderRadius: BorderRadius.circular(12),
-                        border: Border.all(color: const Color(0xFFE5DAC6), width: 1),
+                        border: Border.all(
+                          color: const Color(0xFFE5DAC6),
+                          width: 1,
+                        ),
                       ),
                       child: Row(
                         children: [
@@ -275,7 +316,8 @@ class _ResultBody extends StatelessWidget {
               // TASK-0023: thưởng + vật phẩm attempt này ĐÃ được server
               // cấp trong transaction complete() — chỉ hiển thị thật,
               // không phát thêm request "nhận thưởng" nào.
-              if (result.rewards.isNotEmpty || result.itemsUnlocked.isNotEmpty) ...[
+              if (result.rewards.isNotEmpty ||
+                  result.itemsUnlocked.isNotEmpty) ...[
                 const SizedBox(height: 14),
                 _RewardsSection(result: result),
               ],
@@ -290,6 +332,15 @@ class _ResultBody extends StatelessWidget {
                 ),
               ],
 
+              // STREAK-01: animation ngọn lửa — chỉ khi server vừa công
+              // nhận một ngày học MỚI (newlyRecordedStreak từ complete
+              // response qua extra). Replay/deep-link: field null → không
+              // phát lại, không gọi thêm API.
+              if (result.newlyRecordedStreak != null) ...[
+                const SizedBox(height: 14),
+                _StreakFlameBanner(streak: result.newlyRecordedStreak!),
+              ],
+
               // Ôn lại bài học & Tư liệu
               if (recapContent != null) ...[
                 const SizedBox(height: 14),
@@ -299,7 +350,7 @@ class _ResultBody extends StatelessWidget {
 
               // 4. Hai nút hành động: Tiếp tục và Ôn tập lại
               DongSonButton(
-                label: 'TIẾP TỤC ›',
+                label: 'VỀ TRANG CHỦ',
                 icon: Icons.arrow_forward_rounded,
                 variant: DongSonButtonVariant.natureGreen,
                 height: 52,
@@ -307,8 +358,23 @@ class _ResultBody extends StatelessWidget {
               ),
               const SizedBox(height: 10),
               OutlinedButton.icon(
-                onPressed: () => context.push('/learning/lesson/${result.attemptId}'),
-                icon: const Icon(Icons.menu_book_rounded, size: 18, color: Color(0xFF5E6963)),
+                onPressed: () {
+                  final targetLessonId =
+                      recapContent?.lessonId ??
+                      (result.rewards.isNotEmpty
+                          ? result.rewards.first.lessonId
+                          : null);
+                  if (targetLessonId != null && targetLessonId.isNotEmpty) {
+                    context.push('/learning/lesson/$targetLessonId');
+                  } else {
+                    context.go('/dashboard');
+                  }
+                },
+                icon: const Icon(
+                  Icons.menu_book_rounded,
+                  size: 18,
+                  color: Color(0xFF5E6963),
+                ),
                 label: Text(
                   'Ôn tập lại',
                   style: DauVietTypography.labelLarge.copyWith(
@@ -320,7 +386,9 @@ class _ResultBody extends StatelessWidget {
                 style: OutlinedButton.styleFrom(
                   minimumSize: const Size.fromHeight(48),
                   side: const BorderSide(color: Color(0xFFD8C8B0), width: 1.2),
-                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(14),
+                  ),
                   backgroundColor: Colors.white,
                 ),
               ),
@@ -560,6 +628,98 @@ class _RewardsSection extends StatelessWidget {
   }
 }
 
+/// STREAK-01: banner ngọn lửa chuỗi ngày — số đếm từ N-1 → N bằng
+/// TweenAnimationBuilder, phát đúng một lần khi màn mở với ngày học mới.
+/// Không gọi API, không re-show trên replay (field chỉ đi qua route extra).
+class _StreakFlameBanner extends StatelessWidget {
+  final StreakInfoDto streak;
+  const _StreakFlameBanner({required this.streak});
+
+  @override
+  Widget build(BuildContext context) {
+    final int current = streak.currentStreak;
+    final int previous = current > 0 ? current - 1 : 0;
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+      decoration: BoxDecoration(
+        color: DauVietColors.cinnabarRed.withValues(alpha: 0.08),
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: DauVietColors.cinnabarRed, width: 1.4),
+      ),
+      child: Row(
+        children: [
+          TweenAnimationBuilder<double>(
+            tween: Tween(begin: 0.6, end: 1.0),
+            duration: const Duration(milliseconds: 700),
+            curve: Curves.elasticOut,
+            builder: (context, scale, child) => Transform.scale(
+              scale: scale,
+              child: const Icon(
+                Icons.local_fire_department_rounded,
+                size: 30,
+                color: DauVietColors.cinnabarRed,
+              ),
+            ),
+          ),
+          const SizedBox(width: 10),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  'NGỌN LỬA HÀO KHÍ',
+                  style: DauVietTypography.labelSmall.copyWith(
+                    color: DauVietColors.cinnabarRed,
+                    fontWeight: FontWeight.w800,
+                    letterSpacing: 0.6,
+                  ),
+                ),
+                const SizedBox(height: 3),
+                TweenAnimationBuilder<double>(
+                  tween: Tween(
+                    begin: previous.toDouble(),
+                    end: current.toDouble(),
+                  ),
+                  duration: const Duration(milliseconds: 800),
+                  curve: Curves.easeOutCubic,
+                  builder: (context, value, _) => Text(
+                    'Chuỗi ${value.round()} ngày học liên tiếp',
+                    style: DauVietTypography.bodyMedium.copyWith(
+                      color: DauVietColors.inkText,
+                      fontWeight: FontWeight.w800,
+                      fontSize: 15,
+                    ),
+                  ),
+                ),
+                if (streak.longestStreak > current) ...[
+                  const SizedBox(height: 2),
+                  Text(
+                    'Kỷ lục: ${streak.longestStreak} ngày',
+                    style: DauVietTypography.bodySmall.copyWith(
+                      color: DauVietColors.inkMuted,
+                      fontSize: 11,
+                    ),
+                  ),
+                ] else if (current > 1) ...[
+                  const SizedBox(height: 2),
+                  Text(
+                    'Kỷ lục mới!',
+                    style: DauVietTypography.bodySmall.copyWith(
+                      color: DauVietColors.imperialGold,
+                      fontWeight: FontWeight.w700,
+                      fontSize: 11,
+                    ),
+                  ),
+                ],
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
 /// GAME-04: banner báo hồ sơ lịch sử vừa mở khoá — tappable, dẫn tới
 /// màn Bộ Sưu Tập (/collection, tab dossier). Chỉ hiện một lần trong phiên
 /// vì nguồn là field additive trên complete-response, không phải state bền.
@@ -780,8 +940,15 @@ String? _str(Map<String, dynamic> m, List<String> keys) {
 }
 
 String _srcSuffix(Map<String, dynamic> e) {
-  final src = e['source'] as String?;
-  return (src != null && src.trim().isNotEmpty) ? ' (${src.trim()})' : '';
+  final src = e['source'];
+  String? text;
+  if (src is String) {
+    text = src;
+  } else if (src is Map) {
+    // V30+ embeds source as object {title, author, url, citation} — pick title.
+    text = (src['title'] ?? src['author']) as String?;
+  }
+  return (text != null && text.trim().isNotEmpty) ? ' (${text.trim()})' : '';
 }
 
 String? _firstReadingExcerpt(

@@ -64,17 +64,35 @@ export const CODE_MESSAGES: Record<string, string> = {
   UNSUPPORTED_ACTIVITY_TYPE: "Loại hoạt động không được hỗ trợ",
 };
 
-/** Path → human location: «Giai đoạn 2 · Hoạt động 1» / «Giai đoạn Bối cảnh». */
-export function describePath(draft: Draft, path: string): string | null {
-  const { stageId, activityId } = resolveErrorPath(draft, path);
-  const stageIdx = stageId ? draft.stages.findIndex((s) => s.id === stageId) : -1;
-  const stage = stageIdx >= 0 ? draft.stages[stageIdx] : null;
-  if (!stage) {
+/**
+ * Trích xuất stage-id/activity-index trực tiếp từ path (không cần draft) —
+ * fallback khi draft null hoặc stage id không còn trong draft nữa.
+ */
+function describePathLoose(path: string): string | null {
+  const sid = STAGE_BY_ID.exec(path)?.[1];
+  const sidx = STAGE_INDEX.exec(path)?.[1];
+  const aidx = ACT_INDEX.exec(path)?.[1];
+  if (!sid && !sidx) {
     if (path.startsWith("completion")) return "Điều kiện hoàn thành";
     if (path.startsWith("objectives")) return "Mục tiêu học tập";
     if (path === "schemaVersion") return "Định dạng bản nháp";
-    return null; // whole-document errors
+    if (path === "centralQuestion") return "Câu hỏi trung tâm";
+    if (path === "templateId") return "Mẫu bài học";
+    if (path === "eventId") return "Sự kiện cha";
+    return null;
   }
+  const stagePart = sid ? `Giai đoạn «${sid}»` : `Giai đoạn ${Number(sidx) + 1}`;
+  if (aidx == null) return stagePart;
+  return `${stagePart} · Hoạt động ${Number(aidx) + 1}`;
+}
+
+/** Path → human location: «Giai đoạn 2 · Hoạt động 1» / «Giai đoạn Bối cảnh». */
+export function describePath(draft: Draft | null | undefined, path: string): string | null {
+  if (!draft) return describePathLoose(path);
+  const { stageId, activityId } = resolveErrorPath(draft, path);
+  const stageIdx = stageId ? draft.stages.findIndex((s) => s.id === stageId) : -1;
+  const stage = stageIdx >= 0 ? draft.stages[stageIdx] : null;
+  if (!stage) return describePathLoose(path);
   const stageName = stage.title || STAGE_LABELS[stage.type]?.label || `Giai đoạn ${stageIdx + 1}`;
   const activity = activityId ? stage.activities.find((a) => a.id === activityId) : null;
   if (!activity) return `Giai đoạn «${stageName}»`;
@@ -98,10 +116,13 @@ export function ValidationPanel({ draft, errors, onJump }: Props) {
         {errors.map((e, i) => {
           const target = resolveErrorPath(draft, e.path);
           const where = describePath(draft, e.path);
+          const detail = (e as { detail?: string }).detail;
+          const clickable = target.stageId != null;
           return (
             <li key={`${e.path}-${i}`}>
               <button
                 type="button"
+                disabled={!clickable}
                 onClick={() => onJump(target.stageId, target.activityId)}
                 className="w-full rounded px-2 py-1 text-left text-xs text-ink hover:bg-error/10"
               >
@@ -109,7 +130,7 @@ export function ValidationPanel({ draft, errors, onJump }: Props) {
                   <span className="block text-[10px] font-medium text-ink-muted">{where}</span>
                 )}
                 <span className="text-error">
-                  {CODE_MESSAGES[e.code] ?? "Cần xem lại nội dung đã nhập"}
+                  {detail ?? CODE_MESSAGES[e.code] ?? "Cần xem lại nội dung đã nhập"}
                 </span>
               </button>
             </li>

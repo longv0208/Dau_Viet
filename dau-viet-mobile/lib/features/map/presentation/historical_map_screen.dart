@@ -196,7 +196,7 @@ _EventChronologicalMeta _resolveMeta(JourneyChapter chapter) {
     slugKey: chapter.eventId,
     era: 'Lịch sử Việt Nam',
     period: 'Thời kỳ lịch sử',
-    startYear: 1000 + chapter.index,
+    startYear: 0, // Năm không xác định — không suy đoán
     subtitle: chapter.title,
     description: chapter.locations.firstOrNull?.description ?? 'Khám phá các dấu ấn lịch sử hào hùng.',
     thumbnail: 'assets/images/vietnam_journey_map_bg.jpg',

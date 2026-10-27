@@ -1,11 +1,16 @@
 "use client";
 
 import { Plus, Trash2 } from "lucide-react";
+import { useQuery } from "@tanstack/react-query";
+import { useMemo } from "react";
 
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select } from "@/components/ui/select";
+import { apiFetch, toQuery } from "@/lib/api-client";
+import type { PageResponse } from "@/lib/dto/common";
+import type { Evidence } from "@/lib/dto/evidence";
 
 import { genItemId } from "../draft-id";
 import { EvidenceRefPicker } from "./evidence-ref-picker";
@@ -72,6 +77,30 @@ export function CerChoiceEditor(props: EditorProps) {
   const reasoning = readOptions(config, "reasoningOptions");
   const evidenceOptions = readOptions(config, "evidenceOptions");
   const combos = readCombos(config);
+
+  // Danh mục evidence của event — fetch cả APPROVED + DRAFT giống
+  // EvidenceRefPicker (endpoint phân trang theo status).
+  const evidencesQuery = useQuery({
+    queryKey: ["evidences", "catalog", eventId],
+    queryFn: async () => {
+      const fetchStatus = (status: string) =>
+        apiFetch<PageResponse<Evidence>>(
+          `/admin/evidences${toQuery({ eventId, size: 200, page: 0, status })}`,
+        );
+      const [a, d] = await Promise.all([fetchStatus("APPROVED"), fetchStatus("DRAFT")]);
+      return [...a.content, ...d.content];
+    },
+    staleTime: 30_000,
+  });
+  const evidenceTitleById = useMemo(() => {
+    const m = new Map<string, string>();
+    for (const e of evidencesQuery.data ?? []) m.set(e.id, e.title);
+    return m;
+  }, [evidencesQuery.data]);
+  const catalogIds = useMemo(
+    () => new Set(evidenceTitleById.keys()),
+    [evidenceTitleById],
+  );
   const maxAttempts = (config.maxAttempts as number | undefined) ?? 3;
   const priorSource = String(config.priorEvidenceSource ?? "");
   const sourceCandidates = evidenceSelectActivities(draft, activity.id, {
@@ -248,11 +277,40 @@ export function CerChoiceEditor(props: EditorProps) {
             <div className="flex flex-col gap-1">
               <Label className="text-[11px]">Bằng chứng đúng (chọn đủ tập)</Label>
               <div className="flex flex-wrap gap-1.5">
+                {/* Stale ids trong combo: evidence đã xoá hoặc lệch event.
+                    Show với nút gỡ — không được tính vào pool chọn. */}
+                {c.evidenceIds
+                  .filter((id) => !evidenceOptions.some((o) => o.id === id))
+                  .map((staleId) => (
+                    <button
+                      key={`stale-${staleId}`}
+                      type="button"
+                      disabled={readOnly}
+                      title={`Bằng chứng ngoài danh sách — bấm để gỡ\n${staleId}`}
+                      onClick={() =>
+                        updateCombo(i, {
+                          ...c,
+                          evidenceIds: c.evidenceIds.filter((x) => x !== staleId),
+                        })
+                      }
+                      className="flex items-center gap-1 rounded-md border border-error/50 bg-error/5 px-2 py-1 text-[11px] text-error"
+                    >
+                      <Trash2 className="size-3" />
+                      {evidenceTitleById.get(staleId) ?? `Đã xoá (${staleId.slice(0, 8)}…)`}
+                    </button>
+                  ))}
                 {evidenceOptions.map((o) => {
                   const checked = c.evidenceIds.includes(o.id);
+                  const title = evidenceTitleById.get(o.id);
+                  const shown = title
+                    ? title.length > 60
+                      ? title.slice(0, 60) + "…"
+                      : title
+                    : o.text || `(${o.id.slice(0, 8)}…)`;
                   return (
                     <label
                       key={o.id}
+                      title={title ?? o.id}
                       className={
                         "flex items-center gap-1 rounded-md border px-2 py-1 text-[11px] " +
                         (checked ? "border-brand bg-brand/5 text-ink" : "border-border text-ink-muted")
@@ -265,13 +323,13 @@ export function CerChoiceEditor(props: EditorProps) {
                         className="size-3 accent-brand"
                         onChange={() => toggleComboEvidence(i, o.id)}
                       />
-                      {o.id}
+                      {shown}
                     </label>
                   );
                 })}
                 {evidenceOptions.length === 0 && (
                   <span className="text-[11px] text-ink-muted">
-                    Khai báo danh sách bằng chứng phía trên trước.
+                    Khai báo «Bằng chứng học viên được chọn» phía trên trước.
                   </span>
                 )}
               </div>

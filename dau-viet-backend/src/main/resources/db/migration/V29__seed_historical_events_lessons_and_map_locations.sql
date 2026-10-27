@@ -19,18 +19,186 @@
 -- mới. 'hai-ba-trung-40' của main giữ nguyên (PR dùng slug khác
 -- 'khoi-nghia-hai-ba-trung-40'). 'ly-thai-to-1010' cũng giữ nguyên.
 --
--- Trước khi DELETE: phải re-link các lessons của main (event_id = d7b0...001)
--- sang UUID PR mới (0000...001) để tránh FK violation — vì lesson của main
--- là dữ liệu lesson quan trọng, không được mất.
-UPDATE lessons
-SET event_id = '00000000-0000-0000-0000-000000000001'::uuid,
+-- FIX (FK order): event đích 0000...001 PHẢI tồn tại trước khi re-link bất kỳ
+-- FK nào. Trên DB đã chạy V20, lessons.event_id trỏ d7b0...001 (FK
+-- lessons_event_id_fkey); UPDATE sang UUID chưa tồn tại → vi phạm FK ngay.
+-- Trên DB fresh (V20 đã seed bach-dang-938 với id khác), slug đã bị chiếm
+-- nên không thể INSERT thẳng. Thứ tự đúng:
+--   (a) Nhường slug: đổi slug event cũ (nếu có) sang biến thể tạm để giải
+--       phóng ux_historical_events_slug;
+--   (b) UPSERT event đích 0000...001 với slug bach-dang-938 thật — ON
+--       CONFLICT (id) an toàn cho cả DB fresh (INSERT) lẫn DB đã có row
+--       (UPDATE);
+--   (c) Re-link mọi bảng con FK → historical_events(id) về UUID đích;
+--   (d) DELETE event cũ (slug tạm) — mọi FK đã về UUID đích nên xoá được.
+UPDATE historical_events
+SET slug = 'bach-dang-938--v29-superseded',
     updated_at = now()
-WHERE event_id = 'd7b00000-0000-4000-8000-000000000001'::uuid;
-
-DELETE FROM historical_events
 WHERE slug = 'bach-dang-938'
   AND id <> '00000000-0000-0000-0000-000000000001'::uuid;
 
+INSERT INTO historical_events (
+    id, slug, title, era, period, start_year, summary, description, location, cover_asset_key, tags, status, created_at, updated_at
+) VALUES (
+    '00000000-0000-0000-0000-000000000001'::uuid,
+    'bach-dang-938',
+    'Đại Chiến Bạch Đằng 938',
+    'Thời Ngô - Đinh - Tiền Lê (938 - 1009)',
+    'Mùa Đông 938 SCN',
+    938,
+    'Trận thủy chiến kinh điển cắm cọc gỗ lim bịt sắt lợi dụng con nước triều, tiêu diệt hoàn toàn thủy quân Nam Hán của Lưu Hoằng Tháo, chính thức chấm dứt hơn 1.000 năm Bắc thuộc.',
+    'Năm 938, Ngô Quyền lợi dụng địa thế cửa sông Bạch Đằng và quy luật thủy triều để bố trí trận địa cọc ngầm bịt sắt, nhử hạm đội Nam Hán vào trận địa rồi tiêu diệt khi nước rút. Chiến thắng mở ra kỷ nguyên độc lập lâu dài cho Việt Nam.',
+    'Cửa sông Bạch Đằng, Quảng Ninh - Hải Phòng',
+    'events/bach-dang-938/hero.jpg',
+    ARRAY['ngo-quyen', 'thuy-chien', 'bac-thuoc', 'bach-dang'],
+    'PUBLISHED',
+    now(),
+    now()
+)
+ON CONFLICT (id) DO UPDATE SET
+    title = EXCLUDED.title,
+    era = EXCLUDED.era,
+    period = EXCLUDED.period,
+    start_year = EXCLUDED.start_year,
+    summary = EXCLUDED.summary,
+    description = EXCLUDED.description,
+    location = EXCLUDED.location,
+    cover_asset_key = EXCLUDED.cover_asset_key,
+    tags = EXCLUDED.tags,
+    status = EXCLUDED.status,
+    updated_at = now();
+
+-- Re-link mọi bảng con có FK → historical_events(id) về UUID đích TRƯỚC khi
+-- DELETE event cũ. Event cũ đang mang slug tạm 'bach-dang-938--v29-superseded'
+-- sau bước nhường slug ở trên. UPDATE no-op an toàn trên DB chưa có dữ liệu.
+--
+-- FK composite fk_map_location_unlock_lesson_same_event
+--   (map_locations.event_id, unlock_lesson_id) → lessons(event_id, id)
+-- là NON-DEFERRABLE nên thứ tự UPDATE sai sẽ vi phạm tạm thời giữa hai
+-- statement. Chiến lược an toàn:
+--   1. Gỡ unlock_lesson_id của map_locations thuộc event cũ về NULL trước
+--      (composite FK bỏ qua khi cột NULL) — lưu map id ↔ lesson id để khôi
+--      phục sau;
+--   2. UPDATE map_locations.event_id về UUID đích (lesson chưa đổi cũng OK
+--      vì unlock NULL → FK không kiểm);
+--   3. UPDATE lessons.event_id về UUID đích (map đã về, unlock NULL → FK
+--      không kiểm);
+--   4. Khôi phục unlock_lesson_id — lúc này lesson.id vẫn như cũ nhưng đã
+--      thuộc event mới, cặp (event_id, lesson_id) lại hợp lệ.
+CREATE TEMP TABLE _v29_map_unlock ON COMMIT DROP AS
+SELECT m.id AS map_id, m.unlock_lesson_id
+FROM map_locations m
+WHERE m.unlock_lesson_id IS NOT NULL
+  AND m.event_id IN (
+      SELECT id FROM historical_events
+      WHERE slug = 'bach-dang-938--v29-superseded');
+
+UPDATE map_locations
+SET unlock_lesson_id = NULL
+WHERE id IN (SELECT map_id FROM _v29_map_unlock);
+
+UPDATE map_locations
+SET event_id = '00000000-0000-0000-0000-000000000001'::uuid
+WHERE event_id IN (
+    SELECT id FROM historical_events
+    WHERE slug = 'bach-dang-938--v29-superseded'
+);
+
+UPDATE lessons
+SET event_id = '00000000-0000-0000-0000-000000000001'::uuid,
+    updated_at = now()
+WHERE event_id IN (
+    SELECT id FROM historical_events
+    WHERE slug = 'bach-dang-938--v29-superseded'
+);
+
+UPDATE map_locations m
+SET unlock_lesson_id = u.unlock_lesson_id
+FROM _v29_map_unlock u
+WHERE m.id = u.map_id;
+
+UPDATE evidences
+SET event_id = '00000000-0000-0000-0000-000000000001'::uuid,
+    updated_at = now()
+WHERE event_id IN (
+    SELECT id FROM historical_events
+    WHERE slug = 'bach-dang-938--v29-superseded'
+);
+
+-- Các bảng runtime/liên kết khác cũng FK → historical_events(id). Phải re-link
+-- hết trước khi DELETE event cũ, kể cả khi một số bảng chưa có trong schema
+-- tại thời điểm V29 chạy (IF EXISTS guard) — chúng có thể được tạo ở migration
+-- sau VÌ lý do merge. Dùng DO block guard theo tên bảng.
+DO $$
+BEGIN
+    IF EXISTS (SELECT 1 FROM information_schema.tables
+               WHERE table_name = 'event_completion_policies') THEN
+        UPDATE event_completion_policies
+        SET event_id = '00000000-0000-0000-0000-000000000001'::uuid
+        WHERE event_id IN (SELECT id FROM historical_events
+            WHERE slug = 'bach-dang-938--v29-superseded');
+    END IF;
+
+    IF EXISTS (SELECT 1 FROM information_schema.tables
+               WHERE table_name = 'user_event_progress') THEN
+        UPDATE user_event_progress
+        SET event_id = '00000000-0000-0000-0000-000000000001'::uuid
+        WHERE event_id IN (SELECT id FROM historical_events
+            WHERE slug = 'bach-dang-938--v29-superseded');
+    END IF;
+
+    IF EXISTS (SELECT 1 FROM information_schema.tables
+               WHERE table_name = 'event_dossiers') THEN
+        UPDATE event_dossiers
+        SET event_id = '00000000-0000-0000-0000-000000000001'::uuid
+        WHERE event_id IN (SELECT id FROM historical_events
+            WHERE slug = 'bach-dang-938--v29-superseded');
+    END IF;
+
+    IF EXISTS (SELECT 1 FROM information_schema.tables
+               WHERE table_name = 'animation_scenes') THEN
+        UPDATE animation_scenes
+        SET event_id = '00000000-0000-0000-0000-000000000001'::uuid
+        WHERE event_id IN (SELECT id FROM historical_events
+            WHERE slug = 'bach-dang-938--v29-superseded');
+    END IF;
+
+    IF EXISTS (SELECT 1 FROM information_schema.tables
+               WHERE table_name = 'user_evidence') THEN
+        UPDATE user_evidence
+        SET event_id = '00000000-0000-0000-0000-000000000001'::uuid
+        WHERE event_id IN (SELECT id FROM historical_events
+            WHERE slug = 'bach-dang-938--v29-superseded');
+    END IF;
+END $$;
+
+-- Bảng provenance (user_dossier_unlocks, user_inventory.source_event_id) cũng
+-- FK vào event cũ nếu có row — re-link để DELETE không bị chặn.
+DO $$
+BEGIN
+    IF EXISTS (SELECT 1 FROM information_schema.tables
+               WHERE table_name = 'user_dossier_unlocks') THEN
+        UPDATE user_dossier_unlocks
+        SET event_id = '00000000-0000-0000-0000-000000000001'::uuid
+        WHERE event_id IN (SELECT id FROM historical_events
+            WHERE slug = 'bach-dang-938--v29-superseded');
+    END IF;
+    IF EXISTS (SELECT 1 FROM information_schema.columns
+               WHERE table_name = 'user_inventory'
+                 AND column_name = 'source_event_id') THEN
+        UPDATE user_inventory
+        SET source_event_id = '00000000-0000-0000-0000-000000000001'::uuid
+        WHERE source_event_id IN (SELECT id FROM historical_events
+            WHERE slug = 'bach-dang-938--v29-superseded');
+    END IF;
+END $$;
+
+DELETE FROM historical_events
+WHERE slug = 'bach-dang-938--v29-superseded';
+
+-- Batch INSERT 5 event (bach-dang-938 đã UPSERT ở trên — KHÔNG lặp ở đây để
+-- tránh đụng unique slug). ON CONFLICT (id) DO UPDATE giữ nguyên cho 4 event
+-- còn lại — slug của chúng không trùng event nào khác trong V20.
 INSERT INTO historical_events (
     id, slug, title, era, period, start_year, summary, description, location, cover_asset_key, tags, status, created_at, updated_at
 ) VALUES
@@ -62,22 +230,6 @@ INSERT INTO historical_events (
     'Hát Môn (Phúc Thọ, Hà Nội) & Mê Linh',
     'events/hai-ba-trung-40/hero.jpg',
     ARRAY['hai-ba-trung', 'khoi-nghia', 'me-linh', 'bac-thuoc'],
-    'PUBLISHED',
-    now(),
-    now()
-),
-(
-    '00000000-0000-0000-0000-000000000001'::uuid,
-    'bach-dang-938',
-    'Đại Chiến Bạch Đằng 938',
-    'Thời Ngô - Đinh - Tiền Lê (938 - 1009)',
-    'Mùa Đông 938 SCN',
-    938,
-    'Trận thủy chiến kinh điển cắm cọc gỗ lim bịt sắt lợi dụng con nước triều, tiêu diệt hoàn toàn thủy quân Nam Hán của Lưu Hoằng Tháo, chính thức chấm dứt hơn 1.000 năm Bắc thuộc.',
-    'Năm 938, Ngô Quyền lợi dụng địa thế cửa sông Bạch Đằng và quy luật thủy triều để bố trí trận địa cọc ngầm bịt sắt, nhử hạm đội Nam Hán vào trận địa rồi tiêu diệt khi nước rút. Chiến thắng mở ra kỷ nguyên độc lập lâu dài cho Việt Nam.',
-    'Cửa sông Bạch Đằng, Quảng Ninh - Hải Phòng',
-    'events/bach-dang-938/hero.jpg',
-    ARRAY['ngo-quyen', 'thuy-chien', 'bac-thuoc', 'bach-dang'],
     'PUBLISHED',
     now(),
     now()

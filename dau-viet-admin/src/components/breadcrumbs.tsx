@@ -15,6 +15,8 @@ import { qk } from "@/lib/query-keys";
 const CRUMB_LABELS: Record<string, string> = {
   dashboard: "Tổng quan",
   events: "Sự kiện",
+  "learning-path": "Bản đồ Dấu Ấn",
+  edit: "Thiết kế",
   lessons: "Bài học",
   evidence: "Bằng chứng",
   templates: "Mẫu bài học",

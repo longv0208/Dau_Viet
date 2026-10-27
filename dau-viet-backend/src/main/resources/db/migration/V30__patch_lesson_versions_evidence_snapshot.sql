@@ -1,6 +1,13 @@
 -- Patch lesson_versions.snapshot_json cho các lesson V29 bị thiếu evidence[]/assets[].
 -- Replicate SnapshotBuilder.embedEvidence / embedAssets ở SQL level.
 -- Idempotent: chạy lại vẫn cho cùng kết quả (snapshot_json được ghi đè).
+--
+-- NOTE: trigger trg_lesson_versions_immutable (V3) chặn mọi UPDATE/DELETE trên
+-- lesson_versions để đảm bảo snapshot bất biến. Vá dữ liệu này là một lần
+-- migration có kiểm soát nên ta vô hiệu hoá trigger trong phạm vi transaction
+-- Flyway rồi bật lại ngay sau đó.
+
+ALTER TABLE lesson_versions DISABLE TRIGGER trg_lesson_versions_immutable;
 
 ALTER TABLE lesson_versions DISABLE TRIGGER trg_lesson_versions_immutable;
 
