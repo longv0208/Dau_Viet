@@ -14,6 +14,7 @@ import java.util.Set;
 import java.util.UUID;
 
 import org.springframework.beans.factory.annotation.Value;
+import org.springframework.core.io.ClassPathResource;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
@@ -104,15 +105,47 @@ public class AssetService {
         return toResponse(load(id));
     }
 
-    /** Locates the on-disk file for an ACTIVE asset. */
+    /** Locates the on-disk file for an ACTIVE asset, materializing classpath seed assets if needed. */
     @Transactional(readOnly = true)
     public StoredAsset content(UUID id) {
         Asset a = load(id);
         Path p = storageDir.resolve(id + "." + ext(a.getMimeType())).normalize();
         if (!p.startsWith(storageDir) || !Files.isRegularFile(p)) {
+            materializeSeedAssetIfAvailable(a, p);
+        }
+        if (!p.startsWith(storageDir) || !Files.isRegularFile(p)) {
             throw new AssetNotFoundException("asset content missing: " + id);
         }
-        return new StoredAsset(p, a.getMimeType(), a.getOriginalFilename(), a.getSizeBytes());
+        long actualSize;
+        try {
+            actualSize = Files.size(p);
+        } catch (IOException ex) {
+            actualSize = a.getSizeBytes() == null ? 0L : a.getSizeBytes();
+        }
+        return new StoredAsset(p, a.getMimeType(), a.getOriginalFilename(), actualSize);
+    }
+
+    private void materializeSeedAssetIfAvailable(Asset a, Path target) {
+        if (!target.startsWith(storageDir) || a.getOriginalFilename() == null) {
+            return;
+        }
+        String filename = Path.of(a.getOriginalFilename()).getFileName().toString();
+        List<String> candidates = List.of(
+                "seed-assets/heritage/" + filename,
+                "seed-assets/" + filename
+        );
+        for (String cp : candidates) {
+            ClassPathResource resource = new ClassPathResource(cp);
+            if (resource.exists()) {
+                try (InputStream in = resource.getInputStream()) {
+                    Files.createDirectories(storageDir);
+                    Files.copy(in, target, StandardCopyOption.REPLACE_EXISTING);
+                    return;
+                } catch (IOException ignored) {
+                    // Fallback to standard 404 if disk copy fails
+                }
+            }
+        }
     }
 
     private Asset load(UUID id) {
