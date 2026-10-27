@@ -1,4 +1,4 @@
-package com.dauviet.common.error;
+﻿package com.dauviet.common.error;
 
 import java.util.HashMap;
 import java.util.Map;
@@ -114,8 +114,8 @@ public class GlobalExceptionHandler {
     @ExceptionHandler(com.dauviet.reward.application.ItemRuleException.class)
     public ResponseEntity<ApiError> handleItemRule(
             com.dauviet.reward.application.ItemRuleException ex) {
-        // Cấu hình rule v2 sai grammar/reference → 400 sạch (ITEM-06), không
-        // bao giờ để lọt thành 500 khi admin publish rule lỗi.
+        // Cáº¥u hĂ¬nh rule v2 sai grammar/reference â†’ 400 sáº¡ch (ITEM-06), khĂ´ng
+        // bao giá» Ä‘á»ƒ lá»t thĂ nh 500 khi admin publish rule lá»—i.
         Map<String, Object> details = Map.of("reason",
                 ex.getMessage() == null ? "invalid rule" : ex.getMessage());
         return build(HttpStatus.BAD_REQUEST, ErrorCode.VALIDATION_ERROR,
@@ -316,8 +316,8 @@ public class GlobalExceptionHandler {
     @ExceptionHandler(com.dauviet.energy.domain.EnergyDepletedException.class)
     public ResponseEntity<ApiError> handleEnergyDepleted(
             com.dauviet.energy.domain.EnergyDepletedException ex) {
-        // details mang thời gian server tính — client đồng bộ countdown mà
-        // không cần đoán; không lộ đáp án/rule chấm.
+        // details mang thá»i gian server tĂ­nh â€” client Ä‘á»“ng bá»™ countdown mĂ 
+        // khĂ´ng cáº§n Ä‘oĂ¡n; khĂ´ng lá»™ Ä‘Ă¡p Ă¡n/rule cháº¥m.
         Map<String, Object> details = new java.util.HashMap<>();
         details.put("currentEnergy", 0);
         details.put("serverTime", ex.getServerTime() == null
@@ -429,7 +429,7 @@ public class GlobalExceptionHandler {
         return build(HttpStatus.CONFLICT, ErrorCode.ASSET_IN_USE, ex.getMessage(), details);
     }
 
-    /* ---------- ISLAND-BE-01: Đảo Di Sản + Wallet + Shop ---------- */
+    /* ---------- ISLAND-BE-01: Äáº£o Di Sáº£n + Wallet + Shop ---------- */
 
     @ExceptionHandler(com.dauviet.island.domain.IslandExceptions.InsufficientFundsException.class)
     public ResponseEntity<ApiError> handleInsufficientFunds(
@@ -497,7 +497,7 @@ public class GlobalExceptionHandler {
                 ex.getMessage(), details);
     }
 
-    /** 422 — Level tài khoản chưa đủ để nâng đảo (ISLAND-01). */
+    /** 422 â€” Level tĂ i khoáº£n chÆ°a Ä‘á»§ Ä‘á»ƒ nĂ¢ng Ä‘áº£o (ISLAND-01). */
     @ExceptionHandler(com.dauviet.island.domain.IslandExceptions.IslandUpgradeInsufficientLevelException.class)
     public ResponseEntity<ApiError> handleUpgradeInsufficientLevel(
             com.dauviet.island.domain.IslandExceptions.IslandUpgradeInsufficientLevelException ex) {
@@ -536,15 +536,30 @@ public class GlobalExceptionHandler {
                 ex.getMessage(), Map.of());
     }
 
-    /** 503 — Cấu hình Island (tier policy hoặc level thresholds) không hợp lệ (ISLAND-02). */
+    /** 503 â€” Cáº¥u hĂ¬nh Island (tier policy hoáº·c level thresholds) khĂ´ng há»£p lá»‡ (ISLAND-02). */
     @ExceptionHandler(com.dauviet.island.domain.IslandExceptions.IslandConfigurationInvalidException.class)
     public ResponseEntity<ApiError> handleIslandConfigurationInvalid(
             com.dauviet.island.domain.IslandExceptions.IslandConfigurationInvalidException ex) {
         Map<String, Object> details = Map.of("targetTier", ex.getTargetTier());
         return build(HttpStatus.SERVICE_UNAVAILABLE,
                 ErrorCode.ISLAND_CONFIGURATION_INVALID,
-                "Island configuration is invalid or incomplete; contact support",
+                ex.getMessage() != null ? ex.getMessage() : "Island configuration is invalid or incomplete; contact support",
                 details);
+    }
+
+    @ExceptionHandler(com.dauviet.island.domain.IslandExceptions.IslandLayoutValidationException.class)
+    public ResponseEntity<ApiError> handleIslandLayoutValidation(
+            com.dauviet.island.domain.IslandExceptions.IslandLayoutValidationException ex) {
+        Map<String, Object> details = Map.of("errors", ex.getErrors().stream()
+                .map(e -> Map.of(
+                        "objectType", e.objectType() == null ? "" : e.objectType(),
+                        "objectKey", e.objectKey() == null ? "" : e.objectKey(),
+                        "field", e.field() == null ? "" : e.field(),
+                        "code", e.code() == null ? "" : e.code(),
+                        "message", e.message() == null ? "" : e.message()))
+                .toList());
+        return build(HttpStatus.UNPROCESSABLE_ENTITY, ErrorCode.VALIDATION_ERROR,
+                ex.getMessage(), details);
     }
 
     /* ---------- PATH-01: Learning Path 2.0 ---------- */
@@ -578,7 +593,7 @@ public class GlobalExceptionHandler {
     }
 
     /**
-     * GAME-06: bat ca hai — ObjectOptimisticLockingFailure (JPA/Hibernate)
+     * GAME-06: bat ca hai â€” ObjectOptimisticLockingFailure (JPA/Hibernate)
      * lan OptimisticLockingFailureException (service throw thu cong cho
      * expectedPolicyVersion/expectedRowVersion mismatch). OLF la superclass
      * nen mot handler la du; @ExceptionHandler match subclass truoc.

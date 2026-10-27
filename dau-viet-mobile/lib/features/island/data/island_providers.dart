@@ -196,6 +196,7 @@ final islandWalletProvider = FutureProvider.autoDispose<WalletDto>(
 );
 
 /// Provider danh sách mặt hàng trang trí trong Shop.
+/// Tự động đối chiếu với inventoryItemsProvider để xác định trạng thái ĐÃ SỞ HỮU.
 final islandShopItemsProvider = FutureProvider.autoDispose<List<ShopItemDto>>(
   retry: _noRetry,
   (ref) async {
@@ -205,7 +206,26 @@ final islandShopItemsProvider = FutureProvider.autoDispose<List<ShopItemDto>>(
     if (ApiConfig.useMock) {
       return repo.getShopItems();
     }
-    return ref.read(authRepositoryProvider).withAuth(repo.getShopItems);
+    final items = await ref
+        .read(authRepositoryProvider)
+        .withAuth(repo.getShopItems);
+    try {
+      final ownedInventory = await ref.watch(inventoryItemsProvider.future);
+      final ownedIds = ownedInventory.map((e) => e.itemId).toSet();
+      final ownedCodes = ownedInventory.map((e) => e.code).toSet();
+      return items
+          .map(
+            (item) => item.copyWith(
+              owned:
+                  item.owned ||
+                  ownedIds.contains(item.itemId) ||
+                  ownedCodes.contains(item.code),
+            ),
+          )
+          .toList();
+    } catch (_) {
+      return items;
+    }
   },
 );
 

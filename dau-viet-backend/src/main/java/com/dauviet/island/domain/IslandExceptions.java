@@ -181,6 +181,31 @@ public final class IslandExceptions {
             this.targetTier = targetTier;
         }
 
+        public IslandConfigurationInvalidException(String reason) {
+            super(reason);
+            this.targetTier = 0;
+        }
+
         public int getTargetTier() { return targetTier; }
+    }
+
+    /** 422 — Lỗi validate cấu hình Layout Đảo Di Sản khi thiết kế / publish (ISLAND-04). */
+    public static class IslandLayoutValidationException extends RuntimeException {
+        private final java.util.List<ValidationError> errors;
+
+        public IslandLayoutValidationException(java.util.List<ValidationError> errors) {
+            super("Island layout validation failed (" + errors.size() + " errors)");
+            this.errors = java.util.List.copyOf(errors);
+        }
+
+        public java.util.List<ValidationError> getErrors() { return errors; }
+
+        public record ValidationError(
+                String objectType,
+                String objectKey,
+                String field,
+                String code,
+                String message
+        ) {}
     }
 }

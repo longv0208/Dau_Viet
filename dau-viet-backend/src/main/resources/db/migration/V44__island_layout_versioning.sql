@@ -1,26 +1,22 @@
--- Dấu Việt | V43 | ISLAND-03 — Versioned Island Layout System.
+-- Dấu Việt | V44 | ISLAND-03 & ISLAND-04 — Versioned Island Layout System & Admin Builder.
 -- Phạm vi:
 --   1. Bảng island_layout_definitions: mô tả chủ đề layout (heritage-village, …).
---   2. Bảng island_layout_versions: phiên bản layout có trạng thái DRAFT/PUBLISHED/ARCHIVED.
+--   2. Bảng island_layout_versions: phiên bản layout có trạng thái DRAFT/PUBLISHED/ARCHIVED, row_version.
 --   3. Bảng island_layout_regions: vùng đất của layout, mở dần theo Tier.
 --   4. Bảng island_scene_layers: lớp scene (background, water, overlay, …).
 --   5. ALTER island_slots: thêm layout_version_id, stable_slot_key, region_code,
---      z_index, anchor_x, anchor_y, width_norm, height_norm.
+--      z_index, anchor_x, anchor_y, width_norm, height_norm, allowed_categories_json.
+--      Đổi ux_island_slot sang (layout_version_id, slot_index).
 --   6. ALTER user_islands: thêm layout_version_id.
 --   7. SEED: heritage-village layout definition + version 1 PUBLISHED + regions + layers.
 --   8. Backfill: island_slots heritage-v1 → layout_version_id + stable_slot_key + region_code.
 --   9. Backfill: user_islands layout_version_id.
 --  10. Thêm NOT NULL constraint lên island_slots.layout_version_id sau backfill.
--- Không sửa V32–V42; không chạm dữ liệu user ngoài backfill layout_version_id.
+-- Không sửa V32–V43; không chạm dữ liệu user ngoài backfill layout_version_id.
 
 -- =============================================================================
 -- 1. island_layout_definitions
 -- =============================================================================
--- Mô tả chủ đề layout tái sử dụng được. Một definition có thể có nhiều version.
--- layout_key phải unique toàn cục — dùng để tham chiếu từ code mà không cần UUID.
--- canvas_width/height là kích thước canvas ảo khuyến nghị (px đơn vị logic).
--- Immutable sau publish: không cập nhật canvas_width/height, theme_key của
--- definition đã có version PUBLISHED.
 CREATE TABLE island_layout_definitions (
     id          UUID PRIMARY KEY,
     layout_key  VARCHAR(64) NOT NULL,
@@ -29,27 +25,29 @@ CREATE TABLE island_layout_definitions (
     canvas_width  DOUBLE PRECISION NOT NULL DEFAULT 960.0,
     canvas_height DOUBLE PRECISION NOT NULL DEFAULT 720.0,
     theme_key   VARCHAR(64),
+    is_default  BOOLEAN NOT NULL DEFAULT false,
     created_at  TIMESTAMPTZ NOT NULL DEFAULT now(),
+    updated_at  TIMESTAMPTZ NOT NULL DEFAULT now(),
     CONSTRAINT ux_island_layout_def_key UNIQUE (layout_key),
     CONSTRAINT chk_layout_canvas CHECK (
         canvas_width > 0 AND canvas_height > 0)
 );
+CREATE UNIQUE INDEX ux_island_layout_def_default
+    ON island_layout_definitions(is_default) WHERE is_default;
 
 -- =============================================================================
 -- 2. island_layout_versions
 -- =============================================================================
--- Phiên bản của một layout definition. Một thời điểm chỉ có một version
--- PUBLISHED cho mỗi definition (partial unique index). Version PUBLISHED là
--- immutable — không cập nhật, chỉ ARCHIVE và tạo version mới.
--- version_number tăng dần theo definition; không cần toàn cục duy nhất.
 CREATE TABLE island_layout_versions (
     id               UUID PRIMARY KEY,
     definition_id    UUID NOT NULL REFERENCES island_layout_definitions(id),
     version_number   INTEGER NOT NULL,
     status           VARCHAR(16) NOT NULL DEFAULT 'DRAFT',
+    row_version      BIGINT NOT NULL DEFAULT 0,
     published_at     TIMESTAMPTZ,
     archived_at      TIMESTAMPTZ,
     created_at       TIMESTAMPTZ NOT NULL DEFAULT now(),
+    updated_at       TIMESTAMPTZ NOT NULL DEFAULT now(),
     CONSTRAINT ux_island_layout_version UNIQUE (definition_id, version_number),
     CONSTRAINT chk_island_layout_status CHECK (
         status IN ('DRAFT', 'PUBLISHED', 'ARCHIVED'))
@@ -103,12 +101,6 @@ CREATE TABLE island_scene_layers (
 -- =============================================================================
 -- 5. ALTER island_slots — thêm layout versioning + rendering metadata
 -- =============================================================================
--- layout_version_id: FK → island_layout_versions (nullable trước backfill).
--- stable_slot_key: key ổn định tham chiếu từ client (slot_1 … slot_12).
--- region_code: phân vùng theo Tier (TIER_1, TIER_2, TIER_3).
--- z_index: thứ tự xếp lớp render (lớn hơn = phía trước).
--- anchor_x/y: điểm neo của widget trang trí (0.5/1.0 = bottom-center).
--- width_norm/height_norm: kích thước tương đối theo canvas (0..1).
 ALTER TABLE island_slots
     ADD COLUMN layout_version_id UUID REFERENCES island_layout_versions(id),
     ADD COLUMN stable_slot_key   VARCHAR(48),
@@ -117,22 +109,18 @@ ALTER TABLE island_slots
     ADD COLUMN anchor_x          DOUBLE PRECISION NOT NULL DEFAULT 0.5,
     ADD COLUMN anchor_y          DOUBLE PRECISION NOT NULL DEFAULT 1.0,
     ADD COLUMN width_norm        DOUBLE PRECISION NOT NULL DEFAULT 0.10,
-    ADD COLUMN height_norm       DOUBLE PRECISION NOT NULL DEFAULT 0.12;
+    ADD COLUMN height_norm       DOUBLE PRECISION NOT NULL DEFAULT 0.12,
+    ADD COLUMN allowed_categories_json JSONB NOT NULL DEFAULT '["DECOR"]'::jsonb;
 
 -- =============================================================================
 -- 6. ALTER user_islands — lưu layout version được dùng khi tạo đảo
 -- =============================================================================
--- Nullable để tương thích với đảo được tạo trước V43 (backfill ở bước 9).
--- Sau backfill, các row đã có sẽ có layout_version_id.
--- Khi insertIgnore tạo đảo mới, service sẽ điền layout_version_id từ
--- default published version (xem UserIslandRepository).
 ALTER TABLE user_islands
     ADD COLUMN layout_version_id UUID REFERENCES island_layout_versions(id);
 
 -- =============================================================================
 -- 7. SEED: heritage-village layout definition + version 1 + regions + layers
 -- =============================================================================
--- Dùng UUID cố định để backfill có thể tham chiếu mà không cần subquery.
 DO $$
 DECLARE
     def_id     UUID := '11100000-1111-4000-8000-000000000001';
@@ -144,49 +132,46 @@ BEGIN
     -- 7a. Definition
     INSERT INTO island_layout_definitions
         (id, layout_key, name, description,
-         canvas_width, canvas_height, theme_key)
+         canvas_width, canvas_height, theme_key, is_default)
     VALUES
         (def_id,
          'heritage-village',
          'Làng Di Sản',
          'Layout làng Việt cổ 2.5D isometric — chủ đề mặc định của Đảo Di Sản.',
-         960.0, 720.0, 'heritage');
+         960.0, 720.0, 'heritage', true);
 
     -- 7b. Version 1 PUBLISHED
     INSERT INTO island_layout_versions
-        (id, definition_id, version_number, status, published_at)
+        (id, definition_id, version_number, status, row_version, published_at)
     VALUES
-        (ver_id, def_id, 1, 'PUBLISHED', now());
+        (ver_id, def_id, 1, 'PUBLISHED', 0, now());
 
-    -- 7c. Regions (mở theo Tier)
+    -- 7c. Regions (mở theo Tier, bao phủ đúng toạ độ các slot Tier 1..3 của V32)
     INSERT INTO island_layout_regions
         (id, layout_version_id, region_code, unlock_tier, label, bounds_json, sort_order)
     VALUES
         (reg_t1_id, ver_id, 'TIER_1', 1, 'Khu Trung Tâm',
-         '{"x":0.0,"y":0.0,"width":1.0,"height":0.40}'::jsonb, 1),
+         '{"x":0.05,"y":0.08,"width":0.90,"height":0.44}'::jsonb, 1),
         (reg_t2_id, ver_id, 'TIER_2', 2, 'Khu Mở Rộng',
-         '{"x":0.0,"y":0.40,"width":1.0,"height":0.30}'::jsonb, 2),
+         '{"x":0.05,"y":0.38,"width":0.90,"height":0.40}'::jsonb, 2),
         (reg_t3_id, ver_id, 'TIER_3', 3, 'Khu Cao Cấp',
-         '{"x":0.0,"y":0.70,"width":1.0,"height":0.30}'::jsonb, 3);
+         '{"x":0.05,"y":0.62,"width":0.90,"height":0.34}'::jsonb, 3);
 
     -- 7d. Scene layers
     INSERT INTO island_scene_layers
-        (id, layout_version_id, layer_key, layer_type, render_order, asset_ref)
+        (id, layout_version_id, layer_key, layer_type, render_order, asset_ref, visibility_rule_json)
     VALUES
-        (gen_random_uuid(), ver_id, 'water_bg', 'ANIMATED_WATER', 0, null),
+        (gen_random_uuid(), ver_id, 'water_bg', 'ANIMATED_WATER', 0, null, '{"minTier":1,"maxTier":3}'::jsonb),
         (gen_random_uuid(), ver_id, 'island_base', 'STATIC_IMAGE', 10,
-         'assets/images/dv_ISL_generic_island-base-tiers_v01.jpg'),
-        (gen_random_uuid(), ver_id, 'water_ripple', 'AMBIENT_OVERLAY', 20, null),
-        (gen_random_uuid(), ver_id, 'item_layer', 'ITEM_LAYER', 30, null);
+         'assets/images/dv_ISL_generic_island-base-tiers_v01.jpg', '{"minTier":1,"maxTier":3}'::jsonb),
+        (gen_random_uuid(), ver_id, 'water_ripple', 'AMBIENT_OVERLAY', 20, null, '{"minTier":1,"maxTier":3}'::jsonb),
+        (gen_random_uuid(), ver_id, 'region_overlay', 'REGION_OVERLAY', 25, null, '{"minTier":1,"maxTier":3}'::jsonb),
+        (gen_random_uuid(), ver_id, 'item_layer', 'ITEM_LAYER', 30, null, '{"minTier":1,"maxTier":3}'::jsonb);
 END $$;
 
 -- =============================================================================
 -- 8. Backfill island_slots (heritage-v1 → layout_version_id + metadata)
 -- =============================================================================
--- layout_version_id = UUID của version 1 heritage-village (seeded ở bước 7b).
--- stable_slot_key = 'slot_N' theo slot_index.
--- region_code theo tier_required: 1 → TIER_1, 2 → TIER_2, 3 → TIER_3.
--- z_index = slot_index * 10 (phân tầng đủ rộng để chèn sau này).
 UPDATE island_slots
 SET
     layout_version_id = '22200000-2222-4000-8000-000000000001',
@@ -209,14 +194,17 @@ WHERE layout_code = 'heritage-v1'
   AND layout_version_id IS NULL;
 
 -- =============================================================================
--- 10. NOT NULL constraint trên island_slots.layout_version_id (sau backfill)
+-- 10. Constraints & Indexes sau backfill
 -- =============================================================================
--- Mọi slot hiện tại đã được backfill ở bước 8.
--- Slot mới phải khai báo layout_version_id khi insert.
 ALTER TABLE island_slots
-    ALTER COLUMN layout_version_id SET NOT NULL;
+    ALTER COLUMN layout_version_id SET NOT NULL,
+    ALTER COLUMN stable_slot_key SET NOT NULL;
 
--- Index hỗ trợ lookup theo layout_version_id (truy vấn phổ biến nhất)
+ALTER TABLE island_slots
+    DROP CONSTRAINT IF EXISTS ux_island_slot,
+    ADD CONSTRAINT ux_island_slot_version_index UNIQUE (layout_version_id, slot_index),
+    ADD CONSTRAINT ux_island_slot_version_key UNIQUE (layout_version_id, stable_slot_key);
+
 CREATE INDEX idx_island_slots_layout_version
     ON island_slots(layout_version_id, slot_index);
 

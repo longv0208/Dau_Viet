@@ -42,18 +42,21 @@ class MockIslandRepository implements IslandRepository {
           unlockTier: 1,
           unlocked: true,
           label: 'Khu Trung Tâm',
+          boundsJson: '{"x":0.05,"y":0.08,"width":0.90,"height":0.44}',
         ),
         IslandLayoutRegionDto(
           regionCode: 'TIER_2',
           unlockTier: 2,
           unlocked: false,
           label: 'Khu Mở Rộng',
+          boundsJson: '{"x":0.05,"y":0.46,"width":0.90,"height":0.28}',
         ),
         IslandLayoutRegionDto(
           regionCode: 'TIER_3',
           unlockTier: 3,
           unlocked: false,
           label: 'Khu Cao Cấp',
+          boundsJson: '{"x":0.05,"y":0.68,"width":0.90,"height":0.27}',
         ),
       ],
       sceneLayers: [
@@ -67,6 +70,16 @@ class MockIslandRepository implements IslandRepository {
           layerType: 'STATIC_IMAGE',
           renderOrder: 10,
           assetRef: 'assets/images/dv_ISL_generic_island-base-tiers_v01.jpg',
+        ),
+        IslandSceneLayerDto(
+          layerKey: 'water_ambient',
+          layerType: 'AMBIENT_OVERLAY',
+          renderOrder: 20,
+        ),
+        IslandSceneLayerDto(
+          layerKey: 'region_fog',
+          layerType: 'REGION_OVERLAY',
+          renderOrder: 25,
         ),
         IslandSceneLayerDto(
           layerKey: 'item_layer',

@@ -81,6 +81,7 @@ public class IslandService {
     private final IslandLayoutVersionRepository layoutVersions;
     private final IslandLayoutRegionRepository layoutRegions;
     private final IslandSceneLayerRepository sceneLayers;
+    private final IslandLayoutService layoutService;
     private final Clock clock;
     private final boolean enabled;
 
@@ -96,6 +97,7 @@ public class IslandService {
                          IslandLayoutVersionRepository layoutVersions,
                          IslandLayoutRegionRepository layoutRegions,
                          IslandSceneLayerRepository sceneLayers,
+                         IslandLayoutService layoutService,
                          Clock clock,
                          @Value("${dauviet.island.enabled:true}")
                          boolean enabled) {
@@ -111,6 +113,7 @@ public class IslandService {
         this.layoutVersions = layoutVersions;
         this.layoutRegions = layoutRegions;
         this.sceneLayers = sceneLayers;
+        this.layoutService = layoutService;
         this.clock = clock;
         this.enabled = enabled;
     }
@@ -163,16 +166,18 @@ public class IslandService {
         }
         long exp = levelService.totalExp(userId);
         int currentLevel = levelService.levelForExp(exp);
+        long requiredExp = levelService.minExpForLevel(requiredLevel);
+        if (requiredExp < 0) {
+            log.error("island upgrade blocked: requiredLevel={} missing in active account_level_thresholds",
+                    requiredLevel);
+            throw new IslandExceptions.IslandConfigurationInvalidException(nextTier);
+        }
         if (currentLevel < requiredLevel) {
-            long requiredExp = levelService.minExpForLevel(requiredLevel);
-            // requiredExp = -1 nếu level không có trong bảng ngưỡng
-            // → vẫn chặn vì currentLevel < requiredLevel đã là đủ
             throw new IslandExceptions.IslandUpgradeInsufficientLevelException(
-                    nextTier, requiredLevel, currentLevel, exp,
-                    requiredExp < 0 ? 0L : requiredExp);
+                    nextTier, requiredLevel, currentLevel, exp, requiredExp);
         }
         island.upgradeTo(nextTier, now);
-        islands.save(island); // bumps @Version (row_version)
+        islands.saveAndFlush(island); // bumps @Version (row_version)
         log.info("island upgraded user={} tier={} level={} exp={}",
                 userId, nextTier, currentLevel, exp);
         return buildFullResponse(island, userId, now);
@@ -222,7 +227,7 @@ public class IslandService {
         placements.insertIgnore(userId, slotId, req.itemId());
         // Bump revision — place thành công luôn tăng row_version
         island.touch(now);
-        islands.save(island);
+        islands.saveAndFlush(island);
         log.info("island placement user={} slot={} item={}",
                 userId, slotId, req.itemId());
         return buildFullResponse(island, userId, now);
@@ -245,7 +250,7 @@ public class IslandService {
         if (removed > 0) {
             // Bump revision — remove thực sự làm thay đổi trạng thái đảo
             island.touch(now);
-            islands.save(island);
+            islands.saveAndFlush(island);
             log.info("island placement removed user={} slot={}", userId, slotId);
         }
         return buildFullResponse(island, userId, now);
@@ -258,17 +263,51 @@ public class IslandService {
     }
 
     private UserIsland ensureIsland(UUID userId, Instant now) {
-        islands.insertIgnore(userId, now);
-        return islands.findById(userId)
-                .orElseThrow(() -> new IllegalStateException(
-                        "user_islands insert lost for " + userId));
+        UserIsland existing = islands.findById(userId).orElse(null);
+        if (existing == null) {
+            var defLayout = layoutService.requireDefaultPublishedLayout();
+            islands.insertIgnoreWithVersion(
+                    userId,
+                    defLayout.definition().getLayoutKey(),
+                    defLayout.version().getId(),
+                    now);
+            existing = islands.findById(userId)
+                    .orElseThrow(() -> new IllegalStateException(
+                            "user_islands insert lost for " + userId));
+        }
+        if (existing.getLayoutVersionId() == null) {
+            var defLayout = layoutService.requireDefaultPublishedLayout();
+            existing.pinLayoutVersion(
+                    defLayout.definition().getLayoutKey(),
+                    defLayout.version().getId(),
+                    now);
+            islands.saveAndFlush(existing);
+        }
+        return existing;
     }
 
     private UserIsland lockIsland(UUID userId, Instant now) {
-        islands.insertIgnore(userId, now);
-        return islands.findForUpdate(userId)
-                .orElseThrow(() -> new IllegalStateException(
-                        "user_islands insert lost for " + userId));
+        UserIsland existing = islands.findForUpdate(userId).orElse(null);
+        if (existing == null) {
+            var defLayout = layoutService.requireDefaultPublishedLayout();
+            islands.insertIgnoreWithVersion(
+                    userId,
+                    defLayout.definition().getLayoutKey(),
+                    defLayout.version().getId(),
+                    now);
+            existing = islands.findForUpdate(userId)
+                    .orElseThrow(() -> new IllegalStateException(
+                            "user_islands insert lost for " + userId));
+        }
+        if (existing.getLayoutVersionId() == null) {
+            var defLayout = layoutService.requireDefaultPublishedLayout();
+            existing.pinLayoutVersion(
+                    defLayout.definition().getLayoutKey(),
+                    defLayout.version().getId(),
+                    now);
+            islands.saveAndFlush(existing);
+        }
+        return existing;
     }
 
     private void checkRevision(UserIsland island, Long expectedRevision) {
@@ -317,14 +356,16 @@ public class IslandService {
      * Level yêu cầu của tier theo policy. Trả null nếu required_level chưa
      * được set (cấu hình cũ hoặc cấu hình chưa hợp lệ). Không fallback sang
      * 1 — caller phải chặn upgrade khi nhận null.
+     * Không dùng Stream.map(...).findFirst() vì map(null) ném NPE trên Optional!
      */
     private Integer requiredLevelForStrict(int tier,
                                            List<IslandTierPolicy> activePolicies) {
-        return activePolicies.stream()
-                .filter(p -> p.getTier() == tier)
-                .map(IslandTierPolicy::getRequiredLevel)
-                .findFirst()
-                .orElse(null);
+        for (IslandTierPolicy p : activePolicies) {
+            if (p.getTier() == tier) {
+                return p.getRequiredLevel();
+            }
+        }
+        return null;
     }
 
     private int requiredEventsFor(int tier,
@@ -404,16 +445,19 @@ public class IslandService {
     }
 
     /**
-     * Resolve layout version của island: ưu tiên island.layoutVersionId,
-     * fallback tìm published version cho layout_code.
+     * Resolve layout version của island: ưu tiên island.layoutVersionId
+     * (chấp nhận cả PUBLISHED và ARCHIVED cho đảo đã ghim),
+     * fallback tìm default published version.
      */
     private IslandLayoutVersion resolveLayoutVersion(UserIsland island) {
         if (island.getLayoutVersionId() != null) {
-            return layoutVersions.findById(island.getLayoutVersionId()).orElse(null);
+            IslandLayoutVersion pinned = layoutService.findPinnedVersion(
+                    island.getLayoutVersionId());
+            if (pinned != null) {
+                return pinned;
+            }
         }
-        // Không có layout_version_id (đảo cũ chưa backfill hoặc backfill chưa chạy)
-        // → thử tìm published version của heritage-village
-        return layoutVersions.findPublishedByLayoutKey("heritage-village").orElse(null);
+        return layoutService.requireDefaultPublishedLayout().version();
     }
 
     private IslandResponse buildResponse(UserIsland island,
@@ -445,12 +489,16 @@ public class IslandService {
                             placedItem == null ? null : placedItem.getCode(),
                             placedItem == null ? null : placedItem.getRenderKey(),
                             p == null ? null : p.getPlacedAt(),
-                            // V43 fields
+                            // V43/V44 fields
                             s.getStableSlotKey(),
                             s.getRegionCode(),
                             s.getZIndex(),
                             s.getAnchorX(),
-                            s.getAnchorY());
+                            s.getAnchorY(),
+                            s.getWidthNorm(),
+                            s.getHeightNorm(),
+                            layoutService.parseAllowedCategories(
+                                    s.getAllowedCategoriesJson()));
                 })
                 .toList();
 
@@ -463,14 +511,22 @@ public class IslandService {
         Integer nextTierRequiredLevel = nextTier == null ? null
                 : requiredLevelForStrict(nextTier, activePolicies);
         Long nextTierRequiredExp = null;
-        if (nextTierRequiredLevel != null) {
+        if (nextTierRequiredLevel != null && levelService.hasValidConfiguration()) {
             long minExp = levelService.minExpForLevel(nextTierRequiredLevel);
-            nextTierRequiredExp = minExp >= 0 ? minExp : null;
+            if (minExp >= 0) {
+                nextTierRequiredExp = minExp;
+            } else {
+                // Nếu requiredLevel không có trong bảng ngưỡng hợp lệ -> coi như cấu hình lỗi
+                nextTierRequiredLevel = null;
+            }
+        } else {
+            nextTierRequiredLevel = null;
         }
 
-        // canUpgrade: chỉ true khi có level config hợp lệ VÀ đủ level
+        // canUpgrade: chỉ true khi có level config hợp lệ, có ngưỡng EXP hợp lệ VÀ đủ level
         boolean canUpgrade = nextTier != null
                 && nextTierRequiredLevel != null
+                && nextTierRequiredExp != null
                 && levelService.hasValidConfiguration()
                 && currentLevel >= nextTierRequiredLevel;
 
@@ -500,7 +556,8 @@ public class IslandService {
                         l.getLayerKey(),
                         l.getLayerType(),
                         l.getRenderOrder(),
-                        l.getAssetRef()))
+                        l.getAssetRef(),
+                        l.getVisibilityRuleJson()))
                 .toList();
 
         return new IslandResponse(

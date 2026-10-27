@@ -8,13 +8,17 @@ import '../../data/island_dto.dart';
 class IslandSlotWidget extends StatefulWidget {
   final IslandSlotDto slot;
   final bool isSelected;
-  final VoidCallback onTap;
+  final VoidCallback? onTap;
+  final double width;
+  final double height;
 
   const IslandSlotWidget({
     super.key,
     required this.slot,
     required this.isSelected,
-    required this.onTap,
+    this.onTap,
+    this.width = 100.0,
+    this.height = 110.0,
   });
 
   @override
@@ -51,8 +55,10 @@ class _IslandSlotWidgetState extends State<IslandSlotWidget>
     final isSelected = widget.isSelected;
 
     return GestureDetector(
-      onTap: widget.onTap,
-      behavior: HitTestBehavior.opaque,
+      onTap: slot.isLocked ? null : widget.onTap,
+      behavior: slot.isLocked
+          ? HitTestBehavior.deferToChild
+          : HitTestBehavior.opaque,
       child: AnimatedBuilder(
         animation: _pulseAnimation,
         builder: (context, child) {
@@ -60,8 +66,8 @@ class _IslandSlotWidgetState extends State<IslandSlotWidget>
           return Transform.scale(scale: scale, child: child);
         },
         child: SizedBox(
-          width: 100,
-          height: 110,
+          width: widget.width,
+          height: widget.height,
           child: Stack(
             alignment: Alignment.center,
             clipBehavior: Clip.none,

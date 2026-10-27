@@ -1,6 +1,10 @@
 package com.dauviet.island.domain;
 
+import java.time.Instant;
 import java.util.UUID;
+
+import org.hibernate.annotations.JdbcTypeCode;
+import org.hibernate.type.SqlTypes;
 
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
@@ -8,15 +12,8 @@ import jakarta.persistence.Id;
 import jakarta.persistence.Table;
 
 /**
- * Ô đất catalog của layout đảo (V32 + V43). Immutable sau seed/publish —
- * không sửa tọa độ hoặc tier của slot đã được xuất bản.
- *
- * <p>V32: id, layout_code, slot_index, tier_required, coord_x, coord_y.
- * <p>V43: layout_version_id, stable_slot_key, region_code, z_index,
- *         anchor_x, anchor_y, width_norm, height_norm.
- *
- * <p>Lookup phổ biến: findByLayoutVersionId (IslandService sau V43) hoặc
- * findByLayoutCode (legacy trước khi backfill hoàn toàn).
+ * Ô đất catalog của layout đảo (V32 + V44). Immutable sau जब version PUBLISHED.
+ * Khi ở trạng thái DRAFT, admin có thể thêm, sửa, xóa slot.
  */
 @Entity
 @Table(name = "island_slots")
@@ -26,55 +23,100 @@ public class IslandSlot {
     @Column(name = "id", nullable = false, updatable = false)
     private UUID id;
 
-    /** Legacy layout code ('heritage-v1'). Giữ nguyên sau V43 cho query tương thích. */
-    @Column(name = "layout_code", nullable = false, updatable = false)
+    @Column(name = "layout_code", nullable = false)
     private String layoutCode;
 
-    /** FK → island_layout_versions.id (V43). NOT NULL sau backfill. */
     @Column(name = "layout_version_id", nullable = false, updatable = false)
     private UUID layoutVersionId;
 
-    @Column(name = "slot_index", nullable = false, updatable = false)
+    @Column(name = "slot_index", nullable = false)
     private int slotIndex;
 
-    @Column(name = "tier_required", nullable = false, updatable = false)
+    @Column(name = "tier_required", nullable = false)
     private int tierRequired;
 
-    @Column(name = "coord_x", nullable = false, updatable = false)
+    @Column(name = "coord_x", nullable = false)
     private double coordX;
 
-    @Column(name = "coord_y", nullable = false, updatable = false)
+    @Column(name = "coord_y", nullable = false)
     private double coordY;
 
-    /** Key ổn định để client tham chiếu slot sau khi layout publish (V43). */
-    @Column(name = "stable_slot_key", updatable = false)
+    @Column(name = "stable_slot_key", nullable = false)
     private String stableSlotKey;
 
-    /** Vùng đất mà slot thuộc về (TIER_1, TIER_2, TIER_3) (V43). */
-    @Column(name = "region_code", updatable = false)
+    @Column(name = "region_code")
     private String regionCode;
 
-    /** Thứ tự xếp lớp render — lớn hơn = phía trước (V43). */
     @Column(name = "z_index", nullable = false)
     private int zIndex;
 
-    /** Điểm neo ngang của widget trang trí, 0..1 (0.5 = center) (V43). */
     @Column(name = "anchor_x", nullable = false)
     private double anchorX;
 
-    /** Điểm neo dọc của widget trang trí, 0..1 (1.0 = bottom) (V43). */
     @Column(name = "anchor_y", nullable = false)
     private double anchorY;
 
-    /** Chiều rộng tương đối theo canvas (V43). */
     @Column(name = "width_norm", nullable = false)
     private double widthNorm;
 
-    /** Chiều cao tương đối theo canvas (V43). */
     @Column(name = "height_norm", nullable = false)
     private double heightNorm;
 
+    @JdbcTypeCode(SqlTypes.JSON)
+    @Column(name = "allowed_categories_json", nullable = false, columnDefinition = "jsonb")
+    private String allowedCategoriesJson = "[\"DECOR\"]";
+
+    @Column(name = "created_at", nullable = false, updatable = false)
+    private Instant createdAt;
+
     public IslandSlot() {
+    }
+
+    public static IslandSlot create(UUID id, String layoutCode, UUID layoutVersionId,
+                                    int slotIndex, int tierRequired,
+                                    double coordX, double coordY,
+                                    String stableSlotKey, String regionCode,
+                                    int zIndex, double anchorX, double anchorY,
+                                    double widthNorm, double heightNorm,
+                                    String allowedCategoriesJson, Instant now) {
+        IslandSlot s = new IslandSlot();
+        s.id = id;
+        s.layoutCode = layoutCode;
+        s.layoutVersionId = layoutVersionId;
+        s.slotIndex = slotIndex;
+        s.tierRequired = tierRequired;
+        s.coordX = coordX;
+        s.coordY = coordY;
+        s.stableSlotKey = stableSlotKey;
+        s.regionCode = regionCode;
+        s.zIndex = zIndex;
+        s.anchorX = anchorX;
+        s.anchorY = anchorY;
+        s.widthNorm = widthNorm;
+        s.heightNorm = heightNorm;
+        s.allowedCategoriesJson = allowedCategoriesJson != null ? allowedCategoriesJson : "[\"DECOR\"]";
+        s.createdAt = now;
+        return s;
+    }
+
+    public void update(int slotIndex, int tierRequired, double coordX, double coordY,
+                       String stableSlotKey, String regionCode, int zIndex,
+                       double anchorX, double anchorY, double widthNorm, double heightNorm,
+                       String allowedCategoriesJson) {
+        this.slotIndex = slotIndex;
+        this.tierRequired = tierRequired;
+        this.coordX = coordX;
+        this.coordY = coordY;
+        this.stableSlotKey = stableSlotKey;
+        this.regionCode = regionCode;
+        this.zIndex = zIndex;
+        this.anchorX = anchorX;
+        this.anchorY = anchorY;
+        this.widthNorm = widthNorm;
+        this.heightNorm = heightNorm;
+        if (allowedCategoriesJson != null) {
+            this.allowedCategoriesJson = allowedCategoriesJson;
+        }
     }
 
     public UUID getId() { return id; }
@@ -91,4 +133,6 @@ public class IslandSlot {
     public double getAnchorY() { return anchorY; }
     public double getWidthNorm() { return widthNorm; }
     public double getHeightNorm() { return heightNorm; }
+    public String getAllowedCategoriesJson() { return allowedCategoriesJson; }
+    public Instant getCreatedAt() { return createdAt; }
 }

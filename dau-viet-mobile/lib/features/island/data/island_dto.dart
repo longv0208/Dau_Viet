@@ -1,3 +1,6 @@
+import 'dart:convert';
+import 'dart:ui';
+
 import 'package:flutter/foundation.dart';
 
 /// Trả về đường dẫn asset cục bộ dựa vào renderKey, code hoặc assetId.
@@ -78,11 +81,13 @@ class IslandSlotDto {
   final bool unlocked;
   final List<String> allowedCategories;
   final IslandPlacementDto? placement;
-  // V43 layout fields
+  // V43/V44 layout fields
   final String? stableSlotKey;
   final String? regionCode;
   final double anchorX;
   final double anchorY;
+  final double widthNorm;
+  final double heightNorm;
 
   const IslandSlotDto({
     required this.slotId,
@@ -97,6 +102,8 @@ class IslandSlotDto {
     this.regionCode,
     this.anchorX = 0.5,
     this.anchorY = 1.0,
+    this.widthNorm = 0.10,
+    this.heightNorm = 0.12,
   });
 
   bool get isOccupied => placement != null;
@@ -116,6 +123,8 @@ class IslandSlotDto {
     String? regionCode,
     double? anchorX,
     double? anchorY,
+    double? widthNorm,
+    double? heightNorm,
   }) {
     return IslandSlotDto(
       slotId: slotId ?? this.slotId,
@@ -130,6 +139,8 @@ class IslandSlotDto {
       regionCode: regionCode ?? this.regionCode,
       anchorX: anchorX ?? this.anchorX,
       anchorY: anchorY ?? this.anchorY,
+      widthNorm: widthNorm ?? this.widthNorm,
+      heightNorm: heightNorm ?? this.heightNorm,
     );
   }
 
@@ -178,6 +189,8 @@ class IslandSlotDto {
       regionCode: json['regionCode'] as String?,
       anchorX: (json['anchorX'] as num?)?.toDouble() ?? 0.5,
       anchorY: (json['anchorY'] as num?)?.toDouble() ?? 1.0,
+      widthNorm: (json['widthNorm'] as num?)?.toDouble() ?? 0.10,
+      heightNorm: (json['heightNorm'] as num?)?.toDouble() ?? 0.12,
     );
   }
 
@@ -194,10 +207,12 @@ class IslandSlotDto {
     if (regionCode != null) 'regionCode': regionCode,
     'anchorX': anchorX,
     'anchorY': anchorY,
+    'widthNorm': widthNorm,
+    'heightNorm': heightNorm,
   };
 }
 
-/// Vùng đất trong layout, mở theo Tier (ISLAND-03).
+/// Vùng đất trong layout, mở theo Tier (ISLAND-03/04).
 @immutable
 class IslandLayoutRegionDto {
   final String regionCode;
@@ -216,6 +231,24 @@ class IslandLayoutRegionDto {
     this.boundsJson,
   });
 
+  /// Giải mã hình chữ nhật chuẩn hóa [0,1] từ boundsJson.
+  Rect? parseNormalizedBounds() {
+    if (boundsJson == null || boundsJson!.trim().isEmpty) return null;
+    try {
+      final decoded = jsonDecode(boundsJson!);
+      if (decoded is Map) {
+        final x = (decoded['x'] as num?)?.toDouble();
+        final y = (decoded['y'] as num?)?.toDouble();
+        final w = (decoded['width'] as num?)?.toDouble();
+        final h = (decoded['height'] as num?)?.toDouble();
+        if (x != null && y != null && w != null && h != null && w > 0 && h > 0) {
+          return Rect.fromLTWH(x, y, w, h);
+        }
+      }
+    } catch (_) {}
+    return null;
+  }
+
   factory IslandLayoutRegionDto.fromJson(Map<String, dynamic> json) {
     return IslandLayoutRegionDto(
       regionCode: json['regionCode'] as String? ?? '',
@@ -227,20 +260,38 @@ class IslandLayoutRegionDto {
   }
 }
 
-/// Lớp scene của layout để Flutter render từng layer theo thứ tự (ISLAND-03).
+/// Lớp scene của layout để Flutter render từng layer theo thứ tự (ISLAND-03/04).
 @immutable
 class IslandSceneLayerDto {
   final String layerKey;
   final String layerType;
   final int renderOrder;
   final String? assetRef;
+  final String? visibilityRuleJson;
 
   const IslandSceneLayerDto({
     required this.layerKey,
     required this.layerType,
     this.renderOrder = 0,
     this.assetRef,
+    this.visibilityRuleJson,
   });
+
+  bool isVisibleForTier(int currentTier) {
+    if (visibilityRuleJson == null || visibilityRuleJson!.trim().isEmpty) {
+      return true;
+    }
+    try {
+      final decoded = jsonDecode(visibilityRuleJson!);
+      if (decoded is Map) {
+        final minTier = (decoded['minTier'] as num?)?.toInt();
+        final maxTier = (decoded['maxTier'] as num?)?.toInt();
+        if (minTier != null && currentTier < minTier) return false;
+        if (maxTier != null && currentTier > maxTier) return false;
+      }
+    } catch (_) {}
+    return true;
+  }
 
   factory IslandSceneLayerDto.fromJson(Map<String, dynamic> json) {
     return IslandSceneLayerDto(
@@ -248,6 +299,7 @@ class IslandSceneLayerDto {
       layerType: json['layerType'] as String? ?? 'STATIC_IMAGE',
       renderOrder: (json['renderOrder'] as num?)?.toInt() ?? 0,
       assetRef: json['assetRef'] as String?,
+      visibilityRuleJson: json['visibilityRuleJson'] as String?,
     );
   }
 }
@@ -516,7 +568,26 @@ class ShopItemDto {
   /// Tiện ích: giá để hiển thị (0 nếu chưa mở bán).
   int get price => pricePoints ?? 0;
 
+  /// Vật phẩm chỉ được phép mua khi purchasable = true và có giá > 0.
+  bool get isForSale => purchasable && pricePoints != null && pricePoints! > 0;
+
   String get assetPath => resolveIslandAsset(renderKey, code, assetId);
+
+  ShopItemDto copyWith({bool? owned}) {
+    return ShopItemDto(
+      itemId: itemId,
+      code: code,
+      name: name,
+      description: description,
+      category: category,
+      pricePoints: pricePoints,
+      purchasable: purchasable,
+      renderKey: renderKey,
+      assetId: assetId,
+      placeable: placeable,
+      owned: owned ?? this.owned,
+    );
+  }
 
   factory ShopItemDto.fromJson(Map<String, dynamic> json) {
     return ShopItemDto(

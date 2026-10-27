@@ -27,7 +27,7 @@ public class UserIsland {
     @Column(name = "tier", nullable = false)
     private int tier = 1;
 
-    @Column(name = "layout_code", nullable = false, updatable = false)
+    @Column(name = "layout_code", nullable = false)
     private String layoutCode = "heritage-v1";
 
     /**
@@ -66,7 +66,7 @@ public class UserIsland {
     }
 
     /**
-     * Đảo mới với layout version cụ thể (V43). Dùng khi IslandLayoutService
+     * Đảo mới với layout version cụ thể (V44). Dùng khi IslandLayoutService
      * đã xác định default published version.
      */
     public static UserIsland create(UUID userId, Instant now,
@@ -74,6 +74,14 @@ public class UserIsland {
         UserIsland i = create(userId, now);
         i.layoutVersionId = layoutVersionId;
         return i;
+    }
+
+    public void pinLayoutVersion(UUID layoutVersionId, String layoutCode, Instant now) {
+        this.layoutVersionId = layoutVersionId;
+        if (layoutCode != null && !layoutCode.isBlank()) {
+            this.layoutCode = layoutCode;
+        }
+        this.updatedAt = now;
     }
 
     /**

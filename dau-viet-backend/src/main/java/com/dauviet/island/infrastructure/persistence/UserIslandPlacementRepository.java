@@ -30,6 +30,8 @@ public interface UserIslandPlacementRepository
     Optional<UserIslandPlacement> findByUserIdAndItemId(UUID userId,
                                                       UUID itemId);
 
+    boolean existsBySlotId(UUID slotId);
+
     /** Đặt vật phẩm; đã chiếm slot hoặc đã đặt item → 0. */
     @Modifying
     @Query(value = """

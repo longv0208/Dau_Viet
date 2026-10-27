@@ -59,7 +59,7 @@ class _IslandShopScreenState extends ConsumerState<IslandShopScreen> {
           walletAsync.when(
             data: (wallet) => _buildWalletPill(wallet.historyPoints),
             loading: () => _buildWalletPill(null),
-            error: (err, stack) => _buildWalletPill(0),
+            error: (err, stack) => _buildWalletPill(null),
           ),
           const SizedBox(width: 16),
         ],
@@ -125,6 +125,8 @@ class _IslandShopScreenState extends ConsumerState<IslandShopScreen> {
             );
           }
 
+          final bool walletLoaded =
+              walletAsync.hasValue && !walletAsync.hasError;
           final currentPoints = walletAsync.asData?.value.historyPoints ?? 0;
 
           return RefreshIndicator(
@@ -148,6 +150,7 @@ class _IslandShopScreenState extends ConsumerState<IslandShopScreen> {
 
                 return _buildShopItemCard(
                   item: item,
+                  walletLoaded: walletLoaded,
                   currentPoints: currentPoints,
                   isPurchasing: isPurchasing,
                 );
@@ -192,11 +195,16 @@ class _IslandShopScreenState extends ConsumerState<IslandShopScreen> {
 
   Widget _buildShopItemCard({
     required ShopItemDto item,
+    required bool walletLoaded,
     required int currentPoints,
     required bool isPurchasing,
   }) {
     final assetPath = item.assetPath;
-    final canAfford = currentPoints >= item.price;
+    final bool hasValidPrice =
+        item.pricePoints != null && item.pricePoints! > 0;
+    final bool isForSale = item.purchasable && hasValidPrice;
+    final bool canAfford =
+        walletLoaded && isForSale && currentPoints >= item.pricePoints!;
 
     return Container(
       padding: const EdgeInsets.all(16),
@@ -204,7 +212,7 @@ class _IslandShopScreenState extends ConsumerState<IslandShopScreen> {
         color: DauVietColors.parchmentContainer,
         borderRadius: BorderRadius.circular(20),
         border: Border.all(
-          color: item.owned
+          color: (item.owned || !isForSale)
               ? DauVietColors.outlineVariant
               : DauVietColors.imperialGoldLight,
           width: 1.5,
@@ -277,21 +285,27 @@ class _IslandShopScreenState extends ConsumerState<IslandShopScreen> {
                   spacing: 8,
                   runSpacing: 8,
                   children: [
-                    // Giá Điểm Sử Ký
+                    // Giá Điểm Sử Ký hoặc Chưa mở bán
                     Row(
                       mainAxisSize: MainAxisSize.min,
                       children: [
-                        const Icon(
-                          Icons.stars_rounded,
-                          color: DauVietColors.imperialGold,
+                        Icon(
+                          hasValidPrice
+                              ? Icons.stars_rounded
+                              : Icons.lock_clock_rounded,
+                          color: hasValidPrice
+                              ? DauVietColors.imperialGold
+                              : DauVietColors.inkMuted,
                           size: 20,
                         ),
                         const SizedBox(width: 4),
                         Text(
-                          '${item.price} Điểm',
+                          hasValidPrice
+                              ? '${item.pricePoints} Điểm'
+                              : 'Chưa mở bán',
                           style: DauVietTypography.bodyMedium.copyWith(
                             fontWeight: FontWeight.bold,
-                            color: item.owned
+                            color: (item.owned || !isForSale || !walletLoaded)
                                 ? DauVietColors.inkMuted
                                 : (canAfford
                                       ? DauVietColors.heritageGreen
@@ -301,7 +315,7 @@ class _IslandShopScreenState extends ConsumerState<IslandShopScreen> {
                       ],
                     ),
 
-                    // Nút Mua hoặc Đã sở hữu
+                    // Nút Mua / Đã sở hữu / Chưa mở bán
                     if (item.owned)
                       Container(
                         padding: const EdgeInsets.symmetric(
@@ -323,6 +337,27 @@ class _IslandShopScreenState extends ConsumerState<IslandShopScreen> {
                           ),
                         ),
                       )
+                    else if (!isForSale)
+                      Container(
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 12,
+                          vertical: 6,
+                        ),
+                        decoration: BoxDecoration(
+                          color: DauVietColors.parchmentDim,
+                          borderRadius: BorderRadius.circular(12),
+                          border: Border.all(
+                            color: DauVietColors.outlineVariant,
+                          ),
+                        ),
+                        child: Text(
+                          'CHƯA MỞ BÁN',
+                          style: DauVietTypography.bodySmall.copyWith(
+                            fontWeight: FontWeight.bold,
+                            color: DauVietColors.inkMuted,
+                          ),
+                        ),
+                      )
                     else
                       SizedBox(
                         width: 86,
@@ -335,8 +370,9 @@ class _IslandShopScreenState extends ConsumerState<IslandShopScreen> {
                               ? Tactile3DVariant.primaryCinnabar
                               : Tactile3DVariant.secondaryParchment,
                           isLoading: isPurchasing,
-                          onPressed: () =>
-                              _confirmPurchase(item, currentPoints),
+                          onPressed: (walletLoaded && canAfford && !isPurchasing)
+                              ? () => _confirmPurchase(item, currentPoints)
+                              : null,
                         ),
                       ),
                   ],
@@ -351,7 +387,10 @@ class _IslandShopScreenState extends ConsumerState<IslandShopScreen> {
 
   /// Mở hộp thoại xác nhận mua vật phẩm.
   Future<void> _confirmPurchase(ShopItemDto item, int currentPoints) async {
-    if (currentPoints < item.price) {
+    if (item.owned || !item.isForSale || item.pricePoints == null) {
+      return;
+    }
+    if (currentPoints < item.pricePoints!) {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
           content: Text(

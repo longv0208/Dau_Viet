@@ -4,19 +4,22 @@ import java.util.List;
 import java.util.UUID;
 
 import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.data.jpa.repository.Modifying;
+import org.springframework.data.jpa.repository.Query;
+import org.springframework.data.repository.query.Param;
 
 import com.dauviet.island.domain.IslandSceneLayer;
 
 /**
- * Scene layers của layout (V43) — read-only sau publish.
+ * Scene layers của layout (V44).
  */
 public interface IslandSceneLayerRepository
         extends JpaRepository<IslandSceneLayer, UUID> {
 
-    /**
-     * Danh sách layers của một layout version, sắp theo render_order ASC.
-     * Flutter render từng layer theo thứ tự này.
-     */
     List<IslandSceneLayer> findByLayoutVersionIdOrderByRenderOrderAsc(
             UUID layoutVersionId);
+
+    @Modifying
+    @Query("DELETE FROM IslandSceneLayer l WHERE l.layoutVersionId = :versionId")
+    void deleteByLayoutVersionId(@Param("versionId") UUID versionId);
 }
