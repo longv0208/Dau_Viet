@@ -1,20 +1,28 @@
 "use client";
 
 import { zodResolver } from "@hookform/resolvers/zod";
-import { skipToken, useQuery, useQueryClient } from "@tanstack/react-query";
+import { skipToken, useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useFieldArray, useForm } from "react-hook-form";
 import { z } from "zod";
+import { ImageIcon, RefreshCw, Trash2, Upload } from "lucide-react";
 
 import { apiFetch } from "@/lib/api-client";
 import { ApiClientError, toUserMessage } from "@/lib/api-error";
 import { parseReturnTo, withReturnTo } from "@/lib/return-to";
 import type { AdminEventSummary } from "@/lib/dto/event";
-import type { AdminLessonDetail, LessonTemplate } from "@/lib/dto/lesson";
+import type { AdminAsset } from "@/lib/dto/evidence";
+import type {
+  AdminLessonDetail,
+  AdminLessonUpdateRequest,
+  LessonTemplate,
+} from "@/lib/dto/lesson";
 import { applyServerFieldErrors } from "@/lib/form-utils";
 import { qk } from "@/lib/query-keys";
+import { AssetImage } from "@/features/assets/asset-image";
+import { AssetPickerDialog } from "@/features/assets/asset-picker-dialog";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
@@ -27,6 +35,8 @@ import {
   confirmDiscard,
   useUnsavedChangesGuard,
 } from "@/components/unsaved-changes-guard";
+
+const ALLOWED_COVER_MIMES = new Set(["image/jpeg", "image/png", "image/webp"]);
 
 const schema = z.object({
   title: z.string().min(1, "Vui lòng nhập tiêu đề").max(255),
@@ -51,6 +61,18 @@ function parseObjectives(json: string): { value: string }[] {
   return [{ value: "" }];
 }
 
+function formatCoverError(err: unknown): string {
+  if (err instanceof ApiClientError) {
+    if (err.isConflict) {
+      return "Bài học đã bị sửa đồng thời (xung đột rowVersion). Vui lòng tải lại dữ liệu rồi thử lưu lại ảnh bìa.";
+    }
+    const reason = typeof err.details.reason === "string" ? err.details.reason : undefined;
+    if (reason) return reason;
+    if (err.message && err.message !== "An unexpected error occurred") return err.message;
+  }
+  return toUserMessage(err);
+}
+
 /** A-07 — basic lesson metadata editor. */
 export function LessonBasicEditor({ lessonId }: { lessonId: string }) {
   const router = useRouter();
@@ -60,11 +82,38 @@ export function LessonBasicEditor({ lessonId }: { lessonId: string }) {
   const [serverError, setServerError] = useState<string | null>(null);
   const [savedTick, setSavedTick] = useState(false);
 
+  const [pickerOpen, setPickerOpen] = useState(false);
+  const [selectedCoverId, setSelectedCoverId] = useState<string | null>(null);
+  const [pickedAsset, setPickedAsset] = useState<AdminAsset | null>(null);
+  const [coverError, setCoverError] = useState<string | null>(null);
+  const [coverSavedTick, setCoverSavedTick] = useState(false);
+
   const lessonQuery = useQuery({
     queryKey: qk.lessons.detail(lessonId),
     queryFn: () => apiFetch<AdminLessonDetail>(`/admin/lessons/${lessonId}`),
   });
   const lesson = lessonQuery.data;
+
+  useEffect(() => {
+    if (lesson !== undefined) {
+      setSelectedCoverId(lesson.coverAssetId ?? null);
+    }
+  }, [lesson?.id, lesson?.coverAssetId]);
+
+  const coverAssetQuery = useQuery({
+    queryKey: qk.assets.detail(selectedCoverId ?? "none"),
+    queryFn:
+      selectedCoverId && pickedAsset?.id !== selectedCoverId
+        ? () => apiFetch<AdminAsset>(`/admin/assets/${selectedCoverId}`)
+        : skipToken,
+  });
+
+  const currentCoverAsset: AdminAsset | null =
+    selectedCoverId == null
+      ? null
+      : pickedAsset?.id === selectedCoverId
+        ? pickedAsset
+        : (coverAssetQuery.data ?? null);
 
   const eventQuery = useQuery({
     queryKey: qk.events.detail(lesson?.eventId ?? "none"),
@@ -99,6 +148,46 @@ export function LessonBasicEditor({ lessonId }: { lessonId: string }) {
 
   useUnsavedChangesGuard(isDirty);
 
+  const coverMutation = useMutation({
+    mutationFn: async (nextCoverId: string | null) => {
+      const latest =
+        qc.getQueryData<AdminLessonDetail>(qk.lessons.detail(lessonId)) ?? lesson;
+      if (!latest) throw new Error("Chưa tải được dữ liệu bài học.");
+      const payload: AdminLessonUpdateRequest =
+        nextCoverId === null
+          ? {
+              clearCoverAsset: true,
+              expectedRowVersion: latest.rowVersion,
+            }
+          : {
+              coverAssetId: nextCoverId,
+              expectedRowVersion: latest.rowVersion,
+            };
+      return apiFetch<AdminLessonDetail>(`/admin/lessons/${latest.id}`, {
+        method: "PATCH",
+        body: JSON.stringify(payload),
+      });
+    },
+    onSuccess: async (updated) => {
+      setCoverError(null);
+      setSelectedCoverId(updated.coverAssetId ?? null);
+      if (!updated.coverAssetId) {
+        setPickedAsset(null);
+      }
+      setCoverSavedTick(true);
+      setTimeout(() => setCoverSavedTick(false), 3000);
+      qc.setQueryData(qk.lessons.detail(lessonId), updated);
+      await Promise.all([
+        qc.invalidateQueries({ queryKey: ["lessons"] }),
+        qc.invalidateQueries({ queryKey: qk.learningPath.all }),
+      ]);
+    },
+    onError: (err) => {
+      setCoverSavedTick(false);
+      setCoverError(formatCoverError(err));
+    },
+  });
+
   if (lessonQuery.isPending) {
     return (
       <div className="flex flex-col gap-4">
@@ -114,26 +203,60 @@ export function LessonBasicEditor({ lessonId }: { lessonId: string }) {
 
   const archived = lesson.status === "ARCHIVED";
 
+  const handleSelectCoverAsset = (asset: AdminAsset) => {
+    const mime = (asset.mimeType ?? "").toLowerCase();
+    if (!ALLOWED_COVER_MIMES.has(mime)) {
+      setCoverError(
+        `Định dạng "${asset.mimeType}" không hợp lệ cho ảnh bìa. Vui lòng chọn ảnh JPEG, PNG hoặc WebP.`,
+      );
+      return;
+    }
+    setCoverError(null);
+    setPickedAsset(asset);
+    setSelectedCoverId(asset.id);
+    coverMutation.mutate(asset.id);
+  };
+
+  const handleClearCoverAsset = () => {
+    setCoverError(null);
+    setSelectedCoverId(null);
+    setPickedAsset(null);
+    coverMutation.mutate(null);
+  };
+
   const onSubmit = handleSubmit(async (v) => {
     setServerError(null);
     try {
+      const latest =
+        qc.getQueryData<AdminLessonDetail>(qk.lessons.detail(lessonId)) ?? lesson;
+      const payload: AdminLessonUpdateRequest = {
+        title: v.title.trim(),
+        centralQuestion: v.centralQuestion.trim(),
+        objectivesJson: JSON.stringify(v.objectives.map((o) => o.value.trim()).filter(Boolean)),
+        expectedRowVersion: latest.rowVersion,
+        ...(selectedCoverId !== (latest.coverAssetId ?? null)
+          ? selectedCoverId === null
+            ? { clearCoverAsset: true }
+            : { coverAssetId: selectedCoverId }
+          : {}),
+      };
       const res = await apiFetch<AdminLessonDetail>(`/admin/lessons/${lesson.id}`, {
         method: "PATCH",
-        body: JSON.stringify({
-          title: v.title.trim(),
-          centralQuestion: v.centralQuestion.trim(),
-          objectivesJson: JSON.stringify(v.objectives.map((o) => o.value.trim()).filter(Boolean)),
-          expectedRowVersion: lesson.rowVersion,
-        }),
+        body: JSON.stringify(payload),
       });
       reset({
         title: res.title,
         centralQuestion: res.centralQuestion,
         objectives: parseObjectives(res.objectivesJson),
       });
+      setCoverError(null);
       setSavedTick(true);
       setTimeout(() => setSavedTick(false), 3000);
-      qc.invalidateQueries({ queryKey: ["lessons"] });
+      qc.setQueryData(qk.lessons.detail(lessonId), res);
+      await Promise.all([
+        qc.invalidateQueries({ queryKey: ["lessons"] }),
+        qc.invalidateQueries({ queryKey: qk.learningPath.all }),
+      ]);
     } catch (err) {
       const mapped = applyServerFieldErrors(err, setError, ["title", "centralQuestion"] as const);
       if (err instanceof ApiClientError && err.isConflict) {
@@ -141,10 +264,12 @@ export function LessonBasicEditor({ lessonId }: { lessonId: string }) {
           "Bài học đã bị sửa đồng thời hoặc không thể chỉnh sửa ở trạng thái hiện tại. Tải lại trang.",
         );
       } else if (!mapped) {
-        setServerError(toUserMessage(err));
+        setServerError(formatCoverError(err));
       }
     }
   });
+
+  const hasUnsavedCoverSelection = selectedCoverId !== (lesson.coverAssetId ?? null);
 
   return (
     <div className="flex flex-col gap-5">
@@ -193,6 +318,141 @@ export function LessonBasicEditor({ lessonId }: { lessonId: string }) {
           Bài học đã lưu trữ — chỉ xem, không chỉnh sửa.
         </p>
       )}
+
+      {/* Section: Ảnh bìa bài học */}
+      <Card>
+        <CardHeader>
+          <div className="flex flex-wrap items-start justify-between gap-3">
+            <div>
+              <CardTitle className="text-base">Ảnh bìa bài học</CardTitle>
+              <CardDescription>
+                Ảnh bìa/ảnh nền hiển thị trên thẻ bài học, màn giới thiệu bài học trên ứng dụng di động và trong khung thiết kế lộ trình. Ưu tiên tỷ lệ 16:9 (1200×675 px), định dạng JPEG, PNG hoặc WebP.
+              </CardDescription>
+            </div>
+            <div className="flex flex-wrap items-center gap-2">
+              {!selectedCoverId ? (
+                <Button
+                  type="button"
+                  size="sm"
+                  disabled={archived || coverMutation.isPending}
+                  onClick={() => setPickerOpen(true)}
+                >
+                  <Upload className="size-4" aria-hidden />
+                  Chọn ảnh
+                </Button>
+              ) : (
+                <>
+                  <Button
+                    type="button"
+                    variant="secondary"
+                    size="sm"
+                    disabled={archived || coverMutation.isPending}
+                    onClick={() => setPickerOpen(true)}
+                  >
+                    <RefreshCw className="size-4" aria-hidden />
+                    Thay ảnh
+                  </Button>
+                  <Button
+                    type="button"
+                    variant="secondary"
+                    size="sm"
+                    disabled={archived || coverMutation.isPending}
+                    onClick={handleClearCoverAsset}
+                  >
+                    <Trash2 className="size-4" aria-hidden />
+                    Gỡ ảnh
+                  </Button>
+                </>
+              )}
+            </div>
+          </div>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          <div className="grid gap-4 md:grid-cols-[minmax(18rem,26rem)_1fr] md:items-center">
+            <div className="overflow-hidden rounded-xl border border-border bg-surface shadow-xs">
+              {selectedCoverId && currentCoverAsset ? (
+                <AssetImage
+                  asset={currentCoverAsset}
+                  className="aspect-video w-full object-cover"
+                />
+              ) : selectedCoverId && coverAssetQuery.isPending ? (
+                <div className="flex aspect-video w-full items-center justify-center bg-surface text-xs text-ink-muted">
+                  Đang tải ảnh bìa…
+                </div>
+              ) : (
+                <div className="flex aspect-video w-full flex-col items-center justify-center gap-2 bg-surface/70 px-4 text-center text-ink-muted">
+                  <div className="flex size-11 items-center justify-center rounded-full border border-dashed border-border bg-white">
+                    <ImageIcon className="size-5 text-ink-muted" aria-hidden />
+                  </div>
+                  <p className="text-sm font-medium text-ink">Chưa có ảnh bìa bài học</p>
+                  <p className="text-xs text-ink-muted">
+                    Bấm &ldquo;Chọn ảnh&rdquo; để chọn từ thư viện hoặc tải ảnh mới lên (tùy chọn, không chặn xuất bản).
+                  </p>
+                </div>
+              )}
+            </div>
+
+            <div className="space-y-2 text-xs text-ink-muted">
+              {currentCoverAsset ? (
+                <div className="space-y-1 rounded-lg border border-border bg-surface/60 p-3">
+                  <p className="truncate text-sm font-medium text-ink">
+                    {currentCoverAsset.originalFilename ?? "Ảnh bìa bài học"}
+                  </p>
+                  <p>
+                    Định dạng: <span className="font-mono text-ink">{currentCoverAsset.mimeType}</span> · Dung lượng:{" "}
+                    <span className="font-mono text-ink">
+                      {Math.max(1, Math.round(currentCoverAsset.sizeBytes / 1024))} KB
+                    </span>
+                  </p>
+                  {currentCoverAsset.altText && (
+                    <p className="text-ink-muted">Mô tả (alt): {currentCoverAsset.altText}</p>
+                  )}
+                  <p className="font-mono text-[11px] text-ink-muted">
+                    Asset ID: {currentCoverAsset.id}
+                  </p>
+                </div>
+              ) : (
+                <div className="space-y-1 rounded-lg border border-dashed border-border p-3">
+                  <p className="font-medium text-ink">Hướng dẫn ảnh bìa</p>
+                  <p>• Tỷ lệ hiển thị chuẩn: 16:9 (khuyến nghị 1200×675 px).</p>
+                  <p>• Định dạng hỗ trợ: JPEG, PNG, WebP (tối đa 10 MB).</p>
+                  <p>• Gỡ ảnh chỉ xóa liên kết khỏi bài học, không xóa tệp khỏi thư viện Asset.</p>
+                </div>
+              )}
+
+              {coverMutation.isPending && (
+                <p role="status" className="text-xs font-medium text-brand">
+                  Đang lưu ảnh bìa bài học…
+                </p>
+              )}
+              {coverSavedTick && (
+                <p role="status" className="rounded-md bg-success/10 px-3 py-2 text-xs font-medium text-success">
+                  Đã cập nhật ảnh bìa bài học.
+                </p>
+              )}
+              {coverError && (
+                <div
+                  role="alert"
+                  className="flex flex-wrap items-center justify-between gap-2 rounded-md border border-error/30 bg-error/10 px-3 py-2 text-xs text-error"
+                >
+                  <span>{coverError}</span>
+                  {hasUnsavedCoverSelection && !archived && (
+                    <Button
+                      type="button"
+                      size="sm"
+                      variant="secondary"
+                      disabled={coverMutation.isPending}
+                      onClick={() => coverMutation.mutate(selectedCoverId)}
+                    >
+                      Thử lưu lại
+                    </Button>
+                  )}
+                </div>
+              )}
+            </div>
+          </div>
+        </CardContent>
+      </Card>
 
       <Card>
         <CardHeader>
@@ -259,7 +519,7 @@ export function LessonBasicEditor({ lessonId }: { lessonId: string }) {
 
             {!archived && (
               <div className="flex items-center gap-3">
-                <Button type="submit" disabled={isSubmitting}>
+                <Button type="submit" disabled={isSubmitting || coverMutation.isPending}>
                   {isSubmitting ? "Đang lưu..." : "Lưu thay đổi"}
                 </Button>
                 <Button
@@ -309,6 +569,12 @@ export function LessonBasicEditor({ lessonId }: { lessonId: string }) {
           </div>
         </CardContent>
       </Card>
+
+      <AssetPickerDialog
+        open={pickerOpen}
+        onOpenChange={setPickerOpen}
+        onSelect={handleSelectCoverAsset}
+      />
     </div>
   );
 }

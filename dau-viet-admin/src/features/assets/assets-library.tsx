@@ -22,21 +22,23 @@ import { AssetPreviewDialog } from "./asset-preview-dialog";
 
 const PAGE_SIZE = 24;
 
-/** /assets — grid library: thumbnails + upload + preview modal. */
+/** /assets — grid library: thumbnails + upload + preview modal + search + pagination. */
 export function AssetsLibrary() {
   const qc = useQueryClient();
   const fileRef = useRef<HTMLInputElement>(null);
   const [page, setPage] = useState(0);
+  const [searchInput, setSearchInput] = useState("");
+  const [q, setQ] = useState("");
   const [uploading, setUploading] = useState(false);
   const [uploadError, setUploadError] = useState<string | null>(null);
   const [altText, setAltText] = useState("");
   const [preview, setPreview] = useState<AdminAsset | null>(null);
 
   const query = useQuery({
-    queryKey: qk.assets.list({ page, size: PAGE_SIZE }),
+    queryKey: qk.assets.list({ page, size: PAGE_SIZE, q: q || undefined }),
     queryFn: () =>
       apiFetch<PageResponse<AdminAsset>>(
-        `/admin/assets${toQuery({ page, size: PAGE_SIZE })}`,
+        `/admin/assets${toQuery({ page, size: PAGE_SIZE, q: q || undefined })}`,
       ),
     placeholderData: keepPreviousData,
   });
@@ -55,8 +57,6 @@ export function AssetsLibrary() {
     try {
       const created = await uploadAsset(file, altText || undefined);
       setAltText("");
-      // Về trang đầu (assets sort newest-first) rồi mở preview ảnh vừa upload —
-      // tránh trường hợp upload xong đang ở trang 2+ không thấy ảnh đâu.
       setPage(0);
       await qc.invalidateQueries({ queryKey: ["assets"] });
       setPreview(created);
@@ -67,7 +67,8 @@ export function AssetsLibrary() {
     }
   }
 
-  const totalPages = query.data?.totalPages ?? 0;
+  const totalPages = Math.max(1, query.data?.totalPages ?? 0);
+  const totalElements = query.data?.totalElements ?? 0;
   const items = query.data?.content ?? [];
 
   return (
@@ -105,6 +106,25 @@ export function AssetsLibrary() {
         </div>
       </div>
 
+      <form
+        onSubmit={(e) => {
+          e.preventDefault();
+          setQ(searchInput.trim());
+          setPage(0);
+        }}
+        className="flex max-w-md items-center gap-2"
+      >
+        <Input
+          value={searchInput}
+          onChange={(e) => setSearchInput(e.target.value)}
+          placeholder="Tìm theo tên tệp hoặc mô tả ảnh..."
+          aria-label="Tìm kiếm ảnh trong thư viện"
+        />
+        <Button type="submit" variant="secondary">
+          Tìm
+        </Button>
+      </form>
+
       {uploadError && (
         <p role="alert" className="rounded-md bg-error/10 px-3 py-2 text-sm text-error">
           {uploadError}
@@ -133,10 +153,10 @@ export function AssetsLibrary() {
         </div>
       )}
 
-      {totalPages > 1 && (
+      {totalElements > 0 && (
         <div className="flex items-center justify-between text-sm text-ink-muted">
           <span>
-            Trang {page + 1} / {totalPages} ({query.data?.totalElements ?? 0} ảnh)
+            Trang {page + 1} / {totalPages} ({totalElements} ảnh)
           </span>
           <div className="flex gap-2">
             <Button variant="secondary" disabled={page === 0} onClick={() => setPage(page - 1)}>

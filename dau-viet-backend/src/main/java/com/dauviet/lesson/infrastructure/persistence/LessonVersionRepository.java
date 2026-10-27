@@ -1,9 +1,11 @@
 package com.dauviet.lesson.infrastructure.persistence;
 
+import java.util.Collection;
 import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
 
+import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.stereotype.Repository;
@@ -20,6 +22,11 @@ public interface LessonVersionRepository extends JpaRepository<LessonVersion, UU
     Optional<LessonVersion> findTopByLessonIdOrderByVersionNoDesc(UUID lessonId);
 
     List<LessonVersion> findByLessonIdOrderByVersionNoDesc(UUID lessonId, Pageable pageable);
+
+    Page<LessonVersion> findAllByOrderByPublishedAtDescVersionNoDesc(Pageable pageable);
+
+    Page<LessonVersion> findByLessonIdInOrderByPublishedAtDescVersionNoDesc(
+            Collection<UUID> lessonIds, Pageable pageable);
 
     long countByLessonId(UUID lessonId);
 

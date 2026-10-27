@@ -3,10 +3,13 @@ package com.dauviet.path.api;
 import java.util.List;
 import java.util.UUID;
 import org.springframework.web.bind.annotation.*;
+import com.dauviet.common.api.PageResponse;
 import com.dauviet.path.api.dto.*;
 import com.dauviet.path.application.*;
 import com.dauviet.path.domain.LearningPathVersion;
 import jakarta.validation.Valid;
+import jakarta.validation.constraints.Max;
+import jakarta.validation.constraints.Min;
 import jakarta.validation.constraints.PositiveOrZero;
 import org.springframework.validation.annotation.Validated;
 
@@ -48,6 +51,26 @@ public class AdminLearningPathController {
     public List<LearningPathVersion> list(
             @RequestParam(defaultValue = LearningPathService.DEFAULT_PATH_CODE) String code) {
         return read.list(code);
+    }
+
+    @GetMapping(value = "/versions", params = "page")
+    public PageResponse<LearningPathVersion> listPaged(
+            @RequestParam(defaultValue = LearningPathService.DEFAULT_PATH_CODE) String code,
+            @RequestParam(required = false) String status,
+            @RequestParam(defaultValue = "0") @Min(0) int page,
+            @RequestParam(defaultValue = "20") @Min(1) @Max(100) int size) {
+        List<LearningPathVersion> all = read.list(code);
+        if (status != null && !status.isBlank()) {
+            String normalizedStatus = status.trim().toUpperCase();
+            all = all.stream()
+                    .filter(v -> v.getStatus() != null && v.getStatus().name().equalsIgnoreCase(normalizedStatus))
+                    .toList();
+        }
+        long total = all.size();
+        int totalPages = (int) Math.ceil((double) total / size);
+        int fromIndex = Math.min(page * size, all.size());
+        int toIndex = Math.min(fromIndex + size, all.size());
+        return new PageResponse<>(all.subList(fromIndex, toIndex), page, size, total, totalPages);
     }
 
     @GetMapping("/versions/{versionId}")

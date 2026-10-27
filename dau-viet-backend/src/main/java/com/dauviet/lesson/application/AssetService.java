@@ -97,7 +97,16 @@ public class AssetService {
 
     @Transactional(readOnly = true)
     public Page<AssetResponse> list(Pageable pageable) {
-        return assets.findAllByStateIn(ACTIVE, pageable).map(this::toResponse);
+        return list(null, pageable);
+    }
+
+    @Transactional(readOnly = true)
+    public Page<AssetResponse> list(String q, Pageable pageable) {
+        if (q == null || q.isBlank()) {
+            return assets.findAllByStateIn(ACTIVE, pageable).map(this::toResponse);
+        }
+        String qPattern = "%" + q.trim().toLowerCase( java.util.Locale.ROOT) + "%";
+        return assets.searchActive(ACTIVE, qPattern, pageable).map(this::toResponse);
     }
 
     @Transactional(readOnly = true)

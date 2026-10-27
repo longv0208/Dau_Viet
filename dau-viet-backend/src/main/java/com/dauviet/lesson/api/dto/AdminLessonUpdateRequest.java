@@ -13,6 +13,16 @@ public record AdminLessonUpdateRequest(
         @Size(max = 255) String title,
         String centralQuestion,
         String objectivesJson,
-        Long expectedRowVersion
+        Long expectedRowVersion,
+        UUID coverAssetId,
+        Boolean clearCoverAsset
 ) {
+    public AdminLessonUpdateRequest(
+            UUID templateId,
+            String title,
+            String centralQuestion,
+            String objectivesJson,
+            Long expectedRowVersion) {
+        this(templateId, title, centralQuestion, objectivesJson, expectedRowVersion, null, null);
+    }
 }

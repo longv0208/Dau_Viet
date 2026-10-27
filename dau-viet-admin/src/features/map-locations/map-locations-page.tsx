@@ -93,6 +93,8 @@ export function MapLocationsWorkspace() {
   const [kindFilter, setKindFilter] = useState<string>("");
   const [statusFilter, setStatusFilter] = useState<string>("");
   const [eventFilter, setEventFilter] = useState<string>(initialEventId);
+  const [page, setPage] = useState(0);
+  const pageSize = 8;
 
   const [selectedId, setSelectedId] = useState<string | "new" | null>(
     initialHighlightId || null,
@@ -105,18 +107,20 @@ export function MapLocationsWorkspace() {
 
   const filterParams = useMemo(
     () => ({
+      page,
+      size: pageSize,
       q: q.trim() || undefined,
       kind: kindFilter || undefined,
       status: statusFilter || undefined,
       eventId: eventFilter || undefined,
     }),
-    [q, kindFilter, statusFilter, eventFilter],
+    [page, pageSize, q, kindFilter, statusFilter, eventFilter],
   );
 
   const locationsQuery = useQuery({
     queryKey: qk.mapLocations.standaloneList(filterParams),
     queryFn: () =>
-      apiFetch<StandaloneLocationResponse[]>(
+      apiFetch<PageResponse<StandaloneLocationResponse> | StandaloneLocationResponse[]>(
         `/admin/map-locations${toQuery(filterParams)}`,
       ),
   });
@@ -152,7 +156,21 @@ export function MapLocationsWorkspace() {
     staleTime: 60_000,
   });
 
-  const locations = useMemo(() => locationsQuery.data ?? [], [locationsQuery.data]);
+  const locations = useMemo(() => {
+    const raw = locationsQuery.data;
+    if (!raw) return [];
+    return Array.isArray(raw) ? raw : raw.content;
+  }, [locationsQuery.data]);
+  const totalLocations = useMemo(() => {
+    const raw = locationsQuery.data;
+    if (!raw) return 0;
+    return Array.isArray(raw) ? raw.length : raw.totalElements;
+  }, [locationsQuery.data]);
+  const totalPages = useMemo(() => {
+    const raw = locationsQuery.data;
+    if (!raw) return 1;
+    return Math.max(1, Array.isArray(raw) ? 1 : raw.totalPages);
+  }, [locationsQuery.data]);
   const allEvents = useMemo(() => eventsQuery.data?.content ?? [], [eventsQuery.data]);
   const allLessons = useMemo(() => lessonsQuery.data ?? [], [lessonsQuery.data]);
 
@@ -204,7 +222,10 @@ export function MapLocationsWorkspace() {
                 <Input
                   id="filter-q"
                   value={q}
-                  onChange={(e) => setQ(e.target.value)}
+                  onChange={(e) => {
+                    setQ(e.target.value);
+                    setPage(0);
+                  }}
                   placeholder="Bạch Đằng, Hoàng thành..."
                   className="pl-8"
                 />
@@ -217,7 +238,10 @@ export function MapLocationsWorkspace() {
                 id="filter-kind"
                 className="mt-1"
                 value={kindFilter}
-                onChange={(e) => setKindFilter(e.target.value)}
+                onChange={(e) => {
+                  setKindFilter(e.target.value);
+                  setPage(0);
+                }}
               >
                 <option value="">Tất cả loại hình</option>
                 {(Object.keys(LOCATION_KIND_LABELS) as MapLocationKind[]).map((k) => (
@@ -234,7 +258,10 @@ export function MapLocationsWorkspace() {
                 id="filter-status"
                 className="mt-1"
                 value={statusFilter}
-                onChange={(e) => setStatusFilter(e.target.value)}
+                onChange={(e) => {
+                  setStatusFilter(e.target.value);
+                  setPage(0);
+                }}
               >
                 <option value="">Tất cả trạng thái</option>
                 <option value="DRAFT">Bản nháp (DRAFT)</option>
@@ -249,7 +276,10 @@ export function MapLocationsWorkspace() {
                 id="filter-event"
                 className="mt-1"
                 value={eventFilter}
-                onChange={(e) => setEventFilter(e.target.value)}
+                onChange={(e) => {
+                  setEventFilter(e.target.value);
+                  setPage(0);
+                }}
               >
                 <option value="">Tất cả sự kiện</option>
                 {allEvents.map((ev) => (
@@ -308,7 +338,7 @@ export function MapLocationsWorkspace() {
         <section aria-label="Danh sách địa điểm di tích" className="space-y-3">
           <div className="flex items-center justify-between">
             <h2 className="font-display text-base font-semibold text-ink">
-              Danh mục địa điểm ({locations.length})
+              Danh mục địa điểm ({totalLocations})
             </h2>
             {(q || kindFilter || statusFilter || eventFilter) && (
               <button
@@ -318,6 +348,7 @@ export function MapLocationsWorkspace() {
                   setKindFilter("");
                   setStatusFilter("");
                   setEventFilter("");
+                  setPage(0);
                 }}
                 className="cursor-pointer text-xs font-medium text-brand hover:underline"
               >
@@ -504,6 +535,34 @@ export function MapLocationsWorkspace() {
               );
             })}
           </div>
+
+          {totalLocations > 0 && (
+            <div className="flex items-center justify-between rounded-xl border border-border bg-white px-3.5 py-2.5 text-sm text-ink-muted shadow-sm">
+              <span>
+                Trang {page + 1} / {totalPages} · {totalLocations} địa điểm
+              </span>
+              <div className="flex gap-2">
+                <Button
+                  type="button"
+                  variant="secondary"
+                  size="sm"
+                  disabled={page <= 0}
+                  onClick={() => setPage((p) => p - 1)}
+                >
+                  Trước
+                </Button>
+                <Button
+                  type="button"
+                  variant="secondary"
+                  size="sm"
+                  disabled={page + 1 >= totalPages}
+                  onClick={() => setPage((p) => p + 1)}
+                >
+                  Sau
+                </Button>
+              </div>
+            </div>
+          )}
         </section>
 
         {/* Cột phải: Không gian Biên tập 4 Tab */}

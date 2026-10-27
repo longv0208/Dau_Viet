@@ -111,10 +111,10 @@ export function EventsTable() {
         emptyDescription="Các sự kiện lịch sử bạn tạo sẽ xuất hiện tại đây."
       />
 
-      {totalPages > 1 && (
+      {(query.data?.totalElements ?? 0) > 0 && (
         <div className="flex items-center justify-between text-sm text-ink-muted">
           <span>
-            Trang {page + 1} / {totalPages} ({query.data?.totalElements ?? 0} sự kiện)
+            Trang {page + 1} / {Math.max(1, totalPages)} ({query.data?.totalElements ?? 0} sự kiện)
           </span>
           <div className="flex gap-2">
             <Button variant="secondary" disabled={page === 0} onClick={() => setPage(page - 1)}>
@@ -122,7 +122,7 @@ export function EventsTable() {
             </Button>
             <Button
               variant="secondary"
-              disabled={page + 1 >= totalPages}
+              disabled={page + 1 >= Math.max(1, totalPages)}
               onClick={() => setPage(page + 1)}
             >
               Sau

@@ -11,5 +11,9 @@ public record AdminPathResponse(LearningPathVersion version, List<Chapter> chapt
                         Integer publishedPolicyVersion, List<UUID> requiredLessonIds,
                         List<UUID> optionalLessonIds, List<Lesson> lessons,
                         String eventStatus, UUID canonicalEventId, boolean alias) {}
-    public record Lesson(LearningPathLessonNode node, String title, String status) {}
+    public record Lesson(LearningPathLessonNode node, String title, String status, UUID coverAssetId) {
+        public Lesson(LearningPathLessonNode node, String title, String status) {
+            this(node, title, status, null);
+        }
+    }
 }

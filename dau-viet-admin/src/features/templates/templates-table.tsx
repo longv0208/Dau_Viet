@@ -1,12 +1,19 @@
 "use client";
 
-import { useQuery } from "@tanstack/react-query";
+import { keepPreviousData, useQuery } from "@tanstack/react-query";
 import Link from "next/link";
+import { useState } from "react";
 
-import { apiFetch } from "@/lib/api-client";
+import { apiFetch, toQuery } from "@/lib/api-client";
+import type { PageResponse } from "@/lib/dto/common";
 import type { LessonTemplate } from "@/lib/dto/lesson";
 import { qk } from "@/lib/query-keys";
 import { DataTable, type Column } from "@/components/data-table";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Select } from "@/components/ui/select";
+
+const PAGE_SIZE = 20;
 
 const COLUMNS: Column<LessonTemplate>[] = [
   {
@@ -24,28 +31,135 @@ const COLUMNS: Column<LessonTemplate>[] = [
     header: "Mô tả",
     cell: (r) => <span className="text-ink-muted">{r.description}</span>,
   },
+  {
+    key: "enabled",
+    header: "Trạng thái",
+    cell: (r) => (
+      <span
+        className={
+          r.enabled
+            ? "inline-flex items-center rounded-full bg-success/20 px-2.5 py-0.5 text-xs font-medium text-ink"
+            : "inline-flex items-center rounded-full bg-surface-alt px-2.5 py-0.5 text-xs font-medium text-ink-muted"
+        }
+      >
+        {r.enabled ? "Đang bật" : "Đã tắt"}
+      </span>
+    ),
+  },
 ];
 
 /**
- * /templates — read-only catalogue. GET /admin/lesson-templates returns a
- * plain array (not PageResponse).
+ * /templates — danh mục mẫu bài học có phân trang & bộ lọc từ GET /admin/lesson-templates?page=...
  */
 export function TemplatesTable() {
+  const [searchInput, setSearchInput] = useState("");
+  const [q, setQ] = useState("");
+  const [enabledFilter, setEnabledFilter] = useState("");
+  const [page, setPage] = useState(0);
+
+  const enabled =
+    enabledFilter === "true" ? true : enabledFilter === "false" ? false : undefined;
+
   const query = useQuery({
-    queryKey: qk.templates.list(),
-    queryFn: () => apiFetch<LessonTemplate[]>("/admin/lesson-templates"),
+    queryKey: qk.templates.list({
+      page,
+      size: PAGE_SIZE,
+      enabled,
+      q: q || undefined,
+    }),
+    queryFn: () =>
+      apiFetch<PageResponse<LessonTemplate> | LessonTemplate[]>(
+        `/admin/lesson-templates${toQuery({
+          page,
+          size: PAGE_SIZE,
+          enabled: enabledFilter || undefined,
+          q: q || undefined,
+        })}`,
+      ),
+    placeholderData: keepPreviousData,
   });
 
+  const rows = Array.isArray(query.data)
+    ? query.data
+    : (query.data?.content ?? []);
+  const totalElements = Array.isArray(query.data)
+    ? query.data.length
+    : (query.data?.totalElements ?? rows.length);
+  const totalPages = Math.max(
+    1,
+    Array.isArray(query.data) ? 1 : (query.data?.totalPages ?? 1),
+  );
+
   return (
-    <DataTable
-      columns={COLUMNS}
-      rows={query.data ?? []}
-      rowKey={(r) => r.id}
-      loading={query.isPending}
-      error={query.error ?? undefined}
-      onRetry={() => query.refetch()}
-      emptyTitle="Chưa có mẫu bài học nào"
-      emptyDescription="Các mẫu hoạt động chuẩn sẽ xuất hiện tại đây."
-    />
+    <div className="flex flex-col gap-4">
+      <div className="flex flex-wrap items-center gap-3">
+        <form
+          onSubmit={(e) => {
+            e.preventDefault();
+            setQ(searchInput.trim());
+            setPage(0);
+          }}
+          className="flex min-w-64 flex-1 items-center gap-2"
+        >
+          <Input
+            value={searchInput}
+            onChange={(e) => setSearchInput(e.target.value)}
+            placeholder="Tìm theo tên, mã hoặc mô tả mẫu..."
+            aria-label="Tìm kiếm mẫu bài học"
+          />
+          <Button type="submit" variant="secondary">
+            Tìm
+          </Button>
+        </form>
+        <Select
+          value={enabledFilter}
+          onChange={(e) => {
+            setEnabledFilter(e.target.value);
+            setPage(0);
+          }}
+          aria-label="Lọc theo trạng thái"
+          className="w-44"
+        >
+          <option value="">Mọi trạng thái</option>
+          <option value="true">Đang bật</option>
+          <option value="false">Đã tắt</option>
+        </Select>
+      </div>
+
+      <DataTable
+        columns={COLUMNS}
+        rows={rows}
+        rowKey={(r) => r.id}
+        loading={query.isPending}
+        error={query.error ?? undefined}
+        onRetry={() => query.refetch()}
+        emptyTitle="Chưa có mẫu bài học nào"
+        emptyDescription="Các mẫu hoạt động chuẩn sẽ xuất hiện tại đây."
+      />
+
+      {totalElements > 0 && (
+        <div className="flex items-center justify-between text-sm text-ink-muted">
+          <span>
+            Trang {page + 1} / {totalPages} ({totalElements} mẫu bài học)
+          </span>
+          <div className="flex gap-2">
+            <Button
+              variant="secondary"
+              disabled={page <= 0}
+              onClick={() => setPage((p) => p - 1)}
+            >
+              Trước
+            </Button>
+            <Button
+              variant="secondary"
+              disabled={page + 1 >= totalPages}
+              onClick={() => setPage((p) => p + 1)}
+            >
+              Sau
+            </Button>
+          </div>
+        </div>
+      )}
+    </div>
   );
 }

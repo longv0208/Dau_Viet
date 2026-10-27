@@ -4,6 +4,7 @@ import java.util.List;
 import java.util.UUID;
 import java.util.function.Function;
 import java.util.stream.Collectors;
+import org.springframework.data.domain.Sort;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import com.dauviet.path.api.dto.AdminPathResponse;
@@ -46,6 +47,9 @@ public class AdminPathReadService {
     }
 
     public List<LearningPathVersion> list(String code) {
+        if (code != null && "ALL".equalsIgnoreCase(code.trim())) {
+            return versions.findAll(Sort.by(Sort.Direction.DESC, "updatedAt", "versionNo"));
+        }
         String effectiveCode = code == null || code.isBlank() ? LearningPathService.DEFAULT_PATH_CODE : code.trim();
         return versions.findByPathCodeOrderByVersionNoDesc(effectiveCode);
     }
@@ -83,8 +87,11 @@ public class AdminPathReadService {
                             policyLessons(policy, true), policyLessons(policy, false),
                             byEvent.getOrDefault(e.getId(), List.of()).stream().map(l -> {
                                 Lesson lesson = lessonData.get(l.getLessonId());
-                                return new AdminPathResponse.Lesson(l, lesson == null ? null : lesson.getTitle(),
-                                        lesson == null ? "MISSING" : lesson.getStatus().name());
+                                return new AdminPathResponse.Lesson(
+                                        l,
+                                        lesson == null ? null : lesson.getTitle(),
+                                        lesson == null ? "MISSING" : lesson.getStatus().name(),
+                                        lesson == null ? null : lesson.getCoverAssetId());
                             }).toList(), data == null ? "MISSING" : data.getStatus().name(),
                             identities.canonical(e.getEventId(), aliases), aliases.containsKey(e.getEventId()));
                 }).toList())).toList());

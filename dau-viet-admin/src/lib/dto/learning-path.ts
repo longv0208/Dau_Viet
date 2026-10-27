@@ -68,6 +68,7 @@ export interface PathLesson {
   node: { id: string; eventNodeId: string; eventId: string; lessonId: string; sortOrder: number };
   title: string | null;
   status: PathStatus | "MISSING";
+  coverAssetId?: string | null;
 }
 
 export interface PathDetail { version: PathVersion; chapters: PathChapter[] }

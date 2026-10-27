@@ -9,6 +9,16 @@ public record AdminLessonSummaryResponse(
         String title,
         String status,
         UUID currentVersionId,
+        UUID coverAssetId,
         Long rowVersion
 ) {
+    public AdminLessonSummaryResponse(
+            UUID id,
+            UUID eventId,
+            String title,
+            String status,
+            UUID currentVersionId,
+            Long rowVersion) {
+        this(id, eventId, title, status, currentVersionId, null, rowVersion);
+    }
 }

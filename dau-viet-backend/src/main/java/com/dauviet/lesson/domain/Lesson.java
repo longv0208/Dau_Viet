@@ -59,6 +59,9 @@ public class Lesson {
     @Column(name = "current_version_id")
     private UUID currentVersionId;
 
+    @Column(name = "cover_asset_id")
+    private UUID coverAssetId;
+
     @Column(name = "created_by", updatable = false)
     private UUID createdBy;
 
@@ -106,6 +109,9 @@ public class Lesson {
 
     public UUID getCurrentVersionId() { return currentVersionId; }
     public void setCurrentVersionId(UUID currentVersionId) { this.currentVersionId = currentVersionId; }
+
+    public UUID getCoverAssetId() { return coverAssetId; }
+    public void setCoverAssetId(UUID coverAssetId) { this.coverAssetId = coverAssetId; }
 
     public UUID getCreatedBy() { return createdBy; }
     public void setCreatedBy(UUID createdBy) { this.createdBy = createdBy; }

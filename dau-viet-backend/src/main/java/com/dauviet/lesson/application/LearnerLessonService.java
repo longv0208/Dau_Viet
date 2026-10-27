@@ -59,8 +59,12 @@ public class LearnerLessonService {
             throw new ResourceNotFoundException("Event not found: " + eventId);
         }
         return lessons.findByEventIdAndStatusOrderByTitle(eventId, LessonStatus.PUBLISHED).stream()
-                .map(l -> new LearnerLessonListItem(l.getId(), l.getTitle(),
-                        l.getCentralQuestion()))
+                .map(l -> new LearnerLessonListItem(
+                        l.getId(),
+                        l.getTitle(),
+                        l.getCentralQuestion(),
+                        l.getCoverAssetId(),
+                        toLearnerCoverUrl(l.getCoverAssetId())))
                 .toList();
     }
 
@@ -71,9 +75,16 @@ public class LearnerLessonService {
         LessonVersion current = versions.findById(l.getCurrentVersionId())
                 .orElseThrow(() -> new VersionNotFoundException(
                         "current version row missing for lesson " + lessonId));
-        return new LearnerLessonMetadata(l.getId(), l.getTitle(), l.getCentralQuestion(),
-                l.getEventId(), l.getCurrentVersionId(),
-                current.getVersionNo(), current.getPublishedAt());
+        return new LearnerLessonMetadata(
+                l.getId(),
+                l.getTitle(),
+                l.getCentralQuestion(),
+                l.getEventId(),
+                l.getCurrentVersionId(),
+                current.getVersionNo(),
+                current.getPublishedAt(),
+                l.getCoverAssetId(),
+                toLearnerCoverUrl(l.getCoverAssetId()));
     }
 
     /** Learner-safe projection of the current published snapshot. */
@@ -94,6 +105,10 @@ public class LearnerLessonService {
             throw new LessonNotPublishedException("lesson is not published: " + lessonId);
         }
         return l;
+    }
+
+    private static String toLearnerCoverUrl(UUID coverAssetId) {
+        return coverAssetId == null ? null : "/api/v1/assets/" + coverAssetId + "/content";
     }
 
     private com.fasterxml.jackson.databind.JsonNode parse(String json) {

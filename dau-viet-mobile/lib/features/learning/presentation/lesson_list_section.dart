@@ -1,3 +1,5 @@
+import 'dart:typed_data';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
@@ -6,6 +8,7 @@ import '../../../core/theme/dau_viet_colors.dart';
 import '../../../core/theme/dau_viet_typography.dart';
 import '../data/learning_dtos.dart';
 import '../data/learning_providers.dart';
+import 'renderers/learning_asset_image.dart';
 
 /// Danh sách bài học đã xuất bản của một sự kiện — gọi thật
 /// `GET /api/v1/events/{eventId}/lessons`. Empty state rõ ràng khi chưa có
@@ -71,6 +74,7 @@ class _LessonCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final coverAssetId = lesson.resolvedCoverAssetId;
     return InkWell(
       borderRadius: BorderRadius.circular(12),
       onTap: () => context.push('/learning/lesson/${lesson.id}'),
@@ -83,19 +87,9 @@ class _LessonCard extends StatelessWidget {
         ),
         child: Row(
           children: [
-            Container(
-              width: 36,
-              height: 36,
-              decoration: BoxDecoration(
-                shape: BoxShape.circle,
-                color: DauVietColors.cinnabarRed.withValues(alpha: 0.12),
-              ),
-              alignment: Alignment.center,
-              child: const Icon(
-                Icons.menu_book_rounded,
-                size: 18,
-                color: DauVietColors.cinnabarRed,
-              ),
+            _LessonCardThumbnail(
+              coverAssetId: coverAssetId,
+              title: lesson.title,
             ),
             const SizedBox(width: 12),
             Expanded(
@@ -128,6 +122,116 @@ class _LessonCard extends StatelessWidget {
             ),
           ],
         ),
+      ),
+    );
+  }
+}
+
+class _LessonCardThumbnail extends ConsumerStatefulWidget {
+  final String? coverAssetId;
+  final String title;
+
+  const _LessonCardThumbnail({
+    required this.coverAssetId,
+    required this.title,
+  });
+
+  @override
+  ConsumerState<_LessonCardThumbnail> createState() =>
+      _LessonCardThumbnailState();
+}
+
+class _LessonCardThumbnailState extends ConsumerState<_LessonCardThumbnail> {
+  Future<List<int>>? _future;
+
+  @override
+  void initState() {
+    super.initState();
+    _loadIfPresent();
+  }
+
+  @override
+  void didUpdateWidget(covariant _LessonCardThumbnail oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.coverAssetId != widget.coverAssetId) {
+      _loadIfPresent();
+    }
+  }
+
+  void _loadIfPresent() {
+    final id = widget.coverAssetId;
+    if (id != null && id.isNotEmpty) {
+      _future = fetchLearningAssetBytes(ref, id);
+    } else {
+      _future = null;
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final id = widget.coverAssetId;
+    if (id == null || id.isEmpty || _future == null) {
+      return const _DefaultLessonIconBadge();
+    }
+    return FutureBuilder<List<int>>(
+      future: _future,
+      builder: (context, snapshot) {
+        if (snapshot.connectionState != ConnectionState.done) {
+          return Container(
+            width: 64,
+            height: 36,
+            decoration: BoxDecoration(
+              color: DauVietColors.parchmentContainer,
+              borderRadius: BorderRadius.circular(8),
+              border: Border.all(color: DauVietColors.outlineVariant),
+            ),
+            alignment: Alignment.center,
+            child: const SizedBox(
+              width: 14,
+              height: 14,
+              child: CircularProgressIndicator(strokeWidth: 1.8),
+            ),
+          );
+        }
+        final bytes = snapshot.data;
+        if (snapshot.hasError || bytes == null || bytes.isEmpty) {
+          return const _DefaultLessonIconBadge();
+        }
+        return ClipRRect(
+          borderRadius: BorderRadius.circular(8),
+          child: SizedBox(
+            width: 64,
+            height: 36,
+            child: Image.memory(
+              Uint8List.fromList(bytes),
+              fit: BoxFit.cover,
+              semanticLabel: widget.title,
+              errorBuilder: (_, _, _) => const _DefaultLessonIconBadge(),
+            ),
+          ),
+        );
+      },
+    );
+  }
+}
+
+class _DefaultLessonIconBadge extends StatelessWidget {
+  const _DefaultLessonIconBadge();
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      width: 36,
+      height: 36,
+      decoration: BoxDecoration(
+        shape: BoxShape.circle,
+        color: DauVietColors.cinnabarRed.withValues(alpha: 0.12),
+      ),
+      alignment: Alignment.center,
+      child: const Icon(
+        Icons.menu_book_rounded,
+        size: 18,
+        color: DauVietColors.cinnabarRed,
       ),
     );
   }
