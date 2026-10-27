@@ -118,21 +118,21 @@ class _ResultBody extends StatelessWidget {
     }
     final expValue = earnedExp > 0
         ? '+$earnedExp XP'
-        : (ApiConfig.useMock ? '+50 XP' : (completed ? '+50 XP' : '—'));
+        : '—';
     final thirdBadgeValue = earnedPoints > 0
         ? '+$earnedPoints'
         : (result.itemsUnlocked.isNotEmpty
               ? '+${result.itemsUnlocked.length}'
-              : (ApiConfig.useMock ? '+10' : '—'));
-    final thirdBadgeLabel = earnedPoints > 0 || ApiConfig.useMock
+              : '—');
+    final thirdBadgeLabel = earnedPoints > 0
         ? 'Điểm Sử Ký'
         : (result.itemsUnlocked.isNotEmpty ? 'Vật phẩm' : 'Phần thưởng');
-    final thirdBadgeIcon = earnedPoints > 0 || ApiConfig.useMock
+    final thirdBadgeIcon = earnedPoints > 0
         ? Icons.military_tech_rounded
         : (result.itemsUnlocked.isNotEmpty
               ? Icons.inventory_2_rounded
               : Icons.star_rounded);
-    final thirdBadgeColor = earnedPoints > 0 || ApiConfig.useMock
+    final thirdBadgeColor = earnedPoints > 0
         ? const Color(0xFFD97706)
         : const Color(0xFF2D6A4F);
 
@@ -350,7 +350,7 @@ class _ResultBody extends StatelessWidget {
 
               // 4. Hai nút hành động: Tiếp tục và Ôn tập lại
               DongSonButton(
-                label: 'TIẾP TỤC ›',
+                label: 'VỀ TRANG CHỦ',
                 icon: Icons.arrow_forward_rounded,
                 variant: DongSonButtonVariant.natureGreen,
                 height: 52,

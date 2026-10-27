@@ -648,18 +648,18 @@ class _LearnerDashboardScreenState
                   );
                 }
                 return _buildTodayLessonCard(
-                  title: 'Thời Hùng Vương',
-                  subtitle: 'Nguồn gốc dân tộc',
-                  progressFraction: 0.6,
-                  progressText: '3/5 bài học',
+                  title: 'Khám phá Bản đồ Dấu Ấn',
+                  subtitle: 'Bắt đầu hành trình lịch sử',
+                  progressFraction: 0.0,
+                  progressText: 'Chưa bắt đầu',
                   onTap: () => context.go('/map'),
                 );
               },
               orElse: () => _buildTodayLessonCard(
-                title: 'Thời Hùng Vương',
-                subtitle: 'Nguồn gốc dân tộc',
-                progressFraction: 0.6,
-                progressText: '3/5 bài học',
+                title: 'Khám phá Bản đồ Dấu Ấn',
+                subtitle: 'Bắt đầu hành trình lịch sử',
+                progressFraction: 0.0,
+                progressText: 'Chưa bắt đầu',
                 onTap: () => context.go('/map'),
               ),
             );
@@ -704,15 +704,12 @@ class _LearnerDashboardScreenState
                   child: SizedBox(
                     width: 90,
                     height: 68,
-                    child: Image.asset(
-                      'assets/images/hung_vuong_village.jpg',
-                      fit: BoxFit.cover,
-                      errorBuilder: (_, __, ___) => Container(
-                        color: const Color(0xFFF0EAE1),
-                        child: const Icon(
-                          Icons.history_edu_rounded,
-                          color: DauVietColors.heritageGreen,
-                        ),
+                    child: Container(
+                      color: const Color(0xFFF0EAE1),
+                      child: const Icon(
+                        Icons.history_edu_rounded,
+                        size: 36,
+                        color: DauVietColors.heritageGreen,
                       ),
                     ),
                   ),
@@ -826,51 +823,46 @@ class _LearnerDashboardScreenState
         ),
         const SizedBox(height: 10),
 
-        // 4 Thẻ chức năng trong Row
-        Row(
+        // 2×2 lưới chức năng bổ trợ
+        GridView.count(
+          crossAxisCount: 2,
+          crossAxisSpacing: 10,
+          mainAxisSpacing: 10,
+          childAspectRatio: 2.4,
+          shrinkWrap: true,
+          physics: const NeverScrollableScrollPhysics(),
           children: [
-            Expanded(
-              child: _buildJourneyCard(
-                icon: Icons.menu_book_rounded,
-                iconColor: const Color(0xFFD97706),
-                bgIconColor: const Color(0xFFFEF3C7),
-                title: 'Bài học',
-                subtitle: 'Khám phá lịch sử',
-                onTap: () => context.go('/map'),
-              ),
+            _buildJourneyCard(
+              icon: Icons.map_rounded,
+              iconColor: const Color(0xFF2E7D32),
+              bgIconColor: const Color(0xFFE8F5E9),
+              title: 'Bản đồ Dấu Ấn',
+              subtitle: 'Lộ trình lịch sử',
+              onTap: () => context.go('/map'),
             ),
-            const SizedBox(width: 8),
-            Expanded(
-              child: _buildJourneyCard(
-                icon: Icons.psychology_rounded,
-                iconColor: const Color(0xFFEA580C),
-                bgIconColor: const Color(0xFFFFEDD5),
-                title: 'Ôn tập',
-                subtitle: 'Củng cố kiến thức',
-                onTap: () => context.go('/timeline'),
-              ),
+            _buildJourneyCard(
+              icon: Icons.auto_stories_rounded,
+              iconColor: const Color(0xFF92400E),
+              bgIconColor: const Color(0xFFFDE68A),
+              title: 'Sưu tập',
+              subtitle: 'Cổ vật & hồ sơ',
+              onTap: () => context.go('/collection'),
             ),
-            const SizedBox(width: 8),
-            Expanded(
-              child: _buildJourneyCard(
-                icon: Icons.emoji_events_rounded,
-                iconColor: const Color(0xFFCA8A04),
-                bgIconColor: const Color(0xFFFEF9C3),
-                title: 'Thành tích',
-                subtitle: 'Theo dõi tiến bộ',
-                onTap: () => context.go('/island'),
-              ),
+            _buildJourneyCard(
+              icon: Icons.account_balance_rounded,
+              iconColor: const Color(0xFFB45309),
+              bgIconColor: const Color(0xFFFEF3C7),
+              title: 'Đảo Di Sản',
+              subtitle: 'Không gian của bạn',
+              onTap: () => context.go('/island'),
             ),
-            const SizedBox(width: 8),
-            Expanded(
-              child: _buildJourneyCard(
-                icon: Icons.auto_stories_rounded,
-                iconColor: const Color(0xFF92400E),
-                bgIconColor: const Color(0xFFFDE68A),
-                title: 'Thư viện',
-                subtitle: 'Tài liệu mở rộng',
-                onTap: () => context.go('/collection'),
-              ),
+            _buildJourneyCard(
+              icon: Icons.person_rounded,
+              iconColor: const Color(0xFF1565C0),
+              bgIconColor: const Color(0xFFE3F2FD),
+              title: 'Hồ sơ',
+              subtitle: 'Thành tích & XP',
+              onTap: () => context.go('/profile'),
             ),
           ],
         ),
@@ -935,7 +927,7 @@ class _LearnerDashboardScreenState
                   maxLines: 1,
                   overflow: TextOverflow.ellipsis,
                   style: DauVietTypography.bodySmall.copyWith(
-                    fontSize: 9.5,
+                    fontSize: 11,
                     color: const Color(0xFF7E8882),
                   ),
                 ),
@@ -1013,7 +1005,7 @@ class _LearnerDashboardScreenState
                     const SizedBox(width: 6),
                     Flexible(
                       child: Text(
-                        'Nhiệm vụ hôm nay',
+                        'Mục tiêu hôm nay',
                         overflow: TextOverflow.ellipsis,
                         style: DauVietTypography.labelMedium.copyWith(
                           fontSize: 14.5,
@@ -1045,7 +1037,6 @@ class _LearnerDashboardScreenState
           _buildQuestItem(
             completed: completedLessonToday,
             title: 'Hoàn thành bài học hôm nay',
-            reward: '+5',
             onTap: () => context.go('/map'),
           ),
           const SizedBox(height: 10),
@@ -1056,7 +1047,6 @@ class _LearnerDashboardScreenState
             title: streakCount > 0
                 ? 'Đã thắp sáng chuỗi $streakCount ngày'
                 : 'Thắp sáng chuỗi ngày học',
-            reward: '+3',
             onTap: () => context.push('/streak'),
           ),
           const SizedBox(height: 10),
@@ -1067,7 +1057,6 @@ class _LearnerDashboardScreenState
             title: itemsCount > 0
                 ? 'Đã sở hữu $itemsCount cổ vật'
                 : 'Mở khóa cổ vật đầu tiên',
-            reward: '+2',
             onTap: () => context.go('/collection'),
           ),
         ],
@@ -1205,7 +1194,7 @@ class _LearnerDashboardScreenState
 
                       // Nút CTA: Khám phá ngay →
                       GestureDetector(
-                        onTap: () => context.go('/saban'),
+                        onTap: () => featuredMilestone != null ? context.go('/campaign/${featuredMilestone.id}') : context.go('/map'),
                         child: Container(
                           padding: const EdgeInsets.symmetric(
                             horizontal: 12,
@@ -1221,7 +1210,7 @@ class _LearnerDashboardScreenState
                           ),
                           alignment: Alignment.center,
                           child: const Text(
-                            'Khám phá ngay →',
+                            'Xem chi tiết →',
                             style: TextStyle(
                               fontSize: 11,
                               fontWeight: FontWeight.w800,
@@ -1244,7 +1233,6 @@ class _LearnerDashboardScreenState
   Widget _buildQuestItem({
     required bool completed,
     required String title,
-    required String reward,
     VoidCallback? onTap,
   }) {
     return InkWell(
@@ -1291,23 +1279,7 @@ class _LearnerDashboardScreenState
                 ),
               ),
             ),
-            const SizedBox(width: 4),
 
-            // Huy hiệu thưởng ⚡
-            Row(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                const Text('⚡', style: TextStyle(fontSize: 10)),
-                Text(
-                  reward,
-                  style: const TextStyle(
-                    fontSize: 10,
-                    fontWeight: FontWeight.w800,
-                    color: Color(0xFFB45309),
-                  ),
-                ),
-              ],
-            ),
           ],
         ),
       ),

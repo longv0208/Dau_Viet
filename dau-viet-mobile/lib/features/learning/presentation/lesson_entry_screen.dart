@@ -130,14 +130,7 @@ class _LessonEntryScreenState extends ConsumerState<LessonEntryScreen> {
                 ref.invalidate(_lessonMetadataProvider(widget.lessonId)),
           ),
           data: (meta) {
-            // Xác định ảnh hero bài học
-            final isHungVuong =
-                meta.title.toLowerCase().contains('hùng') ||
-                meta.title.toLowerCase().contains('dân tộc') ||
-                meta.title.toLowerCase().contains('văn lang');
-            final heroAsset = isHungVuong
-                ? 'assets/images/lesson_hero_lac_long_quan_au_co.jpg'
-                : 'assets/images/bach_dang_938.jpg';
+            // Ảnh hero: dùng icon fallback, không đoán tên từ title
 
             return Stack(
               children: [
@@ -186,16 +179,12 @@ class _LessonEntryScreenState extends ConsumerState<LessonEntryScreen> {
                           ),
                           child: AspectRatio(
                             aspectRatio: 16 / 10,
-                            child: Image.asset(
-                              heroAsset,
-                              fit: BoxFit.cover,
-                              errorBuilder: (_, __, ___) => Container(
-                                color: const Color(0xFFEFE8DA),
-                                child: const Icon(
-                                  Icons.account_balance_rounded,
-                                  size: 48,
-                                  color: DauVietColors.heritageGreen,
-                                ),
+                            child: Container(
+                              color: const Color(0xFFEFE8DA),
+                              child: const Icon(
+                                Icons.account_balance_rounded,
+                                size: 64,
+                                color: DauVietColors.heritageGreen,
                               ),
                             ),
                           ),
@@ -203,33 +192,7 @@ class _LessonEntryScreenState extends ConsumerState<LessonEntryScreen> {
                       ),
                       const SizedBox(height: 14),
 
-                      // 2. Huy hiệu Chương học
-                      Align(
-                        alignment: Alignment.centerLeft,
-                        child: Container(
-                          padding: const EdgeInsets.symmetric(
-                            horizontal: 10,
-                            vertical: 4,
-                          ),
-                          decoration: BoxDecoration(
-                            color: const Color(0xFFFFF3E0),
-                            borderRadius: BorderRadius.circular(16),
-                            border: Border.all(
-                              color: const Color(0xFFFFCC80),
-                              width: 1,
-                            ),
-                          ),
-                          child: Text(
-                            'Chương 1 • Buổi đầu dựng nước',
-                            style: DauVietTypography.labelSmall.copyWith(
-                              color: const Color(0xFFB45309),
-                              fontWeight: FontWeight.w800,
-                              fontSize: 11,
-                            ),
-                          ),
-                        ),
-                      ),
-                      const SizedBox(height: 8),
+                      // 2. (Chapter badge removed — data not available from this API)
 
                       // 3. Tiêu đề bài học
                       Text(
@@ -248,7 +211,7 @@ class _LessonEntryScreenState extends ConsumerState<LessonEntryScreen> {
                         (meta.centralQuestion != null &&
                                 meta.centralQuestion!.isNotEmpty)
                             ? meta.centralQuestion!
-                            : 'Tìm hiểu truyền thuyết Lạc Long Quân - Âu Cơ, sự ra đời của người Việt và những nét văn hóa đầu tiên của dân tộc.',
+                            : '',
                         style: DauVietTypography.bodyMedium.copyWith(
                           fontSize: 13,
                           color: const Color(0xFF5E6963),
@@ -257,38 +220,7 @@ class _LessonEntryScreenState extends ConsumerState<LessonEntryScreen> {
                       ),
                       const SizedBox(height: 16),
 
-                      // 5. Ba thẻ thống kê trực quan hàng ngang chuẩn UI Pro Max
-                      Row(
-                        children: [
-                          Expanded(
-                            child: _buildStatCard(
-                              icon: Icons.timer_outlined,
-                              iconColor: const Color(0xFFB45309),
-                              value: '15 phút',
-                              label: 'thời lượng',
-                            ),
-                          ),
-                          const SizedBox(width: 8),
-                          Expanded(
-                            child: _buildStatCard(
-                              icon: Icons.menu_book_rounded,
-                              iconColor: const Color(0xFF2D6A4F),
-                              value: '4 hoạt động',
-                              label: 'trong bài',
-                            ),
-                          ),
-                          const SizedBox(width: 8),
-                          Expanded(
-                            child: _buildStatCard(
-                              icon: Icons.stars_rounded,
-                              iconColor: const Color(0xFFD97706),
-                              value: '+50 XP',
-                              label: 'phần thưởng',
-                            ),
-                          ),
-                        ],
-                      ),
-                      const SizedBox(height: 16),
+                      // 5. (Stat cards removed — durations/rewards not available from metadata API)
 
                       // Trạng thái Resume (nếu có bài đang học dở)
                       if (resume != null) ...[
@@ -375,55 +307,6 @@ class _LessonEntryScreenState extends ConsumerState<LessonEntryScreen> {
             );
           },
         ),
-      ),
-    );
-  }
-
-  Widget _buildStatCard({
-    required IconData icon,
-    required Color iconColor,
-    required String value,
-    required String label,
-  }) {
-    return Container(
-      padding: const EdgeInsets.symmetric(vertical: 10, horizontal: 8),
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(14),
-        border: Border.all(color: const Color(0xFFE5DAC6), width: 1.2),
-        boxShadow: [
-          BoxShadow(
-            color: const Color(0xFF8B4513).withValues(alpha: 0.05),
-            blurRadius: 6,
-            offset: const Offset(0, 2),
-          ),
-        ],
-      ),
-      child: Column(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          Icon(icon, size: 22, color: iconColor),
-          const SizedBox(height: 4),
-          Text(
-            value,
-            textAlign: TextAlign.center,
-            style: DauVietTypography.labelSmall.copyWith(
-              fontWeight: FontWeight.w800,
-              fontSize: 12,
-              color: const Color(0xFF1F2421),
-            ),
-          ),
-          const SizedBox(height: 1),
-          Text(
-            label,
-            textAlign: TextAlign.center,
-            style: DauVietTypography.bodySmall.copyWith(
-              fontSize: 10,
-              color: const Color(0xFF75807A),
-              fontWeight: FontWeight.w600,
-            ),
-          ),
-        ],
       ),
     );
   }
