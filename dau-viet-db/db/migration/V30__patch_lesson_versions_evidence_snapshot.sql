@@ -9,6 +9,8 @@
 
 ALTER TABLE lesson_versions DISABLE TRIGGER trg_lesson_versions_immutable;
 
+ALTER TABLE lesson_versions DISABLE TRIGGER trg_lesson_versions_immutable;
+
 WITH RECURSIVE
 -- Collect evidence ids từ mọi field tham chiếu (giống SnapshotBuilder.collectEvidenceIds).
 cfg_evidence AS (
