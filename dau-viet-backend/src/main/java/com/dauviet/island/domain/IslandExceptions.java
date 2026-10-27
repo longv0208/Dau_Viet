@@ -102,6 +102,41 @@ public final class IslandExceptions {
         public long getCurrentEvents() { return currentEvents; }
     }
 
+    /**
+     * 422 — upgrade nhưng Level tài khoản chưa đủ (ISLAND-01).
+     * Trả thông tin rõ ràng để client hiển thị: cần level bao nhiêu, đang
+     * ở level mấy — không đề cập số sự kiện hoàn thành.
+     */
+    public static class IslandUpgradeInsufficientLevelException
+            extends RuntimeException {
+        private final int targetTier;
+        private final int requiredLevel;
+        private final int currentLevel;
+        private final long currentExp;
+        private final long requiredExp;
+
+        public IslandUpgradeInsufficientLevelException(int targetTier,
+                                                       int requiredLevel,
+                                                       int currentLevel,
+                                                       long currentExp,
+                                                       long requiredExp) {
+            super("upgrade to tier " + targetTier + " requires level "
+                    + requiredLevel + ", user is level " + currentLevel
+                    + " (" + currentExp + " EXP, need " + requiredExp + ")");
+            this.targetTier = targetTier;
+            this.requiredLevel = requiredLevel;
+            this.currentLevel = currentLevel;
+            this.currentExp = currentExp;
+            this.requiredExp = requiredExp;
+        }
+
+        public int getTargetTier()    { return targetTier; }
+        public int getRequiredLevel() { return requiredLevel; }
+        public int getCurrentLevel()  { return currentLevel; }
+        public long getCurrentExp()   { return currentExp; }
+        public long getRequiredExp()  { return requiredExp; }
+    }
+
     /** 409 — expectedRevision lệch row_version (hai thiết bị ghi đồng thời). */
     public static class StaleIslandRevisionException extends RuntimeException {
         private final long expected;

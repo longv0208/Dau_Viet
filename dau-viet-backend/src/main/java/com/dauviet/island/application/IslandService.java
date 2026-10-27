@@ -28,12 +28,13 @@ import com.dauviet.island.infrastructure.persistence.IslandSlotRepository;
 import com.dauviet.island.infrastructure.persistence.IslandTierPolicyRepository;
 import com.dauviet.island.infrastructure.persistence.UserIslandPlacementRepository;
 import com.dauviet.island.infrastructure.persistence.UserIslandRepository;
+import com.dauviet.reward.application.AccountLevelService;
 import com.dauviet.reward.domain.ItemCatalog;
 import com.dauviet.reward.infrastructure.persistence.ItemCatalogRepository;
 import com.dauviet.reward.infrastructure.persistence.UserInventoryRepository;
 
 /**
- * Đảo Di Sản (ISLAND-BE-01): state đọc, upgrade, đặt/gỡ decor.
+ * Đảo Di Sản (ISLAND-BE-01, ISLAND-01): state đọc, upgrade, đặt/gỡ decor.
  *
  * <p>Lazy-create đảo tier 1 lần đầu đọc/ghi (UserIslandRepository
  * .insertIgnore). Mọi write lock user_islands trước (PESSIMISTIC_WRITE) —
@@ -44,10 +45,9 @@ import com.dauviet.reward.infrastructure.persistence.UserInventoryRepository;
  * → 409 STALE_ISLAND_REVISION — hai thiết bị ghi tuần tự phát hiện lệch
  * nhau, client reload rồi retry.
  *
- * <p>Tier eligibility: đếm user_event_progress milestone EVENT_COMPLETED —
- * chỉ sự kiện THẬT hoàn thành, không lesson đơn lẻ (task ISLAND-BE-01).
- * Upgrade user-initiated, KHÔNG auto-downgrade khi policy sau đổi
- * (tier mới chỉ áp dụng khi user chủ động nâng lại).
+ * <p>Tier eligibility (ISLAND-01): dựa theo Level tài khoản tính từ EXP tích
+ * lũy — không dùng EVENT_COMPLETED để xét quyền nâng cấp. eventsCompleted
+ * vẫn được tính và trả về trong response nhưng chỉ mang ý nghĩa thống kê.
  *
  * <p>Lock-order: user_islands → (wallet_accounts khi mua — ShopService)
  * → user_inventory. Service này không chạm wallet; ShopService gọi
@@ -66,6 +66,7 @@ public class IslandService {
     private final UserInventoryRepository inventory;
     private final ItemCatalogRepository catalog;
     private final UserEventProgressRepository eventProgress;
+    private final AccountLevelService levelService;
     private final Clock clock;
     private final boolean enabled;
 
@@ -76,6 +77,7 @@ public class IslandService {
                          UserInventoryRepository inventory,
                          ItemCatalogRepository catalog,
                          UserEventProgressRepository eventProgress,
+                         AccountLevelService levelService,
                          Clock clock,
                          @Value("${dauviet.island.enabled:true}")
                          boolean enabled) {
@@ -86,6 +88,7 @@ public class IslandService {
         this.inventory = inventory;
         this.catalog = catalog;
         this.eventProgress = eventProgress;
+        this.levelService = levelService;
         this.clock = clock;
         this.enabled = enabled;
     }
@@ -106,10 +109,13 @@ public class IslandService {
                         Function.identity()));
         Map<UUID, ItemCatalog> items = catalogOf(placed.stream()
                 .map(UserIslandPlacement::getItemId).toList());
+        long exp = levelService.totalExp(userId);
+        int currentLevel = levelService.levelForExp(exp);
         long eventsCompleted = completedEvents(userId);
         List<IslandTierPolicy> activePolicies = policies.findActivePolicies();
         Integer nextTier = nextTierOf(island.getTier(), activePolicies);
-        return buildResponse(island, layout, bySlot, items, eventsCompleted,
+        return buildResponse(island, layout, bySlot, items,
+                exp, currentLevel, eventsCompleted,
                 activePolicies, nextTier, now);
     }
 
@@ -117,8 +123,8 @@ public class IslandService {
 
     /**
      * Nâng cấp lên tier kế tiếp đủ điều kiện (user-initiated, không tự
-     * động). required_completed_events tính từ user_event_progress —
-     * chỉ EVENT_COMPLETED thật, không mastery, không lesson.
+     * động). Eligibility kiểm tra theo Level tài khoản (ISLAND-01), không
+     * theo EVENT_COMPLETED. Server là nguồn sự thật duy nhất về quyền nâng.
      *
      * @return IslandResponse mới sau upgrade
      */
@@ -131,21 +137,22 @@ public class IslandService {
         List<IslandTierPolicy> activePolicies = policies.findActivePolicies();
         Integer nextTier = nextTierOf(island.getTier(), activePolicies);
         if (nextTier == null) {
-            // Đã ở tier tối đa theo config hiện tại — không phải lỗi nghiệp
-            // vụ mà trạng thái; trả 422 để client biết không còn gì để nâng.
+            // Đã ở tier tối đa theo config hiện tại.
             throw new IslandExceptions.IslandUpgradeNotEligibleException(
                     island.getTier() + 1, -1, completedEvents(userId));
         }
-        int required = requiredEventsFor(nextTier, activePolicies);
-        long eventsCompleted = completedEvents(userId);
-        if (eventsCompleted < required) {
-            throw new IslandExceptions.IslandUpgradeNotEligibleException(
-                    nextTier, required, eventsCompleted);
+        long exp = levelService.totalExp(userId);
+        int currentLevel = levelService.levelForExp(exp);
+        int requiredLevel = requiredLevelFor(nextTier, activePolicies);
+        if (currentLevel < requiredLevel) {
+            long requiredExp = levelService.minExpForLevel(requiredLevel);
+            throw new IslandExceptions.IslandUpgradeInsufficientLevelException(
+                    nextTier, requiredLevel, currentLevel, exp, requiredExp);
         }
         island.upgradeTo(nextTier, now);
         islands.save(island);
-        log.info("island upgraded user={} tier={} events={}",
-                userId, nextTier, eventsCompleted);
+        log.info("island upgraded user={} tier={} level={} exp={}",
+                userId, nextTier, currentLevel, exp);
         return islandOf(userId);
     }
 
@@ -244,9 +251,10 @@ public class IslandService {
         }
     }
 
-    /** Số sự kiện THẬT đã EVENT_COMPLETED — nguồn eligibility duy nhất.
-     *  Đếm DISTINCT event_id trên user_event_progress (GAME-05 đã có sẵn
-     *  countDistinctEventsByMilestone — tái dùng, không thêm method mới). */
+    /**
+     * Số sự kiện THẬT đã EVENT_COMPLETED — chỉ thống kê từ ISLAND-01,
+     * không dùng để xét eligibility nâng cấp đảo.
+     */
     private long completedEvents(UUID userId) {
         return eventProgress.countDistinctEventsByMilestone(userId,
                 "EVENT_COMPLETED");
@@ -254,18 +262,26 @@ public class IslandService {
 
     /** Tier kế tiếp trong config active; null = đã max. */
     private Integer nextTierOf(int currentTier,
-                               List<IslandTierPolicy> policies) {
-        return policies.stream()
+                               List<IslandTierPolicy> activePolicies) {
+        return activePolicies.stream()
                 .map(IslandTierPolicy::getTier)
                 .filter(t -> t > currentTier)
                 .min(Integer::compareTo)
                 .orElse(null);
     }
 
-    private int requiredEventsFor(int tier, List<IslandTierPolicy> policies) {
-        return policies.stream()
+    /**
+     * Level yêu cầu để nâng lên tier. Ưu tiên required_level (ISLAND-01);
+     * nếu null (row V32 cũ) dùng required_completed_events làm phương án
+     * fallback ≥ 0 → không xét level (backward compat).
+     * Trả Integer.MAX_VALUE nếu không tìm thấy policy cho tier đó.
+     */
+    private int requiredLevelFor(int tier, List<IslandTierPolicy> activePolicies) {
+        return activePolicies.stream()
                 .filter(p -> p.getTier() == tier)
-                .map(IslandTierPolicy::getRequiredCompletedEvents)
+                .map(p -> p.getRequiredLevel() != null
+                        ? p.getRequiredLevel()
+                        : 1) // cũ không có required_level → coi như level 1
                 .findFirst()
                 .orElse(Integer.MAX_VALUE);
     }
@@ -281,6 +297,8 @@ public class IslandService {
             List<IslandSlot> layout,
             Map<UUID, UserIslandPlacement> bySlot,
             Map<UUID, ItemCatalog> items,
+            long currentExp,
+            int currentLevel,
             long eventsCompleted,
             List<IslandTierPolicy> activePolicies,
             Integer nextTier,
@@ -300,20 +318,47 @@ public class IslandService {
                             p == null ? null : p.getPlacedAt());
                 })
                 .toList();
-        int nextRequired = nextTier == null ? -1
+
+        // Tính next-tier info cho response.
+        int nextRequiredEvents = nextTier == null ? -1
                 : requiredEventsFor(nextTier, activePolicies);
         int nextSlots = nextTier == null ? 0
                 : slotCountFor(nextTier, activePolicies);
+
+        Integer nextTierRequiredLevel = nextTier == null ? null
+                : requiredLevelFor(nextTier, activePolicies);
+        Long nextTierRequiredExp = (nextTier == null || nextTierRequiredLevel == null)
+                ? null
+                : levelService.minExpForLevel(nextTierRequiredLevel);
+        // Nếu minExpForLevel trả -1 (level không có trong config) → null
+        if (nextTierRequiredExp != null && nextTierRequiredExp < 0) {
+            nextTierRequiredExp = null;
+        }
+
+        // canUpgrade: dựa theo Level, không theo sự kiện.
         boolean canUpgrade = nextTier != null
-                && eventsCompleted >= nextRequired;
+                && nextTierRequiredLevel != null
+                && currentLevel >= nextTierRequiredLevel;
+
         return new IslandResponse(
                 island.getTier(), island.getRowVersion(), eventsCompleted,
-                nextTier, nextRequired, nextSlots, canUpgrade,
-                island.getUpgradedAt(), slotViews, now);
+                nextTier, nextRequiredEvents, nextSlots, canUpgrade,
+                island.getUpgradedAt(), slotViews, now,
+                currentExp, currentLevel, nextTierRequiredLevel,
+                nextTierRequiredExp);
     }
 
-    private int slotCountFor(int tier, List<IslandTierPolicy> policies) {
-        return policies.stream()
+    private int requiredEventsFor(int tier,
+                                  List<IslandTierPolicy> activePolicies) {
+        return activePolicies.stream()
+                .filter(p -> p.getTier() == tier)
+                .map(IslandTierPolicy::getRequiredCompletedEvents)
+                .findFirst()
+                .orElse(Integer.MAX_VALUE);
+    }
+
+    private int slotCountFor(int tier, List<IslandTierPolicy> activePolicies) {
+        return activePolicies.stream()
                 .filter(p -> p.getTier() == tier)
                 .map(IslandTierPolicy::getSlotCount)
                 .findFirst()

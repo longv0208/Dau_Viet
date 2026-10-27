@@ -67,7 +67,8 @@ class LearnerAttemptServiceTest {
                 mock(com.dauviet.streak.application.LearningStreakService.class),
                 new GradedActivityClassifier(),
                 OM, mock(org.springframework.transaction.PlatformTransactionManager.class),
-                mock(jakarta.persistence.EntityManager.class));
+                mock(jakarta.persistence.EntityManager.class),
+                mock(com.dauviet.path.application.LearnerPathProgressionService.class));
     }
 
     private static JsonNode json(String s) {
@@ -330,7 +331,8 @@ class LearnerAttemptServiceTest {
                 mock(com.dauviet.streak.application.LearningStreakService.class),
                 new GradedActivityClassifier(),
                 OM, mock(org.springframework.transaction.PlatformTransactionManager.class),
-                mock(jakarta.persistence.EntityManager.class));
+                mock(jakarta.persistence.EntityManager.class),
+                mock(com.dauviet.path.application.LearnerPathProgressionService.class));
     }
 
     private IdempotencyService passthroughIdempotency() {

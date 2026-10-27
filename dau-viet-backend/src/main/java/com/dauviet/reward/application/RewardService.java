@@ -59,6 +59,7 @@ public class RewardService {
     private final ItemRuleScopeResolver scopeResolver;
     private final ObjectMapper mapper;
     private final com.dauviet.island.infrastructure.persistence.UserIslandPlacementRepository placements;
+    private final AccountLevelService levelService;
 
     public RewardService(RewardTransactionRepository rewards,
                          UserInventoryRepository inventory,
@@ -75,7 +76,8 @@ public class RewardService {
                          ItemRuleEvaluator ruleEvaluator,
                          ItemRuleScopeResolver scopeResolver,
                          ObjectMapper mapper,
-                         com.dauviet.island.infrastructure.persistence.UserIslandPlacementRepository placements) {
+                         com.dauviet.island.infrastructure.persistence.UserIslandPlacementRepository placements,
+                         AccountLevelService levelService) {
         this.rewards = rewards;
         this.inventory = inventory;
         this.items = items;
@@ -91,17 +93,20 @@ public class RewardService {
         this.scopeResolver = scopeResolver;
         this.mapper = mapper;
         this.placements = placements;
+        this.levelService = levelService;
     }
 
-    /** Tổng EXP / Điểm Lịch sử + số liệu phụ trợ cho màn hình hành trình. */
+    /** Tổng EXP / Điểm Lịch sử + Level tài khoản + số liệu phụ trợ cho màn hình hành trình. */
     @Transactional(readOnly = true)
     public RewardSummaryResponse summary(UUID userId) {
+        long exp = rewards.sumAmount(userId, RewardTransaction.TYPE_EXP);
+        int level = levelService.levelForExp(exp);
         return new RewardSummaryResponse(
-                rewards.sumAmount(userId, RewardTransaction.TYPE_EXP),
-                rewards.sumAmount(userId,
-                        RewardTransaction.TYPE_HISTORY_POINTS),
+                exp,
+                rewards.sumAmount(userId, RewardTransaction.TYPE_HISTORY_POINTS),
                 attempts.countDistinctCompletedLessons(userId),
-                inventory.findByUserIdOrderByAcquiredAtDesc(userId).size());
+                inventory.findByUserIdOrderByAcquiredAtDesc(userId).size(),
+                level);
     }
 
     /** Lịch sử bút toán — mới nhất trước; lessonId resolve qua attempt. */

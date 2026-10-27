@@ -35,16 +35,25 @@ public class IslandTierPolicy {
             updatable = false)
     private int requiredCompletedEvents;
 
+    /**
+     * Level tài khoản tối thiểu để nâng lên tier này (V38 ISLAND-01).
+     * null = hàng cấu hình cũ (config_version=1, V32) dùng required_completed_events.
+     */
+    @Column(name = "required_level", updatable = false)
+    private Integer requiredLevel;
+
     @Column(name = "active", nullable = false, updatable = false)
     private boolean active;
 
     public IslandTierPolicy() {
     }
 
-    public UUID getId() { return id; }
-    public int getConfigVersion() { return configVersion; }
-    public int getTier() { return tier; }
-    public int getSlotCount() { return slotCount; }
-    public int getRequiredCompletedEvents() { return requiredCompletedEvents; }
-    public boolean isActive() { return active; }
+    public UUID getId()                    { return id; }
+    public int getConfigVersion()          { return configVersion; }
+    public int getTier()                   { return tier; }
+    public int getSlotCount()              { return slotCount; }
+    public int getRequiredCompletedEvents(){ return requiredCompletedEvents; }
+    /** Null nếu là cấu hình cũ (config_version=1). */
+    public Integer getRequiredLevel()      { return requiredLevel; }
+    public boolean isActive()              { return active; }
 }

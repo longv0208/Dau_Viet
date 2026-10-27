@@ -497,6 +497,21 @@ public class GlobalExceptionHandler {
                 ex.getMessage(), details);
     }
 
+    /** 422 — Level tài khoản chưa đủ để nâng đảo (ISLAND-01). */
+    @ExceptionHandler(com.dauviet.island.domain.IslandExceptions.IslandUpgradeInsufficientLevelException.class)
+    public ResponseEntity<ApiError> handleUpgradeInsufficientLevel(
+            com.dauviet.island.domain.IslandExceptions.IslandUpgradeInsufficientLevelException ex) {
+        Map<String, Object> details = Map.of(
+                "targetTier",    ex.getTargetTier(),
+                "requiredLevel", ex.getRequiredLevel(),
+                "currentLevel",  ex.getCurrentLevel(),
+                "currentExp",    ex.getCurrentExp(),
+                "requiredExp",   ex.getRequiredExp());
+        return build(HttpStatus.UNPROCESSABLE_ENTITY,
+                ErrorCode.ISLAND_UPGRADE_INSUFFICIENT_LEVEL,
+                ex.getMessage(), details);
+    }
+
     @ExceptionHandler(com.dauviet.island.domain.IslandExceptions.StaleIslandRevisionException.class)
     public ResponseEntity<ApiError> handleStaleIslandRevision(
             com.dauviet.island.domain.IslandExceptions.StaleIslandRevisionException ex) {
