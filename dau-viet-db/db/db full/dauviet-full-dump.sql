@@ -1,11 +1,11 @@
-﻿--
+--
 -- PostgreSQL database dump
 --
 
-\restrict GpmgavQ1ql0xfr4PlI8XbjrzzdYe3KK7ZqtBLCieIZMBlEJeM3eyDuUq4LtH02y
+\restrict 8sPvuOaIGVRW6RAYOh5dqlc9KHeQe6KQfQ1JcbEMwJOvG4udO6SawZ25Hb8eba0
 
--- Dumped from database version 16.15
--- Dumped by pg_dump version 16.15
+-- Dumped from database version 16.14
+-- Dumped by pg_dump version 16.14
 
 SET statement_timeout = 0;
 SET lock_timeout = 0;
@@ -17,6 +17,20 @@ SET check_function_bodies = false;
 SET xmloption = content;
 SET client_min_messages = warning;
 SET row_security = off;
+
+--
+-- Name: public; Type: SCHEMA; Schema: -; Owner: -
+--
+
+-- *not* creating schema, since initdb creates it
+
+
+--
+-- Name: SCHEMA public; Type: COMMENT; Schema: -; Owner: -
+--
+
+COMMENT ON SCHEMA public IS '';
+
 
 --
 -- Name: pgcrypto; Type: EXTENSION; Schema: -; Owner: -
@@ -173,7 +187,7 @@ CREATE TABLE public.animation_scenes (
     row_version bigint DEFAULT 0 NOT NULL,
     CONSTRAINT chk_animation_scene_draft CHECK ((jsonb_typeof(draft_json) = 'object'::text)),
     CONSTRAINT chk_animation_scene_published_version CHECK ((((status)::text <> 'PUBLISHED'::text) OR (current_version_id IS NOT NULL))),
-    CONSTRAINT chk_animation_scene_status CHECK (((status)::text = ANY ((ARRAY['DRAFT'::character varying, 'PUBLISHED'::character varying, 'ARCHIVED'::character varying])::text[])))
+    CONSTRAINT chk_animation_scene_status CHECK (((status)::text = ANY (ARRAY[('DRAFT'::character varying)::text, ('PUBLISHED'::character varying)::text, ('ARCHIVED'::character varying)::text])))
 );
 
 
@@ -219,7 +233,7 @@ CREATE TABLE public.assets (
     created_by uuid,
     retired_at timestamp with time zone,
     CONSTRAINT assets_size_bytes_check CHECK ((size_bytes >= 0)),
-    CONSTRAINT chk_asset_state CHECK (((state)::text = ANY ((ARRAY['UPLOADING'::character varying, 'ACTIVE'::character varying, 'RETIRED'::character varying, 'FAILED'::character varying])::text[])))
+    CONSTRAINT chk_asset_state CHECK (((state)::text = ANY (ARRAY[('UPLOADING'::character varying)::text, ('ACTIVE'::character varying)::text, ('RETIRED'::character varying)::text, ('FAILED'::character varying)::text])))
 );
 
 
@@ -238,6 +252,62 @@ CREATE TABLE public.auth_refresh_tokens (
     created_at timestamp with time zone DEFAULT now() NOT NULL,
     last_used_at timestamp with time zone,
     CONSTRAINT chk_refresh_expiry CHECK ((expires_at > created_at))
+);
+
+
+--
+-- Name: energy_transactions; Type: TABLE; Schema: public; Owner: -
+--
+
+CREATE TABLE public.energy_transactions (
+    id uuid NOT NULL,
+    user_id uuid NOT NULL,
+    direction character varying(8) NOT NULL,
+    amount integer NOT NULL,
+    reason character varying(40) NOT NULL,
+    cause_key character varying(200) NOT NULL,
+    balance_after integer NOT NULL,
+    reference_json jsonb,
+    created_at timestamp with time zone DEFAULT now() NOT NULL,
+    CONSTRAINT chk_energy_tx_amount CHECK ((amount > 0)),
+    CONSTRAINT chk_energy_tx_balance CHECK (((balance_after >= 0) AND (balance_after <= 100))),
+    CONSTRAINT chk_energy_tx_direction CHECK (((direction)::text = ANY ((ARRAY['CREDIT'::character varying, 'DEBIT'::character varying])::text[]))),
+    CONSTRAINT chk_energy_tx_reason CHECK (((reason)::text = ANY ((ARRAY['GRADED_INCORRECT'::character varying, 'NATURAL_RECOVERY'::character varying, 'REFILL_PURCHASE'::character varying, 'ADMIN_ADJUST'::character varying])::text[]))),
+    CONSTRAINT chk_energy_tx_ref CHECK (((reference_json IS NULL) OR (jsonb_typeof(reference_json) = 'object'::text)))
+);
+
+
+--
+-- Name: event_completion_policies; Type: TABLE; Schema: public; Owner: -
+--
+
+CREATE TABLE public.event_completion_policies (
+    id uuid NOT NULL,
+    event_id uuid NOT NULL,
+    policy_version integer NOT NULL,
+    status character varying(16) DEFAULT 'DRAFT'::character varying NOT NULL,
+    required_lesson_ids jsonb NOT NULL,
+    optional_lesson_ids jsonb DEFAULT '[]'::jsonb NOT NULL,
+    mastery_threshold smallint DEFAULT 70,
+    published_at timestamp with time zone,
+    created_at timestamp with time zone DEFAULT now() NOT NULL,
+    CONSTRAINT chk_policy_optional CHECK ((jsonb_typeof(optional_lesson_ids) = 'array'::text)),
+    CONSTRAINT chk_policy_required CHECK ((jsonb_typeof(required_lesson_ids) = 'array'::text)),
+    CONSTRAINT chk_policy_status CHECK (((status)::text = ANY ((ARRAY['DRAFT'::character varying, 'PUBLISHED'::character varying, 'ARCHIVED'::character varying])::text[]))),
+    CONSTRAINT chk_policy_threshold CHECK (((mastery_threshold IS NULL) OR ((mastery_threshold >= 0) AND (mastery_threshold <= 100))))
+);
+
+
+--
+-- Name: event_dossiers; Type: TABLE; Schema: public; Owner: -
+--
+
+CREATE TABLE public.event_dossiers (
+    event_id uuid NOT NULL,
+    dossier_id uuid NOT NULL,
+    unlock_on character varying(24) DEFAULT 'EVENT_COMPLETED'::character varying NOT NULL,
+    sort_order integer DEFAULT 0 NOT NULL,
+    CONSTRAINT chk_event_dossier_unlock CHECK (((unlock_on)::text = 'EVENT_COMPLETED'::text))
 );
 
 
@@ -264,8 +334,8 @@ CREATE TABLE public.evidences (
     created_at timestamp with time zone DEFAULT now() NOT NULL,
     updated_at timestamp with time zone DEFAULT now() NOT NULL,
     row_version bigint DEFAULT 0 NOT NULL,
-    CONSTRAINT chk_evidence_reliability CHECK (((reliability IS NULL) OR ((reliability)::text = ANY ((ARRAY['HIGH'::character varying, 'MEDIUM'::character varying, 'LOW'::character varying, 'UNASSESSED'::character varying])::text[])))),
-    CONSTRAINT chk_evidence_status CHECK (((status)::text = ANY ((ARRAY['DRAFT'::character varying, 'APPROVED'::character varying, 'ARCHIVED'::character varying])::text[])))
+    CONSTRAINT chk_evidence_reliability CHECK (((reliability IS NULL) OR ((reliability)::text = ANY (ARRAY[('HIGH'::character varying)::text, ('MEDIUM'::character varying)::text, ('LOW'::character varying)::text, ('UNASSESSED'::character varying)::text])))),
+    CONSTRAINT chk_evidence_status CHECK (((status)::text = ANY (ARRAY[('DRAFT'::character varying)::text, ('APPROVED'::character varying)::text, ('ARCHIVED'::character varying)::text])))
 );
 
 
@@ -284,6 +354,54 @@ CREATE TABLE public.flyway_schema_history (
     installed_on timestamp without time zone DEFAULT now() NOT NULL,
     execution_time integer NOT NULL,
     success boolean NOT NULL
+);
+
+
+--
+-- Name: historical_dossier_versions; Type: TABLE; Schema: public; Owner: -
+--
+
+CREATE TABLE public.historical_dossier_versions (
+    id uuid NOT NULL,
+    dossier_id uuid NOT NULL,
+    dossier_version integer NOT NULL,
+    dossier_type character varying(16) NOT NULL,
+    title character varying(255) NOT NULL,
+    summary text,
+    description text,
+    source_json jsonb,
+    asset_id uuid,
+    status character varying(16) NOT NULL,
+    published_at timestamp with time zone DEFAULT now() NOT NULL,
+    published_by uuid,
+    CONSTRAINT chk_dv_source CHECK (((source_json IS NULL) OR (jsonb_typeof(source_json) = 'object'::text))),
+    CONSTRAINT chk_dv_status CHECK (((status)::text = ANY ((ARRAY['PUBLISHED'::character varying, 'ARCHIVED'::character varying])::text[]))),
+    CONSTRAINT chk_dv_type CHECK (((dossier_type)::text = ANY ((ARRAY['PERSON'::character varying, 'LOCATION'::character varying, 'ARTIFACT'::character varying, 'CONTEXT'::character varying])::text[])))
+);
+
+
+--
+-- Name: historical_dossiers; Type: TABLE; Schema: public; Owner: -
+--
+
+CREATE TABLE public.historical_dossiers (
+    id uuid NOT NULL,
+    canonical_code character varying(120) NOT NULL,
+    dossier_type character varying(16) NOT NULL,
+    title character varying(255) NOT NULL,
+    summary text,
+    description text,
+    source_json jsonb,
+    asset_id uuid,
+    status character varying(16) DEFAULT 'DRAFT'::character varying NOT NULL,
+    dossier_version integer DEFAULT 1 NOT NULL,
+    created_by uuid,
+    created_at timestamp with time zone DEFAULT now() NOT NULL,
+    updated_at timestamp with time zone DEFAULT now() NOT NULL,
+    row_version bigint DEFAULT 0 NOT NULL,
+    CONSTRAINT chk_dossier_source CHECK (((source_json IS NULL) OR (jsonb_typeof(source_json) = 'object'::text))),
+    CONSTRAINT chk_dossier_status CHECK (((status)::text = ANY ((ARRAY['DRAFT'::character varying, 'PUBLISHED'::character varying, 'ARCHIVED'::character varying])::text[]))),
+    CONSTRAINT chk_dossier_type CHECK (((dossier_type)::text = ANY ((ARRAY['PERSON'::character varying, 'LOCATION'::character varying, 'ARTIFACT'::character varying, 'CONTEXT'::character varying])::text[])))
 );
 
 
@@ -307,7 +425,7 @@ CREATE TABLE public.historical_events (
     created_at timestamp with time zone DEFAULT now() NOT NULL,
     updated_at timestamp with time zone DEFAULT now() NOT NULL,
     row_version bigint DEFAULT 0 NOT NULL,
-    CONSTRAINT chk_historical_events_status CHECK (((status)::text = ANY ((ARRAY['DRAFT'::character varying, 'PUBLISHED'::character varying, 'ARCHIVED'::character varying])::text[])))
+    CONSTRAINT chk_historical_events_status CHECK (((status)::text = ANY (ARRAY[('DRAFT'::character varying)::text, ('PUBLISHED'::character varying)::text, ('ARCHIVED'::character varying)::text])))
 );
 
 
@@ -348,9 +466,9 @@ CREATE TABLE public.item_catalog (
     created_at timestamp with time zone DEFAULT now() NOT NULL,
     updated_at timestamp with time zone DEFAULT now() NOT NULL,
     row_version bigint DEFAULT 0 NOT NULL,
-    CONSTRAINT chk_item_rarity CHECK (((rarity)::text = ANY ((ARRAY['COMMON'::character varying, 'UNCOMMON'::character varying, 'RARE'::character varying, 'EPIC'::character varying])::text[]))),
+    CONSTRAINT chk_item_rarity CHECK (((rarity)::text = ANY (ARRAY[('COMMON'::character varying)::text, ('UNCOMMON'::character varying)::text, ('RARE'::character varying)::text, ('EPIC'::character varying)::text]))),
     CONSTRAINT chk_item_source_meta CHECK (((source_metadata IS NULL) OR (jsonb_typeof(source_metadata) = 'object'::text))),
-    CONSTRAINT chk_item_type CHECK (((item_type)::text = ANY ((ARRAY['HISTORICAL_REPLICA'::character varying, 'DIGITAL_EDITION'::character varying, 'COMMEMORATIVE_BADGE'::character varying])::text[])))
+    CONSTRAINT chk_item_type CHECK (((item_type)::text = ANY (ARRAY[('HISTORICAL_REPLICA'::character varying)::text, ('DIGITAL_EDITION'::character varying)::text, ('COMMEMORATIVE_BADGE'::character varying)::text])))
 );
 
 
@@ -366,8 +484,16 @@ CREATE TABLE public.item_unlock_rule (
     threshold integer,
     active boolean DEFAULT true NOT NULL,
     created_at timestamp with time zone DEFAULT now() NOT NULL,
-    CONSTRAINT chk_unlock_rule_shape CHECK (((((rule_type)::text = 'LESSON_COMPLETED'::text) AND (lesson_id IS NOT NULL) AND (threshold IS NULL)) OR (((rule_type)::text = ANY ((ARRAY['COLLECTION_COUNT'::character varying, 'LESSON_COUNT'::character varying])::text[])) AND (threshold IS NOT NULL) AND (threshold > 0) AND (lesson_id IS NULL)))),
-    CONSTRAINT chk_unlock_rule_type CHECK (((rule_type)::text = ANY ((ARRAY['LESSON_COMPLETED'::character varying, 'COLLECTION_COUNT'::character varying, 'LESSON_COUNT'::character varying])::text[])))
+    rule_version integer DEFAULT 1 NOT NULL,
+    condition_json jsonb,
+    rule_metadata jsonb,
+    revision integer DEFAULT 1 NOT NULL,
+    CONSTRAINT chk_rule_metadata CHECK (((rule_metadata IS NULL) OR (jsonb_typeof(rule_metadata) = 'object'::text))),
+    CONSTRAINT chk_rule_revision CHECK ((revision >= 1)),
+    CONSTRAINT chk_rule_v2_condition CHECK (((rule_version = 1) OR ((condition_json IS NOT NULL) AND (jsonb_typeof(condition_json) = 'object'::text)))),
+    CONSTRAINT chk_rule_version CHECK ((rule_version >= 1)),
+    CONSTRAINT chk_unlock_rule_shape CHECK (((((rule_type)::text = 'LESSON_COMPLETED'::text) AND (rule_version = 1) AND (lesson_id IS NOT NULL) AND (threshold IS NULL)) OR (((rule_type)::text = ANY ((ARRAY['COLLECTION_COUNT'::character varying, 'LESSON_COUNT'::character varying])::text[])) AND (rule_version = 1) AND (threshold IS NOT NULL) AND (threshold > 0) AND (lesson_id IS NULL)) OR (((rule_type)::text = 'RULE_V2'::text) AND (rule_version >= 2) AND (condition_json IS NOT NULL) AND (lesson_id IS NULL) AND (threshold IS NULL)))),
+    CONSTRAINT chk_unlock_rule_type CHECK (((rule_type)::text = ANY ((ARRAY['LESSON_COMPLETED'::character varying, 'COLLECTION_COUNT'::character varying, 'LESSON_COUNT'::character varying, 'RULE_V2'::character varying])::text[])))
 );
 
 
@@ -389,7 +515,7 @@ CREATE TABLE public.learner_attempts (
     row_version bigint DEFAULT 0 NOT NULL,
     CONSTRAINT chk_attempt_completion CHECK ((((status)::text <> 'COMPLETED'::text) OR (completed_at IS NOT NULL))),
     CONSTRAINT chk_attempt_state CHECK ((jsonb_typeof(state_json) = 'object'::text)),
-    CONSTRAINT chk_attempt_status CHECK (((status)::text = ANY ((ARRAY['IN_PROGRESS'::character varying, 'COMPLETED'::character varying, 'ABANDONED'::character varying])::text[])))
+    CONSTRAINT chk_attempt_status CHECK (((status)::text = ANY (ARRAY[('IN_PROGRESS'::character varying)::text, ('COMPLETED'::character varying)::text, ('ABANDONED'::character varying)::text])))
 );
 
 
@@ -467,7 +593,7 @@ CREATE TABLE public.lessons (
     CONSTRAINT chk_lesson_draft CHECK ((jsonb_typeof(draft_json) = 'object'::text)),
     CONSTRAINT chk_lesson_objectives CHECK ((jsonb_typeof(objectives_json) = 'array'::text)),
     CONSTRAINT chk_lesson_published_version CHECK ((((status)::text <> 'PUBLISHED'::text) OR (current_version_id IS NOT NULL))),
-    CONSTRAINT chk_lesson_status CHECK (((status)::text = ANY ((ARRAY['DRAFT'::character varying, 'PUBLISHED'::character varying, 'ARCHIVED'::character varying])::text[])))
+    CONSTRAINT chk_lesson_status CHECK (((status)::text = ANY (ARRAY[('DRAFT'::character varying)::text, ('PUBLISHED'::character varying)::text, ('ARCHIVED'::character varying)::text])))
 );
 
 
@@ -491,7 +617,7 @@ CREATE TABLE public.map_locations (
     published_at timestamp with time zone,
     CONSTRAINT chk_map_location_lat CHECK (((latitude >= ('-90'::integer)::double precision) AND (latitude <= (90)::double precision))),
     CONSTRAINT chk_map_location_lng CHECK (((longitude >= ('-180'::integer)::double precision) AND (longitude <= (180)::double precision))),
-    CONSTRAINT chk_map_location_status CHECK (((status)::text = ANY ((ARRAY['DRAFT'::character varying, 'PUBLISHED'::character varying, 'ARCHIVED'::character varying])::text[])))
+    CONSTRAINT chk_map_location_status CHECK (((status)::text = ANY (ARRAY[('DRAFT'::character varying)::text, ('PUBLISHED'::character varying)::text, ('ARCHIVED'::character varying)::text])))
 );
 
 
@@ -509,6 +635,48 @@ CREATE TABLE public.reward_transactions (
     cause_key character varying(200) NOT NULL,
     created_at timestamp with time zone DEFAULT now() NOT NULL,
     CONSTRAINT reward_transactions_amount_check CHECK ((amount > 0))
+);
+
+
+--
+-- Name: user_dossier_unlocks; Type: TABLE; Schema: public; Owner: -
+--
+
+CREATE TABLE public.user_dossier_unlocks (
+    user_id uuid NOT NULL,
+    dossier_id uuid NOT NULL,
+    event_id uuid NOT NULL,
+    dossier_version integer NOT NULL,
+    granted_at timestamp with time zone DEFAULT now() NOT NULL
+);
+
+
+--
+-- Name: user_energy; Type: TABLE; Schema: public; Owner: -
+--
+
+CREATE TABLE public.user_energy (
+    user_id uuid NOT NULL,
+    current_energy integer DEFAULT 100 NOT NULL,
+    last_recovery_at timestamp with time zone DEFAULT now() NOT NULL,
+    row_version bigint DEFAULT 0 NOT NULL,
+    CONSTRAINT chk_user_energy_range CHECK (((current_energy >= 0) AND (current_energy <= 100)))
+);
+
+
+--
+-- Name: user_event_progress; Type: TABLE; Schema: public; Owner: -
+--
+
+CREATE TABLE public.user_event_progress (
+    user_id uuid NOT NULL,
+    event_id uuid NOT NULL,
+    milestone character varying(24) NOT NULL,
+    policy_version integer NOT NULL,
+    required_snapshot jsonb NOT NULL,
+    granted_at timestamp with time zone DEFAULT now() NOT NULL,
+    CONSTRAINT chk_user_event_milestone CHECK (((milestone)::text = ANY ((ARRAY['EVENT_COMPLETED'::character varying, 'EVENT_MASTERED'::character varying])::text[]))),
+    CONSTRAINT chk_user_event_snapshot CHECK ((jsonb_typeof(required_snapshot) = 'array'::text))
 );
 
 
@@ -541,7 +709,11 @@ CREATE TABLE public.user_inventory (
     acquisition_source character varying(48) NOT NULL,
     source_lesson_id uuid,
     source_attempt_id uuid,
-    CONSTRAINT chk_inventory_source CHECK (((acquisition_source)::text = ANY ((ARRAY['LESSON_COMPLETED'::character varying, 'COLLECTION_COUNT'::character varying, 'LESSON_COUNT'::character varying, 'ADMIN_GRANT'::character varying])::text[])))
+    unlock_rule_id uuid,
+    unlock_rule_version integer,
+    source_event_id uuid,
+    cause_key text,
+    CONSTRAINT chk_inventory_source CHECK (((acquisition_source)::text = ANY ((ARRAY['LESSON_COMPLETED'::character varying, 'COLLECTION_COUNT'::character varying, 'LESSON_COUNT'::character varying, 'ADMIN_GRANT'::character varying, 'RULE_UNLOCK'::character varying, 'RECONCILE_GRANT'::character varying])::text[])))
 );
 
 
@@ -562,8 +734,8 @@ CREATE TABLE public.users (
     updated_at timestamp with time zone DEFAULT now() NOT NULL,
     row_version bigint DEFAULT 0 NOT NULL,
     CONSTRAINT chk_users_email_nonempty CHECK ((length(btrim((email)::text)) > 3)),
-    CONSTRAINT chk_users_role CHECK (((role)::text = ANY ((ARRAY['LEARNER'::character varying, 'CONTENT_ADMIN'::character varying])::text[]))),
-    CONSTRAINT chk_users_status CHECK (((status)::text = ANY ((ARRAY['ACTIVE'::character varying, 'LOCKED'::character varying, 'DISABLED'::character varying])::text[])))
+    CONSTRAINT chk_users_role CHECK (((role)::text = ANY (ARRAY[('LEARNER'::character varying)::text, ('CONTENT_ADMIN'::character varying)::text]))),
+    CONSTRAINT chk_users_status CHECK (((status)::text = ANY (ARRAY[('ACTIVE'::character varying)::text, ('LOCKED'::character varying)::text, ('DISABLED'::character varying)::text])))
 );
 
 
@@ -824,6 +996,53 @@ b6065a88-18c9-4349-856a-ace8b6512597	67e0f392-33b0-446a-8f23-7c98b98c10c3	1de93f
 
 
 --
+-- Data for Name: energy_transactions; Type: TABLE DATA; Schema: public; Owner: -
+--
+
+COPY public.energy_transactions (id, user_id, direction, amount, reason, cause_key, balance_after, reference_json, created_at) FROM stdin;
+\.
+
+
+--
+-- Data for Name: event_completion_policies; Type: TABLE DATA; Schema: public; Owner: -
+--
+
+COPY public.event_completion_policies (id, event_id, policy_version, status, required_lesson_ids, optional_lesson_ids, mastery_threshold, published_at, created_at) FROM stdin;
+d7c00000-0000-4000-8000-000000000001	00000000-0000-0000-0000-000000000001	1	PUBLISHED	["d7b20000-0000-4000-8000-000000000001"]	[]	70	2026-10-26 05:05:36.122946+00	2026-10-26 05:05:36.122946+00
+d7c00000-0000-4000-8000-000000000002	d7b00000-0000-4000-8000-000000000002	1	PUBLISHED	["d7b20000-0000-4000-8000-000000000002"]	[]	70	2026-10-26 05:05:36.122946+00	2026-10-26 05:05:36.122946+00
+d7c00000-0000-4000-8000-000000000003	d7b00000-0000-4000-8000-000000000003	1	PUBLISHED	["d7b20000-0000-4000-8000-000000000003"]	[]	70	2026-10-26 05:05:36.122946+00	2026-10-26 05:05:36.122946+00
+960a8f62-50de-4128-b109-04b6a507c5f7	c77df9a0-ab5f-42f2-aa87-6f438c20673b	1	PUBLISHED	["3c2e02cc-1cea-4235-8538-12d50389900e", "4597e145-11fe-4616-8257-df622eb0b35d"]	[]	70	2026-10-26 05:05:36.328886+00	2026-10-26 05:05:36.328886+00
+6a1fafdd-47b0-41f8-86d3-e5fe26ce4d1f	29780b5e-13cd-45ef-8f10-21328cfd65d9	1	PUBLISHED	["423b3ae7-2c87-46ee-8672-e5a0cdc743ff", "d338ed0d-5622-4870-812a-b8db1992ff69"]	[]	70	2026-10-26 05:05:36.328886+00	2026-10-26 05:05:36.328886+00
+c95083ad-8892-45c9-a4bf-a377be45c4aa	1f01f2e5-ee07-4b86-a534-061dcad8134f	1	PUBLISHED	["2886c042-6352-4500-86ab-1209027008d6", "e251679f-3db4-4604-b5cd-b2943c00ba74"]	[]	70	2026-10-26 05:05:36.328886+00	2026-10-26 05:05:36.328886+00
+bbd78c60-46fe-4c08-a0e3-f59bded330fa	52c3467e-c800-40a0-b4f7-e493ce1ba5ca	1	PUBLISHED	["07546ec6-13db-476f-8598-1b35801875be", "8834c995-0e0a-4f85-8356-35e8f56a731a"]	[]	70	2026-10-26 05:05:36.328886+00	2026-10-26 05:05:36.328886+00
+b5c00ba6-ccd8-4a2e-8c24-ca41cef259ad	635d6143-ffe1-4770-91e4-a4e4194fb1b7	1	PUBLISHED	["4650bb3e-5662-4b9c-8aa2-f0e9221d59b5", "75249a8a-e9f8-4de1-989b-f0d493e54c1f"]	[]	70	2026-10-26 05:05:36.328886+00	2026-10-26 05:05:36.328886+00
+8e060e94-7adf-4e14-876a-adf66588d00f	7fa5dba4-285d-403b-99de-7e6f05703b55	1	PUBLISHED	["1986bf93-3e03-45ca-89a4-b40ae1c07174", "d06e9035-e523-4e25-a129-261b87e7acff"]	[]	70	2026-10-26 05:05:36.328886+00	2026-10-26 05:05:36.328886+00
+092d9d9e-1f5c-4b01-be7b-21cd37b1e571	03ba2f0b-efe3-4035-8a6d-00dfabc8336c	1	PUBLISHED	["74ac30af-0af7-4ba5-98ab-94c0dc2c3446", "a2c7ad8a-b0b7-4c25-8c25-10443cbaf30f"]	[]	70	2026-10-26 05:05:36.328886+00	2026-10-26 05:05:36.328886+00
+55c69737-8ab0-408c-ba43-bdc3a0c5612f	841589c9-b1de-42e0-bed4-a1d0e9d82fe6	1	PUBLISHED	["b4c3762b-0d5e-4016-9783-189b6a0ce6c9", "da0672d7-0809-4290-a2ea-0a29a282d6fd"]	[]	70	2026-10-26 05:05:36.328886+00	2026-10-26 05:05:36.328886+00
+46e38370-ae79-447f-9488-352e074bbc60	6f19d13f-8ff4-4e9a-8548-dc79980bab26	1	PUBLISHED	["0cec4b87-a33c-490f-b5c3-3587b30d7264", "3d82eeaa-38ee-47c1-8e61-f13ff5332030"]	[]	70	2026-10-26 05:05:36.328886+00	2026-10-26 05:05:36.328886+00
+25d4aebd-4d96-4351-9cad-b71ca1044d4a	f79946dd-387f-4e8c-b977-159d1186ee2d	1	PUBLISHED	["3c9ec727-0322-4a34-9ff0-bbfa5808507f", "d109a635-fbf4-431c-9104-3cbcb1b00d6a"]	[]	70	2026-10-26 05:05:36.328886+00	2026-10-26 05:05:36.328886+00
+1fb1c6c5-48ba-4ffa-a476-200ad72ced1f	55ce75e7-79fd-4995-9a4f-4032151cd541	1	PUBLISHED	["a0a804a7-2895-4d0b-aba4-dfacf59c761b", "b9248764-f4db-4aba-b6d0-b28be3073d18"]	[]	70	2026-10-26 05:05:36.328886+00	2026-10-26 05:05:36.328886+00
+4cd5af12-6668-4629-9210-28aee1ec9a66	cd1b6dab-777a-40d4-833d-8e580df3949e	1	PUBLISHED	["1e36e3c8-715f-4094-ac97-b8534f7699ed", "b89374c9-2043-4def-a017-63f2beb1084b"]	[]	70	2026-10-26 05:05:36.328886+00	2026-10-26 05:05:36.328886+00
+\.
+
+
+--
+-- Data for Name: event_dossiers; Type: TABLE DATA; Schema: public; Owner: -
+--
+
+COPY public.event_dossiers (event_id, dossier_id, unlock_on, sort_order) FROM stdin;
+00000000-0000-0000-0000-000000000001	d7c10000-0000-4000-8000-000000000001	EVENT_COMPLETED	1
+00000000-0000-0000-0000-000000000001	d7c10000-0000-4000-8000-000000000005	EVENT_COMPLETED	2
+00000000-0000-0000-0000-000000000001	d7c10000-0000-4000-8000-000000000008	EVENT_COMPLETED	3
+d7b00000-0000-4000-8000-000000000002	d7c10000-0000-4000-8000-000000000002	EVENT_COMPLETED	1
+d7b00000-0000-4000-8000-000000000002	d7c10000-0000-4000-8000-000000000003	EVENT_COMPLETED	2
+d7b00000-0000-4000-8000-000000000002	d7c10000-0000-4000-8000-000000000006	EVENT_COMPLETED	3
+d7b00000-0000-4000-8000-000000000003	d7c10000-0000-4000-8000-000000000004	EVENT_COMPLETED	1
+d7b00000-0000-4000-8000-000000000003	d7c10000-0000-4000-8000-000000000007	EVENT_COMPLETED	2
+\.
+
+
+--
 -- Data for Name: evidences; Type: TABLE DATA; Schema: public; Owner: -
 --
 
@@ -886,6 +1105,9 @@ ab76cd62-308e-4c2f-a8a3-56074d29228f	cd1b6dab-777a-40d4-833d-8e580df3949e	Mốc 
 080f59e5-69e8-41fd-a25a-460046e40c09	cd1b6dab-777a-40d4-833d-8e580df3949e	Góc nhìn tư liệu quân đội Pháp	DOCUMENT	Công trình của Ivan Cadeau sử dụng cả hồ sơ lưu trữ của Bộ Quốc phòng Pháp để nghiên cứu chiến dịch Điện Biên Phủ.	Điện Biên Phủ 13/3–7/5/1954 – nhìn từ tư liệu Pháp	Bảo tàng Lịch sử Quốc gia	https://baotanglichsu.vn/vi/Articles/3129/70761/djien-bien-phu-13-3-7-5-1954-thuc-te-chien-dich-cua-nhung-nguoi-tu-ben-kia-chien-tuyen.html	Bảo tàng Lịch sử Quốc gia, “Điện Biên Phủ 13/3–7/5/1954 – nhìn từ tư liệu Pháp”, https://baotanglichsu.vn/vi/Articles/3129/70761/djien-bien-phu-13-3-7-5-1954-thuc-te-chien-dich-cua-nhung-nguoi-tu-ben-kia-chien-tuyen.html	\N	HIGH	Tư liệu dùng để phân tích câu hỏi lịch sử trong bài học.	\N	APPROVED	67e0f392-33b0-446a-8f23-7c98b98c10c3	2026-10-22 08:01:24.955286+00	2026-10-22 08:01:24.985476+00	1
 0d13152e-ef98-42fb-b19a-d6b13823683e	cd1b6dab-777a-40d4-833d-8e580df3949e	Sổ tay dân công Phú Thọ	ARTIFACT	Bảo tàng Lịch sử Quốc gia lưu giữ cuốn sổ tay của một dân công vận tải tham gia chiến dịch năm 1954.	Cuốn sổ tay dân công Phú Thọ năm 1954	Bảo tàng Lịch sử Quốc gia	https://baotanglichsu.vn/vi/Articles/1002/74906/cuon-so-tay-cua-dan-cong-tinh-phu-tho-trong-chien-dich-djien-bien-phu-nam-1954.html	Bảo tàng Lịch sử Quốc gia, “Cuốn sổ tay dân công Phú Thọ năm 1954”, https://baotanglichsu.vn/vi/Articles/1002/74906/cuon-so-tay-cua-dan-cong-tinh-phu-tho-trong-chien-dich-djien-bien-phu-nam-1954.html	\N	HIGH	Tư liệu dùng để phân tích câu hỏi lịch sử trong bài học.	\N	APPROVED	67e0f392-33b0-446a-8f23-7c98b98c10c3	2026-10-22 08:01:25.017073+00	2026-10-22 08:01:25.047453+00	1
 0f6c1d7f-f75b-4593-80d1-812f3bd2925b	cd1b6dab-777a-40d4-833d-8e580df3949e	Hoạt động hậu cần vận tải	DOCUMENT	Tư liệu về tiểu đội xe thồ Phú Thọ góp phần tìm hiểu vai trò hậu cần trong chiến dịch Điện Biên Phủ.	Cuốn sổ tay dân công Phú Thọ năm 1954	Bảo tàng Lịch sử Quốc gia	https://baotanglichsu.vn/vi/Articles/1002/74906/cuon-so-tay-cua-dan-cong-tinh-phu-tho-trong-chien-dich-djien-bien-phu-nam-1954.html	Bảo tàng Lịch sử Quốc gia, “Cuốn sổ tay dân công Phú Thọ năm 1954”, https://baotanglichsu.vn/vi/Articles/1002/74906/cuon-so-tay-cua-dan-cong-tinh-phu-tho-trong-chien-dich-djien-bien-phu-nam-1954.html	\N	HIGH	Tư liệu dùng để phân tích câu hỏi lịch sử trong bài học.	\N	APPROVED	67e0f392-33b0-446a-8f23-7c98b98c10c3	2026-10-22 08:01:25.057489+00	2026-10-22 08:01:25.077695+00	1
+20000000-0000-0000-0000-000000000002	00000000-0000-0000-0000-000000000002	Đại Việt Sử Ký Toàn Thư ghi chép về Trưng Nữ Vương	HISTORICAL_TEXT	Trưng Trắc, Trưng Nhị là phụ nữ, hô một tiếng mà các quận Giao Chỉ, Cửu Chân, Nhật Nam, Hợp Phố cùng 65 thành ở Lĩnh Ngoại đều hưởng ứng, dựng nước xưng vương dễ như trở bàn tay.	Đại Việt Sử Ký Toàn Thư - Kỷ Trưng Nữ Vương	\N	\N	Ngô Sĩ Liên, Đại Việt Sử Ký Toàn Thư, Bản kỷ Quyển III	\N	\N	\N	\N	APPROVED	\N	2026-10-26 05:05:36.682805+00	2026-10-26 05:05:36.682805+00	0
+20000000-0000-0000-0000-000000000003	00000000-0000-0000-0000-000000000003	Bài thơ thần Nam Quốc Sơn Hà vang trên sông Như Nguyệt	HISTORICAL_TEXT	Nam quốc sơn hà Nam đế cư / Tiệt nhiên định phận tại thiên thư / Như hà nghịch lỗ lai xâm phạm / Nhữ đẳng hành khan thủ bại hư.	Việt Điện U Linh Tập & Đại Việt Sử Ký Toàn Thư	\N	\N	Lý Tế Xuyên, Việt Điện U Linh Tập & Khâm định Việt sử Thông giám Cương mục	\N	\N	\N	\N	APPROVED	\N	2026-10-26 05:05:36.682805+00	2026-10-26 05:05:36.682805+00	0
+20000000-0000-0000-0000-000000000004	00000000-0000-0000-0000-000000000004	Mệnh lệnh chuyển phương châm tác chiến chiến dịch Điện Biên Phủ	MILITARY_DOCUMENT	Quyết định hoãn giờ nổ súng ngày 26/01/1954, lệnh kéo pháo ra để chuẩn bị thế trận theo phương châm Đánh chắc, tiến chắc.	Hồi ký Điểm hẹn lịch sử	\N	\N	Đại tướng Võ Nguyên Giáp, Điểm hẹn lịch sử, NXB Quân đội Nhân dân	\N	\N	\N	\N	APPROVED	\N	2026-10-26 05:05:36.682805+00	2026-10-26 05:05:36.682805+00	0
 \.
 
 
@@ -914,6 +1136,48 @@ COPY public.flyway_schema_history (installed_rank, version, description, type, s
 18	18	animation scene versions checksum varchar	SQL	V18__animation_scene_versions_checksum_varchar.sql	1342132263	dauviet	2026-10-24 15:34:14.830121	173	t
 19	19	html webview animation	SQL	V19__html_webview_animation.sql	83345243	dauviet	2026-10-24 19:16:00.70998	79	t
 20	20	seed events lessons	SQL	V20__seed_events_lessons.sql	-1021215304	dauviet	2026-10-24 20:31:17.488664	64	t
+21	21	gamification energy	SQL	V21__gamification_energy.sql	-1812285519	dauviet	2026-10-26 12:05:35.933617	99	t
+22	22	event completion dossiers	SQL	V22__event_completion_dossiers.sql	1055264085	dauviet	2026-10-26 12:05:36.09197	179	t
+23	23	policy v2 seed audit	SQL	V23__policy_v2_seed_audit.sql	-1366191432	dauviet	2026-10-26 12:05:36.316205	19	t
+24	24	item rule engine v2	SQL	V24__item_rule_engine_v2.sql	1789577001	dauviet	2026-10-26 12:05:36.364362	80	t
+25	25	item rule v2 check extension	SQL	V25__item_rule_v2_check_extension.sql	1706926567	dauviet	2026-10-26 12:05:36.476969	17	t
+26	26	item rule revision check	SQL	V26__item_rule_revision_check.sql	-528507317	dauviet	2026-10-26 12:05:36.517671	23	t
+27	27	item rule revision schema	SQL	V27__item_rule_revision_schema.sql	-1454281262	dauviet	2026-10-26 12:05:36.56186	12	t
+28	28	historical dossier versions	SQL	V28__historical_dossier_versions.sql	-47918646	dauviet	2026-10-26 12:05:36.593565	42	t
+29	29	seed historical events lessons and map locations	SQL	V29__seed_historical_events_lessons_and_map_locations.sql	1544626299	dauviet	2026-10-26 12:05:36.659626	49	t
+30	30	patch lesson versions evidence snapshot	SQL	V30__patch_lesson_versions_evidence_snapshot.sql	-1540650906	dauviet	2026-10-26 12:05:36.748896	64	t
+\.
+
+
+--
+-- Data for Name: historical_dossier_versions; Type: TABLE DATA; Schema: public; Owner: -
+--
+
+COPY public.historical_dossier_versions (id, dossier_id, dossier_version, dossier_type, title, summary, description, source_json, asset_id, status, published_at, published_by) FROM stdin;
+ac199f48-3b8d-4a6f-a92d-f58c629b9eaa	d7c10000-0000-4000-8000-000000000001	1	PERSON	Ngô Quyền	Thủ lĩnh trận Bạch Đằng 938, mở kỷ nguyên độc lập.	Ngô Quyền (897–944), người Ái Châu. Năm 938 ông lợi dụng thủy triều trên sông Bạch Đằng phối hợp bãi cọc ngầm để đánh bại thủy quân Nam Hán, chấm dứt hơn một nghìn năm Bắc thuộc và lên ngôi vua năm 939.	{"source": {"title": "Đại Việt sử ký toàn thư", "author": "Ngô Sĩ Liên", "citation": "Ngoại kỷ, quyển 5, kỷ Ngô Quyền", "reliability": "HIGH"}}	\N	PUBLISHED	2026-10-26 05:05:36.122946+00	00000000-0000-4000-8000-000000000001
+a1cbde26-8b40-4580-b162-306a4b320906	d7c10000-0000-4000-8000-000000000002	1	PERSON	Trưng Trắc	Nữ tướng khởi xướng khởi nghĩa Hai Bà Trưng năm 40.	Trưng Trắc, con gái Lạc tướng Mê Linh. Năm 40 bà cùng em gái Trưng Nhị phất cờ khởi nghĩa chống ách đô hộ nhà Hán; 65 thành trì hưởng ứng, bà được suy tôn làm Trưng Nữ Vương.	{"source": {"title": "Đại Việt sử ký toàn thư", "author": "Ngô Sĩ Liên", "citation": "Ngoại kỷ, quyển 3, kỷ Trưng Nữ Vương", "reliability": "HIGH"}}	\N	PUBLISHED	2026-10-26 05:05:36.122946+00	00000000-0000-4000-8000-000000000001
+e7ab1af7-a0e8-4ac4-8d4f-23b394f4623f	d7c10000-0000-4000-8000-000000000003	1	PERSON	Trưng Nhị	Phó tướng đồng hành cùng Trưng Trắc trong khởi nghĩa năm 40.	Trưng Nhị, em gái Trưng Trắc, cùng chị lãnh đạo khởi nghĩa năm 40 từ Mê Linh đánh chiếm Luy Lâu — trung tâm cai trị của nhà Hán ở Giao Chỉ.	{"source": {"title": "Đại Việt sử ký toàn thư", "author": "Ngô Sĩ Liên", "citation": "Ngoại kỷ, quyển 3, kỷ Trưng Nữ Vương", "reliability": "HIGH"}}	\N	PUBLISHED	2026-10-26 05:05:36.122946+00	00000000-0000-4000-8000-000000000001
+1401182a-21ca-4935-a1a5-7d876867d652	d7c10000-0000-4000-8000-000000000004	1	PERSON	Lý Thái Tổ	Hoàng đế khai sáng nhà Lý, ban Chiếu dời đô năm 1010.	Lý Công Uẩn (974–1028) lên ngôi năm 1009 lập nhà Lý. Năm 1010 ông ban Chiếu dời đô, chuyển kinh đô từ Hoa Lư về Đại La và đổi tên thành Thăng Long — nền móng trung tâm chính trị lâu dài.	{"source": {"title": "Đại Việt sử ký toàn thư", "citation": "Bản kỷ, quyển 2, kỷ Lý Thái Tổ", "reliability": "HIGH"}}	\N	PUBLISHED	2026-10-26 05:05:36.122946+00	00000000-0000-4000-8000-000000000001
+712a5549-e073-49b1-92ac-230fd46cc74f	d7c10000-0000-4000-8000-000000000005	1	LOCATION	Sông Bạch Đằng	Trận địa thủy chiến quyết định năm 938.	Cửa sông Bạch Đằng (Quảng Ninh) có chế độ bán nhật triều mạnh — Ngô Quyền tận dụng nhịp con nước để giấu bãi cọc rồi chặn đánh khi triều rút.	{"source": {"title": "Viện Hàn lâm KHXH&NV", "citation": "Tư liệu địa hình cửa sông Bạch Đằng", "reliability": "MEDIUM"}}	\N	PUBLISHED	2026-10-26 05:05:36.122946+00	00000000-0000-4000-8000-000000000001
+a6036a15-6f21-44d5-a05f-dc88bf22787b	d7c10000-0000-4000-8000-000000000006	1	LOCATION	Mê Linh — Luy Lâu	Quê hương Hai Bà Trưng và trung tâm quyền lực Hán tại Giao Chỉ.	Mê Linh là đất phát khởi của khởi nghĩa năm 40; Luy Lâu là thủ phủ đô hộ của nhà Hán mà quân khởi nghĩa chiếm được.	{"source": {"title": "Ban quản lý di tích Mê Linh", "citation": "Di tích đền Hai Bà Trưng, Mê Linh", "reliability": "MEDIUM"}}	\N	PUBLISHED	2026-10-26 05:05:36.122946+00	00000000-0000-4000-8000-000000000001
+e64766fd-6fbe-4461-9527-923e879364d8	d7c10000-0000-4000-8000-000000000007	1	LOCATION	Hoa Lư — Đại La	Hai kinh đô đánh dấu bước chuyển trung tâm quyền lực năm 1010.	Hoa Lư hiểm trở nhưng chật hẹp; Đại La nằm giữa đồng bằng Bắc Bộ, thuận đường thủy — Lý Thái Tổ chọn đây làm kinh đô mới và đổi tên Thăng Long.	{"source": {"title": "Đại Việt sử ký toàn thư", "citation": "Bản kỷ, quyển 2, kỷ Lý Thái Tổ", "reliability": "HIGH"}}	\N	PUBLISHED	2026-10-26 05:05:36.122946+00	00000000-0000-4000-8000-000000000001
+e979cac5-053e-4013-97de-9590383ed3c3	d7c10000-0000-4000-8000-000000000008	1	ARTIFACT	Bãi cọc gỗ Bạch Đằng	Hiện vật khảo cổ chứng minh trận địa cọc ngầm.	Các bãi cọc gỗ khai quật tại Yên Giang – Vạn Yên có niên đại phù hợp giai đoạn trận Bạch Đằng 938, củng cố mô tả sử liệu về trận thủy chiến.	{"source": {"url": "https://baotanglichsuquocgia.vn", "title": "Bảo tàng Lịch sử Quốc gia", "citation": "Hiện vật bãi cọc Bạch Đằng (khai quật Yên Giang)", "reliability": "HIGH"}}	\N	PUBLISHED	2026-10-26 05:05:36.122946+00	00000000-0000-4000-8000-000000000001
+\.
+
+
+--
+-- Data for Name: historical_dossiers; Type: TABLE DATA; Schema: public; Owner: -
+--
+
+COPY public.historical_dossiers (id, canonical_code, dossier_type, title, summary, description, source_json, asset_id, status, dossier_version, created_by, created_at, updated_at, row_version) FROM stdin;
+d7c10000-0000-4000-8000-000000000001	ngo-quyen	PERSON	Ngô Quyền	Thủ lĩnh trận Bạch Đằng 938, mở kỷ nguyên độc lập.	Ngô Quyền (897–944), người Ái Châu. Năm 938 ông lợi dụng thủy triều trên sông Bạch Đằng phối hợp bãi cọc ngầm để đánh bại thủy quân Nam Hán, chấm dứt hơn một nghìn năm Bắc thuộc và lên ngôi vua năm 939.	{"source": {"title": "Đại Việt sử ký toàn thư", "author": "Ngô Sĩ Liên", "citation": "Ngoại kỷ, quyển 5, kỷ Ngô Quyền", "reliability": "HIGH"}}	\N	PUBLISHED	1	00000000-0000-4000-8000-000000000001	2026-10-26 05:05:36.122946+00	2026-10-26 05:05:36.122946+00	0
+d7c10000-0000-4000-8000-000000000002	trung-trac	PERSON	Trưng Trắc	Nữ tướng khởi xướng khởi nghĩa Hai Bà Trưng năm 40.	Trưng Trắc, con gái Lạc tướng Mê Linh. Năm 40 bà cùng em gái Trưng Nhị phất cờ khởi nghĩa chống ách đô hộ nhà Hán; 65 thành trì hưởng ứng, bà được suy tôn làm Trưng Nữ Vương.	{"source": {"title": "Đại Việt sử ký toàn thư", "author": "Ngô Sĩ Liên", "citation": "Ngoại kỷ, quyển 3, kỷ Trưng Nữ Vương", "reliability": "HIGH"}}	\N	PUBLISHED	1	00000000-0000-4000-8000-000000000001	2026-10-26 05:05:36.122946+00	2026-10-26 05:05:36.122946+00	0
+d7c10000-0000-4000-8000-000000000003	trung-nhi	PERSON	Trưng Nhị	Phó tướng đồng hành cùng Trưng Trắc trong khởi nghĩa năm 40.	Trưng Nhị, em gái Trưng Trắc, cùng chị lãnh đạo khởi nghĩa năm 40 từ Mê Linh đánh chiếm Luy Lâu — trung tâm cai trị của nhà Hán ở Giao Chỉ.	{"source": {"title": "Đại Việt sử ký toàn thư", "author": "Ngô Sĩ Liên", "citation": "Ngoại kỷ, quyển 3, kỷ Trưng Nữ Vương", "reliability": "HIGH"}}	\N	PUBLISHED	1	00000000-0000-4000-8000-000000000001	2026-10-26 05:05:36.122946+00	2026-10-26 05:05:36.122946+00	0
+d7c10000-0000-4000-8000-000000000004	ly-thai-to	PERSON	Lý Thái Tổ	Hoàng đế khai sáng nhà Lý, ban Chiếu dời đô năm 1010.	Lý Công Uẩn (974–1028) lên ngôi năm 1009 lập nhà Lý. Năm 1010 ông ban Chiếu dời đô, chuyển kinh đô từ Hoa Lư về Đại La và đổi tên thành Thăng Long — nền móng trung tâm chính trị lâu dài.	{"source": {"title": "Đại Việt sử ký toàn thư", "citation": "Bản kỷ, quyển 2, kỷ Lý Thái Tổ", "reliability": "HIGH"}}	\N	PUBLISHED	1	00000000-0000-4000-8000-000000000001	2026-10-26 05:05:36.122946+00	2026-10-26 05:05:36.122946+00	0
+d7c10000-0000-4000-8000-000000000005	song-bach-dang	LOCATION	Sông Bạch Đằng	Trận địa thủy chiến quyết định năm 938.	Cửa sông Bạch Đằng (Quảng Ninh) có chế độ bán nhật triều mạnh — Ngô Quyền tận dụng nhịp con nước để giấu bãi cọc rồi chặn đánh khi triều rút.	{"source": {"title": "Viện Hàn lâm KHXH&NV", "citation": "Tư liệu địa hình cửa sông Bạch Đằng", "reliability": "MEDIUM"}}	\N	PUBLISHED	1	00000000-0000-4000-8000-000000000001	2026-10-26 05:05:36.122946+00	2026-10-26 05:05:36.122946+00	0
+d7c10000-0000-4000-8000-000000000006	me-linh	LOCATION	Mê Linh — Luy Lâu	Quê hương Hai Bà Trưng và trung tâm quyền lực Hán tại Giao Chỉ.	Mê Linh là đất phát khởi của khởi nghĩa năm 40; Luy Lâu là thủ phủ đô hộ của nhà Hán mà quân khởi nghĩa chiếm được.	{"source": {"title": "Ban quản lý di tích Mê Linh", "citation": "Di tích đền Hai Bà Trưng, Mê Linh", "reliability": "MEDIUM"}}	\N	PUBLISHED	1	00000000-0000-4000-8000-000000000001	2026-10-26 05:05:36.122946+00	2026-10-26 05:05:36.122946+00	0
+d7c10000-0000-4000-8000-000000000007	hoa-lu-dai-la	LOCATION	Hoa Lư — Đại La	Hai kinh đô đánh dấu bước chuyển trung tâm quyền lực năm 1010.	Hoa Lư hiểm trở nhưng chật hẹp; Đại La nằm giữa đồng bằng Bắc Bộ, thuận đường thủy — Lý Thái Tổ chọn đây làm kinh đô mới và đổi tên Thăng Long.	{"source": {"title": "Đại Việt sử ký toàn thư", "citation": "Bản kỷ, quyển 2, kỷ Lý Thái Tổ", "reliability": "HIGH"}}	\N	PUBLISHED	1	00000000-0000-4000-8000-000000000001	2026-10-26 05:05:36.122946+00	2026-10-26 05:05:36.122946+00	0
+d7c10000-0000-4000-8000-000000000008	coc-go-bach-dang	ARTIFACT	Bãi cọc gỗ Bạch Đằng	Hiện vật khảo cổ chứng minh trận địa cọc ngầm.	Các bãi cọc gỗ khai quật tại Yên Giang – Vạn Yên có niên đại phù hợp giai đoạn trận Bạch Đằng 938, củng cố mô tả sử liệu về trận thủy chiến.	{"source": {"url": "https://baotanglichsuquocgia.vn", "title": "Bảo tàng Lịch sử Quốc gia", "citation": "Hiện vật bãi cọc Bạch Đằng (khai quật Yên Giang)", "reliability": "HIGH"}}	\N	PUBLISHED	1	00000000-0000-4000-8000-000000000001	2026-10-26 05:05:36.122946+00	2026-10-26 05:05:36.122946+00	0
 \.
 
 
@@ -922,7 +1186,6 @@ COPY public.flyway_schema_history (installed_rank, version, description, type, s
 --
 
 COPY public.historical_events (id, slug, title, era, period, start_year, summary, description, location, cover_asset_key, tags, status, created_at, updated_at, row_version) FROM stdin;
-00000000-0000-0000-0000-000000000001	bach-dang-938	Đại Chiến Bạch Đằng 938	Thời Ngô - Đinh - Tiền Lê (938 - 1009)	Mùa Đông 938 SCN	938	Trận thủy chiến kinh điển cắm cọc gỗ lim bịt sắt lợi dụng con nước triều, tiêu diệt hoàn toàn thủy quân Nam Hán của Lưu Hoằng Tháo, chính thức chấm dứt hơn 1.000 năm Bắc thuộc.	Năm 938, Ngô Quyền lợi dụng địa thế cửa sông Bạch Đằng và quy luật thủy triều để bố trí trận địa cọc ngầm bịt sắt, nhử hạm đội Nam Hán vào trận địa rồi tiêu diệt khi nước rút. Chiến thắng mở ra kỷ nguyên độc lập lâu dài cho Việt Nam.	Cửa sông Bạch Đằng, Quảng Ninh - Hải Phòng	events/bach-dang-938/hero.jpg	{ngo-quyen,thuy-chien,bac-thuoc,bach-dang}	PUBLISHED	2026-10-14 18:08:41.141337+00	2026-10-14 18:08:41.141337+00	0
 c77df9a0-ab5f-42f2-aa87-6f438c20673b	history-dong-son	Văn hóa Đông Sơn và trống đồng	Thời đại kim khí	Khoảng thế kỷ VII TCN – đầu Công nguyên	-700	Khảo cổ học về văn hóa Đông Sơn cho thấy trình độ đúc đồng, đời sống cư dân và nghệ thuật trang trí phát triển ở Bắc Bộ và Bắc Trung Bộ cổ đại.	Khảo cổ học về văn hóa Đông Sơn cho thấy trình độ đúc đồng, đời sống cư dân và nghệ thuật trang trí phát triển ở Bắc Bộ và Bắc Trung Bộ cổ đại. Tên văn hóa Đông Sơn bắt nguồn từ khu vực Đông Sơn ở Thanh Hóa, nơi có các phát hiện đồ đồng năm 1924. Trống đồng Ngọc Lũ là hiện vật tiêu biểu của văn hóa Đông Sơn; hoa văn có hình mặt trời, chim và cảnh sinh hoạt. Di chỉ Đông Sơn có nhiều nhóm hiện vật: công cụ sản xuất, vũ khí, đồ dùng, nhạc khí và đồ trang sức. Các hình khắc trên trống và hiện vật góp phần nghiên cứu đời sống vật chất và tinh thần của cư dân Đông Sơn.	Thanh Hóa, lưu vực sông Mã	\N	{lich-su-viet-nam,tu-lieu-co-nguon,thời-đại-kim-khí}	PUBLISHED	2026-10-22 08:00:15.523447+00	2026-10-22 08:00:15.550941+00	1
 29780b5e-13cd-45ef-8f10-21328cfd65d9	history-hai-ba-trung	Khởi nghĩa Hai Bà Trưng (40–43)	Thời Bắc thuộc	Năm 40–43	40	Hai Bà Trưng lãnh đạo cuộc khởi nghĩa năm 40 chống chính quyền Đông Hán; phong trào tồn tại đến năm 43.	Hai Bà Trưng lãnh đạo cuộc khởi nghĩa năm 40 chống chính quyền Đông Hán; phong trào tồn tại đến năm 43. Năm 40, Trưng Trắc và Trưng Nhị dẫn đầu cuộc nổi dậy chống sự cai trị của nhà Đông Hán. Phong trào Hai Bà Trưng lan rộng ở khu vực đồng bằng sông Hồng và các địa phương lân cận. Trưng Trắc và Trưng Nhị là hai nhân vật trung tâm trong cuộc khởi nghĩa vào thế kỷ I. Cuộc khởi nghĩa Hai Bà Trưng được Bảo tàng Lịch sử Quốc gia xác định trong giai đoạn 40–43.	Vùng đồng bằng sông Hồng	\N	{lich-su-viet-nam,tu-lieu-co-nguon,thời-bắc-thuộc}	PUBLISHED	2026-10-22 08:00:16.141414+00	2026-10-22 08:00:16.152644+00	1
 1f01f2e5-ee07-4b86-a534-061dcad8134f	history-ba-trieu	Khởi nghĩa Bà Triệu năm 248	Thời Bắc thuộc	Năm 248	248	Cuộc khởi nghĩa do Bà Triệu lãnh đạo năm 248 là một dấu mốc trong các phong trào đấu tranh giành quyền tự chủ ở thế kỷ III.	Cuộc khởi nghĩa do Bà Triệu lãnh đạo năm 248 là một dấu mốc trong các phong trào đấu tranh giành quyền tự chủ ở thế kỷ III. Bảo tàng Lịch sử Quốc gia ghi nhận cuộc khởi nghĩa Bà Triệu chống nhà Ngô năm 248. Bà Triệu là nhân vật lịch sử được nhắc đến trong chuỗi đấu tranh giành quyền tự chủ thế kỷ I–X. Cuộc khởi nghĩa năm 248 nằm trong tiến trình đấu tranh chống các triều đại phong kiến phương Bắc. Cuộc khởi nghĩa Hai Bà Trưng diễn ra năm 40–43, trước phong trào Bà Triệu năm 248.	Vùng Thanh Hóa	\N	{lich-su-viet-nam,tu-lieu-co-nguon,thời-bắc-thuộc}	PUBLISHED	2026-10-22 08:00:22.516482+00	2026-10-22 08:00:22.527079+00	1
@@ -939,6 +1202,11 @@ f79946dd-387f-4e8c-b977-159d1186ee2d	history-hoi-an	Hội An – thương cảng
 55ce75e7-79fd-4995-9a4f-4032151cd541	history-kinh-thanh-hue	Kinh đô Huế thời Nguyễn (1802–1945)	Triều Nguyễn	1802–1945	1802	Huế là kinh đô triều Nguyễn từ năm 1802 đến năm 1945, kết hợp các thiết chế chính trị, nghi lễ và cảnh quan sông Hương.	Huế là kinh đô triều Nguyễn từ năm 1802 đến năm 1945, kết hợp các thiết chế chính trị, nghi lễ và cảnh quan sông Hương. Năm 1802, Huế được xác lập làm kinh đô dưới triều Nguyễn. Sông Hương là yếu tố quan trọng của cảnh quan kinh thành Huế và hệ thống di tích liên quan. Quần thể Huế có khu Kinh thành, Hoàng thành và Tử Cấm Thành, gắn với thiết chế cung đình nhà Nguyễn. Trong khu vực Thế Miếu có chín đỉnh đồng được đúc trong giai đoạn 1835–1839.	Quần thể di tích Cố đô Huế	\N	{lich-su-viet-nam,tu-lieu-co-nguon,triều-nguyễn}	PUBLISHED	2026-10-22 08:00:25.881966+00	2026-10-22 08:00:25.912578+00	1
 cd1b6dab-777a-40d4-833d-8e580df3949e	history-dien-bien-phu-1954	Chiến dịch Điện Biên Phủ năm 1954	Lịch sử thế kỷ XX	13/3–7/5/1954	1954	Chiến dịch Điện Biên Phủ diễn ra từ ngày 13/3 đến 7/5/1954, là một bước ngoặt quan trọng trong cuộc chiến tranh Đông Dương.	Chiến dịch Điện Biên Phủ diễn ra từ ngày 13/3 đến 7/5/1954, là một bước ngoặt quan trọng trong cuộc chiến tranh Đông Dương. Bảo tàng Lịch sử Quốc gia giới thiệu chiến dịch Điện Biên Phủ kéo dài từ ngày 13/3 đến ngày 7/5/1954. Công trình của Ivan Cadeau sử dụng cả hồ sơ lưu trữ của Bộ Quốc phòng Pháp để nghiên cứu chiến dịch Điện Biên Phủ. Bảo tàng Lịch sử Quốc gia lưu giữ cuốn sổ tay của một dân công vận tải tham gia chiến dịch năm 1954. Tư liệu về tiểu đội xe thồ Phú Thọ góp phần tìm hiểu vai trò hậu cần trong chiến dịch Điện Biên Phủ.	Điện Biên Phủ, Tây Bắc Việt Nam	\N	{lich-su-viet-nam,tu-lieu-co-nguon,lịch-sử-thế-kỷ-xx}	PUBLISHED	2026-10-22 08:01:24.837384+00	2026-10-22 08:01:24.862417+00	1
 e350ab90-0d83-47d1-972c-8d14e37dc80d	khoi-nghia-hai-ba-trung	Khởi nghĩa Hai Bà Trưng	Thời Bắc thuộc – nhà Đông Hán	Năm 40 – 43	40	Năm 40, Trưng Trắc và Trưng Nhị lãnh đạo cuộc khởi nghĩa chống lại ách đô hộ của nhà Đông Hán. Nghĩa quân nhanh chóng giành được nhiều thắng lợi và thiết lập chính quyền tự chủ trong một thời gian ngắn. Cuộc khởi nghĩa trở thành biểu tượng của tinh thần yêu nước, ý chí độc lập và vai trò của phụ nữ trong lịch sử Việt Nam.	**Bối cảnh lịch sử**\n\nĐầu thế kỷ I, vùng đất Việt cổ đang chịu sự cai trị của nhà Đông Hán. Chính sách cai trị của chính quyền đô hộ làm gia tăng những bất bình trong cư dân bản địa, tạo điều kiện cho các phong trào chống đối phát triển.\n\n**Diễn biến cuộc khởi nghĩa**\n\nNăm 40, hai chị em Trưng Trắc và Trưng Nhị phát động khởi nghĩa tại Hát Môn. Với sự hưởng ứng của nhiều thủ lĩnh và nhân dân địa phương, nghĩa quân nhanh chóng mở rộng lực lượng, giành quyền kiểm soát nhiều thành trì và đánh đuổi bộ máy cai trị của nhà Đông Hán tại Giao Chỉ.\n\nSau những thắng lợi ban đầu, Trưng Trắc được suy tôn làm vua, thường được gọi là Trưng Vương. Chính quyền tự chủ được thiết lập trong một thời gian ngắn.\n\nNăm 42, nhà Đông Hán cử Mã Viện chỉ huy quân đội tiến xuống đàn áp cuộc khởi nghĩa. Đến năm 43, cuộc kháng chiến thất bại và chính quyền đô hộ được khôi phục.\n\n**Ý nghĩa lịch sử**\n\nKhởi nghĩa Hai Bà Trưng là một trong những cuộc đấu tranh tiêu biểu chống ách đô hộ phương Bắc trong lịch sử Việt Nam.\n\nCuộc khởi nghĩa thể hiện khát vọng độc lập, ý chí tự chủ của cư dân Việt cổ, đồng thời khẳng định vai trò lãnh đạo quan trọng của phụ nữ trong lịch sử dân tộc.\n\nHình tượng Hai Bà Trưng trở thành biểu tượng của tinh thần bất khuất và được tưởng nhớ qua nhiều thế hệ.	Hát Môn, Mê Linh và vùng Giao Chỉ (miền Bắc Việt Nam ngày nay)	\N	{"hai-ba-trung, khoi-nghia, bac-thuoc, lich-su-viet-nam"}	ARCHIVED	2026-10-17 13:20:09.829037+00	2026-10-22 13:14:25.06925+00	2
+00000000-0000-0000-0000-000000000005	hung-vuong-van-lang	Thời Đại Hùng Vương - Dựng Nước Văn Lang	Thời Hùng Vương - Văn Lang (~2879 - 258 TCN)	Khoảng thế kỷ VII TCN	-700	Thời kỳ dựng nước đầu tiên của dân tộc Việt Nam với 18 đời vua Hùng, đặt nền móng cho nền văn minh sông Hồng.	Mười tám đời vua Hùng nối tiếp nhau trị vì non sông, khai hoang lập ấp, định đô tại Phong Châu (Phú Thọ ngày nay), sáng tạo nền văn hóa Đông Sơn rực rỡ với trống đồng thiêng liêng.	Khu di tích lịch sử Đền Hùng, Nghĩa Lĩnh, Phong Châu, Phú Thọ	events/hung-vuong/hero.jpg	{hung-vuong,van-lang,phong-chau,trong-dong,den-hung}	PUBLISHED	2026-10-26 05:05:36.682805+00	2026-10-26 05:05:36.682805+00	0
+00000000-0000-0000-0000-000000000002	khoi-nghia-hai-ba-trung-40	Khởi Nghĩa Hai Bà Trưng (Năm 40)	Thời kỳ Bắc thuộc lần 1	Mùa Xuân năm 40 SCN	40	Cuộc khởi nghĩa vũ trang đầu tiên của người Việt chống ách đô hộ của nhà Đông Hán, do Trưng Trắc và Trưng Nhị lãnh đạo, giải phóng Mê Linh và 65 thành trì.	Bất bình trước chính sách đồng hóa tàn bạo và sưu thuế hà khắc của viên Thái thú Tô Định, cùng thù riêng khi Thi Sách bị sát hại, Trưng Trắc cùng em gái là Trưng Nhị dựng cờ khởi nghĩa tại cửa sông Hát. Khởi nghĩa được nhân dân khắp nơi hưởng ứng nhiệt liệt, nhanh chóng quét sạch chính quyền đô hộ, lập nên nền độc lập tự chủ kéo dài gần 3 năm.	Hát Môn (Phúc Thọ, Hà Nội) & Mê Linh	events/hai-ba-trung-40/hero.jpg	{hai-ba-trung,khoi-nghia,me-linh,bac-thuoc}	PUBLISHED	2026-10-26 05:05:36.682805+00	2026-10-26 05:05:36.682805+00	0
+00000000-0000-0000-0000-000000000001	bach-dang-938	Đại Chiến Bạch Đằng 938	Thời Ngô - Đinh - Tiền Lê (938 - 1009)	Mùa Đông 938 SCN	938	Trận thủy chiến kinh điển cắm cọc gỗ lim bịt sắt lợi dụng con nước triều, tiêu diệt hoàn toàn thủy quân Nam Hán của Lưu Hoằng Tháo, chính thức chấm dứt hơn 1.000 năm Bắc thuộc.	Năm 938, Ngô Quyền lợi dụng địa thế cửa sông Bạch Đằng và quy luật thủy triều để bố trí trận địa cọc ngầm bịt sắt, nhử hạm đội Nam Hán vào trận địa rồi tiêu diệt khi nước rút. Chiến thắng mở ra kỷ nguyên độc lập lâu dài cho Việt Nam.	Cửa sông Bạch Đằng, Quảng Ninh - Hải Phòng	events/bach-dang-938/hero.jpg	{ngo-quyen,thuy-chien,bac-thuoc,bach-dang}	PUBLISHED	2026-10-14 18:08:41.141337+00	2026-10-26 05:05:36.682805+00	0
+00000000-0000-0000-0000-000000000003	chien-thang-nhu-nguyet-1077	Chiến Thắng Như Nguyệt 1077	Thời nhà Lý (1009 - 1225)	Mùa Xuân năm 1077	1077	Trận quyết chiến chiến lược trên sông Như Nguyệt do Thái úy Lý Thường Kiệt chỉ huy, chặn đứng hoàn toàn 10 vạn đại quân xâm lược Tống và bảo vệ vững chắc Thăng Long.	Năm 1077, quân Tống do Quách Quỳ chỉ huy tràn vào Đại Việt. Lý Thường Kiệt đã chủ động lập phòng tuyến kiên cố men bờ nam sông Như Nguyệt (sông Cầu), dùng cọc tre, lũy đất tạo thế phòng ngự vững chắc. Kết hợp chiến tranh tâm lý với bài thơ thần Nam quốc sơn hà vang dội trong đêm, quân ta mở đòn phản công chớp nhoáng khiến địch tan rã, buộc phải chấp nhận giảng hòa rút quân.	Phòng tuyến sông Như Nguyệt (sông Cầu, Bắc Ninh)	events/nhu-nguyet-1077/hero.jpg	{ly-thuong-kiet,nhu-nguyet,nha-ly,nam-quoc-son-ha}	PUBLISHED	2026-10-26 05:05:36.682805+00	2026-10-26 05:05:36.682805+00	0
+00000000-0000-0000-0000-000000000004	chien-dich-dien-bien-phu-1954	Chiến Dịch Điện Biên Phủ 1954	Thời kỳ Kháng chiến chống Pháp (1945 - 1954)	13/03/1954 - 07/05/1954	1954	Chiến thắng lừng lẫy năm châu, chấn động địa cầu, đập tan tập đoàn cứ điểm quân sự mạnh nhất Đông Dương của Pháp, quyết định thắng lợi trên bàn đàm phán Hiệp định Genève.	Tập đoàn cứ điểm Điện Biên Phủ gồm 49 cứ điểm được quân Pháp coi là pháo đài bất khả xâm phạm. Dưới sự chỉ huy sáng suốt của Đại tướng Võ Nguyên Giáp, quân và dân ta đã thay đổi phương châm từ đánh nhanh thắng nhanh sang đánh chắc tiến chắc, đào hàng trăm km chiến hào siết chặt vòng vây, tiêu diệt hoàn toàn quân viễn chinh Pháp sau 56 ngày đêm chiến đấu kiên cường.	Thung lũng Điện Biên Phủ, tỉnh Lai Châu (nay thuộc Điện Biên)	events/dien-bien-phu-1954/hero.jpg	{dien-bien-phu,vo-nguyen-giap,khang-chien-phap,muong-thanh,1954}	PUBLISHED	2026-10-26 05:05:36.682805+00	2026-10-26 05:05:36.682805+00	0
 \.
 
 
@@ -954,6 +1222,7 @@ f8f266fb-33df-42db-9e6c-c52fddc213ca	9eb81b85-1562-457d-8bfa-9a98d06d6d50	4a16ef
 f391f059-ec3d-45ef-b744-a005ea6db5d3	9eb81b85-1562-457d-8bfa-9a98d06d6d50	8e3adfce-e68d-44e7-9aca-3fed17847537	SUBMIT_ACTIVITY	0796c507f21d781a2aae8e33be532d0b637bfc246fecabe88d408936cd717538	{"next": {"stageId": "stage-map", "activityId": "explore-real-sites", "activityType": null, "learnerConfig": null}, "status": "ACCEPTED", "progress": {"totalRequired": 8, "completedRequired": 1}, "completion": {"detail": {"totalRequired": 8, "missingStageIds": ["stage-map", "stage-2", "stage-3", "stage-4", "stage-5", "stage-reflection"], "completedRequired": 1}, "reason": "NOT_COMPLETE", "complete": false}, "evaluation": {"output": {"viewed": true}, "outcome": "COMPLETED", "completed": true, "feedbackCode": null}, "activityCompleted": true}	200	2026-10-22 12:27:01.198812+00	2026-10-23 12:27:01.198812+00
 b5acfc01-05d6-4bdc-965c-44b560e90989	9eb81b85-1562-457d-8bfa-9a98d06d6d50	4b4c807d-f104-4ee3-9f71-11c05ed540d8	SUBMIT_ACTIVITY	90aa57e6b4cef16b3a28cb28ade8695edb1a311a9664c11f6a38aa80bf49fe42	{"next": {"stageId": "stage-2", "activityId": "select-evidence", "activityType": null, "learnerConfig": null}, "status": "ACCEPTED", "progress": {"totalRequired": 8, "completedRequired": 2}, "completion": {"detail": {"totalRequired": 8, "missingStageIds": ["stage-2", "stage-3", "stage-4", "stage-5", "stage-reflection"], "completedRequired": 2}, "reason": "NOT_COMPLETE", "complete": false}, "evaluation": {"output": {"discoveredCount": 1, "discoveredMarkerIds": ["site-1"]}, "outcome": "COMPLETED", "completed": true, "feedbackCode": null}, "activityCompleted": true}	200	2026-10-22 12:27:03.540205+00	2026-10-23 12:27:03.540205+00
 6a9250e9-1b1b-4904-9014-75b32fc4ec42	9eb81b85-1562-457d-8bfa-9a98d06d6d50	a9095484-6b71-4848-ae34-d9111d577d84	SUBMIT_ACTIVITY	ab58986cdb3c5bb04a4d34753dff7171ea1ced50ff17e4472d368a64a00efc08	{"next": {"stageId": "stage-3", "activityId": "match-facts", "activityType": null, "learnerConfig": null}, "status": "ACCEPTED", "progress": {"totalRequired": 8, "completedRequired": 3}, "completion": {"detail": {"totalRequired": 8, "missingStageIds": ["stage-3", "stage-4", "stage-5", "stage-reflection"], "completedRequired": 3}, "reason": "NOT_COMPLETE", "complete": false}, "evaluation": {"output": {"selectedCount": 2, "selectedEvidenceIds": ["cc881f27-ae9c-4340-9eab-1ca7ba562ff8", "ad724d89-9ba7-470e-8f97-d82db6351054"]}, "outcome": "COMPLETED", "completed": true, "feedbackCode": "COMPLETED"}, "activityCompleted": true}	200	2026-10-22 12:27:10.857515+00	2026-10-23 12:27:10.857515+00
+0a124b0d-e9c7-4c82-aff6-bf0e009e23ea	9eb81b85-1562-457d-8bfa-9a98d06d6d50	73e3f16c-0abe-4a7e-a003-9b7ef862edd1	SUBMIT_ACTIVITY	d94aa19302dad124ad3ab8c034f64dc2158ded253582032165a80672e4cfb2e4	{"next": null, "status": "ACCEPTED", "progress": {"totalRequired": 7, "completedRequired": 7}, "completion": {"detail": {"totalRequired": 7, "completedRequired": 7}, "reason": "ALL_REQUIRED_STAGES", "complete": true}, "evaluation": {"output": {"text": "123131232312"}, "outcome": "COMPLETED", "completed": true, "feedbackCode": null}, "activityCompleted": true}	200	2026-10-22 15:05:35.614937+00	2026-10-23 15:05:35.614937+00
 45fef9c2-17b4-42b0-9440-dad2a3d6b069	9eb81b85-1562-457d-8bfa-9a98d06d6d50	9ab326c2-d641-4d02-8358-8fc1fb871342	SUBMIT_ACTIVITY	ebaf338f4f0623cddd9c9190b322117eb31c2c272fcf73babbfa5c33cef476c3	{"next": {"stageId": "stage-2", "activityId": "select-evidence", "activityType": null, "learnerConfig": null}, "status": "ACCEPTED", "progress": {"totalRequired": 7, "completedRequired": 2}, "completion": {"detail": {"totalRequired": 7, "missingStageIds": ["stage-2", "stage-3", "stage-4", "stage-5"], "completedRequired": 2}, "reason": "NOT_COMPLETE", "complete": false}, "evaluation": {"output": {"discoveredCount": 3, "discoveredMarkerIds": ["site-1", "site-2", "site-3"]}, "outcome": "COMPLETED", "completed": true, "feedbackCode": null}, "activityCompleted": true}	200	2026-10-22 08:12:26.567107+00	2026-10-23 08:12:26.567107+00
 553eed69-8a0a-4c53-b55c-8a34b8a6282b	9eb81b85-1562-457d-8bfa-9a98d06d6d50	4439f0fe-9813-44cd-b1df-19c06c1bb968	SUBMIT_ACTIVITY	7c0dfc0a1722ad28d9c428221205298846042203ff67adaf0a6aa3f70ddc1b1f	{"next": {"stageId": "stage-3", "activityId": "match-facts", "activityType": null, "learnerConfig": null}, "status": "ACCEPTED", "progress": {"totalRequired": 7, "completedRequired": 3}, "completion": {"detail": {"totalRequired": 7, "missingStageIds": ["stage-3", "stage-4", "stage-5"], "completedRequired": 3}, "reason": "NOT_COMPLETE", "complete": false}, "evaluation": {"output": {"selectedCount": 2, "selectedEvidenceIds": ["f60b9efb-74e8-4884-b20e-8fe5987a00bb", "40bc0b6d-e89f-458f-90a6-c4745f486564"]}, "outcome": "COMPLETED", "completed": true, "feedbackCode": "COMPLETED"}, "activityCompleted": true}	200	2026-10-22 08:12:35.343212+00	2026-10-23 08:12:35.343212+00
 552671f8-34b7-4fcf-bee1-11c48cb8647d	9eb81b85-1562-457d-8bfa-9a98d06d6d50	0da2ee9b-b964-4838-9a95-d41cb8b9587c	SUBMIT_ACTIVITY	489d78e67ef0249dc0d0ab63b92b884fafc4131cc8ccbc86186cefe6fbcb1d72	{"next": {"stageId": "stage-3", "activityId": "match-facts", "activityType": "MATCHING", "learnerConfig": {"leftItems": [{"id": "left-0", "label": "Thành đá lớn"}, {"id": "left-1", "label": "Vị trí giữa hai sông"}, {"id": "left-2", "label": "Giá trị di sản đô thành"}], "rightItems": [{"id": "right-1", "label": "Di tích nằm trong cảnh quan giữa sông Mã và sông Bưởi ở Thanh Hóa."}, {"id": "right-2", "label": "UNESCO ghi danh Thành nhà Hồ năm 2011, đánh giá cao kỹ thuật kiến trúc và quy hoạch đô thành."}, {"id": "right-0", "label": "Nhiều đoạn thành được xây bằng các khối đá vôi kích thước lớn, phản ánh kỹ thuật xây dựng cuối thế kỷ XIV."}]}}, "status": "ACCEPTED", "progress": {"totalRequired": 7, "completedRequired": 3}, "completion": {"detail": {"totalRequired": 7, "missingStageIds": ["stage-3", "stage-4", "stage-5"], "completedRequired": 3}, "reason": "NOT_COMPLETE", "complete": false}, "evaluation": {"output": {"correct": false, "matchedCount": 3}, "outcome": "INCORRECT", "completed": false, "feedbackCode": null}, "activityCompleted": false}	200	2026-10-22 08:12:44.630977+00	2026-10-23 08:12:44.630977+00
@@ -1018,7 +1287,6 @@ c5c19452-dd45-4257-a4da-3f1df1af8fa3	9eb81b85-1562-457d-8bfa-9a98d06d6d50	d4130d
 4fab3072-f55e-46e0-a958-de313ebf6fa8	9eb81b85-1562-457d-8bfa-9a98d06d6d50	48c8e100-11e6-4352-b84c-d4fce08f6eb7	SUBMIT_ACTIVITY	8ebcf990391a1e3c2b7bbd9696467ec8c7fd4042ee48fb51fc0ac816f6f1815b	{"next": {"stageId": "stage-3", "activityId": "match-facts", "activityType": "MATCHING", "learnerConfig": {"leftItems": [{"id": "left-0", "label": "Không gian vùng đồng bằng sông Hồng"}, {"id": "left-1", "label": "Vai trò của Trưng Trắc và Trưng Nhị"}, {"id": "left-2", "label": "Diễn biến đến năm 43"}], "rightItems": [{"id": "right-1", "label": "Trưng Trắc và Trưng Nhị là hai nhân vật trung tâm trong cuộc khởi nghĩa vào thế kỷ I."}, {"id": "right-2", "label": "Cuộc khởi nghĩa Hai Bà Trưng được Bảo tàng Lịch sử Quốc gia xác định trong giai đoạn 40–43."}, {"id": "right-0", "label": "Phong trào Hai Bà Trưng lan rộng ở khu vực đồng bằng sông Hồng và các địa phương lân cận."}]}}, "status": "ACCEPTED", "progress": {"totalRequired": 6, "completedRequired": 2}, "completion": {"detail": {"totalRequired": 6, "missingStageIds": ["stage-3", "stage-4", "stage-5"], "completedRequired": 2}, "reason": "NOT_COMPLETE", "complete": false}, "evaluation": {"output": {"correct": false, "matchedCount": 3}, "outcome": "INCORRECT", "completed": false, "feedbackCode": null}, "activityCompleted": false}	200	2026-10-22 14:28:17.129953+00	2026-10-23 14:28:17.129953+00
 fe079bb2-9c36-4610-a213-27d148a05cf6	9eb81b85-1562-457d-8bfa-9a98d06d6d50	38ff7bb4-bf54-4da6-92a1-633faeb0fb30	SUBMIT_ACTIVITY	8ebcf990391a1e3c2b7bbd9696467ec8c7fd4042ee48fb51fc0ac816f6f1815b	{"next": {"stageId": "stage-3", "activityId": "match-facts", "activityType": "MATCHING", "learnerConfig": {"leftItems": [{"id": "left-0", "label": "Không gian vùng đồng bằng sông Hồng"}, {"id": "left-1", "label": "Vai trò của Trưng Trắc và Trưng Nhị"}, {"id": "left-2", "label": "Diễn biến đến năm 43"}], "rightItems": [{"id": "right-1", "label": "Trưng Trắc và Trưng Nhị là hai nhân vật trung tâm trong cuộc khởi nghĩa vào thế kỷ I."}, {"id": "right-2", "label": "Cuộc khởi nghĩa Hai Bà Trưng được Bảo tàng Lịch sử Quốc gia xác định trong giai đoạn 40–43."}, {"id": "right-0", "label": "Phong trào Hai Bà Trưng lan rộng ở khu vực đồng bằng sông Hồng và các địa phương lân cận."}]}}, "status": "ACCEPTED", "progress": {"totalRequired": 6, "completedRequired": 2}, "completion": {"detail": {"totalRequired": 6, "missingStageIds": ["stage-3", "stage-4", "stage-5"], "completedRequired": 2}, "reason": "NOT_COMPLETE", "complete": false}, "evaluation": {"output": {"correct": false, "matchedCount": 3}, "outcome": "INCORRECT", "completed": false, "feedbackCode": null}, "activityCompleted": false}	200	2026-10-22 14:28:17.647078+00	2026-10-23 14:28:17.647078+00
 9e6bca1d-00df-407d-a57a-72a2ea78a3e4	9eb81b85-1562-457d-8bfa-9a98d06d6d50	9c2fa8ff-d8c9-4d2f-9cb2-e456f3a75293	SUBMIT_ACTIVITY	8c9f474ff79fcced5a4a600f9c973343228aa5b5fa7e19e8532eaad866cc5119	{"next": {"stageId": "stage-4", "activityId": "drag-order", "activityType": null, "learnerConfig": null}, "status": "ACCEPTED", "progress": {"totalRequired": 6, "completedRequired": 4}, "completion": {"detail": {"totalRequired": 6, "missingStageIds": ["stage-4", "stage-5"], "completedRequired": 4}, "reason": "NOT_COMPLETE", "complete": false}, "evaluation": {"output": {"correct": true, "attemptCount": 1, "selectedCount": 1}, "outcome": "COMPLETED", "completed": true, "feedbackCode": "COMPLETED"}, "activityCompleted": true}	200	2026-10-22 14:38:16.210943+00	2026-10-23 14:38:16.210943+00
-0a124b0d-e9c7-4c82-aff6-bf0e009e23ea	9eb81b85-1562-457d-8bfa-9a98d06d6d50	73e3f16c-0abe-4a7e-a003-9b7ef862edd1	SUBMIT_ACTIVITY	d94aa19302dad124ad3ab8c034f64dc2158ded253582032165a80672e4cfb2e4	{"next": null, "status": "ACCEPTED", "progress": {"totalRequired": 7, "completedRequired": 7}, "completion": {"detail": {"totalRequired": 7, "completedRequired": 7}, "reason": "ALL_REQUIRED_STAGES", "complete": true}, "evaluation": {"output": {"text": "123131232312"}, "outcome": "COMPLETED", "completed": true, "feedbackCode": null}, "activityCompleted": true}	200	2026-10-22 15:05:35.614937+00	2026-10-23 15:05:35.614937+00
 8c18d653-c3c8-4011-b28f-56c85d0ca2e0	9eb81b85-1562-457d-8bfa-9a98d06d6d50	4de2d7d8-eb82-4c0d-86a0-4b99bb154a8f	SUBMIT_ACTIVITY	23dfc3bd2fc231b1853654f944d5fa359c795e3fed74bcdaf8cfb0c08a18e2b4	{"next": {"stageId": "stage-3", "activityId": "multiple-choice", "activityType": "MULTIPLE_CHOICE", "learnerConfig": {"options": [{"id": "option-0", "text": "Trưng Trắc và Trưng Nhị"}, {"id": "option-1", "text": "Ngô Quyền"}, {"id": "option-2", "text": "Lý Bí"}, {"id": "option-3", "text": "Triệu Thị Trinh"}], "question": "Ai là những người lãnh đạo cuộc khởi nghĩa năm 40?", "maxAttempts": 2, "multiSelect": false}}, "status": "ACCEPTED", "progress": {"totalRequired": 6, "completedRequired": 3}, "completion": {"detail": {"totalRequired": 6, "missingStageIds": ["stage-3", "stage-4", "stage-5"], "completedRequired": 3}, "reason": "NOT_COMPLETE", "complete": false}, "evaluation": {"output": {"correct": true, "matchedCount": 3}, "outcome": "COMPLETED", "completed": true, "feedbackCode": "COMPLETED"}, "activityCompleted": true}	200	2026-10-22 14:38:12.333591+00	2026-10-23 14:38:12.333591+00
 e9a25497-1a6f-4df0-831c-088965ff23f4	9eb81b85-1562-457d-8bfa-9a98d06d6d50	86ad8cd2-8ea1-40df-8303-6d3781820fd9	SUBMIT_ACTIVITY	48fb667a1bdfd767319a1ee7daf72ec0e5b845f0311b8bd711361a417d17ea00	{"next": {"stageId": "stage-5", "activityId": "cer-conclusion", "activityType": null, "learnerConfig": null}, "status": "ACCEPTED", "progress": {"totalRequired": 6, "completedRequired": 5}, "completion": {"detail": {"totalRequired": 6, "missingStageIds": ["stage-5"], "completedRequired": 5}, "reason": "NOT_COMPLETE", "complete": false}, "evaluation": {"output": {"correct": true}, "outcome": "COMPLETED", "completed": true, "feedbackCode": "COMPLETED"}, "activityCompleted": true}	200	2026-10-22 14:38:21.271799+00	2026-10-23 14:38:21.271799+00
 0e0cadcd-f694-47fb-9bf2-018a6880a7c6	9eb81b85-1562-457d-8bfa-9a98d06d6d50	df446810-8a3d-41e6-a741-43f679899b1a	SUBMIT_ACTIVITY	211e1f38bbd38d988ffc87badb694651ff23a785add61fcf9fe5cce5418916be	{"next": null, "status": "ACCEPTED", "progress": {"totalRequired": 6, "completedRequired": 6}, "completion": {"detail": {"totalRequired": 6, "completedRequired": 6}, "reason": "ALL_REQUIRED_STAGES", "complete": true}, "evaluation": {"output": {"claim": "luan  diem la gi 123123", "reasoning": "1231231312312312312321", "evidenceIds": ["3d399f92-dd4a-49d1-83a6-4a21f5da2776", "af853678-228b-4954-9f73-fd21a3c8f91a"]}, "outcome": "COMPLETED", "completed": true, "feedbackCode": null}, "activityCompleted": true}	200	2026-10-22 14:38:33.888676+00	2026-10-23 14:38:33.888676+00
@@ -1051,15 +1319,15 @@ ab3fe0ae-ed8b-46e7-884b-874dd0545cc5	PHIEN_BAN_SO_PHO_HOI_AN	Phiên bản số p
 -- Data for Name: item_unlock_rule; Type: TABLE DATA; Schema: public; Owner: -
 --
 
-COPY public.item_unlock_rule (id, item_id, rule_type, lesson_id, threshold, active, created_at) FROM stdin;
-7eba0d7d-160e-4672-971e-37d64ab83945	c892e584-636b-4f58-87e5-b1190a76c73a	COLLECTION_COUNT	\N	12	t	2026-10-22 13:40:12.278885+00
-5ce4e71c-2bc6-4836-adda-6335c5952cc4	e6d3ab89-a04f-49cb-b0fe-8bce3ac239f4	COLLECTION_COUNT	\N	5	t	2026-10-22 13:40:12.278885+00
-bea8ddbc-116b-437b-9c33-eb00e9f9b05b	fcd52fab-f888-4323-ac71-65688393cd4c	COLLECTION_COUNT	\N	10	t	2026-10-22 13:40:12.278885+00
-cb94ba62-5ee4-4b92-bcc3-2243094fd66b	fe59399d-5e04-46e6-b787-e587c345811e	COLLECTION_COUNT	\N	6	t	2026-10-22 13:40:12.278885+00
-991823da-4ac5-4846-b838-65effa872351	8044f75d-274f-4fd2-a092-21913edc28b3	COLLECTION_COUNT	\N	3	t	2026-10-22 13:40:12.278885+00
-8f80403a-484b-4a22-b9d5-92c82f8bb32b	35809cdf-7c85-40c2-a9ff-fd65a285e1c9	COLLECTION_COUNT	\N	15	t	2026-10-22 13:40:12.278885+00
-018d41d6-93dc-4630-8327-c17fd8ead54b	ab3fe0ae-ed8b-46e7-884b-874dd0545cc5	COLLECTION_COUNT	\N	8	t	2026-10-22 13:40:12.278885+00
-59e9b326-c633-4841-a1a7-e00d93c3f647	9a43a7f1-e29c-4bab-bde3-5be539e71bd2	LESSON_COUNT	\N	5	t	2026-10-22 13:40:12.278885+00
+COPY public.item_unlock_rule (id, item_id, rule_type, lesson_id, threshold, active, created_at, rule_version, condition_json, rule_metadata, revision) FROM stdin;
+7eba0d7d-160e-4672-971e-37d64ab83945	c892e584-636b-4f58-87e5-b1190a76c73a	COLLECTION_COUNT	\N	12	t	2026-10-22 13:40:12.278885+00	1	{"type": "COLLECTION_COUNT", "threshold": 12}	{"note": "V1 global-count cho item event-specific; chờ rule v2 event-scoped minh định (không tự gán eventId).", "audit": "needs-mapping"}	1
+5ce4e71c-2bc6-4836-adda-6335c5952cc4	e6d3ab89-a04f-49cb-b0fe-8bce3ac239f4	COLLECTION_COUNT	\N	5	t	2026-10-22 13:40:12.278885+00	1	{"type": "COLLECTION_COUNT", "threshold": 5}	{"note": "V1 global-count cho item event-specific; chờ rule v2 event-scoped minh định (không tự gán eventId).", "audit": "needs-mapping"}	1
+bea8ddbc-116b-437b-9c33-eb00e9f9b05b	fcd52fab-f888-4323-ac71-65688393cd4c	COLLECTION_COUNT	\N	10	t	2026-10-22 13:40:12.278885+00	1	{"type": "COLLECTION_COUNT", "threshold": 10}	{"note": "V1 global-count cho item event-specific; chờ rule v2 event-scoped minh định (không tự gán eventId).", "audit": "needs-mapping"}	1
+cb94ba62-5ee4-4b92-bcc3-2243094fd66b	fe59399d-5e04-46e6-b787-e587c345811e	COLLECTION_COUNT	\N	6	t	2026-10-22 13:40:12.278885+00	1	{"type": "COLLECTION_COUNT", "threshold": 6}	{"note": "V1 global-count cho item event-specific; chờ rule v2 event-scoped minh định (không tự gán eventId).", "audit": "needs-mapping"}	1
+991823da-4ac5-4846-b838-65effa872351	8044f75d-274f-4fd2-a092-21913edc28b3	COLLECTION_COUNT	\N	3	t	2026-10-22 13:40:12.278885+00	1	{"type": "COLLECTION_COUNT", "threshold": 3}	{"note": "V1 global-count cho item event-specific; chờ rule v2 event-scoped minh định (không tự gán eventId).", "audit": "needs-mapping"}	1
+8f80403a-484b-4a22-b9d5-92c82f8bb32b	35809cdf-7c85-40c2-a9ff-fd65a285e1c9	COLLECTION_COUNT	\N	15	t	2026-10-22 13:40:12.278885+00	1	{"type": "COLLECTION_COUNT", "threshold": 15}	{"note": "V1 global-count cho item event-specific; chờ rule v2 event-scoped minh định (không tự gán eventId).", "audit": "needs-mapping"}	1
+018d41d6-93dc-4630-8327-c17fd8ead54b	ab3fe0ae-ed8b-46e7-884b-874dd0545cc5	COLLECTION_COUNT	\N	8	t	2026-10-22 13:40:12.278885+00	1	{"type": "COLLECTION_COUNT", "threshold": 8}	{"note": "V1 global-count cho item event-specific; chờ rule v2 event-scoped minh định (không tự gán eventId).", "audit": "needs-mapping"}	1
+59e9b326-c633-4841-a1a7-e00d93c3f647	9a43a7f1-e29c-4bab-bde3-5be539e71bd2	LESSON_COUNT	\N	5	t	2026-10-22 13:40:12.278885+00	1	{"type": "LESSON_COUNT", "threshold": 5}	{"note": "Không gắn event cụ thể; giữ ngữ nghĩa global V1.", "audit": "valid-global"}	1
 \.
 
 
@@ -1150,9 +1418,12 @@ f9158902-3922-49b0-a9a1-d1fc579d8109	423b3ae7-2c87-46ee-8672-e5a0cdc743ff	3	1	{"
 92d9549c-96b4-4a5c-8786-4f0c2777bb19	75249a8a-e9f8-4de1-989b-f0d493e54c1f	3	1	{"title": "Bước ngoặt năm 938", "assets": [], "stages": [{"id": "stage-1", "type": "CONTEXT", "title": "Bối cảnh", "required": true, "activities": [{"id": "read-context", "type": "READ", "config": {"text": "Chiến thắng Bạch Đằng năm 938 do Ngô Quyền chỉ huy đánh bại quân Nam Hán, mở ra giai đoạn độc lập tự chủ mới.\\n\\nTư liệu nền: Ngô Quyền chỉ huy chiến thắng trên sông Bạch Đằng năm 938. Sông Bạch Đằng là địa điểm diễn ra trận chiến năm 938 với quân Nam Hán. Bảo tàng Lịch sử Quốc gia ghi chiến thắng năm 938 đánh bại quân Nam Hán.\\n\\nĐọc nguồn và phân biệt dữ liệu do bảo tàng/UNESCO ghi nhận với diễn giải của người học. Các luận điểm phải liên hệ với bằng chứng cụ thể.", "animationKey": "bach_dang_938_tide_v1"}, "required": true, "instruction": "Đọc tư liệu bối cảnh và ghi nhớ câu hỏi lịch sử."}], "nextStageIds": ["stage-2"]}, {"id": "stage-2", "type": "EVIDENCE", "title": "Tìm và chọn bằng chứng", "required": true, "activities": [{"id": "select-evidence", "type": "EVIDENCE_SELECT", "config": {"minRequired": 2, "visibleEvidenceIds": ["384c1c79-208b-4dc1-ab38-85c8dd20d9a2", "1759b0ff-b277-4c5b-8dd7-90b45cd6ffc2", "39520cd7-0189-489e-b9ec-862f0eb4ac62"]}, "feedback": {"COMPLETED": "Đã ghi nhận tư liệu bạn đã lựa chọn."}, "required": true, "instruction": "Chọn ít nhất hai tư liệu phù hợp để đưa vào hồ sơ điều tra."}, {"id": "multiple-choice", "type": "MULTIPLE_CHOICE", "config": {"options": [{"id": "option-0", "text": "Ngô Quyền"}, {"id": "option-1", "text": "Lý Thái Tổ"}, {"id": "option-2", "text": "Trần Hưng Đạo"}, {"id": "option-3", "text": "Hồ Quý Ly"}], "question": "Ai chỉ huy quân dân đánh bại Nam Hán tại Bạch Đằng năm 938?", "maxAttempts": 2, "multiSelect": false, "correctOptionIds": ["option-0"]}, "feedback": {"COMPLETED": "Đối chiếu đáp án với đoạn tư liệu đã đọc và nguồn của bài học.", "EXHAUSTED": "Bạn đã dùng hết lượt; hãy tiếp tục để xem lại tư liệu.", "INCORRECT": "Xem lại tư liệu trước khi thử lại."}, "required": true, "instruction": "Ai chỉ huy quân dân đánh bại Nam Hán tại Bạch Đằng năm 938?"}], "nextStageIds": ["stage-3"]}, {"id": "stage-3", "type": "RECONSTRUCTION", "title": "Sắp xếp dòng thời gian", "required": true, "activities": [{"id": "drag-order", "type": "DRAG_ORDER", "config": {"items": [{"id": "battle-938", "label": "Năm 938: Ngô Quyền thắng trận Bạch Đằng"}, {"id": "van-xuan-544", "label": "Năm 544: thành lập nước Vạn Xuân"}, {"id": "capital-1010", "label": "Năm 1010: Lý Thái Tổ dời đô đến Thăng Long"}], "expectedOrder": ["van-xuan-544", "battle-938", "capital-1010"]}, "feedback": {"COMPLETED": "Trình tự các mốc đã chính xác."}, "required": true, "instruction": "Sắp xếp các mốc lịch sử theo trình tự thời gian."}], "nextStageIds": ["stage-4"]}, {"id": "stage-4", "type": "CONCLUSION", "title": "Lập luận lịch sử", "required": true, "activities": [{"id": "cer-conclusion", "type": "CER", "config": {"rubric": {"criteria": [{"id": "claim", "label": "Nêu luận điểm rõ ràng"}, {"id": "evidence", "label": "Dẫn tư liệu xác thực"}, {"id": "reasoning", "label": "Giải thích mối liên hệ"}]}, "requiredEvidenceIds": ["384c1c79-208b-4dc1-ab38-85c8dd20d9a2", "1759b0ff-b277-4c5b-8dd7-90b45cd6ffc2"]}, "required": true, "instruction": "Trả lời câu hỏi trung tâm bằng Luận điểm – Bằng chứng – Lập luận."}], "nextStageIds": []}], "evidence": [{"id": "384c1c79-208b-4dc1-ab38-85c8dd20d9a2", "title": "Ngô Quyền", "source": {"url": "https://vnmh.com.vn/en/Articles/4198/struggles-to-gain-national-independence-1st-10th-centuries-ad", "title": "Phong trào đấu tranh giành độc lập thế kỷ I–X", "author": "Bảo tàng Lịch sử Quốc gia", "citation": "Bảo tàng Lịch sử Quốc gia, “Phong trào đấu tranh giành độc lập thế kỷ I–X”, https://vnmh.com.vn/en/Articles/4198/struggles-to-gain-national-independence-1st-10th-centuries-ad"}, "relevance": "Tư liệu dùng để phân tích câu hỏi lịch sử trong bài học.", "description": "Ngô Quyền chỉ huy chiến thắng trên sông Bạch Đằng năm 938.", "reliability": "HIGH", "evidenceType": "CHARACTER"}, {"id": "1759b0ff-b277-4c5b-8dd7-90b45cd6ffc2", "title": "Sông Bạch Đằng", "source": {"url": "https://vnmh.com.vn/en/Articles/4198/struggles-to-gain-national-independence-1st-10th-centuries-ad", "title": "Phong trào đấu tranh giành độc lập thế kỷ I–X", "author": "Bảo tàng Lịch sử Quốc gia", "citation": "Bảo tàng Lịch sử Quốc gia, “Phong trào đấu tranh giành độc lập thế kỷ I–X”, https://vnmh.com.vn/en/Articles/4198/struggles-to-gain-national-independence-1st-10th-centuries-ad"}, "relevance": "Tư liệu dùng để phân tích câu hỏi lịch sử trong bài học.", "description": "Sông Bạch Đằng là địa điểm diễn ra trận chiến năm 938 với quân Nam Hán.", "reliability": "HIGH", "evidenceType": "LOCATION"}, {"id": "39520cd7-0189-489e-b9ec-862f0eb4ac62", "title": "Đối thủ Nam Hán", "source": {"url": "https://vnmh.com.vn/en/Articles/4198/struggles-to-gain-national-independence-1st-10th-centuries-ad", "title": "Phong trào đấu tranh giành độc lập thế kỷ I–X", "author": "Bảo tàng Lịch sử Quốc gia", "citation": "Bảo tàng Lịch sử Quốc gia, “Phong trào đấu tranh giành độc lập thế kỷ I–X”, https://vnmh.com.vn/en/Articles/4198/struggles-to-gain-national-independence-1st-10th-centuries-ad"}, "relevance": "Tư liệu dùng để phân tích câu hỏi lịch sử trong bài học.", "description": "Bảo tàng Lịch sử Quốc gia ghi chiến thắng năm 938 đánh bại quân Nam Hán.", "reliability": "HIGH", "evidenceType": "DOCUMENT"}], "lessonId": "75249a8a-e9f8-4de1-989b-f0d493e54c1f", "completion": {"requireAllRequiredStages": true}, "objectives": ["Trình bày được dữ kiện lịch sử liên quan tới ngô quyền và chiến thắng bạch đằng năm 938.", "Đọc, lựa chọn và phân tích bằng chứng có chỉ dẫn nguồn.", "Sắp xếp các mốc đúng trình tự và lập luận theo CER."], "templateCode": "HISTORY_INVESTIGATION", "schemaVersion": 1, "centralQuestion": "Điều gì khiến chiến thắng Bạch Đằng năm 938 trở thành mốc lịch sử quan trọng?"}	2026-10-22 14:16:00.695882+00	67e0f392-33b0-446a-8f23-7c98b98c10c3
 285ea3ed-4906-4f4f-88bd-47217e22dab4	4650bb3e-5662-4b9c-8aa2-f0e9221d59b5	3	1	{"title": "Vị trí của năm 938 trong dòng thời gian", "assets": [], "stages": [{"id": "stage-1", "type": "CONTEXT", "title": "Bối cảnh nghiên cứu", "required": true, "activities": [{"id": "read-context", "type": "READ", "config": {"text": "Chiến thắng Bạch Đằng năm 938 do Ngô Quyền chỉ huy đánh bại quân Nam Hán, mở ra giai đoạn độc lập tự chủ mới.\\n\\nTư liệu nền: Ngô Quyền chỉ huy chiến thắng trên sông Bạch Đằng năm 938. Sông Bạch Đằng là địa điểm diễn ra trận chiến năm 938 với quân Nam Hán. Bảo tàng Lịch sử Quốc gia ghi chiến thắng năm 938 đánh bại quân Nam Hán.\\n\\nĐọc nguồn và phân biệt dữ liệu do bảo tàng/UNESCO ghi nhận với diễn giải của người học. Các luận điểm phải liên hệ với bằng chứng cụ thể.", "animationKey": "bach_dang_938_tide_v1"}, "required": true, "instruction": "Đọc tư liệu bối cảnh và ghi nhớ câu hỏi lịch sử."}], "nextStageIds": ["stage-2"]}, {"id": "stage-2", "type": "EVIDENCE", "title": "Khám phá tài liệu", "required": true, "activities": [{"id": "select-evidence", "type": "EVIDENCE_SELECT", "config": {"minRequired": 2, "visibleEvidenceIds": ["1759b0ff-b277-4c5b-8dd7-90b45cd6ffc2", "39520cd7-0189-489e-b9ec-862f0eb4ac62", "589fb95d-5c32-416f-ac8d-fb6eb05282da"]}, "feedback": {"COMPLETED": "Đã ghi nhận tư liệu bạn đã lựa chọn."}, "required": true, "instruction": "Chọn ít nhất hai tư liệu phù hợp để đưa vào hồ sơ điều tra."}], "nextStageIds": ["stage-3"]}, {"id": "stage-3", "type": "REASONING", "title": "Ghép tư liệu và thông tin", "required": true, "activities": [{"id": "match-facts", "type": "MATCHING", "config": {"pairs": [{"left": {"id": "left-0", "text": "Sông Bạch Đằng"}, "right": {"id": "right-0", "text": "Sông Bạch Đằng là địa điểm diễn ra trận chiến năm 938 với quân Nam Hán."}}, {"left": {"id": "left-1", "text": "Đối thủ Nam Hán"}, "right": {"id": "right-1", "text": "Bảo tàng Lịch sử Quốc gia ghi chiến thắng năm 938 đánh bại quân Nam Hán."}}, {"left": {"id": "left-2", "text": "Ý nghĩa mở đầu thời kỳ tự chủ"}, "right": {"id": "right-2", "text": "Chiến thắng Bạch Đằng năm 938 đánh dấu bước ngoặt từ thời kỳ bị đô hộ sang thời kỳ độc lập tự chủ."}}], "correctPairs": [{"left": "left-0", "right": "right-0"}, {"left": "left-1", "right": "right-1"}, {"left": "left-2", "right": "right-2"}]}, "feedback": {"COMPLETED": "Bạn đã ghép đúng các tư liệu với thông tin của chúng."}, "required": true, "instruction": "Ghép mỗi nguồn/dấu vết lịch sử với nội dung đúng được ghi nhận."}, {"id": "multiple-choice", "type": "MULTIPLE_CHOICE", "config": {"options": [{"id": "option-0", "text": "Ngô Quyền"}, {"id": "option-1", "text": "Lý Thái Tổ"}, {"id": "option-2", "text": "Trần Hưng Đạo"}, {"id": "option-3", "text": "Hồ Quý Ly"}], "question": "Ai chỉ huy quân dân đánh bại Nam Hán tại Bạch Đằng năm 938?", "maxAttempts": 2, "multiSelect": false, "correctOptionIds": ["option-0"]}, "feedback": {"COMPLETED": "Đối chiếu đáp án với đoạn tư liệu đã đọc và nguồn của bài học.", "EXHAUSTED": "Bạn đã dùng hết lượt; hãy tiếp tục để xem lại tư liệu.", "INCORRECT": "Xem lại tư liệu trước khi thử lại."}, "required": true, "instruction": "Ai chỉ huy quân dân đánh bại Nam Hán tại Bạch Đằng năm 938?"}], "nextStageIds": ["stage-4"]}, {"id": "stage-4", "type": "RECONSTRUCTION", "title": "Nhìn theo thời gian", "required": true, "activities": [{"id": "drag-order", "type": "DRAG_ORDER", "config": {"items": [{"id": "battle-938", "label": "Năm 938: Ngô Quyền thắng trận Bạch Đằng"}, {"id": "van-xuan-544", "label": "Năm 544: thành lập nước Vạn Xuân"}, {"id": "capital-1010", "label": "Năm 1010: Lý Thái Tổ dời đô đến Thăng Long"}], "expectedOrder": ["van-xuan-544", "battle-938", "capital-1010"]}, "feedback": {"COMPLETED": "Trình tự các mốc đã chính xác."}, "required": true, "instruction": "Sắp xếp các mốc lịch sử theo trình tự thời gian."}], "nextStageIds": ["stage-5"]}, {"id": "stage-5", "type": "CONCLUSION", "title": "Kết luận dựa trên chứng cứ", "required": true, "activities": [{"id": "cer-conclusion", "type": "CER", "config": {"rubric": {"criteria": [{"id": "claim", "label": "Nêu luận điểm rõ ràng"}, {"id": "evidence", "label": "Dẫn tư liệu xác thực"}, {"id": "reasoning", "label": "Giải thích mối liên hệ"}]}, "requiredEvidenceIds": ["1759b0ff-b277-4c5b-8dd7-90b45cd6ffc2", "39520cd7-0189-489e-b9ec-862f0eb4ac62"]}, "required": true, "instruction": "Trả lời câu hỏi trung tâm bằng Luận điểm – Bằng chứng – Lập luận."}], "nextStageIds": ["stage-reflection"]}, {"id": "stage-reflection", "type": "REFLECTION", "title": "Suy ngẫm về tư liệu lịch sử", "required": true, "activities": [{"id": "historical-reflection", "type": "REFLECTION_PROMPT", "config": {"prompt": "Sau bài học này, bạn nhận thấy điểm mạnh và giới hạn nào của tư liệu lịch sử đã đọc?"}, "required": true, "instruction": "Viết suy nghĩ của bạn về cách dùng bằng chứng để tìm hiểu quá khứ."}], "nextStageIds": []}], "evidence": [{"id": "1759b0ff-b277-4c5b-8dd7-90b45cd6ffc2", "title": "Sông Bạch Đằng", "source": {"url": "https://vnmh.com.vn/en/Articles/4198/struggles-to-gain-national-independence-1st-10th-centuries-ad", "title": "Phong trào đấu tranh giành độc lập thế kỷ I–X", "author": "Bảo tàng Lịch sử Quốc gia", "citation": "Bảo tàng Lịch sử Quốc gia, “Phong trào đấu tranh giành độc lập thế kỷ I–X”, https://vnmh.com.vn/en/Articles/4198/struggles-to-gain-national-independence-1st-10th-centuries-ad"}, "relevance": "Tư liệu dùng để phân tích câu hỏi lịch sử trong bài học.", "description": "Sông Bạch Đằng là địa điểm diễn ra trận chiến năm 938 với quân Nam Hán.", "reliability": "HIGH", "evidenceType": "LOCATION"}, {"id": "39520cd7-0189-489e-b9ec-862f0eb4ac62", "title": "Đối thủ Nam Hán", "source": {"url": "https://vnmh.com.vn/en/Articles/4198/struggles-to-gain-national-independence-1st-10th-centuries-ad", "title": "Phong trào đấu tranh giành độc lập thế kỷ I–X", "author": "Bảo tàng Lịch sử Quốc gia", "citation": "Bảo tàng Lịch sử Quốc gia, “Phong trào đấu tranh giành độc lập thế kỷ I–X”, https://vnmh.com.vn/en/Articles/4198/struggles-to-gain-national-independence-1st-10th-centuries-ad"}, "relevance": "Tư liệu dùng để phân tích câu hỏi lịch sử trong bài học.", "description": "Bảo tàng Lịch sử Quốc gia ghi chiến thắng năm 938 đánh bại quân Nam Hán.", "reliability": "HIGH", "evidenceType": "DOCUMENT"}, {"id": "589fb95d-5c32-416f-ac8d-fb6eb05282da", "title": "Ý nghĩa mở đầu thời kỳ tự chủ", "source": {"url": "https://vnmh.com.vn/en/Articles/4198/struggles-to-gain-national-independence-1st-10th-centuries-ad", "title": "Phong trào đấu tranh giành độc lập thế kỷ I–X", "author": "Bảo tàng Lịch sử Quốc gia", "citation": "Bảo tàng Lịch sử Quốc gia, “Phong trào đấu tranh giành độc lập thế kỷ I–X”, https://vnmh.com.vn/en/Articles/4198/struggles-to-gain-national-independence-1st-10th-centuries-ad"}, "relevance": "Tư liệu dùng để phân tích câu hỏi lịch sử trong bài học.", "description": "Chiến thắng Bạch Đằng năm 938 đánh dấu bước ngoặt từ thời kỳ bị đô hộ sang thời kỳ độc lập tự chủ.", "reliability": "HIGH", "evidenceType": "DOCUMENT"}], "lessonId": "4650bb3e-5662-4b9c-8aa2-f0e9221d59b5", "completion": {"requireAllRequiredStages": true}, "objectives": ["Trình bày được dữ kiện lịch sử liên quan tới ngô quyền và chiến thắng bạch đằng năm 938.", "Đọc, lựa chọn và phân tích bằng chứng có chỉ dẫn nguồn.", "Sắp xếp các mốc đúng trình tự và lập luận theo CER."], "templateCode": "HISTORY_INVESTIGATION", "schemaVersion": 1, "centralQuestion": "Cách dùng chuỗi sự kiện trước và sau năm 938 để giải thích tiến trình độc lập?"}	2026-10-22 14:16:00.731644+00	67e0f392-33b0-446a-8f23-7c98b98c10c3
 abbb6724-12e8-46c3-bda5-0b997dc215d0	d338ed0d-5622-4870-812a-b8db1992ff69	4	1	{"title": "Bối cảnh cuộc khởi nghĩa năm 40", "assets": [], "stages": [{"id": "stage-1", "type": "CONTEXT", "title": "Bối cảnh", "required": true, "activities": [{"id": "read-context", "type": "READ", "config": {"text": "Hai Bà Trưng lãnh đạo cuộc khởi nghĩa năm 40 chống chính quyền Đông Hán; phong trào tồn tại đến năm 43.\\n\\nTư liệu nền: Năm 40, Trưng Trắc và Trưng Nhị dẫn đầu cuộc nổi dậy chống sự cai trị của nhà Đông Hán. Phong trào Hai Bà Trưng lan rộng ở khu vực đồng bằng sông Hồng và các địa phương lân cận. Trưng Trắc và Trưng Nhị là hai nhân vật trung tâm trong cuộc khởi nghĩa vào thế kỷ I.\\n\\nĐọc nguồn và phân biệt dữ liệu do bảo tàng/UNESCO ghi nhận với diễn giải của người học. Các luận điểm phải liên hệ với bằng chứng cụ thể.", "animationKey": "hai_ba_trung_40_uprising_v1"}, "required": true, "instruction": "Đọc tư liệu bối cảnh và ghi nhớ câu hỏi lịch sử."}], "nextStageIds": ["stage-2"]}, {"id": "stage-2", "type": "EVIDENCE", "title": "Tìm và chọn bằng chứng", "required": true, "activities": [{"id": "select-evidence", "type": "EVIDENCE_SELECT", "config": {"minRequired": 2, "visibleEvidenceIds": ["252b4a5d-13d3-4a97-bb6b-b90c2ffe4888", "3d399f92-dd4a-49d1-83a6-4a21f5da2776", "af853678-228b-4954-9f73-fd21a3c8f91a"]}, "feedback": {"COMPLETED": "Đã ghi nhận tư liệu bạn đã lựa chọn."}, "required": true, "instruction": "Chọn ít nhất hai tư liệu phù hợp để đưa vào hồ sơ điều tra."}, {"id": "multiple-choice", "type": "MULTIPLE_CHOICE", "config": {"options": [{"id": "option-0", "text": "Trưng Trắc và Trưng Nhị"}, {"id": "option-1", "text": "Ngô Quyền"}, {"id": "option-2", "text": "Lý Bí"}, {"id": "option-3", "text": "Triệu Thị Trinh"}], "question": "Ai là những người lãnh đạo cuộc khởi nghĩa năm 40?", "maxAttempts": 2, "multiSelect": false, "correctOptionIds": ["option-0"]}, "feedback": {"COMPLETED": "Đối chiếu đáp án với đoạn tư liệu đã đọc và nguồn của bài học.", "EXHAUSTED": "Bạn đã dùng hết lượt; hãy tiếp tục để xem lại tư liệu.", "INCORRECT": "Xem lại tư liệu trước khi thử lại."}, "required": true, "instruction": "Ai là những người lãnh đạo cuộc khởi nghĩa năm 40?"}], "nextStageIds": ["stage-3"]}, {"id": "stage-3", "type": "RECONSTRUCTION", "title": "Sắp xếp dòng thời gian", "required": true, "activities": [{"id": "drag-order", "type": "DRAG_ORDER", "config": {"items": [{"id": "end-43", "label": "Năm 43: cuộc khởi nghĩa chấm dứt"}, {"id": "uprising-40", "label": "Năm 40: Hai Bà Trưng lãnh đạo khởi nghĩa"}, {"id": "trieu-248", "label": "Năm 248: phong trào Bà Triệu tiếp nối truyền thống chống ách đô hộ"}], "expectedOrder": ["uprising-40", "end-43", "trieu-248"]}, "feedback": {"COMPLETED": "Trình tự các mốc đã chính xác."}, "required": true, "instruction": "Sắp xếp các mốc lịch sử theo trình tự thời gian."}], "nextStageIds": []}], "evidence": [{"id": "252b4a5d-13d3-4a97-bb6b-b90c2ffe4888", "title": "Cuộc khởi nghĩa năm 40", "source": {"url": "https://vnmh.com.vn/en/Articles/4198/struggles-to-gain-national-independence-1st-10th-centuries-ad", "title": "Phong trào đấu tranh giành độc lập thế kỷ I–X", "author": "Bảo tàng Lịch sử Quốc gia", "citation": "Bảo tàng Lịch sử Quốc gia, “Phong trào đấu tranh giành độc lập thế kỷ I–X”, https://vnmh.com.vn/en/Articles/4198/struggles-to-gain-national-independence-1st-10th-centuries-ad"}, "relevance": "Tư liệu dùng để phân tích câu hỏi lịch sử trong bài học.", "description": "Năm 40, Trưng Trắc và Trưng Nhị dẫn đầu cuộc nổi dậy chống sự cai trị của nhà Đông Hán.", "reliability": "HIGH", "evidenceType": "DOCUMENT"}, {"id": "3d399f92-dd4a-49d1-83a6-4a21f5da2776", "title": "Không gian vùng đồng bằng sông Hồng", "source": {"url": "https://www.nationalgeographic.com/history/history-magazine/article/warriors-for-independence-the-trung-sisters", "title": "The Trung Sisters", "author": "National Geographic", "citation": "National Geographic, “The Trung Sisters”, https://www.nationalgeographic.com/history/history-magazine/article/warriors-for-independence-the-trung-sisters"}, "relevance": "Tư liệu dùng để phân tích câu hỏi lịch sử trong bài học.", "description": "Phong trào Hai Bà Trưng lan rộng ở khu vực đồng bằng sông Hồng và các địa phương lân cận.", "reliability": "HIGH", "evidenceType": "LOCATION"}, {"id": "af853678-228b-4954-9f73-fd21a3c8f91a", "title": "Vai trò của Trưng Trắc và Trưng Nhị", "source": {"url": "https://www.nationalgeographic.com/history/history-magazine/article/warriors-for-independence-the-trung-sisters", "title": "The Trung Sisters", "author": "National Geographic", "citation": "National Geographic, “The Trung Sisters”, https://www.nationalgeographic.com/history/history-magazine/article/warriors-for-independence-the-trung-sisters"}, "relevance": "Tư liệu dùng để phân tích câu hỏi lịch sử trong bài học.", "description": "Trưng Trắc và Trưng Nhị là hai nhân vật trung tâm trong cuộc khởi nghĩa vào thế kỷ I.", "reliability": "HIGH", "evidenceType": "CHARACTER"}], "lessonId": "d338ed0d-5622-4870-812a-b8db1992ff69", "completion": {"requireAllRequiredStages": true}, "objectives": ["Trình bày được dữ kiện lịch sử liên quan tới khởi nghĩa hai bà trưng (40–43).", "Đọc, lựa chọn và phân tích bằng chứng có chỉ dẫn nguồn.", "Sắp xếp các mốc đúng trình tự và lập luận theo CER."], "templateCode": "HISTORY_INVESTIGATION", "schemaVersion": 1, "centralQuestion": "Những tư liệu nào giúp xác định bối cảnh và thời điểm khởi nghĩa Hai Bà Trưng?"}	2026-10-22 14:43:04.805189+00	67e0f392-33b0-446a-8f23-7c98b98c10c3
-d7b30000-0000-4000-8000-000000000001	d7b20000-0000-4000-8000-000000000001	1	1	{"stages": [{"id": "ctx", "type": "CONTEXT", "required": true, "activities": [{"id": "intro", "type": "READ", "config": {"text": "Năm 938, quân Nam Hán kéo thủy quân vào sông Bạch Đằng. Ngô Quyền chuẩn bị trận đánh dựa trên địa hình cửa sông và quy luật thủy triều."}, "required": true, "instruction": "Đọc bối cảnh trận Bạch Đằng năm 938"}], "nextStageIds": ["ev"]}, {"id": "ev", "type": "EVIDENCE", "required": true, "activities": [{"id": "es", "type": "EVIDENCE_SELECT", "config": {"graded": true, "maxAttempts": 2, "minRequired": 1, "remedialAttempts": 1, "visibleEvidenceIds": ["d7b10000-0000-4000-8000-000000000001", "d7b10000-0000-4000-8000-000000000002", "d7b10000-0000-4000-8000-000000000003"], "acceptedEvidenceIds": ["d7b10000-0000-4000-8000-000000000001", "d7b10000-0000-4000-8000-000000000002"]}, "feedback": {"PARTIAL": "Chưa đủ — một trong hai bằng chứng chính còn thiếu.", "COMPLETED": "Đúng — hai tư liệu cốt lõi về bãi cọc và thủy triều.", "EXHAUSTED": "Hết lượt thử.", "INCORRECT": "Chưa đúng — rà soát lại tư liệu."}, "required": true, "instruction": "Chọn những tư liệu chứng minh Ngô Quyền lợi dụng thủy triều"}], "nextStageIds": ["re"], "requiredEvidenceIds": ["d7b10000-0000-4000-8000-000000000001", "d7b10000-0000-4000-8000-000000000002", "d7b10000-0000-4000-8000-000000000003"]}, {"id": "re", "type": "RECONSTRUCTION", "required": true, "activities": [{"id": "do", "type": "DRAG_ORDER", "config": {"items": [{"id": "s1", "label": "Đóng cọc ở cửa sông"}, {"id": "s2", "label": "Dụ địch vào bãi"}, {"id": "s3", "label": "Thủy triều lên che cọc"}, {"id": "s4", "label": "Phục kích chặn đánh"}, {"id": "s5", "label": "Thủy triều rút, thuyền mắc cọc"}, {"id": "s6", "label": "Quân Nam Hán tan vỡ"}], "expectedOrder": ["s1", "s2", "s3", "s4", "s5", "s6"]}, "feedback": {"COMPLETED": "Đúng trình tự.", "INCORRECT": "Sai thứ tự."}, "required": true, "instruction": "Sắp xếp lại trình tự diễn biến trận đánh"}], "nextStageIds": ["cc"]}, {"id": "cc", "type": "CONCLUSION", "required": true, "activities": [{"id": "cer", "type": "CER_CHOICE", "config": {"claims": [{"id": "c-tide", "text": "Chiến thắng là kết quả lợi dụng thủy triều và địa hình."}, {"id": "c-num", "text": "Chiến thắng là kết quả áp đảo quân số."}], "maxAttempts": 3, "acceptedCombos": [{"claimId": "c-tide", "evidenceIds": ["d7b10000-0000-4000-8000-000000000001", "d7b10000-0000-4000-8000-000000000002"], "reasoningId": "r-tide"}], "evidenceOptions": [{"id": "d7b10000-0000-4000-8000-000000000001"}, {"id": "d7b10000-0000-4000-8000-000000000002"}], "reasoningOptions": [{"id": "r-tide", "text": "Triều che giấu bãi cọc, triều rút khiến thuyền địch mắc kẹt."}, {"id": "r-luck", "text": "Quân địch tự rút vì thiếu lương."}], "priorEvidenceSource": "es"}, "feedback": {"PARTIAL": "Một phần đúng.", "COMPLETED": "Kết luận đúng.", "EXHAUSTED": "Hết lượt.", "INCORRECT": "Chưa đúng."}, "required": true, "instruction": "Kết luận về nguyên nhân chiến thắng"}], "nextStageIds": []}], "completion": {"requireAllRequiredStages": true}, "schemaVersion": 1}	2026-10-24 13:31:17.517045+00	00000000-0000-4000-8000-000000000001
-d7b30000-0000-4000-8000-000000000002	d7b20000-0000-4000-8000-000000000002	1	1	{"stages": [{"id": "ev", "type": "EVIDENCE", "required": true, "activities": [{"id": "es", "type": "EVIDENCE_SELECT", "config": {"graded": true, "maxAttempts": 2, "visibleEvidenceIds": ["d7b11000-0000-4000-8000-000000000001", "d7b11000-0000-4000-8000-000000000002", "d7b11000-0000-4000-8000-000000000003"], "acceptedEvidenceIds": ["d7b11000-0000-4000-8000-000000000001"]}, "feedback": {"COMPLETED": "Đúng.", "EXHAUSTED": "Hết lượt.", "INCORRECT": "Chưa đúng."}, "required": true, "instruction": "Chọn tư liệu chứng minh quy mô khởi nghĩa"}], "nextStageIds": ["cc"], "requiredEvidenceIds": ["d7b11000-0000-4000-8000-000000000001", "d7b11000-0000-4000-8000-000000000002", "d7b11000-0000-4000-8000-000000000003"]}, {"id": "cc", "type": "CONCLUSION", "required": true, "activities": [{"id": "cer", "type": "CER_CHOICE", "config": {"claims": [{"id": "c-indep", "text": "Khởi nghĩa khôi phục chính quyền tự chủ."}, {"id": "c-sym", "text": "Khởi nghĩa chỉ có ý nghĩa biểu tượng."}], "maxAttempts": 3, "acceptedCombos": [{"claimId": "c-indep", "evidenceIds": ["d7b11000-0000-4000-8000-000000000001"], "reasoningId": "r-castle"}], "evidenceOptions": [{"id": "d7b11000-0000-4000-8000-000000000001"}, {"id": "d7b11000-0000-4000-8000-000000000002"}], "reasoningOptions": [{"id": "r-castle", "text": "65 thành trì theo về cho thấy quyền lực được khôi phục."}, {"id": "r-short", "text": "Khởi nghĩa chỉ kéo dài ba năm."}], "priorEvidenceSource": "es"}, "feedback": {"PARTIAL": "Một phần.", "COMPLETED": "Kết luận đúng.", "EXHAUSTED": "Hết lượt.", "INCORRECT": "Chưa đúng."}, "required": true, "instruction": "Kết luận về ý nghĩa khởi nghĩa"}], "nextStageIds": []}], "completion": {"requireAllRequiredStages": true}, "schemaVersion": 1}	2026-10-24 13:31:17.517045+00	00000000-0000-4000-8000-000000000001
-d7b30000-0000-4000-8000-000000000003	d7b20000-0000-4000-8000-000000000003	1	1	{"stages": [{"id": "ctx", "type": "CONTEXT", "required": true, "activities": [{"id": "intro", "type": "READ", "config": {"text": "Năm 1010, Lý Thái Tổ quyết định dời kinh đô từ Hoa Lư về Đại La và đổi tên thành Thăng Long — quyết định định hình trung tâm chính trị lâu dài."}, "required": true, "instruction": "Đọc bối cảnh dời đô năm 1010"}], "nextStageIds": ["ev"]}, {"id": "ev", "type": "EVIDENCE", "required": true, "activities": [{"id": "es", "type": "EVIDENCE_SELECT", "config": {"graded": true, "maxAttempts": 2, "minRequired": 1, "visibleEvidenceIds": ["d7b12000-0000-4000-8000-000000000001", "d7b12000-0000-4000-8000-000000000002", "d7b12000-0000-4000-8000-000000000003"], "acceptedEvidenceIds": ["d7b12000-0000-4000-8000-000000000001", "d7b12000-0000-4000-8000-000000000002"]}, "feedback": {"PARTIAL": "Chưa đủ.", "COMPLETED": "Đúng.", "EXHAUSTED": "Hết lượt.", "INCORRECT": "Chưa đúng."}, "required": true, "instruction": "Chọn tư liệu chứng minh quyết định dời đô"}], "nextStageIds": ["cc"], "requiredEvidenceIds": ["d7b12000-0000-4000-8000-000000000001", "d7b12000-0000-4000-8000-000000000002", "d7b12000-0000-4000-8000-000000000003"]}, {"id": "cc", "type": "CONCLUSION", "required": true, "activities": [{"id": "cer", "type": "CER_CHOICE", "config": {"claims": [{"id": "c-vision", "text": "Dời đô là quyết định chiến lược lâu dài."}, {"id": "c-temp", "text": "Dời đô chỉ là quyết định nhất thời."}], "maxAttempts": 3, "acceptedCombos": [{"claimId": "c-vision", "evidenceIds": ["d7b12000-0000-4000-8000-000000000001", "d7b12000-0000-4000-8000-000000000002"], "reasoningId": "r-center"}], "evidenceOptions": [{"id": "d7b12000-0000-4000-8000-000000000001"}, {"id": "d7b12000-0000-4000-8000-000000000002"}], "reasoningOptions": [{"id": "r-center", "text": "Đại La là trung tâm đồng bằng, thuận lợi phát triển."}, {"id": "r-castle", "text": "Hoa Lư hiểm trở, phù hợp phòng thủ hơn."}], "priorEvidenceSource": "es"}, "feedback": {"PARTIAL": "Một phần.", "COMPLETED": "Kết luận đúng.", "EXHAUSTED": "Hết lượt.", "INCORRECT": "Chưa đúng."}, "required": true, "instruction": "Kết luận về ý nghĩa quyết định dời đô"}], "nextStageIds": []}], "completion": {"requireAllRequiredStages": true}, "schemaVersion": 1}	2026-10-24 13:31:17.517045+00	00000000-0000-4000-8000-000000000001
+d7b30000-0000-4000-8000-000000000001	d7b20000-0000-4000-8000-000000000001	1	1	{"assets": [], "stages": [{"id": "ctx", "type": "CONTEXT", "required": true, "activities": [{"id": "intro", "type": "READ", "config": {"text": "Năm 938, quân Nam Hán kéo thủy quân vào sông Bạch Đằng. Ngô Quyền chuẩn bị trận đánh dựa trên địa hình cửa sông và quy luật thủy triều."}, "required": true, "instruction": "Đọc bối cảnh trận Bạch Đằng năm 938"}], "nextStageIds": ["ev"]}, {"id": "ev", "type": "EVIDENCE", "required": true, "activities": [{"id": "es", "type": "EVIDENCE_SELECT", "config": {"graded": true, "maxAttempts": 2, "minRequired": 1, "remedialAttempts": 1, "visibleEvidenceIds": ["d7b10000-0000-4000-8000-000000000001", "d7b10000-0000-4000-8000-000000000002", "d7b10000-0000-4000-8000-000000000003"], "acceptedEvidenceIds": ["d7b10000-0000-4000-8000-000000000001", "d7b10000-0000-4000-8000-000000000002"]}, "feedback": {"PARTIAL": "Chưa đủ — một trong hai bằng chứng chính còn thiếu.", "COMPLETED": "Đúng — hai tư liệu cốt lõi về bãi cọc và thủy triều.", "EXHAUSTED": "Hết lượt thử.", "INCORRECT": "Chưa đúng — rà soát lại tư liệu."}, "required": true, "instruction": "Chọn những tư liệu chứng minh Ngô Quyền lợi dụng thủy triều"}], "nextStageIds": ["re"], "requiredEvidenceIds": ["d7b10000-0000-4000-8000-000000000001", "d7b10000-0000-4000-8000-000000000002", "d7b10000-0000-4000-8000-000000000003"]}, {"id": "re", "type": "RECONSTRUCTION", "required": true, "activities": [{"id": "do", "type": "DRAG_ORDER", "config": {"items": [{"id": "s1", "label": "Đóng cọc ở cửa sông"}, {"id": "s2", "label": "Dụ địch vào bãi"}, {"id": "s3", "label": "Thủy triều lên che cọc"}, {"id": "s4", "label": "Phục kích chặn đánh"}, {"id": "s5", "label": "Thủy triều rút, thuyền mắc cọc"}, {"id": "s6", "label": "Quân Nam Hán tan vỡ"}], "expectedOrder": ["s1", "s2", "s3", "s4", "s5", "s6"]}, "feedback": {"COMPLETED": "Đúng trình tự.", "INCORRECT": "Sai thứ tự."}, "required": true, "instruction": "Sắp xếp lại trình tự diễn biến trận đánh"}], "nextStageIds": ["cc"]}, {"id": "cc", "type": "CONCLUSION", "required": true, "activities": [{"id": "cer", "type": "CER_CHOICE", "config": {"claims": [{"id": "c-tide", "text": "Chiến thắng là kết quả lợi dụng thủy triều và địa hình."}, {"id": "c-num", "text": "Chiến thắng là kết quả áp đảo quân số."}], "maxAttempts": 3, "acceptedCombos": [{"claimId": "c-tide", "evidenceIds": ["d7b10000-0000-4000-8000-000000000001", "d7b10000-0000-4000-8000-000000000002"], "reasoningId": "r-tide"}], "evidenceOptions": [{"id": "d7b10000-0000-4000-8000-000000000001"}, {"id": "d7b10000-0000-4000-8000-000000000002"}], "reasoningOptions": [{"id": "r-tide", "text": "Triều che giấu bãi cọc, triều rút khiến thuyền địch mắc kẹt."}, {"id": "r-luck", "text": "Quân địch tự rút vì thiếu lương."}], "priorEvidenceSource": "es"}, "feedback": {"PARTIAL": "Một phần đúng.", "COMPLETED": "Kết luận đúng.", "EXHAUSTED": "Hết lượt.", "INCORRECT": "Chưa đúng."}, "required": true, "instruction": "Kết luận về nguyên nhân chiến thắng"}], "nextStageIds": []}], "evidence": [{"id": "d7b10000-0000-4000-8000-000000000001", "title": "Đại Việt sử ký toàn thư — trận Bạch Đằng", "source": {"title": "Đại Việt sử ký toàn thư", "author": "Ngô Sĩ Liên", "citation": "Ngoại kỷ, quyển 5, kỷ Ngô Quyền"}, "assetId": null, "relevance": "Tư liệu chính về trận đánh", "description": "Đoạn ghi chép Ngô Quyền đóng cọc ngầm và lợi dụng thủy triều.", "reliability": "HIGH", "evidenceType": "TEXT"}, {"id": "d7b10000-0000-4000-8000-000000000002", "title": "Bảo tàng LSQG — bãi cọc Bạch Đằng", "source": {"url": "https://baotanglichsuquocgia.vn", "title": "Bảo tàng Lịch sử Quốc gia", "citation": "Mục \\"Ngô Quyền và chiến thắng Bạch Đằng năm 938\\""}, "assetId": null, "relevance": "Bằng chứng vật lý về trận địa cọc", "description": "Hiện vật cọc gỗ khai quật tại khu vực Bạch Đằng.", "reliability": "HIGH", "evidenceType": "TEXT"}, {"id": "d7b10000-0000-4000-8000-000000000003", "title": "Tư liệu địa hình cửa sông Bạch Đằng", "source": {"title": "Viện Hàn lâm KHXH&NV"}, "assetId": null, "relevance": "Bối cảnh địa tự nhiên của trận đánh", "description": "Mô tả địa hình lòng sông và chế độ thủy triều vùng cửa Bạch Đằng.", "reliability": "MEDIUM", "evidenceType": "TEXT"}], "completion": {"requireAllRequiredStages": true}, "schemaVersion": 1}	2026-10-24 13:31:17.517045+00	00000000-0000-4000-8000-000000000001
+30000000-0000-0000-0000-000000000002	10000000-0000-0000-0000-000000000002	1	1	{"assets": [], "stages": [{"id": "ctx", "type": "CONTEXT", "title": "Bối cảnh lịch sử", "required": true, "activities": [{"id": "read-hbt-context", "type": "READ", "config": {"text": "Đầu thế kỷ 1, nhà Đông Hán tăng cường đồng hóa và bóc lột hà khắc nhân dân Lạc Việt. Thái thú Tô Định nổi tiếng tham lam, tàn bạo. Khi Thi Sách (chồng bà Trưng Trắc) bị sát hại nhằm răn đe các thủ lĩnh người Việt, Trưng Trắc cùng em gái là Trưng Nhị đã phất cờ khởi nghĩa tại cửa sông Hát với 4 câu thề bất hủ:\\n\\nMột xin rửa sạch quốc thù,\\nHai xin đem lại nghiệp xưa họ Hùng,\\nBa kẻo oan ức lòng chồng,\\nBốn xin vẹn vẹn sở công lênh này.\\n\\nKhởi nghĩa bùng nổ, các quận Giao Chỉ, Cửu Chân, Nhật Nam đều đồng lòng hưởng ứng."}, "required": true, "instruction": "Đọc tư liệu về ách cai trị của Thái thú Tô Định và Lời thề Hát Môn"}], "nextStageIds": ["verify"]}, {"id": "verify", "type": "VERIFICATION", "title": "Điều tra chứng cứ & Đánh giá", "required": true, "activities": [{"id": "mc-hbt-cause", "type": "MULTIPLE_CHOICE", "config": {"options": [{"id": "opt-1", "label": "Giành lại quyền tự chủ cho dân tộc và phục hưng cơ nghiệp các vua Hùng"}, {"id": "opt-2", "label": "Chỉ thuần túy là trả thù riêng cho chồng là Thi Sách"}, {"id": "opt-3", "label": "Mong muốn được triều đình Hán phong thưởng tước vị"}], "question": "Mục tiêu lớn nhất và bao trùm của cuộc khởi nghĩa Hai Bà Trưng là gì?", "correctOptionIds": ["opt-1"]}, "required": true, "instruction": "Chọn nhận định đúng nhất về động lực khởi nghĩa"}], "nextStageIds": ["conclusion"]}, {"id": "conclusion", "type": "CONCLUSION", "title": "Ý nghĩa lịch sử", "required": true, "activities": [{"id": "read-hbt-conclusion", "type": "READ", "config": {"text": "Khởi nghĩa Hai Bà Trưng là trang sử oanh liệt đầu tiên khẳng định ý chí độc lập, bất khuất của dân tộc Việt Nam, mở đầu cho truyền thống quật cường chống ngoại xâm của nhân dân ta."}, "required": true, "instruction": "Đúc kết bài học lịch sử"}], "nextStageIds": []}], "evidence": [], "completion": {"requireAllRequiredStages": true}, "schemaVersion": 1}	2026-10-26 05:05:36.682805+00	00000000-0000-4000-8000-000000000001
+30000000-0000-0000-0000-000000000003	10000000-0000-0000-0000-000000000003	1	1	{"assets": [], "stages": [{"id": "ctx", "type": "CONTEXT", "title": "Bối cảnh chiến dịch", "required": true, "activities": [{"id": "read-ly-context", "type": "READ", "config": {"text": "Năm 1077, 10 vạn đại quân Tống do Quách Quỳ chỉ huy tràn vào xâm lược Đại Việt. Thái úy Lý Thường Kiệt đã chủ động lập phòng tuyến kiên cố men bờ nam sông Như Nguyệt (sông Cầu, Bắc Ninh). Tuyến phòng thủ dài hơn 30km, được đắp lũy đất cao, cắm cọc tre dày đặc dưới lòng sông và chiến thuyền cơ động án ngữ, chặn đứng hoàn toàn bước tiến của quân thù trước cửa ngõ kinh thành Thăng Long."}, "required": true, "instruction": "Tìm hiểu phòng tuyến sông Như Nguyệt năm 1077"}], "nextStageIds": ["verify"]}, {"id": "verify", "type": "VERIFICATION", "title": "Nghệ thuật quân sự", "required": true, "activities": [{"id": "mc-ly-tactic", "type": "MULTIPLE_CHOICE", "config": {"options": [{"id": "opt-1", "label": "Chủ động phòng ngự kiên cố, tiêu hao sinh lực địch rồi phản công quyết định kết hợp đòn tâm lý chiến"}, {"id": "opt-2", "label": "Dồn toàn lực tấn công ồ ạt ngay khi quân Tống vừa tới bờ sông"}, {"id": "opt-3", "label": "Rút lui toàn bộ về kinh thành cố thủ chờ quân chi viện"}], "question": "Điểm độc đáo nhất trong nghệ thuật kháng chiến của Lý Thường Kiệt tại sông Như Nguyệt là gì?", "correctOptionIds": ["opt-1"]}, "required": true, "instruction": "Chọn nhận định chính xác về chiến thuật của Lý Thường Kiệt"}], "nextStageIds": ["conclusion"]}, {"id": "conclusion", "type": "CONCLUSION", "title": "Đúc kết bài học", "required": true, "activities": [{"id": "read-ly-conclusion", "type": "READ", "config": {"text": "Chiến thắng Như Nguyệt gắn liền với bài thơ thần Nam quốc sơn hà - bản Tuyên ngôn Độc lập đầu tiên của nước Việt, đập tan ý chí xâm lược của nhà Tống, khẳng định chủ quyền thiêng liêng bất khả xâm phạm."}, "required": true, "instruction": "Ý nghĩa lịch sử của chiến thắng"}], "nextStageIds": []}], "evidence": [], "completion": {"requireAllRequiredStages": true}, "schemaVersion": 1}	2026-10-26 05:05:36.682805+00	00000000-0000-4000-8000-000000000001
+30000000-0000-0000-0000-000000000004	10000000-0000-0000-0000-000000000004	1	1	{"assets": [], "stages": [{"id": "ctx", "type": "CONTEXT", "title": "Bối cảnh chiến dịch", "required": true, "activities": [{"id": "read-dbp-context", "type": "READ", "config": {"text": "Tập đoàn cứ điểm Điện Biên Phủ gồm 49 cứ điểm liên hoàn, được thực dân Pháp xây dựng thành pháo đài bất khả xâm phạm. Ban đầu, Bộ chỉ huy chiến dịch dự kiến phương án Đánh nhanh thắng nhanh. Tuy nhiên, sau khi trực tiếp thị sát trận địa và nhận thấy địch đã gia cố công sự kiên cố, đêm 25 rạng sáng 26/1/1954, Đại tướng Võ Nguyên Giáp đã đưa ra quyết định lịch sử khó khăn nhất đời mình: Ra lệnh hoãn nổ súng, kéo pháo ra và chuyển sang phương châm Đánh chắc tiến chắc."}, "required": true, "instruction": "Tình hình chiến trường Điện Biên Phủ tháng 1/1954"}], "nextStageIds": ["verify"]}, {"id": "verify", "type": "VERIFICATION", "title": "Phân tích chiến lược", "required": true, "activities": [{"id": "mc-dbp-decision", "type": "MULTIPLE_CHOICE", "config": {"options": [{"id": "opt-1", "label": "Giúp bộ đội đào chiến hào siết chặt vòng vây, bóc dỡ từng cứ điểm và triệt tiêu ưu thế không quân, pháo binh địch"}, {"id": "opt-2", "label": "Kéo dài thời gian để chờ quân tiếp viện từ đồng minh"}, {"id": "opt-3", "label": "Nhằm mục đích rút bớt quân chủ lực về bảo vệ đồng bằng Bắc Bộ"}], "question": "Vì sao phương châm 'Đánh chắc, tiến chắc' là chìa khóa mở ra chiến thắng Điện Biên Phủ?", "correctOptionIds": ["opt-1"]}, "required": true, "instruction": "Đánh giá về quyết định chuyển phương châm tác chiến"}], "nextStageIds": ["conclusion"]}, {"id": "conclusion", "type": "CONCLUSION", "title": "Tổng kết chiến thắng", "required": true, "activities": [{"id": "read-dbp-conclusion", "type": "READ", "config": {"text": "Sau 56 ngày đêm khoét núi, ngủ hầm, mưa dầm, cơm vắt, ngày 7/5/1954 lá cờ Quyết chiến Quyết thắng tung bay trên nóc hầm De Castries. Chiến thắng Điện Biên Phủ lừng lẫy năm châu, chấn động địa cầu đã buộc Pháp phải ký Hiệp định Genève chấm dứt chiến tranh tại Đông Dương."}, "required": true, "instruction": "Tầm vóc thời đại của chiến thắng Điện Biên Phủ"}], "nextStageIds": []}], "evidence": [], "completion": {"requireAllRequiredStages": true}, "schemaVersion": 1}	2026-10-26 05:05:36.682805+00	00000000-0000-4000-8000-000000000001
+d7b30000-0000-4000-8000-000000000002	d7b20000-0000-4000-8000-000000000002	1	1	{"assets": [], "stages": [{"id": "ev", "type": "EVIDENCE", "required": true, "activities": [{"id": "es", "type": "EVIDENCE_SELECT", "config": {"graded": true, "maxAttempts": 2, "visibleEvidenceIds": ["d7b11000-0000-4000-8000-000000000001", "d7b11000-0000-4000-8000-000000000002", "d7b11000-0000-4000-8000-000000000003"], "acceptedEvidenceIds": ["d7b11000-0000-4000-8000-000000000001"]}, "feedback": {"COMPLETED": "Đúng.", "EXHAUSTED": "Hết lượt.", "INCORRECT": "Chưa đúng."}, "required": true, "instruction": "Chọn tư liệu chứng minh quy mô khởi nghĩa"}], "nextStageIds": ["cc"], "requiredEvidenceIds": ["d7b11000-0000-4000-8000-000000000001", "d7b11000-0000-4000-8000-000000000002", "d7b11000-0000-4000-8000-000000000003"]}, {"id": "cc", "type": "CONCLUSION", "required": true, "activities": [{"id": "cer", "type": "CER_CHOICE", "config": {"claims": [{"id": "c-indep", "text": "Khởi nghĩa khôi phục chính quyền tự chủ."}, {"id": "c-sym", "text": "Khởi nghĩa chỉ có ý nghĩa biểu tượng."}], "maxAttempts": 3, "acceptedCombos": [{"claimId": "c-indep", "evidenceIds": ["d7b11000-0000-4000-8000-000000000001"], "reasoningId": "r-castle"}], "evidenceOptions": [{"id": "d7b11000-0000-4000-8000-000000000001"}, {"id": "d7b11000-0000-4000-8000-000000000002"}], "reasoningOptions": [{"id": "r-castle", "text": "65 thành trì theo về cho thấy quyền lực được khôi phục."}, {"id": "r-short", "text": "Khởi nghĩa chỉ kéo dài ba năm."}], "priorEvidenceSource": "es"}, "feedback": {"PARTIAL": "Một phần.", "COMPLETED": "Kết luận đúng.", "EXHAUSTED": "Hết lượt.", "INCORRECT": "Chưa đúng."}, "required": true, "instruction": "Kết luận về ý nghĩa khởi nghĩa"}], "nextStageIds": []}], "evidence": [{"id": "d7b11000-0000-4000-8000-000000000001", "title": "Đại Việt sử ký toàn thư — khởi nghĩa Hai Bà Trưng", "source": {"title": "Đại Việt sử ký toàn thư", "author": "Ngô Sĩ Liên", "citation": "Ngoại kỷ, quyển 3, kỷ Trưng Nữ Vương"}, "assetId": null, "relevance": "Bằng chứng quy mô của khởi nghĩa", "description": "Đoạn ghi chép 65 thành trì theo về khởi nghĩa.", "reliability": "HIGH", "evidenceType": "TEXT"}, {"id": "d7b11000-0000-4000-8000-000000000002", "title": "Đền Hai Bà Trưng — Mê Linh", "source": {"title": "Ban quản lý di tích Mê Linh"}, "assetId": null, "relevance": "Bối cảnh văn hóa của cuộc khởi nghĩa", "description": "Đền thờ tại quê hương Hai Bà Trưng.", "reliability": "MEDIUM", "evidenceType": "TEXT"}, {"id": "d7b11000-0000-4000-8000-000000000003", "title": "Tư liệu về Luy Lâu thời Đông Hán", "source": {"title": "Viện Hàn lâm KHXH&NV"}, "assetId": null, "relevance": "Bối cảnh chính trị của cuộc khởi nghĩa", "description": "Mô tả vai trò Luy Lâu như trung tâm cai trị.", "reliability": "MEDIUM", "evidenceType": "TEXT"}], "completion": {"requireAllRequiredStages": true}, "schemaVersion": 1}	2026-10-24 13:31:17.517045+00	00000000-0000-4000-8000-000000000001
+d7b30000-0000-4000-8000-000000000003	d7b20000-0000-4000-8000-000000000003	1	1	{"assets": [], "stages": [{"id": "ctx", "type": "CONTEXT", "required": true, "activities": [{"id": "intro", "type": "READ", "config": {"text": "Năm 1010, Lý Thái Tổ quyết định dời kinh đô từ Hoa Lư về Đại La và đổi tên thành Thăng Long — quyết định định hình trung tâm chính trị lâu dài."}, "required": true, "instruction": "Đọc bối cảnh dời đô năm 1010"}], "nextStageIds": ["ev"]}, {"id": "ev", "type": "EVIDENCE", "required": true, "activities": [{"id": "es", "type": "EVIDENCE_SELECT", "config": {"graded": true, "maxAttempts": 2, "minRequired": 1, "visibleEvidenceIds": ["d7b12000-0000-4000-8000-000000000001", "d7b12000-0000-4000-8000-000000000002", "d7b12000-0000-4000-8000-000000000003"], "acceptedEvidenceIds": ["d7b12000-0000-4000-8000-000000000001", "d7b12000-0000-4000-8000-000000000002"]}, "feedback": {"PARTIAL": "Chưa đủ.", "COMPLETED": "Đúng.", "EXHAUSTED": "Hết lượt.", "INCORRECT": "Chưa đúng."}, "required": true, "instruction": "Chọn tư liệu chứng minh quyết định dời đô"}], "nextStageIds": ["cc"], "requiredEvidenceIds": ["d7b12000-0000-4000-8000-000000000001", "d7b12000-0000-4000-8000-000000000002", "d7b12000-0000-4000-8000-000000000003"]}, {"id": "cc", "type": "CONCLUSION", "required": true, "activities": [{"id": "cer", "type": "CER_CHOICE", "config": {"claims": [{"id": "c-vision", "text": "Dời đô là quyết định chiến lược lâu dài."}, {"id": "c-temp", "text": "Dời đô chỉ là quyết định nhất thời."}], "maxAttempts": 3, "acceptedCombos": [{"claimId": "c-vision", "evidenceIds": ["d7b12000-0000-4000-8000-000000000001", "d7b12000-0000-4000-8000-000000000002"], "reasoningId": "r-center"}], "evidenceOptions": [{"id": "d7b12000-0000-4000-8000-000000000001"}, {"id": "d7b12000-0000-4000-8000-000000000002"}], "reasoningOptions": [{"id": "r-center", "text": "Đại La là trung tâm đồng bằng, thuận lợi phát triển."}, {"id": "r-castle", "text": "Hoa Lư hiểm trở, phù hợp phòng thủ hơn."}], "priorEvidenceSource": "es"}, "feedback": {"PARTIAL": "Một phần.", "COMPLETED": "Kết luận đúng.", "EXHAUSTED": "Hết lượt.", "INCORRECT": "Chưa đúng."}, "required": true, "instruction": "Kết luận về ý nghĩa quyết định dời đô"}], "nextStageIds": []}], "evidence": [{"id": "d7b12000-0000-4000-8000-000000000001", "title": "Chiếu dời đô — Lý Thái Tổ", "source": {"title": "Đại Việt sử ký toàn thư", "citation": "Bản kỷ, quyển 2, kỷ Lý Thái Tổ"}, "assetId": null, "relevance": "Văn bản gốc của quyết định", "description": "Văn bản chiếu thiên đô năm 1010.", "reliability": "HIGH", "evidenceType": "TEXT"}, {"id": "d7b12000-0000-4000-8000-000000000002", "title": "Đại Việt sử ký toàn thư — dời đô về Thăng Long", "source": {"title": "Đại Việt sử ký toàn thư", "author": "Ngô Sĩ Liên"}, "assetId": null, "relevance": "Bằng chứng về quyết định dời đô", "description": "Đoạn ghi chép quá trình chọn địa điểm mới.", "reliability": "HIGH", "evidenceType": "TEXT"}, {"id": "d7b12000-0000-4000-8000-000000000003", "title": "Tư liệu về thành Đại La", "source": {"title": "Viện Hàn lâm KHXH&NV"}, "assetId": null, "relevance": "Bối cảnh địa lý của kinh đô mới", "description": "Mô tả vị trí và vai trò thành Đại La.", "reliability": "MEDIUM", "evidenceType": "TEXT"}], "completion": {"requireAllRequiredStages": true}, "schemaVersion": 1}	2026-10-24 13:31:17.517045+00	00000000-0000-4000-8000-000000000001
 \.
 
 
@@ -1190,6 +1461,9 @@ d7b20000-0000-4000-8000-000000000001	00000000-0000-0000-0000-000000000001	d7a000
 d7b20000-0000-4000-8000-000000000003	d7b00000-0000-4000-8000-000000000003	d7a00000-0000-4000-8000-000000000001	Lý Thái Tổ dời đô năm 1010	Vì sao Lý Thái Tổ chọn Đại La thay vì giữ Hoa Lư?	["Hiểu bối cảnh quyết định dời đô", "Đánh giá vai trò địa thế"]	{"stages": [{"id": "ctx", "type": "CONTEXT", "required": true, "activities": [{"id": "intro", "type": "READ", "config": {"text": "Năm 1010, Lý Thái Tổ quyết định dời kinh đô từ Hoa Lư về Đại La và đổi tên thành Thăng Long — quyết định định hình trung tâm chính trị lâu dài."}, "required": true, "instruction": "Đọc bối cảnh dời đô năm 1010"}], "nextStageIds": ["ev"]}, {"id": "ev", "type": "EVIDENCE", "required": true, "activities": [{"id": "es", "type": "EVIDENCE_SELECT", "config": {"graded": true, "maxAttempts": 2, "minRequired": 1, "visibleEvidenceIds": ["d7b12000-0000-4000-8000-000000000001", "d7b12000-0000-4000-8000-000000000002", "d7b12000-0000-4000-8000-000000000003"], "acceptedEvidenceIds": ["d7b12000-0000-4000-8000-000000000001", "d7b12000-0000-4000-8000-000000000002"]}, "feedback": {"PARTIAL": "Chưa đủ.", "COMPLETED": "Đúng.", "EXHAUSTED": "Hết lượt.", "INCORRECT": "Chưa đúng."}, "required": true, "instruction": "Chọn tư liệu chứng minh quyết định dời đô"}], "nextStageIds": ["cc"], "requiredEvidenceIds": ["d7b12000-0000-4000-8000-000000000001", "d7b12000-0000-4000-8000-000000000002", "d7b12000-0000-4000-8000-000000000003"]}, {"id": "cc", "type": "CONCLUSION", "required": true, "activities": [{"id": "cer", "type": "CER_CHOICE", "config": {"claims": [{"id": "c-vision", "text": "Dời đô là quyết định chiến lược lâu dài."}, {"id": "c-temp", "text": "Dời đô chỉ là quyết định nhất thời."}], "maxAttempts": 3, "acceptedCombos": [{"claimId": "c-vision", "evidenceIds": ["d7b12000-0000-4000-8000-000000000001", "d7b12000-0000-4000-8000-000000000002"], "reasoningId": "r-center"}], "evidenceOptions": [{"id": "d7b12000-0000-4000-8000-000000000001"}, {"id": "d7b12000-0000-4000-8000-000000000002"}], "reasoningOptions": [{"id": "r-center", "text": "Đại La là trung tâm đồng bằng, thuận lợi phát triển."}, {"id": "r-castle", "text": "Hoa Lư hiểm trở, phù hợp phòng thủ hơn."}], "priorEvidenceSource": "es"}, "feedback": {"PARTIAL": "Một phần.", "COMPLETED": "Kết luận đúng.", "EXHAUSTED": "Hết lượt.", "INCORRECT": "Chưa đúng."}, "required": true, "instruction": "Kết luận về ý nghĩa quyết định dời đô"}], "nextStageIds": []}], "completion": {"requireAllRequiredStages": true}, "schemaVersion": 1}	PUBLISHED	d7b30000-0000-4000-8000-000000000003	00000000-0000-4000-8000-000000000001	00000000-0000-4000-8000-000000000001	2026-10-24 13:31:17.517045+00	2026-10-24 13:31:17.517045+00	0
 d7b20000-0000-4000-8000-000000000002	d7b00000-0000-4000-8000-000000000002	d7a00000-0000-4000-8000-000000000001	Khởi nghĩa Hai Bà Trưng năm 40	Điều gì cho thấy quy mô và ý nghĩa của khởi nghĩa Hai Bà Trưng?	["Đánh giá bằng chứng về quy mô", "Kết luận về ý nghĩa lịch sử"]	{"stages": [{"id": "ev", "type": "EVIDENCE", "required": true, "activities": [{"id": "es", "type": "EVIDENCE_SELECT", "config": {"graded": true, "maxAttempts": 2, "visibleEvidenceIds": ["d7b11000-0000-4000-8000-000000000001", "d7b11000-0000-4000-8000-000000000002", "d7b11000-0000-4000-8000-000000000003"], "acceptedEvidenceIds": ["d7b11000-0000-4000-8000-000000000001"]}, "feedback": {"COMPLETED": "Đúng.", "EXHAUSTED": "Hết lượt.", "INCORRECT": "Chưa đúng."}, "required": true, "instruction": "Chọn tư liệu chứng minh quy mô khởi nghĩa"}], "nextStageIds": ["cc"], "requiredEvidenceIds": ["d7b11000-0000-4000-8000-000000000001", "d7b11000-0000-4000-8000-000000000002", "d7b11000-0000-4000-8000-000000000003"]}, {"id": "cc", "type": "CONCLUSION", "required": true, "activities": [{"id": "cer", "type": "CER_CHOICE", "config": {"claims": [{"id": "c-indep", "text": "Khởi nghĩa khôi phục chính quyền tự chủ."}, {"id": "c-sym", "text": "Khởi nghĩa chỉ có ý nghĩa biểu tượng."}], "maxAttempts": 3, "acceptedCombos": [{"claimId": "c-indep", "evidenceIds": ["d7b11000-0000-4000-8000-000000000001"], "reasoningId": "r-castle"}], "evidenceOptions": [{"id": "d7b11000-0000-4000-8000-000000000001"}, {"id": "d7b11000-0000-4000-8000-000000000002"}], "reasoningOptions": [{"id": "r-castle", "text": "65 thành trì theo về cho thấy quyền lực được khôi phục."}, {"id": "r-short", "text": "Khởi nghĩa chỉ kéo dài ba năm."}], "priorEvidenceSource": "es"}, "feedback": {"PARTIAL": "Một phần.", "COMPLETED": "Kết luận đúng.", "EXHAUSTED": "Hết lượt.", "INCORRECT": "Chưa đúng."}, "required": true, "instruction": "Kết luận về ý nghĩa khởi nghĩa"}], "nextStageIds": []}], "completion": {"requireAllRequiredStages": true}, "schemaVersion": 1}	PUBLISHED	d7b30000-0000-4000-8000-000000000002	00000000-0000-4000-8000-000000000001	00000000-0000-4000-8000-000000000001	2026-10-24 13:31:17.517045+00	2026-10-24 13:31:17.517045+00	0
 c0ee9891-6ad6-4b9a-a1a9-8840a70a04f9	d7b00000-0000-4000-8000-000000000002	d7a00000-0000-4000-8000-000000000001	test	132	["123"]	{"stages": [{"id": "context", "type": "CONTEXT", "title": "Bối cảnh lịch sử", "required": true, "activities": [], "nextStageIds": ["evidence"]}, {"id": "evidence", "type": "EVIDENCE", "title": "Điều tra bằng chứng", "required": true, "activities": [], "nextStageIds": ["reconstruction"]}, {"id": "reconstruction", "type": "RECONSTRUCTION", "title": "Tái dựng diễn biến", "required": true, "activities": [], "nextStageIds": ["conclusion"]}, {"id": "conclusion", "type": "CONCLUSION", "title": "Lập luận và kết luận", "required": true, "activities": [{"id": "act-ievc17", "type": "CER_CHOICE", "config": {"claims": [{"id": "it-bsmn66", "text": "1"}, {"id": "it-62a3ff", "text": "2"}], "acceptedCombos": [{"claimId": "it-bsmn66", "evidenceIds": ["d7b11000-0000-4000-8000-000000000002", "d7b11000-0000-4000-8000-000000000001"], "reasoningId": "it-j5w2r0"}], "evidenceOptions": [{"id": "d7b11000-0000-4000-8000-000000000001"}, {"id": "d7b11000-0000-4000-8000-000000000002"}, {"id": "d7b11000-0000-4000-8000-000000000003"}], "reasoningOptions": [{"id": "it-j5w2r0", "text": "1"}, {"id": "it-m5aydc", "text": "2"}]}, "required": false, "instruction": ""}], "nextStageIds": []}], "completion": {"requireAllRequiredStages": true}, "schemaVersion": 1}	DRAFT	\N	67e0f392-33b0-446a-8f23-7c98b98c10c3	67e0f392-33b0-446a-8f23-7c98b98c10c3	2026-10-24 13:34:37.488517+00	2026-10-24 13:37:44.843194+00	1
+10000000-0000-0000-0000-000000000002	00000000-0000-0000-0000-000000000002	d7a00000-0000-4000-8000-000000000001	Tiếng Trống Mê Linh: Nguyên Nhân và Sức Mạnh Khởi Nghĩa	Vì sao cuộc khởi nghĩa của Hai Bà Trưng được đông đảo nhân dân và các Lạc tướng khắp 65 thành trì hưởng ứng?	["Hiểu rõ nguyên nhân sâu xa và trực tiếp của khởi nghĩa Mê Linh", "Phân tích lời thề Hát Môn và tinh thần bất khuất của phụ nữ Việt Nam", "Ý nghĩa lịch sử mở đầu trang sử đấu tranh chống Bắc thuộc"]	{"stages": [{"id": "ctx", "type": "CONTEXT", "title": "Bối cảnh lịch sử", "required": true, "activities": [{"id": "read-hbt-context", "type": "READ", "config": {"text": "Đầu thế kỷ 1, nhà Đông Hán tăng cường đồng hóa và bóc lột hà khắc nhân dân Lạc Việt. Thái thú Tô Định nổi tiếng tham lam, tàn bạo. Khi Thi Sách (chồng bà Trưng Trắc) bị sát hại nhằm răn đe các thủ lĩnh người Việt, Trưng Trắc cùng em gái là Trưng Nhị đã phất cờ khởi nghĩa tại cửa sông Hát với 4 câu thề bất hủ:\\n\\nMột xin rửa sạch quốc thù,\\nHai xin đem lại nghiệp xưa họ Hùng,\\nBa kẻo oan ức lòng chồng,\\nBốn xin vẹn vẹn sở công lênh này.\\n\\nKhởi nghĩa bùng nổ, các quận Giao Chỉ, Cửu Chân, Nhật Nam đều đồng lòng hưởng ứng."}, "required": true, "instruction": "Đọc tư liệu về ách cai trị của Thái thú Tô Định và Lời thề Hát Môn"}], "nextStageIds": ["verify"]}, {"id": "verify", "type": "VERIFICATION", "title": "Điều tra chứng cứ & Đánh giá", "required": true, "activities": [{"id": "mc-hbt-cause", "type": "MULTIPLE_CHOICE", "config": {"options": [{"id": "opt-1", "label": "Giành lại quyền tự chủ cho dân tộc và phục hưng cơ nghiệp các vua Hùng"}, {"id": "opt-2", "label": "Chỉ thuần túy là trả thù riêng cho chồng là Thi Sách"}, {"id": "opt-3", "label": "Mong muốn được triều đình Hán phong thưởng tước vị"}], "question": "Mục tiêu lớn nhất và bao trùm của cuộc khởi nghĩa Hai Bà Trưng là gì?", "correctOptionIds": ["opt-1"]}, "required": true, "instruction": "Chọn nhận định đúng nhất về động lực khởi nghĩa"}], "nextStageIds": ["conclusion"]}, {"id": "conclusion", "type": "CONCLUSION", "title": "Ý nghĩa lịch sử", "required": true, "activities": [{"id": "read-hbt-conclusion", "type": "READ", "config": {"text": "Khởi nghĩa Hai Bà Trưng là trang sử oanh liệt đầu tiên khẳng định ý chí độc lập, bất khuất của dân tộc Việt Nam, mở đầu cho truyền thống quật cường chống ngoại xâm của nhân dân ta."}, "required": true, "instruction": "Đúc kết bài học lịch sử"}], "nextStageIds": []}], "completion": {"requireAllRequiredStages": true}, "schemaVersion": 1}	PUBLISHED	30000000-0000-0000-0000-000000000002	00000000-0000-4000-8000-000000000001	00000000-0000-4000-8000-000000000001	2026-10-26 05:05:36.682805+00	2026-10-26 05:05:36.682805+00	0
+10000000-0000-0000-0000-000000000003	00000000-0000-0000-0000-000000000003	d7a00000-0000-4000-8000-000000000001	Chiến Tuyến Sông Cầu: Bẻ Gãy Mưu Đồ Xâm Lược Nhà Tống	Nghệ thuật quân sự độc đáo nào đã giúp quân dân nhà Lý đánh bại 10 vạn quân Tống xâm lược?	["Nắm vững bối cảnh chiến trường phòng tuyến sông Như Nguyệt năm 1077", "Phân tích tác dụng của bài thơ thần Nam Quốc Sơn Hà trong chiến tranh tâm lý", "Đánh giá tài thao lược chủ động tấn công để phòng vệ của Thái úy Lý Thường Kiệt"]	{"stages": [{"id": "ctx", "type": "CONTEXT", "title": "Bối cảnh chiến dịch", "required": true, "activities": [{"id": "read-ly-context", "type": "READ", "config": {"text": "Năm 1077, 10 vạn đại quân Tống do Quách Quỳ chỉ huy tràn vào xâm lược Đại Việt. Thái úy Lý Thường Kiệt đã chủ động lập phòng tuyến kiên cố men bờ nam sông Như Nguyệt (sông Cầu, Bắc Ninh). Tuyến phòng thủ dài hơn 30km, được đắp lũy đất cao, cắm cọc tre dày đặc dưới lòng sông và chiến thuyền cơ động án ngữ, chặn đứng hoàn toàn bước tiến của quân thù trước cửa ngõ kinh thành Thăng Long."}, "required": true, "instruction": "Tìm hiểu phòng tuyến sông Như Nguyệt năm 1077"}], "nextStageIds": ["verify"]}, {"id": "verify", "type": "VERIFICATION", "title": "Nghệ thuật quân sự", "required": true, "activities": [{"id": "mc-ly-tactic", "type": "MULTIPLE_CHOICE", "config": {"options": [{"id": "opt-1", "label": "Chủ động phòng ngự kiên cố, tiêu hao sinh lực địch rồi phản công quyết định kết hợp đòn tâm lý chiến"}, {"id": "opt-2", "label": "Dồn toàn lực tấn công ồ ạt ngay khi quân Tống vừa tới bờ sông"}, {"id": "opt-3", "label": "Rút lui toàn bộ về kinh thành cố thủ chờ quân chi viện"}], "question": "Điểm độc đáo nhất trong nghệ thuật kháng chiến của Lý Thường Kiệt tại sông Như Nguyệt là gì?", "correctOptionIds": ["opt-1"]}, "required": true, "instruction": "Chọn nhận định chính xác về chiến thuật của Lý Thường Kiệt"}], "nextStageIds": ["conclusion"]}, {"id": "conclusion", "type": "CONCLUSION", "title": "Đúc kết bài học", "required": true, "activities": [{"id": "read-ly-conclusion", "type": "READ", "config": {"text": "Chiến thắng Như Nguyệt gắn liền với bài thơ thần Nam quốc sơn hà - bản Tuyên ngôn Độc lập đầu tiên của nước Việt, đập tan ý chí xâm lược của nhà Tống, khẳng định chủ quyền thiêng liêng bất khả xâm phạm."}, "required": true, "instruction": "Ý nghĩa lịch sử của chiến thắng"}], "nextStageIds": []}], "completion": {"requireAllRequiredStages": true}, "schemaVersion": 1}	PUBLISHED	30000000-0000-0000-0000-000000000003	00000000-0000-4000-8000-000000000001	00000000-0000-4000-8000-000000000001	2026-10-26 05:05:36.682805+00	2026-10-26 05:05:36.682805+00	0
+10000000-0000-0000-0000-000000000004	00000000-0000-0000-0000-000000000004	d7a00000-0000-4000-8000-000000000001	Quyết Định Lịch Sử: Chuyển Phương Châm Tại Điện Biên Phủ	Vì sao Đại tướng Võ Nguyên Giáp quyết định thay đổi phương châm từ Đánh nhanh thắng nhanh sang Đánh chắc tiến chắc?	["Hiểu rõ cấu trúc tập đoàn cứ điểm Điện Biên Phủ của Pháp", "Phân tích nguyên nhân và tầm quan trọng của quyết định chuyển phương châm tác chiến ngày 26/1/1954", "Ý nghĩa chiến thắng Điện Biên Phủ đối với nền độc lập dân tộc"]	{"stages": [{"id": "ctx", "type": "CONTEXT", "title": "Bối cảnh chiến dịch", "required": true, "activities": [{"id": "read-dbp-context", "type": "READ", "config": {"text": "Tập đoàn cứ điểm Điện Biên Phủ gồm 49 cứ điểm liên hoàn, được thực dân Pháp xây dựng thành pháo đài bất khả xâm phạm. Ban đầu, Bộ chỉ huy chiến dịch dự kiến phương án Đánh nhanh thắng nhanh. Tuy nhiên, sau khi trực tiếp thị sát trận địa và nhận thấy địch đã gia cố công sự kiên cố, đêm 25 rạng sáng 26/1/1954, Đại tướng Võ Nguyên Giáp đã đưa ra quyết định lịch sử khó khăn nhất đời mình: Ra lệnh hoãn nổ súng, kéo pháo ra và chuyển sang phương châm Đánh chắc tiến chắc."}, "required": true, "instruction": "Tình hình chiến trường Điện Biên Phủ tháng 1/1954"}], "nextStageIds": ["verify"]}, {"id": "verify", "type": "VERIFICATION", "title": "Phân tích chiến lược", "required": true, "activities": [{"id": "mc-dbp-decision", "type": "MULTIPLE_CHOICE", "config": {"options": [{"id": "opt-1", "label": "Giúp bộ đội đào chiến hào siết chặt vòng vây, bóc dỡ từng cứ điểm và triệt tiêu ưu thế không quân, pháo binh địch"}, {"id": "opt-2", "label": "Kéo dài thời gian để chờ quân tiếp viện từ đồng minh"}, {"id": "opt-3", "label": "Nhằm mục đích rút bớt quân chủ lực về bảo vệ đồng bằng Bắc Bộ"}], "question": "Vì sao phương châm 'Đánh chắc, tiến chắc' là chìa khóa mở ra chiến thắng Điện Biên Phủ?", "correctOptionIds": ["opt-1"]}, "required": true, "instruction": "Đánh giá về quyết định chuyển phương châm tác chiến"}], "nextStageIds": ["conclusion"]}, {"id": "conclusion", "type": "CONCLUSION", "title": "Tổng kết chiến thắng", "required": true, "activities": [{"id": "read-dbp-conclusion", "type": "READ", "config": {"text": "Sau 56 ngày đêm khoét núi, ngủ hầm, mưa dầm, cơm vắt, ngày 7/5/1954 lá cờ Quyết chiến Quyết thắng tung bay trên nóc hầm De Castries. Chiến thắng Điện Biên Phủ lừng lẫy năm châu, chấn động địa cầu đã buộc Pháp phải ký Hiệp định Genève chấm dứt chiến tranh tại Đông Dương."}, "required": true, "instruction": "Tầm vóc thời đại của chiến thắng Điện Biên Phủ"}], "nextStageIds": []}], "completion": {"requireAllRequiredStages": true}, "schemaVersion": 1}	PUBLISHED	30000000-0000-0000-0000-000000000004	00000000-0000-4000-8000-000000000001	00000000-0000-4000-8000-000000000001	2026-10-26 05:05:36.682805+00	2026-10-26 05:05:36.682805+00	0
 \.
 
 
@@ -1213,6 +1487,17 @@ c52e4e22-7dad-4b38-8f2c-ddc4de87db1f	55ce75e7-79fd-4995-9a4f-4032151cd541	Chùa 
 0523555a-d981-4d52-9f44-823d845b3bb1	635d6143-ffe1-4770-91e4-a4e4194fb1b7	Cửa sông Bạch Đằng	Cửa ngõ sông Bạch Đằng nhìn ra vịnh Bắc Bộ — vị trí chiến lược quyết định trận hải chiến năm 938.	20.9103	106.8285	75249a8a-e9f8-4de1-989b-f0d493e54c1f	0	PUBLISHED	2026-10-22 13:57:03.808383+00	2026-10-22 13:57:03.822263+00	1	2026-10-22 13:57:03.821737+00
 d53e37a1-4bcf-4600-9d09-0c58bf528297	635d6143-ffe1-4770-91e4-a4e4194fb1b7	Bãi cọc Bạch Đằng	Nơi quân Nam Hán mắc kẹt trận cọc ngầm khi thủy triều rút — bước ngoặt kết thúc hơn nghìn năm Bắc thuộc.	20.95	106.79	4650bb3e-5662-4b9c-8aa2-f0e9221d59b5	1	PUBLISHED	2026-10-22 13:57:03.836848+00	2026-10-22 13:57:03.851281+00	1	2026-10-22 13:57:03.85057+00
 d977ca7a-8d5b-4f6c-88fe-69f1e70c0e41	635d6143-ffe1-4770-91e4-a4e4194fb1b7	Đền Trần Bạch Đằng	Đền thờ Quốc công Tiết chế Hưng Đạo Đại Vương Trần Quốc Tuấn tại vùng cửa sông Bạch Đằng — nơi lưu giữ ký ức hai trận đại thắng.	20.93	106.82	\N	2	PUBLISHED	2026-10-22 13:57:03.864646+00	2026-10-22 13:57:03.878325+00	1	2026-10-22 13:57:03.878326+00
+a0000000-0000-0000-0000-000000000001	00000000-0000-0000-0000-000000000005	Khu di tích Đền Hùng	Núi Nghĩa Lĩnh, Phong Châu — nơi hội tụ linh khí non sông, nơi phụng thờ 18 đời Hùng Vương mở cõi dựng nước.	21.3653	105.3262	\N	1	PUBLISHED	2026-10-26 05:05:36.682805+00	2026-10-26 05:05:36.682805+00	0	2026-10-26 05:05:36.682805+00
+a0000000-0000-0000-0000-000000000002	00000000-0000-0000-0000-000000000005	Làng Cổ Văn Lang & Ngã Ba Hạc	Nơi hợp lưu của ba con sông lớn sông Hồng, sông Lô và sông Đà — cái nôi của nền văn minh lúa nước và văn hóa Đông Sơn.	21.3121	105.4215	\N	2	PUBLISHED	2026-10-26 05:05:36.682805+00	2026-10-26 05:05:36.682805+00	0	2026-10-26 05:05:36.682805+00
+a0000000-0000-0000-0000-000000000003	00000000-0000-0000-0000-000000000001	Bến Bạch Đằng - Trận Địa Cọc	Cửa sông Bạch Đằng lịch sử — nơi Ngô Quyền cắm cọc vạt nhọn bọc sắt tiêu diệt hạm đội thuyền giặc Nam Hán năm 938.	20.8492	106.6891	\N	1	PUBLISHED	2026-10-26 05:05:36.682805+00	2026-10-26 05:05:36.682805+00	0	2026-10-26 05:05:36.682805+00
+a0000000-0000-0000-0000-000000000004	00000000-0000-0000-0000-000000000001	Bãi Cọc Yên Giang (Quảng Yên)	Chứng tích những thân gỗ lim cắm sâu lòng sông ngầm, biểu tượng mưu trí và sức mạnh quật cường của quân dân Việt.	20.9324	106.8123	\N	2	PUBLISHED	2026-10-26 05:05:36.682805+00	2026-10-26 05:05:36.682805+00	0	2026-10-26 05:05:36.682805+00
+a0000000-0000-0000-0000-000000000005	00000000-0000-0000-0000-000000000001	Cửa Sông Nam Triệu	Cửa ngõ huyết mạch dẫn từ biển vào Bạch Đằng giang, nơi giặc lọt vào thế trận mai phục khi thủy triều rút kiệt.	20.7801	106.7902	\N	3	PUBLISHED	2026-10-26 05:05:36.682805+00	2026-10-26 05:05:36.682805+00	0	2026-10-26 05:05:36.682805+00
+a0000000-0000-0000-0000-000000000006	00000000-0000-0000-0000-000000000002	Cửa Sông Hát (Hát Môn)	Nơi Hai Bà Trưng tế cờ khởi nghĩa mùa xuân năm 40, truyền vang lời thề cứu nước cứu dân đuổi quân đô hộ Đông Hán.	21.1452	105.5801	10000000-0000-0000-0000-000000000002	1	PUBLISHED	2026-10-26 05:05:36.682805+00	2026-10-26 05:05:36.682805+00	0	2026-10-26 05:05:36.682805+00
+a0000000-0000-0000-0000-000000000007	00000000-0000-0000-0000-000000000002	Thành Cổ Mê Linh	Trung tâm chỉ huy nghĩa quân và kinh đô sau khi Trưng Nữ Vương xưng vương, giành lại 65 thành trì Lĩnh Ngoại.	21.1804	105.7103	\N	2	PUBLISHED	2026-10-26 05:05:36.682805+00	2026-10-26 05:05:36.682805+00	0	2026-10-26 05:05:36.682805+00
+a0000000-0000-0000-0000-000000000008	00000000-0000-0000-0000-000000000003	Phòng Tuyến Sông Cầu	Phòng tuyến hiểm trở dài hàng trăm dặm do Lý Thường Kiệt đắp luỹ cắm chông chặn đứng 30 vạn quân Tống xâm lược.	21.2175	106.0024	10000000-0000-0000-0000-000000000003	1	PUBLISHED	2026-10-26 05:05:36.682805+00	2026-10-26 05:05:36.682805+00	0	2026-10-26 05:05:36.682805+00
+a0000000-0000-0000-0000-000000000009	00000000-0000-0000-0000-000000000003	Đền Xà - Bài Thơ Thần	Bản tuyên ngôn độc lập đầu tiên Nam Quốc Sơn Hà ngân vang giữa đêm trăng làm rung chuyển ý chí quân xâm lược.	21.2051	106.0182	\N	2	PUBLISHED	2026-10-26 05:05:36.682805+00	2026-10-26 05:05:36.682805+00	0	2026-10-26 05:05:36.682805+00
+a0000000-0000-0000-0000-000000000010	00000000-0000-0000-0000-000000000004	Cứ Điểm Đồi A1 (Eliane 2)	Trận địa đẫm máu then chốt bảo vệ trung tâm Mường Thanh, ngọn đồi quyết định cục diện chiến trường Điện Biên Phủ.	21.3854	103.0185	10000000-0000-0000-0000-000000000004	1	PUBLISHED	2026-10-26 05:05:36.682805+00	2026-10-26 05:05:36.682805+00	0	2026-10-26 05:05:36.682805+00
+a0000000-0000-0000-0000-000000000011	00000000-0000-0000-0000-000000000004	Hầm Tướng De Castries	Nơi cờ quyết chiến quyết thắng tung bay vào chiều ngày 7/5/1954, kết thúc 56 ngày đêm chấn động địa cầu.	21.3882	103.0151	\N	2	PUBLISHED	2026-10-26 05:05:36.682805+00	2026-10-26 05:05:36.682805+00	0	2026-10-26 05:05:36.682805+00
 \.
 
 
@@ -1229,6 +1514,30 @@ COPY public.reward_transactions (id, user_id, learner_attempt_id, reward_type, a
 1c59a112-5fcf-4fb9-893e-aaff7d12c83c	9eb81b85-1562-457d-8bfa-9a98d06d6d50	9a7fa1fb-6fb0-4845-a070-661616345382	HISTORY_POINTS	50	Hoàn thành lần đầu một bài học	LESSON_FIRST_COMPLETE:9eb81b85-1562-457d-8bfa-9a98d06d6d50:b4c3762b-0d5e-4016-9783-189b6a0ce6c9:HISTORY_POINTS	2026-10-22 14:05:58.55827+00
 385066b5-9958-4325-9f9a-cc11d7005794	9eb81b85-1562-457d-8bfa-9a98d06d6d50	7e3ac69c-7a5a-4ab1-960d-92ec6adc15b2	EXP	100	Hoàn thành lần đầu một bài học	LESSON_FIRST_COMPLETE:9eb81b85-1562-457d-8bfa-9a98d06d6d50:423b3ae7-2c87-46ee-8672-e5a0cdc743ff:EXP	2026-10-22 14:38:35.638441+00
 149c9bb3-4796-4042-b0e5-57df5b160cd7	9eb81b85-1562-457d-8bfa-9a98d06d6d50	7e3ac69c-7a5a-4ab1-960d-92ec6adc15b2	HISTORY_POINTS	50	Hoàn thành lần đầu một bài học	LESSON_FIRST_COMPLETE:9eb81b85-1562-457d-8bfa-9a98d06d6d50:423b3ae7-2c87-46ee-8672-e5a0cdc743ff:HISTORY_POINTS	2026-10-22 14:38:35.638441+00
+\.
+
+
+--
+-- Data for Name: user_dossier_unlocks; Type: TABLE DATA; Schema: public; Owner: -
+--
+
+COPY public.user_dossier_unlocks (user_id, dossier_id, event_id, dossier_version, granted_at) FROM stdin;
+\.
+
+
+--
+-- Data for Name: user_energy; Type: TABLE DATA; Schema: public; Owner: -
+--
+
+COPY public.user_energy (user_id, current_energy, last_recovery_at, row_version) FROM stdin;
+\.
+
+
+--
+-- Data for Name: user_event_progress; Type: TABLE DATA; Schema: public; Owner: -
+--
+
+COPY public.user_event_progress (user_id, event_id, milestone, policy_version, required_snapshot, granted_at) FROM stdin;
 \.
 
 
@@ -1258,13 +1567,13 @@ a8507ff8-d750-4eda-8986-273f822426bb	9eb81b85-1562-457d-8bfa-9a98d06d6d50	7b785d
 -- Data for Name: user_inventory; Type: TABLE DATA; Schema: public; Owner: -
 --
 
-COPY public.user_inventory (id, user_id, item_id, acquired_at, acquisition_source, source_lesson_id, source_attempt_id) FROM stdin;
-d5fa941e-f26f-4701-9a66-85538082b30d	9eb81b85-1562-457d-8bfa-9a98d06d6d50	e6d3ab89-a04f-49cb-b0fe-8bce3ac239f4	2026-10-22 14:01:03.300803+00	COLLECTION_COUNT	75249a8a-e9f8-4de1-989b-f0d493e54c1f	6a22803f-b5dd-45ca-bc1f-b689162f9c1e
-c6763400-5b93-4bc1-b63b-6a55054eb7eb	9eb81b85-1562-457d-8bfa-9a98d06d6d50	fe59399d-5e04-46e6-b787-e587c345811e	2026-10-22 14:01:03.300803+00	COLLECTION_COUNT	75249a8a-e9f8-4de1-989b-f0d493e54c1f	6a22803f-b5dd-45ca-bc1f-b689162f9c1e
-db376df6-4983-4e36-ac9f-2e16b2dc269f	9eb81b85-1562-457d-8bfa-9a98d06d6d50	8044f75d-274f-4fd2-a092-21913edc28b3	2026-10-22 14:01:03.300803+00	COLLECTION_COUNT	75249a8a-e9f8-4de1-989b-f0d493e54c1f	6a22803f-b5dd-45ca-bc1f-b689162f9c1e
-5cff1047-0f12-4c2c-ab8f-af07c75e6d0c	9eb81b85-1562-457d-8bfa-9a98d06d6d50	ab3fe0ae-ed8b-46e7-884b-874dd0545cc5	2026-10-22 14:01:03.300803+00	COLLECTION_COUNT	75249a8a-e9f8-4de1-989b-f0d493e54c1f	6a22803f-b5dd-45ca-bc1f-b689162f9c1e
-348ebb69-8f92-44cd-a1d5-41c1498dbb71	9eb81b85-1562-457d-8bfa-9a98d06d6d50	fcd52fab-f888-4323-ac71-65688393cd4c	2026-10-22 14:09:28.005459+00	COLLECTION_COUNT	4650bb3e-5662-4b9c-8aa2-f0e9221d59b5	f2c62100-ab0b-4aa1-884c-24f4757483c1
-bf593b21-58bb-47b5-9278-f37926bb245e	9eb81b85-1562-457d-8bfa-9a98d06d6d50	c892e584-636b-4f58-87e5-b1190a76c73a	2026-10-22 14:13:51.589198+00	COLLECTION_COUNT	d338ed0d-5622-4870-812a-b8db1992ff69	7b785d51-491d-4acc-a31c-00af4a47e348
+COPY public.user_inventory (id, user_id, item_id, acquired_at, acquisition_source, source_lesson_id, source_attempt_id, unlock_rule_id, unlock_rule_version, source_event_id, cause_key) FROM stdin;
+d5fa941e-f26f-4701-9a66-85538082b30d	9eb81b85-1562-457d-8bfa-9a98d06d6d50	e6d3ab89-a04f-49cb-b0fe-8bce3ac239f4	2026-10-22 14:01:03.300803+00	COLLECTION_COUNT	75249a8a-e9f8-4de1-989b-f0d493e54c1f	6a22803f-b5dd-45ca-bc1f-b689162f9c1e	\N	\N	\N	\N
+c6763400-5b93-4bc1-b63b-6a55054eb7eb	9eb81b85-1562-457d-8bfa-9a98d06d6d50	fe59399d-5e04-46e6-b787-e587c345811e	2026-10-22 14:01:03.300803+00	COLLECTION_COUNT	75249a8a-e9f8-4de1-989b-f0d493e54c1f	6a22803f-b5dd-45ca-bc1f-b689162f9c1e	\N	\N	\N	\N
+db376df6-4983-4e36-ac9f-2e16b2dc269f	9eb81b85-1562-457d-8bfa-9a98d06d6d50	8044f75d-274f-4fd2-a092-21913edc28b3	2026-10-22 14:01:03.300803+00	COLLECTION_COUNT	75249a8a-e9f8-4de1-989b-f0d493e54c1f	6a22803f-b5dd-45ca-bc1f-b689162f9c1e	\N	\N	\N	\N
+5cff1047-0f12-4c2c-ab8f-af07c75e6d0c	9eb81b85-1562-457d-8bfa-9a98d06d6d50	ab3fe0ae-ed8b-46e7-884b-874dd0545cc5	2026-10-22 14:01:03.300803+00	COLLECTION_COUNT	75249a8a-e9f8-4de1-989b-f0d493e54c1f	6a22803f-b5dd-45ca-bc1f-b689162f9c1e	\N	\N	\N	\N
+348ebb69-8f92-44cd-a1d5-41c1498dbb71	9eb81b85-1562-457d-8bfa-9a98d06d6d50	fcd52fab-f888-4323-ac71-65688393cd4c	2026-10-22 14:09:28.005459+00	COLLECTION_COUNT	4650bb3e-5662-4b9c-8aa2-f0e9221d59b5	f2c62100-ab0b-4aa1-884c-24f4757483c1	\N	\N	\N	\N
+bf593b21-58bb-47b5-9278-f37926bb245e	9eb81b85-1562-457d-8bfa-9a98d06d6d50	c892e584-636b-4f58-87e5-b1190a76c73a	2026-10-22 14:13:51.589198+00	COLLECTION_COUNT	d338ed0d-5622-4870-812a-b8db1992ff69	7b785d51-491d-4acc-a31c-00af4a47e348	\N	\N	\N	\N
 \.
 
 
@@ -1401,6 +1710,22 @@ ALTER TABLE ONLY public.auth_refresh_tokens
 
 
 --
+-- Name: energy_transactions energy_transactions_pkey; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.energy_transactions
+    ADD CONSTRAINT energy_transactions_pkey PRIMARY KEY (id);
+
+
+--
+-- Name: event_completion_policies event_completion_policies_pkey; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.event_completion_policies
+    ADD CONSTRAINT event_completion_policies_pkey PRIMARY KEY (id);
+
+
+--
 -- Name: evidences evidences_pkey; Type: CONSTRAINT; Schema: public; Owner: -
 --
 
@@ -1414,6 +1739,30 @@ ALTER TABLE ONLY public.evidences
 
 ALTER TABLE ONLY public.flyway_schema_history
     ADD CONSTRAINT flyway_schema_history_pk PRIMARY KEY (installed_rank);
+
+
+--
+-- Name: historical_dossier_versions historical_dossier_versions_pkey; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.historical_dossier_versions
+    ADD CONSTRAINT historical_dossier_versions_pkey PRIMARY KEY (id);
+
+
+--
+-- Name: historical_dossiers historical_dossiers_canonical_code_key; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.historical_dossiers
+    ADD CONSTRAINT historical_dossiers_canonical_code_key UNIQUE (canonical_code);
+
+
+--
+-- Name: historical_dossiers historical_dossiers_pkey; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.historical_dossiers
+    ADD CONSTRAINT historical_dossiers_pkey PRIMARY KEY (id);
 
 
 --
@@ -1545,6 +1894,30 @@ ALTER TABLE ONLY public.map_locations
 
 
 --
+-- Name: event_dossiers pk_event_dossiers; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.event_dossiers
+    ADD CONSTRAINT pk_event_dossiers PRIMARY KEY (event_id, dossier_id);
+
+
+--
+-- Name: user_dossier_unlocks pk_user_dossier_unlocks; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.user_dossier_unlocks
+    ADD CONSTRAINT pk_user_dossier_unlocks PRIMARY KEY (user_id, dossier_id);
+
+
+--
+-- Name: user_event_progress pk_user_event_progress; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.user_event_progress
+    ADD CONSTRAINT pk_user_event_progress PRIMARY KEY (user_id, event_id, milestone);
+
+
+--
 -- Name: reward_transactions reward_transactions_cause_key_key; Type: CONSTRAINT; Schema: public; Owner: -
 --
 
@@ -1558,6 +1931,14 @@ ALTER TABLE ONLY public.reward_transactions
 
 ALTER TABLE ONLY public.reward_transactions
     ADD CONSTRAINT reward_transactions_pkey PRIMARY KEY (id);
+
+
+--
+-- Name: user_energy user_energy_pkey; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.user_energy
+    ADD CONSTRAINT user_energy_pkey PRIMARY KEY (user_id);
 
 
 --
@@ -1590,6 +1971,30 @@ ALTER TABLE ONLY public.user_inventory
 
 ALTER TABLE ONLY public.users
     ADD CONSTRAINT users_pkey PRIMARY KEY (id);
+
+
+--
+-- Name: historical_dossier_versions ux_dossier_version; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.historical_dossier_versions
+    ADD CONSTRAINT ux_dossier_version UNIQUE (dossier_id, dossier_version);
+
+
+--
+-- Name: energy_transactions ux_energy_tx_cause; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.energy_transactions
+    ADD CONSTRAINT ux_energy_tx_cause UNIQUE (cause_key);
+
+
+--
+-- Name: event_completion_policies ux_event_policy_version; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.event_completion_policies
+    ADD CONSTRAINT ux_event_policy_version UNIQUE (event_id, policy_version);
 
 
 --
@@ -1676,6 +2081,48 @@ CREATE INDEX idx_attempt_user_status ON public.learner_attempts USING btree (use
 --
 
 CREATE INDEX idx_attempt_version ON public.learner_attempts USING btree (lesson_version_id);
+
+
+--
+-- Name: idx_dossiers_status; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX idx_dossiers_status ON public.historical_dossiers USING btree (status);
+
+
+--
+-- Name: idx_dossiers_type; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX idx_dossiers_type ON public.historical_dossiers USING btree (dossier_type);
+
+
+--
+-- Name: idx_dv_dossier; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX idx_dv_dossier ON public.historical_dossier_versions USING btree (dossier_id);
+
+
+--
+-- Name: idx_energy_tx_user_created; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX idx_energy_tx_user_created ON public.energy_transactions USING btree (user_id, created_at DESC);
+
+
+--
+-- Name: idx_event_dossiers_dossier; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX idx_event_dossiers_dossier ON public.event_dossiers USING btree (dossier_id);
+
+
+--
+-- Name: idx_event_policy_event; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX idx_event_policy_event ON public.event_completion_policies USING btree (event_id);
 
 
 --
@@ -1798,6 +2245,34 @@ CREATE INDEX idx_reward_user_created ON public.reward_transactions USING btree (
 
 
 --
+-- Name: idx_user_dossier_unlocks_event; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX idx_user_dossier_unlocks_event ON public.user_dossier_unlocks USING btree (event_id);
+
+
+--
+-- Name: idx_user_dossier_unlocks_user; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX idx_user_dossier_unlocks_user ON public.user_dossier_unlocks USING btree (user_id, granted_at DESC);
+
+
+--
+-- Name: idx_user_event_progress_event; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX idx_user_event_progress_event ON public.user_event_progress USING btree (event_id);
+
+
+--
+-- Name: idx_user_event_progress_user; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX idx_user_event_progress_user ON public.user_event_progress USING btree (user_id, granted_at DESC);
+
+
+--
 -- Name: idx_user_evidence_user; Type: INDEX; Schema: public; Owner: -
 --
 
@@ -1840,6 +2315,13 @@ CREATE UNIQUE INDEX ux_attempt_active_user_version ON public.learner_attempts US
 
 
 --
+-- Name: ux_event_policy_published; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE UNIQUE INDEX ux_event_policy_published ON public.event_completion_policies USING btree (event_id) WHERE ((status)::text = 'PUBLISHED'::text);
+
+
+--
 -- Name: ux_historical_events_slug; Type: INDEX; Schema: public; Owner: -
 --
 
@@ -1858,6 +2340,13 @@ CREATE UNIQUE INDEX ux_item_unlock_rule_item ON public.item_unlock_rule USING bt
 --
 
 CREATE UNIQUE INDEX ux_user_evidence_user_evidence ON public.user_evidence USING btree (user_id, evidence_id);
+
+
+--
+-- Name: ux_user_inventory_cause_key; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE UNIQUE INDEX ux_user_inventory_cause_key ON public.user_inventory USING btree (cause_key) WHERE (cause_key IS NOT NULL);
 
 
 --
@@ -2009,6 +2498,38 @@ ALTER TABLE ONLY public.auth_refresh_tokens
 
 
 --
+-- Name: energy_transactions energy_transactions_user_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.energy_transactions
+    ADD CONSTRAINT energy_transactions_user_id_fkey FOREIGN KEY (user_id) REFERENCES public.users(id);
+
+
+--
+-- Name: event_completion_policies event_completion_policies_event_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.event_completion_policies
+    ADD CONSTRAINT event_completion_policies_event_id_fkey FOREIGN KEY (event_id) REFERENCES public.historical_events(id);
+
+
+--
+-- Name: event_dossiers event_dossiers_dossier_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.event_dossiers
+    ADD CONSTRAINT event_dossiers_dossier_id_fkey FOREIGN KEY (dossier_id) REFERENCES public.historical_dossiers(id);
+
+
+--
+-- Name: event_dossiers event_dossiers_event_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.event_dossiers
+    ADD CONSTRAINT event_dossiers_event_id_fkey FOREIGN KEY (event_id) REFERENCES public.historical_events(id);
+
+
+--
 -- Name: evidences evidences_asset_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
 --
 
@@ -2054,6 +2575,38 @@ ALTER TABLE ONLY public.lessons
 
 ALTER TABLE ONLY public.map_locations
     ADD CONSTRAINT fk_map_location_unlock_lesson_same_event FOREIGN KEY (event_id, unlock_lesson_id) REFERENCES public.lessons(event_id, id);
+
+
+--
+-- Name: historical_dossier_versions historical_dossier_versions_dossier_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.historical_dossier_versions
+    ADD CONSTRAINT historical_dossier_versions_dossier_id_fkey FOREIGN KEY (dossier_id) REFERENCES public.historical_dossiers(id);
+
+
+--
+-- Name: historical_dossier_versions historical_dossier_versions_published_by_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.historical_dossier_versions
+    ADD CONSTRAINT historical_dossier_versions_published_by_fkey FOREIGN KEY (published_by) REFERENCES public.users(id);
+
+
+--
+-- Name: historical_dossiers historical_dossiers_asset_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.historical_dossiers
+    ADD CONSTRAINT historical_dossiers_asset_id_fkey FOREIGN KEY (asset_id) REFERENCES public.assets(id);
+
+
+--
+-- Name: historical_dossiers historical_dossiers_created_by_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.historical_dossiers
+    ADD CONSTRAINT historical_dossiers_created_by_fkey FOREIGN KEY (created_by) REFERENCES public.users(id);
 
 
 --
@@ -2193,6 +2746,54 @@ ALTER TABLE ONLY public.reward_transactions
 
 
 --
+-- Name: user_dossier_unlocks user_dossier_unlocks_dossier_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.user_dossier_unlocks
+    ADD CONSTRAINT user_dossier_unlocks_dossier_id_fkey FOREIGN KEY (dossier_id) REFERENCES public.historical_dossiers(id);
+
+
+--
+-- Name: user_dossier_unlocks user_dossier_unlocks_event_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.user_dossier_unlocks
+    ADD CONSTRAINT user_dossier_unlocks_event_id_fkey FOREIGN KEY (event_id) REFERENCES public.historical_events(id);
+
+
+--
+-- Name: user_dossier_unlocks user_dossier_unlocks_user_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.user_dossier_unlocks
+    ADD CONSTRAINT user_dossier_unlocks_user_id_fkey FOREIGN KEY (user_id) REFERENCES public.users(id);
+
+
+--
+-- Name: user_energy user_energy_user_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.user_energy
+    ADD CONSTRAINT user_energy_user_id_fkey FOREIGN KEY (user_id) REFERENCES public.users(id);
+
+
+--
+-- Name: user_event_progress user_event_progress_event_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.user_event_progress
+    ADD CONSTRAINT user_event_progress_event_id_fkey FOREIGN KEY (event_id) REFERENCES public.historical_events(id);
+
+
+--
+-- Name: user_event_progress user_event_progress_user_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.user_event_progress
+    ADD CONSTRAINT user_event_progress_user_id_fkey FOREIGN KEY (user_id) REFERENCES public.users(id);
+
+
+--
 -- Name: user_evidence user_evidence_event_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
 --
 
@@ -2241,11 +2842,27 @@ ALTER TABLE ONLY public.user_inventory
 
 
 --
+-- Name: user_inventory user_inventory_source_event_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.user_inventory
+    ADD CONSTRAINT user_inventory_source_event_id_fkey FOREIGN KEY (source_event_id) REFERENCES public.historical_events(id);
+
+
+--
 -- Name: user_inventory user_inventory_source_lesson_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
 --
 
 ALTER TABLE ONLY public.user_inventory
     ADD CONSTRAINT user_inventory_source_lesson_id_fkey FOREIGN KEY (source_lesson_id) REFERENCES public.lessons(id);
+
+
+--
+-- Name: user_inventory user_inventory_unlock_rule_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.user_inventory
+    ADD CONSTRAINT user_inventory_unlock_rule_id_fkey FOREIGN KEY (unlock_rule_id) REFERENCES public.item_unlock_rule(id);
 
 
 --
@@ -2260,5 +2877,5 @@ ALTER TABLE ONLY public.user_inventory
 -- PostgreSQL database dump complete
 --
 
-\unrestrict GpmgavQ1ql0xfr4PlI8XbjrzzdYe3KK7ZqtBLCieIZMBlEJeM3eyDuUq4LtH02y
+\unrestrict 8sPvuOaIGVRW6RAYOh5dqlc9KHeQe6KQfQ1JcbEMwJOvG4udO6SawZ25Hb8eba0
 

@@ -2,6 +2,8 @@
 -- Replicate SnapshotBuilder.embedEvidence / embedAssets ở SQL level.
 -- Idempotent: chạy lại vẫn cho cùng kết quả (snapshot_json được ghi đè).
 
+ALTER TABLE lesson_versions DISABLE TRIGGER trg_lesson_versions_immutable;
+
 WITH RECURSIVE
 -- Collect evidence ids từ mọi field tham chiếu (giống SnapshotBuilder.collectEvidenceIds).
 cfg_evidence AS (
@@ -149,3 +151,5 @@ WHERE lv.id = tv.version_id
 RETURNING lv.id AS version_id, tv.title,
   jsonb_array_length(COALESCE(lv.snapshot_json->'evidence','[]'::jsonb)) AS ev_cnt,
   jsonb_array_length(COALESCE(lv.snapshot_json->'assets','[]'::jsonb))   AS as_cnt;
+
+ALTER TABLE lesson_versions ENABLE TRIGGER trg_lesson_versions_immutable;
