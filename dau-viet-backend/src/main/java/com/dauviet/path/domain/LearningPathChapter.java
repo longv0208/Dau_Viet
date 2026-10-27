@@ -75,4 +75,17 @@ public class LearningPathChapter {
     public int getSortOrder() { return sortOrder; }
     public String getThemeKey() { return themeKey; }
     public Instant getCreatedAt() { return createdAt; }
+
+    public void setSortOrder(int sortOrder) { this.sortOrder = sortOrder; }
+
+    public void update(String code, String title, String description, int startYear,
+                       int endYear, String periodLabel, String themeKey) {
+        this.code = code;
+        this.title = title;
+        this.description = description;
+        this.startYear = startYear;
+        this.endYear = endYear;
+        this.periodLabel = periodLabel;
+        this.themeKey = themeKey;
+    }
 }

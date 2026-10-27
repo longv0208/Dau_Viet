@@ -1,11 +1,9 @@
 package com.dauviet.path.application;
 
 import java.util.ArrayList;
-import java.util.Collection;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
-import java.util.Set;
 import java.util.UUID;
 import java.util.function.Function;
 import java.util.stream.Collectors;
@@ -21,7 +19,6 @@ import com.dauviet.historicalevent.domain.EventStatus;
 import com.dauviet.historicalevent.domain.HistoricalEvent;
 import com.dauviet.historicalevent.infrastructure.persistence.HistoricalEventRepository;
 import com.dauviet.lesson.domain.Lesson;
-import com.dauviet.lesson.domain.LessonStatus;
 import com.dauviet.lesson.infrastructure.persistence.LessonRepository;
 import com.dauviet.path.api.dto.LearningPathResponse;
 import com.dauviet.path.api.dto.LearningPathResponse.ChapterResponse;
@@ -38,7 +35,6 @@ import com.dauviet.path.infrastructure.persistence.LearningPathChapterRepository
 import com.dauviet.path.infrastructure.persistence.LearningPathEventNodeRepository;
 import com.dauviet.path.infrastructure.persistence.LearningPathLessonNodeRepository;
 import com.dauviet.path.infrastructure.persistence.LearningPathVersionRepository;
-import com.fasterxml.jackson.databind.ObjectMapper;
 
 /**
  * Dịch vụ cung cấp dữ liệu lộ trình học tập Lịch sử Việt Nam chuẩn hóa (PATH-01).
@@ -63,7 +59,7 @@ public class LearningPathService {
     private final HistoricalEventRepository historicalEventRepo;
     private final LessonRepository lessonRepo;
     private final EventCompletionPolicyRepository policyRepo;
-    private final ObjectMapper mapper;
+    private final PathReadiness readiness;
 
     public LearningPathService(LearningPathVersionRepository versionRepo,
                                LearningPathChapterRepository chapterRepo,
@@ -72,7 +68,7 @@ public class LearningPathService {
                                HistoricalEventRepository historicalEventRepo,
                                LessonRepository lessonRepo,
                                EventCompletionPolicyRepository policyRepo,
-                               ObjectMapper mapper) {
+                               PathReadiness readiness) {
         this.versionRepo = versionRepo;
         this.chapterRepo = chapterRepo;
         this.eventNodeRepo = eventNodeRepo;
@@ -80,7 +76,7 @@ public class LearningPathService {
         this.historicalEventRepo = historicalEventRepo;
         this.lessonRepo = lessonRepo;
         this.policyRepo = policyRepo;
-        this.mapper = mapper;
+        this.readiness = readiness;
     }
 
     /**
@@ -111,6 +107,7 @@ public class LearningPathService {
         List<UUID> lessonIds = lessonNodes.stream().map(LearningPathLessonNode::getLessonId).distinct().toList();
         Map<UUID, Lesson> lessonsMap = lessonRepo.findAllById(lessonIds).stream()
                 .collect(Collectors.toMap(Lesson::getId, Function.identity()));
+        var snapshots = readiness.snapshots(lessonsMap.values());
 
         Map<UUID, EventCompletionPolicy> policiesMap = eventIds.isEmpty()
                 ? Collections.emptyMap()
@@ -140,7 +137,7 @@ public class LearningPathService {
                 List<LessonNodeResponse> lessonResponses = new ArrayList<>();
                 for (LearningPathLessonNode lNode : nodeLessonNodes) {
                     Lesson lesson = lessonsMap.get(lNode.getLessonId());
-                    if (lesson == null || lesson.getStatus() != LessonStatus.PUBLISHED || lesson.getCurrentVersionId() == null) {
+                    if (!readiness.published(lesson, snapshots) || !eventNode.getEventId().equals(lesson.getEventId())) {
                         continue;
                     }
                     lessonResponses.add(new LessonNodeResponse(
@@ -152,7 +149,9 @@ public class LearningPathService {
                     ));
                 }
 
-                PathContentStatus contentStatus = determineContentStatus(eventNode.getEventId(), lessonResponses, policiesMap.get(event.getId()), lessonsMap);
+                PathContentStatus contentStatus = readiness.status(eventNode.getEventId(),
+                        nodeLessonNodes.stream().map(LearningPathLessonNode::getLessonId).collect(Collectors.toSet()),
+                        policiesMap.get(event.getId()), lessonsMap, snapshots);
                 String yearLabel = YearLabelFormatter.formatYear(event.getStartYear(), event.getPeriod());
 
                 eventResponses.add(new EventNodeResponse(
@@ -166,7 +165,8 @@ public class LearningPathService {
                         event.getCoverAssetKey(),
                         eventNode.getSortOrder(),
                         contentStatus,
-                        lessonResponses
+                        lessonResponses,
+                        eventNode.getParticipationType()
                 ));
             }
 
@@ -193,48 +193,4 @@ public class LearningPathService {
         );
     }
 
-    /**
-     * Xác định ContentStatus theo quy tắc nghiêm ngặt:
-     * - NO_PUBLISHED_LESSON: 0 bài học công bố
-     * - NO_COMPLETION_POLICY: có bài nhưng chưa có published policy
-     * - CONTENT_REVIEW_REQUIRED: policy đòi hỏi bài không tồn tại / chưa công bố / không thuộc event
-     * - PLAYABLE: có bài và policy hợp lệ
-     */
-    private PathContentStatus determineContentStatus(UUID eventId,
-                                                    List<LessonNodeResponse> publishedLessons,
-                                                    EventCompletionPolicy policy,
-                                                    Map<UUID, Lesson> lessonsMap) {
-        if (publishedLessons.isEmpty()) {
-            return PathContentStatus.NO_PUBLISHED_LESSON;
-        }
-
-        if (policy == null) {
-            return PathContentStatus.NO_COMPLETION_POLICY;
-        }
-
-        List<UUID> requiredIds = policy.requiredLessonIds(mapper);
-        if (requiredIds == null || requiredIds.isEmpty()) {
-            return PathContentStatus.CONTENT_REVIEW_REQUIRED;
-        }
-
-        Set<UUID> availableLessonIds = publishedLessons.stream()
-                .map(LessonNodeResponse::lessonId)
-                .collect(Collectors.toSet());
-
-        if (!availableLessonIds.containsAll(requiredIds)) {
-            return PathContentStatus.CONTENT_REVIEW_REQUIRED;
-        }
-
-        for (UUID reqLessonId : requiredIds) {
-            Lesson reqLesson = lessonsMap.get(reqLessonId);
-            if (reqLesson == null
-                    || !eventId.equals(reqLesson.getEventId())
-                    || reqLesson.getStatus() != LessonStatus.PUBLISHED
-                    || reqLesson.getCurrentVersionId() == null) {
-                return PathContentStatus.CONTENT_REVIEW_REQUIRED;
-            }
-        }
-
-        return PathContentStatus.PLAYABLE;
-    }
 }

@@ -43,6 +43,9 @@ public class LearningPathVersion {
     @Column(name = "updated_at", nullable = false)
     private Instant updatedAt = Instant.now();
 
+    @Column(name = "revision", nullable = false)
+    private long revision;
+
     protected LearningPathVersion() {}
 
     public LearningPathVersion(UUID id, String pathCode, int versionNo, String title,
@@ -67,6 +70,12 @@ public class LearningPathVersion {
     public Instant getPublishedAt() { return publishedAt; }
     public Instant getCreatedAt() { return createdAt; }
     public Instant getUpdatedAt() { return updatedAt; }
+    public long getRevision() { return revision; }
+
+    public void bumpRevision() {
+        revision++;
+        updatedAt = Instant.now();
+    }
 
     public void publish(Instant now) {
         this.status = LearningPathStatus.PUBLISHED;

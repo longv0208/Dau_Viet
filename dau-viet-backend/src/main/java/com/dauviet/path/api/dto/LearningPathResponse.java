@@ -4,6 +4,7 @@ import java.util.List;
 import java.util.UUID;
 
 import com.dauviet.path.domain.PathContentStatus;
+import com.dauviet.path.domain.ParticipationType;
 
 public record LearningPathResponse(
         String pathCode,
@@ -36,7 +37,8 @@ public record LearningPathResponse(
             String coverAssetKey,
             int sortOrder,
             PathContentStatus contentStatus,
-            List<LessonNodeResponse> lessons
+            List<LessonNodeResponse> lessons,
+            ParticipationType participationType
     ) {}
 
     public record LessonNodeResponse(

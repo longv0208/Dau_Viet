@@ -5,6 +5,8 @@ import java.util.UUID;
 
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
+import jakarta.persistence.EnumType;
+import jakarta.persistence.Enumerated;
 import jakarta.persistence.Id;
 import jakarta.persistence.Table;
 
@@ -28,6 +30,10 @@ public class LearningPathEventNode {
     @Column(name = "sort_order", nullable = false)
     private int sortOrder;
 
+    @Enumerated(EnumType.STRING)
+    @Column(name = "participation_type", nullable = false, length = 24)
+    private ParticipationType participationType = ParticipationType.EXPLORATION_ONLY;
+
     @Column(name = "created_at", nullable = false, updatable = false)
     private Instant createdAt = Instant.now();
 
@@ -49,4 +55,8 @@ public class LearningPathEventNode {
     public UUID getEventId() { return eventId; }
     public int getSortOrder() { return sortOrder; }
     public Instant getCreatedAt() { return createdAt; }
+    public ParticipationType getParticipationType() { return participationType; }
+    public void setParticipationType(ParticipationType value) { participationType = value; }
+    public void setSortOrder(int value) { sortOrder = value; }
+    public void moveToChapter(UUID value) { chapterId = value; }
 }

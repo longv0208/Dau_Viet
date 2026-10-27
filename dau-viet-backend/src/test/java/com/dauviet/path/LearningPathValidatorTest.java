@@ -3,10 +3,12 @@ package com.dauviet.path;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.spy;
 import static org.mockito.Mockito.when;
 
 import java.util.Collections;
 import java.util.List;
+import java.util.Map;
 import java.util.Optional;
 import java.util.UUID;
 
@@ -21,6 +23,10 @@ import com.dauviet.historicalevent.infrastructure.persistence.HistoricalEventRep
 import com.dauviet.lesson.infrastructure.persistence.LessonRepository;
 import com.dauviet.path.api.dto.PathAuditReport;
 import com.dauviet.path.application.LearningPathValidator;
+import com.dauviet.path.application.PathEventIdentity;
+import com.dauviet.path.application.PathReadiness;
+import com.dauviet.lesson.infrastructure.persistence.LessonVersionRepository;
+import org.springframework.jdbc.core.JdbcTemplate;
 import com.dauviet.path.domain.LearningPathChapter;
 import com.dauviet.path.domain.LearningPathEventNode;
 import com.dauviet.path.domain.LearningPathExceptions.PathValidationException;
@@ -44,6 +50,7 @@ class LearningPathValidatorTest {
     private EventCompletionPolicyRepository policyRepo;
     private ObjectMapper mapper;
     private LearningPathValidator validator;
+    private PathEventIdentity identities;
 
     @BeforeEach
     void setUp() {
@@ -55,10 +62,12 @@ class LearningPathValidatorTest {
         lessonRepo = mock(LessonRepository.class);
         policyRepo = mock(EventCompletionPolicyRepository.class);
         mapper = new ObjectMapper();
+        identities = spy(new PathEventIdentity(mock(JdbcTemplate.class)));
 
         validator = new LearningPathValidator(
                 versionRepo, chapterRepo, eventNodeRepo, lessonNodeRepo,
-                historicalEventRepo, lessonRepo, policyRepo, mapper);
+                historicalEventRepo, lessonRepo, policyRepo, identities,
+                new PathReadiness(mock(LessonVersionRepository.class), mapper));
     }
 
     private HistoricalEvent createEvent(UUID id, String slug, String title, int year, EventStatus status) {
@@ -135,14 +144,14 @@ class LearningPathValidatorTest {
         HistoricalEvent evt2 = createEvent(e2Id, "khoi-nghia-hai-ba-trung-40", "Khởi nghĩa HBT", 40, EventStatus.PUBLISHED);
 
         when(historicalEventRepo.findAllById(List.of(e1Id, e2Id))).thenReturn(List.of(evt1, evt2));
-        when(historicalEventRepo.findAll()).thenReturn(List.of(evt1, evt2));
+        when(identities.aliases()).thenReturn(Map.of(e2Id, e1Id));
 
         PathAuditReport report = validator.audit("HISTORY_MAIN", 1);
-        assertThat(report.issues()).anyMatch(i -> "MULTIPLE_HAI_BA_TRUNG_NODES".equals(i.code()) && "ERROR".equals(i.level()));
+        assertThat(report.issues()).anyMatch(i -> "DUPLICATE_HISTORICAL_ALIAS".equals(i.code()) && "ERROR".equals(i.level()));
     }
 
     @Test
-    @DisplayName("Cảnh báo khi DB tồn tại alias record chưa gắn vào path")
+    @DisplayName("Alias ngoài path không tạo trùng canonical trong path")
     void warningWhenDbContainsAliasRecord() {
         UUID vId = UUID.randomUUID();
         LearningPathVersion version = new LearningPathVersion(
@@ -162,10 +171,10 @@ class LearningPathValidatorTest {
         HistoricalEvent aliasInDb = createEvent(UUID.randomUUID(), "khoi-nghia-hai-ba-trung-40", "Khởi nghĩa HBT", 40, EventStatus.PUBLISHED);
 
         when(historicalEventRepo.findAllById(List.of(e1Id))).thenReturn(List.of(canonical));
-        when(historicalEventRepo.findAll()).thenReturn(List.of(canonical, aliasInDb));
+        when(identities.aliases()).thenReturn(Map.of(aliasInDb.getId(), e1Id));
 
         PathAuditReport report = validator.audit("HISTORY_MAIN", 1);
-        assertThat(report.issues()).anyMatch(i -> "DB_ALIAS_EVENT_EXISTS".equals(i.code()) && "WARNING".equals(i.level()));
-        assertThat(report.duplicateAliases()).hasSize(1);
+        assertThat(report.issues()).noneMatch(i -> "DUPLICATE_HISTORICAL_ALIAS".equals(i.code()));
+        assertThat(report.duplicateAliases()).isEmpty();
     }
 }

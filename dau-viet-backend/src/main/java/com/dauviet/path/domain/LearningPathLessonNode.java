@@ -49,4 +49,5 @@ public class LearningPathLessonNode {
     public UUID getLessonId() { return lessonId; }
     public int getSortOrder() { return sortOrder; }
     public Instant getCreatedAt() { return createdAt; }
+    public void setSortOrder(int value) { sortOrder = value; }
 }
