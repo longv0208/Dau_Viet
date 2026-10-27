@@ -17,7 +17,6 @@ import com.dauviet.collection.domain.EventCompletionPolicy;
 import com.dauviet.collection.infrastructure.persistence.EventCompletionPolicyRepository;
 import com.dauviet.historicalevent.domain.EventStatus;
 import com.dauviet.lesson.domain.SnapshotCorruptException;
-import com.fasterxml.jackson.databind.ObjectMapper;
 
 @Service
 @Transactional(readOnly = true)
@@ -32,17 +31,18 @@ public class AdminPathReadService {
     private final LearningPathValidator validator;
     private final EventCompletionPolicyRepository policies;
     private final PathReadiness readiness;
-    private final ObjectMapper mapper;
+    private final PathEventIdentity identities;
 
     public AdminPathReadService(AdminPathAccess access, LearningPathVersionRepository versions,
             LearningPathChapterRepository chapters, LearningPathEventNodeRepository events,
             LearningPathLessonNodeRepository lessons, HistoricalEventRepository historicalEvents,
             LessonRepository lessonRepository, LearningPathValidator validator,
-            EventCompletionPolicyRepository policies, PathReadiness readiness, ObjectMapper mapper) {
+            EventCompletionPolicyRepository policies, PathReadiness readiness, PathEventIdentity identities) {
         this.access = access; this.versions = versions; this.chapters = chapters; this.events = events;
         this.lessons = lessons; this.historicalEvents = historicalEvents;
         this.lessonRepository = lessonRepository; this.validator = validator;
-        this.policies = policies; this.readiness = readiness; this.mapper = mapper;
+        this.policies = policies; this.readiness = readiness;
+        this.identities = identities;
     }
 
     public List<LearningPathVersion> list(String code) {
@@ -65,7 +65,9 @@ public class AdminPathReadService {
         var publishedPolicies = eventList.isEmpty() ? java.util.Map.<UUID, EventCompletionPolicy>of()
                 : policies.findPublishedByEventIdIn(eventData.keySet()).stream()
                     .collect(Collectors.toMap(EventCompletionPolicy::getEventId, Function.identity()));
+        readiness.includePolicyLessons(lessonData, publishedPolicies.values(), lessonRepository);
         var snapshots = readiness.snapshots(lessonData.values());
+        var aliases = identities.aliases();
         return new AdminPathResponse(version, chapterList.stream().map(c -> new AdminPathResponse.Chapter(c,
                 byChapter.getOrDefault(c.getId(), List.of()).stream().map(e -> {
                     HistoricalEvent data = eventData.get(e.getEventId());
@@ -83,7 +85,8 @@ public class AdminPathReadService {
                                 Lesson lesson = lessonData.get(l.getLessonId());
                                 return new AdminPathResponse.Lesson(l, lesson == null ? null : lesson.getTitle(),
                                         lesson == null ? "MISSING" : lesson.getStatus().name());
-                            }).toList());
+                            }).toList(), data == null ? "MISSING" : data.getStatus().name(),
+                            identities.canonical(e.getEventId(), aliases), aliases.containsKey(e.getEventId()));
                 }).toList())).toList());
     }
 
@@ -95,7 +98,7 @@ public class AdminPathReadService {
     private List<UUID> policyLessons(EventCompletionPolicy policy, boolean required) {
         if (policy == null) return null;
         try {
-            return required ? policy.requiredLessonIds(mapper) : policy.optionalLessonIds(mapper);
+            return readiness.policyIds(required ? policy.getRequiredLessonIdsJson() : policy.getOptionalLessonIdsJson());
         } catch (SnapshotCorruptException ex) {
             // Null signals an unreadable policy; contentStatus explicitly reports its readiness failure.
             return null;

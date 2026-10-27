@@ -15,13 +15,11 @@ public class AdminPathLessonService {
     private final AdminPathReadService read;
     private final LearningPathLessonNodeRepository lessons;
     private final LessonRepository lessonRepository;
-    private final LearningPathValidator validator;
 
     public AdminPathLessonService(AdminPathAccess access, AdminPathReadService read,
-            LearningPathLessonNodeRepository lessons, LessonRepository lessonRepository,
-            LearningPathValidator validator) {
+            LearningPathLessonNodeRepository lessons, LessonRepository lessonRepository) {
         this.access = access; this.read = read; this.lessons = lessons;
-        this.lessonRepository = lessonRepository; this.validator = validator;
+        this.lessonRepository = lessonRepository;
     }
 
     public AdminPathResponse add(UUID versionId, UUID eventNodeId, AdminPathRequests.Lesson request) {
@@ -35,13 +33,12 @@ public class AdminPathLessonService {
         int order = lessons.findByEventNodeIdOrderBySortOrderAsc(eventNodeId).stream()
                 .mapToInt(LearningPathLessonNode::getSortOrder).max().orElse(0) + 1;
         lessons.saveAndFlush(new LearningPathLessonNode(null, eventNodeId, event.getEventId(), request.lessonId(), order));
-        if (event.getParticipationType() == ParticipationType.REQUIRED) validator.assertRequiredReady(eventNodeId);
         return read.detail(versionId);
     }
 
     public AdminPathResponse delete(UUID versionId, UUID eventNodeId, UUID id, Long revision) {
         access.draft(versionId, revision);
-        var event = access.event(versionId, eventNodeId);
+        access.event(versionId, eventNodeId);
         var node = lessons.findById(id).orElseThrow(() ->
                 new LearningPathExceptions.PathNotFoundException("lesson node " + id));
         AdminPathAccess.require(eventNodeId.equals(node.getEventNodeId()), "Lesson node belongs to another event node");
@@ -51,7 +48,6 @@ public class AdminPathLessonService {
         var remaining = lessons.findByEventNodeIdOrderBySortOrderAsc(eventNodeId);
         for (int i = 0; i < remaining.size(); i++) remaining.get(i).setSortOrder(i + 1);
         lessons.flush();
-        if (event.getParticipationType() == ParticipationType.REQUIRED) validator.assertRequiredReady(eventNodeId);
         return read.detail(versionId);
     }
 }

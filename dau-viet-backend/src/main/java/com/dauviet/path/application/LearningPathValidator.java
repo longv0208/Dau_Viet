@@ -74,9 +74,10 @@ public class LearningPathValidator {
                 .stream().collect(Collectors.toMap(HistoricalEvent::getId, Function.identity()));
         Map<UUID, Lesson> lessonMap = lessons.findAllById(lessonList.stream().map(LearningPathLessonNode::getLessonId).toList())
                 .stream().collect(Collectors.toMap(Lesson::getId, Function.identity()));
-        Map<UUID, LessonVersion> snapshots = readiness.snapshots(lessonMap.values());
         Map<UUID, EventCompletionPolicy> policyMap = eventMap.isEmpty() ? Map.of() : policies.findPublishedByEventIdIn(eventMap.keySet())
                 .stream().collect(Collectors.toMap(EventCompletionPolicy::getEventId, Function.identity()));
+        readiness.includePolicyLessons(lessonMap, policyMap.values(), lessons);
+        Map<UUID, LessonVersion> snapshots = readiness.snapshots(lessonMap.values());
         Map<UUID, UUID> aliases = identities.aliases();
         List<AuditIssue> issues = new ArrayList<>();
         List<DuplicateAliasReport> duplicates = new ArrayList<>();
@@ -90,6 +91,10 @@ public class LearningPathValidator {
         Integer previousChapterYear = null;
         Integer previousEventYear = null;
         if (chapterList.isEmpty()) issue(issues, "ERROR", "EMPTY_PATH", "Path must contain at least one chapter", version.getId());
+        if (version.getStatus() == LearningPathStatus.DRAFT && LearningPathService.DEFAULT_PATH_CODE.equals(version.getPathCode())
+                && nodeList.stream().noneMatch(node -> node.getParticipationType() == ParticipationType.REQUIRED)) {
+            issue(issues, "ERROR", "NO_REQUIRED_EVENT", "A new main learning path must contain at least one REQUIRED event", version.getId());
+        }
         for (LearningPathChapter chapter : chapterList) {
             checkSort(issues, chapterSorts, chapter.getSortOrder(), chapter.getId(), "CHAPTER");
             if (!chapterCodes.add(chapter.getCode())) issue(issues, "ERROR", "DUPLICATE_CHAPTER_CODE", "Chapter code is repeated", chapter.getId());
@@ -103,6 +108,7 @@ public class LearningPathValidator {
                 checkSort(issues, eventSorts, node.getSortOrder(), node.getId(), "EVENT");
                 if (!seenEvents.add(node.getEventId())) issue(issues, "ERROR", "DUPLICATE_EVENT_IN_PATH", "Event is repeated", node.getId());
                 UUID canonical = identities.canonical(node.getEventId(), aliases);
+                if (!canonical.equals(node.getEventId())) issue(issues, "WARNING", "CANONICAL_ALIAS", "Selected event is an alias of historical event " + canonical, node.getId());
                 if (!seenCanonical.add(canonical)) {
                     issue(issues, "ERROR", "DUPLICATE_HISTORICAL_ALIAS", "Canonical event occurs more than once", node.getId());
                     duplicates.add(new DuplicateAliasReport(null, canonical, null, node.getEventId(), "Duplicate canonical historical identity"));
@@ -141,6 +147,7 @@ public class LearningPathValidator {
         Set<UUID> attached = lessonNodes.findByEventNodeIdOrderBySortOrderAsc(nodeId).stream().map(LearningPathLessonNode::getLessonId).collect(Collectors.toSet());
         Map<UUID, Lesson> map = lessons.findAllById(attached).stream().collect(Collectors.toMap(Lesson::getId, Function.identity()));
         EventCompletionPolicy policy = policies.findPublishedByEventIdIn(List.of(node.getEventId())).stream().findFirst().orElse(null);
+        readiness.includePolicyLessons(map, policy == null ? List.of() : List.of(policy), lessons);
         return readiness.status(node.getEventId(), attached, policy, map, readiness.snapshots(map.values()));
     }
 

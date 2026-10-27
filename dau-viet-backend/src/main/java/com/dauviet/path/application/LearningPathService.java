@@ -107,12 +107,13 @@ public class LearningPathService {
         List<UUID> lessonIds = lessonNodes.stream().map(LearningPathLessonNode::getLessonId).distinct().toList();
         Map<UUID, Lesson> lessonsMap = lessonRepo.findAllById(lessonIds).stream()
                 .collect(Collectors.toMap(Lesson::getId, Function.identity()));
-        var snapshots = readiness.snapshots(lessonsMap.values());
 
         Map<UUID, EventCompletionPolicy> policiesMap = eventIds.isEmpty()
                 ? Collections.emptyMap()
                 : policyRepo.findPublishedByEventIdIn(eventIds).stream()
                         .collect(Collectors.toMap(EventCompletionPolicy::getEventId, Function.identity(), (p1, p2) -> p1));
+        readiness.includePolicyLessons(lessonsMap, policiesMap.values(), lessonRepo);
+        var snapshots = readiness.snapshots(lessonsMap.values());
 
         Map<UUID, List<LearningPathEventNode>> eventNodesByChapter = eventNodes.stream()
                 .collect(Collectors.groupingBy(LearningPathEventNode::getChapterId));

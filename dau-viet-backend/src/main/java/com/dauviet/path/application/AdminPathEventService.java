@@ -38,7 +38,6 @@ public class AdminPathEventService {
         var node = new LearningPathEventNode(null, chapterId, versionId, request.eventId(), order);
         node.setParticipationType(request.participationType());
         events.saveAndFlush(node);
-        if (node.getParticipationType() == ParticipationType.REQUIRED) validator.assertRequiredReady(node.getId());
         return read.detail(versionId);
     }
 
@@ -58,7 +57,6 @@ public class AdminPathEventService {
         }
         if (request.participationType() != null) node.setParticipationType(request.participationType());
         events.flush();
-        if (node.getParticipationType() == ParticipationType.REQUIRED) validator.assertRequiredReady(id);
         return read.detail(versionId);
     }
 

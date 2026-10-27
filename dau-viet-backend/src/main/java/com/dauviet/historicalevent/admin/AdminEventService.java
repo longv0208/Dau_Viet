@@ -80,9 +80,14 @@ public class AdminEventService {
             }
             if (q != null && !q.isBlank()) {
                 String like = "%" + q.trim().toLowerCase() + "%";
-                preds.add(cb.or(
+                Predicate textMatch = cb.or(
                         cb.like(cb.lower(root.get("title")), like),
-                        cb.like(cb.lower(root.get("slug")), like)));
+                        cb.like(cb.lower(root.get("slug")), like));
+                try {
+                    preds.add(cb.or(textMatch, cb.equal(root.get("startYear"), Integer.valueOf(q.trim()))));
+                } catch (NumberFormatException ex) {
+                    preds.add(textMatch);
+                }
             }
             return cb.and(preds.toArray(new Predicate[0]));
         };

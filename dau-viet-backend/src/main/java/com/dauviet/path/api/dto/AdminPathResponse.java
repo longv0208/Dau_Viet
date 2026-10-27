@@ -9,6 +9,7 @@ public record AdminPathResponse(LearningPathVersion version, List<Chapter> chapt
     public record Event(LearningPathEventNode node, String title, Integer startYear,
                         PathContentStatus contentStatus, UUID publishedPolicyId,
                         Integer publishedPolicyVersion, List<UUID> requiredLessonIds,
-                        List<UUID> optionalLessonIds, List<Lesson> lessons) {}
+                        List<UUID> optionalLessonIds, List<Lesson> lessons,
+                        String eventStatus, UUID canonicalEventId, boolean alias) {}
     public record Lesson(LearningPathLessonNode node, String title, String status) {}
 }

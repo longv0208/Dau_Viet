@@ -15,6 +15,7 @@ import {
   Menu,
   PanelLeftClose,
   PanelLeftOpen,
+  Route,
 } from "lucide-react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
@@ -32,6 +33,7 @@ import { Breadcrumbs } from "./breadcrumbs";
 const NAV_ITEMS = [
   { href: "/dashboard", label: "Tổng quan", icon: LayoutDashboard },
   { href: "/events", label: "Sự kiện", icon: Calendar },
+  { href: "/learning-path", label: "Bản đồ Dấu Ấn", icon: Route },
   { href: "/templates", label: "Mẫu bài học", icon: LayoutTemplate },
   { href: "/assets", label: "Thư viện media", icon: ImageIcon },
   { href: "/animations", label: "Hoạt họa lịch sử", icon: Film },

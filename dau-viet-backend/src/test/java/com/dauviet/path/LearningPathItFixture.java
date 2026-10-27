@@ -35,6 +35,9 @@ public final class LearningPathItFixture {
             return;
         }
 
+        // Test-only reset of incomplete snapshots; never disable production constraints.
+        jdbc.execute("TRUNCATE TABLE learning_path_lesson_nodes, learning_path_event_nodes, "
+                + "learning_path_chapters, learning_path_versions CASCADE");
         // Tái tạo đầy đủ dữ liệu seed chuẩn cho 5 chương, 6 sự kiện canonical và lesson/policy
         jdbc.execute("""
             DO $$
@@ -56,16 +59,20 @@ public final class LearningPathItFixture {
                 tpl_id UUID := 'd7a00000-0000-4000-8000-000000000001';
                 les_bd UUID := '10000000-0000-0000-0000-000000000001';
                 ver_bd UUID := '10000000-0000-0000-0000-000000000011';
+                publisher_id UUID := 'd7a00000-0000-4000-8000-000000000002';
                 node_id UUID;
             BEGIN
-                -- Bật chế độ replica để cấu hình fixture không bị chặn bởi immutability triggers
-                SET session_replication_role = replica;
+                INSERT INTO users(id, email, password_hash, role, status)
+                VALUES (publisher_id, 'path-fixture@dauviet.test', 'fixture-only', 'CONTENT_ADMIN', 'ACTIVE')
+                ON CONFLICT DO NOTHING;
+                SELECT id INTO publisher_id FROM users WHERE email = 'path-fixture@dauviet.test';
 
                 -- 1. Lesson Template nếu chưa có
-                INSERT INTO lesson_templates (id, code, name, description, preset_json)
-                VALUES (tpl_id, 'HISTORY_DEFAULT', 'Mẫu bài học lịch sử mặc định', 'Cấu trúc bài học chuẩn 4 chặng',
+                INSERT INTO lesson_templates (id, code, name, description, schema_version, preset_json)
+                VALUES (tpl_id, 'HISTORY_DEFAULT', 'Mẫu bài học lịch sử mặc định', 'Cấu trúc bài học chuẩn 4 chặng', 1,
                         '{"schemaVersion": 1, "stages": []}'::jsonb)
                 ON CONFLICT (code) DO NOTHING;
+                SELECT id INTO tpl_id FROM lesson_templates WHERE code = 'HISTORY_DEFAULT';
 
                 -- 2. 6 Canonical Historical Events
                 -- 2.1 Hùng Vương - Văn Lang (-700)
@@ -149,18 +156,19 @@ public final class LearningPathItFixture {
                     'Vì sao Ngô Quyền chọn sông Bạch Đằng làm trận địa quyết định?',
                     '["Hiểu cơ chế thủy triều", "Phân tích trận địa cọc"]'::jsonb,
                     '{"schemaVersion": 1, "stages": []}'::jsonb,
-                    'PUBLISHED', ver_bd
+                    'DRAFT', NULL
                 ) ON CONFLICT (id) DO UPDATE SET
-                    event_id = EXCLUDED.event_id, status = 'PUBLISHED', current_version_id = ver_bd;
+                    event_id = EXCLUDED.event_id, status = 'DRAFT', current_version_id = NULL;
 
                 INSERT INTO lesson_versions (
-                    id, lesson_id, version_no, content_json, status, published_at
+                    id, lesson_id, version_no, schema_version, snapshot_json, published_by, published_at
                 ) VALUES (
-                    ver_bd, les_bd, 1,
+                    ver_bd, les_bd, 1, 1,
                     '{"schemaVersion": 1, "stages": []}'::jsonb,
-                    'PUBLISHED', now()
-                ) ON CONFLICT (lesson_id, version_no) DO UPDATE SET
-                    status = 'PUBLISHED';
+                    publisher_id, now()
+                ) ON CONFLICT (lesson_id, version_no) DO NOTHING;
+                SELECT id INTO ver_bd FROM lesson_versions WHERE lesson_id = les_bd AND version_no = 1;
+                UPDATE lessons SET status = 'PUBLISHED', current_version_id = ver_bd WHERE id = les_bd;
 
                 -- 4. Policy cho Bạch Đằng 938
                 INSERT INTO event_completion_policies (
@@ -175,9 +183,8 @@ public final class LearningPathItFixture {
                     id, path_code, version_no, title, description, status, published_at
                 ) VALUES (
                     v_path_id, 'HISTORY_MAIN', 1, 'Hành trình Lịch sử Việt Nam',
-                    'Lộ trình học tập lịch sử Việt Nam chuẩn hóa', 'PUBLISHED', now()
-                ) ON CONFLICT (path_code, version_no) DO UPDATE SET
-                    title = EXCLUDED.title, status = 'PUBLISHED';
+                    'Lộ trình học tập lịch sử Việt Nam chuẩn hóa', 'DRAFT', NULL
+                );
 
                 -- 6. 5 Chapters
                 INSERT INTO learning_path_chapters (
@@ -223,8 +230,9 @@ public final class LearningPathItFixture {
                 INSERT INTO learning_path_event_nodes (id, chapter_id, path_version_id, event_id, sort_order)
                 VALUES (gen_random_uuid(), c5_id, v_path_id, evt_db, 1);
 
-                -- Trả lại chế độ origin
-                SET session_replication_role = origin;
+                -- Publish only after the entire immutable snapshot has been assembled.
+                UPDATE learning_path_versions SET status = 'PUBLISHED', published_at = now()
+                WHERE id = v_path_id;
             END $$;
         """);
     }

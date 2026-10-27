@@ -165,14 +165,9 @@ class LearningPathImmutabilityIT extends AbstractPostgresIT {
         UUID testVersionId = UUID.randomUUID();
 
         // Tạo một version PUBLISHED riêng để test lưu trữ (ARCHIVED) mà không ảnh hưởng HISTORY_MAIN v1
-        jdbc.update("set session_replication_role = replica");
-        try {
-            jdbc.update("INSERT INTO learning_path_versions (id, path_code, version_no, title, description, status) "
-                    + "VALUES (?::uuid, 'ARCHIVE_TEST_PATH', 1, 'Archive Test', 'Desc', 'PUBLISHED')",
-                    testVersionId.toString());
-        } finally {
-            jdbc.update("set session_replication_role = origin");
-        }
+        jdbc.update("INSERT INTO learning_path_versions (id, path_code, version_no, title, description, status) "
+                + "VALUES (?::uuid, 'ARCHIVE_TEST_PATH', 1, 'Archive Test', 'Desc', 'PUBLISHED')",
+                testVersionId.toString());
 
         // 1. Chuyển PUBLISHED -> ARCHIVED (không sửa title/desc) -> Thành công
         assertThatCode(() -> {
