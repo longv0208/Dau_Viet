@@ -1,4 +1,4 @@
-﻿package com.dauviet.common.error;
+package com.dauviet.common.error;
 
 import java.util.HashMap;
 import java.util.Map;
