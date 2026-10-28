@@ -34,14 +34,15 @@ class IslandExpansionTransition {
 }
 
 /// Canvas 2:1 Isometric Heritage Island Scene.
-/// Bao gồm InteractiveViewer hỗ trợ Pan, Pinch-to-zoom, Camera Auto-Fit thông minh
-/// theo đúng bounding-box thị giác (gồm cả cây cao, công trình và bờ đá),
-/// nền biển nhiệt đới đa sắc độ và tương tác chạm chọn tile hình thoi chính xác.
+/// Bao gồm InteractiveViewer hỗ trợ Pan, Pinch-to-zoom, 4 góc nhìn xoay Isometric (10A),
+/// Camera Auto-Fit thông minh, chuyển cảnh xoay mượt mà tôn trọng Reduced Motion,
+/// và đường gạch làng Việt Autotile liền mạch (10B).
 class IslandScene extends StatefulWidget {
   final IslandDto island;
   final String? selectedSlotId;
   final ValueChanged<IslandSlotDto?> onSelectSlot;
   final TransformationController? transformationController;
+  final IslandCameraDirection cameraDirection;
   final int resetCameraVersion;
   final IslandExpansionTransition? expansionTransition;
   final String? activeEffectSlotId;
@@ -54,6 +55,7 @@ class IslandScene extends StatefulWidget {
     required this.selectedSlotId,
     required this.onSelectSlot,
     this.transformationController,
+    this.cameraDirection = IslandCameraDirection.northEast,
     this.resetCameraVersion = 0,
     this.expansionTransition,
     this.activeEffectSlotId,
@@ -66,8 +68,9 @@ class IslandScene extends StatefulWidget {
 }
 
 class _IslandSceneState extends State<IslandScene>
-    with SingleTickerProviderStateMixin {
+    with TickerProviderStateMixin {
   late final AnimationController _waterController;
+  late final AnimationController _rotationTransitionController;
   late final TransformationController _controller;
   bool _internalController = false;
 
@@ -75,11 +78,11 @@ class _IslandSceneState extends State<IslandScene>
   Size? _lastViewportSize;
   int _lastResetVersion = -1;
   bool _hasInitialCameraFit = false;
+  int _lastRotationTurnDelta = 1;
 
-  /// Kích thước scene isometric tính theo bounding-box thị giác thực tế của đảo
-  /// (khớp hoàn toàn với phép tính trong `IslandIsometricRenderer`).
+  /// Kích thước scene isometric tính theo bounding-box thị giác thực tế của đảo ở góc nhìn hiện tại.
   ({double width, double height, double minX, double maxX, double minY, double maxY})
-      _sceneMetrics(IslandBoardDto board) {
+      _sceneMetrics(IslandBoardDto board, IslandCameraDirection direction) {
     final tileW = board.tileWidth;
     final tileH = board.tileHeight;
 
@@ -92,8 +95,14 @@ class _IslandSceneState extends State<IslandScene>
     double minX = double.infinity, maxX = -double.infinity;
     double minY = double.infinity, maxY = -double.infinity;
     for (final t in board.tiles) {
-      final x = (t.col - t.row) * (tileW * 0.5);
-      final y = (t.col + t.row) * (tileH * 0.5);
+      final (vRow, vCol) = direction.toViewCoord(
+        t.row,
+        t.col,
+        rows: board.rows,
+        cols: board.cols,
+      );
+      final x = (vCol - vRow) * (tileW * 0.5);
+      final y = (vCol + vRow) * (tileH * 0.5);
       if (x < minX) minX = x;
       if (x > maxX) maxX = x;
       if (y < minY) minY = y;
@@ -126,6 +135,12 @@ class _IslandSceneState extends State<IslandScene>
       duration: const Duration(seconds: 9),
     )..repeat();
 
+    _rotationTransitionController = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 260),
+      value: 1.0,
+    );
+
     if (widget.transformationController != null) {
       _controller = widget.transformationController!;
     } else {
@@ -145,6 +160,19 @@ class _IslandSceneState extends State<IslandScene>
   @override
   void didUpdateWidget(covariant IslandScene oldWidget) {
     super.didUpdateWidget(oldWidget);
+    if (widget.cameraDirection != oldWidget.cameraDirection) {
+      final diff = (widget.cameraDirection.quarterTurns -
+              oldWidget.cameraDirection.quarterTurns) %
+          4;
+      _lastRotationTurnDelta = diff == 3 ? -1 : 1;
+      final reduceMotion = MediaQuery.maybeDisableAnimationsOf(context) ?? false;
+      if (!reduceMotion) {
+        _rotationTransitionController.forward(from: 0.0);
+      } else {
+        _rotationTransitionController.value = 1.0;
+      }
+    }
+
     if (widget.resetCameraVersion != _lastResetVersion) {
       _lastResetVersion = widget.resetCameraVersion;
       if (_lastViewportSize != null) {
@@ -156,6 +184,7 @@ class _IslandSceneState extends State<IslandScene>
   @override
   void dispose() {
     _waterController.dispose();
+    _rotationTransitionController.dispose();
     if (_internalController) {
       _controller.dispose();
     }
@@ -168,13 +197,11 @@ class _IslandSceneState extends State<IslandScene>
           slots: widget.island.slots,
           regions: widget.island.regions,
         );
-    final m = _sceneMetrics(board);
+    final m = _sceneMetrics(board, widget.cameraDirection);
 
     final bool isPortraitMobile = viewportSize.width < 600 &&
         viewportSize.height > viewportSize.width;
 
-    // Trên desktop/tablet: đảo nổi bật chiếm ~86% chiều cao khả dụng, giảm khoảng nước trống dư thừa.
-    // Trên mobile dọc: ưu tiên vùng đất trung tâm đã mở khóa vừa vặn tầm tay chạm.
     final widthFill = isPortraitMobile ? 0.96 : 0.88;
     final heightFill = isPortraitMobile ? 0.80 : 0.86;
 
@@ -197,7 +224,7 @@ class _IslandSceneState extends State<IslandScene>
           slots: widget.island.slots,
           regions: widget.island.regions,
         );
-    final m = _sceneMetrics(board);
+    final m = _sceneMetrics(board, widget.cameraDirection);
 
     return LayoutBuilder(
       builder: (context, constraints) {
@@ -235,56 +262,77 @@ class _IslandSceneState extends State<IslandScene>
             boundaryMargin: const EdgeInsets.all(520),
             constrained: false,
             child: AnimatedBuilder(
-              animation: _waterController,
+              animation: Listenable.merge([
+                _waterController,
+                _rotationTransitionController,
+              ]),
               builder: (context, _) {
-                return SizedBox(
-                  width: m.width,
-                  height: m.height,
-                  child: IslandIsometricRenderer(
-                    board: board,
-                    slots: widget.island.slots,
-                    currentTier: widget.island.tier,
-                    selectedSlotId: widget.selectedSlotId,
-                    selectedTileCoord: _selectedTileCoord,
-                    waterAnimationValue: _waterController.value,
-                    expansionRevealProgress:
-                        widget.expansionTransition?.landRevealProgress ?? 1.0,
-                    expandingFromTier: widget.expansionTransition?.fromTier,
-                    expandingToTier: widget.expansionTransition?.toTier,
-                    onTileTap: (coord) {
-                      setState(() {
-                        _selectedTileCoord = coord;
-                      });
-                      final tile = board.tileAt(coord.$1, coord.$2);
-                      final tileSlotId = tile?.slotId;
-                      IslandSlotDto? slot;
-                      if (tileSlotId != null && tileSlotId.isNotEmpty) {
-                        for (final s in widget.island.slots) {
-                          if (s.slotId == tileSlotId) {
-                            slot = s;
-                            break;
-                          }
-                        }
-                      }
-                      widget.onSelectSlot(slot);
-                    },
-                    onSlotTap: (slot) {
-                      setState(() {
-                        final host = slot.tileKey != null
-                            ? board.tiles
-                                .where((t) => t.key == slot.tileKey)
-                                .firstOrNull
-                            : null;
-                        if (host != null) {
-                          _selectedTileCoord = (host.row, host.col);
-                        } else if (slot.tileRow != null && slot.tileCol != null) {
-                          _selectedTileCoord = (slot.tileRow!, slot.tileCol!);
-                        } else {
-                          _selectedTileCoord = null;
-                        }
-                      });
-                      widget.onSelectSlot(slot);
-                    },
+                final rotT = Curves.easeOutCubic.transform(
+                  _rotationTransitionController.value,
+                );
+                final slideDx = (1.0 - rotT) * 22.0 * _lastRotationTurnDelta;
+                final scale = 0.965 + 0.035 * rotT;
+                final opacity = (0.72 + 0.28 * rotT).clamp(0.0, 1.0);
+
+                return Opacity(
+                  opacity: opacity,
+                  child: Transform.translate(
+                    offset: Offset(slideDx, 0),
+                    child: Transform.scale(
+                      scale: scale,
+                      alignment: Alignment.center,
+                      child: SizedBox(
+                        width: m.width,
+                        height: m.height,
+                        child: IslandIsometricRenderer(
+                          board: board,
+                          slots: widget.island.slots,
+                          currentTier: widget.island.tier,
+                          selectedSlotId: widget.selectedSlotId,
+                          selectedTileCoord: _selectedTileCoord,
+                          cameraDirection: widget.cameraDirection,
+                          waterAnimationValue: _waterController.value,
+                          expansionRevealProgress:
+                              widget.expansionTransition?.landRevealProgress ?? 1.0,
+                          expandingFromTier: widget.expansionTransition?.fromTier,
+                          expandingToTier: widget.expansionTransition?.toTier,
+                          onTileTap: (coord) {
+                            setState(() {
+                              _selectedTileCoord = coord;
+                            });
+                            final tile = board.tileAt(coord.$1, coord.$2);
+                            final tileSlotId = tile?.slotId;
+                            IslandSlotDto? slot;
+                            if (tileSlotId != null && tileSlotId.isNotEmpty) {
+                              for (final s in widget.island.slots) {
+                                if (s.slotId == tileSlotId) {
+                                  slot = s;
+                                  break;
+                                }
+                              }
+                            }
+                            widget.onSelectSlot(slot);
+                          },
+                          onSlotTap: (slot) {
+                            setState(() {
+                              final host = slot.tileKey != null
+                                  ? board.tiles
+                                      .where((t) => t.key == slot.tileKey)
+                                      .firstOrNull
+                                  : null;
+                              if (host != null) {
+                                _selectedTileCoord = (host.row, host.col);
+                              } else if (slot.tileRow != null && slot.tileCol != null) {
+                                _selectedTileCoord = (slot.tileRow!, slot.tileCol!);
+                              } else {
+                                _selectedTileCoord = null;
+                              }
+                            });
+                            widget.onSelectSlot(slot);
+                          },
+                        ),
+                      ),
+                    ),
                   ),
                 );
               },

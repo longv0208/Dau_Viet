@@ -18,6 +18,7 @@ import 'widgets/island_scene.dart';
 import 'widgets/island_slot_detail_card.dart';
 import 'widgets/island_tile_sheet.dart';
 import 'widgets/island_upgrade_panel.dart';
+import 'widgets/island_visual_asset_manager.dart';
 
 /// Màn hình chính Đảo Di Sản Cá Nhân 2.5D (`/island`).
 /// Bổ sung trong ISLAND-07:
@@ -39,6 +40,26 @@ class _IslandScreenState extends ConsumerState<IslandScreen>
   bool _isMutating = false;
   bool _isSheetOpen = false;
   int _resetCameraVersion = 0;
+  IslandCameraDirection _cameraDirection = IslandCameraDirection.northEast;
+
+  void _rotateCameraLeft() {
+    setState(() {
+      _cameraDirection = _cameraDirection.nextCounterClockwise;
+    });
+  }
+
+  void _rotateCameraRight() {
+    setState(() {
+      _cameraDirection = _cameraDirection.nextClockwise;
+    });
+  }
+
+  void _resetCameraAndAngle() {
+    setState(() {
+      _cameraDirection = IslandCameraDirection.northEast;
+      _resetCameraVersion++;
+    });
+  }
 
   // Confetti one-shot counter (A3)
   int _confettiTriggerCount = 0;
@@ -501,6 +522,7 @@ class _IslandScreenState extends ConsumerState<IslandScreen>
                       island: island,
                       selectedSlotId: _selectedSlotId,
                       transformationController: _transformationController,
+                      cameraDirection: _cameraDirection,
                       resetCameraVersion: _resetCameraVersion,
                       expansionTransition: IslandExpansionTransition(
                         fromTier: _expandingFromTier!,
@@ -518,6 +540,7 @@ class _IslandScreenState extends ConsumerState<IslandScreen>
                   island: island,
                   selectedSlotId: _selectedSlotId,
                   transformationController: _transformationController,
+                  cameraDirection: _cameraDirection,
                   resetCameraVersion: _resetCameraVersion,
                   activeEffectSlotId: _activeEffectSlotId,
                   placementEffectToken: _placementEffectToken,
@@ -650,7 +673,7 @@ class _IslandScreenState extends ConsumerState<IslandScreen>
             bottom: 16,
             child: Center(
               child: ConstrainedBox(
-                constraints: const BoxConstraints(maxWidth: 480),
+                constraints: const BoxConstraints(maxWidth: 540),
                 child: Container(
                   padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
                   decoration: BoxDecoration(
@@ -694,13 +717,14 @@ class _IslandScreenState extends ConsumerState<IslandScreen>
                         onTap: () => _openUpgradePanel(island),
                       ),
                       _buildFloatingActionBtn(
+                        icon: Icons.threesixty_rounded,
+                        label: 'Góc ${_cameraDirection.shortCode}',
+                        onTap: _rotateCameraRight,
+                      ),
+                      _buildFloatingActionBtn(
                         icon: Icons.center_focus_strong_rounded,
                         label: 'Căn giữa',
-                        onTap: () {
-                          setState(() {
-                            _resetCameraVersion++;
-                          });
-                        },
+                        onTap: _resetCameraAndAngle,
                       ),
                     ],
                   ),
@@ -709,26 +733,12 @@ class _IslandScreenState extends ConsumerState<IslandScreen>
             ),
           ),
 
-        // 6. Nút Reset Camera căn giữa đảo theo Tier hiện tại (Part A1 & B7)
+        // 6. Cụm điều khiển Góc Nhìn Isometric (4 hướng) & Reset Camera (10A)
         if (!isAnimatingExpansion)
           Positioned(
             top: 10,
             right: 10,
-            child: FloatingActionButton.small(
-              heroTag: 'btn_reset_zoom',
-              backgroundColor: DauVietColors.parchmentSurface.withValues(
-                alpha: 0.92,
-              ),
-              foregroundColor: DauVietColors.woodBrown,
-              elevation: 2,
-              tooltip: 'Căn giữa Đảo Di Sản',
-              onPressed: () {
-                setState(() {
-                  _resetCameraVersion++;
-                });
-              },
-              child: const Icon(Icons.center_focus_strong_rounded, size: 20),
-            ),
+            child: _buildCameraRotationPod(),
           ),
 
         // 7. Thẻ Chào mừng / Hướng dẫn lần đầu (Part C2 & C3)
@@ -742,6 +752,104 @@ class _IslandScreenState extends ConsumerState<IslandScreen>
             ),
           ),
       ],
+    );
+  }
+
+  /// Cụm điều khiển Góc Nhìn Isometric (4 hướng: Đông Bắc, Đông Nam, Tây Nam, Tây Bắc) & Reset Camera (10A).
+  Widget _buildCameraRotationPod() {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 4),
+      decoration: BoxDecoration(
+        color: const Color(0xF2FFF8EC),
+        borderRadius: BorderRadius.circular(20),
+        border: Border.all(color: const Color(0xFFD9C098), width: 1.4),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withValues(alpha: 0.14),
+            blurRadius: 8,
+            offset: const Offset(0, 2),
+          ),
+        ],
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          _buildPodIconBtn(
+            icon: Icons.rotate_left_rounded,
+            tooltip: 'Xoay góc nhìn sang trái (-90°)',
+            onTap: _rotateCameraLeft,
+          ),
+          InkWell(
+            onTap: _rotateCameraRight,
+            borderRadius: BorderRadius.circular(12),
+            child: Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 4),
+              child: Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  AnimatedRotation(
+                    turns: _cameraDirection.quarterTurns * 0.25,
+                    duration: const Duration(milliseconds: 240),
+                    curve: Curves.easeOutCubic,
+                    child: const Icon(
+                      Icons.explore_rounded,
+                      size: 15,
+                      color: DauVietColors.cinnabarRed,
+                    ),
+                  ),
+                  const SizedBox(width: 4),
+                  Text(
+                    _cameraDirection.labelVi,
+                    style: DauVietTypography.bodySmall.copyWith(
+                      fontWeight: FontWeight.bold,
+                      color: DauVietColors.woodBrown,
+                      fontSize: 11,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
+          _buildPodIconBtn(
+            icon: Icons.rotate_right_rounded,
+            tooltip: 'Xoay góc nhìn sang phải (+90°)',
+            onTap: _rotateCameraRight,
+          ),
+          Container(
+            width: 1,
+            height: 18,
+            margin: const EdgeInsets.symmetric(horizontal: 3),
+            color: const Color(0xFFD9C098),
+          ),
+          _buildPodIconBtn(
+            icon: Icons.center_focus_strong_rounded,
+            tooltip: 'Căn giữa & về góc nhìn mặc định (Đông Bắc)',
+            onTap: _resetCameraAndAngle,
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildPodIconBtn({
+    required IconData icon,
+    required String tooltip,
+    required VoidCallback onTap,
+  }) {
+    return Tooltip(
+      message: tooltip,
+      child: InkWell(
+        onTap: onTap,
+        borderRadius: BorderRadius.circular(14),
+        child: Padding(
+          padding: const EdgeInsets.all(5),
+          child: Icon(
+            icon,
+            size: 19,
+            color: DauVietColors.woodBrown,
+          ),
+        ),
+      ),
     );
   }
 

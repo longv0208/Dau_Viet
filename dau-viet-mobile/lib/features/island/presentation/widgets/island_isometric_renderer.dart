@@ -6,10 +6,12 @@ import '../../data/island_dto.dart';
 import 'island_heritage_building.dart';
 import 'island_visual_asset_manager.dart';
 
-/// Renderer 2:1 Isometric Diorama Cao Cấp cho Đảo Di Sản (ISLAND-12).
-/// Kết hợp hệ thống Sprite 2.5D minh họa thủ công (mặt đất, tiểu cảnh làng Việt,
-/// nền móng đá cổ, công trình di sản) với vách bờ địa hình hữu cơ nhiều tầng,
-/// mặt nước chuyển sắc từ nông ra sâu và hiệu ứng sương mờ vùng chưa mở khóa.
+/// Renderer 2:1 Isometric Diorama Cao Cấp cho Đảo Di Sản (ISLAND-12 / 10A / 10B).
+/// Hỗ trợ:
+/// - 4 góc nhìn Isometric cố định (`IslandCameraDirection`: Đông Bắc, Đông Nam, Tây Nam, Tây Bắc)
+///   với thứ tự vẽ chiều sâu Painter's Algorithm, vách đá bờ biển và Hit Testing chính xác ở mọi góc.
+/// - Hệ thống Autotiling Đường Gạch & Quảng Trường Làng Việt (`resolveAutotiledTerrainSprite`)
+///   tự động nối liền mạch các đoạn thẳng, khúc cua, ngã ba, ngã tư, đầu đường và sân đình.
 class IslandIsometricRenderer extends StatelessWidget {
   final IslandBoardDto board;
   final List<IslandSlotDto> slots;
@@ -18,6 +20,7 @@ class IslandIsometricRenderer extends StatelessWidget {
   final (int row, int col)? selectedTileCoord;
   final ValueChanged<(int row, int col)> onTileTap;
   final ValueChanged<IslandSlotDto> onSlotTap;
+  final IslandCameraDirection cameraDirection;
   final double waterAnimationValue;
   final double expansionRevealProgress;
   final int? expandingFromTier;
@@ -32,11 +35,33 @@ class IslandIsometricRenderer extends StatelessWidget {
     required this.onSlotTap,
     this.selectedSlotId,
     this.selectedTileCoord,
+    this.cameraDirection = IslandCameraDirection.northEast,
     this.waterAnimationValue = 0.0,
     this.expansionRevealProgress = 1.0,
     this.expandingFromTier,
     this.expandingToTier,
   });
+
+  /// Chuyển tọa độ logic (row, col) của tile sang tọa độ màn hình theo góc nhìn `cameraDirection`.
+  Offset _tileToScreenOffset(
+    int row,
+    int col, {
+    required double originX,
+    required double originY,
+  }) {
+    final (vRow, vCol) = cameraDirection.toViewCoord(
+      row,
+      col,
+      rows: board.rows,
+      cols: board.cols,
+    );
+    return board.toScreenOffset(
+      vRow,
+      vCol,
+      originX: originX,
+      originY: originY,
+    );
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -58,10 +83,21 @@ class IslandIsometricRenderer extends StatelessWidget {
       }
     }
 
+    // Bản đồ tra cứu tile theo tọa độ logic (row, col) phục vụ Autotiling đường gạch
+    final tileMap = <(int, int), IslandTileDto>{};
+    for (final t in board.tiles) {
+      final linkedSlot = slotByTileKey[t.key] ??
+          (t.slotId != null ? slotById[t.slotId] : null) ??
+          slotByCoord[(t.row, t.col)];
+      tileMap[(t.row, t.col)] = (linkedSlot != null && (t.slotId == null || t.slotId!.isEmpty))
+          ? t.copyWith(slotId: linkedSlot.slotId)
+          : t;
+    }
+
     final tileW = board.tileWidth;
     final tileH = board.tileHeight;
 
-    // Tính bounding-box thực tế của tập tile bao gồm cả chiều cao cây cối/công trình và bờ biển
+    // Tính bounding-box thực tế của tập tile theo góc nhìn hiện tại
     double minX = 0, maxX = 0, minY = 0, maxY = 0;
     if (board.tiles.isNotEmpty) {
       minX = double.infinity;
@@ -69,8 +105,14 @@ class IslandIsometricRenderer extends StatelessWidget {
       minY = double.infinity;
       maxY = -double.infinity;
       for (final t in board.tiles) {
-        final x = (t.col - t.row) * (tileW * 0.5);
-        final y = (t.col + t.row) * (tileH * 0.5);
+        final (vRow, vCol) = cameraDirection.toViewCoord(
+          t.row,
+          t.col,
+          rows: board.rows,
+          cols: board.cols,
+        );
+        final x = (vCol - vRow) * (tileW * 0.5);
+        final y = (vCol + vRow) * (tileH * 0.5);
         if (x < minX) minX = x;
         if (x > maxX) maxX = x;
         if (y < minY) minY = y;
@@ -81,7 +123,6 @@ class IslandIsometricRenderer extends StatelessWidget {
       maxY = (board.rows + board.cols) * (tileH * 0.5);
     }
 
-    // Lề bao quanh cho tán cây cao ở đỉnh đảo, vách đá ngầm phía Nam và sóng vỗ ven bờ
     final padX = tileW * 1.45;
     final padTop = tileH * 2.85;
     final padBottom = tileH * 2.25;
@@ -95,17 +136,36 @@ class IslandIsometricRenderer extends StatelessWidget {
     final originX = sceneWidth * 0.5 - ((maxX + minX) * 0.5);
     final originY = -minY;
 
-    // Depth sorting chuẩn isometric painter's algorithm: (row + col)
+    // Depth sorting chuẩn isometric painter's algorithm theo tọa độ góc nhìn (vRow + vCol)
     final sortedTiles = List<IslandTileDto>.from(board.tiles)
       ..sort((a, b) {
-        final depthA = a.row + a.col;
-        final depthB = b.row + b.col;
+        final (vRowA, vColA) = cameraDirection.toViewCoord(
+          a.row,
+          a.col,
+          rows: board.rows,
+          cols: board.cols,
+        );
+        final (vRowB, vColB) = cameraDirection.toViewCoord(
+          b.row,
+          b.col,
+          rows: board.rows,
+          cols: board.cols,
+        );
+        final depthA = vRowA + vColA;
+        final depthB = vRowB + vColB;
         if (depthA != depthB) return depthA.compareTo(depthB);
-        return a.row.compareTo(b.row);
+        return vRowA.compareTo(vRowB);
       });
 
-    final existingCoords = <(int, int)>{
-      for (final t in board.tiles) (t.row, t.col),
+    // Tập tọa độ trong không gian góc nhìn (vRow, vCol) để xác định cạnh bờ đá hướng về camera
+    final existingViewCoords = <(int, int)>{
+      for (final t in board.tiles)
+        cameraDirection.toViewCoord(
+          t.row,
+          t.col,
+          rows: board.rows,
+          cols: board.cols,
+        ),
     };
 
     return SizedBox(
@@ -121,14 +181,15 @@ class IslandIsometricRenderer extends StatelessWidget {
                 board: board,
                 originX: originX,
                 originY: originY,
-                existingCoords: existingCoords,
+                existingViewCoords: existingViewCoords,
+                cameraDirection: cameraDirection,
                 currentTier: currentTier,
                 animationValue: waterAnimationValue,
               ),
             ),
           ),
 
-          // LỚP 2: Vách bờ địa hình hữu cơ 2.5D + Mặt đất Sprite 2:1 (RepaintBoundary cố định)
+          // LỚP 2: Vách bờ địa hình hữu cơ 2.5D + Mặt đất & Đường gạch Autotile Sprite 2:1
           Positioned.fill(
             child: RepaintBoundary(
               child: Stack(
@@ -140,7 +201,8 @@ class IslandIsometricRenderer extends StatelessWidget {
                       painter: _HeritageIslandCliffAndUnderlayPainter(
                         board: board,
                         sortedTiles: sortedTiles,
-                        existingCoords: existingCoords,
+                        existingViewCoords: existingViewCoords,
+                        cameraDirection: cameraDirection,
                         currentTier: currentTier,
                         originX: originX,
                         originY: originY,
@@ -151,10 +213,11 @@ class IslandIsometricRenderer extends StatelessWidget {
                     ),
                   ),
 
-                  // 2B: Các Sprite mặt đất hình thoi 2:1 vẽ tay (Cỏ 3 biến thể, Sân gạch, Đường làng, Nền đá)
+                  // 2B: Các Sprite mặt đất & đường gạch hình thoi 2:1 được Autotile liền mạch
                   for (final tile in sortedTiles)
                     _buildTerrainTileSpriteWidget(
-                      tile: tile,
+                      tile: tileMap[(tile.row, tile.col)] ?? tile,
+                      tileMap: tileMap,
                       originX: originX,
                       originY: originY,
                       tileW: tileW,
@@ -167,7 +230,8 @@ class IslandIsometricRenderer extends StatelessWidget {
                       painter: _OrganicShoreOverhangAndSelectionPainter(
                         board: board,
                         sortedTiles: sortedTiles,
-                        existingCoords: existingCoords,
+                        existingViewCoords: existingViewCoords,
+                        cameraDirection: cameraDirection,
                         currentTier: currentTier,
                         originX: originX,
                         originY: originY,
@@ -217,9 +281,10 @@ class IslandIsometricRenderer extends StatelessWidget {
     return (isLocked: normallyLocked, revealAlpha: 1.0);
   }
 
-  /// Render sprite mặt đất hình thoi 2:1 cho từng ô tile.
+  /// Render sprite mặt đất / đường gạch hình thoi 2:1 đã được Autotile cho từng ô tile.
   Widget _buildTerrainTileSpriteWidget({
     required IslandTileDto tile,
+    required Map<(int, int), IslandTileDto> tileMap,
     required double originX,
     required double originY,
     required double tileW,
@@ -227,7 +292,7 @@ class IslandIsometricRenderer extends StatelessWidget {
   }) {
     final state = _resolveTileLockState(tile);
     final elevOffset = tile.elevation * 6.0;
-    final rawCenter = board.toScreenOffset(
+    final rawCenter = _tileToScreenOffset(
       tile.row,
       tile.col,
       originX: originX,
@@ -238,7 +303,11 @@ class IslandIsometricRenderer extends StatelessWidget {
     // Mở rộng nhẹ 6% để các cạnh hình thoi gối lên nhau mượt mà, triệt tiêu hoàn toàn khe hở
     final spriteW = tileW * 1.06;
     final spriteH = tileH * 1.06;
-    final spritePath = IslandVisualAssetManager.resolveTerrainTileSprite(tile);
+    final spritePath = IslandVisualAssetManager.resolveAutotiledTerrainSprite(
+      tile: tile,
+      tileMap: tileMap,
+      cameraDirection: cameraDirection,
+    );
 
     Widget tileImage = Image.asset(
       spritePath,
@@ -249,7 +318,6 @@ class IslandIsometricRenderer extends StatelessWidget {
     );
 
     if (state.isLocked) {
-      // Vùng đất chưa khám phá: phủ sắc xanh lam sương sớm dịu nhẹ, giữ nguyên chi tiết mặt đất
       tileImage = ColorFiltered(
         colorFilter: const ColorFilter.matrix(<double>[
           0.44, 0.26, 0.16, 0, 32,
@@ -272,7 +340,7 @@ class IslandIsometricRenderer extends StatelessWidget {
     );
   }
 
-  /// Render đối tượng 2.5D trên từng tile theo thứ tự chiều sâu.
+  /// Render đối tượng 2.5D trên từng tile theo thứ tự chiều sâu của góc nhìn hiện tại.
   Widget _buildTileInteractiveObject({
     required IslandTileDto tile,
     required Map<String, IslandSlotDto> slotById,
@@ -284,7 +352,7 @@ class IslandIsometricRenderer extends StatelessWidget {
     required double tileH,
   }) {
     final elevOffset = tile.elevation * 6.0;
-    final rawPos = board.toScreenOffset(
+    final rawPos = _tileToScreenOffset(
       tile.row,
       tile.col,
       originX: originX,
@@ -323,6 +391,9 @@ class IslandIsometricRenderer extends StatelessWidget {
               isSelected: isSelected,
               tileWidth: tileW,
               tileHeight: tileH,
+              flipHorizontally:
+                  cameraDirection == IslandCameraDirection.southEast ||
+                  cameraDirection == IslandCameraDirection.southWest,
               onTap: () => onSlotTap(slot),
             )
 
@@ -352,6 +423,7 @@ class IslandIsometricRenderer extends StatelessWidget {
                     row: tile.row,
                     col: tile.col,
                     isLocked: isLocked,
+                    cameraDirection: cameraDirection,
                   ),
                   if (isLocked)
                     Positioned(
@@ -387,7 +459,7 @@ class IslandIsometricRenderer extends StatelessWidget {
     );
   }
 
-  /// Nền móng xây dựng bằng đá xanh & gỗ lim vẽ tay hòa vào mặt cỏ (thay nút cộng cam/trắng lặp lại).
+  /// Nền móng xây dựng bằng đá xanh & gỗ lim vẽ tay hòa vào mặt cỏ.
   Widget _buildSubtleBuildableSlotPlinth({
     required IslandSlotDto slot,
     required IslandTileDto tile,
@@ -408,7 +480,6 @@ class IslandIsometricRenderer extends StatelessWidget {
           alignment: Alignment.bottomCenter,
           clipBehavior: Clip.none,
           children: [
-            // Hào quang vàng kim dịu nhẹ khi người chơi chạm chọn
             if (isSelected)
               Positioned(
                 bottom: tileH * 0.04,
@@ -430,7 +501,6 @@ class IslandIsometricRenderer extends StatelessWidget {
                 ),
               ),
 
-            // Sprite nền móng đá chạm hoa sen nằm êm trên mặt đất
             Positioned(
               bottom: tileH * 0.03,
               child: Opacity(
@@ -445,7 +515,6 @@ class IslandIsometricRenderer extends StatelessWidget {
               ),
             ),
 
-            // Điểm đánh dấu vị trí đặt công trình siêu nhỏ gọn và trang nhã
             Positioned(
               bottom: tileH * 0.36,
               child: AnimatedContainer(
@@ -484,7 +553,6 @@ class IslandIsometricRenderer extends StatelessWidget {
     );
   }
 
-  /// Lớp sương mù mờ ảo phủ nhẹ lên tiểu cảnh vùng chưa khám phá
   Widget _buildMistyFogVeil({required double tileW, required double tileH}) {
     return IgnorePointer(
       child: Container(
@@ -506,7 +574,6 @@ class IslandIsometricRenderer extends StatelessWidget {
     );
   }
 
-  /// Vùng đất chưa mở khóa: Sương mù mờ ảo, chỉ hiện khóa nhỏ trên các ô có slot xây dựng.
   Widget _buildAtmosphericLockedCue({
     required IslandTileDto tile,
     required bool isSelected,
@@ -532,13 +599,11 @@ class IslandIsometricRenderer extends StatelessWidget {
           alignment: Alignment.bottomCenter,
           clipBehavior: Clip.none,
           children: [
-            // Lớp sương mù bồng bềnh nhẹ
             Positioned(
               bottom: tileH * 0.06,
               child: _buildMistyFogVeil(tileW: tileW, tileH: tileH),
             ),
 
-            // Chỉ hiển thị biểu tượng ổ khóa nhỏ gọn trên ô thực sự là vị trí xây dựng hoặc đang được chạm
             if (hasBuildableSlot || isSelected)
               Positioned(
                 bottom: tileH * 0.28,
@@ -593,7 +658,8 @@ class _OrganicWaterAndShorelinePainter extends CustomPainter {
   final IslandBoardDto board;
   final double originX;
   final double originY;
-  final Set<(int, int)> existingCoords;
+  final Set<(int, int)> existingViewCoords;
+  final IslandCameraDirection cameraDirection;
   final int currentTier;
   final double animationValue;
 
@@ -601,7 +667,8 @@ class _OrganicWaterAndShorelinePainter extends CustomPainter {
     required this.board,
     required this.originX,
     required this.originY,
-    required this.existingCoords,
+    required this.existingViewCoords,
+    required this.cameraDirection,
     required this.currentTier,
     required this.animationValue,
   });
@@ -614,7 +681,6 @@ class _OrganicWaterAndShorelinePainter extends CustomPainter {
     final halfH = tileH * 0.5;
     final phase = animationValue * 2 * math.pi;
 
-    // 1. Vùng nước nông xanh ngọc bích tỏa ra quanh chân đảo (Shallow-to-deep lagoon transition)
     final shallowLagoonPaint = Paint()
       ..color = const Color(0xFF8BE2E8).withValues(alpha: 0.34)
       ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 36);
@@ -623,13 +689,18 @@ class _OrganicWaterAndShorelinePainter extends CustomPainter {
       ..color = const Color(0xFF6AD0DA).withValues(alpha: 0.25)
       ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 22);
 
-    // 2. Bóng đổ mềm mại của khối đảo xuống mặt biển phía Nam
     final deepShadowPaint = Paint()
       ..color = const Color(0xFF103B45).withValues(alpha: 0.42)
       ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 16);
 
     for (final tile in board.tiles) {
-      final center = board.toScreenOffset(tile.row, tile.col, originX: originX, originY: originY);
+      final (vRow, vCol) = cameraDirection.toViewCoord(
+        tile.row,
+        tile.col,
+        rows: board.rows,
+        cols: board.cols,
+      );
+      final center = board.toScreenOffset(vRow, vCol, originX: originX, originY: originY);
       canvas.drawOval(
         Rect.fromCenter(
           center: Offset(center.dx, center.dy + tileH * 0.15),
@@ -649,10 +720,16 @@ class _OrganicWaterAndShorelinePainter extends CustomPainter {
     }
 
     for (final tile in board.tiles) {
-      final hasSW = existingCoords.contains((tile.row + 1, tile.col));
-      final hasSE = existingCoords.contains((tile.row, tile.col + 1));
+      final (vRow, vCol) = cameraDirection.toViewCoord(
+        tile.row,
+        tile.col,
+        rows: board.rows,
+        cols: board.cols,
+      );
+      final hasSW = existingViewCoords.contains((vRow + 1, vCol));
+      final hasSE = existingViewCoords.contains((vRow, vCol + 1));
       if (!hasSW || !hasSE) {
-        final center = board.toScreenOffset(tile.row, tile.col, originX: originX, originY: originY);
+        final center = board.toScreenOffset(vRow, vCol, originX: originX, originY: originY);
         canvas.drawOval(
           Rect.fromCenter(
             center: Offset(center.dx, center.dy + tileH * 0.82),
@@ -664,17 +741,22 @@ class _OrganicWaterAndShorelinePainter extends CustomPainter {
       }
     }
 
-    // 3. Bọt sóng trắng mềm mại ôm sát chân vách đá và gợn sóng lan nhẹ
     for (final tile in board.tiles) {
-      final hasSW = existingCoords.contains((tile.row + 1, tile.col));
-      final hasSE = existingCoords.contains((tile.row, tile.col + 1));
-      final hasNW = existingCoords.contains((tile.row - 1, tile.col));
-      final hasNE = existingCoords.contains((tile.row, tile.col - 1));
+      final (vRow, vCol) = cameraDirection.toViewCoord(
+        tile.row,
+        tile.col,
+        rows: board.rows,
+        cols: board.cols,
+      );
+      final hasSW = existingViewCoords.contains((vRow + 1, vCol));
+      final hasSE = existingViewCoords.contains((vRow, vCol + 1));
+      final hasNW = existingViewCoords.contains((vRow - 1, vCol));
+      final hasNE = existingViewCoords.contains((vRow, vCol - 1));
 
       if (hasSW && hasSE && hasNW && hasNE) continue;
 
-      final center = board.toScreenOffset(tile.row, tile.col, originX: originX, originY: originY);
-      final localWave = math.sin(phase + (tile.row * 0.8 + tile.col * 1.1));
+      final center = board.toScreenOffset(vRow, vCol, originX: originX, originY: originY);
+      final localWave = math.sin(phase + (vRow * 0.8 + vCol * 1.1));
       final rippleShift = 2.5 + localWave * 2.2;
 
       final foamRibbonPaint = Paint()
@@ -740,7 +822,6 @@ class _OrganicWaterAndShorelinePainter extends CustomPainter {
       }
     }
 
-    // 4. Ánh nắng lấp lánh rất nhẹ trên mặt biển (Sunlit water caustics)
     final sparklePaint = Paint()..style = PaintingStyle.fill;
     for (int i = 0; i < 14; i++) {
       final angle = i * 1.65 + 0.4;
@@ -762,6 +843,7 @@ class _OrganicWaterAndShorelinePainter extends CustomPainter {
   @override
   bool shouldRepaint(covariant _OrganicWaterAndShorelinePainter oldDelegate) {
     return oldDelegate.animationValue != animationValue ||
+        oldDelegate.cameraDirection != cameraDirection ||
         oldDelegate.currentTier != currentTier ||
         oldDelegate.board != board;
   }
@@ -773,7 +855,8 @@ class _OrganicWaterAndShorelinePainter extends CustomPainter {
 class _HeritageIslandCliffAndUnderlayPainter extends CustomPainter {
   final IslandBoardDto board;
   final List<IslandTileDto> sortedTiles;
-  final Set<(int, int)> existingCoords;
+  final Set<(int, int)> existingViewCoords;
+  final IslandCameraDirection cameraDirection;
   final int currentTier;
   final double originX;
   final double originY;
@@ -784,7 +867,8 @@ class _HeritageIslandCliffAndUnderlayPainter extends CustomPainter {
   _HeritageIslandCliffAndUnderlayPainter({
     required this.board,
     required this.sortedTiles,
-    required this.existingCoords,
+    required this.existingViewCoords,
+    required this.cameraDirection,
     required this.currentTier,
     required this.originX,
     required this.originY,
@@ -804,7 +888,13 @@ class _HeritageIslandCliffAndUnderlayPainter extends CustomPainter {
     for (final tile in sortedTiles) {
       final bool isLocked = tile.unlockTier > currentTier;
       final elevOffset = tile.elevation * 6.0;
-      final rawCenter = board.toScreenOffset(tile.row, tile.col, originX: originX, originY: originY);
+      final (vRow, vCol) = cameraDirection.toViewCoord(
+        tile.row,
+        tile.col,
+        rows: board.rows,
+        cols: board.cols,
+      );
+      final rawCenter = board.toScreenOffset(vRow, vCol, originX: originX, originY: originY);
       final center = Offset(rawCenter.dx, rawCenter.dy - elevOffset);
 
       final topPt = Offset(center.dx, center.dy - halfH);
@@ -812,12 +902,11 @@ class _HeritageIslandCliffAndUnderlayPainter extends CustomPainter {
       final bottomPt = Offset(center.dx, center.dy + halfH);
       final leftPt = Offset(center.dx - halfW, center.dy);
 
-      final hasSW = existingCoords.contains((tile.row + 1, tile.col));
-      final hasSE = existingCoords.contains((tile.row, tile.col + 1));
+      final hasSW = existingViewCoords.contains((vRow + 1, vCol));
+      final hasSE = existingViewCoords.contains((vRow, vCol + 1));
 
       final cliffH = baseCliffDepth + elevOffset;
 
-      // Vách bờ Tây-Nam (Đón nắng chiều ấm áp, phân tầng đất phù sa + đá tảng + bãi cát)
       if (!hasSW) {
         _drawOrganicCliffEdge(
           canvas: canvas,
@@ -830,7 +919,6 @@ class _HeritageIslandCliffAndUnderlayPainter extends CustomPainter {
         );
       }
 
-      // Vách bờ Đông-Nam (Khuất bóng râm mát, đất nâu trầm + đá rêu ven nước)
       if (!hasSE) {
         _drawOrganicCliffEdge(
           canvas: canvas,
@@ -843,7 +931,6 @@ class _HeritageIslandCliffAndUnderlayPainter extends CustomPainter {
         );
       }
 
-      // Mặt lót hình thoi dưới cùng để triệt tiêu mọi khe sáng giữa các tile
       final palette = IslandVisualAssetManager.getTerrainPalette(
         tile.terrainType,
         row: tile.row,
@@ -860,7 +947,6 @@ class _HeritageIslandCliffAndUnderlayPainter extends CustomPainter {
     }
   }
 
-  /// Vẽ vách đất bờ đảo có đường viền lồi lõm tự nhiên, phân tầng địa chất và đá cuội ven bờ.
   void _drawOrganicCliffEdge({
     required Canvas canvas,
     required Offset pStart,
@@ -884,7 +970,6 @@ class _HeritageIslandCliffAndUnderlayPainter extends CustomPainter {
     final b75 = Offset(p75.dx + (isSunlit ? -1.5 : 1.5), p75.dy + cliffDepth + s3);
     final bEnd = Offset(pEnd.dx, pEnd.dy + cliffDepth * 0.96);
 
-    // 1. Dải cát & đá cuội ngầm sát mặt nước (Shoreline Sand & Pebble Shelf)
     final sandPath = Path()
       ..moveTo(bStart.dx, bStart.dy - 3)
       ..lineTo(b25.dx, b25.dy + 3.5)
@@ -900,7 +985,6 @@ class _HeritageIslandCliffAndUnderlayPainter extends CustomPainter {
         : (isSunlit ? const Color(0xFFD9C082) : const Color(0xFFB59B62));
     canvas.drawPath(sandPath, Paint()..color = sandColor);
 
-    // 2. Thân vách đất/đá chính (Multi-toned Stratified Earth Wall)
     final wallPath = Path()
       ..moveTo(pStart.dx, pStart.dy)
       ..lineTo(pEnd.dx, pEnd.dy)
@@ -931,7 +1015,6 @@ class _HeritageIslandCliffAndUnderlayPainter extends CustomPainter {
       ).createShader(wallRect);
     canvas.drawPath(wallPath, wallPaint);
 
-    // 3. Đường vân địa chất & tảng đá ven bờ tạo cảm giác mô hình thủ công
     final creasePaint = Paint()
       ..color = const Color(0xFF3A2414).withValues(alpha: 0.35)
       ..style = PaintingStyle.stroke
@@ -955,7 +1038,6 @@ class _HeritageIslandCliffAndUnderlayPainter extends CustomPainter {
       );
     }
 
-    // Viền tối mảnh khép dáng vách bờ
     canvas.drawPath(
       wallPath,
       Paint()
@@ -967,7 +1049,8 @@ class _HeritageIslandCliffAndUnderlayPainter extends CustomPainter {
 
   @override
   bool shouldRepaint(covariant _HeritageIslandCliffAndUnderlayPainter oldDelegate) {
-    return oldDelegate.currentTier != currentTier ||
+    return oldDelegate.cameraDirection != cameraDirection ||
+        oldDelegate.currentTier != currentTier ||
         oldDelegate.expansionProgress != expansionProgress ||
         oldDelegate.board != board;
   }
@@ -979,7 +1062,8 @@ class _HeritageIslandCliffAndUnderlayPainter extends CustomPainter {
 class _OrganicShoreOverhangAndSelectionPainter extends CustomPainter {
   final IslandBoardDto board;
   final List<IslandTileDto> sortedTiles;
-  final Set<(int, int)> existingCoords;
+  final Set<(int, int)> existingViewCoords;
+  final IslandCameraDirection cameraDirection;
   final int currentTier;
   final double originX;
   final double originY;
@@ -991,7 +1075,8 @@ class _OrganicShoreOverhangAndSelectionPainter extends CustomPainter {
   _OrganicShoreOverhangAndSelectionPainter({
     required this.board,
     required this.sortedTiles,
-    required this.existingCoords,
+    required this.existingViewCoords,
+    required this.cameraDirection,
     required this.currentTier,
     required this.originX,
     required this.originY,
@@ -1011,7 +1096,13 @@ class _OrganicShoreOverhangAndSelectionPainter extends CustomPainter {
     for (final tile in sortedTiles) {
       final isLocked = tile.unlockTier > currentTier;
       final elevOffset = tile.elevation * 6.0;
-      final rawCenter = board.toScreenOffset(tile.row, tile.col, originX: originX, originY: originY);
+      final (vRow, vCol) = cameraDirection.toViewCoord(
+        tile.row,
+        tile.col,
+        rows: board.rows,
+        cols: board.cols,
+      );
+      final rawCenter = board.toScreenOffset(vRow, vCol, originX: originX, originY: originY);
       final center = Offset(rawCenter.dx, rawCenter.dy - elevOffset);
 
       final topPt = Offset(center.dx, center.dy - halfH);
@@ -1019,8 +1110,8 @@ class _OrganicShoreOverhangAndSelectionPainter extends CustomPainter {
       final bottomPt = Offset(center.dx, center.dy + halfH);
       final leftPt = Offset(center.dx - halfW, center.dy);
 
-      final hasSW = existingCoords.contains((tile.row + 1, tile.col));
-      final hasSE = existingCoords.contains((tile.row, tile.col + 1));
+      final hasSW = existingViewCoords.contains((vRow + 1, vCol));
+      final hasSE = existingViewCoords.contains((vRow, vCol + 1));
 
       final overhangLight = isLocked ? const Color(0xFF69807E) : const Color(0xFF83B153);
       final overhangDark = isLocked ? const Color(0xFF536967) : const Color(0xFF618B38);
@@ -1032,7 +1123,6 @@ class _OrganicShoreOverhangAndSelectionPainter extends CustomPainter {
         _drawGrassOverhangFringe(canvas, bottomPt, rightPt, overhangDark, overhangDark);
       }
 
-      // Kiểm tra trạng thái đang được chạm chọn
       final linkedSlot = slotByTileKey[tile.key] ??
           (tile.slotId != null ? slotById[tile.slotId] : null);
       final isSelected = (selectedCoord != null &&
@@ -1068,7 +1158,6 @@ class _OrganicShoreOverhangAndSelectionPainter extends CustomPainter {
     }
   }
 
-  /// Vẽ dải cỏ rủ mềm mại uốn lượn qua mép vách đất để xóa bỏ cạnh thẳng cứng nhắc.
   void _drawGrassOverhangFringe(
     Canvas canvas,
     Offset start,
@@ -1101,7 +1190,8 @@ class _OrganicShoreOverhangAndSelectionPainter extends CustomPainter {
 
   @override
   bool shouldRepaint(covariant _OrganicShoreOverhangAndSelectionPainter oldDelegate) {
-    return oldDelegate.selectedCoord != selectedCoord ||
+    return oldDelegate.cameraDirection != cameraDirection ||
+        oldDelegate.selectedCoord != selectedCoord ||
         oldDelegate.selectedSlotId != selectedSlotId ||
         oldDelegate.currentTier != currentTier;
   }

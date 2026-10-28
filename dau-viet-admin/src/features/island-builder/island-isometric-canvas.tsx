@@ -25,6 +25,59 @@ interface IslandIsometricCanvasProps {
   onDeleteTile: (tileKey: string) => void;
 }
 
+type CameraDirectionIndex = 0 | 1 | 2 | 3;
+
+const CAMERA_DIRECTIONS: Array<{
+  index: CameraDirectionIndex;
+  label: string;
+  shortCode: string;
+}> = [
+  { index: 0, label: "Đông Bắc", shortCode: "ĐB" },
+  { index: 1, label: "Đông Nam", shortCode: "ĐN" },
+  { index: 2, label: "Tây Nam", shortCode: "TN" },
+  { index: 3, label: "Tây Bắc", shortCode: "TB" },
+];
+
+function toViewCoord(
+  row: number,
+  col: number,
+  rows: number,
+  cols: number,
+  dir: CameraDirectionIndex,
+): { vRow: number; vCol: number } {
+  const maxR = Math.max(rows - 1, 0);
+  const maxC = Math.max(cols - 1, 0);
+  switch (dir) {
+    case 0:
+      return { vRow: row, vCol: col };
+    case 1:
+      return { vRow: col, vCol: maxR - row };
+    case 2:
+      return { vRow: maxR - row, vCol: maxC - col };
+    case 3:
+      return { vRow: maxC - col, vCol: row };
+  }
+}
+
+function rotateConnections(
+  n: boolean,
+  e: boolean,
+  s: boolean,
+  w: boolean,
+  dir: CameraDirectionIndex,
+) {
+  switch (dir) {
+    case 0:
+      return { ne: n, se: e, sw: s, nw: w };
+    case 1:
+      return { ne: w, se: n, sw: e, nw: s };
+    case 2:
+      return { ne: s, se: w, sw: n, nw: e };
+    case 3:
+      return { ne: e, se: s, sw: w, nw: n };
+  }
+}
+
 const TERRAIN_STYLES: Record<
   TerrainType,
   { base: string; highlight: string; border: string; label: string }
@@ -36,10 +89,10 @@ const TERRAIN_STYLES: Record<
     label: "Cỏ xanh",
   },
   DIRT: {
-    base: "#A27A52",
-    highlight: "#B89066",
-    border: "#8B633C",
-    label: "Sân đất",
+    base: "#7DB04E",
+    highlight: "#94C765",
+    border: "#6C9D41",
+    label: "Sân đình",
   },
   STONE: {
     base: "#74857F",
@@ -48,8 +101,8 @@ const TERRAIN_STYLES: Record<
     label: "Đá xanh",
   },
   PATH: {
-    base: "#82AC5A",
-    highlight: "#9CC870",
+    base: "#7DB04E",
+    highlight: "#94C765",
     border: "#6C9446",
     label: "Đường gạch làng",
   },
@@ -67,24 +120,129 @@ const TERRAIN_STYLES: Record<
   },
 };
 
-function resolveTerrainSprite(tile: TileDto): string | null {
+function isPlazaTile(t?: TileDto): boolean {
+  return Boolean(t && t.terrainType === "DIRT" && !t.slotId);
+}
+
+function isPathNeighbor(t?: TileDto): boolean {
+  if (!t) return false;
+  return (
+    t.terrainType === "PATH" ||
+    t.terrainType === "STONE" ||
+    isPlazaTile(t)
+  );
+}
+
+function resolveAutotiledTerrainSprite(
+  tile: TileDto,
+  tileMap: Map<string, TileDto>,
+  dir: CameraDirectionIndex,
+): string | null {
+  const r = tile.row;
+  const c = tile.col;
+  const grassVariant = () => {
+    const hash = Math.abs(r * 7 + c * 13) % 3;
+    if (hash === 1) return "/assets/island/terrain/tile_grass_02.png";
+    if (hash === 2) return "/assets/island/terrain/tile_grass_03.png";
+    return "/assets/island/terrain/tile_grass_01.png";
+  };
+
   switch (tile.terrainType) {
-    case "DIRT":
-      return "/assets/island/terrain/tile_dirt_courtyard.png";
-    case "PATH":
-      return "/assets/island/terrain/tile_village_path.png";
-    case "STONE":
-      return "/assets/island/terrain/tile_stone_terrace.png";
     case "WATER":
       return null;
+    case "STONE":
+      return "/assets/island/terrain/tile_stone_terrace.png";
+    case "DIRT": {
+      const nP = isPlazaTile(tileMap.get(`${r - 1}_${c}`));
+      const eP = isPlazaTile(tileMap.get(`${r}_${c + 1}`));
+      const sP = isPlazaTile(tileMap.get(`${r + 1}_${c}`));
+      const wP = isPlazaTile(tileMap.get(`${r}_${c - 1}`));
+      if (tile.slotId && !nP && !eP && !sP && !wP) {
+        return grassVariant();
+      }
+      const rotP = rotateConnections(nP, eP, sP, wP, dir);
+      const isOddRot = dir === 1 || dir === 3;
+      if (rotP.se && rotP.sw) {
+        return isOddRot
+          ? "/assets/island/terrain/path_plaza_quad_nw_alt.png"
+          : "/assets/island/terrain/path_plaza_quad_nw.png";
+      }
+      if (rotP.sw && rotP.nw) {
+        return isOddRot
+          ? "/assets/island/terrain/path_plaza_quad_ne_alt.png"
+          : "/assets/island/terrain/path_plaza_quad_ne.png";
+      }
+      if (rotP.nw && rotP.ne) {
+        return isOddRot
+          ? "/assets/island/terrain/path_plaza_quad_se_alt.png"
+          : "/assets/island/terrain/path_plaza_quad_se.png";
+      }
+      if (rotP.ne && rotP.se) {
+        return isOddRot
+          ? "/assets/island/terrain/path_plaza_quad_sw_alt.png"
+          : "/assets/island/terrain/path_plaza_quad_sw.png";
+      }
+      return (r + c) % 2 === 0
+        ? "/assets/island/terrain/path_plaza_center_01.png"
+        : "/assets/island/terrain/path_plaza_center_02.png";
+    }
+    case "PATH": {
+      let n = isPathNeighbor(tileMap.get(`${r - 1}_${c}`));
+      let e = isPathNeighbor(tileMap.get(`${r}_${c + 1}`));
+      let s = isPathNeighbor(tileMap.get(`${r + 1}_${c}`));
+      let w = isPathNeighbor(tileMap.get(`${r}_${c - 1}`));
+      const count = Number(n) + Number(e) + Number(s) + Number(w);
+      if (count < 2) {
+        if (!n && tileMap.get(`${r - 1}_${c}`)?.slotId) n = true;
+        if (!e && tileMap.get(`${r}_${c + 1}`)?.slotId) e = true;
+        if (!s && tileMap.get(`${r + 1}_${c}`)?.slotId) s = true;
+        if (!w && tileMap.get(`${r}_${c - 1}`)?.slotId) w = true;
+      }
+      const vc = rotateConnections(n, e, s, w, dir);
+      const vcCount = Number(vc.ne) + Number(vc.se) + Number(vc.sw) + Number(vc.nw);
+      const alt = Math.abs(r * 3 + c * 5) % 2 === 1;
+
+      if (vcCount === 4) {
+        return alt
+          ? "/assets/island/terrain/path_crossroad_02.png"
+          : "/assets/island/terrain/path_crossroad_01.png";
+      }
+      if (vcCount === 3) {
+        if (!vc.nw) return "/assets/island/terrain/path_tjunction_no_nw.png";
+        if (!vc.ne) return "/assets/island/terrain/path_tjunction_no_ne.png";
+        if (!vc.se) return "/assets/island/terrain/path_tjunction_no_se.png";
+        return "/assets/island/terrain/path_tjunction_no_sw.png";
+      }
+      if (vcCount === 2) {
+        if (vc.ne && vc.sw) {
+          return alt
+            ? "/assets/island/terrain/path_straight_ne_sw_02.png"
+            : "/assets/island/terrain/path_straight_ne_sw_01.png";
+        }
+        if (vc.nw && vc.se) {
+          return alt
+            ? "/assets/island/terrain/path_straight_nw_se_02.png"
+            : "/assets/island/terrain/path_straight_nw_se_01.png";
+        }
+        if (vc.ne && vc.se) return "/assets/island/terrain/path_corner_ne_se.png";
+        if (vc.se && vc.sw) return "/assets/island/terrain/path_corner_se_sw.png";
+        if (vc.sw && vc.nw) return "/assets/island/terrain/path_corner_sw_nw.png";
+        return "/assets/island/terrain/path_corner_nw_ne.png";
+      }
+      if (vcCount === 1) {
+        if (vc.ne) return "/assets/island/terrain/path_endcap_ne.png";
+        if (vc.se) return "/assets/island/terrain/path_endcap_se.png";
+        if (vc.sw) return "/assets/island/terrain/path_endcap_sw.png";
+        return "/assets/island/terrain/path_endcap_nw.png";
+      }
+      return alt
+        ? "/assets/island/terrain/path_straight_ne_sw_02.png"
+        : "/assets/island/terrain/path_straight_ne_sw_01.png";
+    }
     case "GRASS":
     case "DECORATIVE":
-    default: {
-      const hash = (tile.row * 31 + tile.col * 17) % 3;
-      if (hash === 0) return "/assets/island/terrain/tile_grass_01.png";
-      if (hash === 1) return "/assets/island/terrain/tile_grass_02.png";
-      return "/assets/island/terrain/tile_grass_03.png";
-    }
+    default:
+      return grassVariant();
   }
 }
 
@@ -214,6 +372,7 @@ export function IslandIsometricCanvas({
     col: number;
   } | null>(null);
   const [isMouseDown, setIsMouseDown] = useState(false);
+  const [cameraDirection, setCameraDirection] = useState<CameraDirectionIndex>(0);
 
   const tileW = board.tileWidth || 104;
   const tileH = board.tileHeight || 52;
@@ -229,32 +388,50 @@ export function IslandIsometricCanvas({
   const originX = sceneW * 0.5;
   const originY = tileH * 2.2;
 
-  // Depth-sorted tiles (painter's algorithm)
-  const sortedTiles = useMemo(() => {
-    return [...board.tiles].sort((a, b) => {
-      const depthA = a.row + a.col;
-      const depthB = b.row + b.col;
-      if (depthA !== depthB) return depthA - depthB;
-      return a.row - b.row;
-    });
+  const tileMap = useMemo(() => {
+    const map = new Map<string, TileDto>();
+    for (const t of board.tiles) {
+      map.set(`${t.row}_${t.col}`, t);
+    }
+    return map;
   }, [board.tiles]);
 
-  // Set of existing coordinates for cliff edge detection
-  const existingCoords = useMemo(() => {
+  // Depth-sorted tiles in active camera viewpoint (painter's algorithm)
+  const sortedTiles = useMemo(() => {
+    return [...board.tiles].sort((a, b) => {
+      const va = toViewCoord(a.row, a.col, totalRows, totalCols, cameraDirection);
+      const vb = toViewCoord(b.row, b.col, totalRows, totalCols, cameraDirection);
+      const depthA = va.vRow + va.vCol;
+      const depthB = vb.vRow + vb.vCol;
+      if (depthA !== depthB) return depthA - depthB;
+      return va.vRow - vb.vRow;
+    });
+  }, [board.tiles, totalRows, totalCols, cameraDirection]);
+
+  // Set of existing view-space coordinates for cliff edge detection
+  const existingViewCoords = useMemo(() => {
     const set = new Set<string>();
     for (const t of board.tiles) {
-      set.add(`${t.row}_${t.col}`);
+      const v = toViewCoord(t.row, t.col, totalRows, totalCols, cameraDirection);
+      set.add(`${v.vRow}_${v.vCol}`);
     }
     return set;
-  }, [board.tiles]);
+  }, [board.tiles, totalRows, totalCols, cameraDirection]);
 
   const toScreen = useCallback(
     (row: number, col: number) => {
-      const isoX = (col - row) * halfW + originX;
-      const isoY = (col + row) * halfH + originY;
-      return { x: isoX, y: isoY };
+      const { vRow, vCol } = toViewCoord(
+        row,
+        col,
+        totalRows,
+        totalCols,
+        cameraDirection,
+      );
+      const isoX = (vCol - vRow) * halfW + originX;
+      const isoY = (vCol + vRow) * halfH + originY;
+      return { x: isoX, y: isoY, vRow, vCol };
     },
-    [halfW, halfH, originX, originY],
+    [halfW, halfH, originX, originY, totalRows, totalCols, cameraDirection],
   );
 
   const handleTileInteraction = (tile: TileDto | null, r: number, c: number) => {
@@ -293,9 +470,53 @@ export function IslandIsometricCanvas({
       }}
       onMouseUp={() => setIsMouseDown(false)}
     >
+      {/* Top-Right Isometric Viewpoint Rotation Pod (10A) */}
+      <div className="absolute top-4 right-4 z-20 flex items-center gap-1.5 bg-amber-50/95 text-stone-800 px-2.5 py-1.5 rounded-full text-xs border border-amber-300 shadow-md">
+        <button
+          type="button"
+          onClick={() =>
+            setCameraDirection(((cameraDirection + 3) % 4) as CameraDirectionIndex)
+          }
+          className="px-2 py-0.5 rounded-full hover:bg-amber-200/70 font-semibold transition-colors"
+          title="Xoay góc nhìn sang trái (-90°)"
+        >
+          ↺
+        </button>
+        <button
+          type="button"
+          onClick={() =>
+            setCameraDirection(((cameraDirection + 1) % 4) as CameraDirectionIndex)
+          }
+          className="px-2 py-0.5 rounded-full bg-amber-100 hover:bg-amber-200 font-bold text-amber-900 transition-colors"
+          title="Đổi góc nhìn Isometric"
+        >
+          🧭 {CAMERA_DIRECTIONS[cameraDirection].label}
+        </button>
+        <button
+          type="button"
+          onClick={() =>
+            setCameraDirection(((cameraDirection + 1) % 4) as CameraDirectionIndex)
+          }
+          className="px-2 py-0.5 rounded-full hover:bg-amber-200/70 font-semibold transition-colors"
+          title="Xoay góc nhìn sang phải (+90°)"
+        >
+          ↻
+        </button>
+        {cameraDirection !== 0 && (
+          <button
+            type="button"
+            onClick={() => setCameraDirection(0)}
+            className="ml-1 px-2 py-0.5 rounded-full bg-stone-200 hover:bg-stone-300 text-stone-700 font-medium transition-colors"
+            title="Về góc nhìn mặc định (Đông Bắc)"
+          >
+            Mặc định
+          </button>
+        )}
+      </div>
+
       {/* Transform Container with Pan & Zoom */}
       <div
-        className="absolute left-1/2 top-1/2 transition-transform duration-75 origin-top-left"
+        className="absolute left-1/2 top-1/2 transition-transform duration-150 origin-top-left"
         style={{
           transform: `translate(calc(-50% + ${pan.x}px), calc(-50% + ${pan.y}px)) scale(${zoom})`,
           width: sceneW,
@@ -356,7 +577,7 @@ export function IslandIsometricCanvas({
             })}
           </g>
 
-          {/* 2. Render Tiles, Stratified Cliffs, Terrain Sprites & 2.5D Scenery in Depth Order */}
+          {/* 2. Render Tiles, Stratified Cliffs, Autotiled Path Sprites & 2.5D Scenery in Depth Order */}
           {sortedTiles.map((tile) => {
             const pos = toScreen(tile.row, tile.col);
             const isLocked =
@@ -366,7 +587,11 @@ export function IslandIsometricCanvas({
               hoveredCoord?.row === tile.row && hoveredCoord?.col === tile.col;
 
             const style = TERRAIN_STYLES[tile.terrainType] || TERRAIN_STYLES.GRASS;
-            const terrainSprite = resolveTerrainSprite(tile);
+            const terrainSprite = resolveAutotiledTerrainSprite(
+              tile,
+              tileMap,
+              cameraDirection,
+            );
             const scenerySpec = !tile.slotId ? resolveScenerySprite(tile) : null;
 
             const baseColor = isLocked ? "#628678" : style.base;
@@ -380,9 +605,9 @@ export function IslandIsometricCanvas({
 
             const diamondPoints = `${topPt} ${rightPt} ${bottomPt} ${leftPt}`;
 
-            // Check cliff edges (South-West and South-East)
-            const hasSW = existingCoords.has(`${tile.row + 1}_${tile.col}`);
-            const hasSE = existingCoords.has(`${tile.row}_${tile.col + 1}`);
+            // Check cliff edges in active viewpoint (South-West and South-East)
+            const hasSW = existingViewCoords.has(`${pos.vRow + 1}_${pos.vCol}`);
+            const hasSE = existingViewCoords.has(`${pos.vRow}_${pos.vCol + 1}`);
 
             const sandH = 5;
 
@@ -441,14 +666,14 @@ export function IslandIsometricCanvas({
                   strokeWidth={isSelected ? 2.5 : isHovered ? 1.8 : 0.8}
                 />
 
-                {/* 2.5D Handcrafted Terrain Diamond Sprite */}
+                {/* 2.5D Handcrafted Autotiled Terrain / Path Diamond Sprite */}
                 {terrainSprite && (
                   <image
                     href={terrainSprite}
-                    x={pos.x - tileW * 0.52}
-                    y={pos.y - tileH * 0.52}
-                    width={tileW * 1.04}
-                    height={tileH * 1.04}
+                    x={pos.x - tileW * 0.53}
+                    y={pos.y - tileH * 0.53}
+                    width={tileW * 1.06}
+                    height={tileH * 1.06}
                     preserveAspectRatio="none"
                     pointerEvents="none"
                   />
@@ -547,6 +772,10 @@ export function IslandIsometricCanvas({
       <div className="absolute bottom-4 left-4 z-10 flex items-center gap-3 bg-slate-900/85 text-slate-200 px-3.5 py-1.5 rounded-full text-xs backdrop-blur-md border border-slate-700 shadow-md">
         <span>
           Lưới Isometric: <strong>{totalRows}×{totalCols}</strong>
+        </span>
+        <span className="text-slate-500">•</span>
+        <span>
+          Góc nhìn: <strong>{CAMERA_DIRECTIONS[cameraDirection].label}</strong>
         </span>
         <span className="text-slate-500">•</span>
         <span>
