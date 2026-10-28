@@ -1,9 +1,8 @@
-import 'package:flutter/foundation.dart';
+﻿import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
-import 'package:rive/rive.dart' hide Image;
+import 'package:rive/rive.dart' as rive;
 
 import '../audio/dau_viet_audio_service.dart';
-import '../theme/dau_viet_colors.dart';
 
 /// Các trạng thái cảm xúc của Mascot Kabi theo chuẩn gamification Duolingo
 enum KabiMood {
@@ -16,7 +15,8 @@ enum KabiMood {
 }
 
 /// Widget hiển thị Linh vật Kabi (Capybara Mascot) từ repository bryllim/kabi-mascot
-/// Sử dụng công nghệ Rive Bone-rigged Animation v7, hỗ trợ 29 poses & 8 moods
+/// Rive 0.14.x: dùng FileLoader + RiveWidgetController + RiveWidget (API mới,
+/// input lấy qua stateMachine.number/boolean/trigger thay SMI* cũ).
 class KabiMascotWidget extends StatefulWidget {
   final KabiMood mood;
   final double width;
@@ -40,41 +40,57 @@ class KabiMascotWidget extends StatefulWidget {
 }
 
 class _KabiMascotWidgetState extends State<KabiMascotWidget> {
-  StateMachineController? _controller;
-  SMINumber? _poseInput;
-  SMINumber? _moodInput;
-  SMINumber? _colorInput;
-  SMIBool? _headOnlyInput;
-  SMIBool? _glassesInput;
-  SMITrigger? _jumpTrigger;
-  SMITrigger? _pokeTrigger;
+  late final rive.FileLoader _fileLoader;
+  rive.RiveWidgetController? _controller;
+
+  rive.NumberInput? _poseInput;
+  rive.NumberInput? _moodInput;
+  rive.NumberInput? _colorInput;
+  rive.BooleanInput? _headOnlyInput;
+  rive.BooleanInput? _glassesInput;
+  rive.TriggerInput? _jumpTrigger;
+  rive.TriggerInput? _pokeTrigger;
 
   bool _hasError = false;
 
-  void _onRiveInit(Artboard artboard) {
-    try {
-      final controller = StateMachineController.fromArtboard(
-        artboard,
-        'Kabi',
-      );
-      if (controller == null) return;
-      artboard.addController(controller);
-      _controller = controller;
-
-      for (final input in controller.inputs) {
-        if (input.name == 'pose' && input is SMINumber) _poseInput = input;
-        if (input.name == 'mood' && input is SMINumber) _moodInput = input;
-        if (input.name == 'color' && input is SMINumber) _colorInput = input;
-        if (input.name == 'headOnly' && input is SMIBool) _headOnlyInput = input;
-        if (input.name == 'glasses' && input is SMIBool) _glassesInput = input;
-        if (input.name == 'jump' && input is SMITrigger) _jumpTrigger = input;
-        if (input.name == 'poke' && input is SMITrigger) _pokeTrigger = input;
+  @override
+  void initState() {
+    super.initState();
+    _fileLoader = rive.FileLoader.fromAsset(
+      'assets/rive/kabi.riv',
+      riveFactory: rive.Factory.rive,
+    );
+    _fileLoader.file().then((file) {
+      if (!mounted) return;
+      try {
+        final controller = rive.RiveWidgetController(
+          file,
+          artboardSelector: const rive.ArtboardNamed('Kabi'),
+          stateMachineSelector: const rive.StateMachineNamed('Kabi'),
+        );
+        final sm = controller.stateMachine;
+        _poseInput = sm.number('pose');
+        _moodInput = sm.number('mood');
+        _colorInput = sm.number('color');
+        _headOnlyInput = sm.boolean('headOnly');
+        _glassesInput = sm.boolean('glasses');
+        _jumpTrigger = sm.trigger('jump');
+        _pokeTrigger = sm.trigger('poke');
+        setState(() => _controller = controller);
+        _applyMood();
+      } catch (_) {
+        setState(() => _hasError = true);
       }
-
-      _applyMood();
-    } catch (_) {
+    }).catchError((_) {
       if (mounted) setState(() => _hasError = true);
-    }
+    });
+  }
+
+  @override
+  void dispose() {
+    _controller?.dispose();
+    _fileLoader.dispose();
+    super.dispose();
   }
 
   void _applyMood() {
@@ -140,26 +156,28 @@ class _KabiMascotWidgetState extends State<KabiMascotWidget> {
   @override
   Widget build(BuildContext context) {
     // Trong môi trường test hoặc nếu Rive tải lỗi, fallback sang ảnh đại diện an toàn
-    final isTest = DauVietAudioService.isTestEnvironment || kIsWeb == false && defaultTargetPlatform == TargetPlatform.windows && _hasError;
+    final isTest = DauVietAudioService.isTestEnvironment ||
+        (kIsWeb == false &&
+            defaultTargetPlatform == TargetPlatform.windows &&
+            _hasError);
 
     if (isTest || _hasError) {
       return _buildFallbackMascot();
     }
 
+    final controller = _controller;
     return GestureDetector(
       onTap: _handleTap,
       behavior: HitTestBehavior.opaque,
       child: SizedBox(
         width: widget.width,
         height: widget.height,
-        child: RiveAnimation.asset(
-          'assets/rive/kabi.riv',
-          artboard: 'Kabi',
-          stateMachines: const ['Kabi'],
-          fit: BoxFit.contain,
-          onInit: _onRiveInit,
-          placeHolder: SizedBox(width: widget.width, height: widget.height),
-        ),
+        child: controller == null
+            ? const SizedBox.shrink()
+            : rive.RiveWidget(
+                controller: controller,
+                fit: rive.Fit.contain,
+              ),
       ),
     );
   }

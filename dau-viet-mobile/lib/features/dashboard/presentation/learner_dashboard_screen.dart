@@ -823,12 +823,13 @@ class _LearnerDashboardScreenState
         ),
         const SizedBox(height: 10),
 
-        // 2×2 lưới chức năng bổ trợ
+        // 2×2 lưới chức năng bổ trợ — aspect 1.85 vì nội dung thẻ dọc
+        // (icon 34 + title + subtitle + padding ~95px) tràn dưới nếu 2.4.
         GridView.count(
           crossAxisCount: 2,
           crossAxisSpacing: 10,
           mainAxisSpacing: 10,
-          childAspectRatio: 2.4,
+          childAspectRatio: 1.85,
           shrinkWrap: true,
           physics: const NeverScrollableScrollPhysics(),
           children: [
