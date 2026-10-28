@@ -387,6 +387,29 @@ class _IslandScreenState extends ConsumerState<IslandScreen>
           ),
           const SizedBox(width: 2),
 
+          // Nút Kho Đồ
+          IconButton(
+            visualDensity: VisualDensity.compact,
+            tooltip: 'Kho Đồ Di Sản',
+            icon: const Icon(
+              Icons.inventory_2_rounded,
+              color: DauVietColors.woodBrown,
+              size: 21,
+            ),
+            onPressed: island != null
+                ? () {
+                    final empty =
+                        island.slots.where((s) => s.isEmpty).firstOrNull ??
+                        island.slots.firstOrNull;
+                    if (empty != null) {
+                      _openInventorySheet(empty);
+                    } else {
+                      context.push('/island/shop');
+                    }
+                  }
+                : () => context.push('/island/shop'),
+          ),
+
           // Nút Cửa Hàng
           IconButton(
             visualDensity: VisualDensity.compact,
@@ -627,18 +650,18 @@ class _IslandScreenState extends ConsumerState<IslandScreen>
             bottom: 16,
             child: Center(
               child: ConstrainedBox(
-                constraints: const BoxConstraints(maxWidth: 440),
+                constraints: const BoxConstraints(maxWidth: 480),
                 child: Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+                  padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
                   decoration: BoxDecoration(
-                    color: const Color(0xEEFFF8EC),
-                    borderRadius: BorderRadius.circular(24),
-                    border: Border.all(color: const Color(0xFFE5D5BC), width: 1.4),
+                    color: const Color(0xF2FFF8EC),
+                    borderRadius: BorderRadius.circular(26),
+                    border: Border.all(color: const Color(0xFFD9C098), width: 1.5),
                     boxShadow: [
                       BoxShadow(
-                        color: Colors.black.withValues(alpha: 0.14),
-                        blurRadius: 10,
-                        offset: const Offset(0, 3),
+                        color: Colors.black.withValues(alpha: 0.16),
+                        blurRadius: 12,
+                        offset: const Offset(0, 4),
                       ),
                     ],
                   ),
@@ -647,9 +670,11 @@ class _IslandScreenState extends ConsumerState<IslandScreen>
                     children: [
                       _buildFloatingActionBtn(
                         icon: Icons.inventory_2_outlined,
-                        label: 'Kho Đồ',
+                        label: 'Kho đồ',
                         onTap: () {
-                          final empty = island.slots.where((s) => s.isEmpty).firstOrNull;
+                          final empty =
+                              island.slots.where((s) => s.isEmpty).firstOrNull ??
+                              island.slots.firstOrNull;
                           if (empty != null) {
                             _openInventorySheet(empty);
                           } else {
@@ -659,19 +684,18 @@ class _IslandScreenState extends ConsumerState<IslandScreen>
                       ),
                       _buildFloatingActionBtn(
                         icon: Icons.storefront_outlined,
-                        label: 'Cửa Hàng',
+                        label: 'Cửa hàng',
                         onTap: () => context.push('/island/shop'),
                       ),
-                      if (island.canUpgrade && !island.isMaxTier)
-                        _buildFloatingActionBtn(
-                          icon: Icons.landscape_rounded,
-                          label: 'Mở Rộng Đảo',
-                          isHighlight: true,
-                          onTap: () => _openUpgradePanel(island),
-                        ),
+                      _buildFloatingActionBtn(
+                        icon: Icons.landscape_rounded,
+                        label: 'Mở rộng đảo',
+                        isHighlight: island.canUpgrade && !island.isMaxTier,
+                        onTap: () => _openUpgradePanel(island),
+                      ),
                       _buildFloatingActionBtn(
                         icon: Icons.center_focus_strong_rounded,
-                        label: 'Căn Giữa',
+                        label: 'Căn giữa',
                         onTap: () {
                           setState(() {
                             _resetCameraVersion++;

@@ -130,8 +130,9 @@ class IslandHeritageBuilding extends StatelessWidget {
       return Image.asset(
         assetPath,
         width: width,
-        height: height * 0.90,
+        height: height * 0.92,
         fit: BoxFit.contain,
+        filterQuality: FilterQuality.medium,
         alignment: Alignment.bottomCenter,
         errorBuilder: (_, __, ___) => _buildProceduralBuilding(code, renderKey, width, height),
       );

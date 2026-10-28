@@ -30,33 +30,33 @@ const TERRAIN_STYLES: Record<
   { base: string; highlight: string; border: string; label: string }
 > = {
   GRASS: {
-    base: "#8FBA63",
-    highlight: "#A2CD74",
-    border: "#7DA654",
+    base: "#7DB04E",
+    highlight: "#94C765",
+    border: "#6C9D41",
     label: "Cỏ xanh",
   },
   DIRT: {
-    base: "#9B744B",
-    highlight: "#B48C60",
-    border: "#855F37",
-    label: "Đất vàng",
+    base: "#A27A52",
+    highlight: "#B89066",
+    border: "#8B633C",
+    label: "Sân đất",
   },
   STONE: {
     base: "#74857F",
     highlight: "#8FA19B",
     border: "#5E6E69",
-    label: "Đá khối",
+    label: "Đá xanh",
   },
   PATH: {
-    base: "#B86644",
-    highlight: "#CE7B57",
-    border: "#984F31",
-    label: "Đường gạch",
-  },
-  DECORATIVE: {
     base: "#82AC5A",
     highlight: "#9CC870",
-    border: "#668E3E",
+    border: "#6C9446",
+    label: "Đường gạch làng",
+  },
+  DECORATIVE: {
+    base: "#79AB4C",
+    highlight: "#92C464",
+    border: "#66943C",
     label: "Tiểu cảnh",
   },
   WATER: {
@@ -67,9 +67,136 @@ const TERRAIN_STYLES: Record<
   },
 };
 
+function resolveTerrainSprite(tile: TileDto): string | null {
+  switch (tile.terrainType) {
+    case "DIRT":
+      return "/assets/island/terrain/tile_dirt_courtyard.png";
+    case "PATH":
+      return "/assets/island/terrain/tile_village_path.png";
+    case "STONE":
+      return "/assets/island/terrain/tile_stone_terrace.png";
+    case "WATER":
+      return null;
+    case "GRASS":
+    case "DECORATIVE":
+    default: {
+      const hash = (tile.row * 31 + tile.col * 17) % 3;
+      if (hash === 0) return "/assets/island/terrain/tile_grass_01.png";
+      if (hash === 1) return "/assets/island/terrain/tile_grass_02.png";
+      return "/assets/island/terrain/tile_grass_03.png";
+    }
+  }
+}
+
+function resolveScenerySprite(tile: TileDto): {
+  href: string;
+  wScale: number;
+  hScale: number;
+  yOffsetRatio: number;
+} | null {
+  const key = ((tile.decorKey || tile.visualKey || "") as string)
+    .toLowerCase()
+    .trim();
+
+  if (!key && tile.terrainType !== "DECORATIVE") return null;
+
+  if (key.includes("bamboo") || key.includes("tre")) {
+    const isLarge = (tile.row + tile.col) % 2 === 0;
+    return {
+      href: isLarge
+        ? "/assets/island/scenery/bamboo_grove_large.png"
+        : "/assets/island/scenery/bamboo_grove_small.png",
+      wScale: isLarge ? 1.05 : 0.92,
+      hScale: isLarge ? 2.1 : 1.85,
+      yOffsetRatio: 0.14,
+    };
+  }
+  if (key.includes("lotus") || key.includes("sen")) {
+    return {
+      href: "/assets/island/scenery/lotus_pond_cluster.png",
+      wScale: 0.96,
+      hScale: 1.18,
+      yOffsetRatio: 0.18,
+    };
+  }
+  if (key.includes("rice") || key.includes("lua")) {
+    return {
+      href: "/assets/island/scenery/rice_paddy_patch.png",
+      wScale: 0.96,
+      hScale: 1.08,
+      yOffsetRatio: 0.22,
+    };
+  }
+  if (key.includes("banyan") || key.includes("da_co") || key.includes("sapling")) {
+    return {
+      href: "/assets/island/scenery/banyan_sapling.png",
+      wScale: 1.15,
+      hScale: 2.15,
+      yOffsetRatio: 0.14,
+    };
+  }
+  if (key.includes("shrub") || key.includes("bush")) {
+    return {
+      href: "/assets/island/scenery/flowering_shrub.png",
+      wScale: 0.88,
+      hScale: 1.38,
+      yOffsetRatio: 0.14,
+    };
+  }
+  if (key.includes("flower") || key.includes("hoa")) {
+    return {
+      href: "/assets/island/scenery/wildflowers_patch.png",
+      wScale: 0.92,
+      hScale: 1.05,
+      yOffsetRatio: 0.2,
+    };
+  }
+  if (key.includes("lamp") || key.includes("lantern") || key.includes("den")) {
+    return {
+      href: "/assets/island/scenery/stone_lantern.png",
+      wScale: 0.72,
+      hScale: 1.55,
+      yOffsetRatio: 0.12,
+    };
+  }
+  if (key.includes("well") || key.includes("gieng")) {
+    return {
+      href: "/assets/island/scenery/ancient_stone_well.png",
+      wScale: 0.86,
+      hScale: 1.45,
+      yOffsetRatio: 0.15,
+    };
+  }
+  if (key.includes("brick") || key.includes("jar") || key.includes("chum")) {
+    const useWell = (tile.row + tile.col) % 2 === 1;
+    return {
+      href: useWell
+        ? "/assets/island/scenery/ancient_stone_well.png"
+        : "/assets/island/scenery/terracotta_jars_fence.png",
+      wScale: 0.86,
+      hScale: 1.42,
+      yOffsetRatio: 0.15,
+    };
+  }
+  if (key.includes("stone") || key.includes("rock")) {
+    return {
+      href: "/assets/island/scenery/mossy_rock_cluster.png",
+      wScale: 0.88,
+      hScale: 1.28,
+      yOffsetRatio: 0.16,
+    };
+  }
+
+  return {
+    href: "/assets/island/scenery/flowering_shrub.png",
+    wScale: 0.86,
+    hScale: 1.35,
+    yOffsetRatio: 0.14,
+  };
+}
+
 export function IslandIsometricCanvas({
   board,
-  regions,
   slots,
   selectedTileKey,
   activeTool,
@@ -88,19 +215,19 @@ export function IslandIsometricCanvas({
   } | null>(null);
   const [isMouseDown, setIsMouseDown] = useState(false);
 
-  const tileW = board.tileWidth || 72;
-  const tileH = board.tileHeight || 36;
+  const tileW = board.tileWidth || 104;
+  const tileH = board.tileHeight || 52;
   const halfW = tileW * 0.5;
   const halfH = tileH * 0.5;
-  const cliffDepth = 18;
+  const cliffDepth = Math.max(20, tileH * 0.44);
 
-  const totalRows = board.rows || 12;
-  const totalCols = board.cols || 12;
+  const totalRows = board.rows || 10;
+  const totalCols = board.cols || 10;
 
-  const sceneW = (totalRows + totalCols) * halfW + tileW * 2.0;
-  const sceneH = (totalRows + totalCols) * halfH + tileH * 4.0;
+  const sceneW = (totalRows + totalCols) * halfW + tileW * 2.4;
+  const sceneH = (totalRows + totalCols) * halfH + tileH * 4.5;
   const originX = sceneW * 0.5;
-  const originY = tileH * 2.0;
+  const originY = tileH * 2.2;
 
   // Depth-sorted tiles (painter's algorithm)
   const sortedTiles = useMemo(() => {
@@ -153,125 +280,12 @@ export function IslandIsometricCanvas({
     }
   };
 
-  // Helper render mini SVG decor matching Vietnamese diorama
-  const renderMiniScenery = (tile: TileDto, cx: number, cy: number) => {
-    const key = ((tile.decorKey || tile.visualKey || "") as string).toLowerCase().trim();
-
-    if (key.includes("bamboo") || key.includes("tre")) {
-      return (
-        <g pointerEvents="none">
-          <ellipse cx={cx} cy={cy + 4} rx={8} ry={3} fill="#000000" opacity={0.2} />
-          {/* Stalks */}
-          <line x1={cx - 3} y1={cy + 3} x2={cx - 4} y2={cy - 12} stroke="#7CB342" strokeWidth={1.8} strokeLinecap="round" />
-          <line x1={cx} y1={cy + 4} x2={cx + 1} y2={cy - 15} stroke="#8BC34A" strokeWidth={2} strokeLinecap="round" />
-          <line x1={cx + 3} y1={cy + 3} x2={cx + 4} y2={cy - 11} stroke="#689F38" strokeWidth={1.8} strokeLinecap="round" />
-          {/* Leaves */}
-          <path d={`M ${cx - 4} ${cy - 12} Q ${cx - 10} ${cy - 14} ${cx - 7} ${cy - 9} Z`} fill="#4CAF50" />
-          <path d={`M ${cx + 1} ${cy - 15} Q ${cx + 7} ${cy - 18} ${cx + 6} ${cy - 12} Z`} fill="#8BC34A" />
-          <path d={`M ${cx + 4} ${cy - 11} Q ${cx + 9} ${cy - 10} ${cx + 6} ${cy - 8} Z`} fill="#4CAF50" />
-        </g>
-      );
-    }
-
-    if (key.includes("lotus") || key.includes("sen")) {
-      return (
-        <g pointerEvents="none">
-          {/* Pond water puddle */}
-          <ellipse cx={cx} cy={cy + 1} rx={12} ry={6} fill="#00838F" opacity={0.65} />
-          {/* Lilypads */}
-          <ellipse cx={cx - 4} cy={cy} rx={4.5} ry={2.5} fill="#388E3C" />
-          <ellipse cx={cx + 4} cy={cy + 2} rx={4} ry={2.2} fill="#4CAF50" />
-          {/* Pink lotus flower */}
-          <circle cx={cx} cy={cy - 1} r={2.8} fill="#E91E63" />
-          <circle cx={cx} cy={cy - 1} r={1.2} fill="#FFF59D" />
-        </g>
-      );
-    }
-
-    if (key.includes("lantern") || key.includes("lamp") || key.includes("den")) {
-      return (
-        <g pointerEvents="none">
-          <ellipse cx={cx} cy={cy + 4} rx={6} ry={2.5} fill="#000000" opacity={0.25} />
-          {/* Stone post */}
-          <rect x={cx - 1.5} y={cy - 3} width={3} height={6} fill="#78909C" />
-          {/* Lantern chamber */}
-          <rect x={cx - 3} y={cy - 7} width={6} height={4} fill="#F5CD6A" rx={0.5} />
-          {/* Stone roof */}
-          <polygon points={`${cx - 5},${cy - 7} ${cx},${cy - 11} ${cx + 5},${cy - 7}`} fill="#546E7A" />
-        </g>
-      );
-    }
-
-    if (key.includes("well") || key.includes("gieng")) {
-      return (
-        <g pointerEvents="none">
-          <ellipse cx={cx} cy={cy + 3} rx={9} ry={4.5} fill="#000000" opacity={0.22} />
-          {/* Stone well rim */}
-          <ellipse cx={cx} cy={cy} rx={8} ry={4.5} fill="#546E7A" stroke="#78909C" strokeWidth={1} />
-          <ellipse cx={cx} cy={cy} rx={5} ry={2.8} fill="#00838F" />
-          {/* Wooden post & crossbar */}
-          <line x1={cx - 5} y1={cy} x2={cx - 5} y2={cy - 8} stroke="#5D4037" strokeWidth={1.4} />
-          <line x1={cx + 5} y1={cy} x2={cx + 5} y2={cy - 8} stroke="#5D4037" strokeWidth={1.4} />
-          <line x1={cx - 6} y1={cy - 8} x2={cx + 6} y2={cy - 8} stroke="#5D4037" strokeWidth={1.4} />
-        </g>
-      );
-    }
-
-    if (key.includes("rice") || key.includes("lua")) {
-      return (
-        <g pointerEvents="none">
-          <ellipse cx={cx} cy={cy + 2} rx={9} ry={4.5} fill="#6D4C41" opacity={0.3} />
-          <line x1={cx - 4} y1={cy + 2} x2={cx - 6} y2={cy - 6} stroke="#7CB342" strokeWidth={1.5} />
-          <line x1={cx} y1={cy + 3} x2={cx} y2={cy - 8} stroke="#7CB342" strokeWidth={1.5} />
-          <line x1={cx + 4} y1={cy + 2} x2={cx + 6} y2={cy - 6} stroke="#7CB342" strokeWidth={1.5} />
-          <circle cx={cx - 6} cy={cy - 6} r={1.5} fill="#F5CD6A" />
-          <circle cx={cx} cy={cy - 8} r={1.8} fill="#F5CD6A" />
-          <circle cx={cx + 6} cy={cy - 6} r={1.5} fill="#F5CD6A" />
-        </g>
-      );
-    }
-
-    if (key.includes("rock") || key.includes("stone") || key.includes("da")) {
-      return (
-        <g pointerEvents="none">
-          <ellipse cx={cx} cy={cy + 3} rx={8} ry={3.5} fill="#000000" opacity={0.25} />
-          <polygon points={`${cx - 7},${cy + 2} ${cx - 5},${cy - 5} ${cx + 1},${cy - 8} ${cx + 7},${cy - 3} ${cx + 6},${cy + 2}`} fill="#607D8B" />
-          <polygon points={`${cx - 5},${cy - 5} ${cx + 1},${cy - 8} ${cx + 4},${cy - 4} ${cx - 1},${cy - 3}`} fill="#90A4AE" />
-          <ellipse cx={cx} cy={cy - 1} rx={3} ry={1.5} fill="#689F38" />
-        </g>
-      );
-    }
-
-    if (key.includes("tree") || key.includes("cay") || key.includes("banyan") || key.includes("shrub")) {
-      return (
-        <g pointerEvents="none">
-          <ellipse cx={cx} cy={cy + 4} rx={10} ry={4} fill="#000000" opacity={0.25} />
-          <line x1={cx} y1={cy + 3} x2={cx} y2={cy - 4} stroke="#4E342E" strokeWidth={2.5} strokeLinecap="round" />
-          <circle cx={cx - 4} cy={cy - 6} r={5} fill="#2E7D32" />
-          <circle cx={cx + 4} cy={cy - 6} r={4.5} fill="#388E3C" />
-          <circle cx={cx} cy={cy - 10} r={5.5} fill="#4CAF50" />
-        </g>
-      );
-    }
-
-    // Default: Khóm hoa rực rỡ
-    return (
-      <g pointerEvents="none">
-        <ellipse cx={cx} cy={cy + 3} rx={8} ry={3.5} fill="#000000" opacity={0.2} />
-        <circle cx={cx - 3} cy={cy - 1} r={4} fill="#388E3C" />
-        <circle cx={cx + 3} cy={cy - 1} r={3.8} fill="#4CAF50" />
-        <circle cx={cx} cy={cy - 4} r={4.2} fill="#66BB6A" />
-        <circle cx={cx - 2} cy={cy - 4} r={1.6} fill="#FFD54F" />
-        <circle cx={cx + 2} cy={cy - 2} r={1.6} fill="#FF7043" />
-      </g>
-    );
-  };
-
   return (
     <div
       className="relative w-full h-full select-none overflow-hidden cursor-crosshair"
       style={{
-        background: "radial-gradient(ellipse 90% 70% at 50% 45%, #76CAD5 0%, #5CAFB9 45%, #3D8C9F 78%, #286877 100%)",
+        background:
+          "radial-gradient(ellipse 88% 72% at 50% 46%, #8CE2EC 0%, #68C6D2 36%, #459EAE 68%, #297384 100%)",
       }}
       onMouseLeave={() => {
         setHoveredCoord(null);
@@ -296,34 +310,53 @@ export function IslandIsometricCanvas({
         >
           <defs>
             <filter id="soft-shadow" x="-30%" y="-30%" width="160%" height="160%">
-              <feGaussianBlur stdDeviation="9" result="blur" />
+              <feGaussianBlur stdDeviation="11" result="blur" />
+            </filter>
+            <filter id="shallow-glow" x="-40%" y="-40%" width="180%" height="180%">
+              <feGaussianBlur stdDeviation="16" result="blur" />
             </filter>
             <radialGradient id="slot-glow" cx="50%" cy="50%" r="50%">
-              <stop offset="0%" stopColor="#F5CD6A" stopOpacity="0.8" />
-              <stop offset="60%" stopColor="#F5CD6A" stopOpacity="0.25" />
+              <stop offset="0%" stopColor="#F5CD6A" stopOpacity="0.85" />
+              <stop offset="60%" stopColor="#F5CD6A" stopOpacity="0.28" />
               <stop offset="100%" stopColor="#F5CD6A" stopOpacity="0" />
             </radialGradient>
           </defs>
 
-          {/* 1. Organic Island Drop Shadow on Water */}
-          <g opacity="0.40">
+          {/* 1. Shallow Lagoon Aura & Organic Drop Shadow on Water */}
+          <g>
+            {board.tiles.map((t) => {
+              const pos = toScreen(t.row, t.col);
+              return (
+                <ellipse
+                  key={`lagoon_${t.key}`}
+                  cx={pos.x}
+                  cy={pos.y + tileH * 0.35}
+                  rx={tileW * 0.92}
+                  ry={tileH * 0.72}
+                  fill="#A6EFF5"
+                  opacity="0.32"
+                  filter="url(#shallow-glow)"
+                />
+              );
+            })}
             {board.tiles.map((t) => {
               const pos = toScreen(t.row, t.col);
               return (
                 <ellipse
                   key={`sh_${t.key}`}
                   cx={pos.x}
-                  cy={pos.y + tileH * 0.95}
-                  rx={tileW * 0.60}
-                  ry={tileH * 0.38}
-                  fill="#18414B"
+                  cy={pos.y + tileH * 0.85}
+                  rx={tileW * 0.62}
+                  ry={tileH * 0.42}
+                  fill="#174450"
+                  opacity="0.38"
                   filter="url(#soft-shadow)"
                 />
               );
             })}
           </g>
 
-          {/* 2. Render Tiles and Cliffs in Depth Order */}
+          {/* 2. Render Tiles, Stratified Cliffs, Terrain Sprites & 2.5D Scenery in Depth Order */}
           {sortedTiles.map((tile) => {
             const pos = toScreen(tile.row, tile.col);
             const isLocked =
@@ -333,18 +366,11 @@ export function IslandIsometricCanvas({
               hoveredCoord?.row === tile.row && hoveredCoord?.col === tile.col;
 
             const style = TERRAIN_STYLES[tile.terrainType] || TERRAIN_STYLES.GRASS;
+            const terrainSprite = resolveTerrainSprite(tile);
+            const scenerySpec = !tile.slotId ? resolveScenerySprite(tile) : null;
 
-            // Micro color variation per tile coordinate
-            const seed = Math.sin(tile.row * 12.9898 + tile.col * 78.233) * 43758.5453;
-            const jitter = (seed - Math.floor(seed)) - 0.5;
-
-            const baseColor = isLocked ? "#7A8D8B" : style.base;
-            const highlightColor = isLocked ? "#96A6A4" : style.highlight;
-            const strokeColor = isSelected
-              ? "#F5CD6A"
-              : isHovered
-              ? "#FFFFFF"
-              : style.border;
+            const baseColor = isLocked ? "#628678" : style.base;
+            const highlightColor = isLocked ? "#7A9E90" : style.highlight;
 
             // 4 points of diamond
             const topPt = `${pos.x},${pos.y - halfH}`;
@@ -358,25 +384,31 @@ export function IslandIsometricCanvas({
             const hasSW = existingCoords.has(`${tile.row + 1}_${tile.col}`);
             const hasSE = existingCoords.has(`${tile.row}_${tile.col + 1}`);
 
-            // Shore sandy base strip thickness
-            const sandH = 4;
+            const sandH = 5;
 
             return (
-              <g key={tile.key}>
+              <g
+                key={tile.key}
+                opacity={isLocked ? 0.72 : 1}
+                onMouseEnter={() => {
+                  setHoveredCoord({ row: tile.row, col: tile.col });
+                  if (isMouseDown) {
+                    handleTileInteraction(tile, tile.row, tile.col);
+                  }
+                }}
+                onClick={() => handleTileInteraction(tile, tile.row, tile.col)}
+                className="cursor-pointer"
+              >
                 {/* Southwest Cliff Face (Sunlit Warm Earth + Sand Base) */}
                 {!hasSW && (
                   <g>
-                    {/* Main Cliff Wall */}
                     <polygon
                       points={`${leftPt} ${bottomPt} ${pos.x},${pos.y + halfH + cliffDepth} ${pos.x - halfW},${pos.y + cliffDepth}`}
-                      fill={isLocked ? "#5A6B69" : "#96683E"}
-                      opacity={isLocked ? 0.6 : 1}
+                      fill={isLocked ? "#576E68" : "#9E6D43"}
                     />
-                    {/* Bottom Sand Fringe */}
                     <polygon
                       points={`${pos.x - halfW},${pos.y + cliffDepth - sandH} ${pos.x},${pos.y + halfH + cliffDepth - sandH} ${pos.x},${pos.y + halfH + cliffDepth} ${pos.x - halfW},${pos.y + cliffDepth}`}
-                      fill={isLocked ? "#4C5B59" : "#D8BF81"}
-                      opacity={isLocked ? 0.5 : 0.9}
+                      fill={isLocked ? "#697E78" : "#DFC689"}
                     />
                   </g>
                 )}
@@ -384,97 +416,126 @@ export function IslandIsometricCanvas({
                 {/* Southeast Cliff Face (Shaded Deep Earth + Sand Base) */}
                 {!hasSE && (
                   <g>
-                    {/* Main Cliff Wall */}
                     <polygon
                       points={`${bottomPt} ${rightPt} ${pos.x + halfW},${pos.y + cliffDepth} ${pos.x},${pos.y + halfH + cliffDepth}`}
-                      fill={isLocked ? "#4A5B59" : "#7A512D"}
-                      opacity={isLocked ? 0.6 : 1}
+                      fill={isLocked ? "#455B56" : "#784E2C"}
                     />
-                    {/* Bottom Sand Fringe */}
                     <polygon
                       points={`${pos.x},${pos.y + halfH + cliffDepth - sandH} ${pos.x + halfW},${pos.y + cliffDepth - sandH} ${pos.x + halfW},${pos.y + cliffDepth} ${pos.x},${pos.y + halfH + cliffDepth}`}
-                      fill={isLocked ? "#3F4E4C" : "#C2AA6B"}
-                      opacity={isLocked ? 0.5 : 0.9}
+                      fill={isLocked ? "#566B66" : "#C4AC6E"}
                     />
                   </g>
                 )}
 
-                {/* Top Diamond Face */}
+                {/* Underlay Diamond Face */}
                 <polygon
                   points={diamondPoints}
                   fill={isHovered ? highlightColor : baseColor}
-                  stroke={strokeColor}
-                  strokeWidth={isSelected ? 2.5 : isHovered ? 2 : 1}
-                  opacity={isLocked ? 0.65 : 1}
-                  onMouseEnter={() => {
-                    setHoveredCoord({ row: tile.row, col: tile.col });
-                    if (isMouseDown) {
-                      handleTileInteraction(tile, tile.row, tile.col);
-                    }
-                  }}
-                  onClick={() =>
-                    handleTileInteraction(tile, tile.row, tile.col)
+                  stroke={
+                    isSelected
+                      ? "#F5CD6A"
+                      : isHovered
+                      ? "#FFFFFF"
+                      : "rgba(92, 132, 62, 0.25)"
                   }
-                  className="cursor-pointer transition-colors duration-75"
+                  strokeWidth={isSelected ? 2.5 : isHovered ? 1.8 : 0.8}
                 />
 
-                {/* Subtle Buildable Slot Foundation Plinth (Replaces loud orange +) */}
+                {/* 2.5D Handcrafted Terrain Diamond Sprite */}
+                {terrainSprite && (
+                  <image
+                    href={terrainSprite}
+                    x={pos.x - tileW * 0.52}
+                    y={pos.y - tileH * 0.52}
+                    width={tileW * 1.04}
+                    height={tileH * 1.04}
+                    preserveAspectRatio="none"
+                    pointerEvents="none"
+                  />
+                )}
+
+                {/* Selection / Hover Diamond Rim */}
+                {(isSelected || isHovered) && (
+                  <polygon
+                    points={diamondPoints}
+                    fill="none"
+                    stroke={isSelected ? "#F5CD6A" : "#FFF8EC"}
+                    strokeWidth={isSelected ? 2.6 : 1.6}
+                    pointerEvents="none"
+                  />
+                )}
+
+                {/* Buildable Parcel Plinth (2.5D Sprite) */}
                 {tile.slotId && (
                   <g pointerEvents="none">
-                    {/* Glow aura when selected */}
                     {isSelected && (
                       <ellipse
                         cx={pos.x}
                         cy={pos.y}
-                        rx={halfW * 0.75}
-                        ry={halfH * 0.75}
+                        rx={halfW * 0.8}
+                        ry={halfH * 0.8}
                         fill="url(#slot-glow)"
                       />
                     )}
-                    {/* Carved diamond foundation pad */}
-                    <polygon
-                      points={`${pos.x},${pos.y - halfH * 0.45} ${pos.x + halfW * 0.45},${pos.y} ${pos.x},${pos.y + halfH * 0.45} ${pos.x - halfW * 0.45},${pos.y}`}
-                      fill={isLocked ? "#475569" : isSelected ? "#FAF5EC" : "#A67A53"}
-                      stroke={isSelected ? "#F5CD6A" : "#D4AB7B"}
-                      strokeWidth={1.2}
-                      opacity={0.88}
+                    <image
+                      href="/assets/island/scenery/buildable_parcel_plinth.png"
+                      x={pos.x - tileW * 0.43}
+                      y={pos.y - tileH * 0.43}
+                      width={tileW * 0.86}
+                      height={tileH * 0.86}
+                      preserveAspectRatio="xMidYMid meet"
                     />
-                    {/* Minimalist warm plus mark */}
-                    <path
-                      d={`M ${pos.x} ${pos.y - 4} L ${pos.x} ${pos.y + 4} M ${pos.x - 4} ${pos.y} L ${pos.x + 4} ${pos.y}`}
-                      stroke={isSelected ? "#B65E3F" : "#FFF8EC"}
-                      strokeWidth={1.6}
-                      strokeLinecap="round"
-                    />
+                    {isLocked && (
+                      <g>
+                        <rect
+                          x={pos.x - 16}
+                          y={pos.y - 9}
+                          width={32}
+                          height={15}
+                          rx={7.5}
+                          fill="#2D3B36"
+                          stroke="#D9B978"
+                          strokeWidth={1}
+                        />
+                        <text
+                          x={pos.x}
+                          y={pos.y + 1.5}
+                          textAnchor="middle"
+                          fill="#FFF3D6"
+                          fontSize={8.5}
+                          fontWeight="bold"
+                        >
+                          Cấp {tile.unlockTier}
+                        </text>
+                      </g>
+                    )}
                   </g>
                 )}
 
-                {/* Locked Tile Padlock Icon */}
-                {isLocked && !tile.slotId && (
-                  <g pointerEvents="none" opacity={0.75}>
-                    <circle
+                {/* 2.5D Handcrafted Scenery Sprite */}
+                {scenerySpec && (
+                  <g pointerEvents="none">
+                    <ellipse
                       cx={pos.x}
-                      cy={pos.y}
-                      r={7}
-                      fill="#334155"
-                      stroke="#94A3B8"
-                      strokeWidth={1}
+                      cy={pos.y + tileH * 0.08}
+                      rx={tileW * scenerySpec.wScale * 0.28}
+                      ry={tileH * 0.22}
+                      fill="#1B2A1A"
+                      opacity={0.26}
                     />
-                    <text
-                      x={pos.x}
-                      y={pos.y + 3}
-                      textAnchor="middle"
-                      fill="#E2E8F0"
-                      fontSize={8}
-                    >
-                      🔒
-                    </text>
+                    <image
+                      href={scenerySpec.href}
+                      x={pos.x - (tileW * scenerySpec.wScale) / 2}
+                      y={
+                        pos.y +
+                        tileH * scenerySpec.yOffsetRatio -
+                        tileH * scenerySpec.hScale
+                      }
+                      width={tileW * scenerySpec.wScale}
+                      height={tileH * scenerySpec.hScale}
+                      preserveAspectRatio="xMidYBottom meet"
+                    />
                   </g>
-                )}
-
-                {/* Decorative Miniature Scenery (Bamboo, Lotus, Well, Lantern, Flowers, etc.) */}
-                {(tile.terrainType === "DECORATIVE" || Boolean(tile.decorKey) || Boolean(tile.visualKey)) && !tile.slotId && (
-                  renderMiniScenery(tile, pos.x, pos.y)
                 )}
               </g>
             );
@@ -490,6 +551,10 @@ export function IslandIsometricCanvas({
         <span className="text-slate-500">•</span>
         <span>
           Tổng Tile: <strong>{board.tiles.length}</strong>
+        </span>
+        <span className="text-slate-500">•</span>
+        <span>
+          Ô Xây Dựng: <strong>{slots.length}</strong>
         </span>
         {hoveredCoord && (
           <>

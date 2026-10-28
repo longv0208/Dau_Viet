@@ -1,18 +1,91 @@
 import 'dart:math' as math;
 import 'package:flutter/material.dart';
 
-import '../../../../core/theme/dau_viet_colors.dart';
 import '../../data/island_dto.dart';
 
-/// Quản lý tập trung toàn bộ Visual Assets và Scenery Renderers của Đảo Di Sản.
-/// Hỗ trợ tra cứu theo:
-/// - terrainType (Cỏ, Đất, Đá, Cát, Đường, Tiểu Cảnh, Nước)
-/// - visualKey / decorKey (bamboo, lotus, lantern, well, flower, rock, tree, rice...)
-/// - renderKey / assetId (công trình kiến trúc di sản)
+/// Đặc tả hiển thị một sprite tiểu cảnh 2.5D trên ô tile isometric.
+@immutable
+class IslandScenerySpriteSpec {
+  final String assetPath;
+  final double widthFactor;
+  final double heightFactor;
+  final double bottomPadFactor;
+  final double shadowWidthFactor;
+  final double shadowHeightFactor;
+  final double shadowOpacity;
+
+  const IslandScenerySpriteSpec({
+    required this.assetPath,
+    this.widthFactor = 1.0,
+    this.heightFactor = 1.8,
+    this.bottomPadFactor = 0.10,
+    this.shadowWidthFactor = 0.56,
+    this.shadowHeightFactor = 0.34,
+    this.shadowOpacity = 0.24,
+  });
+}
+
+/// Quản lý tập trung toàn bộ Visual Assets (PNG 2.5D Sprites) của Đảo Di Sản.
+/// Tra cứu theo:
+/// - terrainType -> Isometric 2:1 ground tile sprites (`assets/island/terrain/*.png`)
+/// - visualKey / decorKey -> Isolated 2.5D Vietnamese scenery sprites (`assets/island/scenery/*.png`)
+/// - renderKey / code / assetId -> Heritage architectural building sprites (`assets/items/*.png` & `assets/island/buildings/*.png`)
 class IslandVisualAssetManager {
   IslandVisualAssetManager._();
 
-  /// Tra cứu đường dẫn asset cục bộ hoặc URL backend
+  static const String grassTile01 = 'assets/island/terrain/tile_grass_01.png';
+  static const String grassTile02 = 'assets/island/terrain/tile_grass_02.png';
+  static const String grassTile03 = 'assets/island/terrain/tile_grass_03.png';
+  static const String dirtCourtyardTile = 'assets/island/terrain/tile_dirt_courtyard.png';
+  static const String villagePathTile = 'assets/island/terrain/tile_village_path.png';
+  static const String stoneTerraceTile = 'assets/island/terrain/tile_stone_terrace.png';
+
+  static const String buildableParcelPlinth = 'assets/island/scenery/buildable_parcel_plinth.png';
+  static const String bambooGroveLarge = 'assets/island/scenery/bamboo_grove_large.png';
+  static const String bambooGroveSmall = 'assets/island/scenery/bamboo_grove_small.png';
+  static const String banyanSapling = 'assets/island/scenery/banyan_sapling.png';
+  static const String floweringShrub = 'assets/island/scenery/flowering_shrub.png';
+  static const String wildflowersPatch = 'assets/island/scenery/wildflowers_patch.png';
+  static const String ricePaddyPatch = 'assets/island/scenery/rice_paddy_patch.png';
+  static const String lotusPondCluster = 'assets/island/scenery/lotus_pond_cluster.png';
+  static const String stoneLantern = 'assets/island/scenery/stone_lantern.png';
+  static const String ancientStoneWell = 'assets/island/scenery/ancient_stone_well.png';
+  static const String mossyRockCluster = 'assets/island/scenery/mossy_rock_cluster.png';
+  static const String terracottaJarsFence = 'assets/island/scenery/terracotta_jars_fence.png';
+
+  static const List<String> allCoreSprites = [
+    grassTile01,
+    grassTile02,
+    grassTile03,
+    dirtCourtyardTile,
+    villagePathTile,
+    stoneTerraceTile,
+    buildableParcelPlinth,
+    bambooGroveLarge,
+    bambooGroveSmall,
+    banyanSapling,
+    floweringShrub,
+    wildflowersPatch,
+    ricePaddyPatch,
+    lotusPondCluster,
+    stoneLantern,
+    ancientStoneWell,
+    mossyRockCluster,
+    terracottaJarsFence,
+  ];
+
+  static bool _precached = false;
+
+  /// Precache toàn bộ sprite cốt lõi vào bộ nhớ đệm hình ảnh để cuộn/zoom mượt 60fps.
+  static void precacheIslandSprites(BuildContext context) {
+    if (_precached) return;
+    _precached = true;
+    for (final path in allCoreSprites) {
+      precacheImage(AssetImage(path), context);
+    }
+  }
+
+  /// Tra cứu đường dẫn asset cục bộ hoặc URL backend cho công trình
   static String? resolveBuildingAssetPath(String? renderKey, String? code, [String? assetId]) {
     return resolveIslandAsset(renderKey, code, assetId);
   }
@@ -22,14 +95,34 @@ class IslandVisualAssetManager {
     return resolveIslandRemoteAssetUrl(assetId) ?? resolveIslandRemoteAssetUrl(renderKey);
   }
 
-  /// Kiểm tra xem tile có phải là tiểu cảnh môi trường tự nhiên mặc định không
+  /// Kiểm tra xem tile có gắn tiểu cảnh môi trường tự nhiên không
   static bool hasSceneryVisual(IslandTileDto tile) {
     if (tile.decorKey != null && tile.decorKey!.isNotEmpty) return true;
     if (tile.terrainType == IslandTerrainType.decorative) return true;
     return false;
   }
 
-  /// Trả về màu sắc và chất liệu đặc trưng cho từng loại Terrain
+  /// Trả về đường dẫn sprite mặt đất hình thoi 2:1 tương ứng với từng ô tile.
+  static String resolveTerrainTileSprite(IslandTileDto tile) {
+    switch (tile.terrainType) {
+      case IslandTerrainType.dirt:
+        return dirtCourtyardTile;
+      case IslandTerrainType.path:
+        return villagePathTile;
+      case IslandTerrainType.stone:
+      case IslandTerrainType.sand:
+        return stoneTerraceTile;
+      case IslandTerrainType.grass:
+      case IslandTerrainType.decorative:
+      case IslandTerrainType.water:
+        final variant = (tile.row * 7 + tile.col * 13).abs() % 3;
+        if (variant == 1) return grassTile02;
+        if (variant == 2) return grassTile03;
+        return grassTile01;
+    }
+  }
+
+  /// Trả về màu sắc nền phụ trợ và vách bờ địa hình cho từng loại Terrain
   static ({
     Color base,
     Color highlight,
@@ -38,75 +131,59 @@ class IslandVisualAssetManager {
   }) getTerrainPalette(IslandTerrainType terrain, {int row = 0, int col = 0, bool isLocked = false}) {
     if (isLocked) {
       return (
-        base: const Color(0xFF7A8D8B),
-        highlight: const Color(0xFF96A6A4),
-        shadow: const Color(0xFF5A6B69),
-        rimLight: const Color(0xFFB0BFBD),
+        base: const Color(0xFF6B8280),
+        highlight: const Color(0xFF839B98),
+        shadow: const Color(0xFF4C615F),
+        rimLight: const Color(0xFF9EB4B2),
       );
     }
 
-    // Biến thiên sắc độ rất nhẹ theo tọa độ (row, col) để mặt cỏ và đất không bị đơn điệu
     final seed = math.sin(row * 12.9898 + col * 78.233) * 43758.5453;
-    final jitter = (seed - seed.floor()) - 0.5; // -0.5 .. +0.5
+    final jitter = (seed - seed.floor()) - 0.5;
 
     switch (terrain) {
       case IslandTerrainType.grass:
-        // Cỏ xanh tự nhiên: có ô đậm vị lá tre, có ô sáng màu nắng mai
-        final r = (0x8F + (jitter * 6).round()).clamp(0x80, 0x9A);
-        final g = (0xBA + (jitter * 8).round()).clamp(0xB0, 0xC4);
-        final b = (0x63 + (jitter * 4).round()).clamp(0x58, 0x6E);
+      case IslandTerrainType.decorative:
+        final r = (0x7D + (jitter * 8).round()).clamp(0x72, 0x8A);
+        final g = (0xA8 + (jitter * 8).round()).clamp(0x9C, 0xB4);
+        final b = (0x4F + (jitter * 6).round()).clamp(0x46, 0x58);
         return (
           base: Color.fromARGB(255, r, g, b),
-          highlight: const Color(0xFFA6D176),
-          shadow: const Color(0xFF749E4B),
-          rimLight: const Color(0xFFBFE58D),
+          highlight: const Color(0xFF98C268),
+          shadow: const Color(0xFF628B3B),
+          rimLight: const Color(0xFFB3DA82),
         );
 
       case IslandTerrainType.dirt:
-        // Đất vàng phù sa ấm áp
-        final r = (0x9B + (jitter * 8).round()).clamp(0x90, 0xA8);
-        final g = (0x74 + (jitter * 6).round()).clamp(0x6A, 0x80);
-        final b = (0x4B + (jitter * 4).round()).clamp(0x42, 0x55);
         return (
-          base: Color.fromARGB(255, r, g, b),
-          highlight: const Color(0xFFB89267),
-          shadow: const Color(0xFF7E5C37),
-          rimLight: const Color(0xFFCCAA80),
+          base: const Color(0xFF9E6E47),
+          highlight: const Color(0xFFB9865D),
+          shadow: const Color(0xFF7D5333),
+          rimLight: const Color(0xFFD09E74),
         );
 
       case IslandTerrainType.path:
-        // Lối đi gạch đất nung hoặc đường làng đất nện
         return (
-          base: const Color(0xFFB86644),
-          highlight: const Color(0xFFD27B55),
-          shadow: const Color(0xFF964C2E),
-          rimLight: const Color(0xFFE4936E),
+          base: const Color(0xFF84A652),
+          highlight: const Color(0xFF9EC069),
+          shadow: const Color(0xFF658539),
+          rimLight: const Color(0xFFB6D582),
         );
 
       case IslandTerrainType.stone:
-        // Phiến đá tảng xám rêu
         return (
-          base: const Color(0xFF74857F),
-          highlight: const Color(0xFF90A19B),
-          shadow: const Color(0xFF5A6A64),
-          rimLight: const Color(0xFFA8B8B2),
+          base: const Color(0xFF6E7F79),
+          highlight: const Color(0xFF899B95),
+          shadow: const Color(0xFF53635E),
+          rimLight: const Color(0xFFA2B3AD),
         );
 
       case IslandTerrainType.sand:
-        // Bãi cát ven đảo
         return (
           base: const Color(0xFFD9C07A),
           highlight: const Color(0xFFEED792),
           shadow: const Color(0xFFBBA35F),
           rimLight: const Color(0xFFF9E7AC),
-        );
-
-      case IslandTerrainType.decorative:
-        return (
-          base: const Color(0xFF82AC5A),
-          highlight: const Color(0xFF9CC870),
-          shadow: const Color(0xFF668E3E),
-          rimLight: const Color(0xFFB5E087),
         );
 
       case IslandTerrainType.water:
@@ -119,502 +196,241 @@ class IslandVisualAssetManager {
     }
   }
 
-  /// Render tiểu cảnh tự nhiên theo visualKey
-  static Widget renderSceneryItem({
-    required String? visualKey,
-    required double width,
-    required double height,
+  /// Tra cứu thông số sprite 2.5D cho tiểu cảnh dựa vào visualKey và tọa độ tile.
+  static IslandScenerySpriteSpec resolveScenerySpec(
+    String? visualKey, {
+    int row = 0,
+    int col = 0,
   }) {
     final key = (visualKey ?? '').toLowerCase().trim();
+    // Biến thiên tỷ lệ rất nhẹ theo tọa độ để tạo nhịp điệu thị giác tự nhiên
+    final scaleJitter = 0.96 + ((row * 5 + col * 3).abs() % 5) * 0.025;
 
     if (key.contains('bamboo') || key.contains('tre')) {
-      return _BambooScenery(width: width, height: height);
-    } else if (key.contains('lotus') || key.contains('sen')) {
-      return _LotusPondScenery(width: width, height: height);
-    } else if (key.contains('lantern') || key.contains('lamp') || key.contains('den')) {
-      return _StoneLanternScenery(width: width, height: height);
-    } else if (key.contains('well') || key.contains('gieng')) {
-      return _VillageWellScenery(width: width, height: height);
-    } else if (key.contains('rice') || key.contains('lua')) {
-      return _RicePatchScenery(width: width, height: height);
-    } else if (key.contains('flower') || key.contains('grass_flowers') || key.contains('hoa')) {
-      return _FloweringBushScenery(width: width, height: height);
-    } else if (key.contains('rock') || key.contains('stone') || key.contains('da')) {
-      return _MossyRockScenery(width: width, height: height);
-    } else if (key.contains('tree') || key.contains('cay') || key.contains('banyan') || key.contains('shrub') || key.contains('sapling')) {
-      return _SmallShadeTreeScenery(width: width, height: height);
+      final useSmall = (row + col).isOdd;
+      if (useSmall) {
+        return IslandScenerySpriteSpec(
+          assetPath: bambooGroveSmall,
+          widthFactor: 0.86 * scaleJitter,
+          heightFactor: 2.15 * scaleJitter,
+          bottomPadFactor: 0.08,
+          shadowWidthFactor: 0.54,
+          shadowHeightFactor: 0.30,
+          shadowOpacity: 0.26,
+        );
+      }
+      return IslandScenerySpriteSpec(
+        assetPath: bambooGroveLarge,
+        widthFactor: 1.12 * scaleJitter,
+        heightFactor: 2.45 * scaleJitter,
+        bottomPadFactor: 0.06,
+        shadowWidthFactor: 0.72,
+        shadowHeightFactor: 0.38,
+        shadowOpacity: 0.28,
+      );
     }
 
-    // Default: Khóm hoa rực rỡ hoặc bụi cỏ xinh
-    return _FloweringBushScenery(width: width, height: height);
-  }
-}
-
-// ---------------------------------------------------------------------------
-// TIỂU CẢNH TỰ NHIÊN LÀNG VIỆT (Cozy Miniature Scenery)
-// ---------------------------------------------------------------------------
-
-/// Bụi Tre Làng Cổ: Thân tre vàng xanh thanh thoát, tán lá tre đu đưa
-class _BambooScenery extends StatelessWidget {
-  final double width;
-  final double height;
-
-  const _BambooScenery({required this.width, required this.height});
-
-  @override
-  Widget build(BuildContext context) {
-    return CustomPaint(
-      size: Size(width, height),
-      painter: _BambooSceneryPainter(),
-    );
-  }
-}
-
-class _BambooSceneryPainter extends CustomPainter {
-  @override
-  void paint(Canvas canvas, Size size) {
-    final w = size.width;
-    final h = size.height;
-
-    // Bóng đổ nhẹ dưới gốc tre
-    canvas.drawOval(
-      Rect.fromCenter(center: Offset(w * 0.50, h * 0.92), width: w * 0.45, height: h * 0.16),
-      Paint()..color = Colors.black.withValues(alpha: 0.20),
-    );
-
-    final stalkPaint = Paint()
-      ..color = const Color(0xFF88BD47)
-      ..strokeWidth = 2.6
-      ..strokeCap = StrokeCap.round;
-
-    final stalkShadow = Paint()
-      ..color = const Color(0xFF64952D)
-      ..strokeWidth = 2.6
-      ..strokeCap = StrokeCap.round;
-
-    // 3 thân tre uốn cong tự nhiên
-    canvas.drawLine(Offset(w * 0.38, h * 0.90), Offset(w * 0.30, h * 0.25), stalkShadow);
-    canvas.drawLine(Offset(w * 0.50, h * 0.92), Offset(w * 0.52, h * 0.18), stalkPaint);
-    canvas.drawLine(Offset(w * 0.62, h * 0.90), Offset(w * 0.70, h * 0.28), stalkPaint);
-
-    // Mắt tre đốt tre
-    final nodePaint = Paint()..color = const Color(0xFF558223)..strokeWidth = 1.0;
-    for (double f = 0.4; f <= 0.8; f += 0.18) {
-      canvas.drawLine(Offset(w * 0.38 - 2, h * f), Offset(w * 0.38 + 2, h * f), nodePaint);
-      canvas.drawLine(Offset(w * 0.50 - 2, h * f), Offset(w * 0.50 + 2, h * f), nodePaint);
-      canvas.drawLine(Offset(w * 0.62 - 2, h * f), Offset(w * 0.62 + 2, h * f), nodePaint);
+    if (key.contains('lotus') || key.contains('sen')) {
+      return const IslandScenerySpriteSpec(
+        assetPath: lotusPondCluster,
+        widthFactor: 1.12,
+        heightFactor: 1.36,
+        bottomPadFactor: 0.02,
+        shadowWidthFactor: 0.82,
+        shadowHeightFactor: 0.42,
+        shadowOpacity: 0.20,
+      );
     }
 
-    // Từng phiến lá tre nhọn mướt
-    final leafPaint = Paint()..color = const Color(0xFF4CAF50);
-    final leafLight = Paint()..color = const Color(0xFF7CB342);
-
-    void drawLeaf(Offset pos, double angle, double length) {
-      final p = Path();
-      p.moveTo(pos.dx, pos.dy);
-      final tipX = pos.dx + math.cos(angle) * length;
-      final tipY = pos.dy + math.sin(angle) * length;
-      final ctrlX = pos.dx + math.cos(angle + 0.3) * (length * 0.5);
-      final ctrlY = pos.dy + math.sin(angle + 0.3) * (length * 0.5);
-      p.quadraticBezierTo(ctrlX, ctrlY, tipX, tipY);
-      p.quadraticBezierTo(pos.dx, pos.dy + 3, pos.dx, pos.dy);
-      canvas.drawPath(p, (length > 10) ? leafPaint : leafLight);
+    if (key.contains('rice') || key.contains('lua')) {
+      return const IslandScenerySpriteSpec(
+        assetPath: ricePaddyPatch,
+        widthFactor: 1.08,
+        heightFactor: 1.32,
+        bottomPadFactor: 0.02,
+        shadowWidthFactor: 0.78,
+        shadowHeightFactor: 0.38,
+        shadowOpacity: 0.18,
+      );
     }
 
-    drawLeaf(Offset(w * 0.30, h * 0.28), -0.6, 12);
-    drawLeaf(Offset(w * 0.30, h * 0.38), -1.2, 10);
-    drawLeaf(Offset(w * 0.52, h * 0.20), -0.8, 14);
-    drawLeaf(Offset(w * 0.52, h * 0.22), 0.5, 12);
-    drawLeaf(Offset(w * 0.52, h * 0.35), 0.7, 11);
-    drawLeaf(Offset(w * 0.70, h * 0.30), 0.4, 13);
-    drawLeaf(Offset(w * 0.70, h * 0.42), -0.5, 10);
-  }
-
-  @override
-  bool shouldRepaint(covariant CustomPainter oldDelegate) => false;
-}
-
-/// Ao Sen Nhỏ: Nước trong xanh, lá sen tròn bập bềnh, búp sen hồng
-class _LotusPondScenery extends StatelessWidget {
-  final double width;
-  final double height;
-
-  const _LotusPondScenery({required this.width, required this.height});
-
-  @override
-  Widget build(BuildContext context) {
-    return CustomPaint(
-      size: Size(width, height),
-      painter: _LotusPondSceneryPainter(),
-    );
-  }
-}
-
-class _LotusPondSceneryPainter extends CustomPainter {
-  @override
-  void paint(Canvas canvas, Size size) {
-    final w = size.width;
-    final h = size.height;
-
-    // Mặt nước ao nhỏ
-    final waterPath = Path()
-      ..moveTo(w * 0.15, h * 0.78)
-      ..lineTo(w * 0.50, h * 0.94)
-      ..lineTo(w * 0.85, h * 0.78)
-      ..lineTo(w * 0.50, h * 0.62)
-      ..close();
-    canvas.drawPath(
-      waterPath,
-      Paint()
-        ..shader = const RadialGradient(
-          colors: [Color(0xFF80DEEA), Color(0xFF26A69A), Color(0xFF00796B)],
-        ).createShader(Rect.fromLTWH(0, 0, w, h)),
-    );
-
-    // Lá sen tròn
-    final leafPaint = Paint()..color = const Color(0xFF43A047);
-    final leafLight = Paint()..color = const Color(0xFF66BB6A);
-
-    canvas.drawOval(Rect.fromCenter(center: Offset(w * 0.36, h * 0.76), width: w * 0.18, height: h * 0.11), leafPaint);
-    canvas.drawOval(Rect.fromCenter(center: Offset(w * 0.64, h * 0.80), width: w * 0.20, height: h * 0.12), leafLight);
-    canvas.drawOval(Rect.fromCenter(center: Offset(w * 0.50, h * 0.70), width: w * 0.15, height: h * 0.09), leafPaint);
-
-    // Hoa sen hồng thắm nở rộ
-    final lotusPaint = Paint()..color = const Color(0xFFE91E63);
-    canvas.drawCircle(Offset(w * 0.44, h * 0.68), 3.8, lotusPaint);
-    canvas.drawCircle(Offset(w * 0.60, h * 0.75), 4.4, lotusPaint);
-    canvas.drawCircle(Offset(w * 0.60, h * 0.75), 1.8, Paint()..color = const Color(0xFFFFF59D));
-  }
-
-  @override
-  bool shouldRepaint(covariant CustomPainter oldDelegate) => false;
-}
-
-/// Đèn Đá Sân Đình: Đèn đá cổ truyền thắp sáng không gian văn hóa
-class _StoneLanternScenery extends StatelessWidget {
-  final double width;
-  final double height;
-
-  const _StoneLanternScenery({required this.width, required this.height});
-
-  @override
-  Widget build(BuildContext context) {
-    return CustomPaint(
-      size: Size(width, height),
-      painter: _StoneLanternPainter(),
-    );
-  }
-}
-
-class _StoneLanternPainter extends CustomPainter {
-  @override
-  void paint(Canvas canvas, Size size) {
-    final w = size.width;
-    final h = size.height;
-
-    // Bóng đổ
-    canvas.drawOval(
-      Rect.fromCenter(center: Offset(w * 0.50, h * 0.90), width: w * 0.32, height: h * 0.14),
-      Paint()..color = Colors.black.withValues(alpha: 0.25),
-    );
-
-    // Chân bệ đá
-    final stone = Paint()..color = const Color(0xFF607D8B);
-    final stoneLight = Paint()..color = const Color(0xFF78909C);
-
-    canvas.drawRect(Rect.fromCenter(center: Offset(w * 0.50, h * 0.86), width: w * 0.22, height: h * 0.08), stone);
-    canvas.drawRect(Rect.fromCenter(center: Offset(w * 0.50, h * 0.72), width: w * 0.10, height: h * 0.20), stoneLight);
-
-    // Hốc đèn thắp nến ấm áp
-    canvas.drawRect(Rect.fromCenter(center: Offset(w * 0.50, h * 0.56), width: w * 0.18, height: h * 0.14), Paint()..color = const Color(0xFFF5CD6A));
-    canvas.drawCircle(Offset(w * 0.50, h * 0.56), 3.0, Paint()..color = const Color(0xFFFFF9C4));
-
-    // Mái đá che đèn
-    final roof = Path()
-      ..moveTo(w * 0.32, h * 0.52)
-      ..lineTo(w * 0.50, h * 0.38)
-      ..lineTo(w * 0.68, h * 0.52)
-      ..close();
-    canvas.drawPath(roof, stone);
-    canvas.drawCircle(Offset(w * 0.50, h * 0.36), 2.2, stoneLight);
-  }
-
-  @override
-  bool shouldRepaint(covariant CustomPainter oldDelegate) => false;
-}
-
-/// Giếng Làng Cổ: Thành đá xanh rêu phong, gàu sòng tre
-class _VillageWellScenery extends StatelessWidget {
-  final double width;
-  final double height;
-
-  const _VillageWellScenery({required this.width, required this.height});
-
-  @override
-  Widget build(BuildContext context) {
-    return CustomPaint(
-      size: Size(width, height),
-      painter: _VillageWellPainter(),
-    );
-  }
-}
-
-class _VillageWellPainter extends CustomPainter {
-  @override
-  void paint(Canvas canvas, Size size) {
-    final w = size.width;
-    final h = size.height;
-
-    // Bóng đổ
-    canvas.drawOval(
-      Rect.fromCenter(center: Offset(w * 0.50, h * 0.86), width: w * 0.44, height: h * 0.18),
-      Paint()..color = Colors.black.withValues(alpha: 0.24),
-    );
-
-    // Miệng giếng đá xanh
-    final outerWell = Rect.fromCenter(center: Offset(w * 0.50, h * 0.74), width: w * 0.42, height: h * 0.24);
-    canvas.drawOval(outerWell, Paint()..color = const Color(0xFF546E7A));
-
-    // Lòng giếng nước trong vắt
-    final innerWater = Rect.fromCenter(center: Offset(w * 0.50, h * 0.73), width: w * 0.30, height: h * 0.16);
-    canvas.drawOval(innerWater, Paint()..color = const Color(0xFF00ACC1));
-
-    // Cột tre treo gàu múc nước
-    final postPaint = Paint()..color = const Color(0xFF6D4C41)..strokeWidth = 2.2;
-    canvas.drawLine(Offset(w * 0.34, h * 0.72), Offset(w * 0.34, h * 0.38), postPaint);
-    canvas.drawLine(Offset(w * 0.66, h * 0.72), Offset(w * 0.66, h * 0.38), postPaint);
-    canvas.drawLine(Offset(w * 0.32, h * 0.40), Offset(w * 0.68, h * 0.40), postPaint);
-
-    // Gàu sòng tre nhỏ
-    canvas.drawRect(Rect.fromLTWH(w * 0.47, h * 0.50, w * 0.07, h * 0.09), Paint()..color = const Color(0xFF8D6E63));
-    canvas.drawLine(Offset(w * 0.50, h * 0.40), Offset(w * 0.50, h * 0.50), Paint()..color = const Color(0xFFBCAAA4)..strokeWidth = 1.0);
-  }
-
-  @override
-  bool shouldRepaint(covariant CustomPainter oldDelegate) => false;
-}
-
-/// Khóm Hoa Ban / Hoa Dại Nở Rộ: Chấm sắc vàng, cam, đỏ ấm cúng
-class _FloweringBushScenery extends StatelessWidget {
-  final double width;
-  final double height;
-
-  const _FloweringBushScenery({required this.width, required this.height});
-
-  @override
-  Widget build(BuildContext context) {
-    return CustomPaint(
-      size: Size(width, height),
-      painter: _FloweringBushPainter(),
-    );
-  }
-}
-
-class _FloweringBushPainter extends CustomPainter {
-  @override
-  void paint(Canvas canvas, Size size) {
-    final w = size.width;
-    final h = size.height;
-
-    // Bóng đổ
-    canvas.drawOval(
-      Rect.fromCenter(center: Offset(w * 0.50, h * 0.88), width: w * 0.40, height: h * 0.16),
-      Paint()..color = Colors.black.withValues(alpha: 0.18),
-    );
-
-    // Vòm lá xanh tròn
-    final leafDark = Paint()..color = const Color(0xFF388E3C);
-    final leafLight = Paint()..color = const Color(0xFF66BB6A);
-
-    canvas.drawCircle(Offset(w * 0.42, h * 0.72), w * 0.16, leafDark);
-    canvas.drawCircle(Offset(w * 0.58, h * 0.70), w * 0.15, leafLight);
-    canvas.drawCircle(Offset(w * 0.50, h * 0.60), w * 0.18, leafLight);
-
-    // Các bông hoa nhỏ sắc màu
-    final yellowFlower = Paint()..color = const Color(0xFFFFD54F);
-    final orangeFlower = Paint()..color = const Color(0xFFFF7043);
-    final whiteFlower = Paint()..color = Colors.white;
-
-    canvas.drawCircle(Offset(w * 0.40, h * 0.60), 2.8, yellowFlower);
-    canvas.drawCircle(Offset(w * 0.52, h * 0.54), 3.2, orangeFlower);
-    canvas.drawCircle(Offset(w * 0.62, h * 0.64), 2.6, whiteFlower);
-    canvas.drawCircle(Offset(w * 0.46, h * 0.74), 2.5, orangeFlower);
-  }
-
-  @override
-  bool shouldRepaint(covariant CustomPainter oldDelegate) => false;
-}
-
-/// Tảng Đá Rêu Phong Ven Đảo: Khối đá tự nhiên trầm mặc
-class _MossyRockScenery extends StatelessWidget {
-  final double width;
-  final double height;
-
-  const _MossyRockScenery({required this.width, required this.height});
-
-  @override
-  Widget build(BuildContext context) {
-    return CustomPaint(
-      size: Size(width, height),
-      painter: _MossyRockPainter(),
-    );
-  }
-}
-
-class _MossyRockPainter extends CustomPainter {
-  @override
-  void paint(Canvas canvas, Size size) {
-    final w = size.width;
-    final h = size.height;
-
-    // Bóng đổ
-    canvas.drawOval(
-      Rect.fromCenter(center: Offset(w * 0.50, h * 0.88), width: w * 0.46, height: h * 0.18),
-      Paint()..color = Colors.black.withValues(alpha: 0.22),
-    );
-
-    // Khối đá chính
-    final rockPath = Path()
-      ..moveTo(w * 0.32, h * 0.84)
-      ..lineTo(w * 0.30, h * 0.60)
-      ..lineTo(w * 0.48, h * 0.46)
-      ..lineTo(w * 0.68, h * 0.58)
-      ..lineTo(w * 0.72, h * 0.84)
-      ..close();
-    canvas.drawPath(rockPath, Paint()..color = const Color(0xFF607D8B));
-
-    // Mặt sáng trên đỉnh đá
-    final highlightPath = Path()
-      ..moveTo(w * 0.48, h * 0.46)
-      ..lineTo(w * 0.68, h * 0.58)
-      ..lineTo(w * 0.58, h * 0.66)
-      ..lineTo(w * 0.40, h * 0.55)
-      ..close();
-    canvas.drawPath(highlightPath, Paint()..color = const Color(0xFF90A4AE));
-
-    // Vệt rêu xanh bám trên đá
-    final mossPaint = Paint()..color = const Color(0xFF689F38);
-    canvas.drawOval(Rect.fromCenter(center: Offset(w * 0.42, h * 0.70), width: w * 0.14, height: h * 0.08), mossPaint);
-    canvas.drawOval(Rect.fromCenter(center: Offset(w * 0.60, h * 0.76), width: w * 0.12, height: h * 0.06), mossPaint);
-  }
-
-  @override
-  bool shouldRepaint(covariant CustomPainter oldDelegate) => false;
-}
-
-/// Cây Nhỏ Bóng Mát: Thân gỗ ấm, vòm lá xanh mướt
-class _SmallShadeTreeScenery extends StatelessWidget {
-  final double width;
-  final double height;
-
-  const _SmallShadeTreeScenery({required this.width, required this.height});
-
-  @override
-  Widget build(BuildContext context) {
-    return CustomPaint(
-      size: Size(width, height),
-      painter: _SmallShadeTreePainter(),
-    );
-  }
-}
-
-class _SmallShadeTreePainter extends CustomPainter {
-  @override
-  void paint(Canvas canvas, Size size) {
-    final w = size.width;
-    final h = size.height;
-
-    // Bóng đổ
-    canvas.drawOval(
-      Rect.fromCenter(center: Offset(w * 0.50, h * 0.90), width: w * 0.48, height: h * 0.18),
-      Paint()..color = Colors.black.withValues(alpha: 0.24),
-    );
-
-    // Thân cây gỗ nâu ấm
-    final trunk = Path()
-      ..moveTo(w * 0.46, h * 0.88)
-      ..lineTo(w * 0.48, h * 0.55)
-      ..lineTo(w * 0.53, h * 0.55)
-      ..lineTo(w * 0.55, h * 0.88)
-      ..close();
-    canvas.drawPath(trunk, Paint()..color = const Color(0xFF5D4037));
-
-    // Vòm lá xanh ngọc nhiều tầng
-    final foliageDark = Paint()..color = const Color(0xFF2E7D32);
-    final foliageMid = Paint()..color = const Color(0xFF388E3C);
-    final foliageLight = Paint()..color = const Color(0xFF4CAF50);
-
-    canvas.drawCircle(Offset(w * 0.40, h * 0.48), w * 0.18, foliageDark);
-    canvas.drawCircle(Offset(w * 0.60, h * 0.46), w * 0.17, foliageMid);
-    canvas.drawCircle(Offset(w * 0.50, h * 0.32), w * 0.20, foliageLight);
-  }
-
-  @override
-  bool shouldRepaint(covariant CustomPainter oldDelegate) => false;
-}
-
-/// Thửa Ruộng Lúa Vàng / Mạ Non: Các khóm lúa xanh ngả vàng óng ả
-class _RicePatchScenery extends StatelessWidget {
-  final double width;
-  final double height;
-
-  const _RicePatchScenery({required this.width, required this.height});
-
-  @override
-  Widget build(BuildContext context) {
-    return CustomPaint(
-      size: Size(width, height),
-      painter: _RicePatchPainter(),
-    );
-  }
-}
-
-class _RicePatchPainter extends CustomPainter {
-  @override
-  void paint(Canvas canvas, Size size) {
-    final w = size.width;
-    final h = size.height;
-
-    // Mặt nước xâm xấp phù sa ấm
-    final mud = Path()
-      ..moveTo(w * 0.20, h * 0.78)
-      ..lineTo(w * 0.50, h * 0.92)
-      ..lineTo(w * 0.80, h * 0.78)
-      ..lineTo(w * 0.50, h * 0.64)
-      ..close();
-    canvas.drawPath(
-      mud,
-      Paint()..color = const Color(0xFF8D6E63).withValues(alpha: 0.35),
-    );
-
-    // Khóm lúa mạ và bông lúa vàng trĩu hạt
-    final stalkGreen = Paint()
-      ..color = const Color(0xFF7CB342)
-      ..strokeWidth = 1.6
-      ..strokeCap = StrokeCap.round;
-
-    final grainGold = Paint()
-      ..color = const Color(0xFFF5CD6A)
-      ..strokeWidth = 2.0
-      ..strokeCap = StrokeCap.round;
-
-    void drawRiceBunch(double cx, double cy, double scale) {
-      // 3 tép lúa xòe cong
-      canvas.drawLine(Offset(cx, cy), Offset(cx - 5 * scale, cy - 14 * scale), stalkGreen);
-      canvas.drawLine(Offset(cx, cy), Offset(cx, cy - 17 * scale), stalkGreen);
-      canvas.drawLine(Offset(cx, cy), Offset(cx + 5 * scale, cy - 13 * scale), stalkGreen);
-
-      // Đầu bông lúa vàng
-      canvas.drawCircle(Offset(cx - 5 * scale, cy - 14 * scale), 1.8 * scale, grainGold);
-      canvas.drawCircle(Offset(cx, cy - 17 * scale), 2.0 * scale, grainGold);
-      canvas.drawCircle(Offset(cx + 5 * scale, cy - 13 * scale), 1.8 * scale, grainGold);
+    if (key.contains('lantern') || key.contains('lamp') || key.contains('den')) {
+      return IslandScenerySpriteSpec(
+        assetPath: stoneLantern,
+        widthFactor: 0.68 * scaleJitter,
+        heightFactor: 1.92 * scaleJitter,
+        bottomPadFactor: 0.08,
+        shadowWidthFactor: 0.48,
+        shadowHeightFactor: 0.28,
+        shadowOpacity: 0.28,
+      );
     }
 
-    drawRiceBunch(w * 0.38, h * 0.82, 0.9);
-    drawRiceBunch(w * 0.54, h * 0.86, 1.0);
-    drawRiceBunch(w * 0.62, h * 0.75, 0.85);
+    if (key.contains('well') || key.contains('gieng')) {
+      return const IslandScenerySpriteSpec(
+        assetPath: ancientStoneWell,
+        widthFactor: 0.96,
+        heightFactor: 1.56,
+        bottomPadFactor: 0.06,
+        shadowWidthFactor: 0.70,
+        shadowHeightFactor: 0.38,
+        shadowOpacity: 0.26,
+      );
+    }
+
+    if (key.contains('clay') || key.contains('brick') || key.contains('jar') || key.contains('fence')) {
+      final useWell = (row + col).isEven;
+      if (useWell) {
+        return const IslandScenerySpriteSpec(
+          assetPath: ancientStoneWell,
+          widthFactor: 0.94,
+          heightFactor: 1.52,
+          bottomPadFactor: 0.06,
+          shadowWidthFactor: 0.68,
+          shadowHeightFactor: 0.36,
+          shadowOpacity: 0.26,
+        );
+      }
+      return const IslandScenerySpriteSpec(
+        assetPath: terracottaJarsFence,
+        widthFactor: 0.95,
+        heightFactor: 1.68,
+        bottomPadFactor: 0.06,
+        shadowWidthFactor: 0.68,
+        shadowHeightFactor: 0.36,
+        shadowOpacity: 0.26,
+      );
+    }
+
+    if (key.contains('banyan') || key.contains('tree') || key.contains('cay') || key.contains('sapling')) {
+      return IslandScenerySpriteSpec(
+        assetPath: banyanSapling,
+        widthFactor: 1.26 * scaleJitter,
+        heightFactor: 2.55 * scaleJitter,
+        bottomPadFactor: 0.06,
+        shadowWidthFactor: 0.80,
+        shadowHeightFactor: 0.42,
+        shadowOpacity: 0.32,
+      );
+    }
+
+    if (key.contains('shrub') || key.contains('bush')) {
+      return IslandScenerySpriteSpec(
+        assetPath: floweringShrub,
+        widthFactor: 0.94 * scaleJitter,
+        heightFactor: 1.68 * scaleJitter,
+        bottomPadFactor: 0.06,
+        shadowWidthFactor: 0.66,
+        shadowHeightFactor: 0.34,
+        shadowOpacity: 0.25,
+      );
+    }
+
+    if (key.contains('rock') || key.contains('stone') || key.contains('da')) {
+      return IslandScenerySpriteSpec(
+        assetPath: mossyRockCluster,
+        widthFactor: 0.98 * scaleJitter,
+        heightFactor: 1.78 * scaleJitter,
+        bottomPadFactor: 0.05,
+        shadowWidthFactor: 0.72,
+        shadowHeightFactor: 0.38,
+        shadowOpacity: 0.28,
+      );
+    }
+
+    if (key.contains('flower') || key.contains('hoa')) {
+      return const IslandScenerySpriteSpec(
+        assetPath: wildflowersPatch,
+        widthFactor: 1.02,
+        heightFactor: 1.24,
+        bottomPadFactor: 0.02,
+        shadowWidthFactor: 0.70,
+        shadowHeightFactor: 0.34,
+        shadowOpacity: 0.16,
+      );
+    }
+
+    return IslandScenerySpriteSpec(
+      assetPath: floweringShrub,
+      widthFactor: 0.90 * scaleJitter,
+      heightFactor: 1.60 * scaleJitter,
+      bottomPadFactor: 0.06,
+    );
   }
 
-  @override
-  bool shouldRepaint(covariant CustomPainter oldDelegate) => false;
+  /// Render tiểu cảnh 2.5D bằng sprite minh họa thật kèm bóng tiếp đất mềm mại.
+  static Widget renderSceneryItem({
+    required String? visualKey,
+    required double tileWidth,
+    required double tileHeight,
+    int row = 0,
+    int col = 0,
+    bool isLocked = false,
+  }) {
+    final spec = resolveScenerySpec(visualKey, row: row, col: col);
+    final spriteW = tileWidth * spec.widthFactor;
+    final spriteH = tileHeight * spec.heightFactor;
+    final shadowW = tileWidth * spec.shadowWidthFactor;
+    final shadowH = tileHeight * spec.shadowHeightFactor;
+
+    Widget art = Image.asset(
+      spec.assetPath,
+      width: spriteW,
+      height: spriteH,
+      fit: BoxFit.contain,
+      alignment: Alignment.bottomCenter,
+      filterQuality: FilterQuality.medium,
+    );
+
+    if (isLocked) {
+      art = ColorFiltered(
+        colorFilter: const ColorFilter.matrix(<double>[
+          0.42, 0.28, 0.18, 0, 28,
+          0.22, 0.48, 0.20, 0, 36,
+          0.22, 0.30, 0.46, 0, 44,
+          0,    0,    0,    0.72, 0,
+        ]),
+        child: art,
+      );
+    }
+
+    return SizedBox(
+      width: spriteW,
+      height: spriteH + tileHeight * spec.bottomPadFactor,
+      child: Stack(
+        alignment: Alignment.bottomCenter,
+        clipBehavior: Clip.none,
+        children: [
+          // Bóng đổ tiếp đất (Ambient Occlusion)
+          Positioned(
+            bottom: tileHeight * (spec.bottomPadFactor * 0.6),
+            child: Container(
+              width: shadowW,
+              height: shadowH,
+              decoration: BoxDecoration(
+                borderRadius: BorderRadius.all(
+                  Radius.elliptical(shadowW, shadowH),
+                ),
+                gradient: RadialGradient(
+                  colors: [
+                    const Color(0xFF1E2D24).withValues(
+                      alpha: isLocked ? spec.shadowOpacity * 0.5 : spec.shadowOpacity,
+                    ),
+                    const Color(0xFF1E2D24).withValues(alpha: 0.06),
+                    Colors.transparent,
+                  ],
+                  stops: const [0.0, 0.62, 1.0],
+                ),
+              ),
+            ),
+          ),
+          // Sprite 2.5D
+          Positioned(
+            bottom: tileHeight * spec.bottomPadFactor,
+            child: art,
+          ),
+        ],
+      ),
+    );
+  }
 }

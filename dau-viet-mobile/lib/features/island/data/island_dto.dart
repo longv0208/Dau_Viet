@@ -153,6 +153,43 @@ String? resolveIslandAsset(String? renderKey, String? code, [String? assetId]) {
         token == 'cay_da') {
       return 'assets/items/decor_cay_da.png';
     }
+    if (token == 'decor.dinh_lang' ||
+        token == 'decor_dinh_lang' ||
+        token == 'dinh_lang') {
+      return 'assets/island/buildings/dinh_lang.png';
+    }
+    if (token == 'decor.cong_lang' ||
+        token == 'decor_cong_lang' ||
+        token == 'cong_lang') {
+      return 'assets/island/buildings/cong_lang.png';
+    }
+    if (token == 'decor.khue_van' ||
+        token == 'decor_khue_van' ||
+        token == 'khue_van' ||
+        token == 'khue_van_cac') {
+      return 'assets/island/buildings/khue_van_cac.png';
+    }
+    if (token == 'decor.thap_but' ||
+        token == 'decor_thap_but' ||
+        token == 'thap_but') {
+      return 'assets/island/buildings/thap_but.png';
+    }
+    if (token == 'decor.bui_tre' ||
+        token == 'decor_bui_tre' ||
+        token == 'bui_tre') {
+      return 'assets/island/scenery/bamboo_grove_large.png';
+    }
+    if (token == 'decor.gieng_co' ||
+        token == 'decor_gieng_co' ||
+        token == 'gieng_co') {
+      return 'assets/island/scenery/ancient_stone_well.png';
+    }
+    if (token == 'decor.den_long' ||
+        token == 'decor_den_long' ||
+        token == 'den_long' ||
+        token == 'den_da') {
+      return 'assets/island/scenery/stone_lantern.png';
+    }
   }
   return null;
 }

@@ -91,6 +91,10 @@ flutter:
     - assets/images/ancient_village_footer.png
     - assets/badges/
     - assets/items/
+    - assets/island/terrain/
+    - assets/island/scenery/
+    - assets/island/buildings/
+    - assets/island/effects/
     - assets/audio/
     - assets/rive/
 
