@@ -1,0 +1,62 @@
+{
+  "schemaVersion": 1,
+  "id": "TASK-0022",
+  "type": "feature",
+  "risk": "normal",
+  "status": "done",
+  "goal": "[E2] Mobile: man Chon thoi ky va Hanh trinh thoi ky (Issue #22) — Nhom theo ERA; an tang chi co 1 muc; goi touch khi vao thoi ky; bam event mo campaign_detail_screen; trang thai co icon + nhan; widget test.",
+  "owner": "claude",
+  "modules": ["mobile"],
+  "scope": [
+    "dau-viet-mobile/lib/features/learning_path/",
+    "dau-viet-mobile/test/learning_path/",
+    "tasks/TASK-0022/",
+    "plans/261028-issue-22-period-journey/"
+  ],
+  "acceptanceCriteria": [
+    {
+      "id": "AC-1",
+      "text": "Trang thai co icon + nhan, khong chi dung mau."
+    },
+    {
+      "id": "AC-2",
+      "text": "Widget test kiem chung nhom theo ERA, an tang chi co 1 muc, goi touch khi vao thoi ky, bam event mo campaign_detail_screen."
+    }
+  ],
+  "dependencies": [],
+  "planPath": "plans/261028-issue-22-period-journey/plan.md",
+  "evidenceRefs": [
+    "dau-viet-mobile: dart format --output=none --set-exit-if-changed lib/features/learning_path test/learning_path -> 14 files (0 changed), exit 0",
+    "dau-viet-mobile: flutter analyze --no-pub lib/features/learning_path test/learning_path -> No issues found! (3.2s), exit 0",
+    "dau-viet-mobile: flutter test --no-pub test/learning_path -> 17/17 tests passed (8 widget tests in period_journey_screen_test.dart + 9 DTO/repo tests), exit 0"
+  ],
+  "reviewRefs": [
+    "plans/261028-issue-22-period-journey/review-report.md"
+  ],
+  "roleReports": [
+    "plans/261028-issue-22-period-journey/planner-report.md",
+    "plans/261028-issue-22-period-journey/review-report.md"
+  ],
+  "acEvidence": {
+    "AC-1": [
+      "dau-viet-mobile/lib/features/learning_path/presentation/path_status_badge.dart",
+      "dau-viet-mobile/test/learning_path/period_journey_screen_test.dart",
+      "plans/261028-issue-22-period-journey/review-report.md"
+    ],
+    "AC-2": [
+      "dau-viet-mobile/lib/features/learning_path/presentation/period_selection_screen.dart",
+      "dau-viet-mobile/lib/features/learning_path/presentation/period_journey_screen.dart",
+      "dau-viet-mobile/test/learning_path/period_journey_screen_test.dart",
+      "plans/261028-issue-22-period-journey/review-report.md"
+    ]
+  },
+  "nextAction": "Done — 17/17 learning_path unit + widget tests pass, flutter analyze clean, independent code review APPROVE. Await user authorization to commit/push.",
+  "baseCommit": "7df7ff5",
+  "inputFingerprint": null,
+  "snapshot": null,
+  "blockedReason": null,
+  "resumeFrom": null,
+  "handoffRef": "tasks/TASK-0022/handoff.md",
+  "createdAt": "2026-10-28T17:15:00+07:00",
+  "updatedAt": "2026-10-28T17:25:00+07:00"
+}
