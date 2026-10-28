@@ -7,6 +7,8 @@ import '../../../../core/theme/dau_viet_typography.dart';
 import '../../../../core/widgets/parchment_card.dart';
 import '../../../collection/data/dossier_providers.dart';
 import '../../../collection/data/event_progress_dto.dart';
+import '../../../learning_path/data/learning_path_dto.dart';
+import '../../../learning_path/data/learning_path_providers.dart';
 
 /// Section tiến độ event trong Campaign Detail (GAME-04 §15 + FIX 7/8).
 /// States:
@@ -30,31 +32,56 @@ class EventProgressSection extends ConsumerWidget {
       loading: () => const _Loading(),
       error: (e, _) =>
           _Error(onRetry: () => ref.invalidate(eventProgressProvider(eventId))),
-      data: (p) => _build(context, p),
+      data: (p) {
+        final pathEvent = ref
+            .watch(learnerLearningPathProvider)
+            .maybeWhen(
+              data: (path) => path.findEventById(eventId),
+              orElse: () => null,
+            );
+        return _build(context, p, pathEvent);
+      },
     );
   }
 
-  Widget _build(BuildContext context, EventProgressDto p) {
+  Widget _build(
+    BuildContext context,
+    EventProgressDto p,
+    LearningPathEventNodeDto? pathEvent,
+  ) {
     if (p.status == 'NOT_CONFIGURED') {
       return ParchmentCard(
         padding: const EdgeInsets.all(14),
-        child: Row(
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            const Icon(
-              Icons.flag_outlined,
-              size: 18,
-              color: DauVietColors.inkMuted,
-            ),
-            const SizedBox(width: 10),
-            Expanded(
-              child: Text(
-                'Sự kiện này chưa có mục tiêu hoàn thành — hãy khám phá '
-                'các bài học bên dưới.',
-                style: DauVietTypography.bodySmall.copyWith(
+            Row(
+              children: [
+                const Icon(
+                  Icons.flag_outlined,
+                  size: 18,
                   color: DauVietColors.inkMuted,
                 ),
-              ),
+                const SizedBox(width: 10),
+                Expanded(
+                  child: Text(
+                    'Sự kiện này chưa có mục tiêu hoàn thành — hãy khám phá '
+                    'các bài học bên dưới.',
+                    style: DauVietTypography.bodySmall.copyWith(
+                      color: DauVietColors.inkMuted,
+                    ),
+                  ),
+                ),
+                if (pathEvent != null) ...[
+                  const SizedBox(width: 8),
+                  _PathStatusBadge(status: pathEvent.status),
+                ],
+              ],
             ),
+            if (pathEvent != null && pathEvent.lessons.isNotEmpty) ...[
+              const SizedBox(height: 8),
+              _PathLessonStatusSummary(lessons: pathEvent.lessons),
+            ],
           ],
         ),
       );
@@ -99,6 +126,10 @@ class EventProgressSection extends ConsumerWidget {
                   ),
                 ),
               ),
+              if (pathEvent != null) ...[
+                _PathStatusBadge(status: pathEvent.status),
+                const SizedBox(width: 8),
+              ],
               Text(
                 '${p.requiredLessonsCompleted}/${p.requiredLessonsTotal}',
                 style: DauVietTypography.labelMedium.copyWith(
@@ -138,6 +169,10 @@ class EventProgressSection extends ConsumerWidget {
                 fontStyle: FontStyle.italic,
               ),
             ),
+          ],
+          if (pathEvent != null && pathEvent.lessons.isNotEmpty) ...[
+            const SizedBox(height: 8),
+            _PathLessonStatusSummary(lessons: pathEvent.lessons),
           ],
           if (p.unlockedDossiersCount > 0) ...[
             const SizedBox(height: 8),
@@ -241,6 +276,109 @@ class _Error extends StatelessWidget {
             child: const Text('THỬ LẠI'),
           ),
         ],
+      ),
+    );
+  }
+}
+
+/// Nhãn trạng thái của sự kiện/bài học trong lộ trình (icon + nhãn tiếng Việt).
+class _PathStatusBadge extends StatelessWidget {
+  final LearnerPathStatus status;
+
+  const _PathStatusBadge({required this.status});
+
+  @override
+  Widget build(BuildContext context) {
+    final (IconData icon, Color fg, Color bg) = _styleFor(status);
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+      decoration: BoxDecoration(
+        color: bg,
+        borderRadius: BorderRadius.circular(999),
+        border: Border.all(color: fg.withValues(alpha: 0.35)),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(icon, size: 12, color: fg),
+          const SizedBox(width: 4),
+          Text(
+            status.labelVi,
+            style: DauVietTypography.labelSmall.copyWith(
+              fontSize: 10.5,
+              fontWeight: FontWeight.w700,
+              color: fg,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  static (IconData, Color, Color) _styleFor(LearnerPathStatus status) {
+    switch (status) {
+      case LearnerPathStatus.completed:
+        return (
+          Icons.check_circle_rounded,
+          const Color(0xFF2E7D32),
+          const Color(0xFFE8F5E9),
+        );
+      case LearnerPathStatus.mastered:
+        return (
+          Icons.workspace_premium_rounded,
+          const Color(0xFFB45309),
+          const Color(0xFFFEF3C7),
+        );
+      case LearnerPathStatus.inProgress:
+        return (
+          Icons.timelapse_rounded,
+          DauVietColors.cinnabarRed,
+          const Color(0xFFFDF2F2),
+        );
+      case LearnerPathStatus.available:
+        return (
+          Icons.play_circle_outline_rounded,
+          DauVietColors.heritageGreen,
+          const Color(0xFFE8F5E9),
+        );
+      case LearnerPathStatus.locked:
+        return (
+          Icons.lock_outline_rounded,
+          DauVietColors.inkMuted,
+          const Color(0xFFEFEBE2),
+        );
+      case LearnerPathStatus.notReady:
+        return (
+          Icons.hourglass_empty_rounded,
+          DauVietColors.inkMuted,
+          const Color(0xFFEFEBE2),
+        );
+    }
+  }
+}
+
+/// Tóm tắt trạng thái các bài học thuộc sự kiện theo lộ trình (`LearnerPathStatus`).
+class _PathLessonStatusSummary extends StatelessWidget {
+  final List<LearningPathLessonNodeDto> lessons;
+
+  const _PathLessonStatusSummary({required this.lessons});
+
+  @override
+  Widget build(BuildContext context) {
+    final int doneCount = lessons.where((l) => l.status.isDone).length;
+    final int openCount = lessons
+        .where((l) => l.status.isAvailable || l.status.isInProgress)
+        .length;
+    final int lockedCount = lessons
+        .where((l) => l.status.isLocked || l.status.isNotReady)
+        .length;
+
+    return Text(
+      'Lộ trình: $doneCount đã xong • $openCount đang mở • $lockedCount đang khóa',
+      style: DauVietTypography.bodySmall.copyWith(
+        fontSize: 11.5,
+        color: DauVietColors.inkMuted,
+        fontWeight: FontWeight.w600,
       ),
     );
   }

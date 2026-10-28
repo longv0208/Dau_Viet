@@ -9,6 +9,8 @@ import '../../auth/data/auth_state.dart';
 import '../../energy/data/energy_providers.dart';
 import '../../events/data/events_providers.dart';
 import '../../learning/data/learning_providers.dart';
+import '../../learning_path/data/learning_path_dto.dart';
+import '../../learning_path/data/learning_path_providers.dart';
 import '../../rewards/data/reward_providers.dart';
 import '../../streak/data/streak_dto.dart';
 import '../../streak/data/streak_providers.dart';
@@ -348,8 +350,7 @@ class _LearnerDashboardScreenState
   // ===========================================================================
   Widget _buildHeroBanner() {
     final progressAsync = ref.watch(myProgressProvider);
-    final eventsAsync = ref.watch(eventsListProvider);
-
+    final learningPathAsync = ref.watch(learnerLearningPathProvider);
     return Container(
       height: 195,
       decoration: BoxDecoration(
@@ -415,57 +416,12 @@ class _LearnerDashboardScreenState
                 crossAxisAlignment: CrossAxisAlignment.start,
                 mainAxisAlignment: MainAxisAlignment.spaceBetween,
                 children: [
-                  progressAsync.when(
-                    loading: () => Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text(
-                          'Bắt đầu hành trình',
-                          style: DauVietTypography.headlineMedium.copyWith(
-                            fontSize: 19,
-                            fontWeight: FontWeight.w800,
-                            color: const Color(0xFF1F2421),
-                            height: 1.25,
-                          ),
-                        ),
-                        const SizedBox(height: 6),
-                        Text(
-                          'Khám phá hào khí sử Việt\nqua từng dấu mốc lịch sử',
-                          style: DauVietTypography.bodyMedium.copyWith(
-                            fontSize: 12,
-                            color: const Color(0xFF5E6963),
-                            height: 1.35,
-                            fontWeight: FontWeight.w500,
-                          ),
-                        ),
-                      ],
-                    ),
-                    error: (_, __) => Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text(
-                          'Bắt đầu hành trình',
-                          style: DauVietTypography.headlineMedium.copyWith(
-                            fontSize: 19,
-                            fontWeight: FontWeight.w800,
-                            color: const Color(0xFF1F2421),
-                            height: 1.25,
-                          ),
-                        ),
-                        const SizedBox(height: 6),
-                        Text(
-                          'Khám phá hào khí sử Việt\nqua từng dấu mốc lịch sử',
-                          style: DauVietTypography.bodyMedium.copyWith(
-                            fontSize: 12,
-                            color: const Color(0xFF5E6963),
-                            height: 1.35,
-                            fontWeight: FontWeight.w500,
-                          ),
-                        ),
-                      ],
-                    ),
-                    data: (progress) {
-                      final bool hasInProgress = progress.inProgress.isNotEmpty;
+                  Builder(
+                    builder: (context) {
+                      final bool hasInProgress = progressAsync.maybeWhen(
+                        data: (p) => p.inProgress.isNotEmpty,
+                        orElse: () => false,
+                      );
                       return Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
@@ -497,34 +453,31 @@ class _LearnerDashboardScreenState
                     },
                   ),
 
-                  // Nút CTA: Tiếp tục attempt thật nếu có, hoặc Khám phá ngay
-                  progressAsync.when(
-                    loading: () => _buildHeroCtaButton(
-                      label: 'KHÁM PHÁ NGAY ›',
-                      onTap: () => context.go('/map'),
-                    ),
-                    error: (_, __) => _buildHeroCtaButton(
-                      label: 'KHÁM PHÁ NGAY ›',
-                      onTap: () => context.go('/map'),
-                    ),
-                    data: (progress) {
-                      if (progress.inProgress.isNotEmpty) {
-                        final attempt = progress.inProgress.first;
+                  // Nút CTA: Tiếp tục attempt thật nếu có, hoặc mở sự kiện từ currentByPeriod[lastPeriodCode]
+                  Builder(
+                    builder: (context) {
+                      final inProgress = progressAsync.maybeWhen(
+                        data: (p) =>
+                            p.inProgress.isNotEmpty ? p.inProgress.first : null,
+                        orElse: () => null,
+                      );
+                      if (inProgress != null) {
                         return _buildHeroCtaButton(
                           label: 'Tiếp tục học →',
                           onTap: () => context.go(
-                            '/learning/attempt/${attempt.attemptId}',
+                            '/learning/attempt/${inProgress.attemptId}',
                           ),
                         );
                       }
-                      // Khi chưa có attempt inProgress → mở sự kiện đầu tiên
-                      return eventsAsync.maybeWhen(
-                        data: (page) {
-                          if (page.milestones.isNotEmpty) {
-                            final first = page.milestones.first;
+                      return learningPathAsync.maybeWhen(
+                        data: (path) {
+                          final target = _resolveJourneyTarget(path);
+                          final event = target.event;
+                          if (event != null && event.eventId.isNotEmpty) {
                             return _buildHeroCtaButton(
                               label: 'KHÁM PHÁ NGAY ›',
-                              onTap: () => context.go('/campaign/${first.id}'),
+                              onTap: () =>
+                                  context.go('/campaign/${event.eventId}'),
                             );
                           }
                           return _buildHeroCtaButton(
@@ -566,8 +519,7 @@ class _LearnerDashboardScreenState
   // ===========================================================================
   Widget _buildTodayLessonSection() {
     final progressAsync = ref.watch(myProgressProvider);
-    final eventsAsync = ref.watch(eventsListProvider);
-
+    final learningPathAsync = ref.watch(learnerLearningPathProvider);
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
@@ -602,49 +554,93 @@ class _LearnerDashboardScreenState
         ),
         const SizedBox(height: 10),
 
-        progressAsync.when(
-          loading: () => _buildTodayLessonCard(
-            title: 'Đang tải bài học...',
-            subtitle: 'Đang đồng bộ dữ liệu',
-            progressFraction: 0.0,
-            progressText: '—',
-            onTap: () => context.go('/map'),
-          ),
-          error: (_, __) => _buildTodayLessonCard(
-            title: 'Khám phá bài học mới',
-            subtitle: 'Mở bản đồ lịch sử',
-            progressFraction: 0.0,
-            progressText: 'Bắt đầu',
-            onTap: () => context.go('/map'),
-          ),
-          data: (progress) {
-            if (progress.inProgress.isNotEmpty) {
-              final attempt = progress.inProgress.first;
-              final fraction = attempt.progress.fraction;
+        Builder(
+          builder: (context) {
+            final inProgress = progressAsync.maybeWhen(
+              data: (p) => p.inProgress.isNotEmpty ? p.inProgress.first : null,
+              orElse: () => null,
+            );
+            if (inProgress != null) {
               return _buildTodayLessonCard(
                 title: 'Bài học đang tiếp diễn',
-                subtitle: attempt.currentStageId != null
-                    ? 'Giai đoạn: ${attempt.currentStageId}'
+                subtitle: inProgress.currentStageId != null
+                    ? 'Giai đoạn: ${inProgress.currentStageId}'
                     : 'Hành trình đang thực hiện',
-                progressFraction: fraction,
+                progressFraction: inProgress.progress.fraction,
                 progressText:
-                    '${attempt.progress.completedRequired}/${attempt.progress.totalRequired} hoạt động',
+                    '${inProgress.progress.completedRequired}/${inProgress.progress.totalRequired} hoạt động',
                 onTap: () =>
-                    context.go('/learning/attempt/${attempt.attemptId}'),
+                    context.go('/learning/attempt/${inProgress.attemptId}'),
               );
             }
-            return eventsAsync.maybeWhen(
-              data: (page) {
-                if (page.milestones.isNotEmpty) {
-                  final first = page.milestones.first;
+
+            final int completedCount = progressAsync.maybeWhen(
+              data: (p) => p.completedCount,
+              orElse: () => 0,
+            );
+
+            return learningPathAsync.when(
+              loading: () => _buildTodayLessonCard(
+                title: 'Đang tải bài học...',
+                subtitle: 'Đang đồng bộ dữ liệu',
+                progressFraction: 0.0,
+                progressText: '—',
+                onTap: () => context.go('/map'),
+              ),
+              error: (_, _) => _buildTodayLessonCard(
+                title: 'Khám phá Bản đồ Dấu Ấn',
+                subtitle: 'Bắt đầu hành trình lịch sử',
+                progressFraction: 0.0,
+                progressText: 'Chưa bắt đầu',
+                onTap: () => context.go('/map'),
+              ),
+              data: (path) {
+                final target = _resolveJourneyTarget(path);
+                final event = target.event;
+                if (event != null && event.eventId.isNotEmpty) {
+                  final periodTitle = target.period?.title;
+                  final lessonTitle = target.lesson?.title;
+                  final String subtitle;
+                  if (periodTitle != null &&
+                      periodTitle.isNotEmpty &&
+                      lessonTitle != null &&
+                      lessonTitle.isNotEmpty) {
+                    subtitle = '$periodTitle • $lessonTitle';
+                  } else if (periodTitle != null && periodTitle.isNotEmpty) {
+                    subtitle = periodTitle;
+                  } else if (lessonTitle != null && lessonTitle.isNotEmpty) {
+                    subtitle = lessonTitle;
+                  } else {
+                    subtitle = event.period ?? event.yearLabel;
+                  }
+
+                  final periodProg = target.periodProgress;
+                  final double fraction;
+                  final String progressText;
+                  if (periodProg != null && periodProg.requiredLessons > 0) {
+                    fraction =
+                        periodProg.completedLessons /
+                        periodProg.requiredLessons;
+                    progressText =
+                        '${periodProg.completedLessons}/${periodProg.requiredLessons} bài học';
+                  } else if (path.summary.totalRequiredLessons > 0) {
+                    fraction = path.summary.lessonProgressFraction;
+                    progressText =
+                        '${path.summary.completedLessons}/${path.summary.totalRequiredLessons} bài học';
+                  } else if (completedCount > 0) {
+                    fraction = 1.0;
+                    progressText = '$completedCount bài đã hoàn thành';
+                  } else {
+                    fraction = 0.0;
+                    progressText = 'Sẵn sàng bắt đầu';
+                  }
+
                   return _buildTodayLessonCard(
-                    title: first.title,
-                    subtitle: first.era,
-                    progressFraction: progress.completedCount > 0 ? 1.0 : 0.0,
-                    progressText: progress.completedCount > 0
-                        ? '${progress.completedCount} bài đã hoàn thành'
-                        : 'Sẵn sàng bắt đầu',
-                    onTap: () => context.go('/campaign/${first.id}'),
+                    title: event.title,
+                    subtitle: subtitle,
+                    progressFraction: fraction,
+                    progressText: progressText,
+                    onTap: () => context.go('/campaign/${event.eventId}'),
                   );
                 }
                 return _buildTodayLessonCard(
@@ -655,17 +651,89 @@ class _LearnerDashboardScreenState
                   onTap: () => context.go('/map'),
                 );
               },
-              orElse: () => _buildTodayLessonCard(
-                title: 'Khám phá Bản đồ Dấu Ấn',
-                subtitle: 'Bắt đầu hành trình lịch sử',
-                progressFraction: 0.0,
-                progressText: 'Chưa bắt đầu',
-                onTap: () => context.go('/map'),
-              ),
             );
           },
         ),
       ],
+    );
+  }
+
+  /// Giải phân giải mục tiêu học tiếp theo trên Trang chủ từ `currentByPeriod[lastPeriodCode]`
+  /// (fallback sang `path.current` hoặc sự kiện khả dụng đầu tiên trong thời kỳ).
+  ({
+    LearningPathChapterDto? period,
+    LearningPathEventNodeDto? event,
+    LearningPathLessonNodeDto? lesson,
+    PeriodProgressDto? periodProgress,
+  })
+  _resolveJourneyTarget(LearningPathDto path) {
+    final String? lastCode = path.lastPeriodCode;
+    final LearningPathCurrentDto? pointer =
+        (lastCode != null && lastCode.isNotEmpty
+            ? path.currentByPeriod[lastCode]
+            : null) ??
+        path.effectiveCurrent;
+
+    LearningPathChapterDto? period =
+        path.periodByCode(lastCode) ?? path.chapterById(pointer?.chapterId);
+    if (period != null && period.isPhase && period.parentId != null) {
+      period = path.chapterById(period.parentId) ?? period;
+    }
+
+    LearningPathEventNodeDto? event = path.findEventByNodeId(
+      pointer?.eventNodeId,
+    );
+    if (event == null && period != null) {
+      final periodEvents = path.eventsOfPeriod(period.chapterId);
+      if (periodEvents.isNotEmpty) {
+        event = periodEvents.firstWhere(
+          (e) => e.status.isInProgress || e.status.isAvailable,
+          orElse: () => periodEvents.first,
+        );
+      }
+    }
+    if (event == null) {
+      for (final p in path.periods) {
+        final pEvents = path.eventsOfPeriod(p.chapterId);
+        for (final e in pEvents) {
+          if (e.status.isInProgress || e.status.isAvailable) {
+            event = e;
+            period ??= p;
+            break;
+          }
+        }
+        if (event != null) break;
+      }
+    }
+
+    if (period == null && event != null) {
+      for (final ch in path.chapters) {
+        if (ch.events.any((e) => e.eventNodeId == event!.eventNodeId)) {
+          period = ch.isPhase && ch.parentId != null
+              ? (path.chapterById(ch.parentId) ?? ch)
+              : ch;
+          break;
+        }
+      }
+    }
+
+    LearningPathLessonNodeDto? lesson = path.findLessonById(pointer?.lessonId);
+    if (lesson == null && event != null && event.lessons.isNotEmpty) {
+      lesson = event.lessons.firstWhere(
+        (l) => l.status.isInProgress || l.status.isAvailable,
+        orElse: () => event!.lessons.first,
+      );
+    }
+
+    final PeriodProgressDto? periodProgress = path.progressForPeriod(
+      period?.code ?? lastCode,
+    );
+
+    return (
+      period: period,
+      event: event,
+      lesson: lesson,
+      periodProgress: periodProgress,
     );
   }
 
@@ -1071,23 +1139,31 @@ class _LearnerDashboardScreenState
   }
 
   Widget _buildFeaturedEventCard() {
+    final learningPathAsync = ref.watch(learnerLearningPathProvider);
     final eventsAsync = ref.watch(eventsListProvider);
+
+    final LearningPathEventNodeDto? pathFeatured = learningPathAsync.maybeWhen(
+      data: (path) =>
+          path.findEventById('bach-dang-938') ??
+          _resolveJourneyTarget(path).event,
+      orElse: () => null,
+    );
     final featuredMilestone = eventsAsync.maybeWhen(
       data: (page) {
-        if (page.milestones.isEmpty) return null;
-        return page.milestones.firstWhere(
-          (m) => m.title.toLowerCase().contains('bạch đằng'),
-          orElse: () => page.milestones.first,
-        );
+        for (final m in page.milestones) {
+          if (m.title.toLowerCase().contains('bạch đằng')) return m;
+        }
+        return null;
       },
       orElse: () => null,
     );
 
+    final String? featuredEventId =
+        pathFeatured?.eventId ?? featuredMilestone?.id;
     final title = featuredMilestone?.title ?? 'Bạch Đằng 938';
     final summary =
         featuredMilestone?.description ??
         'Bản hùng ca chấm dứt hơn 1000 năm Bắc thuộc';
-
     return Container(
       height: 160,
       width: double.infinity,
@@ -1200,7 +1276,11 @@ class _LearnerDashboardScreenState
 
                       // Nút CTA: Khám phá ngay →
                       GestureDetector(
-                        onTap: () => featuredMilestone != null ? context.go('/campaign/${featuredMilestone.id}') : context.go('/map'),
+                        onTap: () =>
+                            featuredEventId != null &&
+                                featuredEventId.isNotEmpty
+                            ? context.go('/campaign/$featuredEventId')
+                            : context.go('/map'),
                         child: Container(
                           padding: const EdgeInsets.symmetric(
                             horizontal: 12,
@@ -1285,7 +1365,6 @@ class _LearnerDashboardScreenState
                 ),
               ),
             ),
-
           ],
         ),
       ),
