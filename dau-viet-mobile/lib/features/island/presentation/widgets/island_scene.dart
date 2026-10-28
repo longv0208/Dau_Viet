@@ -95,9 +95,9 @@ class _IslandSceneState extends State<IslandScene>
       if (y < minY) minY = y;
       if (y > maxY) maxY = y;
     }
-    // Mở rộng thêm 1 tile mỗi phía cho viền đảo + bờ vách 2.5D.
-    final padX = board.tileWidth;
-    final padY = board.tileHeight * 2.0;
+    // Mở rộng thêm lề cho viền đảo, bờ vách 2.5D và sóng vỗ ven bờ.
+    final padX = board.tileWidth * 1.5;
+    final padY = board.tileHeight * 2.5;
     minX -= padX; maxX += padX; minY -= padY; maxY += padY;
     return (
       width: maxX - minX,
@@ -152,16 +152,14 @@ class _IslandSceneState extends State<IslandScene>
         );
     final m = _sceneMetrics(board);
 
-    // Fit đảo vào viewport (giữ lề nhỏ, không zoom quá mức)
-    final scaleX = (viewportSize.width * 0.92) / m.width;
-    final scaleY = (viewportSize.height * 0.85) / m.height;
-    final fitScale = math.min(scaleX, scaleY).clamp(0.35, 1.4);
+    // Fit đảo vào viewport: đảo chiếm ~75-85% diện tích màn hình, không bị lọt thỏm
+    final scaleX = (viewportSize.width * 0.88) / m.width;
+    final scaleY = (viewportSize.height * 0.78) / m.height;
+    final fitScale = math.min(scaleX, scaleY).clamp(0.60, 1.60);
 
-    // Căn giữa bounding box đảo trong viewport (hơi lệch lên trên cho HUD)
-    final targetX =
-        (viewportSize.width - m.width * fitScale) * 0.5 - m.minX * fitScale;
-    final targetY =
-        (viewportSize.height - m.height * fitScale) * 0.42 - m.minY * fitScale;
+    // Căn giữa đảo trong viewport, hơi lệch nhẹ lên trên để tránh che bởi toolbar/bottom sheet
+    final targetX = (viewportSize.width - m.width * fitScale) * 0.5;
+    final targetY = (viewportSize.height - m.height * fitScale) * 0.44;
 
     _controller.value = Matrix4.identity()
       ..translate(targetX, targetY)
@@ -191,12 +189,22 @@ class _IslandSceneState extends State<IslandScene>
         }
 
         return Container(
-          color: const Color(0xFF5CAFB9), // Nền ngọc bích hòa nhập với nước
+          decoration: const BoxDecoration(
+            gradient: LinearGradient(
+              begin: Alignment.topCenter,
+              end: Alignment.bottomCenter,
+              colors: [
+                Color(0xFF6EBDC8),
+                Color(0xFF5CAFB9),
+                Color(0xFF4A9FA9),
+              ],
+            ),
+          ),
           child: InteractiveViewer(
             transformationController: _controller,
-            minScale: 0.35,
-            maxScale: 2.2,
-            boundaryMargin: const EdgeInsets.all(400),
+            minScale: 0.45,
+            maxScale: 2.5,
+            boundaryMargin: const EdgeInsets.all(500),
             constrained: false,
             child: AnimatedBuilder(
               animation: _waterController,

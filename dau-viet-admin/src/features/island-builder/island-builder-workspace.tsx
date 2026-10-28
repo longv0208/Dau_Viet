@@ -802,6 +802,31 @@ export function IslandBuilderWorkspace({ versionId }: { versionId: string }) {
                     </select>
                   </div>
 
+                  {/* Tiểu cảnh Tự nhiên (Scenery Decor) */}
+                  <div>
+                    <Label className="text-slate-400 block mb-1.5 font-semibold">Tiểu Cảnh Tự Nhiên</Label>
+                    <select
+                      value={selectedTile.decorKey || selectedTile.visualKey || ""}
+                      onChange={(e) =>
+                        handleUpdateTile(selectedTile.key, {
+                          decorKey: e.target.value || null,
+                          visualKey: e.target.value || null,
+                        })
+                      }
+                      className="w-full h-8 px-2 bg-slate-950 border border-slate-700 rounded text-xs text-slate-200"
+                    >
+                      <option value="">-- Mặc định theo địa hình --</option>
+                      <option value="bamboo">Bụi Tre Làng Cổ (bamboo)</option>
+                      <option value="lotus">Ao Sen Nhỏ (lotus)</option>
+                      <option value="lantern">Đèn Đá Sân Đình (lantern)</option>
+                      <option value="well">Giếng Làng Cổ (well)</option>
+                      <option value="rice">Thửa Ruộng Lúa (rice)</option>
+                      <option value="flower">Khóm Hoa Dại (flower)</option>
+                      <option value="rock">Tảng Đá Rêu Phong (rock)</option>
+                      <option value="tree">Cây Nhỏ Bóng Mát (tree)</option>
+                    </select>
+                  </div>
+
                   {/* Chọn Region / Tier */}
                   <div>
                     <Label className="text-slate-400 block mb-1.5 font-semibold">Khu vực & Mở khóa</Label>

@@ -69,6 +69,7 @@ export interface TileDto {
   unlockTier: number;
   elevation?: number;
   decorKey?: string | null;
+  visualKey?: string | null;
   slotId?: string | null;
 }
 

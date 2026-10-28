@@ -1,8 +1,8 @@
-﻿import 'island_dto.dart';
+import 'island_dto.dart';
 
-/// Fixture ná»™i bá»™ dĂ nh riĂªng cho viá»‡c phĂ¡t triá»ƒn vĂ  xem trÆ°á»›c Isometric Renderer
-/// Äá»™c láº­p hoĂ n toĂ n vá»›i ApiIslandRepository vĂ  production data provider,
-/// tuĂ¢n thá»§ nguyĂªn táº¯c khĂ´ng tá»± Ä‘á»™ng fallback khi API sáº£n xuáº¥t gáº·p lá»—i.
+/// Fixture nội bộ dành riêng cho việc phát triển và xem trước Isometric Renderer
+/// Độc lập hoàn toàn với ApiIslandRepository và production data provider,
+/// tuân thủ nguyên tắc không tự động fallback khi API sản xuất gặp lỗi.
 class IslandFixture {
   IslandFixture._();
 
@@ -11,6 +11,7 @@ class IslandFixture {
       const IslandSlotDto(
         slotId: 'SLOT_DINH_LANG',
         stableSlotKey: 'SLOT_DINH_LANG',
+        slotIndex: 0,
         x: 0.50,
         y: 0.45,
         tileRow: 5,
@@ -23,13 +24,14 @@ class IslandFixture {
         placement: IslandPlacementDto(
           itemId: 'item_dinh_lang',
           code: 'dinh_lang',
-          name: 'ÄĂ¬nh LĂ ng MĂ¡i Äao',
+          name: 'Đình Làng Mái Đao',
           renderKey: 'dinh_lang',
         ),
       ),
       const IslandSlotDto(
         slotId: 'SLOT_NHA_TRANH',
         stableSlotKey: 'SLOT_NHA_TRANH',
+        slotIndex: 1,
         x: 0.38,
         y: 0.40,
         tileRow: 4,
@@ -42,13 +44,14 @@ class IslandFixture {
         placement: IslandPlacementDto(
           itemId: 'item_decor_nha_tranh',
           code: 'decor_nha_tranh',
-          name: 'NhĂ  Tranh VĂ¡ch Äáº¥t',
+          name: 'Nhà Tranh Vách Đất',
           renderKey: 'decor_nha_tranh',
         ),
       ),
       const IslandSlotDto(
         slotId: 'SLOT_CAU_KIEU',
         stableSlotKey: 'SLOT_CAU_KIEU',
+        slotIndex: 2,
         x: 0.62,
         y: 0.52,
         tileRow: 6,
@@ -61,13 +64,14 @@ class IslandFixture {
         placement: IslandPlacementDto(
           itemId: 'item_decor_cau_kieu',
           code: 'decor_cau_kieu',
-          name: 'Cáº§u Kiá»u MĂ¡i Cong',
+          name: 'Cầu Kiều Mái Cong',
           renderKey: 'decor_cau_kieu',
         ),
       ),
       const IslandSlotDto(
         slotId: 'SLOT_HO_SEN',
         stableSlotKey: 'SLOT_HO_SEN',
+        slotIndex: 3,
         x: 0.58,
         y: 0.62,
         tileRow: 7,
@@ -80,13 +84,14 @@ class IslandFixture {
         placement: IslandPlacementDto(
           itemId: 'item_decor_ho_sen',
           code: 'decor_ho_sen',
-          name: 'Thá»§y Táº¡ Há»“ Sen',
+          name: 'Thủy Tạ Hồ Sen',
           renderKey: 'decor_ho_sen',
         ),
       ),
       const IslandSlotDto(
         slotId: 'SLOT_EMPTY_01',
         stableSlotKey: 'SLOT_EMPTY_01',
+        slotIndex: 4,
         x: 0.45,
         y: 0.55,
         tileRow: 6,
@@ -102,6 +107,7 @@ class IslandFixture {
       IslandSlotDto(
         slotId: 'SLOT_CAY_DA',
         stableSlotKey: 'SLOT_CAY_DA',
+        slotIndex: 5,
         x: 0.30,
         y: 0.58,
         tileRow: 7,
@@ -115,7 +121,7 @@ class IslandFixture {
             ? const IslandPlacementDto(
                 itemId: 'item_decor_cay_da',
                 code: 'decor_cay_da',
-                name: 'CĂ¢y Äa Cá»• Thá»¥',
+                name: 'Cây Đa Cổ Thụ',
                 renderKey: 'decor_cay_da',
               )
             : null,
@@ -123,6 +129,7 @@ class IslandFixture {
       IslandSlotDto(
         slotId: 'SLOT_CONG_LANG',
         stableSlotKey: 'SLOT_CONG_LANG',
+        slotIndex: 6,
         x: 0.28,
         y: 0.32,
         tileRow: 3,
@@ -136,7 +143,7 @@ class IslandFixture {
             ? const IslandPlacementDto(
                 itemId: 'item_cong_lang',
                 code: 'cong_lang',
-                name: 'Cá»•ng LĂ ng Cá»• KĂ­nh',
+                name: 'Cổng Làng Cổ Kính',
                 renderKey: 'cong_lang',
               )
             : null,
@@ -144,6 +151,7 @@ class IslandFixture {
       IslandSlotDto(
         slotId: 'SLOT_EMPTY_02',
         stableSlotKey: 'SLOT_EMPTY_02',
+        slotIndex: 7,
         x: 0.70,
         y: 0.40,
         tileRow: 4,
@@ -159,6 +167,7 @@ class IslandFixture {
       IslandSlotDto(
         slotId: 'SLOT_KHUE_VAN',
         stableSlotKey: 'SLOT_KHUE_VAN',
+        slotIndex: 8,
         x: 0.75,
         y: 0.65,
         tileRow: 8,
@@ -172,7 +181,7 @@ class IslandFixture {
             ? const IslandPlacementDto(
                 itemId: 'item_khue_van',
                 code: 'khue_van',
-                name: 'KhuĂª VÄƒn CĂ¡c',
+                name: 'Khuê Văn Các',
                 renderKey: 'khue_van',
               )
             : null,
@@ -180,6 +189,7 @@ class IslandFixture {
       IslandSlotDto(
         slotId: 'SLOT_THAP_BUT',
         stableSlotKey: 'SLOT_THAP_BUT',
+        slotIndex: 9,
         x: 0.50,
         y: 0.20,
         tileRow: 2,
@@ -198,21 +208,21 @@ class IslandFixture {
         regionCode: 'TIER_1',
         unlockTier: 1,
         unlocked: true,
-        label: 'Khu Trung TĂ¢m LĂ ng Viá»‡t',
+        label: 'Khu Trung Tâm Làng Việt',
         boundsJson: '{"x":0.20,"y":0.25,"width":0.60,"height":0.50}',
       ),
       IslandLayoutRegionDto(
         regionCode: 'TIER_2',
         unlockTier: 2,
         unlocked: tier >= 2,
-        label: 'Báº¿n NÆ°á»›c & Cá»•ng Cá»•',
+        label: 'Bến Nước & Cổng Cổ',
         boundsJson: '{"x":0.10,"y":0.15,"width":0.80,"height":0.70}',
       ),
       IslandLayoutRegionDto(
         regionCode: 'TIER_3',
         unlockTier: 3,
         unlocked: tier >= 3,
-        label: 'ÄĂ i Di Sáº£n Tinh Hoa',
+        label: 'Đài Di Sản Tinh Hoa',
         boundsJson: '{"x":0.05,"y":0.05,"width":0.90,"height":0.90}',
       ),
     ];

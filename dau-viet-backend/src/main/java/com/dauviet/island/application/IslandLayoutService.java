@@ -1492,11 +1492,13 @@ public class IslandLayoutService {
     }
 
     /**
-     * Starter draft tile-based (ISLAND-09-BE): thay layout 3 hình chữ nhật dọc
-     * bằng đảo hình thoi liền mạch trên lưới 8x10 — TIER_1 lõi giữa, TIER_2
-     * vòng quanh, TIER_3 rìa ngoài; mở rộng liên thông 4-neighbor.
-     * Buildable slots phân bố cách nhau, chừa tile PATH/GRASS làm cảnh quan.
-     * Cumulative buildable 4/8/12 khớp policy hiện hành — Admin chỉnh được.
+     * Starter draft tile-based "Làng Việt" (ISLAND-09-BE + ISLAND-10-BE):
+     * đảo liền mạch trên lưới 8x10 — TIER_1 lõi quanh sân đất trung tâm với
+     * đường làng PATH dẫn ra, TIER_2 vòng vườn mở rộng (tre, lúa, hoa cỏ),
+     * TIER_3 nền đá di sản nâng elevation (sen, đèn đá, gạch nung).
+     * Buildable 4 ô mỗi tier — phân bố rải, chừa khoảng thở quanh ô lớn;
+     * cumulative 4/8/12 khớp policy hiện hành — Admin chỉnh được, không đụng
+     * version PUBLISHED đã tồn tại.
      */
     private IslandLayoutVersion createStarterDraft(IslandLayoutDefinition def, int versionNo, Instant now) {
         UUID verId = UUID.randomUUID();
@@ -1516,46 +1518,99 @@ public class IslandLayoutService {
                 "Khu Cao Cấp", null, 3, now));
         regions.flush();
 
-        // Footprint đảo: {row, col, terrain, region, buildable}
-        // TIER_1 lõi (12 ô): r2:{c4,c5} r3:{c3..c6} r4:{c3..c6} r5:{c4,c5}
-        // TIER_2 vòng (12 ô): r1:{c4,c5} r2:{c3,c6} r3:{c2,c7} r4:{c2,c7} r5:{c3,c6} r6:{c4,c5}
-        // TIER_3 rìa (14 ô): r0:{c4,c5} r1:{c3,c6} r2:{c2,c7} r5:{c2,c7} r6:{c3,c6} r7:{c4,c5}
-        record StarterTile(int row, int col, String terrain, String region, boolean buildable) {}
+        // Footprint: {row, col, terrain, region, buildable, visualKey, elevation}
+        record StarterTile(int row, int col, String terrain, String region,
+                           boolean buildable, String visualKey, int elevation) {}
         List<StarterTile> footprint = new ArrayList<>();
-        int[][] t1Cells = {{2,4},{2,5},{3,3},{3,4},{3,5},{3,6},{4,3},{4,4},{4,5},{4,6},{5,4},{5,5}};
-        for (int[] c : t1Cells) {
-            String terrain = (c[0] == 4 && (c[1] == 4 || c[1] == 5)) ? "PATH" : "GRASS";
-            footprint.add(new StarterTile(c[0], c[1], terrain, "TIER_1", false));
+        java.util.function.BiConsumer<int[][], String> addCells = (cells, reg) -> {
+            for (int[] c : cells) {
+                footprint.add(new StarterTile(c[0], c[1], "GRASS", reg,
+                        false, null, 0));
+            }
+        };
+
+        // TIER_1 lõi (12 ô): r2:{c4,c5} r3:{c3..c6} r4:{c3..c6} r5:{c4,c5}
+        addCells.accept(new int[][]{{2,4},{2,5},{3,3},{3,4},{3,5},{3,6},
+                {4,3},{4,4},{4,5},{4,6},{5,4},{5,5}}, "TIER_1");
+        // TIER_2 vòng (12 ô): r1:{c4,c5} r2:{c3,c6} r3:{c2,c7} r4:{c2,c7}
+        //                      r5:{c3,c6} r6:{c4,c5}
+        addCells.accept(new int[][]{{1,4},{1,5},{2,3},{2,6},{3,2},{3,7},
+                {4,2},{4,7},{5,3},{5,6},{6,4},{6,5}}, "TIER_2");
+        // TIER_3 rìa (12 ô): r0:{c4,c5} r1:{c3,c6} r2:{c2,c7} r5:{c2,c7}
+        //                    r6:{c3,c6} r7:{c4,c5}
+        addCells.accept(new int[][]{{0,4},{0,5},{1,3},{1,6},{2,2},{2,7},
+                {5,2},{5,7},{6,3},{6,6},{7,4},{7,5}}, "TIER_3");
+
+        // Terrain đặc trưng theo coord (ghi đè GRASS nền).
+        // T1: sân đất DIRT quảng trường + trục PATH đi bộ; T2: vườn nông
+        // thôn; T3: nền đá di sản. DECORATIVE bắt buộc kèm visualKey.
+        Map<String, String> terrainAt = new HashMap<>();
+        terrainAt.put("3:5", "DIRT");
+        for (String coord : new String[]{"2:4","2:5","4:4","4:5","5:4"}) {
+            terrainAt.put(coord, "PATH");
         }
-        int[][] t2Cells = {{1,4},{1,5},{2,3},{2,6},{3,2},{3,7},{4,2},{4,7},{5,3},{5,6},{6,4},{6,5}};
-        for (int[] c : t2Cells) {
-            footprint.add(new StarterTile(c[0], c[1], "GRASS", "TIER_2", false));
+        for (String coord : new String[]{"0:4","0:5","1:3","1:6","6:3","6:6"}) {
+            terrainAt.put(coord, "STONE");
         }
-        int[][] t3Cells = {{0,4},{0,5},{1,3},{1,6},{2,2},{2,7},{5,2},{5,7},{6,3},{6,6},{7,4},{7,5}};
-        for (int[] c : t3Cells) {
-            footprint.add(new StarterTile(c[0], c[1], "GRASS", "TIER_3", false));
+
+        // visualKey — metadata nghệ thuật: bắt buộc trên DECORATIVE, cũng gắn
+        // lên PATH/STONE để FE render đường làng/cụm đá có hồn hơn.
+        Map<String, String> visualKeyAt = new HashMap<>();
+        // Trang trí T1: bụi cây + đèn đá cạnh quảng trường.
+        visualKeyAt.put("3:3", "shrub_cluster");
+        visualKeyAt.put("4:6", "heritage_lamp");
+        // Trang trí T2: vườn tre, ruộng lúa, hoa cỏ, đầm sen.
+        visualKeyAt.put("1:5", "bamboo_cluster");
+        visualKeyAt.put("2:3", "bamboo_cluster");
+        visualKeyAt.put("5:6", "bamboo_cluster");
+        visualKeyAt.put("4:2", "rice_patch");
+        visualKeyAt.put("6:5", "rice_patch");
+        visualKeyAt.put("3:2", "grass_flowers");
+        visualKeyAt.put("2:6", "grass_flowers");
+        visualKeyAt.put("3:7", "lotus_patch");
+        // Trang trí T3: cây đa, gạch nung; cụm đá gắn trên nền STONE.
+        visualKeyAt.put("5:7", "clay_bricks");
+        visualKeyAt.put("7:5", "banyan_sapling");
+        visualKeyAt.put("1:3", "stone_cluster");
+        visualKeyAt.put("6:6", "stone_cluster");
+        // Đường làng qua quảng trường.
+        visualKeyAt.put("4:4", "village_path");
+        // Ô trang trí thuần (không đường/đất/đá) → DECORATIVE.
+        Set<String> decorativeAt = Set.of(
+                "3:3", "4:6",
+                "1:5", "2:3", "5:6", "4:2", "6:5", "3:2", "2:6", "3:7",
+                "5:7", "7:5");
+        for (String coord : decorativeAt) {
+            terrainAt.put(coord, "DECORATIVE");
         }
-        // Buildable: 4 ô mỗi tier — phân bố rải, không dồn sát nhau.
+
+        // Buildable: 4 ô mỗi tier trên nền GRASS — rải đều (khoảng cách
+        // Manhattan ≥ 2), chừa clearance quanh ô lớn, không ô nào trùng
+        // cảnh quan → cumulative 4/8/12 khớp policy hiện hành.
         Set<String> buildableAt = Set.of(
-                "3:4", "3:6", "4:3", "5:5",        // TIER_1 → slots 1-4
-                "1:4", "3:2", "4:7", "6:5",        // TIER_2 → slots 5-8
-                "0:4", "2:2", "5:7", "7:5");       // TIER_3 → slots 9-12
+                "3:4", "3:6", "4:3", "5:5",        // TIER_1 quanh quảng trường
+                "1:4", "4:7", "5:3", "6:4",        // TIER_2 vườn ngoài
+                "2:2", "2:7", "5:2", "7:4");       // TIER_3 nền đá rìa
 
         Map<String, IslandTile> tileByCoord = new HashMap<>();
         for (StarterTile st : footprint) {
-            boolean buildable = buildableAt.contains(st.row() + ":" + st.col());
-            // PATH/DECORATIVE không host công trình
-            if (!"GRASS".equals(st.terrain()) && !"DIRT".equals(st.terrain())) {
+            String coord = st.row() + ":" + st.col();
+            boolean buildable = buildableAt.contains(coord);
+            String terrain = terrainAt.getOrDefault(coord, st.terrain());
+            String visualKey = visualKeyAt.get(coord);
+            // Chỉ GRASS host công trình — cảnh quan/đường đi không buildable.
+            if (!"GRASS".equals(terrain)) {
                 buildable = false;
             }
+            // Vùng TIER_3 cao hơn — tạo chiều sâu thị giác cho khu di sản.
+            int elevation = "TIER_3".equals(st.region()) ? 1 : 0;
             String tKey = "tile_r" + st.row() + "_c" + st.col();
             int tier = Integer.parseInt(st.region().substring("TIER_".length()));
             IslandTile tile = IslandTile.create(
                     UUID.randomUUID(), verId, tKey, st.row(), st.col(),
-                    buildable ? "GRASS" : st.terrain(),
-                    st.region(), tier, buildable, null, 0, now);
+                    terrain, st.region(), tier, buildable, visualKey, elevation, now);
             tiles.save(tile);
-            tileByCoord.put(st.row() + ":" + st.col(), tile);
+            tileByCoord.put(coord, tile);
         }
         tiles.flush();
 
