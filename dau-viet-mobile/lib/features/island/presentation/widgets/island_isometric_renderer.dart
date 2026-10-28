@@ -43,7 +43,15 @@ class IslandIsometricRenderer extends StatelessWidget {
       for (final s in slots) s.slotId: s,
     };
 
-    // Map (row, col) -> IslandSlotDto
+    // Map tileKey -> IslandSlotDto (quan hệ chính V48)
+    final slotByTileKey = <String, IslandSlotDto>{};
+    for (final s in slots) {
+      if (s.tileKey != null && s.tileKey!.isNotEmpty) {
+        slotByTileKey[s.tileKey!] = s;
+      }
+    }
+
+    // Map (row, col) -> IslandSlotDto (legacy fixture chưa có tileKey)
     final slotByCoord = <(int, int), IslandSlotDto>{};
     for (final s in slots) {
       if (s.tileRow != null && s.tileCol != null) {
@@ -51,16 +59,35 @@ class IslandIsometricRenderer extends StatelessWidget {
       }
     }
 
-    final totalRows = board.rows;
-    final totalCols = board.cols;
     final tileW = board.tileWidth;
     final tileH = board.tileHeight;
 
-    // Chiều rộng & chiều cao tổng thể của scene isometric
-    final sceneWidth = (totalRows + totalCols) * (tileW * 0.5) + tileW * 2.0;
-    final sceneHeight = (totalRows + totalCols) * (tileH * 0.5) + tileH * 4.0;
-    final originX = sceneWidth * 0.5;
-    final originY = tileH * 2.0;
+    // Chiều rộng & chiều cao scene theo bounding-box thật của các tile tồn
+    // tại (đảo hình thoi chỉ chiếm một phần grid — tránh vùng nước dư lớn).
+    double minX = 0, maxX = 0, minY = 0, maxY = 0;
+    if (board.tiles.isNotEmpty) {
+      minX = double.infinity; maxX = -double.infinity;
+      minY = double.infinity; maxY = -double.infinity;
+      for (final t in board.tiles) {
+        final x = (t.col - t.row) * (tileW * 0.5);
+        final y = (t.col + t.row) * (tileH * 0.5);
+        if (x < minX) minX = x;
+        if (x > maxX) maxX = x;
+        if (y < minY) minY = y;
+        if (y > maxY) maxY = y;
+      }
+    } else {
+      maxX = (board.cols) * (tileW * 0.5);
+      maxY = (board.rows + board.cols) * (tileH * 0.5);
+    }
+    final padX = tileW;
+    final padY = tileH * 2.0;
+    minX -= padX; maxX += padX; minY -= padY; maxY += padY;
+    final sceneWidth = maxX - minX;
+    final sceneHeight = maxY - minY;
+    // Tâm iso của tập tile nằm ngay giữa bbox → đặt tại tâm scene.
+    final originX = sceneWidth * 0.5 - ((maxX + minX) * 0.5);
+    final originY = -minY + tileH;
 
     // Phân loại tile theo thứ tự render (Depth sorting theo row + col)
     final sortedTiles = List<IslandTileDto>.from(board.tiles)
@@ -112,6 +139,7 @@ class IslandIsometricRenderer extends StatelessWidget {
                 selectedCoord: selectedTileCoord,
                 selectedSlotId: selectedSlotId,
                 slotById: slotById,
+                slotByTileKey: slotByTileKey,
               ),
             ),
           ),
@@ -122,6 +150,7 @@ class IslandIsometricRenderer extends StatelessWidget {
               _buildTileInteractiveObject(
                 tile: tile,
                 slotById: slotById,
+                slotByTileKey: slotByTileKey,
                 slotByCoord: slotByCoord,
                 originX: originX,
                 originY: originY,
@@ -151,6 +180,7 @@ class IslandIsometricRenderer extends StatelessWidget {
   Widget _buildTileInteractiveObject({
     required IslandTileDto tile,
     required Map<String, IslandSlotDto> slotById,
+    required Map<String, IslandSlotDto> slotByTileKey,
     required Map<(int, int), IslandSlotDto> slotByCoord,
     required double originX,
     required double originY,
@@ -158,7 +188,10 @@ class IslandIsometricRenderer extends StatelessWidget {
     required double tileH,
   }) {
     final isoPos = board.toScreenOffset(tile.row, tile.col, originX: originX, originY: originY);
-    final slot = (tile.slotId != null ? slotById[tile.slotId] : null) ?? slotByCoord[(tile.row, tile.col)];
+    // Ưu tiên quan hệ tileKey (V48) → slotId trên tile → (row,col) legacy.
+    final slot = slotByTileKey[tile.key] ??
+        (tile.slotId != null ? slotById[tile.slotId] : null) ??
+        slotByCoord[(tile.row, tile.col)];
 
     final isSelected = (slot != null && slot.slotId == selectedSlotId) ||
         (selectedTileCoord != null &&
@@ -182,20 +215,18 @@ class IslandIsometricRenderer extends StatelessWidget {
           alignment: Alignment.bottomCenter,
           clipBehavior: Clip.none,
           children: [
-            // Trường hợp 1: Có vật phẩm đã đặt
+            // Trường hợp 1: Có vật phẩm đã đặt — 1 GestureDetector duy nhất
+            // chọn slot (tile coord được sync trong IslandScene.onSlotTap).
             if (slot != null && slot.placement != null && !isLocked)
               IslandHeritageBuilding(
                 placement: slot.placement!,
                 isSelected: isSelected,
                 tileWidth: tileW,
                 tileHeight: tileH,
-                onTap: () {
-                  onSlotTap(slot);
-                  onTileTap((tile.row, tile.col));
-                },
+                onTap: () => onSlotTap(slot),
               )
-            // Trường hợp 2: Ô xây dựng trống
-            else if (slot != null && !isLocked)
+            // Trường hợp 2: Ô xây dựng trống (buildable + đã link slot)
+            else if (slot != null && !isLocked && tile.buildable)
               _buildEmptySlotCue(
                 slot: slot,
                 tile: tile,
@@ -237,10 +268,7 @@ class IslandIsometricRenderer extends StatelessWidget {
     required double tileH,
   }) {
     return GestureDetector(
-      onTap: () {
-        onSlotTap(slot);
-        onTileTap((tile.row, tile.col));
-      },
+      onTap: () => onSlotTap(slot),
       behavior: HitTestBehavior.opaque,
       child: Container(
         width: tileW,
@@ -291,10 +319,7 @@ class IslandIsometricRenderer extends StatelessWidget {
     IslandSlotDto? slot,
   }) {
     return GestureDetector(
-      onTap: () {
-        if (slot != null) onSlotTap(slot);
-        onTileTap((tile.row, tile.col));
-      },
+      onTap: () => onTileTap((tile.row, tile.col)),
       behavior: HitTestBehavior.opaque,
       child: Container(
         width: tileW,
@@ -426,6 +451,7 @@ class _IslandTerrainPainter extends CustomPainter {
   final (int row, int col)? selectedCoord;
   final String? selectedSlotId;
   final Map<String, IslandSlotDto> slotById;
+  final Map<String, IslandSlotDto> slotByTileKey;
 
   _IslandTerrainPainter({
     required this.board,
@@ -440,6 +466,7 @@ class _IslandTerrainPainter extends CustomPainter {
     required this.selectedCoord,
     required this.selectedSlotId,
     required this.slotById,
+    required this.slotByTileKey,
   });
 
   @override
@@ -565,7 +592,8 @@ class _IslandTerrainPainter extends CustomPainter {
               selectedCoord!.$1 == tile.row &&
               selectedCoord!.$2 == tile.col) ||
           (selectedSlotId != null &&
-              tile.slotId == selectedSlotId);
+              (tile.slotId == selectedSlotId ||
+                  slotByTileKey[tile.key]?.slotId == selectedSlotId));
 
       if (isTileSelected) {
         canvas.drawPath(
@@ -603,6 +631,12 @@ class _IslandTerrainPainter extends CustomPainter {
           base: const Color(0xFF74857F), // Natural stone
           highlight: const Color(0xFF90A19B),
           border: const Color(0xFF596964),
+        );
+      case IslandTerrainType.sand:
+        return (
+          base: const Color(0xFFD9C07A), // Sand bank
+          highlight: const Color(0xFFEDD68F),
+          border: const Color(0xFFB89E5C),
         );
       case IslandTerrainType.path:
         return (

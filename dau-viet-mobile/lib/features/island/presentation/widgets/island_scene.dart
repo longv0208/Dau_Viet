@@ -74,6 +74,38 @@ class _IslandSceneState extends State<IslandScene>
   Size? _lastViewportSize;
   int _lastResetVersion = -1;
 
+  /// Kích thước scene isometric tính theo bounding-box thật của các tile tồn
+  /// tại (không suy ra mọi ô trong grid — đảo hình thoi chỉ chiếm một phần).
+  ({double width, double height, double minX, double maxX, double minY, double maxY})
+      _sceneMetrics(IslandBoardDto board) {
+    if (board.tiles.isEmpty) {
+      final w = (board.rows + board.cols) * (board.tileWidth * 0.5) +
+          board.tileWidth * 2.0;
+      final h = (board.rows + board.cols) * (board.tileHeight * 0.5) +
+          board.tileHeight * 4.0;
+      return (width: w, height: h, minX: 0, maxX: w, minY: 0, maxY: h);
+    }
+    double minX = double.infinity, maxX = -double.infinity;
+    double minY = double.infinity, maxY = -double.infinity;
+    for (final t in board.tiles) {
+      final x = (t.col - t.row) * (board.tileWidth * 0.5);
+      final y = (t.col + t.row) * (board.tileHeight * 0.5);
+      if (x < minX) minX = x;
+      if (x > maxX) maxX = x;
+      if (y < minY) minY = y;
+      if (y > maxY) maxY = y;
+    }
+    // Mở rộng thêm 1 tile mỗi phía cho viền đảo + bờ vách 2.5D.
+    final padX = board.tileWidth;
+    final padY = board.tileHeight * 2.0;
+    minX -= padX; maxX += padX; minY -= padY; maxY += padY;
+    return (
+      width: maxX - minX,
+      height: maxY - minY,
+      minX: minX, maxX: maxX, minY: minY, maxY: maxY,
+    );
+  }
+
   @override
   void initState() {
     super.initState();
@@ -118,23 +150,22 @@ class _IslandSceneState extends State<IslandScene>
           slots: widget.island.slots,
           regions: widget.island.regions,
         );
+    final m = _sceneMetrics(board);
 
-    final sceneW = (board.rows + board.cols) * (board.tileWidth * 0.5) + board.tileWidth * 2.0;
-    final sceneH = (board.rows + board.cols) * (board.tileHeight * 0.5) + board.tileHeight * 4.0;
+    // Fit đảo vào viewport (giữ lề nhỏ, không zoom quá mức)
+    final scaleX = (viewportSize.width * 0.92) / m.width;
+    final scaleY = (viewportSize.height * 0.85) / m.height;
+    final fitScale = math.min(scaleX, scaleY).clamp(0.35, 1.4);
 
-    // Tính tỷ lệ zoom tối ưu vừa khít màn hình
-    final scaleX = (viewportSize.width * 0.92) / (sceneW * 0.75);
-    final scaleY = (viewportSize.height * 0.85) / (sceneH * 0.75);
-    final fitScale = math.min(scaleX, scaleY).clamp(0.48, 1.15);
+    // Căn giữa bounding box đảo trong viewport (hơi lệch lên trên cho HUD)
+    final targetX =
+        (viewportSize.width - m.width * fitScale) * 0.5 - m.minX * fitScale;
+    final targetY =
+        (viewportSize.height - m.height * fitScale) * 0.42 - m.minY * fitScale;
 
-    final targetX = (viewportSize.width - (sceneW * fitScale)) * 0.5;
-    final targetY = (viewportSize.height - (sceneH * fitScale)) * 0.42;
-
-    final matrix = Matrix4.identity()
+    _controller.value = Matrix4.identity()
       ..translate(targetX, targetY)
       ..scale(fitScale, fitScale);
-
-    _controller.value = matrix;
   }
 
   @override
@@ -144,9 +175,7 @@ class _IslandSceneState extends State<IslandScene>
           slots: widget.island.slots,
           regions: widget.island.regions,
         );
-
-    final sceneW = (board.rows + board.cols) * (board.tileWidth * 0.5) + board.tileWidth * 2.0;
-    final sceneH = (board.rows + board.cols) * (board.tileHeight * 0.5) + board.tileHeight * 4.0;
+    final m = _sceneMetrics(board);
 
     return LayoutBuilder(
       builder: (context, constraints) {
@@ -172,7 +201,10 @@ class _IslandSceneState extends State<IslandScene>
             child: AnimatedBuilder(
               animation: _waterController,
               builder: (context, _) {
-                return IslandIsometricRenderer(
+                return SizedBox(
+                  width: m.width,
+                  height: m.height,
+                  child: IslandIsometricRenderer(
                   board: board,
                   slots: widget.island.slots,
                   currentTier: widget.island.tier,
@@ -187,23 +219,41 @@ class _IslandSceneState extends State<IslandScene>
                     setState(() {
                       _selectedTileCoord = coord;
                     });
-                    // Kiểm tra xem tile này có gắn với slot nào không
-                    final slot = board.tileAt(coord.$1, coord.$2)?.slotId != null
-                        ? widget.island.slots.firstWhere(
-                            (s) => s.slotId == board.tileAt(coord.$1, coord.$2)!.slotId,
-                            orElse: () => widget.island.slots.first,
-                          )
-                        : null;
+                    // Chọn slot qua quan hệ tileKey→slotId đã link ở DTO;
+                    // tile không có slot → bỏ chọn slot (không fallback .first).
+                    final tile = board.tileAt(coord.$1, coord.$2);
+                    final tileSlotId = tile?.slotId;
+                    IslandSlotDto? slot;
+                    if (tileSlotId != null && tileSlotId.isNotEmpty) {
+                      for (final s in widget.island.slots) {
+                        if (s.slotId == tileSlotId) {
+                          slot = s;
+                          break;
+                        }
+                      }
+                    }
                     widget.onSelectSlot(slot);
                   },
                   onSlotTap: (slot) {
                     setState(() {
-                      if (slot.tileRow != null && slot.tileCol != null) {
+                      // Ưu tiên tile host đã link qua tileKey; fallback x/y
+                      // chỉ cho dữ liệu legacy chưa gán tileKey/tileRow.
+                      final host = slot.tileKey != null
+                          ? board.tiles
+                              .where((t) => t.key == slot.tileKey)
+                              .firstOrNull
+                          : null;
+                      if (host != null) {
+                        _selectedTileCoord = (host.row, host.col);
+                      } else if (slot.tileRow != null && slot.tileCol != null) {
                         _selectedTileCoord = (slot.tileRow!, slot.tileCol!);
+                      } else {
+                        _selectedTileCoord = null;
                       }
                     });
                     widget.onSelectSlot(slot);
                   },
+                  ),
                 );
               },
             ),

@@ -226,6 +226,7 @@ enum IslandTerrainType {
   grass,
   dirt,
   stone,
+  sand,
   path,
   decorative,
   water;
@@ -236,6 +237,8 @@ enum IslandTerrainType {
         return IslandTerrainType.dirt;
       case 'STONE':
         return IslandTerrainType.stone;
+      case 'SAND':
+        return IslandTerrainType.sand;
       case 'PATH':
         return IslandTerrainType.path;
       case 'DECORATIVE':
@@ -264,6 +267,11 @@ class IslandTileDto {
   final double elevation;
   final String? decorKey;
   final String? slotId;
+  /// Backend V48: tile được phép host slot (độc lập với slotId — slot là
+  /// quan hệ đã link, buildable là quyền host). Default true cho fixture.
+  final bool buildable;
+  /// Backend V48: tile đã mở khóa theo tier hiện tại của đảo.
+  final bool unlocked;
 
   const IslandTileDto({
     required this.key,
@@ -275,9 +283,13 @@ class IslandTileDto {
     this.elevation = 0.0,
     this.decorKey,
     this.slotId,
+    this.buildable = true,
+    this.unlocked = true,
   });
 
-  bool get isBuildable => slotId != null && slotId!.isNotEmpty;
+  /// Có thể đặt vật phẩm: buildable và có slot đã link hợp lệ.
+  bool get isBuildable =>
+      buildable && slotId != null && slotId!.isNotEmpty;
 
   IslandTileDto copyWith({
     String? key,
@@ -289,6 +301,8 @@ class IslandTileDto {
     double? elevation,
     String? decorKey,
     String? slotId,
+    bool? buildable,
+    bool? unlocked,
   }) {
     return IslandTileDto(
       key: key ?? this.key,
@@ -300,14 +314,23 @@ class IslandTileDto {
       elevation: elevation ?? this.elevation,
       decorKey: decorKey ?? this.decorKey,
       slotId: slotId ?? this.slotId,
+      buildable: buildable ?? this.buildable,
+      unlocked: unlocked ?? this.unlocked,
     );
   }
 
+  /// Contract BE V48: tileKey/row/column/terrainType/regionCode/unlockTier/
+  /// unlocked/buildable/visualKey/elevation. Hỗ trợ key/col/decorKey cũ
+  /// (fixture nội bộ). SlotId được ánh xạ sau từ slot.tileKey, không parse ở đây.
   factory IslandTileDto.fromJson(Map<String, dynamic> json) {
     final row = (json['row'] as num?)?.toInt() ?? 0;
-    final col = (json['col'] as num?)?.toInt() ?? 0;
+    final col = (json['column'] as num?)?.toInt() ??
+        (json['col'] as num?)?.toInt() ??
+        0;
     return IslandTileDto(
-      key: json['key'] as String? ?? 'tile_${row}_$col',
+      key: json['tileKey'] as String? ??
+          json['key'] as String? ??
+          'tile_${row}_$col',
       row: row,
       col: col,
       terrainType: IslandTerrainType.fromString(
@@ -317,21 +340,25 @@ class IslandTileDto {
       unlockTier: (json['unlockTier'] as num?)?.toInt() ??
           (json['tier'] as num?)?.toInt() ??
           1,
+      unlocked: json['unlocked'] as bool? ?? true,
+      buildable: json['buildable'] as bool? ?? true,
       elevation: (json['elevation'] as num?)?.toDouble() ?? 0.0,
-      decorKey: json['decorKey'] as String?,
+      decorKey: json['visualKey'] as String? ?? json['decorKey'] as String?,
       slotId: json['slotId'] as String?,
     );
   }
 
   Map<String, dynamic> toJson() => {
-    'key': key,
+    'tileKey': key,
     'row': row,
-    'col': col,
+    'column': col,
     'terrainType': terrainType.toCode(),
     if (regionCode != null) 'regionCode': regionCode,
     'unlockTier': unlockTier,
+    'unlocked': unlocked,
+    'buildable': buildable,
     'elevation': elevation,
-    if (decorKey != null) 'decorKey': decorKey,
+    if (decorKey != null) 'visualKey': decorKey,
     if (slotId != null) 'slotId': slotId,
   };
 }
@@ -344,6 +371,13 @@ class IslandBoardDto {
   final double tileWidth;
   final double tileHeight;
   final List<IslandTileDto> tiles;
+  /// Backend V48: gốc tọa độ logic của board (thường 0,0).
+  final double originX;
+  final double originY;
+  /// Backend V48: projection type (ISOMETRIC). null = dữ liệu fixture cũ.
+  final String? projectionType;
+  /// Backend V48: board có tồn tại tiles thật từ API (phân biệt fixture).
+  final bool fromBackend;
 
   const IslandBoardDto({
     this.rows = 12,
@@ -351,6 +385,10 @@ class IslandBoardDto {
     this.tileWidth = 72.0,
     this.tileHeight = 36.0,
     this.tiles = const [],
+    this.originX = 0.0,
+    this.originY = 0.0,
+    this.projectionType,
+    this.fromBackend = false,
   });
 
   /// Tìm tile theo (row, col)
@@ -367,6 +405,16 @@ class IslandBoardDto {
       if (t.slotId == slotId) return t;
     }
     return null;
+  }
+
+  /// Tìm tile liên kết với slot (theo tileKey trước, rồi slotId trên tile).
+  IslandTileDto? tileForSlotDto(IslandSlotDto slot) {
+    if (slot.tileKey != null) {
+      for (final t in tiles) {
+        if (t.key == slot.tileKey) return t;
+      }
+    }
+    return tileForSlot(slot.slotId);
   }
 
   /// Tính tọa độ màn hình (isoX, isoY) tâm hình thoi của tile (row, col)
@@ -387,29 +435,82 @@ class IslandBoardDto {
     return (rowF.round(), colF.round());
   }
 
-  factory IslandBoardDto.fromJson(Map<String, dynamic> json) {
+  /// Contract BE V48: `board` chỉ chứa metadata lưới (gridRows/gridColumns/
+  /// tileWidth/tileHeight/boardOriginX/Y/projectionType); tiles nằm ngoài
+  /// IslandResponse và được truyền vào qua [externalTiles]. Vẫn hỗ trợ
+  /// `board.tiles` nội bộ để fixture mock không hỏng.
+  factory IslandBoardDto.fromJson(
+    Map<String, dynamic> json, {
+    List<IslandTileDto>? externalTiles,
+  }) {
     final rawTiles = json['tiles'];
+    final parsedTiles = rawTiles is List
+        ? rawTiles
+            .whereType<Map>()
+            .map((e) => IslandTileDto.fromJson(e.cast<String, dynamic>()))
+            .toList()
+        : (externalTiles ?? const <IslandTileDto>[]);
     return IslandBoardDto(
-      rows: (json['rows'] as num?)?.toInt() ?? 12,
-      cols: (json['cols'] as num?)?.toInt() ?? 12,
+      rows: (json['gridRows'] as num?)?.toInt() ??
+          (json['rows'] as num?)?.toInt() ??
+          12,
+      cols: (json['gridColumns'] as num?)?.toInt() ??
+          (json['cols'] as num?)?.toInt() ??
+          12,
       tileWidth: (json['tileWidth'] as num?)?.toDouble() ?? 72.0,
       tileHeight: (json['tileHeight'] as num?)?.toDouble() ?? 36.0,
-      tiles: rawTiles is List
-          ? rawTiles
-              .whereType<Map>()
-              .map((e) => IslandTileDto.fromJson(e.cast<String, dynamic>()))
-              .toList()
-          : const [],
+      originX: (json['boardOriginX'] as num?)?.toDouble() ?? 0.0,
+      originY: (json['boardOriginY'] as num?)?.toDouble() ?? 0.0,
+      projectionType: json['projectionType'] as String?,
+      fromBackend: json.containsKey('gridRows') ||
+          json.containsKey('projectionType') ||
+          (externalTiles != null && externalTiles.isNotEmpty),
+      tiles: parsedTiles,
     );
   }
 
   Map<String, dynamic> toJson() => {
-    'rows': rows,
-    'cols': cols,
+    'gridRows': rows,
+    'gridColumns': cols,
     'tileWidth': tileWidth,
     'tileHeight': tileHeight,
+    'boardOriginX': originX,
+    'boardOriginY': originY,
+    if (projectionType != null) 'projectionType': projectionType,
     'tiles': tiles.map((t) => t.toJson()).toList(),
   };
+
+  /// Gắn slots vào tiles theo quan hệ `slot.tileKey → tile.tileKey` (V48).
+  /// Chỉ 1 slot/tile; slot không khớp tileKey nào bị bỏ qua (không suy đoán
+  /// từ x/y khi backend đã cung cấp tileKey). Trả board mới với tile.slotId
+  /// đã resolve.
+  IslandBoardDto linkSlotsToTiles(List<IslandSlotDto> slots) {
+    if (tiles.isEmpty) return this;
+    // tileKey → slotId: giữ slot đầu tiên khớp (BE đảm bảo 1:1 qua ux index)
+    final Map<String, String> slotIdByTileKey = {};
+    for (final s in slots) {
+      final key = s.tileKey;
+      if (key != null && key.isNotEmpty && !slotIdByTileKey.containsKey(key)) {
+        slotIdByTileKey[key] = s.slotId;
+      }
+    }
+    if (slotIdByTileKey.isEmpty) return this;
+    return IslandBoardDto(
+      rows: rows,
+      cols: cols,
+      tileWidth: tileWidth,
+      tileHeight: tileHeight,
+      originX: originX,
+      originY: originY,
+      projectionType: projectionType,
+      fromBackend: fromBackend,
+      tiles: tiles
+          .map((t) => slotIdByTileKey.containsKey(t.key)
+              ? t.copyWith(slotId: slotIdByTileKey[t.key])
+              : t)
+          .toList(),
+    );
+  }
 
   /// Tổng hợp bản đồ isometric tự nhiên liên kết chặt chẽ với danh sách slots và regions
   static IslandBoardDto buildDefaultBoard({
@@ -532,6 +633,9 @@ class IslandSlotDto {
   final double heightNorm;
   final int? tileRow;
   final int? tileCol;
+  /// Backend V48: key của tile host — liên kết slot ↔ tile duy nhất, không
+  /// suy đoán từ x/y khi field này có sẵn.
+  final String? tileKey;
 
   const IslandSlotDto({
     required this.slotId,
@@ -550,6 +654,7 @@ class IslandSlotDto {
     this.heightNorm = 0.12,
     this.tileRow,
     this.tileCol,
+    this.tileKey,
   });
 
   bool get isOccupied => placement != null;
@@ -573,6 +678,7 @@ class IslandSlotDto {
     double? heightNorm,
     int? tileRow,
     int? tileCol,
+    String? tileKey,
   }) {
     return IslandSlotDto(
       slotId: slotId ?? this.slotId,
@@ -591,6 +697,7 @@ class IslandSlotDto {
       heightNorm: heightNorm ?? this.heightNorm,
       tileRow: tileRow ?? this.tileRow,
       tileCol: tileCol ?? this.tileCol,
+      tileKey: tileKey ?? this.tileKey,
     );
   }
 
@@ -652,6 +759,7 @@ class IslandSlotDto {
           (json['row'] as num?)?.toInt(),
       tileCol: (json['tileCol'] as num?)?.toInt() ??
           (json['col'] as num?)?.toInt(),
+      tileKey: json['tileKey'] as String?,
     );
   }
 
@@ -672,6 +780,7 @@ class IslandSlotDto {
     'heightNorm': heightNorm,
     if (tileRow != null) 'tileRow': tileRow,
     if (tileCol != null) 'tileCol': tileCol,
+    if (tileKey != null) 'tileKey': tileKey,
   };
 }
 
@@ -959,6 +1068,7 @@ class IslandDto {
     final rawSlots = json['slots'];
     final rawRegions = json['regions'];
     final rawLayers = json['sceneLayers'];
+    final rawTiles = json['tiles'];
     final nextReqLevel = (json['nextTierRequiredLevel'] as num?)?.toInt();
     final nextReqExp = (json['nextTierRequiredExp'] as num?)?.toInt();
     final eventsCompleted = (json['eventsCompleted'] as num?)?.toInt() ?? 0;
@@ -979,17 +1089,43 @@ class IslandDto {
             .toList()
         : const <IslandLayoutRegionDto>[];
 
-    // Xử lý board: lấy trực tiếp nếu backend trả, nếu không tự động build board chuẩn
+    // Xử lý board (V48): metadata lưới nằm trong `json['board']`, danh sách
+    // tile nằm ở `json['tiles']` cấp ngoài — KHÔNG đọc `board.tiles` (chỉ giữ
+    // cho fixture nội bộ). Sau khi parse, link slot→tile theo `slot.tileKey`.
+    final externalTiles = rawTiles is List
+        ? rawTiles
+            .whereType<Map>()
+            .map((e) => IslandTileDto.fromJson(e.cast<String, dynamic>()))
+            .toList()
+        : const <IslandTileDto>[];
+
     IslandBoardDto? board;
     if (json['board'] is Map) {
       board = IslandBoardDto.fromJson(
         (json['board'] as Map).cast<String, dynamic>(),
+        externalTiles: externalTiles.isEmpty ? null : externalTiles,
       );
+      // Link slots vào tiles theo quan hệ tileKey — không suy đoán từ x/y.
+      board = board.linkSlotsToTiles(parsedSlots);
+    } else if (externalTiles.isNotEmpty) {
+      // API cũ trả tiles ngoài nhưng không có metadata board — wrap vào
+      // board mặc định kích thước suy ra từ tiles (không phải mock).
+      int maxR = 0, maxC = 0;
+      for (final t in externalTiles) {
+        if (t.row > maxR) maxR = t.row;
+        if (t.col > maxC) maxC = t.col;
+      }
+      board = IslandBoardDto(
+        rows: maxR + 1,
+        cols: maxC + 1,
+        tiles: externalTiles,
+        fromBackend: true,
+      ).linkSlotsToTiles(parsedSlots);
     } else {
       board = IslandBoardDto.buildDefaultBoard(
         slots: parsedSlots,
         regions: parsedRegions,
-      );
+      ).linkSlotsToTiles(parsedSlots);
     }
 
     return IslandDto(

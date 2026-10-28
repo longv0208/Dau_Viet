@@ -237,7 +237,14 @@ class _IslandScreenState extends ConsumerState<IslandScreen>
                     ),
                   ),
                   error: (error, stack) => _buildErrorView(error),
-                  data: (island) => _buildIslandContent(island),
+                  data: (island) => (island.board != null &&
+                          island.board!.tiles.isEmpty &&
+                          island.board!.fromBackend)
+                      // Board metadata tồn tại nhưng không có tile nào =
+                      // layout chưa cấu hình / API trả sai — KHÔNG im lặng
+                      // vẽ nước, không fallback mock trên production.
+                      ? _buildEmptyIslandView(island)
+                      : _buildIslandContent(island),
                 ),
               ),
             ],
@@ -600,7 +607,7 @@ class _IslandScreenState extends ConsumerState<IslandScreen>
             bottom: 0,
             child: IslandTileSheet(
               slot: selectedSlot,
-              tile: island.board?.tileForSlot(selectedSlot.slotId),
+              tile: island.board?.tileForSlotDto(selectedSlot),
               islandTier: island.tier,
               onClose: () => setState(() {
                 _selectedSlotId = null;
@@ -1002,6 +1009,50 @@ class _IslandScreenState extends ConsumerState<IslandScreen>
             ),
           ),
         ],
+      ),
+    );
+  }
+
+  /// Board hợp lệ nhưng `tiles` rỗng — layout chưa được cấu hình phía Admin
+  /// hoặc version đang pin thiếu dữ liệu. Thông báo rõ ràng, không suy đoán.
+  Widget _buildEmptyIslandView(IslandDto island) {
+    return Center(
+      child: Padding(
+        padding: const EdgeInsets.all(24),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            const Icon(
+              Icons.terrain_rounded,
+              size: 56,
+              color: DauVietColors.woodBrown,
+            ),
+            const SizedBox(height: 16),
+            Text(
+              'Đảo chưa được lập bản đồ',
+              style: DauVietTypography.headlineSmall.copyWith(
+                fontWeight: FontWeight.bold,
+              ),
+            ),
+            const SizedBox(height: 8),
+            Text(
+              'Bố cục đảo "${island.layoutCode ?? 'hiện tại'}" '
+              '(phiên bản ${island.layoutVersionNumber}) chưa có ô đất nào. '
+              'Vui lòng báo quản trị viên xuất bản lại layout.',
+              textAlign: TextAlign.center,
+              style: DauVietTypography.bodyMedium.copyWith(
+                color: DauVietColors.inkMuted,
+              ),
+            ),
+            const SizedBox(height: 20),
+            Tactile3DButton(
+              label: 'TẢI LẠI',
+              variant: Tactile3DVariant.secondaryParchment,
+              onPressed: () =>
+                  ref.read(islandControllerProvider.notifier).refresh(),
+            ),
+          ],
+        ),
       ),
     );
   }
