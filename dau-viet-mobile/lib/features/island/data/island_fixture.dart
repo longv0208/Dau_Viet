@@ -1,4 +1,4 @@
-import 'island_dto.dart';
+﻿import 'island_dto.dart';
 
 /// Fixture nội bộ dành riêng cho việc phát triển và xem trước Isometric Renderer
 /// Độc lập hoàn toàn với ApiIslandRepository và production data provider,
@@ -7,15 +7,15 @@ class IslandFixture {
   IslandFixture._();
 
   static IslandDto createHeritageVillageFixture({int tier = 1}) {
-    final slots = [
+    final slots = <IslandSlotDto>[
       const IslandSlotDto(
         slotId: 'SLOT_DINH_LANG',
         stableSlotKey: 'SLOT_DINH_LANG',
-        slotIndex: 0,
         x: 0.50,
         y: 0.45,
         tileRow: 5,
         tileCol: 5,
+        tileKey: 'tile_r5_c5',
         zIndex: 55,
         unlockTier: 1,
         unlocked: true,
@@ -31,11 +31,11 @@ class IslandFixture {
       const IslandSlotDto(
         slotId: 'SLOT_NHA_TRANH',
         stableSlotKey: 'SLOT_NHA_TRANH',
-        slotIndex: 1,
         x: 0.38,
         y: 0.40,
         tileRow: 4,
         tileCol: 4,
+        tileKey: 'tile_r4_c4',
         zIndex: 44,
         unlockTier: 1,
         unlocked: true,
@@ -51,11 +51,11 @@ class IslandFixture {
       const IslandSlotDto(
         slotId: 'SLOT_CAU_KIEU',
         stableSlotKey: 'SLOT_CAU_KIEU',
-        slotIndex: 2,
         x: 0.62,
         y: 0.52,
         tileRow: 6,
         tileCol: 7,
+        tileKey: 'tile_r6_c7',
         zIndex: 67,
         unlockTier: 1,
         unlocked: true,
@@ -71,11 +71,11 @@ class IslandFixture {
       const IslandSlotDto(
         slotId: 'SLOT_HO_SEN',
         stableSlotKey: 'SLOT_HO_SEN',
-        slotIndex: 3,
         x: 0.58,
         y: 0.62,
         tileRow: 7,
         tileCol: 6,
+        tileKey: 'tile_r7_c6',
         zIndex: 76,
         unlockTier: 1,
         unlocked: true,
@@ -91,11 +91,11 @@ class IslandFixture {
       const IslandSlotDto(
         slotId: 'SLOT_EMPTY_01',
         stableSlotKey: 'SLOT_EMPTY_01',
-        slotIndex: 4,
         x: 0.45,
         y: 0.55,
         tileRow: 6,
         tileCol: 4,
+        tileKey: 'tile_r6_c4',
         zIndex: 64,
         unlockTier: 1,
         unlocked: true,
@@ -107,11 +107,11 @@ class IslandFixture {
       IslandSlotDto(
         slotId: 'SLOT_CAY_DA',
         stableSlotKey: 'SLOT_CAY_DA',
-        slotIndex: 5,
         x: 0.30,
         y: 0.58,
         tileRow: 7,
         tileCol: 3,
+        tileKey: 'tile_r7_c3',
         zIndex: 73,
         unlockTier: 2,
         unlocked: tier >= 2,
@@ -129,11 +129,11 @@ class IslandFixture {
       IslandSlotDto(
         slotId: 'SLOT_CONG_LANG',
         stableSlotKey: 'SLOT_CONG_LANG',
-        slotIndex: 6,
         x: 0.28,
         y: 0.32,
         tileRow: 3,
         tileCol: 3,
+        tileKey: 'tile_r3_c3',
         zIndex: 33,
         unlockTier: 2,
         unlocked: tier >= 2,
@@ -151,11 +151,11 @@ class IslandFixture {
       IslandSlotDto(
         slotId: 'SLOT_EMPTY_02',
         stableSlotKey: 'SLOT_EMPTY_02',
-        slotIndex: 7,
         x: 0.70,
         y: 0.40,
         tileRow: 4,
         tileCol: 8,
+        tileKey: 'tile_r4_c8',
         zIndex: 48,
         unlockTier: 2,
         unlocked: tier >= 2,
@@ -167,11 +167,11 @@ class IslandFixture {
       IslandSlotDto(
         slotId: 'SLOT_KHUE_VAN',
         stableSlotKey: 'SLOT_KHUE_VAN',
-        slotIndex: 8,
         x: 0.75,
         y: 0.65,
         tileRow: 8,
         tileCol: 8,
+        tileKey: 'tile_r8_c8',
         zIndex: 88,
         unlockTier: 3,
         unlocked: tier >= 3,
@@ -189,11 +189,11 @@ class IslandFixture {
       IslandSlotDto(
         slotId: 'SLOT_THAP_BUT',
         stableSlotKey: 'SLOT_THAP_BUT',
-        slotIndex: 9,
         x: 0.50,
         y: 0.20,
         tileRow: 2,
         tileCol: 6,
+        tileKey: 'tile_r2_c6',
         zIndex: 26,
         unlockTier: 3,
         unlocked: tier >= 3,
@@ -203,7 +203,7 @@ class IslandFixture {
       ),
     ];
 
-    final regions = [
+    final regions = <IslandLayoutRegionDto>[
       IslandLayoutRegionDto(
         regionCode: 'TIER_1',
         unlockTier: 1,
