@@ -267,6 +267,61 @@ class SubmitResultDto {
       );
 }
 
+/// MAP-V2 (A3/C2/E5): Thông tin địa điểm di tích vừa mở khóa trong lượt
+/// hoàn thành bài học (`CompleteAttemptResponse.UnlockedLocationCue`).
+class UnlockedLocationCueDto {
+  final String locationId;
+  final String? slug;
+  final String title;
+  final String? kind;
+  final String? coverAssetId;
+
+  const UnlockedLocationCueDto({
+    required this.locationId,
+    this.slug,
+    required this.title,
+    this.kind,
+    this.coverAssetId,
+  });
+
+  factory UnlockedLocationCueDto.fromJson(Map<String, dynamic> json) =>
+      UnlockedLocationCueDto(
+        locationId: (json['locationId'] ?? json['id'])?.toString().trim() ?? '',
+        slug: (json['slug'] as String?)?.trim(),
+        title: (json['title'] as String?)?.trim() ?? '',
+        kind: (json['kind'] as String?)?.trim(),
+        coverAssetId: (json['coverAssetId'] as String?)?.trim(),
+      );
+
+  Map<String, dynamic> toJson() => {
+    'locationId': locationId,
+    if (slug != null) 'slug': slug,
+    'title': title,
+    if (kind != null) 'kind': kind,
+    if (coverAssetId != null) 'coverAssetId': coverAssetId,
+  };
+
+  /// Nhãn tiếng Việt cho phân loại địa điểm di sản (`kind`).
+  String get kindLabelVi {
+    switch (kind?.toUpperCase()) {
+      case 'HERITAGE_SITE':
+        return 'Di tích lịch sử';
+      case 'BATTLEFIELD':
+        return 'Chiến trường cổ';
+      case 'ANCIENT_CAPITAL':
+        return 'Kinh đô cổ';
+      case 'ARCHAEOLOGICAL_SITE':
+        return 'Di chỉ khảo cổ';
+      case 'MEMORIAL':
+        return 'Khu tưởng niệm';
+      case 'SCHEMATIC_REGION':
+        return 'Vùng chiến lược';
+      default:
+        return 'Địa điểm di sản';
+    }
+  }
+}
+
 class CompleteResultDto {
   final String attemptId;
   final String status;
@@ -284,6 +339,10 @@ class CompleteResultDto {
   /// lửa tăng ở LessonResultScreen). Null khi replay/ngày đã tính.
   final StreakInfoDto? streak;
 
+  /// MAP-V2 (E5) additive: các địa điểm di sản vừa mở khóa MỚI trong
+  /// transaction complete này — rỗng khi replay (`alreadyCompleted=true`).
+  final List<UnlockedLocationCueDto> newlyUnlockedLocations;
+
   const CompleteResultDto({
     required this.attemptId,
     required this.status,
@@ -293,26 +352,34 @@ class CompleteResultDto {
     required this.progress,
     this.newlyUnlockedDossiers = const [],
     this.streak,
+    this.newlyUnlockedLocations = const [],
   });
 
-  factory CompleteResultDto.fromJson(Map<String, dynamic> json) =>
-      CompleteResultDto(
-        attemptId: json['attemptId'] as String? ?? '',
-        status: json['status'] as String? ?? '',
-        alreadyCompleted: json['alreadyCompleted'] as bool? ?? false,
-        completedAt: json['completedAt'] as String?,
-        completion: CompletionVerdictDto.fromJson(
-          (json['completion'] as Map?)?.cast<String, dynamic>(),
-        ),
-        progress: AttemptProgressDto.fromJson(
-          (json['progress'] as Map?)?.cast<String, dynamic>(),
-        ),
-        newlyUnlockedDossiers:
-            (json['newlyUnlockedDossiers'] as List? ?? const [])
-                .whereType<String>()
-                .toList(),
-        streak: StreakInfoDto.tryParse(json['streak']),
-      );
+  factory CompleteResultDto.fromJson(
+    Map<String, dynamic> json,
+  ) => CompleteResultDto(
+    attemptId: json['attemptId'] as String? ?? '',
+    status: json['status'] as String? ?? '',
+    alreadyCompleted: json['alreadyCompleted'] as bool? ?? false,
+    completedAt: json['completedAt'] as String?,
+    completion: CompletionVerdictDto.fromJson(
+      (json['completion'] as Map?)?.cast<String, dynamic>(),
+    ),
+    progress: AttemptProgressDto.fromJson(
+      (json['progress'] as Map?)?.cast<String, dynamic>(),
+    ),
+    newlyUnlockedDossiers: (json['newlyUnlockedDossiers'] as List? ?? const [])
+        .whereType<String>()
+        .toList(),
+    streak: StreakInfoDto.tryParse(json['streak']),
+    newlyUnlockedLocations:
+        (json['newlyUnlockedLocations'] as List? ?? const [])
+            .whereType<Map>()
+            .map(
+              (e) => UnlockedLocationCueDto.fromJson(e.cast<String, dynamic>()),
+            )
+            .toList(),
+  );
 }
 
 class LessonResultDto {
@@ -342,6 +409,11 @@ class LessonResultDto {
   /// /reload không phát lại animation). Null = không phát animation.
   final StreakInfoDto? newlyRecordedStreak;
 
+  /// MAP-V2 (E5): các địa điểm di sản vừa mở khóa MỚI trong lần complete
+  /// này — LessonPlayerScreen gắn vào enriched DTO truyền qua route extra;
+  /// GET /result khi deep-link/reload trả rỗng để không phát lại animation.
+  final List<UnlockedLocationCueDto> newlyUnlockedLocations;
+
   const LessonResultDto({
     required this.attemptId,
     required this.lessonVersionId,
@@ -354,6 +426,7 @@ class LessonResultDto {
     this.itemsUnlocked = const [],
     this.newlyUnlockedDossiers = const [],
     this.newlyRecordedStreak,
+    this.newlyUnlockedLocations = const [],
   });
 
   factory LessonResultDto.fromJson(
@@ -377,6 +450,13 @@ class LessonResultDto {
     newlyUnlockedDossiers: (json['newlyUnlockedDossiers'] as List? ?? const [])
         .whereType<String>()
         .toList(),
+    newlyUnlockedLocations:
+        (json['newlyUnlockedLocations'] as List? ?? const [])
+            .whereType<Map>()
+            .map(
+              (e) => UnlockedLocationCueDto.fromJson(e.cast<String, dynamic>()),
+            )
+            .toList(),
   );
 }
 

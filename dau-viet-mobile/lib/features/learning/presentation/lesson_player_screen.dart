@@ -133,6 +133,10 @@ class _LessonPlayerScreenState extends ConsumerState<LessonPlayerScreen> {
   /// Null khi ngày đã có (replay, bài thứ hai cùng ngày) → không phát lại.
   StreakInfoDto? _newStreakInfo;
 
+  /// MAP-V2 (E5): địa điểm di sản vừa mở khóa MỚI trong lần complete này —
+  /// truyền vào LessonResultScreen qua extra để hiện banner đúng một lần.
+  List<UnlockedLocationCueDto> _newlyUnlockedLocations = const [];
+
   /// Event của lesson đang chơi — resolve lúc _load để invalidate đúng
   /// eventProgressProvider sau complete (null = lesson không gắn event).
   String? _lessonEventId;
@@ -594,6 +598,9 @@ class _LessonPlayerScreenState extends ConsumerState<LessonPlayerScreen> {
       if (complete.newlyUnlockedDossiers.isNotEmpty) {
         _newlyUnlockedDossiers = complete.newlyUnlockedDossiers;
       }
+      if (complete.newlyUnlockedLocations.isNotEmpty) {
+        _newlyUnlockedLocations = complete.newlyUnlockedLocations;
+      }
       // STREAK-01: ngày học mới được công nhận → áp snapshot vào provider
       // ngay (dashboard/detail cập nhật không cần refetch) và giữ lại để
       // LessonResultScreen phát animation ngọn lửa đúng một lần.
@@ -639,6 +646,7 @@ class _LessonPlayerScreenState extends ConsumerState<LessonPlayerScreen> {
         itemsUnlocked: result.itemsUnlocked,
         newlyUnlockedDossiers: _newlyUnlockedDossiers,
         newlyRecordedStreak: _newStreakInfo,
+        newlyUnlockedLocations: _newlyUnlockedLocations,
       );
       context.pushReplacement(
         '/learning/result/${widget.attemptId}',
