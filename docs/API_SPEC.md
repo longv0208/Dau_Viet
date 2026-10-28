@@ -624,7 +624,7 @@ Publish chạy PUBLISH-level `DraftValidator` trong một transaction: `SELECT F
 `dau-viet-admin` (TASK-0013) consumes this contract through a same-origin BFF layer: the browser only talks to `/api/auth/*` and `/api/proxy/*` inside the Next.js app, which forwards to `/api/v1/*` on `BACKEND_URL`. The refresh token is held in an HttpOnly `dv_refresh` cookie; access tokens live in browser memory only. See `docs/admin-runbook.md` for the full flow.
 
 
-### Notes đã chốt Luồng Học Lịch Sử & Địa Điểm Di Tích 2.0 (V38–V41)
+### Notes đã chốt Luồng Học Lịch Sử & Địa Điểm Di Tích 2.0 (V39–V43, Issues #2–#26)
 
 #### 1. Learning Path 2.0 Hierarchy & Per-Period Progression
 - **`GET /api/v1/learning-path`** & **`GET /api/v1/me/learning-path`**:
@@ -673,3 +673,11 @@ Publish chạy PUBLISH-level `DraftValidator` trong một transaction: `SELECT F
   - `PUT /api/v1/admin/map-locations/{id}/unlock-lessons` (`{unlockRuleMode: "NONE"|"ANY"|"ALL", lessonIds: [UUID]}`)
   - `PUT /api/v1/admin/map-locations/{id}/media` (`[{mediaType, title, caption, assetId, externalUrl, visibility, sortOrder}]`)
   - Các endpoint legacy `/api/v1/admin/events/{eventId}/map-locations` được giữ nguyên để tương thích ngược.
+  - **Chính sách Deprecation (`ADR-009`)**: Cột DB `map_locations.event_id` và `map_locations.unlock_lesson_id` cùng trường DTO v1 `requiredLesson` được giữ tương thích ngược trong giai đoạn chuyển tiếp; các client mới bắt buộc dùng `eventIds[]`, `events[]`, `unlockMode` và `unlockLessons[]`. Hai cột DB cũ sẽ được gỡ ở Milestone M4 Cleanup theo lộ trình Expand-and-Contract trong `docs/DATABASE_DESIGN.md`.
+
+### Verification results Luồng Học Theo Thời Kỳ & Bản Đồ Di Sản 2.0 (Issue #26 — 2026-10-28)
+
+| Module | Check | Command | Result |
+|---|---|---|---|
+| Backend | Path + Heritage E2E ITs | `sh ./mvnw test -Dtest=LearningFlowHeritageEndToEndIT,LearningPathHierarchyAndPeriodIT,LearningPathApiIT,HeritageLocationV2IT` | **PASS** — 12/12 (trên PostgreSQL 16 Testcontainers, Flyway V1–V48 clean) |
+| Mobile | Learning Path + Dashboard + Campaign E2E | `flutter test --no-pub test/learning_path/ test/dashboard/ test/campaign/ test/campaign_detail_test.dart` | **PASS** — 35/35 |

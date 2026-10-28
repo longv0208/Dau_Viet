@@ -2,6 +2,32 @@
 
 > Detailed record of significant changes, features và fixes. Newest first.
 
+## 2026-10-28 — PATH-2.0 & HERITAGE-MAP-2.0 (Epics A–F, Issues #2–#26): Luồng Học Theo Thời Kỳ & Bản Đồ Di Sản
+
+**Scope:** Nâng cấp toàn diện lộ trình học lịch sử phân cấp (`ERA -> PERIOD -> PHASE -> EVENT -> LESSON`), mở khóa tuần tự theo từng thời kỳ, tách địa điểm di tích thành thực thể độc lập liên kết N–N với sự kiện và bài học (`ANY`/`ALL`), tích hợp Admin CMS, Flutter Mobile, kiểm thử End-to-End và chốt lộ trình gỡ cột deprecated (ADR-009). Plan: `plans/261028-issue-26-e2e-integration-docs/plan.md`.
+
+**Database**
+- `V39__learning_path_hierarchy.sql` — Mở rộng `learning_path_chapters` (`parent_id`, `node_type ∈ ERA|PERIOD|PHASE`) và `historical_events` (`end_year`, `date_precision ∈ EXACT|CIRCA|CENTURY|PERIOD`).
+- `V40__heritage_locations.sql` — Nới `map_locations.event_id` thành nullable, gỡ FK bắt buộc cùng sự kiện, bổ sung metadata di sản (`slug`, `kind`, `coordinate_precision`, `visibility`, `unlock_rule_mode`, `cover_asset_id`, `short_summary`) và 4 bảng mới: `map_location_events`, `map_location_unlock_lessons`, `map_location_media`, `user_location_unlocks`.
+- `V41__user_path_period_state.sql` — Bảng `user_path_period_state` lưu dấu thời kỳ người học tương tác gần nhất (`last_touched_at`).
+- `V42__seed_history_main_v2.sql` — Phát hành `HISTORY_MAIN` v2 (`PUBLISHED`) với 4 đại thời kỳ (`ERA`) và 5 thời kỳ (`PERIOD`), tự động nâng cấp enrollment của người học.
+- `V43__seed_heritage_location_assets_and_media.sql` — Đồng bộ 6 tranh minh họa di sản vào `assets`, backfill 12 địa điểm di tích canonical và tư liệu `map_location_media`.
+- **Quyết định gỡ cột deprecated (`ADR-009` / Issue #26)**: Hai cột `map_locations.event_id` và `map_locations.unlock_lesson_id` được đánh dấu deprecated (nguồn chuẩn là `map_location_events` và `map_location_unlock_lessons`); giữ tương thích ngược trong Phase 1 và chỉ thực thi `DROP COLUMN` ở Milestone M4 Cleanup khi thỏa mãn đủ 4 cổng kiểm toán trong `docs/DATABASE_DESIGN.md`.
+
+**Backend**
+- `com.dauviet.path`: `PathHierarchyValidator` kiểm tra nghiêm ngặt phân cấp `ERA -> PERIOD -> PHASE` (`422 PATH_NODE_INVALID_PARENT`); `LearnerPathProgressionService` mở khóa tuần tự trong phạm vi từng `PERIOD`, cho phép học tự do bài `PUBLISHED` ngoài lộ trình (`#8`), tự động nâng cấp lên phiên bản `PUBLISHED` mới nhất của `HISTORY_MAIN`, trả `periodProgress[]`, `currentByPeriod`, `lastPeriodCode` và cung cấp `POST /api/v1/me/learning-path/periods/{periodCode}/touch`.
+- `com.dauviet.map`: `LocationUnlockEvaluator` (`LessonCompletionHook`) đánh giá luật mở khóa `ANY`/`ALL` trong cùng transaction `LearnerAttemptService.doComplete()` và trả `newlyUnlockedLocations[]`; `MapLocationService` lọc ẩn tư liệu `UNLOCKED_ONLY` khi địa điểm đang khóa; `AdminStandaloneMapLocationController` cung cấp CRUD địa điểm, liên kết sự kiện, bài học mở khóa và media.
+
+**Admin & Mobile**
+- Admin (`#18`–`#20`): Learning Path Builder dạng cây phân cấp, trang quản lý Địa điểm Di sản và Media độc lập (`/map-locations`), và thẻ Địa điểm mở khóa trong Lesson Builder.
+- Mobile (`#21`–`#26`): Tầng dữ liệu `lib/features/learning_path/data/`, màn Chọn thời kỳ (`/journey`) và Hành trình thời kỳ (`/journey/:periodCode`) ẩn tầng 1 mục và hiển thị badge có đủ icon + nhãn, Trang chủ tiếp tục hành trình theo `currentByPeriod[lastPeriodCode]`, danh sách bài học trong Chiến dịch hiển thị trạng thái từ lộ trình, chuyển hướng `/heritage/:locationId`, sửa lỗi tràn khung ngang (`RenderFlex` overflow) trên màn hình hẹp 412px tại `PeriodSelectionScreen`/`PeriodJourneyScreen`, và sửa lỗi điều hướng sự kiện từ Sa Bàn (`BattleSabanScreen`).
+
+**Tests & verification**
+- Backend: `LearningFlowHeritageEndToEndIT` **3/3**, `LearningPathHierarchyAndPeriodIT` **2/2**, `LearningPathApiIT` **6/6**, `HeritageLocationV2IT` **1/1** pass trên PostgreSQL 16 Testcontainers; sửa `LearningPathItFixture` upsert theo `slug` và đồng bộ template/policy với V42.
+- Mobile: `flutter test --no-pub test/learning_path/ test/dashboard/ test/campaign/ test/campaign_detail_test.dart` **35/35 pass** (bao gồm `learning_flow_e2e_integration_test.dart`).
+
+**Docs updated:** `docs/DECISIONS.md`, `docs/DATABASE_DESIGN.md`, `docs/LEARNING_PATH_2_0.md`, `docs/API_SPEC.md`, `docs/PROJECT_OVERVIEW.md`, `docs/development-roadmap.md`, `docs/project-changelog.md`.
+
 ## 2026-10-26 — LEARN-STREAK: Chuỗi Ngày Học — Ngọn Lửa Hào Khí
 
 **Scope:** Daily learning streak end-to-end — PostgreSQL → Spring Boot → Flutter. Streak = số ngày VN liên tiếp có ≥1 attempt COMPLETED, timezone `Asia/Ho_Chi_Minh` tính server-side từ `learner_attempts.completed_at`; streak KHÔNG sinh reward transaction (POINT-03); không đụng GAME-07/GAME-08, không sửa migration đã apply. Plan: `plans/261026-1315-learning-streak/`.

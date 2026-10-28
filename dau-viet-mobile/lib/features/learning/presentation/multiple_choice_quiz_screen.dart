@@ -204,7 +204,7 @@ class _MultipleChoiceQuizScreenState extends State<MultipleChoiceQuizScreen> {
                                     if (context.canPop()) {
                                       context.pop();
                                     } else {
-                                      context.go('/dashboard');
+                                      context.go('/traces/evt_bach_dang_938');
                                     }
                                   },
                                 );

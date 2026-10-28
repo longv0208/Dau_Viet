@@ -81,12 +81,29 @@ class _BattleSabanScreenState extends ConsumerState<BattleSabanScreen> {
                               variant: DongSonButtonVariant.primaryCinnabar,
                               height: 48,
                               onPressed: () {
-                                final events = ref.read(eventsListProvider).value?.milestones ?? [];
-                                final bd = events.cast<TimelineMilestoneModel?>().firstWhere(
-                                  (e) => e != null && (e.id.contains('000000000001') || e.title.toLowerCase().contains('bạch đằng')),
-                                  orElse: () => null,
-                                );
-                                final targetId = bd?.id ?? (ApiConfig.useMock ? 'evt_bach_dang_938' : '00000000-0000-0000-0000-000000000001');
+                                final events =
+                                    ref
+                                        .read(eventsListProvider)
+                                        .value
+                                        ?.milestones ??
+                                    [];
+                                final bd = events
+                                    .cast<TimelineMilestoneModel?>()
+                                    .firstWhere(
+                                      (e) =>
+                                          e != null &&
+                                          (e.id.contains('000000000001') ||
+                                              e.title.toLowerCase().contains(
+                                                'bạch đằng',
+                                              )),
+                                      orElse: () => null,
+                                    );
+                                final targetId =
+                                    bd?.eventId ??
+                                    bd?.id ??
+                                    (ApiConfig.useMock
+                                        ? 'evt_bach_dang_938'
+                                        : '00000000-0000-0000-0000-000000000001');
                                 context.go('/campaign/$targetId');
                               },
                             ),

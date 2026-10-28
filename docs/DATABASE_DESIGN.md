@@ -395,18 +395,37 @@ Bản ghi bất biến được `POST /admin/lessons/{id}/publish` ghi vào `les
 - Tài liệu này là **technical proposal**, không tự tuyên bố tất cả những lựa chọn schema là yêu cầu BA đã duyệt.
 
 
-### Bổ sung V38–V41 — Learning Path Hierarchy, Per-Period Progression & Heritage Locations V2
+### Bổ sung V39–V43 — Learning Path Hierarchy, Per-Period Progression & Heritage Locations V2
 
-- **`V38__learning_path_hierarchy.sql`**:
+- **`V39__learning_path_hierarchy.sql`**:
   - `learning_path_chapters`: thêm `parent_id UUID REFERENCES learning_path_chapters(id) ON DELETE RESTRICT`, `node_type VARCHAR(16) NOT NULL DEFAULT 'PERIOD' CHECK (node_type IN ('ERA','PERIOD','PHASE'))`, `chk_chapter_no_self_parent CHECK (parent_id IS NULL OR parent_id <> id)`.
   - `historical_events`: thêm `end_year INTEGER`, `date_precision VARCHAR(16) NOT NULL DEFAULT 'EXACT' CHECK (date_precision IN ('EXACT','CIRCA','CENTURY','PERIOD'))`, `chk_event_year_range CHECK (end_year IS NULL OR start_year IS NULL OR start_year <= end_year)`.
-- **`V39__heritage_locations.sql`**:
+- **`V40__heritage_locations.sql`**:
   - `map_locations`: gỡ `fk_map_location_unlock_lesson_same_event`, cho phép `event_id` NULL, thêm `slug VARCHAR(120) UNIQUE`, `kind VARCHAR(32) NOT NULL DEFAULT 'HERITAGE_SITE'`, `coordinate_precision VARCHAR(24) NOT NULL DEFAULT 'EXACT'`, `visibility VARCHAR(24) NOT NULL DEFAULT 'ALWAYS_VISIBLE'`, `unlock_rule_mode VARCHAR(16) NOT NULL DEFAULT 'ANY'`, `cover_asset_id UUID REFERENCES assets(id)`, `short_summary VARCHAR(500)`.
   - `map_location_events (location_id, event_id, role, sort_order)`: liên kết N–N giữa địa điểm và sự kiện; backfill từ `map_locations.event_id`.
   - `map_location_unlock_lessons (location_id, lesson_id)`: danh sách bài học mở khóa địa điểm (hỗ trợ `ANY` / `ALL` xuyên sự kiện); backfill từ `map_locations.unlock_lesson_id`.
   - `map_location_media (id, location_id, media_type, title, caption, asset_id, external_url, visibility, sort_order)`: tư liệu đa phương tiện (`IMAGE_2D`, `PANORAMA_360`, `AUDIO_GUIDE`, `DOCUMENTARY_CLIP`), `visibility ∈ ('PUBLIC_PREVIEW', 'UNLOCKED_ONLY')`.
   - `user_location_unlocks (user_id, location_id, source_lesson_id, source_attempt_id, unlocked_at)`: ledger append-only lưu vết mở khóa địa điểm.
-- **`V40__user_path_period_state.sql`**:
+- **`V41__user_path_period_state.sql`**:
   - `user_path_period_state (user_id, path_code, period_chapter_id, last_touched_at)`: lưu thời kỳ người học tương tác gần nhất để phục vụ `lastPeriodCode` và con trỏ `current` theo từng thời kỳ.
-- **`V41__seed_history_main_v2.sql`**:
+- **`V42__seed_history_main_v2.sql`**:
   - Archive `HISTORY_MAIN` v1 và phát hành `HISTORY_MAIN` v2 (`PUBLISHED`) với cây `ERA -> PERIOD -> EVENT -> LESSON`, nâng các sự kiện có policy hợp lệ lên `REQUIRED` và gắn đầy đủ các bài học `PUBLISHED`.
+- **`V43__seed_heritage_location_assets_and_media.sql`**:
+  - Đồng bộ 6 tranh minh họa di sản vào bảng `assets`, backfill `slug`, `kind`, `short_summary`, `cover_asset_id`, `coordinate_precision`, `visibility`, `unlock_rule_mode` cho 12 địa điểm di tích canonical và gắn `map_location_media` chuẩn.
+
+### Chính sách Deprecated và Thời điểm gỡ cột `map_locations.event_id`, `unlock_lesson_id` (ADR-009 / Issue #26)
+
+1. **Nguồn chân lý hiện hành (Canonical Source of Truth)**:
+   - Liên kết sự kiện của địa điểm: bảng `map_location_events (location_id, event_id, role, sort_order)`.
+   - Luật bài học mở khóa địa điểm: cột `map_locations.unlock_rule_mode ∈ ('NONE', 'ANY', 'ALL')` kết hợp bảng `map_location_unlock_lessons (location_id, lesson_id)`.
+2. **Lý do giữ tạm trong giai đoạn chuyển tiếp (Phase 1 — Compatibility Window)**:
+   - Tương thích ngược với endpoint Admin v1 `/api/v1/admin/events/{eventId}/map-locations` (`AdminMapLocationService` ghi đồng thời vào cột cũ và đồng bộ xuống hai bảng nối qua `syncLegacyJoinTables`).
+   - Tương thích ngược với các integration test cũ (`MapLocationIT`) chèn trực tiếp vào bảng `map_locations`.
+   - Tuân thủ mô hình migration không gián đoạn (Expand-and-Contract): mở rộng schema và backfill ở V40/V43 trước khi thực thi migration thu hẹp (`DROP COLUMN`).
+3. **Quyết định thời điểm và 4 điều kiện gỡ bỏ cột (Phase 2 — Contract Migration)**:
+   - **Thời điểm thực thi**: Tại bản phát hành dọn dẹp kỹ thuật ngay sau khi đóng Epic E và Epic F (Milestone M4 Cleanup).
+   - **Bốn điều kiện tiên quyết bắt buộc trước khi chạy `ALTER TABLE map_locations DROP COLUMN event_id, DROP COLUMN unlock_lesson_id`**:
+     - **Gate 1 (Client Cutover)**: Toàn bộ nhánh Mobile (`#24`, `#25`) và Admin (`#19`, `#20`) đã hợp nhất vào `main` và chỉ tiêu thụ `eventIds[]`, `events[]`, `unlockMode`, `unlockLessons[]`.
+     - **Gate 2 (Legacy Endpoint Sunset)**: Ngừng hỗ trợ hoặc chuyển hoàn toàn `AdminMapLocationController` (`/api/v1/admin/events/{eventId}/map-locations`) sang thao tác thuần trên `map_location_events` và `map_location_unlock_lessons`.
+     - **Gate 3 (Test Fixture Cutover)**: Cập nhật `MapLocationIT` để khởi tạo dữ liệu qua `map_location_events` và `map_location_unlock_lessons`.
+     - **Gate 4 (Zero-Orphan Data Audit)**: Kiểm toán dữ liệu trên DB xác nhận bằng `0` số bản ghi có `event_id` hoặc `unlock_lesson_id` khác `NULL` nhưng thiếu dòng tương ứng trong `map_location_events` / `map_location_unlock_lessons`.

@@ -45,6 +45,15 @@
 - **Tài liệu** — `docs/LEARNING_PATH_2_0.md` làm nền tảng cho PATH-02, PATH-03, PATH-04, PATH-05.
 - **Tests** — 14/14 tests pass (`YearLabelFormatterTest` 5/5, `LearningPathValidatorTest` 2/2, `LearningPathApiIT` 7/7).
 
+### PATH-02..05 & MAP-02 (Epics A–F, Issues #2–#26) — delivered (2026-10-28)
+
+- **Schema** — `V39__learning_path_hierarchy.sql` (`learning_path_chapters.parent_id`, `node_type ∈ ERA|PERIOD|PHASE`; `historical_events.end_year`, `date_precision`), `V40__heritage_locations.sql` (`map_locations` độc lập, `map_location_events`, `map_location_unlock_lessons`, `map_location_media`, `user_location_unlocks`), `V41__user_path_period_state.sql` (`user_path_period_state`), `V42__seed_history_main_v2.sql` (`HISTORY_MAIN` v2 với 4 ERA, 5 PERIOD), `V43__seed_heritage_location_assets_and_media.sql` (6 tranh di sản + 12 địa điểm canonical + media).
+- **Backend** — Mở khóa tuần tự độc lập theo từng `PERIOD` (`LearnerPathProgressionService`), tự động nâng cấp enrollment lên bản `PUBLISHED` mới nhất, `POST /api/v1/me/learning-path/periods/{periodCode}/touch`, mở khóa bài học ngoài lộ trình (`#8`), `LocationUnlockEvaluator` (`LessonCompletionHook`) đánh giá luật `ANY`/`ALL` trong cùng transaction `complete()` và trả `newlyUnlockedLocations`, lọc bảo mật media `UNLOCKED_ONLY`, CRUD Admin cho cây lộ trình và địa điểm độc lập (`#11`–`#17`).
+- **Admin UI** — Learning Path Builder dạng cây `ERA -> PERIOD -> PHASE` (`#18`), trang quản lý Địa điểm Di sản và Media độc lập (`#19`), panel Địa điểm mở khóa trong Lesson Builder (`#20`).
+- **Mobile** — Data layer Learning Path 2.0 (`#21`), màn Chọn thời kỳ và Hành trình thời kỳ tại `/journey` và `/journey/:periodCode` (`#22`), Trang chủ Tiếp tục hành trình từ `currentByPeriod[lastPeriodCode]` và trạng thái bài học trong Campaign Detail (`#23`), Bản đồ Di sản v2 và hồ sơ địa điểm (`/heritage/:locationId`, `#24`), banner địa điểm vừa mở khóa trên màn kết quả (`#25`), tích hợp điều hướng E2E và rà soát UX (`#26`).
+- **Quyết định kỹ thuật (ADR-009)** — Chốt lộ trình Expand-and-Contract và 4 điều kiện tiên quyết để gỡ 2 cột deprecated `map_locations.event_id` và `map_locations.unlock_lesson_id` tại Milestone M4 Cleanup.
+- **Tests** — Backend `LearningFlowHeritageEndToEndIT`, `LearningPathHierarchyAndPeriodIT`, `LearningPathApiIT`, `HeritageLocationV2IT` pass trên PostgreSQL 16 Testcontainers; Mobile `test/learning_path/`, `test/dashboard/`, `test/campaign/` pass 35/35.
+
 ## Phase: Learning core (đã hoàn thành các task trước)
 
 TASK-0005, 0007–0012, 0020–0023 — xem `docs/PROJECT_OVERVIEW.md` + `docs/PROGRESS.md` cho trạng thái generated từ task JSON.

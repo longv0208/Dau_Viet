@@ -1,0 +1,79 @@
+{
+  "schemaVersion": 1,
+  "id": "TASK-0026",
+  "type": "feature",
+  "risk": "normal",
+  "status": "done",
+  "goal": "[F1] Tich hop end-to-end, ra soat UX, cap nhat tai lieu (Issue #26) — Luong Trang chu -> Thoi ky -> Su kien -> Bai -> Ket qua co dia diem -> Ban do chay tren backend that; du trang thai rong, dang tai, khoa, loi; doi thoi ky va quay lai khong mat tien do; quyet dinh thoi diem go cot deprecated map_locations.event_id, unlock_lesson_id; cap nhat docs/*, project-changelog.md, development-roadmap.md.",
+  "owner": "claude",
+  "modules": ["backend", "mobile", "docs"],
+  "scope": [
+    "dau-viet-mobile/lib/app/router.dart",
+    "dau-viet-mobile/lib/core/widgets/main_bottom_nav.dart",
+    "dau-viet-mobile/lib/features/learning_path/presentation/",
+    "dau-viet-mobile/lib/features/saban/presentation/battle_saban_screen.dart",
+    "dau-viet-mobile/lib/features/events/data/mock_events_repository.dart",
+    "dau-viet-mobile/test/learning_path/learning_flow_e2e_integration_test.dart",
+    "dau-viet-backend/src/test/java/com/dauviet/path/LearningPathItFixture.java",
+    "dau-viet-backend/src/test/java/com/dauviet/path/LearningFlowHeritageEndToEndIT.java",
+    "docs/",
+    "tasks/TASK-0026/",
+    "plans/261028-issue-26-e2e-integration-docs/"
+  ],
+  "acceptanceCriteria": [
+    {
+      "id": "AC-1",
+      "text": "Luong Trang chu -> Thoi ky -> Su kien -> Bai -> Ket qua co dia diem -> Ban do chay tren backend that."
+    },
+    {
+      "id": "AC-2",
+      "text": "Du trang thai rong, dang tai, khoa, loi."
+    },
+    {
+      "id": "AC-3",
+      "text": "Doi thoi ky va quay lai khong mat tien do."
+    }
+  ],
+  "dependencies": ["TASK-0022"],
+  "planPath": "plans/261028-issue-26-e2e-integration-docs/plan.md",
+  "evidenceRefs": [
+    "dau-viet-backend: sh ./mvnw test -Dtest=LearningFlowHeritageEndToEndIT,LearningPathHierarchyAndPeriodIT,LearningPathApiIT,HeritageLocationV2IT -> 12/12 tests pass on PostgreSQL 16 Testcontainers (Flyway V1-V48 clean), exit 0",
+    "dau-viet-mobile: dart format --output=none --set-exit-if-changed lib/app/router.dart lib/core/widgets/main_bottom_nav.dart lib/features/learning_path/ lib/features/saban/presentation/battle_saban_screen.dart lib/features/events/data/mock_events_repository.dart test/learning_path/ -> 19 files (0 changed), exit 0",
+    "dau-viet-mobile: flutter analyze --no-pub lib/app/router.dart lib/core/widgets/main_bottom_nav.dart lib/features/learning_path/ lib/features/saban/presentation/battle_saban_screen.dart lib/features/events/data/mock_events_repository.dart test/learning_path/ -> No issues found!, exit 0",
+    "dau-viet-mobile: flutter test --no-pub test/learning_path/ test/dashboard/ test/campaign/ test/campaign_detail_test.dart -> 35/35 tests pass, exit 0"
+  ],
+  "reviewRefs": [
+    "plans/261028-issue-26-e2e-integration-docs/plan.md",
+    "tasks/TASK-0026/handoff.md"
+  ],
+  "roleReports": [
+    "plans/261028-issue-26-e2e-integration-docs/plan.md",
+    "tasks/TASK-0026/handoff.md"
+  ],
+  "acEvidence": {
+    "AC-1": [
+      "dau-viet-backend/src/test/java/com/dauviet/path/LearningFlowHeritageEndToEndIT.java",
+      "dau-viet-mobile/lib/app/router.dart",
+      "dau-viet-mobile/test/learning_path/learning_flow_e2e_integration_test.dart"
+    ],
+    "AC-2": [
+      "dau-viet-backend/src/test/java/com/dauviet/path/LearningFlowHeritageEndToEndIT.java",
+      "dau-viet-mobile/lib/features/learning_path/presentation/period_selection_screen.dart",
+      "dau-viet-mobile/lib/features/learning_path/presentation/period_journey_screen.dart",
+      "dau-viet-mobile/test/learning_path/learning_flow_e2e_integration_test.dart"
+    ],
+    "AC-3": [
+      "dau-viet-backend/src/test/java/com/dauviet/path/LearningFlowHeritageEndToEndIT.java",
+      "dau-viet-mobile/test/learning_path/learning_flow_e2e_integration_test.dart"
+    ]
+  },
+  "nextAction": "Done — all backend (12/12 ITs on real PostgreSQL) and mobile (35/35 unit/widget/E2E tests) verification gates green, docs and ADR-009 updated.",
+  "baseCommit": "2189265",
+  "inputFingerprint": null,
+  "snapshot": null,
+  "blockedReason": null,
+  "resumeFrom": null,
+  "handoffRef": "tasks/TASK-0026/handoff.md",
+  "createdAt": "2026-10-28T17:52:00+07:00",
+  "updatedAt": "2026-10-28T18:19:00+07:00"
+}
