@@ -1,0 +1,66 @@
+{
+  "schemaVersion": 1,
+  "id": "TASK-0024",
+  "type": "feature",
+  "risk": "normal",
+  "status": "done",
+  "goal": "[E4] Mobile: Ban do Di san va ho so dia diem (Issue #24) — Xoa _metaBySlugOrId va che do timeline dua tren map; map dung API v2; man ho so dia diem voi tab anh/video/tu lieu, an tab rong; timeline chuyen sang /journey; dia diem khoa van hien ten va ghim neu visibility = PUBLIC.",
+  "owner": "claude",
+  "modules": ["mobile"],
+  "scope": [
+    "dau-viet-mobile/lib/features/map/",
+    "dau-viet-mobile/lib/features/timeline/presentation/timeline_screen.dart",
+    "dau-viet-mobile/test/map/",
+    "dau-viet-mobile/test/timeline_events_test.dart",
+    "tasks/TASK-0024/",
+    "plans/261028-issue-24-heritage-map/"
+  ],
+  "acceptanceCriteria": [
+    {
+      "id": "AC-1",
+      "text": "Khong con hardcode slug/UUID."
+    },
+    {
+      "id": "AC-2",
+      "text": "Dia diem khoa van hien ten va ghim neu visibility = PUBLIC."
+    }
+  ],
+  "dependencies": [],
+  "planPath": "plans/261028-issue-24-heritage-map/plan.md",
+  "evidenceRefs": [
+    "dau-viet-mobile: dart format --output=none --set-exit-if-changed lib/features/map lib/features/timeline/presentation/timeline_screen.dart test/map test/timeline_events_test.dart -> 19 files (0 changed), exit 0",
+    "dau-viet-mobile: flutter analyze --no-pub lib/features/map lib/features/timeline/presentation/timeline_screen.dart test/map test/timeline_events_test.dart -> No issues found! (3.5s), exit 0",
+    "dau-viet-mobile: flutter test --no-pub test/map/historical_map_test.dart test/map/journey_map_ui_test.dart test/timeline_events_test.dart -> 31/31 tests passed, exit 0"
+  ],
+  "reviewRefs": [
+    "plans/261028-issue-24-heritage-map/review-report.md"
+  ],
+  "roleReports": [
+    "plans/261028-issue-24-heritage-map/planner-report.md",
+    "plans/261028-issue-24-heritage-map/review-report.md"
+  ],
+  "acEvidence": {
+    "AC-1": [
+      "dau-viet-mobile/lib/features/map/presentation/historical_map_screen.dart",
+      "dau-viet-mobile/lib/features/map/data/mock_map_repository.dart",
+      "dau-viet-mobile/test/map/journey_map_ui_test.dart",
+      "plans/261028-issue-24-heritage-map/review-report.md"
+    ],
+    "AC-2": [
+      "dau-viet-mobile/lib/features/map/data/map_location_dto.dart",
+      "dau-viet-mobile/lib/features/map/presentation/historical_map_screen.dart",
+      "dau-viet-mobile/test/map/historical_map_test.dart",
+      "dau-viet-mobile/test/map/journey_map_ui_test.dart",
+      "plans/261028-issue-24-heritage-map/review-report.md"
+    ]
+  },
+  "nextAction": "Done — 31/31 map + timeline unit/widget tests pass, flutter analyze clean, independent code review APPROVE. Await user authorization to commit/push.",
+  "baseCommit": "51dadc2",
+  "inputFingerprint": null,
+  "snapshot": null,
+  "blockedReason": null,
+  "resumeFrom": null,
+  "handoffRef": "tasks/TASK-0024/handoff.md",
+  "createdAt": "2026-10-28T18:00:00+07:00",
+  "updatedAt": "2026-10-28T18:15:00+07:00"
+}

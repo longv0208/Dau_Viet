@@ -9,5 +9,19 @@ class ApiMapRepository implements MapRepository {
   const ApiMapRepository(this._api);
 
   @override
-  Future<List<MapLocationDto>> listLocations() => _api.listLocations();
+  Future<List<MapLocationDto>> listLocations({
+    String? periodCode,
+    String? eventId,
+    String? kind,
+    bool? unlocked,
+  }) => _api.listLocations(
+    periodCode: periodCode,
+    eventId: eventId,
+    kind: kind,
+    unlocked: unlocked,
+  );
+
+  @override
+  Future<MapLocationDto> getLocationDetail(String locationId) =>
+      _api.getLocationDetail(locationId);
 }
