@@ -203,7 +203,7 @@ class IslandTileSheet extends StatelessWidget {
                               label: const Text('CẤT VÀO KHO'),
                               style: OutlinedButton.styleFrom(
                                 foregroundColor: const Color(0xFF8B4513),
-                                side: const BorderBorderSide(color: Color(0xFFC4A482)),
+                                side: const BorderSide(color: Color(0xFFC4A482)),
                                 padding: const EdgeInsets.symmetric(vertical: 12),
                                 shape: RoundedRectangleBorder(
                                   borderRadius: BorderRadius.circular(12),
@@ -271,7 +271,7 @@ class IslandTileSheet extends StatelessWidget {
   String _buildTitle() {
     if (slot != null) {
       final region = slot!.regionCode ?? 'Khu Vực';
-      return '$region • Ô #${slot!.slotIndex + 1}';
+      return '$region • Ô #${slot!.zIndex ~/ 10 + 1}';
     }
     if (tile != null) {
       return 'Ô địa hình (${tile!.row}, ${tile!.col})';

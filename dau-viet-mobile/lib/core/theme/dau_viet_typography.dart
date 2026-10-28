@@ -30,6 +30,14 @@ class DauVietTypography {
     color: DauVietColors.inkText,
   );
 
+  // Tiêu đề phụ (Be Vietnam Pro)
+  static TextStyle get titleSmall => GoogleFonts.beVietnamPro(
+    fontSize: 14,
+    fontWeight: FontWeight.w600,
+    height: 1.4,
+    color: DauVietColors.inkText,
+  );
+
   // Nội dung chính (Be Vietnam Pro)
   static TextStyle get bodyLarge => GoogleFonts.beVietnamPro(
     fontSize: 16,

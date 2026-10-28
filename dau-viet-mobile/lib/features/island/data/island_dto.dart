@@ -673,7 +673,6 @@ class IslandSlotDto {
     if (tileRow != null) 'tileRow': tileRow,
     if (tileCol != null) 'tileCol': tileCol,
   };
-  };
 }
 
 /// Vùng đất trong layout, mở theo Tier (ISLAND-03/04).
