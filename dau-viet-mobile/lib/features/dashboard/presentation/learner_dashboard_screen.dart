@@ -823,13 +823,13 @@ class _LearnerDashboardScreenState
         ),
         const SizedBox(height: 10),
 
-        // 2×2 lưới chức năng bổ trợ — aspect 1.85 vì nội dung thẻ dọc
-        // (icon 34 + title + subtitle + padding ~95px) tràn dưới nếu 2.4.
+        // 2×2 lưới chức năng bổ trợ — aspect 1.7 cho ô cao hơn, an toàn
+        // với font scale hệ thống (người dùng tăng cỡ chữ vẫn không tràn).
         GridView.count(
           crossAxisCount: 2,
           crossAxisSpacing: 10,
           mainAxisSpacing: 10,
-          childAspectRatio: 1.85,
+          childAspectRatio: 1.7,
           shrinkWrap: true,
           physics: const NeverScrollableScrollPhysics(),
           children: [
@@ -899,25 +899,29 @@ class _LearnerDashboardScreenState
           onTap: onTap,
           borderRadius: BorderRadius.circular(16),
           child: Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 12),
+            padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 10),
             child: Column(
               mainAxisSize: MainAxisSize.min,
+              mainAxisAlignment: MainAxisAlignment.center,
               children: [
                 Container(
-                  padding: const EdgeInsets.all(7),
+                  padding: const EdgeInsets.all(6),
                   decoration: BoxDecoration(
                     color: bgIconColor,
                     shape: BoxShape.circle,
                   ),
-                  child: Icon(icon, color: iconColor, size: 20),
+                  child: Icon(icon, color: iconColor, size: 19),
                 ),
-                const SizedBox(height: 8),
+                const SizedBox(height: 6),
                 Text(
                   title,
                   textAlign: TextAlign.center,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
                   style: DauVietTypography.labelMedium.copyWith(
-                    fontSize: 12.5,
+                    fontSize: 12,
                     fontWeight: FontWeight.w800,
+                    height: 1.15,
                     color: const Color(0xFF1F2421),
                   ),
                 ),
@@ -928,7 +932,8 @@ class _LearnerDashboardScreenState
                   maxLines: 1,
                   overflow: TextOverflow.ellipsis,
                   style: DauVietTypography.bodySmall.copyWith(
-                    fontSize: 11,
+                    fontSize: 10.5,
+                    height: 1.15,
                     color: const Color(0xFF7E8882),
                   ),
                 ),

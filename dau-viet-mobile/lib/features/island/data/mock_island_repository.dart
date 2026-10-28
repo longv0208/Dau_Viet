@@ -1,6 +1,7 @@
 import '../../../core/api/api_error.dart';
 import '../../../core/api/api_exception.dart';
 import 'island_dto.dart';
+import 'island_fixture.dart';
 import 'island_repository.dart';
 
 /// Mock repository phục vụ demo offline hoặc khi USE_MOCK=true.
@@ -19,132 +20,7 @@ class MockIslandRepository implements IslandRepository {
 
   void _reset() {
     _wallet = const WalletDto(historyPoints: 500, exp: 1200);
-
-    _island = const IslandDto(
-      tier: 1,
-      maxTier: 3,
-      rowVersion: 1,
-      currentExp: 1200,
-      currentLevel: 3,
-      nextTierRequiredLevel: 2,
-      nextTierRequiredExp: 500,
-      canUpgrade: true,
-      eventsCompleted: 1,
-      // Layout metadata (ISLAND-03) — mock heritage-village v1
-      layoutCode: 'heritage-village',
-      layoutVersionNumber: 1,
-      canvasWidth: 960.0,
-      canvasHeight: 720.0,
-      themeKey: 'heritage',
-      regions: [
-        IslandLayoutRegionDto(
-          regionCode: 'TIER_1',
-          unlockTier: 1,
-          unlocked: true,
-          label: 'Khu Trung Tâm',
-          boundsJson: '{"x":0.05,"y":0.08,"width":0.90,"height":0.44}',
-        ),
-        IslandLayoutRegionDto(
-          regionCode: 'TIER_2',
-          unlockTier: 2,
-          unlocked: false,
-          label: 'Khu Mở Rộng',
-          boundsJson: '{"x":0.05,"y":0.46,"width":0.90,"height":0.28}',
-        ),
-        IslandLayoutRegionDto(
-          regionCode: 'TIER_3',
-          unlockTier: 3,
-          unlocked: false,
-          label: 'Khu Cao Cấp',
-          boundsJson: '{"x":0.05,"y":0.68,"width":0.90,"height":0.27}',
-        ),
-      ],
-      sceneLayers: [
-        IslandSceneLayerDto(
-          layerKey: 'water_bg',
-          layerType: 'ANIMATED_WATER',
-          renderOrder: 0,
-        ),
-        IslandSceneLayerDto(
-          layerKey: 'island_base',
-          layerType: 'STATIC_IMAGE',
-          renderOrder: 10,
-          assetRef: 'assets/images/dv_ISL_generic_island-base-tiers_v01.jpg',
-        ),
-        IslandSceneLayerDto(
-          layerKey: 'water_ambient',
-          layerType: 'AMBIENT_OVERLAY',
-          renderOrder: 20,
-        ),
-        IslandSceneLayerDto(
-          layerKey: 'region_fog',
-          layerType: 'REGION_OVERLAY',
-          renderOrder: 25,
-        ),
-        IslandSceneLayerDto(
-          layerKey: 'item_layer',
-          layerType: 'ITEM_LAYER',
-          renderOrder: 30,
-        ),
-      ],
-      progress: IslandProgressDto(
-        completedEvents: 1,
-        nextTierRequiredEvents: 2,
-        canUpgrade: true,
-      ),
-      slots: [
-        IslandSlotDto(
-          slotId: 'CENTER_01',
-          x: 0.50,
-          y: 0.45,
-          zIndex: 10,
-          unlockTier: 1,
-          unlocked: true,
-          allowedCategories: ['DECOR'],
-          placement: IslandPlacementDto(
-            itemId: 'item_decor_nha_tranh',
-            code: 'decor_nha_tranh',
-            name: 'Nhà Tranh Mái Lá',
-            renderKey: 'decor_nha_tranh',
-          ),
-        ),
-        IslandSlotDto(
-          slotId: 'DOCK_01',
-          x: 0.28,
-          y: 0.62,
-          zIndex: 15,
-          unlockTier: 1,
-          unlocked: true,
-          allowedCategories: ['DECOR'],
-          placement: IslandPlacementDto(
-            itemId: 'item_decor_cau_kieu',
-            code: 'decor_cau_kieu',
-            name: 'Cầu Kiều Ao Làng',
-            renderKey: 'decor_cau_kieu',
-          ),
-        ),
-        IslandSlotDto(
-          slotId: 'POND_01',
-          x: 0.72,
-          y: 0.55,
-          zIndex: 12,
-          unlockTier: 1,
-          unlocked: true,
-          allowedCategories: ['DECOR'],
-          placement: null,
-        ),
-        IslandSlotDto(
-          slotId: 'TREE_01',
-          x: 0.55,
-          y: 0.25,
-          zIndex: 5,
-          unlockTier: 2,
-          unlocked: false,
-          allowedCategories: ['DECOR'],
-          placement: null,
-        ),
-      ],
-    );
+    _island = IslandFixture.createHeritageVillageFixture(tier: 1);
 
     _shopItems = [
       const ShopItemDto(
@@ -205,23 +81,9 @@ class MockIslandRepository implements IslandRepository {
     }
 
     final newTier = (_island.tier + 1).clamp(1, _island.maxTier);
-    final updatedSlots = _island.slots.map((slot) {
-      if (slot.unlockTier <= newTier) {
-        return slot.copyWith(unlocked: true);
-      }
-      return slot;
-    }).toList();
-
-    _island = _island.copyWith(
-      tier: newTier,
+    _island = IslandFixture.createHeritageVillageFixture(tier: newTier).copyWith(
       rowVersion: _island.rowVersion + 1,
-      canUpgrade: false,
-      progress: const IslandProgressDto(
-        completedEvents: 2,
-        nextTierRequiredEvents: 4,
-        canUpgrade: false,
-      ),
-      slots: updatedSlots,
+      canUpgrade: newTier < _island.maxTier,
     );
     return _island;
   }

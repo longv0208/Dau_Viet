@@ -19,19 +19,23 @@ import com.dauviet.collection.infrastructure.persistence.UserEventProgressReposi
 import com.dauviet.island.api.dto.IslandPlacementRequest;
 import com.dauviet.island.api.dto.IslandResponse;
 import com.dauviet.island.domain.IslandExceptions;
+import com.dauviet.island.domain.IslandLayoutBoard;
 import com.dauviet.island.domain.IslandLayoutDefinition;
 import com.dauviet.island.domain.IslandLayoutRegion;
 import com.dauviet.island.domain.IslandLayoutVersion;
 import com.dauviet.island.domain.IslandSceneLayer;
 import com.dauviet.island.domain.IslandSlot;
 import com.dauviet.island.domain.IslandTierPolicy;
+import com.dauviet.island.domain.IslandTile;
 import com.dauviet.island.domain.UserIsland;
 import com.dauviet.island.domain.UserIslandPlacement;
+import com.dauviet.island.infrastructure.persistence.IslandLayoutBoardRepository;
 import com.dauviet.island.infrastructure.persistence.IslandLayoutDefinitionRepository;
 import com.dauviet.island.infrastructure.persistence.IslandLayoutRegionRepository;
 import com.dauviet.island.infrastructure.persistence.IslandLayoutVersionRepository;
 import com.dauviet.island.infrastructure.persistence.IslandSceneLayerRepository;
 import com.dauviet.island.infrastructure.persistence.IslandSlotRepository;
+import com.dauviet.island.infrastructure.persistence.IslandTileRepository;
 import com.dauviet.island.infrastructure.persistence.IslandTierPolicyRepository;
 import com.dauviet.island.infrastructure.persistence.UserIslandPlacementRepository;
 import com.dauviet.island.infrastructure.persistence.UserIslandRepository;
@@ -82,6 +86,9 @@ public class IslandService {
     private final IslandLayoutRegionRepository layoutRegions;
     private final IslandSceneLayerRepository sceneLayers;
     private final IslandLayoutService layoutService;
+    private final IslandLayoutBoardRepository boards;
+    private final IslandTileRepository tiles;
+    private final LegacyIslandBoardAdapter legacyAdapter;
     private final Clock clock;
     private final boolean enabled;
 
@@ -98,6 +105,9 @@ public class IslandService {
                          IslandLayoutRegionRepository layoutRegions,
                          IslandSceneLayerRepository sceneLayers,
                          IslandLayoutService layoutService,
+                         IslandLayoutBoardRepository boards,
+                         IslandTileRepository tiles,
+                         LegacyIslandBoardAdapter legacyAdapter,
                          Clock clock,
                          @Value("${dauviet.island.enabled:true}")
                          boolean enabled) {
@@ -114,6 +124,9 @@ public class IslandService {
         this.layoutRegions = layoutRegions;
         this.sceneLayers = sceneLayers;
         this.layoutService = layoutService;
+        this.boards = boards;
+        this.tiles = tiles;
+        this.legacyAdapter = legacyAdapter;
         this.clock = clock;
         this.enabled = enabled;
     }
@@ -461,10 +474,28 @@ public class IslandService {
                         layoutVersion.getId())
                 : List.of();
 
+        // Board + tiles (V48): thật từ DB, hoặc chiếu legacy khi version
+        // rect-model (không board row / không tile nào) — adapter không ghi DB.
+        IslandLayoutBoard board = layoutVersion != null
+                ? boards.findById(layoutVersion.getId()).orElse(null)
+                : null;
+        List<IslandTile> verTiles = layoutVersion != null
+                ? tiles.findByLayoutVersionIdOrderByRowIndexAscColIndexAsc(
+                        layoutVersion.getId())
+                : List.of();
+        LegacyIslandBoardAdapter.LegacyBoard legacy = null;
+        if (layoutVersion != null && (board == null || verTiles.isEmpty())) {
+            legacy = legacyAdapter.project(
+                    layoutVersion.getId(), layoutVersion.getVersionNumber(),
+                    layoutDef != null ? layoutDef.getThemeKey() : null,
+                    island.getTier(), layout, regions);
+        }
+
         return buildResponse(island, layout, bySlot, items,
                 exp, currentLevel, eventsCompleted,
                 activePolicies, nextTier, maxTier,
-                layoutDef, layoutVersion, regions, layers, now);
+                layoutDef, layoutVersion, regions, layers,
+                board, verTiles, legacy, now);
     }
 
     /**
@@ -501,7 +532,68 @@ public class IslandService {
             IslandLayoutVersion layoutVersion,
             List<IslandLayoutRegion> regions,
             List<IslandSceneLayer> layers,
+            IslandLayoutBoard board,
+            List<IslandTile> verTiles,
+            LegacyIslandBoardAdapter.LegacyBoard legacy,
             Instant now) {
+
+        // Map slotId → tileKey: DB tiles cho layout mới; adapter cho legacy.
+        Map<UUID, String> tileKeyBySlotId;
+        Map<String, List<String>> tileKeysByRegion;
+        List<IslandResponse.TileView> tileViews;
+        IslandResponse.BoardView boardView;
+
+        if (legacy != null) {
+            tileKeyBySlotId = legacy.tileKeyBySlotId();
+            tileKeysByRegion = legacy.tileKeysByRegion();
+            tileViews = legacy.tiles();
+            boardView = legacy.board();
+        } else if (board != null) {
+            Map<UUID, IslandTile> tileById = verTiles.stream()
+                    .collect(Collectors.toMap(IslandTile::getId,
+                            Function.identity()));
+            Map<String, IslandLayoutRegion> regionByCode = regions.stream()
+                    .collect(Collectors.toMap(IslandLayoutRegion::getRegionCode,
+                            Function.identity(), (a, b) -> a));
+            tileKeyBySlotId = layout.stream()
+                    .filter(s -> s.getTileId() != null
+                            && tileById.containsKey(s.getTileId()))
+                    .collect(Collectors.toMap(IslandSlot::getId,
+                            s -> tileById.get(s.getTileId()).getTileKey()));
+            tileKeysByRegion = verTiles.stream()
+                    .filter(t -> t.getRegionCode() != null)
+                    .collect(Collectors.groupingBy(IslandTile::getRegionCode,
+                            Collectors.mapping(IslandTile::getTileKey,
+                                    Collectors.toList())));
+            tileViews = verTiles.stream()
+                    .map(t -> {
+                        IslandLayoutRegion reg = t.getRegionCode() != null
+                                ? regionByCode.get(t.getRegionCode()) : null;
+                        int effectiveTier = reg != null
+                                ? reg.getUnlockTier() : t.getUnlockTier();
+                        return new IslandResponse.TileView(
+                                t.getTileKey(), t.getRowIndex(), t.getColIndex(),
+                                t.getTerrainType(), t.getRegionCode(),
+                                effectiveTier,
+                                effectiveTier <= island.getTier(),
+                                t.isBuildable(), t.getVisualKey(),
+                                t.getElevation());
+                    })
+                    .toList();
+            boardView = new IslandResponse.BoardView(
+                    layoutVersion.getId(), layoutVersion.getVersionNumber(),
+                    board.getGridRows(), board.getGridColumns(),
+                    board.getTileWidth(), board.getTileHeight(),
+                    board.getBoardOriginX(), board.getBoardOriginY(),
+                    board.getProjectionType(),
+                    layoutDef != null ? layoutDef.getThemeKey() : null);
+        } else {
+            // Version không có board và không có tile nào (draft rỗng)
+            tileKeyBySlotId = Map.of();
+            tileKeysByRegion = Map.of();
+            tileViews = List.of();
+            boardView = null;
+        }
 
         List<IslandResponse.SlotView> slotViews = layout.stream()
                 .map(s -> {
@@ -527,7 +619,8 @@ public class IslandService {
                             s.getWidthNorm(),
                             s.getHeightNorm(),
                             layoutService.parseAllowedCategories(
-                                    s.getAllowedCategoriesJson()));
+                                    s.getAllowedCategoriesJson()),
+                            tileKeyBySlotId.get(s.getId()));
                 })
                 .toList();
 
@@ -569,14 +662,16 @@ public class IslandService {
         int layoutVersionNumber = layoutVersion != null
                 ? layoutVersion.getVersionNumber() : 0;
 
-        // Region views với trạng thái unlocked
+        // Region views với trạng thái unlocked + tile membership (V48)
         List<IslandResponse.RegionView> regionViews = regions.stream()
                 .map(r -> new IslandResponse.RegionView(
                         r.getRegionCode(),
                         r.getUnlockTier(),
                         r.getUnlockTier() <= island.getTier(),
                         r.getLabel(),
-                        r.getBoundsJson()))
+                        r.getBoundsJson(),
+                        tileKeysByRegion.getOrDefault(r.getRegionCode(),
+                                List.of())))
                 .toList();
 
         // Scene layer views (chuẩn hóa assetRef nếu trỏ nhầm vào /api/v1/admin/assets/...)
@@ -599,7 +694,9 @@ public class IslandService {
                 // Layout metadata
                 layoutCode, layoutVersionId, layoutVersionNumber,
                 canvasWidth, canvasHeight, themeKey,
-                regionViews, layerViews);
+                regionViews, layerViews,
+                // Tile board (V48)
+                boardView, tileViews);
     }
 
     private String normalizeLearnerAssetRef(String rawRef) {

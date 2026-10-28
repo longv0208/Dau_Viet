@@ -221,6 +221,297 @@ class IslandPlacementDto {
   };
 }
 
+/// Loại địa hình của một ô tile trên bản đồ isometric Đảo Di Sản.
+enum IslandTerrainType {
+  grass,
+  dirt,
+  stone,
+  path,
+  decorative,
+  water;
+
+  static IslandTerrainType fromString(String? raw) {
+    switch (raw?.toUpperCase().trim()) {
+      case 'DIRT':
+        return IslandTerrainType.dirt;
+      case 'STONE':
+        return IslandTerrainType.stone;
+      case 'PATH':
+        return IslandTerrainType.path;
+      case 'DECORATIVE':
+      case 'DECOR':
+        return IslandTerrainType.decorative;
+      case 'WATER':
+        return IslandTerrainType.water;
+      case 'GRASS':
+      default:
+        return IslandTerrainType.grass;
+    }
+  }
+
+  String toCode() => name.toUpperCase();
+}
+
+/// Một ô tile hình thoi (isometric diamond) của Đảo Di Sản.
+@immutable
+class IslandTileDto {
+  final String key;
+  final int row;
+  final int col;
+  final IslandTerrainType terrainType;
+  final String? regionCode;
+  final int unlockTier;
+  final double elevation;
+  final String? decorKey;
+  final String? slotId;
+
+  const IslandTileDto({
+    required this.key,
+    required this.row,
+    required this.col,
+    this.terrainType = IslandTerrainType.grass,
+    this.regionCode,
+    this.unlockTier = 1,
+    this.elevation = 0.0,
+    this.decorKey,
+    this.slotId,
+  });
+
+  bool get isBuildable => slotId != null && slotId!.isNotEmpty;
+
+  IslandTileDto copyWith({
+    String? key,
+    int? row,
+    int? col,
+    IslandTerrainType? terrainType,
+    String? regionCode,
+    int? unlockTier,
+    double? elevation,
+    String? decorKey,
+    String? slotId,
+  }) {
+    return IslandTileDto(
+      key: key ?? this.key,
+      row: row ?? this.row,
+      col: col ?? this.col,
+      terrainType: terrainType ?? this.terrainType,
+      regionCode: regionCode ?? this.regionCode,
+      unlockTier: unlockTier ?? this.unlockTier,
+      elevation: elevation ?? this.elevation,
+      decorKey: decorKey ?? this.decorKey,
+      slotId: slotId ?? this.slotId,
+    );
+  }
+
+  factory IslandTileDto.fromJson(Map<String, dynamic> json) {
+    final row = (json['row'] as num?)?.toInt() ?? 0;
+    final col = (json['col'] as num?)?.toInt() ?? 0;
+    return IslandTileDto(
+      key: json['key'] as String? ?? 'tile_${row}_$col',
+      row: row,
+      col: col,
+      terrainType: IslandTerrainType.fromString(
+        json['terrainType'] as String? ?? json['terrain'] as String?,
+      ),
+      regionCode: json['regionCode'] as String?,
+      unlockTier: (json['unlockTier'] as num?)?.toInt() ??
+          (json['tier'] as num?)?.toInt() ??
+          1,
+      elevation: (json['elevation'] as num?)?.toDouble() ?? 0.0,
+      decorKey: json['decorKey'] as String?,
+      slotId: json['slotId'] as String?,
+    );
+  }
+
+  Map<String, dynamic> toJson() => {
+    'key': key,
+    'row': row,
+    'col': col,
+    'terrainType': terrainType.toCode(),
+    if (regionCode != null) 'regionCode': regionCode,
+    'unlockTier': unlockTier,
+    'elevation': elevation,
+    if (decorKey != null) 'decorKey': decorKey,
+    if (slotId != null) 'slotId': slotId,
+  };
+}
+
+/// Bàn cờ / ma trận isometric của Đảo Di Sản.
+@immutable
+class IslandBoardDto {
+  final int rows;
+  final int cols;
+  final double tileWidth;
+  final double tileHeight;
+  final List<IslandTileDto> tiles;
+
+  const IslandBoardDto({
+    this.rows = 12,
+    this.cols = 12,
+    this.tileWidth = 72.0,
+    this.tileHeight = 36.0,
+    this.tiles = const [],
+  });
+
+  /// Tìm tile theo (row, col)
+  IslandTileDto? tileAt(int row, int col) {
+    for (final t in tiles) {
+      if (t.row == row && t.col == col) return t;
+    }
+    return null;
+  }
+
+  /// Tìm tile liên kết với slotId
+  IslandTileDto? tileForSlot(String slotId) {
+    for (final t in tiles) {
+      if (t.slotId == slotId) return t;
+    }
+    return null;
+  }
+
+  /// Tính tọa độ màn hình (isoX, isoY) tâm hình thoi của tile (row, col)
+  Offset toScreenOffset(int row, int col, {double originX = 0, double originY = 0}) {
+    final isoX = (col - row) * (tileWidth * 0.5) + originX;
+    final isoY = (col + row) * (tileHeight * 0.5) + originY;
+    return Offset(isoX, isoY);
+  }
+
+  /// Đổi tọa độ màn hình (dx, dy) sang (row, col) trên lưới isometric (Hit Testing chuẩn 2:1)
+  (int row, int col) pointToGrid(Offset point, {double originX = 0, double originY = 0}) {
+    final dx = point.dx - originX;
+    final dy = point.dy - originY;
+    final halfW = tileWidth * 0.5;
+    final halfH = tileHeight * 0.5;
+    final colF = ((dy / halfH) + (dx / halfW)) * 0.5;
+    final rowF = ((dy / halfH) - (dx / halfW)) * 0.5;
+    return (rowF.round(), colF.round());
+  }
+
+  factory IslandBoardDto.fromJson(Map<String, dynamic> json) {
+    final rawTiles = json['tiles'];
+    return IslandBoardDto(
+      rows: (json['rows'] as num?)?.toInt() ?? 12,
+      cols: (json['cols'] as num?)?.toInt() ?? 12,
+      tileWidth: (json['tileWidth'] as num?)?.toDouble() ?? 72.0,
+      tileHeight: (json['tileHeight'] as num?)?.toDouble() ?? 36.0,
+      tiles: rawTiles is List
+          ? rawTiles
+              .whereType<Map>()
+              .map((e) => IslandTileDto.fromJson(e.cast<String, dynamic>()))
+              .toList()
+          : const [],
+    );
+  }
+
+  Map<String, dynamic> toJson() => {
+    'rows': rows,
+    'cols': cols,
+    'tileWidth': tileWidth,
+    'tileHeight': tileHeight,
+    'tiles': tiles.map((t) => t.toJson()).toList(),
+  };
+
+  /// Tổng hợp bản đồ isometric tự nhiên liên kết chặt chẽ với danh sách slots và regions
+  static IslandBoardDto buildDefaultBoard({
+    required List<IslandSlotDto> slots,
+    required List<IslandLayoutRegionDto> regions,
+    int rows = 12,
+    int cols = 12,
+    double tileWidth = 72.0,
+    double tileHeight = 36.0,
+  }) {
+    final List<IslandTileDto> generatedTiles = [];
+    final centerR = (rows - 1) / 2.0;
+    final centerC = (cols - 1) / 2.0;
+
+    // Bản đồ vị trí slot: gán slot vào vị trí lưới
+    final Map<String, (int row, int col)> slotToCoord = {};
+    for (int i = 0; i < slots.length; i++) {
+      final s = slots[i];
+      if (s.tileRow != null && s.tileCol != null) {
+        slotToCoord[s.slotId] = (s.tileRow!, s.tileCol!);
+      } else {
+        // Ánh xạ x, y chuẩn hóa sang row, col
+        final r = (s.y * (rows - 1)).round().clamp(1, rows - 2);
+        final c = (s.x * (cols - 1)).round().clamp(1, cols - 2);
+        slotToCoord[s.slotId] = (r, c);
+      }
+    }
+
+    final Map<(int, int), IslandSlotDto> coordToSlot = {};
+    for (final s in slots) {
+      final coord = slotToCoord[s.slotId];
+      if (coord != null) {
+        coordToSlot[coord] = s;
+      }
+    }
+
+    // Xác định bán kính tự nhiên của đảo
+    for (int r = 0; r < rows; r++) {
+      for (int c = 0; c < cols; c++) {
+        final dr = (r - centerR);
+        final dc = (c - centerC);
+        // Hình dáng hữu cơ hình elip/tròn mềm mại
+        final dist = (dr * dr * 1.05 + dc * dc * 0.95);
+        final maxDist = (centerR * 0.88) * (centerR * 0.88);
+
+        if (dist <= maxDist || coordToSlot.containsKey((r, c))) {
+          final slotOnTile = coordToSlot[(r, c)];
+          final normalizedDist = dist / maxDist;
+
+          int unlockTier = 1;
+          String regionCode = 'TIER_1';
+          if (slotOnTile != null) {
+            unlockTier = slotOnTile.unlockTier;
+            regionCode = slotOnTile.regionCode ?? 'TIER_$unlockTier';
+          } else if (normalizedDist > 0.65) {
+            unlockTier = 3;
+            regionCode = 'TIER_3';
+          } else if (normalizedDist > 0.35) {
+            unlockTier = 2;
+            regionCode = 'TIER_2';
+          }
+
+          IslandTerrainType terrain = IslandTerrainType.grass;
+          String? decorKey;
+
+          if (slotOnTile != null) {
+            terrain = IslandTerrainType.dirt; // Thềm đất ấm đặt công trình
+          } else if ((r == 5 && c >= 4 && c <= 7) || (c == 6 && r >= 4 && r <= 7)) {
+            terrain = IslandTerrainType.path; // Đường làng lát gạch qua trung tâm
+          } else if ((r + c) % 5 == 0 && normalizedDist < 0.6) {
+            terrain = IslandTerrainType.decorative;
+            decorKey = (r % 2 == 0) ? 'bamboo' : 'lotus';
+          } else if ((r * 3 + c * 7) % 7 == 0 && normalizedDist >= 0.6) {
+            terrain = IslandTerrainType.stone;
+          }
+
+          generatedTiles.add(
+            IslandTileDto(
+              key: 'tile_${r}_$c',
+              row: r,
+              col: c,
+              terrainType: terrain,
+              regionCode: regionCode,
+              unlockTier: unlockTier,
+              decorKey: decorKey,
+              slotId: slotOnTile?.slotId,
+            ),
+          );
+        }
+      }
+    }
+
+    return IslandBoardDto(
+      rows: rows,
+      cols: cols,
+      tileWidth: tileWidth,
+      tileHeight: tileHeight,
+      tiles: generatedTiles,
+    );
+  }
+}
+
 /// Thông tin một slot trên bản đồ đảo di sản isometric.
 @immutable
 class IslandSlotDto {
@@ -239,6 +530,8 @@ class IslandSlotDto {
   final double anchorY;
   final double widthNorm;
   final double heightNorm;
+  final int? tileRow;
+  final int? tileCol;
 
   const IslandSlotDto({
     required this.slotId,
@@ -255,6 +548,8 @@ class IslandSlotDto {
     this.anchorY = 1.0,
     this.widthNorm = 0.10,
     this.heightNorm = 0.12,
+    this.tileRow,
+    this.tileCol,
   });
 
   bool get isOccupied => placement != null;
@@ -276,6 +571,8 @@ class IslandSlotDto {
     double? anchorY,
     double? widthNorm,
     double? heightNorm,
+    int? tileRow,
+    int? tileCol,
   }) {
     return IslandSlotDto(
       slotId: slotId ?? this.slotId,
@@ -292,6 +589,8 @@ class IslandSlotDto {
       anchorY: anchorY ?? this.anchorY,
       widthNorm: widthNorm ?? this.widthNorm,
       heightNorm: heightNorm ?? this.heightNorm,
+      tileRow: tileRow ?? this.tileRow,
+      tileCol: tileCol ?? this.tileCol,
     );
   }
 
@@ -349,6 +648,10 @@ class IslandSlotDto {
       anchorY: (json['anchorY'] as num?)?.toDouble() ?? 1.0,
       widthNorm: (json['widthNorm'] as num?)?.toDouble() ?? 0.10,
       heightNorm: (json['heightNorm'] as num?)?.toDouble() ?? 0.12,
+      tileRow: (json['tileRow'] as num?)?.toInt() ??
+          (json['row'] as num?)?.toInt(),
+      tileCol: (json['tileCol'] as num?)?.toInt() ??
+          (json['col'] as num?)?.toInt(),
     );
   }
 
@@ -367,6 +670,9 @@ class IslandSlotDto {
     'anchorY': anchorY,
     'widthNorm': widthNorm,
     'heightNorm': heightNorm,
+    if (tileRow != null) 'tileRow': tileRow,
+    if (tileCol != null) 'tileCol': tileCol,
+  };
   };
 }
 
@@ -541,6 +847,8 @@ class IslandDto {
   final List<IslandLayoutRegionDto> regions;
   /// Danh sách scene layers theo render_order.
   final List<IslandSceneLayerDto> sceneLayers;
+  /// Lưới địa hình ô vuông/thoi (Board/Tile) theo phong cách game isometric.
+  final IslandBoardDto? board;
 
   const IslandDto({
     this.tier = 1,
@@ -563,6 +871,7 @@ class IslandDto {
     this.themeKey,
     this.regions = const [],
     this.sceneLayers = const [],
+    this.board,
   });
 
   bool get isMaxTier => tier >= maxTier;
@@ -620,6 +929,7 @@ class IslandDto {
     String? themeKey,
     List<IslandLayoutRegionDto>? regions,
     List<IslandSceneLayerDto>? sceneLayers,
+    IslandBoardDto? board,
   }) {
     return IslandDto(
       tier: tier ?? this.tier,
@@ -642,6 +952,7 @@ class IslandDto {
       themeKey: themeKey ?? this.themeKey,
       regions: regions ?? this.regions,
       sceneLayers: sceneLayers ?? this.sceneLayers,
+      board: board ?? this.board,
     );
   }
 
@@ -653,6 +964,35 @@ class IslandDto {
     final nextReqExp = (json['nextTierRequiredExp'] as num?)?.toInt();
     final eventsCompleted = (json['eventsCompleted'] as num?)?.toInt() ?? 0;
     final canUpgrade = json['canUpgrade'] as bool? ?? false;
+
+    final parsedSlots = rawSlots is List
+        ? rawSlots
+            .whereType<Map>()
+            .map((e) => IslandSlotDto.fromJson(e.cast<String, dynamic>()))
+            .toList()
+        : const <IslandSlotDto>[];
+
+    final parsedRegions = rawRegions is List
+        ? rawRegions
+            .whereType<Map>()
+            .map((e) => IslandLayoutRegionDto.fromJson(
+                  e.cast<String, dynamic>()))
+            .toList()
+        : const <IslandLayoutRegionDto>[];
+
+    // Xử lý board: lấy trực tiếp nếu backend trả, nếu không tự động build board chuẩn
+    IslandBoardDto? board;
+    if (json['board'] is Map) {
+      board = IslandBoardDto.fromJson(
+        (json['board'] as Map).cast<String, dynamic>(),
+      );
+    } else {
+      board = IslandBoardDto.buildDefaultBoard(
+        slots: parsedSlots,
+        regions: parsedRegions,
+      );
+    }
+
     return IslandDto(
       tier: (json['tier'] as num?)?.toInt() ?? 1,
       maxTier: (json['maxTier'] as num?)?.toInt() ?? 3,
@@ -667,12 +1007,7 @@ class IslandDto {
       nextTierSlotCount: (json['nextTierSlotCount'] as num?)?.toInt() ?? 0,
       canUpgrade: canUpgrade,
       eventsCompleted: eventsCompleted,
-      slots: rawSlots is List
-          ? rawSlots
-                .whereType<Map>()
-                .map((e) => IslandSlotDto.fromJson(e.cast<String, dynamic>()))
-                .toList()
-          : const [],
+      slots: parsedSlots,
       // Keep progress populated for any code still reading it
       progress: IslandProgressDto(
         completedEvents: eventsCompleted,
@@ -688,20 +1023,15 @@ class IslandDto {
       canvasWidth: (json['canvasWidth'] as num?)?.toDouble() ?? 960.0,
       canvasHeight: (json['canvasHeight'] as num?)?.toDouble() ?? 720.0,
       themeKey: json['themeKey'] as String?,
-      regions: rawRegions is List
-          ? rawRegions
-                .whereType<Map>()
-                .map((e) => IslandLayoutRegionDto.fromJson(
-                      e.cast<String, dynamic>()))
-                .toList()
-          : const [],
+      regions: parsedRegions,
       sceneLayers: rawLayers is List
           ? rawLayers
-                .whereType<Map>()
-                .map((e) => IslandSceneLayerDto.fromJson(
-                      e.cast<String, dynamic>()))
-                .toList()
+              .whereType<Map>()
+              .map((e) => IslandSceneLayerDto.fromJson(
+                    e.cast<String, dynamic>()))
+              .toList()
           : const [],
+      board: board,
     );
   }
 
@@ -722,6 +1052,7 @@ class IslandDto {
     'canvasWidth': canvasWidth,
     'canvasHeight': canvasHeight,
     if (themeKey != null) 'themeKey': themeKey,
+    if (board != null) 'board': board!.toJson(),
   };
 }
 

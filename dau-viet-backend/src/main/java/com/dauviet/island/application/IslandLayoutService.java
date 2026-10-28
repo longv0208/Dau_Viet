@@ -24,17 +24,21 @@ import com.dauviet.island.api.dto.AdminIslandLayoutDtos.*;
 import com.dauviet.island.domain.IslandExceptions;
 import com.dauviet.island.domain.IslandExceptions.IslandLayoutValidationException;
 import com.dauviet.island.domain.IslandExceptions.IslandLayoutValidationException.ValidationError;
+import com.dauviet.island.domain.IslandLayoutBoard;
 import com.dauviet.island.domain.IslandLayoutDefinition;
 import com.dauviet.island.domain.IslandLayoutRegion;
 import com.dauviet.island.domain.IslandLayoutVersion;
 import com.dauviet.island.domain.IslandSceneLayer;
 import com.dauviet.island.domain.IslandSlot;
 import com.dauviet.island.domain.IslandTierPolicy;
+import com.dauviet.island.domain.IslandTile;
+import com.dauviet.island.infrastructure.persistence.IslandLayoutBoardRepository;
 import com.dauviet.island.infrastructure.persistence.IslandLayoutDefinitionRepository;
 import com.dauviet.island.infrastructure.persistence.IslandLayoutRegionRepository;
 import com.dauviet.island.infrastructure.persistence.IslandLayoutVersionRepository;
 import com.dauviet.island.infrastructure.persistence.IslandSceneLayerRepository;
 import com.dauviet.island.infrastructure.persistence.IslandSlotRepository;
+import com.dauviet.island.infrastructure.persistence.IslandTileRepository;
 import com.dauviet.island.infrastructure.persistence.IslandTierPolicyRepository;
 import com.dauviet.island.infrastructure.persistence.UserIslandPlacementRepository;
 import com.dauviet.lesson.domain.InvalidStatusTransitionException;
@@ -68,6 +72,8 @@ public class IslandLayoutService {
     private final UserIslandPlacementRepository placements;
     private final AssetRepository assets;
     private final AccountLevelService levelService;
+    private final IslandLayoutBoardRepository boards;
+    private final IslandTileRepository tiles;
     private final ObjectMapper objectMapper;
     private final Clock clock;
 
@@ -80,6 +86,8 @@ public class IslandLayoutService {
                                UserIslandPlacementRepository placements,
                                AssetRepository assets,
                                AccountLevelService levelService,
+                               IslandLayoutBoardRepository boards,
+                               IslandTileRepository tiles,
                                ObjectMapper objectMapper,
                                Clock clock) {
         this.definitions = definitions;
@@ -91,6 +99,8 @@ public class IslandLayoutService {
         this.placements = placements;
         this.assets = assets;
         this.levelService = levelService;
+        this.boards = boards;
+        this.tiles = tiles;
         this.objectMapper = objectMapper;
         this.clock = clock;
     }
@@ -288,7 +298,27 @@ public class IslandLayoutService {
                         s.getId(), s.getSlotIndex(), s.getStableSlotKey(), s.getTierRequired(),
                         s.getRegionCode(), s.getCoordX(), s.getCoordY(), s.getZIndex(),
                         s.getAnchorX(), s.getAnchorY(), s.getWidthNorm(), s.getHeightNorm(),
-                        parseAllowedCategories(s.getAllowedCategoriesJson())
+                        parseAllowedCategories(s.getAllowedCategoriesJson()),
+                        s.getTileId()
+                ))
+                .toList();
+
+        // Board + tiles (V48): null/empty với layout rect-model legacy — admin
+        // thấy sự thật, không qua adapter (adapter chỉ phục vụ /me/island).
+        IslandLayoutBoard board = boards.findById(versionId).orElse(null);
+        BoardDto boardDto = board == null ? null : new BoardDto(
+                board.getGridRows(), board.getGridColumns(),
+                board.getTileWidth(), board.getTileHeight(),
+                board.getBoardOriginX(), board.getBoardOriginY(),
+                board.getProjectionType(), board.isConnectivityRequired());
+
+        List<TileDto> tileDtos = tiles
+                .findByLayoutVersionIdOrderByRowIndexAscColIndexAsc(versionId)
+                .stream()
+                .map(t -> new TileDto(
+                        t.getId(), t.getTileKey(), t.getRowIndex(), t.getColIndex(),
+                        t.getTerrainType(), t.getRegionCode(), t.getUnlockTier(),
+                        t.isBuildable(), t.getVisualKey(), t.getElevation()
                 ))
                 .toList();
 
@@ -312,7 +342,8 @@ public class IslandLayoutService {
                 ver.getRowVersion() != null ? ver.getRowVersion() : 0L,
                 ver.getPublishedAt(), ver.getArchivedAt(),
                 ver.getCreatedAt(), ver.getUpdatedAt(),
-                regionDtos, slotDtos, layerDtos, policySummaries
+                regionDtos, slotDtos, layerDtos, policySummaries,
+                boardDto, tileDtos
         );
     }
 
@@ -332,6 +363,9 @@ public class IslandLayoutService {
         List<RegionDto> incomingRegions = req.regions() != null ? req.regions() : List.of();
         List<SlotDto> incomingSlots = req.slots() != null ? req.slots() : List.of();
         List<SceneLayerDto> incomingLayers = req.sceneLayers() != null ? req.sceneLayers() : List.of();
+        // V48: null = giữ nguyên board/tiles hiện có (backward-compat admin cũ)
+        BoardDto incomingBoard = req.board();
+        List<TileDto> incomingTiles = req.tiles();
 
         // Kiểm tra trùng khóa / chỉ mục trước khi ghi để không tự ý đổi tên âm thầm làm sai lệch cấu hình Admin
         List<ValidationError> snapshotKeyErrors = new ArrayList<>();
@@ -369,6 +403,44 @@ public class IslandLayoutService {
                 snapshotKeyErrors.add(new ValidationError(
                         "SLOT", key, "slotIndex", "DUPLICATE_SLOT_INDEX",
                         "Slot '" + key + "' bị trùng chỉ mục (slotIndex): " + slotIndex));
+            }
+        }
+        // Kiểm tra trùng khóa / tọa độ tile (V48) trước khi ghi — fail-fast,
+        // không tự sửa key/tọa độ âm thầm.
+        Set<String> checkTileKeys = new HashSet<>();
+        Set<String> checkTileCoords = new HashSet<>();
+        if (incomingTiles != null) {
+            int gridRows = incomingBoard != null ? incomingBoard.gridRows() : 0;
+            int gridCols = incomingBoard != null ? incomingBoard.gridColumns() : 0;
+            for (int i = 0; i < incomingTiles.size(); i++) {
+                TileDto t = incomingTiles.get(i);
+                String tKey = t.tileKey() != null && !t.tileKey().isBlank()
+                        ? t.tileKey().trim()
+                        : "tile_" + (i + 1);
+                if (!checkTileKeys.add(tKey)) {
+                    snapshotKeyErrors.add(new ValidationError(
+                            "TILE", tKey, "tileKey", "DUPLICATE_TILE_KEY",
+                            "Trùng khóa định danh ô đất (tileKey): " + tKey));
+                }
+                String coord = t.row() + ":" + t.column();
+                if (!checkTileCoords.add(coord)) {
+                    snapshotKeyErrors.add(new ValidationError(
+                            "TILE", tKey, "coord", "DUPLICATE_TILE_COORD",
+                            "Trùng tọa độ ô đất (row=" + t.row() + ", column=" + t.column() + ")"));
+                }
+                if (incomingBoard != null
+                        && (t.row() < 0 || t.row() >= gridRows
+                            || t.column() < 0 || t.column() >= gridCols)) {
+                    snapshotKeyErrors.add(new ValidationError(
+                            "TILE", tKey, "coord", "TILE_OUT_OF_BOUNDS",
+                            "Ô '" + tKey + "' (" + t.row() + "," + t.column()
+                                    + ") nằm ngoài lưới board " + gridRows + "x" + gridCols + "."));
+                }
+                if (t.row() < 0 || t.column() < 0) {
+                    snapshotKeyErrors.add(new ValidationError(
+                            "TILE", tKey, "coord", "TILE_OUT_OF_BOUNDS",
+                            "Tọa độ ô '" + tKey + "' không được âm."));
+                }
             }
         }
         Set<String> checkLayerKeys = new HashSet<>();
@@ -452,6 +524,131 @@ public class IslandLayoutService {
         }
         regions.flush();
 
+        // 1b. Board config (V48): upsert khi request có board; absent = giữ nguyên.
+        if (incomingBoard != null) {
+            IslandLayoutBoard existingBoard = boards.findById(versionId).orElse(null);
+            if (existingBoard != null) {
+                existingBoard.update(
+                        incomingBoard.gridRows(), incomingBoard.gridColumns(),
+                        incomingBoard.tileWidth(), incomingBoard.tileHeight(),
+                        incomingBoard.boardOriginX(), incomingBoard.boardOriginY(),
+                        incomingBoard.projectionType() != null
+                                ? incomingBoard.projectionType() : "ISOMETRIC",
+                        !Boolean.FALSE.equals(incomingBoard.connectivityRequired()),
+                        now);
+                boards.save(existingBoard);
+            } else {
+                boards.save(IslandLayoutBoard.create(
+                        versionId,
+                        incomingBoard.gridRows(), incomingBoard.gridColumns(),
+                        incomingBoard.tileWidth() > 0 ? incomingBoard.tileWidth() : 128.0,
+                        incomingBoard.tileHeight() > 0 ? incomingBoard.tileHeight() : 64.0,
+                        incomingBoard.boardOriginX(), incomingBoard.boardOriginY(),
+                        incomingBoard.projectionType() != null
+                                ? incomingBoard.projectionType() : "ISOMETRIC",
+                        !Boolean.FALSE.equals(incomingBoard.connectivityRequired()),
+                        now));
+            }
+            boards.flush();
+        }
+
+        // 1c. Tiles diff (V48): chỉ chạy khi request gửi tiles — match
+        // id → tileKey → (row,column) giống cơ chế slots. Xóa tile còn slot
+        // liên kết = lỗi (admin phải gỡ/unlink slot trước).
+        Map<UUID, IslandTile> tileByIdAfterSave = new HashMap<>();
+        if (incomingTiles != null) {
+            List<IslandTile> existingTiles =
+                    tiles.findByLayoutVersionIdOrderByRowIndexAscColIndexAsc(versionId);
+            Map<UUID, IslandTile> existingTileById = existingTiles.stream()
+                    .collect(Collectors.toMap(IslandTile::getId, t -> t));
+            Map<String, IslandTile> existingTileByKey = existingTiles.stream()
+                    .filter(t -> t.getTileKey() != null)
+                    .collect(Collectors.toMap(IslandTile::getTileKey, t -> t, (a, b) -> a));
+            Map<String, IslandTile> existingTileByCoord = existingTiles.stream()
+                    .collect(Collectors.toMap(
+                            t -> t.getRowIndex() + ":" + t.getColIndex(), t -> t, (a, b) -> a));
+
+            Set<UUID> keptTileIds = new HashSet<>();
+            List<IslandTile> matchedTiles = new ArrayList<>();
+            for (TileDto t : incomingTiles) {
+                IslandTile match = null;
+                if (t.id() != null && existingTileById.containsKey(t.id()) && !keptTileIds.contains(t.id())) {
+                    match = existingTileById.get(t.id());
+                } else if (t.tileKey() != null) {
+                    IslandTile byKey = existingTileByKey.get(t.tileKey().trim());
+                    if (byKey != null && !keptTileIds.contains(byKey.getId())) {
+                        match = byKey;
+                    }
+                }
+                if (match == null) {
+                    IslandTile byCoord = existingTileByCoord.get(t.row() + ":" + t.column());
+                    if (byCoord != null && !keptTileIds.contains(byCoord.getId())) {
+                        match = byCoord;
+                    }
+                }
+                if (match != null) {
+                    keptTileIds.add(match.getId());
+                }
+                matchedTiles.add(match);
+            }
+
+            // Slot đang gắn vào tile sắp xóa → chặn (admin gỡ/unlink slot trước)
+            List<IslandSlot> currentSlots = slots.findByLayoutVersionIdOrderBySlotIndex(versionId);
+            Map<UUID, IslandSlot> slotByTileId = new HashMap<>();
+            for (IslandSlot cs : currentSlots) {
+                if (cs.getTileId() != null) {
+                    slotByTileId.put(cs.getTileId(), cs);
+                }
+            }
+            for (IslandTile oldTile : existingTiles) {
+                if (!keptTileIds.contains(oldTile.getId())) {
+                    IslandSlot linked = slotByTileId.get(oldTile.getId());
+                    if (linked != null) {
+                        throw new IllegalArgumentException(
+                                "Không thể xóa ô đất '" + oldTile.getTileKey()
+                                        + "' vì đang chứa slot '" + linked.getStableSlotKey()
+                                        + "'; gỡ liên kết slot trước.");
+                    }
+                    tiles.delete(oldTile);
+                }
+            }
+            tiles.flush();
+
+            int tIdx = 1;
+            for (int i = 0; i < incomingTiles.size(); i++) {
+                TileDto t = incomingTiles.get(i);
+                IslandTile existingTile = matchedTiles.get(i);
+                String tKey = t.tileKey() != null && !t.tileKey().isBlank()
+                        ? t.tileKey().trim()
+                        : "tile_" + tIdx;
+                String terrain = t.terrainType() != null && !t.terrainType().isBlank()
+                        ? t.terrainType().trim().toUpperCase()
+                        : "GRASS";
+                int elevation = t.elevation() != null ? t.elevation() : 0;
+
+                IslandTile saved;
+                if (existingTile != null) {
+                    existingTile.update(tKey, t.row(), t.column(), terrain,
+                            t.regionCode(), t.unlockTier() > 0 ? t.unlockTier() : 1,
+                            t.buildable(), t.visualKey(), elevation);
+                    saved = tiles.save(existingTile);
+                } else {
+                    saved = tiles.save(IslandTile.create(
+                            UUID.randomUUID(), versionId, tKey,
+                            t.row(), t.column(), terrain, t.regionCode(),
+                            t.unlockTier() > 0 ? t.unlockTier() : 1,
+                            t.buildable(), t.visualKey(), elevation, now));
+                }
+                tileByIdAfterSave.put(saved.getId(), saved);
+                tIdx++;
+            }
+            tiles.flush();
+        } else {
+            for (IslandTile t : tiles.findByLayoutVersionIdOrderByRowIndexAscColIndexAsc(versionId)) {
+                tileByIdAfterSave.put(t.getId(), t);
+            }
+        }
+
         // 2. Update slots safely in-place (preserve slot UUIDs & stableSlotKey; never write slot_index outside 1..64)
         List<IslandSlot> existingSlots = slots.findByLayoutVersionIdOrderBySlotIndex(versionId);
         Map<UUID, IslandSlot> existingById = existingSlots.stream()
@@ -503,17 +700,37 @@ public class IslandLayoutService {
             double ax = s.anchorX() >= 0 && s.anchorX() <= 1 ? s.anchorX() : 0.5;
             double ay = s.anchorY() >= 0 && s.anchorY() <= 1 ? s.anchorY() : 1.0;
 
+            // Resolve tile host (V48): tileId phải trỏ tile của đúng version
+            // này — tham chiếu chéo version hoặc tile không tồn tại = lỗi.
+            UUID tileId = null;
+            if (s.tileId() != null) {
+                IslandTile linked = tileByIdAfterSave.get(s.tileId());
+                if (linked == null) {
+                    if (tiles.existsByIdAndLayoutVersionId(s.tileId(), versionId)) {
+                        linked = tiles.findById(s.tileId()).orElse(null);
+                    }
+                    if (linked == null) {
+                        throw new IslandLayoutValidationException(List.of(
+                                new ValidationError("SLOT", key, "tileId",
+                                        "SLOT_TILE_NOT_FOUND",
+                                        "Slot '" + key + "' tham chiếu ô đất không tồn tại trong version này: " + s.tileId())));
+                    }
+                    tileByIdAfterSave.put(linked.getId(), linked);
+                }
+                tileId = linked.getId();
+            }
+
             if (existingSlot != null) {
                 existingSlot.update(
                         slotIndex, s.tierRequired(), s.coordX(), s.coordY(),
-                        key, s.regionCode(), s.zIndex(), ax, ay, w, h, allowedJson
+                        key, s.regionCode(), tileId, s.zIndex(), ax, ay, w, h, allowedJson
                 );
                 slots.save(existingSlot);
             } else {
                 IslandSlot created = IslandSlot.create(
                         UUID.randomUUID(), def.getLayoutKey(), versionId,
                         slotIndex, s.tierRequired(), s.coordX(), s.coordY(),
-                        key, s.regionCode(), s.zIndex(), ax, ay, w, h, allowedJson, now
+                        key, s.regionCode(), tileId, s.zIndex(), ax, ay, w, h, allowedJson, now
                 );
                 slots.save(created);
             }
@@ -748,6 +965,10 @@ public class IslandLayoutService {
         List<IslandLayoutRegion> verRegions = regions.findByLayoutVersionIdOrderBySortOrderAsc(versionId);
         List<IslandSlot> verSlots = slots.findByLayoutVersionIdOrderBySlotIndex(versionId);
         List<IslandSceneLayer> verLayers = sceneLayers.findByLayoutVersionIdOrderByRenderOrderAsc(versionId);
+        // V48: tile-mode khi có board row hoặc có tiles — áp thêm rules tile.
+        IslandLayoutBoard verBoard = boards.findById(versionId).orElse(null);
+        List<IslandTile> verTiles = tiles.findByLayoutVersionIdOrderByRowIndexAscColIndexAsc(versionId);
+        boolean tileMode = verBoard != null || !verTiles.isEmpty();
 
         // 1. Validate Regions
         if (verRegions.isEmpty()) {
@@ -782,8 +1003,11 @@ public class IslandLayoutService {
 
             double[] bounds = parseBounds(r.getBoundsJson());
             if (bounds == null) {
-                errors.add(new ValidationError("REGION", code, "boundsJson",
-                        "INVALID_REGION_BOUNDS", "Hình học vùng '" + code + "' không hợp lệ (cần x, y, width, height trong khoảng 0..1)."));
+                // V48: ở tile-mode bounds là optional — membership suy từ tiles.
+                if (!tileMode) {
+                    errors.add(new ValidationError("REGION", code, "boundsJson",
+                            "INVALID_REGION_BOUNDS", "Hình học vùng '" + code + "' không hợp lệ (cần x, y, width, height trong khoảng 0..1)."));
+                }
             } else {
                 regionBoundsMap.put(code, bounds);
             }
@@ -822,7 +1046,8 @@ public class IslandLayoutService {
                 errors.add(new ValidationError("SLOT", key, "tierRequired",
                         "INVALID_SLOT_TIER", "Slot '" + key + "' yêu cầu Tier không hợp lệ: " + s.getTierRequired()));
             }
-            if (s.getCoordX() < 0.0 || s.getCoordX() > 1.0 || s.getCoordY() < 0.0 || s.getCoordY() > 1.0) {
+            if (!tileMode && (s.getCoordX() < 0.0 || s.getCoordX() > 1.0
+                    || s.getCoordY() < 0.0 || s.getCoordY() > 1.0)) {
                 errors.add(new ValidationError("SLOT", key, "coord",
                         "INVALID_SLOT_COORDS", "Tọa độ của slot '" + key + "' nằm ngoài phạm vi canvas (0..1)."));
             }
@@ -847,7 +1072,7 @@ public class IslandLayoutService {
                             "Slot '" + key + "' mở ở Tier " + s.getTierRequired() + " nhưng nằm trong vùng '" + regCode + "' mở ở Tier " + reg.getUnlockTier() + "."));
                 }
                 double[] b = regionBoundsMap.get(regCode);
-                if (b != null) {
+                if (b != null && !tileMode) {
                     double rx = b[0], ry = b[1], rw = b[2], rh = b[3];
                     // Cho phép sai số biên nhỏ 0.02
                     if (s.getCoordX() < rx - 0.02 || s.getCoordX() > rx + rw + 0.02
@@ -871,9 +1096,190 @@ public class IslandLayoutService {
                     .count();
             if (actualCumulative != expectedCumulative) {
                 errors.add(new ValidationError("SLOT", "TIER_" + tier, "slotCount",
-                        " cumulative_slot_count_mismatch".trim().toUpperCase(),
+                        "CUMULATIVE_SLOT_COUNT_MISMATCH",
                         "Tổng số slot mở khóa đến Tier " + tier + " là " + actualCumulative
                                 + ", không khớp với cấu hình policy server (" + expectedCumulative + " slot)."));
+            }
+        }
+
+        // ============ V48: Board & Tiles (chỉ khi version ở tile-mode) ============
+        if (tileMode) {
+            // Board phải tồn tại khi có tiles và ngược lại
+            if (verBoard == null) {
+                errors.add(new ValidationError("BOARD", "board", "board",
+                        "MISSING_BOARD",
+                        "Layout có ô đất (tiles) nhưng thiếu cấu hình board (grid/projection)."));
+            }
+            if (verTiles.isEmpty() && verBoard != null) {
+                errors.add(new ValidationError("TILE", "tiles", "tiles",
+                        "MISSING_BOARD",
+                        "Layout có cấu hình board nhưng chưa có ô đất (tiles) nào."));
+            }
+            if (verBoard != null) {
+                if (verBoard.getGridRows() < 1 || verBoard.getGridRows() > 32
+                        || verBoard.getGridColumns() < 1 || verBoard.getGridColumns() > 32) {
+                    errors.add(new ValidationError("BOARD", "board", "grid",
+                            "INVALID_GRID_DIMS",
+                            "Kích thước lưới board phải nằm trong 1..32 cho mỗi chiều."));
+                }
+                if (verBoard.getTileWidth() <= 0 || verBoard.getTileHeight() <= 0) {
+                    errors.add(new ValidationError("BOARD", "board", "tileSize",
+                            "INVALID_GRID_DIMS",
+                            "Kích thước ô (tileWidth/tileHeight) phải dương."));
+                }
+                if (!"ISOMETRIC".equals(verBoard.getProjectionType())) {
+                    errors.add(new ValidationError("BOARD", "board", "projectionType",
+                            "UNSUPPORTED_PROJECTION",
+                            "Renderer chỉ hỗ trợ projection ISOMETRIC: " + verBoard.getProjectionType()));
+                }
+            }
+
+            Map<String, IslandTile> tileByKey = new HashMap<>();
+            Map<String, IslandTile> tileByCoord = new HashMap<>();
+            Map<UUID, IslandTile> tileById = new HashMap<>();
+            boolean hasTier1Tile = false;
+            Set<String> occupiedCoords = new HashSet<>();
+
+            for (IslandTile t : verTiles) {
+                String tKey = t.getTileKey() != null ? t.getTileKey() : "tile_" + t.getId();
+                if (tileByKey.put(tKey, t) != null) {
+                    errors.add(new ValidationError("TILE", tKey, "tileKey",
+                            "DUPLICATE_TILE_KEY", "Trùng khóa ô đất: " + tKey));
+                }
+                tileById.put(t.getId(), t);
+                String coord = t.getRowIndex() + ":" + t.getColIndex();
+                if (tileByCoord.put(coord, t) != null) {
+                    errors.add(new ValidationError("TILE", tKey, "coord",
+                            "DUPLICATE_TILE_COORD",
+                            "Hai ô đất cùng tọa độ (row=" + t.getRowIndex()
+                                    + ", column=" + t.getColIndex() + ")."));
+                }
+                occupiedCoords.add(coord);
+
+                if (verBoard != null
+                        && (t.getRowIndex() < 0 || t.getRowIndex() >= verBoard.getGridRows()
+                            || t.getColIndex() < 0 || t.getColIndex() >= verBoard.getGridColumns())) {
+                    errors.add(new ValidationError("TILE", tKey, "coord",
+                            "TILE_OUT_OF_BOUNDS",
+                            "Ô '" + tKey + "' (" + t.getRowIndex() + "," + t.getColIndex()
+                                    + ") nằm ngoài lưới board."));
+                }
+                String tType = t.getTerrainType() != null ? t.getTerrainType() : "";
+                if (!"WATER".equals(tType)) {
+                    String tReg = t.getRegionCode();
+                    if (tReg == null || !regionByCode.containsKey(tReg)) {
+                        errors.add(new ValidationError("TILE", tKey, "regionCode",
+                                "TILE_MISSING_REGION",
+                                "Ô '" + tKey + "' tham chiếu vùng đất không tồn tại: " + tReg));
+                    } else {
+                        IslandLayoutRegion reg = regionByCode.get(tReg);
+                        if (t.getUnlockTier() < reg.getUnlockTier()) {
+                            errors.add(new ValidationError("TILE", tKey, "unlockTier",
+                                    "TILE_REGION_TIER_MISMATCH",
+                                    "Ô '" + tKey + "' mở ở Tier " + t.getUnlockTier()
+                                            + " nhưng thuộc vùng '" + tReg + "' mở ở Tier " + reg.getUnlockTier() + "."));
+                        }
+                    }
+                }
+                int effTier = (t.getRegionCode() != null && regionByCode.containsKey(t.getRegionCode()))
+                        ? regionByCode.get(t.getRegionCode()).getUnlockTier()
+                        : t.getUnlockTier();
+                if (effTier == 1 && !"WATER".equals(tType)) {
+                    hasTier1Tile = true;
+                }
+                if ("DECORATIVE".equals(tType)
+                        && (t.getVisualKey() == null || t.getVisualKey().isBlank())) {
+                    errors.add(new ValidationError("TILE", tKey, "visualKey",
+                            "MISSING_TILE_VISUAL",
+                            "Ô '" + tKey + "' thuộc loại DECORATIVE nhưng thiếu visualKey."));
+                }
+            }
+            if (!hasTier1Tile && !verTiles.isEmpty()) {
+                errors.add(new ValidationError("TILE", "TIER_1", "unlockTier",
+                        "MISSING_TIER_1_TILES",
+                        "Board phải có ít nhất một ô đất mở ở Tier 1."));
+            }
+
+            // Slot ↔ tile: liên kết, 1:1, buildable, tier
+            Map<UUID, Integer> slotsPerTile = new HashMap<>();
+            for (IslandSlot s : verSlots) {
+                String key = s.getStableSlotKey() != null
+                        ? s.getStableSlotKey() : "slot_" + s.getSlotIndex();
+                if (s.getTileId() == null) {
+                    errors.add(new ValidationError("SLOT", key, "tileId",
+                            "SLOT_TILE_NOT_FOUND",
+                            "Slot '" + key + "' chưa gắn ô đất (tileId null) trong layout tile-based."));
+                    continue;
+                }
+                IslandTile host = tileById.get(s.getTileId());
+                if (host == null) {
+                    errors.add(new ValidationError("SLOT", key, "tileId",
+                            "SLOT_TILE_NOT_FOUND",
+                            "Slot '" + key + "' tham chiếu ô đất không thuộc version này: " + s.getTileId()));
+                    continue;
+                }
+                int count = slotsPerTile.merge(s.getTileId(), 1, Integer::sum);
+                if (count > 1) {
+                    errors.add(new ValidationError("SLOT", key, "tileId",
+                            "MULTIPLE_SLOTS_PER_TILE",
+                            "Ô '" + host.getTileKey() + "' chứa nhiều hơn một buildable slot."));
+                }
+                if (!host.isBuildable()) {
+                    errors.add(new ValidationError("SLOT", key, "tileId",
+                            "SLOT_WITHOUT_BUILDABLE_TILE",
+                            "Slot '" + key + "' nằm trên ô '" + host.getTileKey()
+                                    + "' không được đánh dấu buildable."));
+                }
+                int hostTier = (host.getRegionCode() != null
+                        && regionByCode.containsKey(host.getRegionCode()))
+                        ? regionByCode.get(host.getRegionCode()).getUnlockTier()
+                        : host.getUnlockTier();
+                if (s.getTierRequired() < hostTier) {
+                    errors.add(new ValidationError("SLOT", key, "tierRequired",
+                            "SLOT_TILE_TIER_MISMATCH",
+                            "Slot '" + key + "' mở ở Tier " + s.getTierRequired()
+                                    + " nhưng nằm trên ô mở ở Tier " + hostTier + "."));
+                }
+            }
+
+            // Liên thông 4-neighbor: land tiles (non-WATER) phải reachable
+            // từ cụm Tier-1; bỏ qua khi board cố ý cho phép tách cụm.
+            if (verBoard != null && verBoard.isConnectivityRequired()
+                    && !occupiedCoords.isEmpty()) {
+                Set<String> landCoords = new HashSet<>();
+                Set<String> seeds = new HashSet<>();
+                for (IslandTile t : verTiles) {
+                    String tType = t.getTerrainType() != null ? t.getTerrainType() : "";
+                    if ("WATER".equals(tType)) continue;
+                    String coord = t.getRowIndex() + ":" + t.getColIndex();
+                    landCoords.add(coord);
+                    int effTier = (t.getRegionCode() != null
+                            && regionByCode.containsKey(t.getRegionCode()))
+                            ? regionByCode.get(t.getRegionCode()).getUnlockTier()
+                            : t.getUnlockTier();
+                    if (effTier == 1) seeds.add(coord);
+                }
+                // BFS từ cụm tier-1 (fallback: ô đầu tiên nếu chưa có tier-1)
+                java.util.ArrayDeque<String> queue = new java.util.ArrayDeque<>(
+                        seeds.isEmpty() ? Set.of(landCoords.iterator().next()) : seeds);
+                Set<String> visited = new HashSet<>(queue);
+                int[][] dirs = {{1,0},{-1,0},{0,1},{0,-1}};
+                while (!queue.isEmpty()) {
+                    String cur = queue.poll();
+                    String[] rc = cur.split(":");
+                    int r = Integer.parseInt(rc[0]), c = Integer.parseInt(rc[1]);
+                    for (int[] d : dirs) {
+                        String n = (r + d[0]) + ":" + (c + d[1]);
+                        if (landCoords.contains(n) && visited.add(n)) {
+                            queue.add(n);
+                        }
+                    }
+                }
+                if (!visited.containsAll(landCoords)) {
+                    errors.add(new ValidationError("TILE", "connectivity", "connectivity",
+                            "TILE_NOT_CONNECTED",
+                            "Các ô đất không liên thông theo cạnh (4-neighbor) từ vùng Tier 1 — nếu cố ý tách đảo phụ/cầu nối, đặt connectivity_required=false trên board."));
+                }
             }
         }
 
@@ -1035,11 +1441,36 @@ public class IslandLayoutService {
         }
         regions.flush();
 
+        // Board + tiles (V48): clone trước slots để remap tileId.
+        Map<UUID, UUID> tileIdRemap = new HashMap<>();
+        boards.findById(source.getId()).ifPresent(srcBoard ->
+                boards.save(IslandLayoutBoard.create(
+                        newVerId, srcBoard.getGridRows(), srcBoard.getGridColumns(),
+                        srcBoard.getTileWidth(), srcBoard.getTileHeight(),
+                        srcBoard.getBoardOriginX(), srcBoard.getBoardOriginY(),
+                        srcBoard.getProjectionType(),
+                        srcBoard.isConnectivityRequired(), now)));
+        boards.flush();
+
+        for (IslandTile t : tiles.findByLayoutVersionIdOrderByRowIndexAscColIndexAsc(source.getId())) {
+            UUID newTileId = UUID.randomUUID();
+            tileIdRemap.put(t.getId(), newTileId);
+            tiles.save(IslandTile.create(
+                    newTileId, newVerId, t.getTileKey(),
+                    t.getRowIndex(), t.getColIndex(), t.getTerrainType(),
+                    t.getRegionCode(), t.getUnlockTier(), t.isBuildable(),
+                    t.getVisualKey(), t.getElevation(), now
+            ));
+        }
+        tiles.flush();
+
         for (IslandSlot s : slots.findByLayoutVersionIdOrderBySlotIndex(source.getId())) {
             slots.save(IslandSlot.create(
                     UUID.randomUUID(), def.getLayoutKey(), newVerId,
                     s.getSlotIndex(), s.getTierRequired(), s.getCoordX(), s.getCoordY(),
-                    s.getStableSlotKey(), s.getRegionCode(), s.getZIndex(),
+                    s.getStableSlotKey(), s.getRegionCode(),
+                    s.getTileId() != null ? tileIdRemap.get(s.getTileId()) : null,
+                    s.getZIndex(),
                     s.getAnchorX(), s.getAnchorY(), s.getWidthNorm(), s.getHeightNorm(),
                     s.getAllowedCategoriesJson(), now
             ));
@@ -1060,33 +1491,99 @@ public class IslandLayoutService {
         return getVersion(newVerId);
     }
 
+    /**
+     * Starter draft tile-based (ISLAND-09-BE): thay layout 3 hình chữ nhật dọc
+     * bằng đảo hình thoi liền mạch trên lưới 8x10 — TIER_1 lõi giữa, TIER_2
+     * vòng quanh, TIER_3 rìa ngoài; mở rộng liên thông 4-neighbor.
+     * Buildable slots phân bố cách nhau, chừa tile PATH/GRASS làm cảnh quan.
+     * Cumulative buildable 4/8/12 khớp policy hiện hành — Admin chỉnh được.
+     */
     private IslandLayoutVersion createStarterDraft(IslandLayoutDefinition def, int versionNo, Instant now) {
         UUID verId = UUID.randomUUID();
         IslandLayoutVersion draft = IslandLayoutVersion.createDraft(verId, def.getId(), versionNo, now);
         versions.saveAndFlush(draft);
 
+        // Board 8x10 — ô hình thoi 128x64, gốc tọa độ logic 0,0
+        boards.save(IslandLayoutBoard.create(verId, 8, 10,
+                128.0, 64.0, 0.0, 0.0, "ISOMETRIC", true, now));
+        boards.flush();
+
         regions.save(IslandLayoutRegion.create(UUID.randomUUID(), verId, "TIER_1", 1,
-                "Khu Trung Tâm", "{\"x\":0.05,\"y\":0.08,\"width\":0.90,\"height\":0.44}", 1, now));
+                "Khu Trung Tâm", null, 1, now));
         regions.save(IslandLayoutRegion.create(UUID.randomUUID(), verId, "TIER_2", 2,
-                "Khu Mở Rộng", "{\"x\":0.05,\"y\":0.38,\"width\":0.90,\"height\":0.40}", 2, now));
+                "Khu Mở Rộng", null, 2, now));
         regions.save(IslandLayoutRegion.create(UUID.randomUUID(), verId, "TIER_3", 3,
-                "Khu Cao Cấp", "{\"x\":0.05,\"y\":0.62,\"width\":0.90,\"height\":0.34}", 3, now));
+                "Khu Cao Cấp", null, 3, now));
         regions.flush();
 
-        double[][] defaultCoords = {
-                {0.20, 0.22, 1}, {0.50, 0.22, 1}, {0.80, 0.22, 1}, {0.20, 0.44, 1},
-                {0.50, 0.44, 2}, {0.80, 0.44, 2}, {0.20, 0.68, 2}, {0.50, 0.68, 2},
-                {0.80, 0.68, 3}, {0.20, 0.88, 3}, {0.50, 0.88, 3}, {0.80, 0.88, 3}
-        };
-        for (int i = 0; i < defaultCoords.length; i++) {
-            int idx = i + 1;
-            int tier = (int) defaultCoords[i][2];
+        // Footprint đảo: {row, col, terrain, region, buildable}
+        // TIER_1 lõi (12 ô): r2:{c4,c5} r3:{c3..c6} r4:{c3..c6} r5:{c4,c5}
+        // TIER_2 vòng (12 ô): r1:{c4,c5} r2:{c3,c6} r3:{c2,c7} r4:{c2,c7} r5:{c3,c6} r6:{c4,c5}
+        // TIER_3 rìa (14 ô): r0:{c4,c5} r1:{c3,c6} r2:{c2,c7} r5:{c2,c7} r6:{c3,c6} r7:{c4,c5}
+        record StarterTile(int row, int col, String terrain, String region, boolean buildable) {}
+        List<StarterTile> footprint = new ArrayList<>();
+        int[][] t1Cells = {{2,4},{2,5},{3,3},{3,4},{3,5},{3,6},{4,3},{4,4},{4,5},{4,6},{5,4},{5,5}};
+        for (int[] c : t1Cells) {
+            String terrain = (c[0] == 4 && (c[1] == 4 || c[1] == 5)) ? "PATH" : "GRASS";
+            footprint.add(new StarterTile(c[0], c[1], terrain, "TIER_1", false));
+        }
+        int[][] t2Cells = {{1,4},{1,5},{2,3},{2,6},{3,2},{3,7},{4,2},{4,7},{5,3},{5,6},{6,4},{6,5}};
+        for (int[] c : t2Cells) {
+            footprint.add(new StarterTile(c[0], c[1], "GRASS", "TIER_2", false));
+        }
+        int[][] t3Cells = {{0,4},{0,5},{1,3},{1,6},{2,2},{2,7},{5,2},{5,7},{6,3},{6,6},{7,4},{7,5}};
+        for (int[] c : t3Cells) {
+            footprint.add(new StarterTile(c[0], c[1], "GRASS", "TIER_3", false));
+        }
+        // Buildable: 4 ô mỗi tier — phân bố rải, không dồn sát nhau.
+        Set<String> buildableAt = Set.of(
+                "3:4", "3:6", "4:3", "5:5",        // TIER_1 → slots 1-4
+                "1:4", "3:2", "4:7", "6:5",        // TIER_2 → slots 5-8
+                "0:4", "2:2", "5:7", "7:5");       // TIER_3 → slots 9-12
+
+        Map<String, IslandTile> tileByCoord = new HashMap<>();
+        for (StarterTile st : footprint) {
+            boolean buildable = buildableAt.contains(st.row() + ":" + st.col());
+            // PATH/DECORATIVE không host công trình
+            if (!"GRASS".equals(st.terrain()) && !"DIRT".equals(st.terrain())) {
+                buildable = false;
+            }
+            String tKey = "tile_r" + st.row() + "_c" + st.col();
+            int tier = Integer.parseInt(st.region().substring("TIER_".length()));
+            IslandTile tile = IslandTile.create(
+                    UUID.randomUUID(), verId, tKey, st.row(), st.col(),
+                    buildable ? "GRASS" : st.terrain(),
+                    st.region(), tier, buildable, null, 0, now);
+            tiles.save(tile);
+            tileByCoord.put(st.row() + ":" + st.col(), tile);
+        }
+        tiles.flush();
+
+        // 12 slots gắn 1:1 vào các tile buildable — thứ tự quét hàng/cột,
+        // tier suy từ region của tile chứa. coordX/Y vẫn ghi 0..1 (tương
+        // thích client cũ) theo phép chiếu iso: x=(col-row)/(cols+rows-2)+0.5.
+        List<Map.Entry<String, IslandTile>> buildableTiles = tileByCoord.entrySet().stream()
+                .filter(e -> e.getValue().isBuildable())
+                .sorted(Comparator.comparingInt((Map.Entry<String, IslandTile> e) -> e.getValue().getRowIndex())
+                        .thenComparingInt(e -> e.getValue().getColIndex()))
+                .toList();
+        int denom = 8 + 10 - 2; // gridRows + gridCols - 2
+        int slotIdx = 1;
+        for (Map.Entry<String, IslandTile> e : buildableTiles) {
+            IslandTile tile = e.getValue();
+            int r = tile.getRowIndex(), c = tile.getColIndex();
+            double cx = Math.min(1.0, Math.max(0.0,
+                    0.5 + (double) (c - r) / denom));
+            double cy = Math.min(1.0, Math.max(0.0,
+                    (double) (c + r) / denom));
+            int tier = Integer.parseInt(tile.getRegionCode().substring("TIER_".length()));
             slots.save(IslandSlot.create(
                     UUID.randomUUID(), def.getLayoutKey(), verId,
-                    idx, tier, defaultCoords[i][0], defaultCoords[i][1],
-                    "slot_" + idx, "TIER_" + tier, idx * 10,
-                    0.5, 1.0, 0.10, 0.12, "[\"DECOR\"]", now
+                    slotIdx, tier, cx, cy,
+                    "slot_" + slotIdx, tile.getRegionCode(), tile.getId(),
+                    slotIdx * 10, 0.5, 1.0, 0.10, 0.12, "[\"DECOR\"]", now
             ));
+            slotIdx++;
         }
         slots.flush();
 

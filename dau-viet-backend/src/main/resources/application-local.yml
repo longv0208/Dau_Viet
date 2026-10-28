@@ -11,6 +11,11 @@ app:
       - http://localhost:5173
       - http://localhost
       - capacitor://localhost
+    # Flutter web dev server dùng port random — cho phép mọi localhost:*
+    # Chỉ dùng trong profile local, KHÔNG được đưa lên prod.
+    allowed-origin-patterns:
+      - "http://localhost:*"
+      - "http://127.0.0.1:*"
   seed:
     enabled: true
   security:

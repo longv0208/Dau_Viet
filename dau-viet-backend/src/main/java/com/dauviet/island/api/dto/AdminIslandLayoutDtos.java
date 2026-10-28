@@ -82,7 +82,10 @@ public final class AdminIslandLayoutDtos {
             List<RegionDto> regions,
             List<SlotDto> slots,
             List<SceneLayerDto> sceneLayers,
-            List<TierPolicySummary> tierPolicies
+            List<TierPolicySummary> tierPolicies,
+            // V48 ISLAND-09-BE: null với layout rect-model legacy
+            BoardDto board,
+            List<TileDto> tiles
     ) {}
 
     public record TierPolicySummary(
@@ -113,7 +116,35 @@ public final class AdminIslandLayoutDtos {
             double anchorY,
             double widthNorm,
             double heightNorm,
-            List<String> allowedCategories
+            List<String> allowedCategories,
+            // V48: id tile host trong cùng version (null = chưa link)
+            UUID tileId
+    ) {}
+
+    /** Cấu hình lưới board tile-based (V48). */
+    public record BoardDto(
+            int gridRows,
+            int gridColumns,
+            double tileWidth,
+            double tileHeight,
+            double boardOriginX,
+            double boardOriginY,
+            String projectionType,
+            Boolean connectivityRequired
+    ) {}
+
+    /** Ô địa hình trên lưới (V48). row/column = tọa độ logic. */
+    public record TileDto(
+            UUID id,
+            @NotBlank String tileKey,
+            int row,
+            int column,
+            String terrainType,
+            String regionCode,
+            int unlockTier,
+            boolean buildable,
+            String visualKey,
+            Integer elevation
     ) {}
 
     public record SceneLayerDto(
@@ -148,7 +179,11 @@ public final class AdminIslandLayoutDtos {
             @NotNull @PositiveOrZero Long expectedRevision,
             @Valid List<RegionDto> regions,
             @Valid List<SlotDto> slots,
-            @Valid List<SceneLayerDto> sceneLayers
+            @Valid List<SceneLayerDto> sceneLayers,
+            // V48: optional — absent = giữ nguyên board/tiles hiện có
+            // (backward-compat admin UI cũ không gửi field này)
+            @Valid BoardDto board,
+            @Valid List<TileDto> tiles
     ) {}
 
     public record RevisionRequest(

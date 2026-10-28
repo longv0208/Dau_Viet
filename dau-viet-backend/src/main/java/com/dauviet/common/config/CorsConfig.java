@@ -21,6 +21,9 @@ public class CorsConfig {
     public CorsConfigurationSource corsConfigurationSource(CorsProperties properties) {
         CorsConfiguration config = new CorsConfiguration();
         config.setAllowedOrigins(properties.getAllowedOrigins());
+        // Local-dev: cho phép mọi port localhost (Flutter web dev server
+        // chọn port ngẫu nhiên). Chỉ bật khi properties có pattern.
+        config.setAllowedOriginPatterns(properties.getAllowedOriginPatterns());
         config.setAllowedMethods(List.of("GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"));
         config.setAllowedHeaders(List.of("*"));
         config.setAllowCredentials(true);

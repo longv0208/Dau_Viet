@@ -41,7 +41,11 @@ public record IslandResponse(
         double canvasHeight,
         String themeKey,
         List<RegionView> regions,
-        List<SceneLayerView> sceneLayers
+        List<SceneLayerView> sceneLayers,
+        // Tile board (ISLAND-09-BE) — additive; board/tiles từ island_layout_boards
+        // + island_tiles, hoặc LegacyIslandBoardAdapter cho layout rect-model cũ
+        BoardView board,
+        List<TileView> tiles
 ) {
     /** Một ô đất: locked/unlocked + item đang đặt (null = trống). */
     public record SlotView(
@@ -65,7 +69,9 @@ public record IslandResponse(
             double anchorY,
             double widthNorm,
             double heightNorm,
-            List<String> allowedCategories
+            List<String> allowedCategories,
+            // V48: key của tile host (null = slot legacy chưa link)
+            String tileKey
     ) {
         public SlotView(
                 UUID slotId,
@@ -92,7 +98,7 @@ public record IslandResponse(
                     slotId, slotIndex, tierRequired, unlocked, coordX, coordY,
                     placedItemId, placedItemCode, placedItemName, placedRenderKey, null, placedAt,
                     stableSlotKey, regionCode, zIndex, anchorX, anchorY,
-                    widthNorm, heightNorm, allowedCategories
+                    widthNorm, heightNorm, allowedCategories, null
             );
         }
 
@@ -120,18 +126,59 @@ public record IslandResponse(
                     slotId, slotIndex, tierRequired, unlocked, coordX, coordY,
                     placedItemId, placedItemCode, placedItemCode, placedRenderKey, null, placedAt,
                     stableSlotKey, regionCode, zIndex, anchorX, anchorY,
-                    widthNorm, heightNorm, allowedCategories
+                    widthNorm, heightNorm, allowedCategories, null
             );
         }
     }
 
-    /** Vùng đất: metadata để Flutter vẽ overlay khoá/mở (ISLAND-03/04). */
+    /**
+     * Cấu hình lưới board isometric (V48 ISLAND-09-BE). tileWidth/tileHeight
+     * là kích thước ô hình thoi theo quy ước FE chiếu:
+     * screenX = (column - row) * tileWidth / 2 + boardOriginX
+     * screenY = (column + row) * tileHeight / 2 + boardOriginY
+     */
+    public record BoardView(
+            UUID layoutVersionId,
+            int versionNumber,
+            int gridRows,
+            int gridColumns,
+            double tileWidth,
+            double tileHeight,
+            double boardOriginX,
+            double boardOriginY,
+            String projectionType,
+            String themeKey
+    ) {
+    }
+
+    /**
+     * Ô địa hình trên lưới (V48). row/column là tọa độ logic — JSON giữ tên
+     * `row`/`column` theo contract FE; `unlocked` suy từ effective tier
+     * (region.unlockTier nếu có region, ngược lại unlock_tier của tile).
+     */
+    public record TileView(
+            String tileKey,
+            int row,
+            int column,
+            String terrainType,
+            String regionCode,
+            int unlockTier,
+            boolean unlocked,
+            boolean buildable,
+            String visualKey,
+            int elevation
+    ) {
+    }
+
+    /** Vùng đất: metadata để Flutter vẽ overlay khoá/mở (ISLAND-03/04).
+     *  tileKeys (V48): membership = các tile thuộc region này. */
     public record RegionView(
             String regionCode,
             int unlockTier,
             boolean unlocked,
             String label,
-            String boundsJson
+            String boundsJson,
+            List<String> tileKeys
     ) {
     }
 

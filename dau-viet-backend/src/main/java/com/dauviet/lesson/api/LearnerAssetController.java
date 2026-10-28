@@ -1,6 +1,6 @@
 package com.dauviet.lesson.api;
 
-import com.dauviet.auth.application.JwtSubjectExtractor;
+import com.dauviet.common.security.JwtSubjectExtractor;
 import com.dauviet.lesson.application.AssetService;
 import com.dauviet.lesson.application.AssetService.StoredAsset;
 import java.util.UUID;
@@ -31,9 +31,12 @@ public class LearnerAssetController {
     private static final String ADMIN_ROLE = "CONTENT_ADMIN";
 
     private final AssetService assetService;
+    private final JwtSubjectExtractor subjects;
 
-    public LearnerAssetController(AssetService assetService) {
+    public LearnerAssetController(AssetService assetService,
+                                  JwtSubjectExtractor subjects) {
         this.assetService = assetService;
+        this.subjects = subjects;
     }
 
     @GetMapping("/{id}/content")
@@ -45,7 +48,7 @@ public class LearnerAssetController {
         if (isContentAdmin(jwt, authentication)) {
             a = assetService.content(id);
         } else {
-            UUID userId = JwtSubjectExtractor.userId(jwt);
+            UUID userId = subjects.userId(jwt);
             a = assetService.learnerContent(id, userId);
         }
         FileSystemResource body = new FileSystemResource(a.path());

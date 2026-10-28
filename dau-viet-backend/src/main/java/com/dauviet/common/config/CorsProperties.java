@@ -12,6 +12,7 @@ import org.springframework.boot.context.properties.ConfigurationProperties;
 public class CorsProperties {
 
     private List<String> allowedOrigins = List.of();
+    private List<String> allowedOriginPatterns = List.of();
 
     public List<String> getAllowedOrigins() {
         return allowedOrigins;
@@ -19,5 +20,13 @@ public class CorsProperties {
 
     public void setAllowedOrigins(List<String> allowedOrigins) {
         this.allowedOrigins = allowedOrigins == null ? List.of() : allowedOrigins;
+    }
+
+    public List<String> getAllowedOriginPatterns() {
+        return allowedOriginPatterns;
+    }
+
+    public void setAllowedOriginPatterns(List<String> allowedOriginPatterns) {
+        this.allowedOriginPatterns = allowedOriginPatterns == null ? List.of() : allowedOriginPatterns;
     }
 }

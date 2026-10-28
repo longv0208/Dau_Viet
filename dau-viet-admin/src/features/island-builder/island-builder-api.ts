@@ -52,6 +52,34 @@ export interface TierPolicySummaryDto {
   requiredLevel: number | null;
 }
 
+export type TerrainType =
+  | "GRASS"
+  | "DIRT"
+  | "STONE"
+  | "PATH"
+  | "DECORATIVE"
+  | "WATER";
+
+export interface TileDto {
+  key: string;
+  row: number;
+  col: number;
+  terrainType: TerrainType;
+  regionCode?: string | null;
+  unlockTier: number;
+  elevation?: number;
+  decorKey?: string | null;
+  slotId?: string | null;
+}
+
+export interface BoardDto {
+  rows: number;
+  cols: number;
+  tileWidth: number;
+  tileHeight: number;
+  tiles: TileDto[];
+}
+
 export interface RegionDto {
   id?: string | null;
   regionCode: string;
@@ -90,6 +118,8 @@ export interface SlotDto {
   widthNorm: number;
   heightNorm: number;
   allowedCategories: string[];
+  tileRow?: number;
+  tileCol?: number;
 }
 
 export interface VersionDetailDto {
@@ -112,6 +142,7 @@ export interface VersionDetailDto {
   slots: SlotDto[];
   sceneLayers: SceneLayerDto[];
   tierPolicies: TierPolicySummaryDto[];
+  board?: BoardDto | null;
 }
 
 export interface ValidationErrorDto {
@@ -151,6 +182,7 @@ export interface UpdateDraftSnapshotPayload {
   regions: RegionDto[];
   slots: SlotDto[];
   sceneLayers: SceneLayerDto[];
+  board?: BoardDto | null;
 }
 
 export const islandBuilderApi = {

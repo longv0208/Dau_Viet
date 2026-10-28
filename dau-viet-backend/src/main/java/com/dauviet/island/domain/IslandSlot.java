@@ -47,6 +47,14 @@ public class IslandSlot {
     @Column(name = "region_code")
     private String regionCode;
 
+    /**
+     * Tile chứa slot này (V48 ISLAND-09-BE). NULL = slot legacy chưa link
+     * (layout rect-model) hoặc draft đang chờ gán. Tối đa 1 slot/tile —
+     * enforced bởi partial unique ux_island_slot_tile.
+     */
+    @Column(name = "tile_id")
+    private UUID tileId;
+
     @Column(name = "z_index", nullable = false)
     private int zIndex;
 
@@ -79,6 +87,24 @@ public class IslandSlot {
                                     int zIndex, double anchorX, double anchorY,
                                     double widthNorm, double heightNorm,
                                     String allowedCategoriesJson, Instant now) {
+        return create(id, layoutCode, layoutVersionId, slotIndex, tierRequired,
+                coordX, coordY, stableSlotKey, regionCode, null,
+                zIndex, anchorX, anchorY, widthNorm, heightNorm,
+                allowedCategoriesJson, now);
+    }
+
+    /**
+     * Tạo slot kèm tile host (V48). tileId nullable — slot rect-model legacy
+     * hoặc draft chưa gán.
+     */
+    public static IslandSlot create(UUID id, String layoutCode, UUID layoutVersionId,
+                                    int slotIndex, int tierRequired,
+                                    double coordX, double coordY,
+                                    String stableSlotKey, String regionCode,
+                                    UUID tileId,
+                                    int zIndex, double anchorX, double anchorY,
+                                    double widthNorm, double heightNorm,
+                                    String allowedCategoriesJson, Instant now) {
         IslandSlot s = new IslandSlot();
         s.id = id;
         s.layoutCode = layoutCode;
@@ -89,6 +115,7 @@ public class IslandSlot {
         s.coordY = coordY;
         s.stableSlotKey = stableSlotKey;
         s.regionCode = regionCode;
+        s.tileId = tileId;
         s.zIndex = zIndex;
         s.anchorX = anchorX;
         s.anchorY = anchorY;
@@ -103,12 +130,23 @@ public class IslandSlot {
                        String stableSlotKey, String regionCode, int zIndex,
                        double anchorX, double anchorY, double widthNorm, double heightNorm,
                        String allowedCategoriesJson) {
+        update(slotIndex, tierRequired, coordX, coordY, stableSlotKey,
+                regionCode, this.tileId, zIndex, anchorX, anchorY,
+                widthNorm, heightNorm, allowedCategoriesJson);
+    }
+
+    /** Update kèm tile host (V48) — truyền null để unlink khỏi tile. */
+    public void update(int slotIndex, int tierRequired, double coordX, double coordY,
+                       String stableSlotKey, String regionCode, UUID tileId, int zIndex,
+                       double anchorX, double anchorY, double widthNorm, double heightNorm,
+                       String allowedCategoriesJson) {
         this.slotIndex = slotIndex;
         this.tierRequired = tierRequired;
         this.coordX = coordX;
         this.coordY = coordY;
         this.stableSlotKey = stableSlotKey;
         this.regionCode = regionCode;
+        this.tileId = tileId;
         this.zIndex = zIndex;
         this.anchorX = anchorX;
         this.anchorY = anchorY;
@@ -128,6 +166,7 @@ public class IslandSlot {
     public double getCoordY() { return coordY; }
     public String getStableSlotKey() { return stableSlotKey; }
     public String getRegionCode() { return regionCode; }
+    public UUID getTileId() { return tileId; }
     public int getZIndex() { return zIndex; }
     public double getAnchorX() { return anchorX; }
     public double getAnchorY() { return anchorY; }

@@ -16,6 +16,7 @@ import '../data/island_providers.dart';
 import 'widgets/island_inventory_sheet.dart';
 import 'widgets/island_scene.dart';
 import 'widgets/island_slot_detail_card.dart';
+import 'widgets/island_tile_sheet.dart';
 import 'widgets/island_upgrade_panel.dart';
 
 /// Màn hình chính Đảo Di Sản Cá Nhân 2.5D (`/island`).
@@ -591,22 +592,89 @@ class _IslandScreenState extends ConsumerState<IslandScreen>
             child: _buildSlotStepHintBanner(),
           ),
 
-        // 5. Card chi tiết slot nổi ở đáy màn hình khi có slot được chọn (Part D4)
+        // 5. Bottom Sheet chi tiết tile/slot gọn gàng, chuẩn phong cách Cozy Heritage (Part D4)
         if (!isAnimatingExpansion && selectedSlot != null)
           Positioned(
             left: 0,
             right: 0,
-            bottom: 6,
-            child: IslandSlotDetailCard(
+            bottom: 0,
+            child: IslandTileSheet(
               slot: selectedSlot,
-              isMutating: _isMutating,
+              tile: island.board?.tileForSlot(selectedSlot.slotId),
+              islandTier: island.tier,
               onClose: () => setState(() {
                 _selectedSlotId = null;
                 _showSlotStepHint = false;
               }),
-              onChooseItem: () => _openInventorySheet(selectedSlot),
+              onPlaceItem: () => _openInventorySheet(selectedSlot),
               onRemoveItem: () => _removePlacement(selectedSlot),
-              onUpgradeInfo: () => _openUpgradePanel(island),
+              onViewRequirements: () => _openUpgradePanel(island),
+            ),
+          ),
+
+        // Thanh công cụ nổi tối giản ở đáy khi không chọn slot
+        if (!isAnimatingExpansion && selectedSlot == null)
+          Positioned(
+            left: 16,
+            right: 16,
+            bottom: 16,
+            child: Center(
+              child: ConstrainedBox(
+                constraints: const BoxConstraints(maxWidth: 440),
+                child: Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+                  decoration: BoxDecoration(
+                    color: const Color(0xEEFFF8EC),
+                    borderRadius: BorderRadius.circular(24),
+                    border: Border.all(color: const Color(0xFFE5D5BC), width: 1.4),
+                    boxShadow: [
+                      BoxShadow(
+                        color: Colors.black.withValues(alpha: 0.14),
+                        blurRadius: 10,
+                        offset: const Offset(0, 3),
+                      ),
+                    ],
+                  ),
+                  child: Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+                    children: [
+                      _buildFloatingActionBtn(
+                        icon: Icons.inventory_2_outlined,
+                        label: 'Kho Đồ',
+                        onTap: () {
+                          final empty = island.slots.where((s) => s.isEmpty).firstOrNull;
+                          if (empty != null) {
+                            _openInventorySheet(empty);
+                          } else {
+                            context.push('/island/shop');
+                          }
+                        },
+                      ),
+                      _buildFloatingActionBtn(
+                        icon: Icons.storefront_outlined,
+                        label: 'Cửa Hàng',
+                        onTap: () => context.push('/island/shop'),
+                      ),
+                      if (island.canUpgrade && !island.isMaxTier)
+                        _buildFloatingActionBtn(
+                          icon: Icons.landscape_rounded,
+                          label: 'Mở Rộng Đảo',
+                          isHighlight: true,
+                          onTap: () => _openUpgradePanel(island),
+                        ),
+                      _buildFloatingActionBtn(
+                        icon: Icons.center_focus_strong_rounded,
+                        label: 'Căn Giữa',
+                        onTap: () {
+                          setState(() {
+                            _resetCameraVersion++;
+                          });
+                        },
+                      ),
+                    ],
+                  ),
+                ),
+              ),
             ),
           ),
 
@@ -643,6 +711,44 @@ class _IslandScreenState extends ConsumerState<IslandScreen>
             ),
           ),
       ],
+    );
+  }
+
+  Widget _buildFloatingActionBtn({
+    required IconData icon,
+    required String label,
+    required VoidCallback onTap,
+    bool isHighlight = false,
+  }) {
+    return InkWell(
+      onTap: onTap,
+      borderRadius: BorderRadius.circular(16),
+      child: Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Icon(
+              icon,
+              size: 18,
+              color: isHighlight
+                  ? DauVietColors.cinnabarRed
+                  : const Color(0xFF5D4037),
+            ),
+            const SizedBox(width: 5),
+            Text(
+              label,
+              style: DauVietTypography.bodySmall.copyWith(
+                fontWeight: isHighlight ? FontWeight.bold : FontWeight.w600,
+                color: isHighlight
+                    ? DauVietColors.cinnabarRed
+                    : const Color(0xFF49382C),
+                fontSize: 12,
+              ),
+            ),
+          ],
+        ),
+      ),
     );
   }
 
