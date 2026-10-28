@@ -17,6 +17,7 @@ class FakeAttemptRepository implements AttemptRepository {
   CurrentActivityDto Function()? onGetCurrent;
   SubmitResultDto Function(Map<String, dynamic> answer)? onSubmit;
   LessonResultDto? result;
+  CompleteResultDto? completeResult;
   Object? nextError;
   bool throwOnGetContent = false;
 
@@ -88,13 +89,14 @@ class FakeAttemptRepository implements AttemptRepository {
   }) async {
     completeCalls++;
     if (completeError != null) throw completeError!;
-    return const CompleteResultDto(
-      attemptId: 'a-1',
-      status: 'COMPLETED',
-      alreadyCompleted: false,
-      completion: CompletionVerdictDto(complete: true),
-      progress: AttemptProgressDto(completedRequired: 2, totalRequired: 2),
-    );
+    return completeResult ??
+        const CompleteResultDto(
+          attemptId: 'a-1',
+          status: 'COMPLETED',
+          alreadyCompleted: false,
+          completion: CompletionVerdictDto(complete: true),
+          progress: AttemptProgressDto(completedRequired: 2, totalRequired: 2),
+        );
   }
 
   @override

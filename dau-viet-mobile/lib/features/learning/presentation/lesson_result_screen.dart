@@ -13,6 +13,9 @@ import '../data/attempt_dtos.dart';
 import '../data/learning_dtos.dart';
 import '../data/learning_providers.dart';
 import 'renderers/renderer_base.dart';
+import 'widgets/unlocked_location_banner.dart';
+
+export 'widgets/unlocked_location_banner.dart';
 
 Duration? _noRetry(int retryCount, Object error) => null;
 
@@ -46,11 +49,15 @@ final _recapContentProvider = FutureProvider.autoDispose
 class LessonResultScreen extends ConsumerWidget {
   final String attemptId;
   final LessonResultDto? initialResult;
+  final void Function(UnlockedLocationCueDto location)? onViewLocation;
+  final VoidCallback? onContinueLearning;
 
   const LessonResultScreen({
     super.key,
     required this.attemptId,
     this.initialResult,
+    this.onViewLocation,
+    this.onContinueLearning,
   });
 
   @override
@@ -59,6 +66,9 @@ class LessonResultScreen extends ConsumerWidget {
       return _ResultView(
         result: initialResult!,
         recapContent: ref.watch(_recapContentProvider(attemptId)).value,
+        isFreshCompletion: true,
+        onViewLocation: onViewLocation,
+        onContinueLearning: onContinueLearning,
       );
     }
     final asyncResult = ref.watch(_resultProvider(attemptId));
@@ -78,6 +88,9 @@ class LessonResultScreen extends ConsumerWidget {
           data: (r) => _ResultView(
             result: r,
             recapContent: ref.watch(_recapContentProvider(attemptId)).value,
+            isFreshCompletion: false,
+            onViewLocation: onViewLocation,
+            onContinueLearning: onContinueLearning,
           ),
         ),
       ),
@@ -90,9 +103,17 @@ class LessonResultScreen extends ConsumerWidget {
 class _ResultBody extends StatelessWidget {
   final LessonResultDto result;
   final LessonContentDto? recapContent;
+  final bool isFreshCompletion;
+  final void Function(UnlockedLocationCueDto location)? onViewLocation;
+  final VoidCallback? onContinueLearning;
 
-  const _ResultBody({required this.result, this.recapContent});
-
+  const _ResultBody({
+    required this.result,
+    this.recapContent,
+    this.isFreshCompletion = true,
+    this.onViewLocation,
+    this.onContinueLearning,
+  });
   @override
   Widget build(BuildContext context) {
     final bool completed = result.status.toUpperCase() == 'COMPLETED';
@@ -116,9 +137,7 @@ class _ResultBody extends StatelessWidget {
         earnedPoints += r.amount;
       }
     }
-    final expValue = earnedExp > 0
-        ? '+$earnedExp XP'
-        : '—';
+    final expValue = earnedExp > 0 ? '+$earnedExp XP' : '—';
     final thirdBadgeValue = earnedPoints > 0
         ? '+$earnedPoints'
         : (result.itemsUnlocked.isNotEmpty
@@ -341,6 +360,19 @@ class _ResultBody extends StatelessWidget {
                 _StreakFlameBanner(streak: result.newlyRecordedStreak!),
               ],
 
+              // MAP-V2 (E5): banner địa điểm di sản vừa mở khóa — chỉ hiện khi
+              // newlyUnlockedLocations không rỗng; có nút Xem địa điểm và
+              // Tiếp tục học. Deep-link mở lại kết quả không phát lại animation.
+              if (result.newlyUnlockedLocations.isNotEmpty) ...[
+                const SizedBox(height: 14),
+                UnlockedLocationBanner(
+                  locations: result.newlyUnlockedLocations,
+                  animate: isFreshCompletion,
+                  onViewLocation: onViewLocation,
+                  onContinueLearning: onContinueLearning,
+                ),
+              ],
+
               // Ôn lại bài học & Tư liệu
               if (recapContent != null) ...[
                 const SizedBox(height: 14),
@@ -466,7 +498,19 @@ class _ResultView extends StatefulWidget {
   /// phần result-only).
   final LessonContentDto? recapContent;
 
-  const _ResultView({required this.result, this.recapContent});
+  /// True khi màn được mở từ player sau khi hoàn thành (`initialResult != null`);
+  /// false khi mở lại qua deep-link / reload (`initialResult == null`).
+  final bool isFreshCompletion;
+  final void Function(UnlockedLocationCueDto location)? onViewLocation;
+  final VoidCallback? onContinueLearning;
+
+  const _ResultView({
+    required this.result,
+    this.recapContent,
+    this.isFreshCompletion = true,
+    this.onViewLocation,
+    this.onContinueLearning,
+  });
 
   @override
   State<_ResultView> createState() => _ResultViewState();
@@ -479,10 +523,11 @@ class _ResultViewState extends State<_ResultView> {
   @override
   void initState() {
     super.initState();
-    // Chỉ bắn popup khi có item hoặc dossier MỚI — màn được mở với extra
-    // từ player (fresh complete). Deep-link giữ nguyên view list bên dưới.
-    if (widget.result.itemsUnlocked.isNotEmpty ||
-        widget.result.newlyUnlockedDossiers.isNotEmpty) {
+    // Chỉ bắn popup khi màn được mở từ player (isFreshCompletion) và có item
+    // hoặc dossier MỚI. Deep-link giữ nguyên view list bên dưới, không popup.
+    if (widget.isFreshCompletion &&
+        (widget.result.itemsUnlocked.isNotEmpty ||
+            widget.result.newlyUnlockedDossiers.isNotEmpty)) {
       WidgetsBinding.instance.addPostFrameCallback((_) => _showPopups());
     }
   }
@@ -503,6 +548,9 @@ class _ResultViewState extends State<_ResultView> {
     return _ResultBody(
       result: widget.result,
       recapContent: widget.recapContent,
+      isFreshCompletion: widget.isFreshCompletion,
+      onViewLocation: widget.onViewLocation,
+      onContinueLearning: widget.onContinueLearning,
     );
   }
 }
