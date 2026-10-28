@@ -1,4 +1,3 @@
-import 'dart:convert';
 import 'dart:typed_data';
 
 import 'package:flutter/material.dart';
@@ -9,21 +8,33 @@ import '../../../core/api/api_config.dart';
 import '../../../core/api/api_exception.dart';
 import '../../../core/theme/dau_viet_colors.dart';
 import '../../../core/theme/dau_viet_typography.dart';
-import '../../../core/widgets/game_button.dart';
+import '../../../core/widgets/async_state_view.dart';
+import '../../../core/widgets/dong_son_button.dart';
 import '../../auth/data/auth_state.dart';
-import '../../energy/data/energy_providers.dart';
-import '../../energy/presentation/energy_depleted_sheet.dart';
+import '../../streak/data/streak_providers.dart';
 import '../data/attempt_dtos.dart';
+import '../data/attempt_repository.dart';
 import '../data/learning_dtos.dart';
 import '../data/learning_providers.dart';
 import 'renderers/learning_asset_image.dart';
 
-/// Màn nhập bài học (Lesson Entry) — nhận `lessonId` từ route, tải
-/// `GET /api/v1/lessons/{lessonId}` và `my-progress` để quyết định nút
-/// "Bắt đầu bài học" hay "Tiếp tục bài học" (kèm tiến độ `x/y` nếu dở).
-///
-/// Bấm nút gọi `POST /api/v1/lessons/{lessonId}/attempts` rồi điều hướng sang
-/// `/learning/play/{attemptId}?lessonId=...`.
+Duration? _noRetry(int retryCount, Object error) => null;
+
+final _lessonMetadataProvider =
+    FutureProvider.family<LessonMetadataDto, String>(retry: _noRetry, (
+      ref,
+      lessonId,
+    ) {
+      final AttemptRepository repo = ref.watch(attemptRepositoryProvider);
+      if (ApiConfig.useMock) return repo.getLessonMetadata(lessonId);
+      return ref
+          .read(authRepositoryProvider)
+          .withAuth(() => repo.getLessonMetadata(lessonId));
+    });
+
+/// Màn hình Giới thiệu bài học (Screen 1 chuẩn UI/UX Pro Max)
+/// Tóm tắt nội dung lịch sử, chỉ số thời lượng, số hoạt động, phần thưởng XP,
+/// và tranh minh hoạ di sản hào hùng.
 class LessonEntryScreen extends ConsumerStatefulWidget {
   final String lessonId;
 
@@ -37,302 +48,241 @@ class _LessonEntryScreenState extends ConsumerState<LessonEntryScreen> {
   bool _starting = false;
   String? _startError;
 
-  Future<void> _onStartPressed() async {
+  Future<void> _start() async {
     if (_starting) return;
     setState(() {
       _starting = true;
       _startError = null;
     });
     try {
-      final repo = ref.read(attemptRepositoryProvider);
-      final start = ApiConfig.useMock
+      final AttemptRepository repo = ref.read(attemptRepositoryProvider);
+      final started = ApiConfig.useMock
           ? await repo.startOrResume(widget.lessonId)
           : await ref
                 .read(authRepositoryProvider)
                 .withAuth(() => repo.startOrResume(widget.lessonId));
-      // Start mới có thể trừ 1 năng lượng (resume miễn phí) → đồng bộ lại
-      // badge trên header bản đồ để lần quay về thấy số mới ngay.
-      ref.invalidate(energyStatusProvider);
       if (!mounted) return;
-      final encodedLesson = Uri.encodeComponent(widget.lessonId);
-      context.push(
-        '/learning/play/${start.attemptId}?lessonId=$encodedLesson',
-      );
+      context.pushReplacement('/learning/attempt/${started.attemptId}');
     } on ApiException catch (e) {
       if (!mounted) return;
-      if (e.code == 'ENERGY_DEPLETED') {
-        setState(() => _starting = false);
-        await showEnergyDepletedSheet(context, details: e.details);
-        ref.invalidate(energyStatusProvider);
-        return;
-      }
-      if (e.code == 'LESSON_LOCKED_BY_PATH') {
-        setState(() {
-          _startError =
-              'Bài học này chưa mở khóa trên hành trình. Hãy hoàn thành các sự kiện trước đó trước nhé!';
-        });
-        return;
-      }
       setState(() {
-        _startError = e.message.isNotEmpty
-            ? e.message
-            : 'Không thể bắt đầu bài học. Vui lòng thử lại.';
+        _starting = false;
+        _startError = e.error.message;
       });
     } catch (_) {
       if (!mounted) return;
       setState(() {
-        _startError = 'Không thể bắt đầu bài học. Vui lòng thử lại.';
+        _starting = false;
+        _startError = 'Không mở được bài học. Thử lại.';
       });
-    } finally {
-      if (mounted && _starting) setState(() => _starting = false);
     }
   }
 
   @override
   Widget build(BuildContext context) {
-    final metaAsync = ref.watch(lessonMetadataProvider(widget.lessonId));
-    final progressAsync = ref.watch(myProgressProvider);
+    final AsyncValue<LessonMetadataDto> metaAsync = ref.watch(
+      _lessonMetadataProvider(widget.lessonId),
+    );
+    final AsyncValue<MyProgressDto> progressAsync = ref.watch(
+      myProgressProvider,
+    );
+    final AttemptSummaryDto? resume = progressAsync.maybeWhen(
+      data: (p) {
+        for (final a in p.inProgress) {
+          if (a.lessonId == widget.lessonId) return a;
+        }
+        return null;
+      },
+      orElse: () => null,
+    );
 
     return Scaffold(
-      backgroundColor: DauVietColors.warmParchment,
+      backgroundColor: const Color(0xFFFBF8F1),
       appBar: AppBar(
-        backgroundColor: Colors.transparent,
+        backgroundColor: const Color(0xFFFBF8F1),
         elevation: 0,
         leading: IconButton(
-          icon: const Icon(
-            Icons.arrow_back_rounded,
-            color: DauVietColors.darkInk,
-          ),
-          onPressed: () =>
-              context.canPop() ? context.pop() : context.go('/map'),
+          icon: const Icon(Icons.arrow_back_ios_new_rounded, size: 18),
+          color: const Color(0xFF1F2421),
+          tooltip: 'Quay lại',
+          onPressed: () => context.pop(),
         ),
-        title: Text('Bài học', style: DauVietTypography.titleMedium),
+        title: Text(
+          'Bài học',
+          style: DauVietTypography.headlineMedium.copyWith(
+            fontSize: 16,
+            fontWeight: FontWeight.w800,
+            color: const Color(0xFF1F2421),
+          ),
+        ),
         centerTitle: true,
+        actions: const [
+          // Huy hiệu ngọn lửa Streak — số thật từ streakProvider (STREAK-01).
+          Padding(
+            padding: EdgeInsets.only(right: 16),
+            child: Center(child: _StreakAppBarBadge()),
+          ),
+        ],
       ),
       body: SafeArea(
         child: metaAsync.when(
-          loading: () => const Center(child: CircularProgressIndicator()),
-          error: (err, _) => _ErrorBody(
-            message: err is ApiException && err.statusCode == 404
-                ? 'Bài học không tồn tại hoặc chưa xuất bản.'
-                : 'Không tải được thông tin bài học.',
+          loading: () =>
+              AsyncStateView.loading(message: 'Đang mở sử liệu bài học...'),
+          error: (error, _) => AsyncStateView.error(
+            error: error,
             onRetry: () =>
-                ref.invalidate(lessonMetadataProvider(widget.lessonId)),
+                ref.invalidate(_lessonMetadataProvider(widget.lessonId)),
           ),
-          data: (meta) => _EntryContent(
-            meta: meta,
-            inProgress: _findInProgress(progressAsync.asData?.value),
-            starting: _starting,
-            startError: _startError,
-            onStart: _onStartPressed,
-          ),
+          data: (meta) {
+            return Stack(
+              children: [
+                // Dải tranh phong cảnh chân trang
+                Positioned(
+                  left: 0,
+                  right: 0,
+                  bottom: 0,
+                  child: Opacity(
+                    opacity: 0.25,
+                    child: Image.asset(
+                      'assets/images/ancient_village_footer.png',
+                      height: 120,
+                      fit: BoxFit.cover,
+                      alignment: Alignment.topCenter,
+                      errorBuilder: (_, _, _) => const SizedBox.shrink(),
+                    ),
+                  ),
+                ),
+
+                // Nội dung chính cuộn dọc
+                SingleChildScrollView(
+                  padding: const EdgeInsets.fromLTRB(16, 6, 16, 24),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.stretch,
+                    children: [
+                      // 1. Tranh minh hoạ di sản mở bài khổ lớn (hỗ trợ coverAssetId từ backend)
+                      _LessonCoverHero(
+                        coverAssetId: meta.resolvedCoverAssetId,
+                        title: meta.title,
+                      ),
+                      const SizedBox(height: 14),
+
+                      // 3. Tiêu đề bài học
+                      Text(
+                        meta.title,
+                        style: DauVietTypography.headlineMedium.copyWith(
+                          fontSize: 21,
+                          fontWeight: FontWeight.w900,
+                          color: const Color(0xFF1F2421),
+                          height: 1.25,
+                        ),
+                      ),
+                      const SizedBox(height: 6),
+
+                      // 4. Đoạn mô tả / Câu hỏi trung tâm
+                      Text(
+                        (meta.centralQuestion != null &&
+                                meta.centralQuestion!.isNotEmpty)
+                            ? meta.centralQuestion!
+                            : '',
+                        style: DauVietTypography.bodyMedium.copyWith(
+                          fontSize: 13,
+                          color: const Color(0xFF5E6963),
+                          height: 1.45,
+                        ),
+                      ),
+                      const SizedBox(height: 16),
+
+                      // Trạng thái Resume (nếu có bài đang học dở)
+                      if (resume != null) ...[
+                        Container(
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 14,
+                            vertical: 10,
+                          ),
+                          decoration: BoxDecoration(
+                            color: const Color(0xFFE8F5E9),
+                            borderRadius: BorderRadius.circular(12),
+                            border: Border.all(
+                              color: const Color(0xFFA5D6A7),
+                              width: 1,
+                            ),
+                          ),
+                          child: Row(
+                            children: [
+                              const Icon(
+                                Icons.refresh_rounded,
+                                size: 18,
+                                color: Color(0xFF2E7D32),
+                              ),
+                              const SizedBox(width: 8),
+                              Expanded(
+                                child: Text(
+                                  'Đang học dở — đã hoàn thành '
+                                  '${resume.progress.completedRequired}/'
+                                  '${resume.progress.totalRequired} hoạt động',
+                                  style: DauVietTypography.bodySmall.copyWith(
+                                    color: const Color(0xFF1B5E20),
+                                    fontWeight: FontWeight.w700,
+                                    fontSize: 12,
+                                  ),
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                        const SizedBox(height: 14),
+                      ],
+
+                      // Báo lỗi (nếu có)
+                      if (_startError != null) ...[
+                        Container(
+                          padding: const EdgeInsets.all(12),
+                          decoration: BoxDecoration(
+                            color: DauVietColors.cinnabarRed.withValues(
+                              alpha: 0.08,
+                            ),
+                            borderRadius: BorderRadius.circular(10),
+                            border: Border.all(
+                              color: DauVietColors.cinnabarRed,
+                              width: 1,
+                            ),
+                          ),
+                          child: Text(
+                            _startError!,
+                            style: DauVietTypography.bodySmall.copyWith(
+                              color: DauVietColors.cinnabarRed,
+                            ),
+                          ),
+                        ),
+                        const SizedBox(height: 12),
+                      ],
+
+                      // 6. Nút hành động Bắt đầu học nổi khối 3D (Heritage Green)
+                      DongSonButton(
+                        label: _starting
+                            ? 'ĐANG MỞ BÀI HỌC...'
+                            : (resume != null
+                                  ? 'TIẾP TỤC HỌC ›'
+                                  : 'BẮT ĐẦU HỌC ›'),
+                        icon: Icons.arrow_forward_rounded,
+                        variant: DongSonButtonVariant.natureGreen,
+                        height: 52,
+                        isLoading: _starting,
+                        onPressed: _starting ? null : _start,
+                      ),
+                    ],
+                  ),
+                ),
+              ],
+            );
+          },
         ),
       ),
     );
   }
-
-  AttemptSummaryDto? _findInProgress(MyProgressDto? p) {
-    if (p == null) return null;
-    for (final a in p.inProgress) {
-      if (a.lessonId == widget.lessonId) return a;
-    }
-    return null;
-  }
 }
 
-class _EntryContent extends StatelessWidget {
-  final LessonMetadataDto meta;
-  final AttemptSummaryDto? inProgress;
-  final bool starting;
-  final String? startError;
-  final VoidCallback onStart;
-
-  const _EntryContent({
-    required this.meta,
-    required this.inProgress,
-    required this.starting,
-    required this.startError,
-    required this.onStart,
-  });
-
-  List<String> _parseObjectives(String? raw) {
-    if (raw == null || raw.isEmpty) return const [];
-    try {
-      final decoded = jsonDecode(raw);
-      if (decoded is List) {
-        return decoded.map((e) => e.toString()).where((s) => s.isNotEmpty).toList();
-      }
-    } catch (_) {}
-    return const [];
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    final objectives = _parseObjectives(meta.objectivesJson);
-    final hasResume = inProgress != null;
-    final prog = inProgress?.progress;
-
-    return Column(
-      children: [
-        Expanded(
-          child: SingleChildScrollView(
-            padding: const EdgeInsets.fromLTRB(20, 8, 20, 24),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.stretch,
-              children: [
-                if (ApiConfig.useMock)
-                  Container(
-                    margin: const EdgeInsets.only(bottom: 12),
-                    padding: const EdgeInsets.symmetric(
-                      horizontal: 12,
-                      vertical: 6,
-                    ),
-                    decoration: BoxDecoration(
-                      color: DauVietColors.imperialGold.withValues(alpha: 0.2),
-                      borderRadius: BorderRadius.circular(8),
-                    ),
-                    child: Text(
-                      'CHẾ ĐỘ DEMO — dữ liệu mẫu cục bộ',
-                      textAlign: TextAlign.center,
-                      style: DauVietTypography.labelSmall.copyWith(
-                        color: DauVietColors.AgedWoodText,
-                        fontWeight: FontWeight.w800,
-                      ),
-                    ),
-                  ),
-                _LessonCoverHero(
-                  coverAssetId: meta.resolvedCoverAssetId,
-                  title: meta.title,
-                ),
-                const SizedBox(height: 20),
-                Text(
-                  meta.title,
-                  style: DauVietTypography.headlineMedium,
-                  textAlign: TextAlign.center,
-                ),
-                if (meta.centralQuestion != null &&
-                    meta.centralQuestion!.isNotEmpty) ...[
-                  const SizedBox(height: 14),
-                  Container(
-                    padding: const EdgeInsets.all(14),
-                    decoration: BoxDecoration(
-                      color: Colors.white.withValues(alpha: 0.8),
-                      borderRadius: BorderRadius.circular(14),
-                      border: Border.all(
-                        color: DauVietColors.imperialGold,
-                        width: 1.4,
-                      ),
-                    ),
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text(
-                          'CÂU HỎI TRỌNG TÂM',
-                          style: DauVietTypography.labelSmall.copyWith(
-                            color: DauVietColors.cinnabarRed,
-                            fontWeight: FontWeight.w800,
-                          ),
-                        ),
-                        const SizedBox(height: 6),
-                        Text(
-                          meta.centralQuestion!,
-                          style: DauVietTypography.bodyLarge.copyWith(
-                            fontWeight: FontWeight.w700,
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
-                ],
-                if (objectives.isNotEmpty) ...[
-                  const SizedBox(height: 16),
-                  Text(
-                    'Mục tiêu bài học',
-                    style: DauVietTypography.titleMedium,
-                  ),
-                  const SizedBox(height: 8),
-                  for (final obj in objectives)
-                    Padding(
-                      padding: const EdgeInsets.only(bottom: 6),
-                      child: Row(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          const Icon(
-                            Icons.check_circle_outline_rounded,
-                            size: 18,
-                            color: DauVietColors.bambooGreen,
-                          ),
-                          const SizedBox(width: 8),
-                          Expanded(
-                            child: Text(obj, style: DauVietTypography.bodyMedium),
-                          ),
-                        ],
-                      ),
-                    ),
-                ],
-                if (hasResume && prog != null && prog.totalRequired > 0) ...[
-                  const SizedBox(height: 16),
-                  Container(
-                    padding: const EdgeInsets.all(12),
-                    decoration: BoxDecoration(
-                      color: DauVietColors.bambooGreen.withValues(alpha: 0.12),
-                      borderRadius: BorderRadius.circular(12),
-                    ),
-                    child: Row(
-                      children: [
-                        const Icon(
-                          Icons.History_edu_rounded,
-                          color: DauVietColors.bambooGreen,
-                        ),
-                        const SizedBox(width: 10),
-                        Expanded(
-                          child: Text(
-                            'Đang làm dở: ${prog.completedRequired}/${prog.totalRequired} hoạt động bắt buộc',
-                            style: DauVietTypography.bodySmall.copyWith(
-                              color: DauVietColors.darkInk,
-                              fontWeight: FontWeight.w700,
-                            ),
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
-                ],
-                if (startError != null) ...[
-                  const SizedBox(height: 14),
-                  Text(
-                    startError!,
-                    textAlign: TextAlign.center,
-                    style: DauVietTypography.bodySmall.copyWith(
-                      color: DauVietColors.errorCoral,
-                      fontWeight: FontWeight.w700,
-                    ),
-                  ),
-                ],
-              ],
-            ),
-          ),
-        ),
-        Padding(
-          padding: const EdgeInsets.fromLTRB(20, 8, 20, 20),
-          child: GameButton(
-            text: starting
-                ? 'ĐANG MỞ BÀI HỌC...'
-                : (hasResume ? 'TIẾP TỤC BÀI HỌC' : 'BẮT ĐẦU BÀI HỌC'),
-            icon: hasResume
-                ? Icons.play_circle_fill_rounded
-                : Icons.rocket_launch_rounded,
-            type: GameButtonType.primary,
-            width: double.infinity,
-            onPressed: starting ? null : onStart,
-          ),
-        ),
-      ],
-    );
-  }
-}
-
-/// Khối ảnh bìa hero tỷ lệ 16:9 của bài học — tải qua `fetchLearningAssetBytes`
+/// Khối ảnh bìa hero của bài học — tải qua `fetchLearningAssetBytes`
 /// (xác thực Bearer qua `/api/v1/assets/{id}/content`, có cache theo phiên).
 /// Nếu bài học chưa cấu hình ảnh bìa hoặc tải lỗi → hiển thị fallback mặc định.
 class _LessonCoverHero extends ConsumerStatefulWidget {
@@ -381,48 +331,61 @@ class _LessonCoverHeroState extends ConsumerState<_LessonCoverHero> {
       return const _DefaultLessonHeroFallback();
     }
 
-    ref.listen(authSessionProvider, (prev, next) {
+    ref.listen<AuthState>(authSessionProvider, (prev, next) {
       if (prev?.profile?.id != next.profile?.id ||
           prev?.status != next.status) {
         setState(_loadIfPresent);
       }
     });
 
-    return AspectRatio(
-      aspectRatio: 16 / 9,
+    return ClipRRect(
+      borderRadius: BorderRadius.circular(16),
       child: Container(
         decoration: BoxDecoration(
-          color: DauVietColors.parchmentContainer,
-          borderRadius: BorderRadius.circular(18),
-          border: Border.all(color: DauVietColors.outlineVariant, width: 1.5),
+          color: const Color(0xFFEFE8DA),
+          borderRadius: BorderRadius.circular(16),
+          border: Border.all(
+            color: const Color(0xFFD8C8B0),
+            width: 1.5,
+          ),
+          boxShadow: [
+            BoxShadow(
+              color: const Color(0xFF8B4513).withValues(alpha: 0.12),
+              blurRadius: 12,
+              offset: const Offset(0, 4),
+            ),
+          ],
         ),
         clipBehavior: Clip.antiAlias,
-        child: FutureBuilder<List<int>>(
-          future: _future,
-          builder: (context, snapshot) {
-            if (snapshot.connectionState != ConnectionState.done) {
-              return const Center(
-                child: SizedBox(
-                  width: 28,
-                  height: 28,
-                  child: CircularProgressIndicator(strokeWidth: 2),
-                ),
+        child: AspectRatio(
+          aspectRatio: 16 / 10,
+          child: FutureBuilder<List<int>>(
+            future: _future,
+            builder: (context, snapshot) {
+              if (snapshot.connectionState != ConnectionState.done) {
+                return const Center(
+                  child: SizedBox(
+                    width: 28,
+                    height: 28,
+                    child: CircularProgressIndicator(strokeWidth: 2),
+                  ),
+                );
+              }
+              final bytes = snapshot.data;
+              if (snapshot.hasError || bytes == null || bytes.isEmpty) {
+                return const _DefaultLessonHeroFallback(embedded: true);
+              }
+              return Image.memory(
+                Uint8List.fromList(bytes),
+                width: double.infinity,
+                height: double.infinity,
+                fit: BoxFit.cover,
+                semanticLabel: widget.title,
+                errorBuilder: (_, _, _) =>
+                    const _DefaultLessonHeroFallback(embedded: true),
               );
-            }
-            final bytes = snapshot.data;
-            if (snapshot.hasError || bytes == null || bytes.isEmpty) {
-              return const _DefaultLessonHeroFallback(embedded: true);
-            }
-            return Image.memory(
-              Uint8List.fromList(bytes),
-              width: double.infinity,
-              height: double.infinity,
-              fit: BoxFit.cover,
-              semanticLabel: widget.title,
-              errorBuilder: (_, _, _) =>
-                  const _DefaultLessonHeroFallback(embedded: true),
-            );
-          },
+            },
+          ),
         ),
       ),
     );
@@ -438,65 +401,84 @@ class _DefaultLessonHeroFallback extends StatelessWidget {
   Widget build(BuildContext context) {
     const iconChild = Center(
       child: Icon(
-        Icons.castle_rounded,
+        Icons.account_balance_rounded,
         size: 64,
-        color: DauVietColors.cinnabarRed,
+        color: DauVietColors.heritageGreen,
       ),
     );
     if (embedded) {
-      return ColoredBox(
-        color: DauVietColors.parchmentContainer,
+      return const ColoredBox(
+        color: Color(0xFFEFE8DA),
         child: iconChild,
       );
     }
-    return AspectRatio(
-      aspectRatio: 16 / 9,
+    return ClipRRect(
+      borderRadius: BorderRadius.circular(16),
       child: Container(
         decoration: BoxDecoration(
-          color: DauVietColors.parchmentContainer,
-          borderRadius: BorderRadius.circular(18),
-          border: Border.all(color: DauVietColors.outlineVariant, width: 1.5),
+          borderRadius: BorderRadius.circular(16),
+          border: Border.all(
+            color: const Color(0xFFD8C8B0),
+            width: 1.5,
+          ),
+          boxShadow: [
+            BoxShadow(
+              color: const Color(0xFF8B4513).withValues(alpha: 0.12),
+              blurRadius: 12,
+              offset: const Offset(0, 4),
+            ),
+          ],
         ),
-        alignment: Alignment.center,
-        child: iconChild,
+        child: const AspectRatio(
+          aspectRatio: 16 / 10,
+          child: ColoredBox(
+            color: Color(0xFFEFE8DA),
+            child: iconChild,
+          ),
+        ),
       ),
     );
   }
 }
 
-class _ErrorBody extends StatelessWidget {
-  final String message;
-  final VoidCallback onRetry;
-
-  const _ErrorBody({required this.message, required this.onRetry});
+/// Huy hiệu ngọn lửa trên AppBar — số streak thật từ streakProvider,
+/// placeholder '—' khi loading/error (STREAK-01, không hard-code).
+class _StreakAppBarBadge extends ConsumerWidget {
+  const _StreakAppBarBadge();
 
   @override
-  Widget build(BuildContext context) {
-    return Center(
-      child: Padding(
-        padding: const EdgeInsets.all(24),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            const Icon(
-              Icons.error_outline_rounded,
-              size: 48,
-              color: DauVietColors.errorCoral,
+  Widget build(BuildContext context, WidgetRef ref) {
+    final streakAsync = ref.watch(streakProvider);
+    final String value = streakAsync.when(
+      data: (s) => '${s.currentStreak}',
+      loading: () => '—',
+      error: (_, _) => '—',
+    );
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+      decoration: BoxDecoration(
+        color: const Color(0xFFFFF3E0),
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: const Color(0xFFFFB74D), width: 1),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          const Icon(
+            Icons.local_fire_department_rounded,
+            size: 15,
+            color: Color(0xFFE65100),
+          ),
+          const SizedBox(width: 4),
+          Text(
+            value,
+            style: DauVietTypography.labelSmall.copyWith(
+              color: const Color(0xFFE65100),
+              fontWeight: FontWeight.w800,
+              fontSize: 11.5,
             ),
-            const SizedBox(height: 12),
-            Text(
-              message,
-              textAlign: TextAlign.center,
-              style: DauVietTypography.bodyLarge,
-            ),
-            const SizedBox(height: 16),
-            GameButton(
-              text: 'THỬ LẠI',
-              type: GameButtonType.secondary,
-              onPressed: onRetry,
-            ),
-          ],
-        ),
+          ),
+        ],
       ),
     );
   }

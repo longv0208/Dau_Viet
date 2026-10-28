@@ -46,6 +46,7 @@ public class AssetService {
             "audio/ogg", "ogg");
     private static final long MAX_BYTES = 10L * 1024 * 1024; // 10 MB dev cap
     private static final Set<String> ACTIVE = Set.of("ACTIVE");
+    private static final UUID ANONYMOUS_USER_ID = new UUID(0L, 0L);
 
     private final AssetRepository assets;
     private final Path storageDir;
@@ -112,6 +113,20 @@ public class AssetService {
     @Transactional(readOnly = true)
     public AssetResponse get(UUID id) {
         return toResponse(load(id));
+    }
+
+    /**
+     * Locates the on-disk file for an ACTIVE asset only if the asset is referenced
+     * by published learner content or content pinned/owned by {@code userId}.
+     */
+    @Transactional(readOnly = true)
+    public StoredAsset learnerContent(UUID id, UUID userId) {
+        load(id);
+        UUID effectiveUserId = userId != null ? userId : ANONYMOUS_USER_ID;
+        if (!assets.isAccessibleToLearner(id, effectiveUserId)) {
+            throw new AssetNotFoundException("Asset not found: " + id);
+        }
+        return content(id);
     }
 
     /** Locates the on-disk file for an ACTIVE asset, materializing classpath seed assets if needed. */
