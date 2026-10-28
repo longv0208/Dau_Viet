@@ -208,7 +208,7 @@ class _ChronologicalOrderScreenState extends State<ChronologicalOrderScreen> {
                                     if (context.canPop()) {
                                       context.pop();
                                     } else {
-                                      context.go('/learning/hypothesis');
+                                      context.go('/traces/evt_bach_dang_938');
                                     }
                                   },
                                 );

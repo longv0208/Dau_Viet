@@ -203,7 +203,7 @@ Mỗi sự kiện trong lộ trình được server đánh giá tự động d�
 
 ---
 
-## 8. Nâng Cấp Kiến Trúc Luồng Học Lịch Sử & Địa Điểm Di Tích (V38–V41)
+## 8. Nâng Cấp Kiến Trúc Luồng Học Lịch Sử & Địa Điểm Di Tích (V39–V43, Epics A–F)
 
 ### 8.1. Phân cấp cây học tập (Hierarchy: `ERA -> PERIOD -> PHASE -> EVENT -> LESSON`)
 - Tái sử dụng bảng `learning_path_chapters` làm cây phân cấp (`parent_id UUID`, `node_type VARCHAR(16) NOT NULL DEFAULT 'PERIOD'` trong `{ERA, PERIOD, PHASE}`).
@@ -224,7 +224,7 @@ Mỗi sự kiện trong lộ trình được server đánh giá tự động d�
 - **Ghi nhận thời kỳ đang học (`user_path_period_state`)**:
   - Endpoint `POST /api/v1/me/learning-path/periods/{periodCode}/touch` cập nhật `last_touched_at` để phản hồi `GET /api/v1/me/learning-path` trả về `lastPeriodCode` và `current` của thời kỳ gần nhất.
 
-### 8.3. Địa điểm Di tích độc lập (`map_locations` v2 — V39)
+### 8.3. Địa điểm Di tích độc lập (`map_locations` v2 — V40 & V43)
 - Địa điểm di tích là thực thể độc lập (`map_locations.event_id` nullable), liên kết N–N với sự kiện qua `map_location_events(location_id, event_id, role, sort_order)`.
 - Thuộc tính phân loại địa điểm:
   - `slug VARCHAR(120) UNIQUE`
@@ -237,3 +237,8 @@ Mỗi sự kiện trong lộ trình được server đánh giá tự động d�
   - Khi địa điểm đang `LOCKED`, Learner API ẩn toàn bộ bản ghi `UNLOCKED_ONLY` (không trả `assetId`/`assetUrl`).
 - Sổ cái mở khóa địa điểm (`user_location_unlocks`):
   - Đánh giá ngay trong cùng transaction `LearnerAttemptService.doComplete()` thông qua `LessonCompletionHook`, đồng thời trả về `newlyUnlockedLocations[]` trong `CompleteAttemptResponse`.
+
+### 8.4. Quyết định gỡ cột deprecated `map_locations.event_id` và `unlock_lesson_id` (Issue #26 / ADR-009)
+- Hai cột `map_locations.event_id` và `map_locations.unlock_lesson_id` đã chuyển sang trạng thái **DEPRECATED** từ `V40__heritage_locations.sql`.
+- Trong giai đoạn chuyển tiếp (Phase 1), `AdminMapLocationService` tự động đồng bộ xuống `map_location_events` và `map_location_unlock_lessons` khi gọi qua endpoint legacy `/api/v1/admin/events/{eventId}/map-locations`, còn `MapLocationService` và `LocationUnlockEvaluator` đọc từ hai bảng nối làm nguồn chuẩn.
+- Việc xóa vật lý hai cột (`ALTER TABLE map_locations DROP COLUMN event_id, DROP COLUMN unlock_lesson_id`) được ấn định vào **Milestone M4 Cleanup** ngay sau khi hoàn tất 4 điều kiện: (1) Mobile E4/E5 và Admin D2/D3 hợp nhất hoàn toàn trên `main`, (2) chuyển/ngừng endpoint `/api/v1/admin/events/{eventId}/map-locations`, (3) cập nhật fixture trong `MapLocationIT`, và (4) truy vấn kiểm toán không còn bản ghi mồ côi giữa cột cũ và bảng nối.

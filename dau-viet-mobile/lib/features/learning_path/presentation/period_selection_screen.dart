@@ -297,13 +297,19 @@ class PeriodSelectionScreen extends ConsumerWidget {
                     ),
                   ),
                   if (era.periodLabel != null &&
-                      era.periodLabel!.trim().isNotEmpty)
-                    Text(
-                      era.periodLabel!,
-                      style: DauVietTypography.labelSmall.copyWith(
-                        color: DauVietColors.woodBrown,
+                      era.periodLabel!.trim().isNotEmpty) ...[
+                    const SizedBox(width: 8),
+                    Flexible(
+                      child: Text(
+                        era.periodLabel!,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: DauVietTypography.labelSmall.copyWith(
+                          color: DauVietColors.woodBrown,
+                        ),
                       ),
                     ),
+                  ],
                 ],
               ),
               if (era.description != null &&
@@ -526,10 +532,14 @@ class _PeriodCard extends StatelessWidget {
                       color: DauVietColors.inkMuted,
                     ),
                     const SizedBox(width: 4),
-                    Text(
-                      period.periodLabel!,
-                      style: DauVietTypography.labelSmall.copyWith(
-                        color: DauVietColors.inkMuted,
+                    Flexible(
+                      child: Text(
+                        period.periodLabel!,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: DauVietTypography.labelSmall.copyWith(
+                          color: DauVietColors.inkMuted,
+                        ),
                       ),
                     ),
                   ],
@@ -586,13 +596,18 @@ class _PeriodCard extends StatelessWidget {
           Row(
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
-              Text(
-                '$completedEvents/$requiredEvents sự kiện • $completedLessons/$requiredLessons bài học',
-                style: DauVietTypography.bodySmall.copyWith(
-                  fontSize: 11.5,
-                  color: DauVietColors.inkMuted,
+              Expanded(
+                child: Text(
+                  '$completedEvents/$requiredEvents sự kiện • $completedLessons/$requiredLessons bài học',
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: DauVietTypography.bodySmall.copyWith(
+                    fontSize: 11.5,
+                    color: DauVietColors.inkMuted,
+                  ),
                 ),
               ),
+              const SizedBox(width: 8),
               Text(
                 '$percent%',
                 style: DauVietTypography.labelSmall.copyWith(

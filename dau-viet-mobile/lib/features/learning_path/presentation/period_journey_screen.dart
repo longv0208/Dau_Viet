@@ -330,13 +330,18 @@ class _PeriodJourneyScreenState extends ConsumerState<PeriodJourneyScreen> {
           Row(
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
-              Text(
-                'Tiến độ thời kỳ: $completedEvents/$requiredEvents sự kiện bắt buộc',
-                style: DauVietTypography.bodySmall.copyWith(
-                  fontSize: 11.5,
-                  color: DauVietColors.inkMuted,
+              Expanded(
+                child: Text(
+                  'Tiến độ thời kỳ: $completedEvents/$requiredEvents sự kiện bắt buộc',
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: DauVietTypography.bodySmall.copyWith(
+                    fontSize: 11.5,
+                    color: DauVietColors.inkMuted,
+                  ),
                 ),
               ),
+              const SizedBox(width: 8),
               Text(
                 '$percent%',
                 style: DauVietTypography.labelSmall.copyWith(
@@ -379,13 +384,20 @@ class _PeriodJourneyScreenState extends ConsumerState<PeriodJourneyScreen> {
               ),
             ),
           ),
-          if (phase.periodLabel != null && phase.periodLabel!.trim().isNotEmpty)
-            Text(
-              phase.periodLabel!,
-              style: DauVietTypography.labelSmall.copyWith(
-                color: DauVietColors.inkMuted,
+          if (phase.periodLabel != null &&
+              phase.periodLabel!.trim().isNotEmpty) ...[
+            const SizedBox(width: 8),
+            Flexible(
+              child: Text(
+                phase.periodLabel!,
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: DauVietTypography.labelSmall.copyWith(
+                  color: DauVietColors.inkMuted,
+                ),
               ),
             ),
+          ],
         ],
       ),
     );

@@ -69,83 +69,83 @@ public final class LearningPathItFixture {
 
                 -- 1. Lesson Template nếu chưa có
                 INSERT INTO lesson_templates (id, code, name, description, schema_version, preset_json)
-                VALUES (tpl_id, 'HISTORY_DEFAULT', 'Mẫu bài học lịch sử mặc định', 'Cấu trúc bài học chuẩn 4 chặng', 1,
+                VALUES (gen_random_uuid(), 'HISTORY_DEFAULT', 'Mẫu bài học lịch sử mặc định', 'Cấu trúc bài học chuẩn 4 chặng', 1,
                         '{"schemaVersion": 1, "stages": []}'::jsonb)
                 ON CONFLICT (code) DO NOTHING;
                 SELECT id INTO tpl_id FROM lesson_templates WHERE code = 'HISTORY_DEFAULT';
 
-                -- 2. 6 Canonical Historical Events
-                -- 2.1 Hùng Vương - Văn Lang (-700)
+                -- 2. 6 Canonical Historical Events (upsert by slug to preserve existing FK references)
                 INSERT INTO historical_events (
                     id, slug, title, era, period, start_year, summary, description, location, status
                 ) VALUES (
-                    evt_hv, 'hung-vuong-van-lang', 'Thời Đại Hùng Vương - Dựng Nước Văn Lang',
+                    gen_random_uuid(), 'hung-vuong-van-lang', 'Thời Đại Hùng Vương - Dựng Nước Văn Lang',
                     'Thời Hùng Vương - Văn Lang (~2879 - 258 TCN)', 'Khoảng thế kỷ VII TCN', -700,
                     'Thời kỳ dựng nước đầu tiên của dân tộc Việt Nam với 18 đời vua Hùng.',
                     'Thời đại mở nước Văn Lang.', 'Phú Thọ', 'PUBLISHED'
-                ) ON CONFLICT (id) DO UPDATE SET
-                    slug = EXCLUDED.slug, title = EXCLUDED.title, start_year = EXCLUDED.start_year,
+                ) ON CONFLICT (slug) DO UPDATE SET
+                    title = EXCLUDED.title, start_year = EXCLUDED.start_year,
                     period = EXCLUDED.period, status = 'PUBLISHED';
+                SELECT id INTO evt_hv FROM historical_events WHERE slug = 'hung-vuong-van-lang';
 
-                -- 2.2 Hai Bà Trưng (40)
                 INSERT INTO historical_events (
                     id, slug, title, era, period, start_year, summary, description, location, status
                 ) VALUES (
-                    evt_hb, 'hai-ba-trung-40', 'Khởi nghĩa Hai Bà Trưng năm 40',
+                    gen_random_uuid(), 'hai-ba-trung-40', 'Khởi nghĩa Hai Bà Trưng năm 40',
                     'Bắc thuộc lần I', 'Hai Bà Trưng', 40,
                     'Cuộc khởi nghĩa của Hai Bà Trưng đập tan ách thống trị của nhà Đông Hán.',
                     'Mê Linh phất cờ khởi nghĩa.', 'Mê Linh, Hà Nội', 'PUBLISHED'
-                ) ON CONFLICT (id) DO UPDATE SET
-                    slug = EXCLUDED.slug, title = EXCLUDED.title, start_year = EXCLUDED.start_year,
+                ) ON CONFLICT (slug) DO UPDATE SET
+                    title = EXCLUDED.title, start_year = EXCLUDED.start_year,
                     period = EXCLUDED.period, status = 'PUBLISHED';
+                SELECT id INTO evt_hb FROM historical_events WHERE slug = 'hai-ba-trung-40';
 
-                -- 2.3 Bạch Đằng 938
                 INSERT INTO historical_events (
                     id, slug, title, era, period, start_year, summary, description, location, status
                 ) VALUES (
-                    evt_bd, 'bach-dang-938', 'Đại Chiến Bạch Đằng 938',
+                    gen_random_uuid(), 'bach-dang-938', 'Đại Chiến Bạch Đằng 938',
                     'Thời Ngô - Đinh - Tiền Lê (938 - 1009)', 'Mùa Đông 938 SCN', 938,
                     'Trận thủy chiến kinh điển cắm cọc gỗ lim bịt sắt tiêu diệt thủy quân Nam Hán.',
                     'Ngô Quyền đánh tan quân Nam Hán.', 'Sông Bạch Đằng', 'PUBLISHED'
-                ) ON CONFLICT (id) DO UPDATE SET
-                    slug = EXCLUDED.slug, title = EXCLUDED.title, start_year = EXCLUDED.start_year,
+                ) ON CONFLICT (slug) DO UPDATE SET
+                    title = EXCLUDED.title, start_year = EXCLUDED.start_year,
                     period = EXCLUDED.period, status = 'PUBLISHED';
+                SELECT id INTO evt_bd FROM historical_events WHERE slug = 'bach-dang-938';
 
-                -- 2.4 Lý Thái Tổ 1010
                 INSERT INTO historical_events (
                     id, slug, title, era, period, start_year, summary, description, location, status
                 ) VALUES (
-                    evt_lt, 'ly-thai-to-1010', 'Định đô Thăng Long năm 1010',
+                    gen_random_uuid(), 'ly-thai-to-1010', 'Định đô Thăng Long năm 1010',
                     'Thời nhà Lý', 'Lý Thái Tổ', 1010,
                     'Lý Thái Tổ dời đô từ Hoa Lư về Đại La và đổi tên thành Thăng Long.',
                     'Dời đô Thăng Long.', 'Hà Nội', 'PUBLISHED'
-                ) ON CONFLICT (id) DO UPDATE SET
-                    slug = EXCLUDED.slug, title = EXCLUDED.title, start_year = EXCLUDED.start_year,
+                ) ON CONFLICT (slug) DO UPDATE SET
+                    title = EXCLUDED.title, start_year = EXCLUDED.start_year,
                     period = EXCLUDED.period, status = 'PUBLISHED';
+                SELECT id INTO evt_lt FROM historical_events WHERE slug = 'ly-thai-to-1010';
 
-                -- 2.5 Chiến Thắng Như Nguyệt 1077
                 INSERT INTO historical_events (
                     id, slug, title, era, period, start_year, summary, description, location, status
                 ) VALUES (
-                    evt_nn, 'chien-thang-nhu-nguyet-1077', 'Chiến Thắng Như Nguyệt 1077',
+                    gen_random_uuid(), 'chien-thang-nhu-nguyet-1077', 'Chiến Thắng Như Nguyệt 1077',
                     'Thời nhà Lý', 'Mùa Xuân 1077', 1077,
                     'Lý Thường Kiệt lãnh đạo kháng chiến chống Tống trên phòng tuyến sông Như Nguyệt.',
                     'Nam quốc sơn hà.', 'Sông Như Nguyệt', 'PUBLISHED'
-                ) ON CONFLICT (id) DO UPDATE SET
-                    slug = EXCLUDED.slug, title = EXCLUDED.title, start_year = EXCLUDED.start_year,
+                ) ON CONFLICT (slug) DO UPDATE SET
+                    title = EXCLUDED.title, start_year = EXCLUDED.start_year,
                     period = EXCLUDED.period, status = 'PUBLISHED';
+                SELECT id INTO evt_nn FROM historical_events WHERE slug = 'chien-thang-nhu-nguyet-1077';
 
-                -- 2.6 Chiến Dịch Điện Biên Phủ 1954
                 INSERT INTO historical_events (
                     id, slug, title, era, period, start_year, summary, description, location, status
                 ) VALUES (
-                    evt_db, 'chien-dich-dien-bien-phu-1954', 'Chiến Dịch Điện Biên Phủ 1954',
+                    gen_random_uuid(), 'chien-dich-dien-bien-phu-1954', 'Chiến Dịch Điện Biên Phủ 1954',
                     'Thời đại Hồ Chí Minh', 'Năm 1954', 1954,
                     'Chiến thắng lừng lẫy năm châu, chấn động địa cầu chấm dứt ách thống trị thực dân Pháp.',
                     'Điện Biên Phủ.', 'Điện Biên', 'PUBLISHED'
-                ) ON CONFLICT (id) DO UPDATE SET
-                    slug = EXCLUDED.slug, title = EXCLUDED.title, start_year = EXCLUDED.start_year,
+                ) ON CONFLICT (slug) DO UPDATE SET
+                    title = EXCLUDED.title, start_year = EXCLUDED.start_year,
                     period = EXCLUDED.period, status = 'PUBLISHED';
+                SELECT id INTO evt_db FROM historical_events WHERE slug = 'chien-dich-dien-bien-phu-1954';
 
                 -- 3. Lessons & Versions cho Bạch Đằng 938
                 INSERT INTO lessons (
@@ -171,6 +171,7 @@ public final class LearningPathItFixture {
                 UPDATE lessons SET status = 'PUBLISHED', current_version_id = ver_bd WHERE id = les_bd;
 
                 -- 4. Policy cho Bạch Đằng 938
+                DELETE FROM event_completion_policies WHERE event_id IN (evt_hv, evt_hb, evt_bd, evt_lt, evt_nn, evt_db);
                 INSERT INTO event_completion_policies (
                     id, event_id, policy_version, status, required_lesson_ids, mastery_threshold, published_at
                 ) VALUES (
