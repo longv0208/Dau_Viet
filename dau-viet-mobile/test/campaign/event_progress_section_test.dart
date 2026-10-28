@@ -9,6 +9,9 @@ import 'package:dau_viet_mobile/features/collection/data/collection_providers.da
 import 'package:dau_viet_mobile/features/collection/data/collection_repository.dart';
 import 'package:dau_viet_mobile/features/collection/data/event_progress_dto.dart';
 import 'package:dau_viet_mobile/features/learning/data/learning_providers.dart';
+import 'package:dau_viet_mobile/features/learning_path/data/learning_path_dto.dart';
+import 'package:dau_viet_mobile/features/learning_path/data/learning_path_providers.dart';
+import 'package:dau_viet_mobile/features/learning_path/data/mock_learning_path_repository.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -180,4 +183,56 @@ void main() {
 
     expect(find.textContaining('phiên bản trước'), findsNothing);
   });
+
+  testWidgets(
+    'hiển thị nhãn trạng thái sự kiện và tóm tắt lộ trình bài học từ path (Issue #23)',
+    (tester) async {
+      const bdEventId = '00000000-0000-0000-0000-000000000001';
+      final repo = Repo(
+        const EventProgressDto(
+          eventId: bdEventId,
+          status: 'IN_PROGRESS',
+          policyVersion: 1,
+          requiredLessonsTotal: 3,
+          requiredLessonsCompleted: 1,
+          eventCompleted: false,
+          eventMastered: false,
+        ),
+      );
+      final mockPathRepo = MockLearningPathRepository();
+
+      await tester.pumpWidget(
+        ProviderScope(
+          overrides: [
+            collectionRepositoryProvider.overrideWithValue(repo),
+            authRepositoryProvider.overrideWithValue(FakeAuth()),
+            authSessionProvider.overrideWith(() => _FixedAuthSession()),
+            learningPathRepositoryProvider.overrideWithValue(mockPathRepo),
+            learnerLearningPathProvider.overrideWith(
+              () => _FixedPathController(mockPathRepo),
+            ),
+          ],
+          child: const MaterialApp(
+            home: Scaffold(body: EventProgressSection(eventId: bdEventId)),
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      expect(find.text('Sẵn sàng học'), findsOneWidget);
+      expect(
+        find.text('Lộ trình: 1 đã xong • 1 đang mở • 1 đang khóa'),
+        findsOneWidget,
+      );
+    },
+  );
+}
+
+class _FixedPathController extends LearningPathController {
+  final MockLearningPathRepository _repo;
+
+  _FixedPathController(this._repo);
+
+  @override
+  Future<LearningPathDto> build() => _repo.getMyLearningPath();
 }
