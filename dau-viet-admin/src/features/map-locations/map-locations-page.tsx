@@ -1,17 +1,19 @@
 "use client";
 
-import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { skipToken, useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import dynamic from "next/dynamic";
 import { useSearchParams } from "next/navigation";
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import {
   BookOpen,
   Calendar,
   CheckCircle2,
   Film,
+  FolderOpen,
   Image as ImageIcon,
   Layers,
   Lock,
+  Map as MapIcon,
   MapPin,
   Pencil,
   Plus,
@@ -19,9 +21,9 @@ import {
   Sparkles,
   Trash2,
   Unlock,
+  Upload,
   X,
 } from "lucide-react";
-
 import { apiFetch, toQuery } from "@/lib/api-client";
 import { ApiClientError, toUserMessage } from "@/lib/api-error";
 import type { PageResponse } from "@/lib/dto/common";
@@ -33,6 +35,7 @@ import {
   type CoordinatePrecision,
   type EventLinkInput,
   HERITAGE_PRESET_ILLUSTRATIONS,
+  HERITAGE_PRESET_MAPS,
   LOCATION_KIND_LABELS,
   LOCATION_VISIBILITY_LABELS,
   type LocationMediaType,
@@ -45,12 +48,14 @@ import {
   MEDIA_VISIBILITY_LABELS,
   type MediaInput,
   resolveHeritageFallbackIllustration,
+  resolveLocationMapPreset,
+  resolvePresetIllustrationByAssetId,
+  resolvePresetMapByAssetId,
   type StandaloneLocationRequest,
   type StandaloneLocationResponse,
   UNLOCK_RULE_MODE_LABELS,
   type UnlockRuleMode,
 } from "@/lib/dto/map-location";
-import { qk } from "@/lib/query-keys";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -61,7 +66,8 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { StatusChip } from "@/components/status-chip";
 import { ErrorState } from "@/components/error-state";
 import { AssetPickerDialog } from "@/features/assets/asset-picker-dialog";
-
+import { uploadAsset, validateAssetFile } from "@/features/assets/asset-api";
+import { useAssetObjectUrl } from "@/features/assets/use-asset-object-url";
 const LatLngMapPicker = dynamic(
   () =>
     import("@/features/events/lat-lng-map-picker").then((m) => ({
@@ -81,6 +87,51 @@ function slugifyVi(text: string): string {
     .replace(/[^a-z0-9]+/g, "-")
     .replace(/^-+|-+$/g, "")
     .slice(0, 120);
+}
+
+function formatCoordinateDisplay(lat: number, lng: number): string {
+  if (lng > 100 && lat >= -90 && lat <= 90) {
+    return `${Number(lat.toFixed(4))}°N, ${Number(lng.toFixed(4))}°E`;
+  }
+  return `${Number(lat.toFixed(2))}%, ${Number(lng.toFixed(2))}%`;
+}
+
+function LocationCardThumbnail({ loc }: { loc: StandaloneLocationResponse }) {
+  const presetCover = resolvePresetIllustrationByAssetId(loc.coverAssetId);
+  const presetMapAsCover = resolvePresetMapByAssetId(loc.coverAssetId);
+  const mediaExternalUrl = loc.media.find((m) => m.externalUrl)?.externalUrl ?? null;
+  const mediaAssetId = loc.media.find((m) => m.assetId)?.assetId ?? null;
+  const presetMedia = resolvePresetIllustrationByAssetId(mediaAssetId);
+
+  const customAssetId =
+    loc.coverAssetId && !presetCover && !presetMapAsCover
+      ? loc.coverAssetId
+      : !loc.coverAssetId && !mediaExternalUrl && mediaAssetId && !presetMedia
+        ? mediaAssetId
+        : null;
+
+  const contentUrl = customAssetId
+    ? `/api/v1/admin/assets/${customAssetId}/content`
+    : null;
+  const { src: customObjectUrl } = useAssetObjectUrl(contentUrl);
+
+  const resolvedSrc =
+    customObjectUrl ??
+    presetCover?.url ??
+    presetMapAsCover?.url ??
+    mediaExternalUrl ??
+    presetMedia?.url ??
+    resolveHeritageFallbackIllustration(loc.slug, loc.title);
+
+  return (
+    // eslint-disable-next-line @next/next/no-img-element
+    <img
+      src={resolvedSrc}
+      alt={loc.title}
+      className="size-full object-cover"
+      loading="lazy"
+    />
+  );
 }
 
 export function MapLocationsWorkspace() {
@@ -400,9 +451,6 @@ export function MapLocationsWorkspace() {
           <div className="space-y-3">
             {locations.map((loc) => {
               const isSelected = selectedId === loc.id;
-              const previewImg =
-                loc.media.find((m) => m.externalUrl)?.externalUrl ??
-                resolveHeritageFallbackIllustration(loc.slug, loc.title);
 
               return (
                 <article
@@ -423,18 +471,11 @@ export function MapLocationsWorkspace() {
                       }}
                       className="relative h-32 w-full shrink-0 cursor-pointer overflow-hidden bg-surface-alt sm:h-auto sm:w-40"
                     >
-                      {/* eslint-disable-next-line @next/next/no-img-element */}
-                      <img
-                        src={previewImg}
-                        alt={loc.title}
-                        className="size-full object-cover"
-                        loading="lazy"
-                      />
+                      <LocationCardThumbnail loc={loc} />
                       <span className="absolute bottom-1.5 left-1.5 rounded bg-black/70 px-1.5 py-0.5 text-[10px] font-medium text-white">
                         {LOCATION_KIND_LABELS[loc.kind] ?? loc.kind}
                       </span>
                     </button>
-
                     <div className="flex min-w-0 flex-1 flex-col justify-between p-3.5">
                       <div>
                         <div className="flex flex-wrap items-start justify-between gap-2">
@@ -451,7 +492,7 @@ export function MapLocationsWorkspace() {
                             </h3>
                             <p className="truncate text-xs text-ink-muted">
                               Slug: <code className="font-mono">{loc.slug ?? "chưa đặt"}</code> · Tọa độ:{" "}
-                              {loc.latitude}%, {loc.longitude}%
+                              {formatCoordinateDisplay(loc.latitude, loc.longitude)}
                             </p>
                           </button>
                           <StatusChip status={loc.status} />
@@ -639,8 +680,11 @@ function LocationDetailEditor({
   onUpdated: (updated: StandaloneLocationResponse, message: string) => void;
   onClose: () => void;
 }) {
+  const qc = useQueryClient();
   const isNew = location === null;
   const [error, setError] = useState<string | null>(null);
+  const coverFileInputRef = useRef<HTMLInputElement>(null);
+  const mapFileInputRef = useRef<HTMLInputElement>(null);
 
   // Tab 1: Metadata state
   const [title, setTitle] = useState(location?.title ?? "");
@@ -662,8 +706,15 @@ function LocationDetailEditor({
     location?.coverAssetId ?? null,
   );
   const [coverPickerOpen, setCoverPickerOpen] = useState(false);
+  const [uploadingCover, setUploadingCover] = useState(false);
+  const [coverUploadError, setCoverUploadError] = useState<string | null>(null);
 
-  // Tab 2: Events state
+  const [mapAssetId, setMapAssetId] = useState<string | null>(
+    location?.mapAssetId ?? null,
+  );
+  const [mapPickerOpen, setMapPickerOpen] = useState(false);
+  const [uploadingMap, setUploadingMap] = useState(false);
+  const [mapUploadError, setMapUploadError] = useState<string | null>(null);
   const [eventLinks, setEventLinks] = useState<EventLinkInput[]>(() =>
     (location?.events ?? []).map((e) => ({
       eventId: e.eventId,
@@ -724,6 +775,7 @@ function LocationDetailEditor({
         visibility,
         unlockRuleMode,
         coverAssetId,
+        mapAssetId,
         displayOrder: Number.isFinite(Number(displayOrder)) ? Number(displayOrder) : 0,
       };
       if (isNew) {
@@ -830,11 +882,125 @@ function LocationDetailEditor({
     const lat = Number(latitude);
     const lng = Number(longitude);
     if (Number.isFinite(lat) && Number.isFinite(lng)) {
-      return { lat: Math.max(0, Math.min(100, lat)), lng: Math.max(0, Math.min(100, lng)) };
+      return { lat, lng };
     }
     return null;
   }, [latitude, longitude]);
 
+  // Resolve active cover image preview
+  const presetCover = useMemo(
+    () => resolvePresetIllustrationByAssetId(coverAssetId),
+    [coverAssetId],
+  );
+  const customCoverAssetId = coverAssetId && !presetCover ? coverAssetId : null;
+  const { src: customCoverObjectUrl, loading: customCoverLoading } = useAssetObjectUrl(
+    customCoverAssetId ? `/api/v1/admin/assets/${customCoverAssetId}/content` : null,
+  );
+  const coverAssetDetailQuery = useQuery({
+    queryKey: qk.assets.detail(customCoverAssetId ?? "none"),
+    queryFn: customCoverAssetId
+      ? () => apiFetch<AdminAsset>(`/admin/assets/${customCoverAssetId}`)
+      : skipToken,
+  });
+  const fallbackCoverUrl = useMemo(
+    () =>
+      mediaItems.find((m) => m.externalUrl)?.externalUrl ||
+      resolveHeritageFallbackIllustration(slug, title),
+    [mediaItems, slug, title],
+  );
+  const activeCoverPreviewSrc =
+    customCoverObjectUrl ?? presetCover?.url ?? fallbackCoverUrl;
+
+  // Resolve active map image for LatLngMapPicker & Map Image editor
+  const presetMap = useMemo(() => resolvePresetMapByAssetId(mapAssetId), [mapAssetId]);
+  const customMapAssetId = mapAssetId && !presetMap ? mapAssetId : null;
+  const { src: customMapObjectUrl } = useAssetObjectUrl(
+    customMapAssetId ? `/api/v1/admin/assets/${customMapAssetId}/content` : null,
+  );
+  const mapAssetDetailQuery = useQuery({
+    queryKey: qk.assets.detail(customMapAssetId ?? "none"),
+    queryFn: customMapAssetId
+      ? () => apiFetch<AdminAsset>(`/admin/assets/${customMapAssetId}`)
+      : skipToken,
+  });
+  const eventHints = useMemo(() => {
+    const hints: string[] = [];
+    for (const link of eventLinks) {
+      hints.push(link.eventId);
+      const ev = allEvents.find((e) => e.id === link.eventId);
+      if (ev) {
+        hints.push(ev.slug, ev.title);
+      }
+    }
+    if (location?.eventId) {
+      const primaryEv = allEvents.find((e) => e.id === location.eventId);
+      if (primaryEv) {
+        hints.push(primaryEv.slug, primaryEv.title);
+      }
+    }
+    return hints;
+  }, [eventLinks, allEvents, location?.eventId]);
+
+  const resolvedMapPreset = useMemo(
+    () =>
+      resolveLocationMapPreset({
+        mapAssetId,
+        slug,
+        title,
+        eventId: location?.eventId,
+        eventHints,
+      }),
+    [mapAssetId, slug, title, location?.eventId, eventHints],
+  );
+
+  const activeMapImageSrc = customMapObjectUrl ?? resolvedMapPreset.url;
+  const activeMapImageLabel = customMapAssetId
+    ? (mapAssetDetailQuery.data?.originalFilename ?? "Bản đồ tùy chỉnh đã tải lên")
+    : resolvedMapPreset.title;
+
+  async function handleDirectCoverUpload(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0];
+    e.target.value = "";
+    if (!file) return;
+    const invalid = validateAssetFile(file);
+    if (invalid) {
+      setCoverUploadError(invalid);
+      return;
+    }
+    setUploadingCover(true);
+    setCoverUploadError(null);
+    try {
+      const created = await uploadAsset(file);
+      await qc.invalidateQueries({ queryKey: ["assets"] });
+      setCoverAssetId(created.id);
+    } catch (err) {
+      setCoverUploadError(toUserMessage(err));
+    } finally {
+      setUploadingCover(false);
+    }
+  }
+
+  async function handleDirectMapUpload(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0];
+    e.target.value = "";
+    if (!file) return;
+    const invalid = validateAssetFile(file);
+    if (invalid) {
+      setMapUploadError(invalid);
+      return;
+    }
+    setUploadingMap(true);
+    setMapUploadError(null);
+    try {
+      const created = await uploadAsset(file);
+      await qc.invalidateQueries({ queryKey: ["assets"] });
+      setMapAssetId(created.id);
+    } catch (err) {
+      setMapUploadError(toUserMessage(err));
+    } finally {
+      setUploadingMap(false);
+    }
+  }
   const filteredLessons = useMemo(() => {
     const keyword = lessonSearch.trim().toLowerCase();
     if (!keyword) return allLessons;
@@ -1054,17 +1220,123 @@ function LocationDetailEditor({
               />
             </div>
 
-            <div className="space-y-2">
-              <Label>Chọn vị trí trên Bản đồ Hành trình Việt Nam (0–100%)</Label>
+            {/* Khối 1: Hình bản đồ & Chọn vị trí trên Bản đồ */}
+            <div className="space-y-3 rounded-xl border border-border bg-surface p-4">
+              <input
+                ref={mapFileInputRef}
+                type="file"
+                accept="image/png,image/jpeg,image/webp"
+                className="hidden"
+                onChange={handleDirectMapUpload}
+                aria-label="Tải tệp ảnh bản đồ lên"
+              />
+
+              <div className="flex flex-wrap items-start justify-between gap-2">
+                <div>
+                  <Label className="flex items-center gap-1.5 text-sm font-semibold text-ink">
+                    <MapIcon className="size-4 text-brand" aria-hidden />
+                    Hình bản đồ & Chọn vị trí trên Bản đồ (0–100%)
+                  </Label>
+                  <p className="mt-0.5 text-xs text-ink-muted">
+                    Đang hiển thị: <strong className="text-ink">{activeMapImageLabel}</strong>
+                    {mapAssetId ? " (Đã gắn bản đồ riêng)" : " (Tự động theo địa điểm / sự kiện)"}
+                  </p>
+                </div>
+
+                <div className="flex flex-wrap items-center gap-1.5">
+                  <Button
+                    type="button"
+                    variant="secondary"
+                    size="sm"
+                    disabled={uploadingMap}
+                    onClick={() => mapFileInputRef.current?.click()}
+                  >
+                    <Upload className="size-3.5" aria-hidden />
+                    {uploadingMap ? "Đang tải..." : "Tải ảnh bản đồ"}
+                  </Button>
+                  <Button
+                    type="button"
+                    variant="secondary"
+                    size="sm"
+                    disabled={uploadingMap}
+                    onClick={() => setMapPickerOpen(true)}
+                  >
+                    <FolderOpen className="size-3.5" aria-hidden />
+                    Chọn từ thư viện
+                  </Button>
+                  {mapAssetId && (
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      size="sm"
+                      onClick={() => setMapAssetId(null)}
+                    >
+                      <Trash2 className="size-3.5 text-error" aria-hidden />
+                      Đặt lại tự động
+                    </Button>
+                  )}
+                </div>
+              </div>
+
+              {mapUploadError && (
+                <p role="alert" className="rounded-md bg-error/10 px-3 py-2 text-xs text-error">
+                  {mapUploadError}
+                </p>
+              )}
+
+              {/* Thanh chọn nhanh 6 bản đồ lịch sử mẫu */}
+              <div>
+                <p className="mb-1.5 text-[11px] font-medium text-ink-muted">
+                  Đổi nhanh bản đồ lịch sử cho địa điểm này:
+                </p>
+                <div className="grid grid-cols-2 gap-1.5 sm:grid-cols-3">
+                  {HERITAGE_PRESET_MAPS.map((m) => {
+                    const isSelectedMap =
+                      !customMapAssetId &&
+                      (mapAssetId === m.assetId ||
+                        (!mapAssetId && resolvedMapPreset.key === m.key));
+                    return (
+                      <button
+                        key={m.key}
+                        type="button"
+                        onClick={() => setMapAssetId(m.assetId)}
+                        className={cn(
+                          "flex cursor-pointer items-center gap-2 rounded-lg border p-1.5 text-left transition-all",
+                          isSelectedMap
+                            ? "border-brand bg-brand/5 ring-1 ring-brand/40"
+                            : "border-border bg-white hover:border-brand/50",
+                        )}
+                      >
+                        {/* eslint-disable-next-line @next/next/no-img-element */}
+                        <img
+                          src={m.url}
+                          alt={m.title}
+                          className="h-8 w-12 shrink-0 rounded object-cover"
+                        />
+                        <span
+                          className={cn(
+                            "line-clamp-2 text-[11px] font-medium leading-tight",
+                            isSelectedMap ? "text-brand" : "text-ink",
+                          )}
+                        >
+                          {m.shortLabel}
+                        </span>
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
+
               <LatLngMapPicker
                 value={pickerCoords}
-                imageSrc="/maps/vietnam_journey_map_bg.jpg"
-                imageLabel="Bản đồ hành trình lịch sử Việt Nam"
+                imageSrc={activeMapImageSrc}
+                imageLabel={activeMapImageLabel}
                 onChange={({ lat, lng }) => {
                   setLatitude(String(lat));
                   setLongitude(String(lng));
                 }}
               />
+
               <div className="grid grid-cols-2 gap-3 pt-1">
                 <div>
                   <Label htmlFor="loc-lat">Vị trí dọc / Vĩ độ (%) *</Label>
@@ -1085,35 +1357,160 @@ function LocationDetailEditor({
               </div>
             </div>
 
-            <div className="flex items-center justify-between rounded-lg border border-border bg-surface p-3">
-              <div className="min-w-0">
-                <p className="text-xs font-semibold text-ink">Ảnh bìa di tích (Asset ID)</p>
-                <p className="truncate text-xs text-ink-muted">
-                  {coverAssetId
-                    ? `Đã gắn Asset: ${coverAssetId}`
-                    : "Chưa gắn Asset — Hệ thống sẽ tự động hiển thị tranh AI di tích theo Slug/Media."}
-                </p>
-              </div>
-              <div className="flex gap-2">
-                {coverAssetId && (
+            {/* Khối 2: Hình nền / Ảnh bìa địa điểm di tích */}
+            <div className="space-y-3 rounded-xl border border-border bg-surface p-4">
+              <input
+                ref={coverFileInputRef}
+                type="file"
+                accept="image/png,image/jpeg,image/webp"
+                className="hidden"
+                onChange={handleDirectCoverUpload}
+                aria-label="Tải tệp hình nền địa điểm lên"
+              />
+
+              <div className="flex flex-wrap items-start justify-between gap-2">
+                <div>
+                  <Label className="flex items-center gap-1.5 text-sm font-semibold text-ink">
+                    <ImageIcon className="size-4 text-brand" aria-hidden />
+                    Hình nền / Ảnh bìa địa điểm di tích
+                  </Label>
+                  <p className="mt-0.5 text-xs text-ink-muted">
+                    Hiển thị trên thẻ danh sách địa điểm và đầu hồ sơ di tích của học viên.
+                  </p>
+                </div>
+
+                <div className="flex flex-wrap items-center gap-1.5">
                   <Button
                     type="button"
-                    variant="ghost"
+                    variant="secondary"
                     size="sm"
-                    onClick={() => setCoverAssetId(null)}
+                    disabled={uploadingCover}
+                    onClick={() => coverFileInputRef.current?.click()}
                   >
-                    Gỡ ảnh
+                    <Upload className="size-3.5" aria-hidden />
+                    {uploadingCover ? "Đang tải..." : "Tải ảnh nền"}
                   </Button>
-                )}
-                <Button
-                  type="button"
-                  variant="secondary"
-                  size="sm"
-                  onClick={() => setCoverPickerOpen(true)}
-                >
-                  <ImageIcon className="size-3.5" aria-hidden />
-                  Chọn từ thư viện
-                </Button>
+                  <Button
+                    type="button"
+                    variant="secondary"
+                    size="sm"
+                    disabled={uploadingCover}
+                    onClick={() => setCoverPickerOpen(true)}
+                  >
+                    <FolderOpen className="size-3.5" aria-hidden />
+                    Chọn từ thư viện
+                  </Button>
+                  {coverAssetId && (
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      size="sm"
+                      onClick={() => setCoverAssetId(null)}
+                    >
+                      <Trash2 className="size-3.5 text-error" aria-hidden />
+                      Gỡ ảnh
+                    </Button>
+                  )}
+                </div>
+              </div>
+
+              {coverUploadError && (
+                <p role="alert" className="rounded-md bg-error/10 px-3 py-2 text-xs text-error">
+                  {coverUploadError}
+                </p>
+              )}
+
+              <div className="grid gap-3 sm:grid-cols-[12rem_1fr] sm:items-start">
+                <div className="relative aspect-video w-full overflow-hidden rounded-lg border border-border bg-white shadow-xs">
+                  {customCoverLoading ? (
+                    <div className="flex size-full items-center justify-center bg-surface-alt text-xs text-ink-muted">
+                      Đang tải ảnh…
+                    </div>
+                  ) : (
+                    // eslint-disable-next-line @next/next/no-img-element
+                    <img
+                      src={activeCoverPreviewSrc}
+                      alt={title || "Hình nền địa điểm di tích"}
+                      className="size-full object-cover"
+                    />
+                  )}
+                  <span className="absolute bottom-1.5 left-1.5 rounded bg-black/70 px-1.5 py-0.5 text-[10px] font-medium text-white">
+                    {coverAssetId ? "Đã gắn ảnh bìa" : "Tự động theo địa điểm"}
+                  </span>
+                </div>
+
+                <div className="min-w-0 space-y-2 text-xs text-ink-muted">
+                  {presetCover ? (
+                    <div className="rounded-lg border border-border bg-white p-2.5">
+                      <p className="font-medium text-ink">{presetCover.title}</p>
+                      <p className="mt-0.5 text-[11px] text-ink-muted">{presetCover.caption}</p>
+                      <p className="mt-1 font-mono text-[11px] text-ink-muted">
+                        Asset ID: {presetCover.assetId}
+                      </p>
+                    </div>
+                  ) : customCoverAssetId ? (
+                    <div className="rounded-lg border border-border bg-white p-2.5">
+                      <p className="truncate font-medium text-ink">
+                        {coverAssetDetailQuery.data?.originalFilename ?? "Ảnh bìa đã chọn từ thư viện"}
+                      </p>
+                      {coverAssetDetailQuery.data && (
+                        <p className="mt-0.5 text-[11px]">
+                          Định dạng: <span className="font-mono text-ink">{coverAssetDetailQuery.data.mimeType}</span> ·{" "}
+                          {Math.max(1, Math.round(coverAssetDetailQuery.data.sizeBytes / 1024))} KB
+                        </p>
+                      )}
+                      <p className="mt-1 truncate font-mono text-[11px] text-ink-muted">
+                        Asset ID: {customCoverAssetId}
+                      </p>
+                    </div>
+                  ) : (
+                    <div className="rounded-lg border border-dashed border-border bg-white/70 p-2.5">
+                      <p className="font-medium text-ink">Chưa gắn Asset riêng</p>
+                      <p className="mt-0.5 text-[11px]">
+                        Hệ thống đang hiển thị tranh minh họa tự động. Bạn có thể tải ảnh mới lên, chọn từ thư viện hoặc bấm vào một tranh mẫu bên dưới.
+                      </p>
+                    </div>
+                  )}
+
+                  <div>
+                    <p className="mb-1 text-[11px] font-medium text-ink-muted">
+                      Chọn nhanh tranh nền di tích mẫu:
+                    </p>
+                    <div className="grid grid-cols-2 gap-1.5 sm:grid-cols-3">
+                      {HERITAGE_PRESET_ILLUSTRATIONS.map((preset) => {
+                        const activePreset = coverAssetId === preset.assetId;
+                        return (
+                          <button
+                            key={preset.key}
+                            type="button"
+                            onClick={() => setCoverAssetId(preset.assetId)}
+                            className={cn(
+                              "flex cursor-pointer items-center gap-1.5 rounded-md border p-1 text-left transition-all",
+                              activePreset
+                                ? "border-brand bg-brand/5 ring-1 ring-brand/40"
+                                : "border-border bg-white hover:border-brand/50",
+                            )}
+                          >
+                            {/* eslint-disable-next-line @next/next/no-img-element */}
+                            <img
+                              src={preset.url}
+                              alt={preset.title}
+                              className="size-7 shrink-0 rounded object-cover"
+                            />
+                            <span
+                              className={cn(
+                                "line-clamp-2 text-[10px] font-medium leading-tight",
+                                activePreset ? "text-brand" : "text-ink",
+                              )}
+                            >
+                              {preset.title}
+                            </span>
+                          </button>
+                        );
+                      })}
+                    </div>
+                  </div>
+                </div>
               </div>
             </div>
 
@@ -1135,6 +1532,11 @@ function LocationDetailEditor({
               open={coverPickerOpen}
               onOpenChange={setCoverPickerOpen}
               onSelect={(asset: AdminAsset) => setCoverAssetId(asset.id)}
+            />
+            <AssetPickerDialog
+              open={mapPickerOpen}
+              onOpenChange={setMapPickerOpen}
+              onSelect={(asset: AdminAsset) => setMapAssetId(asset.id)}
             />
           </div>
         )}

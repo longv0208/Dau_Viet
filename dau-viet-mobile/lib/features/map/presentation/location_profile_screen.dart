@@ -176,6 +176,7 @@ MapLocationDto _mergeWithInitial(
     unlocked: detail.unlocked,
     unlockState: detail.unlockState,
     coverAssetId: detail.coverAssetId ?? initial.coverAssetId,
+    mapAssetId: detail.mapAssetId ?? initial.mapAssetId,
     requiredLesson: detail.requiredLesson ?? initial.requiredLesson,
     eventIds: detail.eventIds.isNotEmpty ? detail.eventIds : initial.eventIds,
     events: detail.events.isNotEmpty ? detail.events : initial.events,

@@ -58,6 +58,9 @@ public class MapLocation {
     @Column(name = "cover_asset_id")
     private UUID coverAssetId;
 
+
+    @Column(name = "map_asset_id")
+    private UUID mapAssetId;
     /** Legacy single-lesson unlock column; null = location always AVAILABLE unless multi-lesson rules exist. */
     @Column(name = "unlock_lesson_id")
     private UUID unlockLessonId;
@@ -137,6 +140,9 @@ public class MapLocation {
     public UUID getCoverAssetId() { return coverAssetId; }
     public void setCoverAssetId(UUID coverAssetId) { this.coverAssetId = coverAssetId; }
 
+
+    public UUID getMapAssetId() { return mapAssetId; }
+    public void setMapAssetId(UUID mapAssetId) { this.mapAssetId = mapAssetId; }
     public UUID getUnlockLessonId() { return unlockLessonId; }
     public void setUnlockLessonId(UUID unlockLessonId) { this.unlockLessonId = unlockLessonId; }
 

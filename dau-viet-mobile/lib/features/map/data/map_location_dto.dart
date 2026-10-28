@@ -190,6 +190,7 @@ class MapLocationDto {
   final bool unlocked;
   final MapUnlockState unlockState;
   final String? coverAssetId;
+  final String? mapAssetId;
   final RequiredLessonRef? requiredLesson;
   final List<String> eventIds;
   final List<MapLocationLinkedEventDto> events;
@@ -213,6 +214,7 @@ class MapLocationDto {
     bool? unlocked,
     required this.unlockState,
     this.coverAssetId,
+    this.mapAssetId,
     this.requiredLesson,
     this.eventIds = const [],
     this.events = const [],
@@ -390,6 +392,7 @@ class MapLocationDto {
       unlocked: parsedUnlocked,
       unlockState: parsedState,
       coverAssetId: json['coverAssetId'] as String?,
+      mapAssetId: json['mapAssetId'] as String?,
       requiredLesson: req is Map
           ? RequiredLessonRef.fromJson(req.cast<String, dynamic>())
           : null,

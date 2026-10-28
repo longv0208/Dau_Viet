@@ -118,6 +118,7 @@ export interface StandaloneLocationResponse {
   visibility: MapLocationVisibility;
   unlockRuleMode: UnlockRuleMode;
   coverAssetId: string | null;
+  mapAssetId?: string | null;
   displayOrder: number;
   status: MapLocationStatus;
   everPublished: boolean;
@@ -141,6 +142,7 @@ export interface StandaloneLocationRequest {
   visibility?: MapLocationVisibility;
   unlockRuleMode?: UnlockRuleMode;
   coverAssetId?: string | null;
+  mapAssetId?: string | null;
   displayOrder?: number;
 }
 
@@ -184,6 +186,7 @@ export const MEDIA_VISIBILITY_LABELS: Record<LocationMediaVisibility, string> = 
 
 export interface HeritagePresetIllustration {
   key: string;
+  assetId: string;
   title: string;
   url: string;
   suggestedKind: MapLocationKind;
@@ -193,6 +196,7 @@ export interface HeritagePresetIllustration {
 export const HERITAGE_PRESET_ILLUSTRATIONS: HeritagePresetIllustration[] = [
   {
     key: "den-hung-phong-chau",
+    assetId: "d7a70000-0000-4000-8000-000000000001",
     title: "Khu di tích Đền Hùng — Phong Châu (Văn Lang)",
     url: "/heritage/den-hung-phong-chau.jpg",
     suggestedKind: "ANCIENT_CAPITAL",
@@ -200,6 +204,7 @@ export const HERITAGE_PRESET_ILLUSTRATIONS: HeritagePresetIllustration[] = [
   },
   {
     key: "me-linh-hai-ba-trung",
+    assetId: "d7a70000-0000-4000-8000-000000000002",
     title: "Thành cổ Mê Linh — Đền Hai Bà Trưng (Năm 40)",
     url: "/heritage/me-linh-hai-ba-trung.jpg",
     suggestedKind: "HERITAGE_SITE",
@@ -207,6 +212,7 @@ export const HERITAGE_PRESET_ILLUSTRATIONS: HeritagePresetIllustration[] = [
   },
   {
     key: "bai-coc-bach-dang",
+    assetId: "d7a70000-0000-4000-8000-000000000003",
     title: "Bãi cọc Bạch Đằng Giang (Năm 938)",
     url: "/heritage/bai-coc-bach-dang.jpg",
     suggestedKind: "BATTLEFIELD",
@@ -214,6 +220,7 @@ export const HERITAGE_PRESET_ILLUSTRATIONS: HeritagePresetIllustration[] = [
   },
   {
     key: "hoang-thanh-thang-long",
+    assetId: "d7a70000-0000-4000-8000-000000000004",
     title: "Hoàng thành Thăng Long — Đoan Môn (Năm 1010)",
     url: "/heritage/hoang-thanh-thang-long.jpg",
     suggestedKind: "ANCIENT_CAPITAL",
@@ -221,6 +228,7 @@ export const HERITAGE_PRESET_ILLUSTRATIONS: HeritagePresetIllustration[] = [
   },
   {
     key: "phong-tuyen-nhu-nguyet",
+    assetId: "d7a70000-0000-4000-8000-000000000005",
     title: "Phòng tuyến sông Như Nguyệt (Năm 1077)",
     url: "/heritage/phong-tuyen-nhu-nguyet.jpg",
     suggestedKind: "BATTLEFIELD",
@@ -228,6 +236,7 @@ export const HERITAGE_PRESET_ILLUSTRATIONS: HeritagePresetIllustration[] = [
   },
   {
     key: "doi-a1-dien-bien-phu",
+    assetId: "d7a70000-0000-4000-8000-000000000006",
     title: "Đồi A1 & Lòng chảo Mường Thanh — Điện Biên Phủ (Năm 1954)",
     url: "/heritage/doi-a1-dien-bien-phu.jpg",
     suggestedKind: "BATTLEFIELD",
@@ -235,25 +244,218 @@ export const HERITAGE_PRESET_ILLUSTRATIONS: HeritagePresetIllustration[] = [
   },
 ];
 
+export interface HeritagePresetMap {
+  key: string;
+  assetId: string;
+  title: string;
+  shortLabel: string;
+  url: string;
+}
+
+export const HERITAGE_PRESET_MAPS: HeritagePresetMap[] = [
+  {
+    key: "map-van-lang",
+    assetId: "d7a90000-0000-4000-8000-000000000001",
+    title: "Bản đồ Nước Văn Lang Thời Các Vua Hùng",
+    shortLabel: "Bản đồ Văn Lang",
+    url: "/maps/map_van_lang.jpg",
+  },
+  {
+    key: "map-hai-ba-trung",
+    assetId: "d7a90000-0000-4000-8000-000000000002",
+    title: "Bản đồ Khởi Nghĩa Hai Bà Trưng (Năm 40)",
+    shortLabel: "Bản đồ Hai Bà Trưng",
+    url: "/maps/map_hai_ba_trung.jpg",
+  },
+  {
+    key: "map-bach-dang",
+    assetId: "d7a90000-0000-4000-8000-000000000003",
+    title: "Bản đồ Thủy Chiến Bạch Đằng Giang 938",
+    shortLabel: "Bản đồ Bạch Đằng 938",
+    url: "/maps/dv_MAP_ngoquyen_bachdang-base_v01.jpg",
+  },
+  {
+    key: "map-nhu-nguyet",
+    assetId: "d7a90000-0000-4000-8000-000000000004",
+    title: "Bản đồ Phòng Tuyến Sông Như Nguyệt 1077",
+    shortLabel: "Bản đồ Như Nguyệt 1077",
+    url: "/maps/map_nhu_nguyet.jpg",
+  },
+  {
+    key: "map-dien-bien-phu",
+    assetId: "d7a90000-0000-4000-8000-000000000005",
+    title: "Bản đồ Chiến Dịch Điện Biên Phủ 1954",
+    shortLabel: "Bản đồ Điện Biên Phủ",
+    url: "/maps/map_dien_bien_phu.jpg",
+  },
+  {
+    key: "map-vietnam-journey",
+    assetId: "d7a90000-0000-4000-8000-000000000006",
+    title: "Bản đồ Hành Trình Lịch Sử Việt Nam",
+    shortLabel: "Bản đồ Hành trình VN",
+    url: "/maps/vietnam_journey_map_bg.jpg",
+  },
+];
+
+export function resolvePresetIllustrationByAssetId(
+  assetId: string | null | undefined,
+): HeritagePresetIllustration | null {
+  if (!assetId) return null;
+  const normalized = assetId.trim().toLowerCase();
+  return (
+    HERITAGE_PRESET_ILLUSTRATIONS.find(
+      (item) => item.assetId.toLowerCase() === normalized,
+    ) ?? null
+  );
+}
+
+export function resolvePresetMapByAssetId(
+  assetId: string | null | undefined,
+): HeritagePresetMap | null {
+  if (!assetId) return null;
+  const normalized = assetId.trim().toLowerCase();
+  return (
+    HERITAGE_PRESET_MAPS.find(
+      (item) => item.assetId.toLowerCase() === normalized,
+    ) ?? null
+  );
+}
+
 export function resolveHeritageFallbackIllustration(
   slug: string | null | undefined,
   title: string,
 ): string {
   const haystack = `${slug ?? ""} ${title}`.toLowerCase();
-  if (haystack.includes("bach-dang") || haystack.includes("bạch đằng")) {
+  if (
+    haystack.includes("bach-dang") ||
+    haystack.includes("bạch đằng") ||
+    haystack.includes("nam-trieu") ||
+    haystack.includes("nam triệu") ||
+    haystack.includes("yên giang")
+  ) {
     return "/heritage/bai-coc-bach-dang.jpg";
   }
-  if (haystack.includes("hai-ba-trung") || haystack.includes("mê linh") || haystack.includes("me-linh")) {
+  if (
+    haystack.includes("hai-ba-trung") ||
+    haystack.includes("mê linh") ||
+    haystack.includes("me-linh") ||
+    haystack.includes("hát môn") ||
+    haystack.includes("hat-mon") ||
+    haystack.includes("sông hát") ||
+    haystack.includes("luy lâu")
+  ) {
     return "/heritage/me-linh-hai-ba-trung.jpg";
   }
-  if (haystack.includes("thang-long") || haystack.includes("thăng long") || haystack.includes("đoan môn")) {
+  if (
+    haystack.includes("thang-long") ||
+    haystack.includes("thăng long") ||
+    haystack.includes("đoan môn") ||
+    haystack.includes("nhà hồ") ||
+    haystack.includes("nha-ho") ||
+    haystack.includes("huế") ||
+    haystack.includes("hue") ||
+    haystack.includes("thiên mụ") ||
+    haystack.includes("minh mạng") ||
+    haystack.includes("hội an") ||
+    haystack.includes("hoi-an")
+  ) {
     return "/heritage/hoang-thanh-thang-long.jpg";
   }
-  if (haystack.includes("nhu-nguyet") || haystack.includes("như nguyệt") || haystack.includes("sông cầu")) {
+  if (
+    haystack.includes("nhu-nguyet") ||
+    haystack.includes("như nguyệt") ||
+    haystack.includes("sông cầu") ||
+    haystack.includes("đền xà") ||
+    haystack.includes("nam quốc sơn hà")
+  ) {
     return "/heritage/phong-tuyen-nhu-nguyet.jpg";
   }
-  if (haystack.includes("dien-bien") || haystack.includes("điện biên") || haystack.includes("a1")) {
+  if (
+    haystack.includes("dien-bien") ||
+    haystack.includes("điện biên") ||
+    haystack.includes("a1") ||
+    haystack.includes("castries") ||
+    haystack.includes("mường thanh")
+  ) {
     return "/heritage/doi-a1-dien-bien-phu.jpg";
   }
   return "/heritage/den-hung-phong-chau.jpg";
+}
+
+export function resolveLocationMapPreset(params: {
+  mapAssetId?: string | null;
+  slug?: string | null;
+  title?: string | null;
+  eventId?: string | null;
+  eventHints?: (string | null | undefined)[];
+}): HeritagePresetMap {
+  const byAsset = resolvePresetMapByAssetId(params.mapAssetId);
+  if (byAsset) return byAsset;
+
+  const haystack = [
+    params.slug ?? "",
+    params.title ?? "",
+    params.eventId ?? "",
+    ...(params.eventHints ?? []),
+  ]
+    .join(" ")
+    .toLowerCase();
+
+  if (
+    haystack.includes("000000000001") ||
+    haystack.includes("bach-dang") ||
+    haystack.includes("bạch đằng") ||
+    haystack.includes("nam-trieu") ||
+    haystack.includes("nam triệu") ||
+    haystack.includes("yên giang") ||
+    haystack.includes("938")
+  ) {
+    return HERITAGE_PRESET_MAPS[2]; // map-bach-dang
+  }
+  if (
+    haystack.includes("000000000002") ||
+    haystack.includes("hai-ba-trung") ||
+    haystack.includes("hai bà trưng") ||
+    haystack.includes("mê linh") ||
+    haystack.includes("me-linh") ||
+    haystack.includes("hát môn") ||
+    haystack.includes("sông hát") ||
+    haystack.includes("luy lâu")
+  ) {
+    return HERITAGE_PRESET_MAPS[1]; // map-hai-ba-trung
+  }
+  if (
+    haystack.includes("000000000003") ||
+    haystack.includes("nhu-nguyet") ||
+    haystack.includes("như nguyệt") ||
+    haystack.includes("sông cầu") ||
+    haystack.includes("đền xà") ||
+    haystack.includes("1077")
+  ) {
+    return HERITAGE_PRESET_MAPS[3]; // map-nhu-nguyet
+  }
+  if (
+    haystack.includes("000000000004") ||
+    haystack.includes("dien-bien") ||
+    haystack.includes("điện biên") ||
+    haystack.includes("đồi a1") ||
+    haystack.includes("castries") ||
+    haystack.includes("mường thanh") ||
+    haystack.includes("1954")
+  ) {
+    return HERITAGE_PRESET_MAPS[4]; // map-dien-bien-phu
+  }
+  if (
+    haystack.includes("000000000005") ||
+    haystack.includes("van-lang") ||
+    haystack.includes("văn lang") ||
+    haystack.includes("đền hùng") ||
+    haystack.includes("den-hung") ||
+    haystack.includes("hùng vương") ||
+    haystack.includes("ngã ba hạc") ||
+    haystack.includes("phong châu")
+  ) {
+    return HERITAGE_PRESET_MAPS[0]; // map-van-lang
+  }
+  return HERITAGE_PRESET_MAPS[5]; // map-vietnam-journey
 }

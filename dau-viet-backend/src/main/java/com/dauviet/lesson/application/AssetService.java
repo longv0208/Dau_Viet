@@ -156,6 +156,7 @@ public class AssetService {
         String filename = Path.of(a.getOriginalFilename()).getFileName().toString();
         List<String> candidates = List.of(
                 "seed-assets/heritage/" + filename,
+                "seed-assets/maps/" + filename,
                 "seed-assets/" + filename
         );
         for (String cp : candidates) {

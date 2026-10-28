@@ -61,7 +61,9 @@ public class AdminEventService {
         e.setSummary(req.summary());
         e.setDescription(req.description());
         e.setLocation(req.location());
-        e.setCoverAssetKey(req.coverAssetKey());
+        e.setCoverAssetKey(req.coverAssetKey() != null && !req.coverAssetKey().isBlank()
+                ? req.coverAssetKey().trim()
+                : null);
         e.setTags(req.tags() == null ? new ArrayList<>() : new ArrayList<>(req.tags()));
         e.setStatus(EventStatus.DRAFT);
         try {
@@ -122,7 +124,9 @@ public class AdminEventService {
         if (req.summary() != null) e.setSummary(req.summary());
         if (req.description() != null) e.setDescription(req.description());
         if (req.location() != null) e.setLocation(req.location());
-        if (req.coverAssetKey() != null) e.setCoverAssetKey(req.coverAssetKey());
+        if (req.coverAssetKey() != null) {
+            e.setCoverAssetKey(req.coverAssetKey().isBlank() ? null : req.coverAssetKey().trim());
+        }
         if (req.tags() != null) e.setTags(new ArrayList<>(req.tags()));
         try {
             return mapper.toResponse(events.saveAndFlush(e));

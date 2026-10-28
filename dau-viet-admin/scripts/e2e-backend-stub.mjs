@@ -455,7 +455,7 @@ const server = http.createServer(async (req, res) => {
         summary: body.summary,
         description: body.description ?? null,
         location: body.location ?? null,
-        coverAssetKey: body.coverAssetKey ?? null,
+        coverAssetKey: body.coverAssetKey ? body.coverAssetKey : null,
         tags: body.tags ?? [],
         status: "DRAFT",
         rowVersion: 1,
@@ -488,7 +488,10 @@ const server = http.createServer(async (req, res) => {
         summary: body.summary ?? ev.summary,
         description: body.description ?? ev.description,
         location: body.location ?? ev.location,
-        coverAssetKey: body.coverAssetKey ?? ev.coverAssetKey,
+        coverAssetKey:
+          body.coverAssetKey === ""
+            ? null
+            : (body.coverAssetKey ?? ev.coverAssetKey),
         tags: body.tags ?? ev.tags,
         rowVersion: ev.rowVersion + 1,
         updatedAt: NOW,

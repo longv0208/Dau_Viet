@@ -1,6 +1,6 @@
 "use client";
 
-import { useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { cn } from "@/lib/utils";
 
 export interface LatLng {
@@ -40,6 +40,29 @@ export function LatLngMapPicker({
   const frameRef = useRef<HTMLDivElement>(null);
   const [imgError, setImgError] = useState(false);
 
+  useEffect(() => {
+    setImgError(false);
+  }, [imageSrc]);
+
+  const displayPos = useMemo(() => {
+    if (!value) return null;
+    const { lat, lng } = value;
+    // Nếu là tọa độ địa lý thực tại Việt Nam (kinh độ > 100°E, vĩ độ 8..24°N),
+    // quy đổi sang vị trí tương đối % trên khung bản đồ để không bị dồn sát mép phải (100%).
+    if (lng > 100 && lat >= 5 && lat <= 26) {
+      const normY = ((23.5 - lat) / (23.5 - 8.5)) * 80 + 10;
+      const normX = ((lng - 102) / (109.5 - 102)) * 72 + 14;
+      return {
+        topPct: Math.min(95, Math.max(5, round2(normY))),
+        leftPct: Math.min(95, Math.max(5, round2(normX))),
+      };
+    }
+    return {
+      topPct: Math.min(100, Math.max(0, lat)),
+      leftPct: Math.min(100, Math.max(0, lng)),
+    };
+  }, [value]);
+
   const toPct = (clientX: number, clientY: number): LatLng | null => {
     const el = frameRef.current;
     if (!el) return null;
@@ -49,10 +72,9 @@ export function LatLngMapPicker({
     const y = ((clientY - r.top) / r.height) * 100;
     return {
       lng: Math.min(100, Math.max(0, round2(x))),
-      lat: Math.min(100, Math.max(0, round2(y))),
+      lat: Math.min(90, Math.max(0, round2(y))),
     };
   };
-
   const handleClick = (e: React.MouseEvent<HTMLDivElement>) => {
     const v = toPct(e.clientX, e.clientY);
     if (v) onChange(v);
@@ -107,15 +129,15 @@ export function LatLngMapPicker({
           />
         )}
 
-        {value && !imgError && (
+        {displayPos && !imgError && (
           <button
             type="button"
             aria-label="Vị trí đã chọn — kéo để chỉnh"
             onPointerDown={handleMarkerPointerDown}
             onClick={(e) => e.stopPropagation()}
             style={{
-              left: `${value.lng}%`,
-              top: `${value.lat}%`,
+              left: `${displayPos.leftPct}%`,
+              top: `${displayPos.topPct}%`,
               transform: "translate(-50%, -50%)",
             }}
             className={cn(
