@@ -19,14 +19,35 @@ import 'package:go_router/go_router.dart';
 
 class _FakeMapRepository implements MapRepository {
   List<MapLocationDto> locations = const [];
+  Map<String, MapLocationDto> detailsById = const {};
   Object? error;
   int calls = 0;
+  int detailCalls = 0;
 
   @override
-  Future<List<MapLocationDto>> listLocations() async {
+  Future<List<MapLocationDto>> listLocations({
+    String? periodCode,
+    String? eventId,
+    String? kind,
+    bool? unlocked,
+  }) async {
     calls++;
     if (error != null) throw error!;
     return locations;
+  }
+
+  @override
+  Future<MapLocationDto> getLocationDetail(String locationId) async {
+    detailCalls++;
+    if (error != null) throw error!;
+    final detail = detailsById[locationId];
+    if (detail != null) return detail;
+    return locations.firstWhere(
+      (l) => l.id == locationId,
+      orElse: () => throw const ApiException(
+        ApiError(code: 'NOT_FOUND', message: 'Not found'),
+      ),
+    );
   }
 }
 
@@ -366,8 +387,118 @@ void main() {
       expect(tester.takeException(), isNull);
       expect(find.byType(JourneyMapNode), findsNWidgets(3));
     });
+    testWidgets(
+      'AC-2: địa điểm khoá vẫn hiện tên và ghim nếu visibility = PUBLIC, ẩn nếu HIDDEN_UNTIL_UNLOCKED',
+      (tester) async {
+        const lockedPublic = MapLocationDto(
+          id: 'loc-pub-locked',
+          eventId: 'evt-1',
+          eventTitle: 'Khởi nghĩa Hai Bà Trưng',
+          title: 'Đền Hát Môn (Đang khoá công khai)',
+          visibility: 'PUBLIC',
+          unlocked: false,
+          unlockState: MapUnlockState.locked,
+          latitude: 21.1,
+          longitude: 105.5,
+        );
+        const lockedHidden = MapLocationDto(
+          id: 'loc-hid-locked',
+          eventId: 'evt-1',
+          eventTitle: 'Khởi nghĩa Hai Bà Trưng',
+          title: 'Mật khu ẩn đến khi mở',
+          visibility: 'HIDDEN_UNTIL_UNLOCKED',
+          unlocked: false,
+          unlockState: MapUnlockState.locked,
+          latitude: 21.2,
+          longitude: 105.6,
+        );
+        final repo = _FakeMapRepository()
+          ..locations = const [lockedPublic, lockedHidden];
+        await tester.pumpWidget(buildApp(repo));
+        await tester.pumpAndSettle();
+
+        // Địa điểm khoá nhưng visibility = PUBLIC vẫn hiện ghim và tên.
+        expect(find.byType(JourneyMapNode), findsOneWidget);
+        expect(find.text('Đền Hát Môn (Đang khoá công khai)'), findsWidgets);
+        // Địa điểm khoá có visibility = HIDDEN_UNTIL_UNLOCKED bị ẩn.
+        expect(find.text('Mật khu ẩn đến khi mở'), findsNothing);
+      },
+    );
   });
 
+  group('MapLocationDto v2 contract parsing', () {
+    test(
+      'parse đầy đủ trường v2, events, unlockLessons và lọc media theo quyền',
+      () {
+        final dto = MapLocationDto.fromJson({
+          'id': 'loc-v2',
+          'eventId': 'evt-1',
+          'eventTitle': 'Đại Chiến Bạch Đằng 938',
+          'slug': 'bai-coc-bach-dang',
+          'title': 'Bãi cọc Bạch Đằng',
+          'shortSummary': 'Trận địa cọc ngầm cửa sông',
+          'description': 'Mô tả chi tiết di tích bãi cọc.',
+          'latitude': 20.85,
+          'longitude': 106.68,
+          'kind': 'BATTLEFIELD',
+          'coordinatePrecision': 'EXACT',
+          'visibility': 'PUBLIC',
+          'unlockMode': 'ALL',
+          'unlocked': false,
+          'unlockState': 'LOCKED',
+          'coverAssetId': 'asset-cover-1',
+          'eventIds': ['evt-1', 'evt-2'],
+          'events': [
+            {
+              'eventId': 'evt-1',
+              'title': 'Đại Chiến Bạch Đằng 938',
+              'yearLabel': 'Năm 938',
+              'role': 'PRIMARY',
+              'sortOrder': 0,
+            },
+          ],
+          'unlockLessons': [
+            {
+              'lessonId': 'les-1',
+              'title': 'Chiến thuật cọc ngầm',
+              'completed': false,
+              'accessible': true,
+            },
+          ],
+          'media': [
+            {
+              'id': 'm1',
+              'mediaType': 'IMAGE_2D',
+              'title': 'Ảnh công khai',
+              'caption': 'Xem trước',
+              'visibility': 'PUBLIC_PREVIEW',
+              'sortOrder': 0,
+            },
+            {
+              'id': 'm2',
+              'mediaType': 'DOCUMENTARY_CLIP',
+              'title': 'Video bí mật',
+              'visibility': 'UNLOCKED_ONLY',
+              'sortOrder': 1,
+            },
+          ],
+        });
+
+        expect(dto.slug, 'bai-coc-bach-dang');
+        expect(dto.kind, 'BATTLEFIELD');
+        expect(dto.kindLabelVi, 'Chiến trường cổ');
+        expect(dto.isPublicVisibility, isTrue);
+        expect(dto.shouldDisplayOnMap, isTrue);
+        expect(dto.unlocked, isFalse);
+        expect(dto.events.single.yearLabel, 'Năm 938');
+        expect(dto.unlockLessons.single.lessonId, 'les-1');
+        // Khi đang khoá, chỉ media PUBLIC_PREVIEW được hiển thị.
+        expect(dto.visibleMedia.length, 1);
+        expect(dto.imageMedia.single.title, 'Ảnh công khai');
+        expect(dto.videoMedia, isEmpty);
+      },
+    );
+  });
   group('groupChapters', () {
     test('nhóm theo eventId, giữ input order, fallback title', () {
       const a = MapLocationDto(

@@ -1,9 +1,9 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../core/api/api_config.dart';
+import '../../auth/data/auth_state.dart';
 import '../../events/data/events_providers.dart';
 import '../../learning/data/learning_providers.dart';
-import '../../auth/data/auth_state.dart';
 import 'api_map_repository.dart';
 import 'map_api_client.dart';
 import 'map_location_dto.dart';
@@ -56,5 +56,22 @@ final mapLocationsProvider = FutureProvider<List<MapLocationDto>>(
     // để buộc rebuild đúng phiên, không nằm trong payload.
     assert(sessionKey.isNotEmpty);
     return ref.read(authRepositoryProvider).withAuth(repo.listLocations);
+  },
+);
+
+/// Hồ sơ chi tiết một địa điểm (`GET /api/v1/map/locations/{locationId}`) —
+/// nạp `events[]`, `unlockLessons[]`, và `media[]` đã lọc quyền xem.
+final mapLocationDetailProvider = FutureProvider.family<MapLocationDto, String>(
+  retry: _noRetry,
+  (ref, locationId) async {
+    final sessionKey = _mapSessionKey(ref.watch(authSessionProvider));
+    final repo = ref.watch(mapRepositoryProvider);
+    if (ApiConfig.useMock) {
+      return repo.getLocationDetail(locationId);
+    }
+    assert(sessionKey.isNotEmpty);
+    return ref
+        .read(authRepositoryProvider)
+        .withAuth(() => repo.getLocationDetail(locationId));
   },
 );
