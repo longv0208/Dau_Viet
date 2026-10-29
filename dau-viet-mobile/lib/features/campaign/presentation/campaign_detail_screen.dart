@@ -12,7 +12,10 @@ import '../../../core/widgets/parchment_card.dart';
 import '../../../mock/data/mock_bach_dang_data.dart';
 import '../../../mock/models/lesson_models.dart';
 import '../../events/data/events_providers.dart';
-import '../../learning/presentation/lesson_list_section.dart';
+import '../../learning/data/learning_dtos.dart';
+import '../../learning/data/learning_providers.dart';
+import '../../learning_path/data/learning_path_dto.dart';
+import '../../learning_path/data/learning_path_providers.dart';
 import 'widgets/event_progress_section.dart';
 
 /// Màn hình M-07: Chi Tiết Chiến Dịch Lịch Sử (Campaign Detail Screen - Bạch Đằng 938)
@@ -103,8 +106,8 @@ class CampaignDetailScreen extends ConsumerWidget {
             EventProgressSection(eventId: eventId),
             const SizedBox(height: 16),
 
-            // 6b. Bài học published của sự kiện (real backend / demo repo)
-            LessonListSection(eventId: eventId),
+            // 6b. Bài học published của sự kiện kèm trạng thái từ lộ trình
+            _CampaignPathLessonListSection(eventId: eventId),
             const SizedBox(height: 24),
 
             // 7. Cặp Nút Hành Động Chính — route /traces và /saban chỉ
@@ -541,5 +544,369 @@ class CampaignDetailScreen extends ConsumerWidget {
         ],
       ),
     );
+  }
+}
+
+/// Danh sách bài học trong Chiến dịch — kết hợp danh sách bài học đã xuất bản
+/// (`GET /api/v1/events/{eventId}/lessons`) với trạng thái cá nhân trên lộ trình
+/// (`GET /api/v1/me/learning-path`).
+/// - Bài học trong lộ trình hiển thị icon + nhãn `LearnerPathStatus.labelVi`.
+/// - Bài học ngoài lộ trình (`status == null`) hiển thị "Tự do khám phá" và mở học bình thường.
+/// - Bài học `LOCKED` hoặc `NOT_READY` bị chặn mở và thông báo rõ lý do.
+class _CampaignPathLessonListSection extends ConsumerWidget {
+  final String eventId;
+
+  const _CampaignPathLessonListSection({required this.eventId});
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final AsyncValue<List<LessonListItemDto>> lessonsAsync = ref.watch(
+      eventLessonsProvider(eventId),
+    );
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(
+          'BÀI HỌC LỊCH SỬ',
+          style: DauVietTypography.labelSmall.copyWith(
+            color: DauVietColors.inkMuted,
+            fontWeight: FontWeight.w800,
+            letterSpacing: 0.8,
+          ),
+        ),
+        const SizedBox(height: 10),
+        lessonsAsync.when(
+          loading: () => const Padding(
+            padding: EdgeInsets.symmetric(vertical: 12),
+            child: Center(
+              child: SizedBox(
+                width: 24,
+                height: 24,
+                child: CircularProgressIndicator(strokeWidth: 2),
+              ),
+            ),
+          ),
+          error: (error, _) => Column(
+            children: [
+              Text(
+                'Không tải được danh sách bài học.',
+                style: DauVietTypography.bodySmall.copyWith(
+                  color: DauVietColors.inkMuted,
+                ),
+              ),
+              TextButton(
+                onPressed: () {
+                  ref.invalidate(eventLessonsProvider(eventId));
+                  ref.invalidate(learnerLearningPathProvider);
+                },
+                child: const Text('Thử lại'),
+              ),
+            ],
+          ),
+          data: (lessons) {
+            final LearningPathDto? path = ref
+                .watch(learnerLearningPathProvider)
+                .maybeWhen(data: (p) => p, orElse: () => null);
+            final LearningPathEventNodeDto? pathEvent = path?.findEventById(
+              eventId,
+            );
+            final effectiveLessons = _mergeLessonsWithPath(
+              lessons,
+              path,
+              pathEvent,
+            );
+            if (effectiveLessons.isEmpty) {
+              return Container(
+                width: double.infinity,
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 14,
+                  vertical: 16,
+                ),
+                decoration: BoxDecoration(
+                  color: DauVietColors.parchmentContainer.withValues(
+                    alpha: 0.6,
+                  ),
+                  borderRadius: BorderRadius.circular(12),
+                  border: Border.all(color: DauVietColors.outlineVariant),
+                ),
+                child: Row(
+                  children: [
+                    const Icon(
+                      Icons.auto_stories_outlined,
+                      color: DauVietColors.inkMuted,
+                      size: 20,
+                    ),
+                    const SizedBox(width: 10),
+                    Expanded(
+                      child: Text(
+                        'Chưa có bài học được xuất bản',
+                        style: DauVietTypography.bodySmall.copyWith(
+                          color: DauVietColors.inkMuted,
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              );
+            }
+
+            return Column(
+              children: [
+                for (final item in effectiveLessons) ...[
+                  _CampaignLessonCard(
+                    lesson: item.lesson,
+                    status: item.status,
+                    hasPathContext: path != null,
+                  ),
+                  const SizedBox(height: 8),
+                ],
+              ],
+            );
+          },
+        ),
+      ],
+    );
+  }
+
+  List<({LessonListItemDto lesson, LearnerPathStatus? status})>
+  _mergeLessonsWithPath(
+    List<LessonListItemDto> apiLessons,
+    LearningPathDto? path,
+    LearningPathEventNodeDto? pathEvent,
+  ) {
+    final apiById = <String, LessonListItemDto>{
+      for (final l in apiLessons) l.id: l,
+    };
+    final seenIds = <String>{};
+    final merged = <({LessonListItemDto lesson, LearnerPathStatus? status})>[];
+
+    if (pathEvent != null && pathEvent.lessons.isNotEmpty) {
+      for (final pl in pathEvent.lessons) {
+        seenIds.add(pl.lessonId);
+        final apiLesson = apiById[pl.lessonId];
+        merged.add((
+          lesson:
+              apiLesson ?? LessonListItemDto(id: pl.lessonId, title: pl.title),
+          status: pl.status,
+        ));
+      }
+    }
+
+    for (final lesson in apiLessons) {
+      if (seenIds.add(lesson.id)) {
+        merged.add((lesson: lesson, status: path?.lessonStatusOf(lesson.id)));
+      }
+    }
+
+    return merged;
+  }
+}
+
+class _CampaignLessonCard extends StatelessWidget {
+  final LessonListItemDto lesson;
+  final LearnerPathStatus? status;
+  final bool hasPathContext;
+
+  const _CampaignLessonCard({
+    required this.lesson,
+    required this.status,
+    required this.hasPathContext,
+  });
+
+  bool get _canStart => status == null || status!.canStart;
+
+  @override
+  Widget build(BuildContext context) {
+    final bool canStart = _canStart;
+    final (
+      IconData badgeIcon,
+      String badgeLabel,
+      Color badgeFg,
+      Color badgeBg,
+    ) = _badgePresentation(
+      status,
+    );
+
+    return InkWell(
+      borderRadius: BorderRadius.circular(12),
+      onTap: () {
+        if (!canStart) {
+          final msg = status == LearnerPathStatus.notReady
+              ? 'Bài học đang biên soạn và chưa sẵn sàng.'
+              : 'Bài học đang khóa. Hãy hoàn thành bài học trước đó trong lộ trình.';
+          ScaffoldMessenger.of(context)
+            ..hideCurrentSnackBar()
+            ..showSnackBar(
+              SnackBar(
+                content: Text(msg),
+                duration: const Duration(seconds: 2),
+              ),
+            );
+          return;
+        }
+        context.push('/learning/lesson/${lesson.id}');
+      },
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+        decoration: BoxDecoration(
+          color: canStart
+              ? Colors.white.withValues(alpha: 0.85)
+              : DauVietColors.parchmentContainer.withValues(alpha: 0.55),
+          borderRadius: BorderRadius.circular(12),
+          border: Border.all(
+            color: canStart
+                ? DauVietColors.imperialGold
+                : DauVietColors.outlineVariant,
+            width: 1.2,
+          ),
+        ),
+        child: Row(
+          children: [
+            Container(
+              width: 36,
+              height: 36,
+              decoration: BoxDecoration(
+                shape: BoxShape.circle,
+                color: canStart
+                    ? DauVietColors.cinnabarRed.withValues(alpha: 0.12)
+                    : DauVietColors.outlineVariant.withValues(alpha: 0.35),
+              ),
+              alignment: Alignment.center,
+              child: Icon(
+                canStart ? Icons.menu_book_rounded : Icons.lock_outline_rounded,
+                size: 18,
+                color: canStart
+                    ? DauVietColors.cinnabarRed
+                    : DauVietColors.inkMuted,
+              ),
+            ),
+            const SizedBox(width: 12),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    lesson.title,
+                    style: DauVietTypography.labelMedium.copyWith(
+                      fontWeight: FontWeight.w700,
+                      color: canStart
+                          ? DauVietColors.inkText
+                          : DauVietColors.inkMuted,
+                    ),
+                  ),
+                  if (lesson.centralQuestion != null &&
+                      lesson.centralQuestion!.isNotEmpty) ...[
+                    const SizedBox(height: 2),
+                    Text(
+                      lesson.centralQuestion!,
+                      maxLines: 2,
+                      overflow: TextOverflow.ellipsis,
+                      style: DauVietTypography.bodySmall.copyWith(
+                        color: DauVietColors.inkMuted,
+                        fontSize: 11,
+                      ),
+                    ),
+                  ],
+                  if (hasPathContext) ...[
+                    const SizedBox(height: 6),
+                    Container(
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 8,
+                        vertical: 2,
+                      ),
+                      decoration: BoxDecoration(
+                        color: badgeBg,
+                        borderRadius: BorderRadius.circular(999),
+                        border: Border.all(
+                          color: badgeFg.withValues(alpha: 0.35),
+                        ),
+                      ),
+                      child: Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Icon(badgeIcon, size: 12, color: badgeFg),
+                          const SizedBox(width: 4),
+                          Text(
+                            badgeLabel,
+                            style: DauVietTypography.labelSmall.copyWith(
+                              fontSize: 10.5,
+                              fontWeight: FontWeight.w700,
+                              color: badgeFg,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ],
+                ],
+              ),
+            ),
+            Icon(
+              canStart
+                  ? Icons.chevron_right_rounded
+                  : Icons.lock_outline_rounded,
+              color: DauVietColors.inkMuted,
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  static (IconData, String, Color, Color) _badgePresentation(
+    LearnerPathStatus? status,
+  ) {
+    if (status == null) {
+      return (
+        Icons.explore_outlined,
+        'Tự do khám phá',
+        DauVietColors.heritageGreen,
+        const Color(0xFFE8F5E9),
+      );
+    }
+    switch (status) {
+      case LearnerPathStatus.completed:
+        return (
+          Icons.check_circle_rounded,
+          status.labelVi,
+          const Color(0xFF2E7D32),
+          const Color(0xFFE8F5E9),
+        );
+      case LearnerPathStatus.mastered:
+        return (
+          Icons.workspace_premium_rounded,
+          status.labelVi,
+          const Color(0xFFB45309),
+          const Color(0xFFFEF3C7),
+        );
+      case LearnerPathStatus.inProgress:
+        return (
+          Icons.timelapse_rounded,
+          status.labelVi,
+          DauVietColors.cinnabarRed,
+          const Color(0xFFFDF2F2),
+        );
+      case LearnerPathStatus.available:
+        return (
+          Icons.play_circle_outline_rounded,
+          status.labelVi,
+          DauVietColors.heritageGreen,
+          const Color(0xFFE8F5E9),
+        );
+      case LearnerPathStatus.locked:
+        return (
+          Icons.lock_outline_rounded,
+          status.labelVi,
+          DauVietColors.inkMuted,
+          const Color(0xFFEFEBE2),
+        );
+      case LearnerPathStatus.notReady:
+        return (
+          Icons.hourglass_empty_rounded,
+          status.labelVi,
+          DauVietColors.inkMuted,
+          const Color(0xFFEFEBE2),
+        );
+    }
   }
 }

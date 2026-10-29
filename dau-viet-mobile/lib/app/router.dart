@@ -21,13 +21,15 @@ import '../features/learning/presentation/lesson_player_screen.dart';
 import '../features/learning/presentation/lesson_result_screen.dart';
 import '../features/learning/presentation/matching_board_screen.dart';
 import '../features/learning/presentation/multiple_choice_quiz_screen.dart';
+import '../features/learning_path/presentation/period_journey_screen.dart';
+import '../features/learning_path/presentation/period_selection_screen.dart';
 import '../features/map/presentation/historical_map_screen.dart';
+import '../features/map/presentation/location_profile_screen.dart';
 import '../features/meta/presentation/energy_management_screen.dart';
 import '../features/onboarding/presentation/onboarding_screen.dart';
 import '../features/profile/presentation/profile_screen.dart';
 import '../features/island/presentation/island_screen.dart';
 import '../features/island/presentation/island_shop_screen.dart';
-import '../features/meta/presentation/heritage_island_screen.dart';
 import '../features/meta/presentation/inventory_screen.dart';
 import '../features/rewards/presentation/event_victory_screen.dart';
 import '../features/rewards/presentation/reward_claim_screen.dart';
@@ -47,6 +49,8 @@ const _learningPrefixes = [
   '/timeline',
   '/saban',
   '/island',
+  '/journey',
+  '/heritage',
 ];
 
 /// Màn demo-only (nội dung hard-code, không có backend thật): giữ trong
@@ -64,6 +68,7 @@ const _demoOnlyPrefixes = [
 /// Bộ định tuyến toàn cục của Dấu Việt Mobile (go_router)
 final appRouter = GoRouter(
   initialLocation: '/',
+  refreshListenable: authRouterRefreshNotifier,
   redirect: (context, state) {
     // Đọc auth state qua container toàn cục (router tạo trước ProviderScope).
     final container = appContainer;
@@ -145,6 +150,31 @@ final appRouter = GoRouter(
       path: '/timeline',
       name: 'timeline',
       builder: (context, state) => const TimelineScreen(),
+    ),
+
+    // E2 / A3: Màn Chọn Thời Kỳ & Hành Trình Thời Kỳ (Learning Path 2.0)
+    GoRoute(
+      path: '/journey',
+      name: 'period_selection',
+      builder: (context, state) => const PeriodSelectionScreen(),
+      routes: [
+        GoRoute(
+          path: ':periodCode',
+          name: 'period_journey',
+          builder: (context, state) => PeriodJourneyScreen(
+            periodCode: state.pathParameters['periodCode'] ?? '',
+          ),
+        ),
+      ],
+    ),
+
+    // A3 / E4 / E5: Hồ sơ địa điểm di sản (`/heritage/:locationId`)
+    GoRoute(
+      path: '/heritage/:locationId',
+      name: 'heritage_location',
+      builder: (context, state) => LocationProfileScreen(
+        locationId: state.pathParameters['locationId'] ?? '',
+      ),
     ),
 
     // TASK-0021: Bản Đồ Dấu Ấn Lịch Sử (unlock theo learner)

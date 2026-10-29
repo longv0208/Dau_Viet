@@ -275,14 +275,28 @@ class MockAttemptRepository implements AttemptRepository {
     String attemptId, {
     String? idempotencyKey,
   }) async {
-    await Future<void>.delayed(const Duration(milliseconds: 200));
+    final bool firstComplete = !_completed;
     _completed = true;
-    return const CompleteResultDto(
+    return CompleteResultDto(
       attemptId: _attemptId,
       status: 'COMPLETED',
-      alreadyCompleted: false,
-      completion: CompletionVerdictDto(complete: true),
-      progress: AttemptProgressDto(completedRequired: 3, totalRequired: 3),
+      alreadyCompleted: !firstComplete,
+      completion: const CompletionVerdictDto(complete: true),
+      progress: const AttemptProgressDto(
+        completedRequired: 3,
+        totalRequired: 3,
+      ),
+      newlyUnlockedLocations: firstComplete
+          ? const [
+              UnlockedLocationCueDto(
+                locationId: 'a0000000-0000-0000-0000-000000000004',
+                slug: 'bai-coc-yen-giang',
+                title: 'Bãi cọc Bạch Đằng (Yên Giang)',
+                kind: 'HERITAGE_SITE',
+                coverAssetId: 'd7a70000-0000-4000-8000-000000000003',
+              ),
+            ]
+          : const [],
     );
   }
 

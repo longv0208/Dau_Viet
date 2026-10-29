@@ -1,3 +1,4 @@
+import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../core/api/api_config.dart';
@@ -38,9 +39,18 @@ final authSessionProvider = NotifierProvider<AuthSessionController, AuthState>(
 /// Được gán trong `main()` ngay khi tạo ProviderScope.
 ProviderContainer? appContainer;
 
+/// Notifier kích hoạt GoRouter đánh giá lại redirect khi trạng thái phiên đăng nhập thay đổi.
+final authRouterRefreshNotifier = ValueNotifier<int>(0);
+
 class AuthSessionController extends Notifier<AuthState> {
   @override
   AuthState build() => const AuthState.unknown();
+
+  @override
+  set state(AuthState value) {
+    super.state = value;
+    authRouterRefreshNotifier.value++;
+  }
 
   Future<void> restore() async {
     if (ApiConfig.useMock) {

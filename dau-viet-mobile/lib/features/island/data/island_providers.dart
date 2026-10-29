@@ -203,7 +203,7 @@ final islandShopItemsProvider = FutureProvider.autoDispose<List<ShopItemDto>>(
     final sessionKey = _islandSessionKey(ref.watch(authSessionProvider));
     assert(sessionKey.isNotEmpty);
     final repo = ref.watch(islandRepositoryProvider);
-    if (ApiConfig.useMock) {
+    if (ApiConfig.useMock || repo is MockIslandRepository) {
       return repo.getShopItems();
     }
     final items = await ref
@@ -228,7 +228,7 @@ final islandShopItemsProvider = FutureProvider.autoDispose<List<ShopItemDto>>(
       return items
           .map(
             (item) => item.copyWith(
-              owned: false,
+              owned: item.owned,
               ownershipVerified: false,
             ),
           )

@@ -12,6 +12,7 @@ class IslandHeritageBuilding extends StatelessWidget {
   final bool isSelected;
   final double tileWidth;
   final double tileHeight;
+  final bool flipHorizontally;
   final VoidCallback? onTap;
 
   const IslandHeritageBuilding({
@@ -20,6 +21,7 @@ class IslandHeritageBuilding extends StatelessWidget {
     this.isSelected = false,
     this.tileWidth = 72.0,
     this.tileHeight = 36.0,
+    this.flipHorizontally = false,
     this.onTap,
   });
 
@@ -60,14 +62,17 @@ class IslandHeritageBuilding extends StatelessWidget {
             // Thân công trình: ưu tiên asset ảnh nếu có, fallback vẽ vector di sản tinh xảo
             Positioned(
               bottom: 4,
-              child: _buildBuildingArt(
-                context: context,
-                assetPath: assetPath,
-                remoteUrl: remoteUrl,
-                code: code,
-                renderKey: renderKey,
-                width: modelW,
-                height: modelH,
+              child: Transform.flip(
+                flipX: flipHorizontally,
+                child: _buildBuildingArt(
+                  context: context,
+                  assetPath: assetPath,
+                  remoteUrl: remoteUrl,
+                  code: code,
+                  renderKey: renderKey,
+                  width: modelW,
+                  height: modelH,
+                ),
               ),
             ),
           ],

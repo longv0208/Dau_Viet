@@ -7,6 +7,8 @@ import 'package:dau_viet_mobile/features/auth/data/auth_state.dart';
 import 'package:dau_viet_mobile/features/events/data/events_providers.dart';
 import 'package:dau_viet_mobile/features/events/data/mock_events_repository.dart';
 import 'package:dau_viet_mobile/features/learning/data/learning_providers.dart';
+import 'package:dau_viet_mobile/features/learning_path/data/learning_path_providers.dart';
+import 'package:dau_viet_mobile/features/learning_path/data/mock_learning_path_repository.dart';
 import 'package:go_router/go_router.dart';
 
 import 'fakes/fake_attempt_repository.dart';
@@ -41,6 +43,9 @@ void main() {
         ProviderScope(
           overrides: [
             eventsRepositoryProvider.overrideWithValue(MockEventsRepository()),
+            learningPathRepositoryProvider.overrideWithValue(
+              MockLearningPathRepository(),
+            ),
             authSessionProvider.overrideWith(_StubAuthSession.new),
             attemptRepositoryProvider.overrideWithValue(
               FakeAttemptRepository(),
@@ -78,15 +83,15 @@ void main() {
       // và bị gate ở real mode — journey giờ đi qua route trực tiếp cho
       // các màn demo để giữ coverage, không qua bottom nav.
 
-      // 4. Mở M-04 Dòng Thời Gian (demo) qua route trực tiếp.
+      // 4. Mở /timeline — từ Issue #24 tự động chuyển hướng sang /journey (Chọn Thời Kỳ).
       tester.element(find.text('Học tập').first).go('/timeline');
       await tester.pumpAndSettle();
-      expect(find.text('DÒNG THỜI GIAN LỊCH SỬ'), findsOneWidget);
-      expect(find.text('Khởi Nghĩa Hai Bà Trưng'), findsOneWidget);
+      expect(find.text('CHỌN THỜI KỲ LỊCH SỬ'), findsOneWidget);
+      expect(find.text('Buổi đầu độc lập tự chủ'), findsOneWidget);
 
       // 5. Mở M-06 Sa Bàn qua route trực tiếp (icon saban giờ trùng cả
       // trong nội dung và bottom nav — dùng route để tránh nhầm widget).
-      tester.element(find.text('DÒNG THỜI GIAN LỊCH SỬ')).go('/saban');
+      tester.element(find.text('CHỌN THỜI KỲ LỊCH SỬ')).go('/saban');
       await tester.pumpAndSettle();
       expect(find.text('SA BÀN THỦY CHIẾN BẠCH ĐẰNG'), findsOneWidget);
       expect(find.text('CHU KỲ THỦY TRIỀU CHIẾN THUẬT'), findsOneWidget);

@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
+
 import '../../../core/theme/dau_viet_colors.dart';
 import '../../../core/theme/dau_viet_typography.dart';
 import '../../../core/widgets/async_state_view.dart';
@@ -15,7 +16,9 @@ import '../../events/data/events_repository.dart';
 /// Khớp 100% với đặc tả trong MOBILE_SCREEN_DESIGN.md & ART_DIRECTION.md
 /// Dữ liệu nạp từ `GET /api/v1/events` (hoặc mock khi USE_MOCK=true).
 class TimelineScreen extends ConsumerStatefulWidget {
-  const TimelineScreen({super.key});
+  final bool redirectToJourney;
+
+  const TimelineScreen({super.key, this.redirectToJourney = true});
 
   @override
   ConsumerState<TimelineScreen> createState() => _TimelineScreenState();
@@ -25,6 +28,41 @@ class _TimelineScreenState extends ConsumerState<TimelineScreen> {
   static const String _allErasLabel = 'Tất cả';
 
   String _selectedEra = _allErasLabel;
+  bool _hasRedirected = false;
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    if (widget.redirectToJourney &&
+        !_hasRedirected &&
+        _hasJourneyRouteInRouter(context)) {
+      _hasRedirected = true;
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (mounted) {
+          context.go('/journey');
+        }
+      });
+    }
+  }
+
+  bool _hasJourneyRouteInRouter(BuildContext context) {
+    final router = GoRouter.maybeOf(context);
+    if (router == null) return false;
+    return _containsJourneyRoute(router.configuration.routes);
+  }
+
+  bool _containsJourneyRoute(List<RouteBase> routes) {
+    for (final route in routes) {
+      if (route is GoRoute &&
+          (route.path == '/journey' || route.path == 'journey')) {
+        return true;
+      }
+      if (_containsJourneyRoute(route.routes)) {
+        return true;
+      }
+    }
+    return false;
+  }
 
   List<TimelineMilestoneModel> _filteredMilestones(
     List<TimelineMilestoneModel> milestones,
@@ -188,6 +226,18 @@ class _TimelineScreenState extends ConsumerState<TimelineScreen> {
                 ),
               ],
             ),
+          ),
+          IconButton(
+            icon: const Icon(
+              Icons.route_rounded,
+              color: DauVietColors.heritageGreen,
+            ),
+            tooltip: 'Hành trình thời kỳ',
+            onPressed: () {
+              if (_hasJourneyRouteInRouter(context)) {
+                context.go('/journey');
+              }
+            },
           ),
           IconButton(
             icon: const Icon(

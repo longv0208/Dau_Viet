@@ -34,7 +34,10 @@ class MockEventsRepository implements EventsRepository {
   @override
   Future<HistoricalEventModel> getEventById(String id) async {
     await Future<void>.delayed(const Duration(milliseconds: 200));
-    if (id == seedEventId || id == legacyEventId) {
+    if (id == seedEventId ||
+        id == legacyEventId ||
+        id == 'ms_bach_dang_938' ||
+        id == 'bach-dang-938') {
       return MockBachDangData.event;
     }
     throw const ApiException(

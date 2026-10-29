@@ -36,13 +36,13 @@ void main() {
         await pumpAsync(tester);
 
         expect(find.text('ĐẢO DI SẢN'), findsOneWidget);
-        expect(find.text('CẤP 1'), findsOneWidget);
+        expect(find.textContaining('Đảo nhỏ'), findsWidgets);
         expect(
           find.text('500'),
           findsOneWidget,
         ); // 500 History Points from Mock
         expect(find.byIcon(Icons.storefront_rounded), findsOneWidget);
-        expect(find.byIcon(Icons.landscape_rounded), findsOneWidget);
+        expect(find.byIcon(Icons.landscape_rounded), findsWidgets);
       },
     );
 
@@ -54,14 +54,20 @@ void main() {
       await tester.pumpWidget(buildTestableWidget(const IslandScreen()));
       await pumpAsync(tester);
 
-      // CENTER_01 has Nhà Tranh Mái Lá
-      expect(find.text('Nhà Tranh Mái Lá'), findsOneWidget);
+      // SLOT_NHA_TRANH has Nhà Tranh Vách Đất
+      expect(
+        find.bySemanticsLabel(RegExp(r'Nhà Tranh Vách Đất')),
+        findsOneWidget,
+      );
 
-      // POND_01 is empty
-      expect(find.text('Ô Trống'), findsOneWidget);
+      // SLOT_EMPTY_01 is empty
+      expect(
+        find.bySemanticsLabel(RegExp(r'Ô trống SLOT_EMPTY_01')),
+        findsOneWidget,
+      );
 
-      // TREE_01 is locked at Tier 2
-      expect(find.text('Cấp 2'), findsOneWidget);
+      // SLOT_CAY_DA is locked at Tier 2
+      expect(find.text('Cấp 2'), findsWidgets);
     });
 
     testWidgets('Tapping locked slot shows detail card explaining lock tier', (
@@ -72,16 +78,21 @@ void main() {
       await tester.pumpWidget(buildTestableWidget(const IslandScreen()));
       await pumpAsync(tester);
 
-      // Tap locked slot 'Cấp 2'
-      await tester.tap(find.text('Cấp 2'));
-      await pumpAsync(tester);
+      final handle = tester.ensureSemantics();
+      try {
+        tester.semantics.tap(
+          find.semantics.byLabel(RegExp(r'Ô khóa SLOT_CAY_DA Cấp 2')),
+        );
+        await pumpAsync(tester);
 
-      expect(find.text('Vị Trí Chưa Khai Mở'), findsOneWidget);
-      expect(find.textContaining('Cần Đảo Cấp 2'), findsOneWidget);
-      expect(find.text('XEM ĐIỀU KIỆN MỞ RỘNG'), findsOneWidget);
+        expect(find.textContaining('Yêu cầu mở rộng Đảo Cấp 2'), findsOneWidget);
+        expect(find.text('XEM ĐIỀU KIỆN MỞ KHÓA'), findsOneWidget);
+      } finally {
+        handle.dispose();
+      }
     });
 
-    testWidgets('Tapping empty slot shows CHỌN VẬT PHẨM ĐẶT LÊN ĐẢO', (
+    testWidgets('Tapping empty slot shows ĐẶT VẬT PHẨM DI SẢN', (
       tester,
     ) async {
       await tester.binding.setSurfaceSize(const Size(1000, 1000));
@@ -89,12 +100,17 @@ void main() {
       await tester.pumpWidget(buildTestableWidget(const IslandScreen()));
       await pumpAsync(tester);
 
-      // Tap empty slot 'Ô Trống'
-      await tester.tap(find.text('Ô Trống'));
-      await pumpAsync(tester);
+      final handle = tester.ensureSemantics();
+      try {
+        tester.semantics.tap(
+          find.semantics.byLabel(RegExp(r'Ô trống SLOT_EMPTY_01')),
+        );
+        await pumpAsync(tester);
 
-      expect(find.text('Ô Đất Cảnh Quan Sẵn Sàng'), findsOneWidget);
-      expect(find.text('CHỌN VẬT PHẨM ĐẶT LÊN ĐẢO'), findsOneWidget);
+        expect(find.text('ĐẶT VẬT PHẨM DI SẢN'), findsOneWidget);
+      } finally {
+        handle.dispose();
+      }
     });
 
     testWidgets('Tapping occupied slot shows ĐỔI VẬT PHẨM and CẤT VÀO KHO', (
@@ -105,22 +121,28 @@ void main() {
       await tester.pumpWidget(buildTestableWidget(const IslandScreen()));
       await pumpAsync(tester);
 
-      // Tap occupied slot
-      await tester.tap(find.text('Nhà Tranh Mái Lá'));
-      await pumpAsync(tester);
+      final handle = tester.ensureSemantics();
+      try {
+        tester.semantics.tap(
+          find.semantics.byLabel(RegExp(r'Nhà Tranh Vách Đất')),
+        );
+        await pumpAsync(tester);
 
-      expect(find.text('ĐỔI VẬT PHẨM'), findsOneWidget);
-      expect(find.text('CẤT VÀO KHO'), findsOneWidget);
+        expect(find.text('ĐỔI VẬT PHẨM'), findsOneWidget);
+        expect(find.text('CẤT VÀO KHO'), findsOneWidget);
 
-      // Tap CẤT VÀO KHO
-      await tester.tap(find.text('CẤT VÀO KHO'));
-      await pumpAsync(tester);
+        // Tap CẤT VÀO KHO
+        await tester.tap(find.text('CẤT VÀO KHO'));
+        await pumpAsync(tester);
 
-      // Slot should now become empty
-      expect(
-        find.text('Đã cất vật phẩm ở vị trí CENTER_01 về kho an toàn.'),
-        findsOneWidget,
-      );
+        // Slot should now become empty
+        expect(
+          find.textContaining('Đã cất vật phẩm về kho'),
+          findsOneWidget,
+        );
+      } finally {
+        handle.dispose();
+      }
     });
   });
 
@@ -190,8 +212,8 @@ void main() {
       );
       await pumpAsync(tester);
 
-      expect(find.text('MỞ RỘNG ĐẢO NGAY'), findsOneWidget);
-      await tester.tap(find.text('MỞ RỘNG ĐẢO NGAY'));
+      expect(find.text('MỞ RỘNG LÊN ĐẢO VỪA'), findsOneWidget);
+      await tester.tap(find.text('MỞ RỘNG LÊN ĐẢO VỪA'));
       expect(upgraded, true);
     });
   });
@@ -200,7 +222,8 @@ void main() {
     testWidgets('Shop displays items with prices and user wallet balance', (
       tester,
     ) async {
-      await tester.binding.setSurfaceSize(const Size(400, 800));
+      await tester.binding.setSurfaceSize(const Size(800, 1600));
+      addTearDown(() => tester.binding.setSurfaceSize(null));
       await tester.pumpWidget(buildTestableWidget(const IslandShopScreen()));
       await pumpAsync(tester);
 

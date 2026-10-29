@@ -10,6 +10,7 @@ import 'package:dau_viet_mobile/mock/models/timeline_models.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:go_router/go_router.dart';
 
 /// Repo stub điều khiển được trạng thái cho widget test Timeline.
 class _StubEventsRepository implements EventsRepository {
@@ -170,4 +171,41 @@ void main() {
     await tester.pumpAndSettle();
     expect(find.text('Chưa có sự kiện nào'), findsOneWidget);
   });
+
+  testWidgets(
+    'TimelineScreen tự động chuyển hướng sang /journey khi có route /journey',
+    (tester) async {
+      final repo = _StubEventsRepository()
+        ..onGetEvents = () => const EventsPageResult(
+          milestones: [],
+          page: 0,
+          size: 0,
+          totalElements: 0,
+          totalPages: 0,
+        );
+      final router = GoRouter(
+        initialLocation: '/timeline',
+        routes: [
+          GoRoute(
+            path: '/timeline',
+            builder: (context, state) => const TimelineScreen(),
+          ),
+          GoRoute(
+            path: '/journey',
+            builder: (context, state) =>
+                const Scaffold(body: Center(child: Text('JOURNEY_SCREEN'))),
+          ),
+        ],
+      );
+      await tester.pumpWidget(
+        ProviderScope(
+          overrides: [eventsRepositoryProvider.overrideWithValue(repo)],
+          child: MaterialApp.router(routerConfig: router),
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      expect(find.text('JOURNEY_SCREEN'), findsOneWidget);
+    },
+  );
 }

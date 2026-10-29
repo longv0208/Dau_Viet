@@ -1,4 +1,4 @@
-﻿import 'package:flutter/foundation.dart';
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:rive/rive.dart' as rive;
 
@@ -40,7 +40,7 @@ class KabiMascotWidget extends StatefulWidget {
 }
 
 class _KabiMascotWidgetState extends State<KabiMascotWidget> {
-  late final rive.FileLoader _fileLoader;
+  rive.FileLoader? _fileLoader;
   rive.RiveWidgetController? _controller;
 
   rive.NumberInput? _poseInput;
@@ -56,40 +56,48 @@ class _KabiMascotWidgetState extends State<KabiMascotWidget> {
   @override
   void initState() {
     super.initState();
-    _fileLoader = rive.FileLoader.fromAsset(
+    if (DauVietAudioService.isTestEnvironment) {
+      _hasError = true;
+      return;
+    }
+    final loader = rive.FileLoader.fromAsset(
       'assets/rive/kabi.riv',
       riveFactory: rive.Factory.rive,
     );
-    _fileLoader.file().then((file) {
-      if (!mounted) return;
-      try {
-        final controller = rive.RiveWidgetController(
-          file,
-          artboardSelector: const rive.ArtboardNamed('Kabi'),
-          stateMachineSelector: const rive.StateMachineNamed('Kabi'),
-        );
-        final sm = controller.stateMachine;
-        _poseInput = sm.number('pose');
-        _moodInput = sm.number('mood');
-        _colorInput = sm.number('color');
-        _headOnlyInput = sm.boolean('headOnly');
-        _glassesInput = sm.boolean('glasses');
-        _jumpTrigger = sm.trigger('jump');
-        _pokeTrigger = sm.trigger('poke');
-        setState(() => _controller = controller);
-        _applyMood();
-      } catch (_) {
-        setState(() => _hasError = true);
-      }
-    }).catchError((_) {
-      if (mounted) setState(() => _hasError = true);
-    });
+    _fileLoader = loader;
+    loader
+        .file()
+        .then((file) {
+          if (!mounted) return;
+          try {
+            final controller = rive.RiveWidgetController(
+              file,
+              artboardSelector: const rive.ArtboardNamed('Kabi'),
+              stateMachineSelector: const rive.StateMachineNamed('Kabi'),
+            );
+            final sm = controller.stateMachine;
+            _poseInput = sm.number('pose');
+            _moodInput = sm.number('mood');
+            _colorInput = sm.number('color');
+            _headOnlyInput = sm.boolean('headOnly');
+            _glassesInput = sm.boolean('glasses');
+            _jumpTrigger = sm.trigger('jump');
+            _pokeTrigger = sm.trigger('poke');
+            setState(() => _controller = controller);
+            _applyMood();
+          } catch (_) {
+            setState(() => _hasError = true);
+          }
+        })
+        .catchError((_) {
+          if (mounted) setState(() => _hasError = true);
+        });
   }
 
   @override
   void dispose() {
     _controller?.dispose();
-    _fileLoader.dispose();
+    _fileLoader?.dispose();
     super.dispose();
   }
 
@@ -139,7 +147,8 @@ class _KabiMascotWidgetState extends State<KabiMascotWidget> {
   @override
   void didUpdateWidget(covariant KabiMascotWidget oldWidget) {
     super.didUpdateWidget(oldWidget);
-    if (oldWidget.mood != widget.mood || oldWidget.headOnly != widget.headOnly) {
+    if (oldWidget.mood != widget.mood ||
+        oldWidget.headOnly != widget.headOnly) {
       _applyMood();
     }
   }
@@ -156,7 +165,8 @@ class _KabiMascotWidgetState extends State<KabiMascotWidget> {
   @override
   Widget build(BuildContext context) {
     // Trong môi trường test hoặc nếu Rive tải lỗi, fallback sang ảnh đại diện an toàn
-    final isTest = DauVietAudioService.isTestEnvironment ||
+    final isTest =
+        DauVietAudioService.isTestEnvironment ||
         (kIsWeb == false &&
             defaultTargetPlatform == TargetPlatform.windows &&
             _hasError);
@@ -173,23 +183,29 @@ class _KabiMascotWidgetState extends State<KabiMascotWidget> {
         width: widget.width,
         height: widget.height,
         child: controller == null
-            ? const SizedBox.shrink()
-            : rive.RiveWidget(
-                controller: controller,
-                fit: rive.Fit.contain,
-              ),
+            ? _buildFallbackMascot()
+            : rive.RiveWidget(controller: controller, fit: rive.Fit.contain),
       ),
     );
   }
 
   Widget _buildFallbackMascot() {
-    // Không hiển thị bất kỳ icon vui / buồn nào làm chớp nháy trước khi mascot tải xong
     return GestureDetector(
       onTap: _handleTap,
       behavior: HitTestBehavior.opaque,
       child: SizedBox(
         width: widget.width,
         height: widget.height,
+        child: DauVietAudioService.isTestEnvironment
+            ? null
+            : Image.asset(
+                'assets/images/turtle_welcome.png',
+                fit: BoxFit.contain,
+                errorBuilder: (_, _, _) => const Icon(
+                  Icons.school_rounded,
+                  color: Color(0xFF2E7D32),
+                ),
+              ),
       ),
     );
   }

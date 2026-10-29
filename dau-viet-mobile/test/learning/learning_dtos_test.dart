@@ -79,6 +79,42 @@ void main() {
       expect(dto.status, 'COMPLETED');
     });
 
+    test('CompleteResultDto parse newlyUnlockedLocations (A3/C2/E5)', () {
+      final dto = CompleteResultDto.fromJson({
+        'attemptId': 'a-1',
+        'status': 'COMPLETED',
+        'alreadyCompleted': false,
+        'completedAt': '2026-10-28T10:00:00Z',
+        'completion': {'complete': true},
+        'progress': {'completedRequired': 3, 'totalRequired': 3},
+        'newlyUnlockedLocations': [
+          {
+            'locationId': 'loc-1',
+            'slug': 'bai-coc-bach-dang',
+            'title': 'Bãi cọc Bạch Đằng (Yên Giang)',
+            'kind': 'HERITAGE_SITE',
+            'coverAssetId': 'asset-1',
+          },
+          {
+            'locationId': 'loc-2',
+            'slug': 'cua-song-nam-trieu',
+            'title': 'Cửa sông Nam Triệu',
+            'kind': 'BATTLEFIELD',
+          },
+        ],
+      });
+      expect(dto.newlyUnlockedLocations, hasLength(2));
+      expect(dto.newlyUnlockedLocations.first.locationId, 'loc-1');
+      expect(dto.newlyUnlockedLocations.first.slug, 'bai-coc-bach-dang');
+      expect(
+        dto.newlyUnlockedLocations.first.title,
+        'Bãi cọc Bạch Đằng (Yên Giang)',
+      );
+      expect(dto.newlyUnlockedLocations.first.kindLabelVi, 'Di tích lịch sử');
+      expect(dto.newlyUnlockedLocations.first.coverAssetId, 'asset-1');
+      expect(dto.newlyUnlockedLocations[1].kindLabelVi, 'Chiến trường cổ');
+    });
+
     test('LessonResultDto giữ result map free-form + score nullable', () {
       final dto = LessonResultDto.fromJson({
         'attemptId': 'a-1',

@@ -1,0 +1,112 @@
+{
+  "schemaVersion": 1,
+  "id": "TASK-0027",
+  "type": "test",
+  "risk": "normal",
+  "status": "done",
+  "goal": "[E2E] Mobile: kiểm thử Đảo Di Sản và bài học (Issue #27) — Kiểm thử E2E trên giao diện Flutter Mobile chạy bằng Chrome ở viewport điện thoại (390x844 & 360x800), nối với backend Spring Boot (local) + PostgreSQL thật (USE_MOCK=false) cho luồng bài học (gồm cả cạn Thể lực 409 ENERGY_DEPLETED, Viện Thái Y, cạn maxAttempts), Đảo Di Sản / Cửa hàng và rà soát lỗi runtime / tràn giao diện.",
+  "owner": "claude",
+  "modules": ["mobile"],
+  "scope": [
+    "dau-viet-mobile/.gitignore",
+    "dau-viet-mobile/lib/main.dart",
+    "dau-viet-mobile/lib/app/router.dart",
+    "dau-viet-mobile/lib/features/auth/data/auth_repository.dart",
+    "dau-viet-mobile/lib/features/learning/data/learning_providers.dart",
+    "dau-viet-mobile/lib/features/learning/presentation/lesson_player_screen.dart",
+    "dau-viet-mobile/lib/features/island/presentation/island_screen.dart",
+    "dau-viet-mobile/lib/features/island/presentation/widgets/island_isometric_renderer.dart",
+    "dau-viet-mobile/lib/core/widgets/kabi_mascot_widget.dart",
+    "dau-viet-mobile/test/island/island_dto_test.dart",
+    "dau-viet-mobile/test/island/island_screen_test.dart",
+    "dau-viet-mobile/e2e/",
+    "tasks/TASK-0027/",
+    "plans/261028-issue-27-e2e-island-lesson/"
+  ],
+  "acceptanceCriteria": [
+    {
+      "id": "AC-1",
+      "text": "Đăng nhập learner; từ giao diện điều hướng vào một lesson đã publish, bắt đầu/tiếp tục attempt, làm ít nhất một activity đọc và một activity tương tác; UI hiển thị feedback từ server rồi mới sang bước tiếp theo."
+    },
+    {
+      "id": "AC-2",
+      "text": "Tải lại trang giữa bài vẫn tiếp tục đúng attempt và phiên bản bài học; hoàn tất hiển thị kết quả/progress từ backend; retry thao tác hoàn tất không tạo kết quả hoặc phần thưởng trùng."
+    },
+    {
+      "id": "AC-3",
+      "text": "Mở Đảo Di Sản từ giao diện, kiểm tra trạng thái slot có vật phẩm / trống / bị khóa và danh sách vật phẩm theo tài khoản; đặt rồi cất một vật phẩm hợp lệ, tải lại trang và xác nhận trạng thái được lưu ở backend."
+    },
+    {
+      "id": "AC-4",
+      "text": "Kiểm tra ít nhất một đường lỗi của mỗi luồng: chưa đăng nhập bị chuyển về đăng nhập; lỗi API có thông báo và thao tác thử lại; slot bị khóa không thể đặt vật phẩm; làm sai nhiều lần cạn Thể lực (409 ENERGY_DEPLETED) hoặc cạn maxAttempts. Không giả lập thành công khi API lỗi."
+    },
+    {
+      "id": "AC-5",
+      "text": "Test độc lập và chạy lại được: fixture/cleanup rõ ràng, không hard-code ID dữ liệu thật, không log token hoặc đáp án riêng tư; ghi bằng chứng chạy (lệnh, trạng thái PASS/FAIL, ảnh hoặc trace khi lỗi)."
+    }
+  ],
+  "dependencies": [],
+  "planPath": "plans/261028-issue-27-e2e-island-lesson/plan.md",
+  "evidenceRefs": [
+    "dau-viet-mobile: dart format --output=none --set-exit-if-changed -> 10 files (0 changed), exit 0",
+    "dau-viet-mobile: flutter analyze --no-pub -> No issues found!, exit 0",
+    "dau-viet-mobile: flutter test --no-pub test/island test/learning/resume_test.dart -> 18/18 tests passed, exit 0",
+    "dau-viet-mobile: flutter build web --dart-define=USE_MOCK=false --dart-define=API_BASE_URL=http://localhost:8080 -> Built build/web, exit 0",
+    "dau-viet-mobile/e2e: node ./node_modules/@playwright/test/cli.js test -> 5/5 passed (70.3s) across 390x844 and 360x800 viewports with 0 runtime/overflow errors and 0 failed asset URLs, exit 0"
+  ],
+  "reviewRefs": [
+    "plans/261028-issue-27-e2e-island-lesson/review-report.md"
+  ],
+  "roleReports": [
+    "plans/261028-issue-27-e2e-island-lesson/plan.md",
+    "plans/261028-issue-27-e2e-island-lesson/review-report.md"
+  ],
+  "acEvidence": {
+    "AC-1": [
+      "dau-viet-mobile/e2e/specs/island-and-lesson.spec.mjs",
+      "dau-viet-mobile/e2e/test-results/evidence/ac1-lesson-server-feedback.png",
+      "plans/261028-issue-27-e2e-island-lesson/review-report.md"
+    ],
+    "AC-2": [
+      "dau-viet-mobile/lib/main.dart",
+      "dau-viet-mobile/lib/features/auth/data/auth_repository.dart",
+      "dau-viet-mobile/e2e/specs/island-and-lesson.spec.mjs",
+      "dau-viet-mobile/e2e/test-results/evidence/ac2-lesson-result-screen.png",
+      "plans/261028-issue-27-e2e-island-lesson/review-report.md"
+    ],
+    "AC-3": [
+      "dau-viet-mobile/lib/features/island/presentation/island_screen.dart",
+      "dau-viet-mobile/lib/features/island/presentation/widgets/island_isometric_renderer.dart",
+      "dau-viet-mobile/e2e/specs/island-and-lesson.spec.mjs",
+      "dau-viet-mobile/e2e/test-results/evidence/ac3-island-item-placed.png",
+      "dau-viet-mobile/e2e/test-results/evidence/ac3-island-item-removed-reloaded.png",
+      "plans/261028-issue-27-e2e-island-lesson/review-report.md"
+    ],
+    "AC-4": [
+      "dau-viet-mobile/lib/app/router.dart",
+      "dau-viet-mobile/lib/features/learning/data/learning_providers.dart",
+      "dau-viet-mobile/lib/features/learning/presentation/lesson_player_screen.dart",
+      "dau-viet-mobile/e2e/specs/island-and-lesson.spec.mjs",
+      "dau-viet-mobile/e2e/test-results/evidence/ac4-lesson-api-error-no-fake-success.png",
+      "dau-viet-mobile/e2e/test-results/evidence/ac4-island-load-error-retry.png",
+      "dau-viet-mobile/e2e/test-results/evidence/phase5-energy-depleted-dialog.png",
+      "dau-viet-mobile/e2e/test-results/evidence/phase5-vien-thai-y-0-energy.png",
+      "dau-viet-mobile/e2e/test-results/evidence/phase6-island-shop-360x800.png",
+      "plans/261028-issue-27-e2e-island-lesson/review-report.md"
+    ],
+    "AC-5": [
+      "dau-viet-mobile/e2e/fixtures/test-harness.mjs",
+      "dau-viet-mobile/e2e/specs/island-and-lesson.spec.mjs",
+      "plans/261028-issue-27-e2e-island-lesson/review-report.md"
+    ]
+  },
+  "nextAction": "Done — All 6 phases (5/5 Playwright E2E scenarios across 390x844 and 360x800 viewports + 18/18 unit/widget tests) pass with 0 runtime/overflow errors and 9 visual evidence screenshots. Await user authorization to commit/push.",
+  "baseCommit": "7df7ff5",
+  "inputFingerprint": null,
+  "snapshot": null,
+  "blockedReason": null,
+  "resumeFrom": null,
+  "handoffRef": "tasks/TASK-0027/handoff.md",
+  "createdAt": "2026-10-28T17:30:00+07:00",
+  "updatedAt": "2026-10-28T19:42:00+07:00"
+}
