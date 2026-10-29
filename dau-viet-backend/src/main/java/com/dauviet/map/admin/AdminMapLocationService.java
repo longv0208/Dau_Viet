@@ -221,6 +221,7 @@ public class AdminMapLocationService {
     public StandaloneLocationResponse createStandalone(StandaloneLocationRequest req) {
         validateStandaloneEnums(req);
         validateAssetIfPresent(req.coverAssetId());
+        validateAssetIfPresent(req.mapAssetId());
         validateSlugUniqueness(req.slug(), null);
 
         MapLocation l = new MapLocation();
@@ -238,6 +239,7 @@ public class AdminMapLocationService {
         checkVersion(l, expectedRowVersion);
         validateStandaloneEnums(req);
         validateAssetIfPresent(req.coverAssetId());
+        validateAssetIfPresent(req.mapAssetId());
         validateSlugUniqueness(req.slug(), locationId);
 
         applyStandalone(l, req);
@@ -490,6 +492,7 @@ public class AdminMapLocationService {
             l.setUnlockRuleMode(req.unlockRuleMode().trim().toUpperCase(Locale.ROOT));
         }
         l.setCoverAssetId(req.coverAssetId());
+        l.setMapAssetId(req.mapAssetId());
         l.setDisplayOrder(req.displayOrder() == null ? 0 : req.displayOrder());
     }
 
@@ -566,6 +569,7 @@ public class AdminMapLocationService {
                 l.getVisibility(),
                 l.getUnlockRuleMode(),
                 l.getCoverAssetId(),
+                l.getMapAssetId(),
                 l.getDisplayOrder(),
                 l.getStatus().name(),
                 l.getPublishedAt() != null,

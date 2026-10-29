@@ -15,7 +15,6 @@ import '../data/island_dto.dart';
 import '../data/island_providers.dart';
 import 'widgets/island_inventory_sheet.dart';
 import 'widgets/island_scene.dart';
-import 'widgets/island_slot_detail_card.dart';
 import 'widgets/island_tile_sheet.dart';
 import 'widgets/island_upgrade_panel.dart';
 import 'widgets/island_visual_asset_manager.dart';
@@ -164,7 +163,7 @@ class _IslandScreenState extends ConsumerState<IslandScreen>
       final onboardingDone = prefs.getBool(doneKey) ?? false;
       final upgradeHintSeen = prefs.getBool(upgradeHintKey) ?? false;
 
-      if (!onboardingDone && expectedTier == 1) {
+      if (!onboardingDone && expectedTier == 1 && _selectedSlotId == null) {
         setState(() {
           _showWelcomeCard = true;
           _showUpgradeReadyToast = false;
@@ -280,6 +279,7 @@ class _IslandScreenState extends ConsumerState<IslandScreen>
     IslandDto? island,
     WalletDto? wallet,
   ) {
+    final bool isCompactHeader = MediaQuery.sizeOf(context).width < 480;
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 6),
       decoration: BoxDecoration(
@@ -407,78 +407,78 @@ class _IslandScreenState extends ConsumerState<IslandScreen>
             ),
           ),
           const SizedBox(width: 2),
-
-          // Nút Kho Đồ
-          IconButton(
-            visualDensity: VisualDensity.compact,
-            tooltip: 'Kho Đồ Di Sản',
-            icon: const Icon(
-              Icons.inventory_2_rounded,
-              color: DauVietColors.woodBrown,
-              size: 21,
-            ),
-            onPressed: island != null
-                ? () {
-                    final empty =
-                        island.slots.where((s) => s.isEmpty).firstOrNull ??
-                        island.slots.firstOrNull;
-                    if (empty != null) {
-                      _openInventorySheet(empty);
-                    } else {
-                      context.push('/island/shop');
-                    }
-                  }
-                : () => context.push('/island/shop'),
-          ),
-
-          // Nút Cửa Hàng
-          IconButton(
-            visualDensity: VisualDensity.compact,
-            tooltip: 'Cửa Hàng Di Sản',
-            icon: const Icon(
-              Icons.storefront_rounded,
-              color: DauVietColors.cinnabarRed,
-              size: 22,
-            ),
-            onPressed: () => context.push('/island/shop'),
-          ),
-
-          // Nút Mở Rộng Đảo
-          Stack(
-            clipBehavior: Clip.none,
-            children: [
-              IconButton(
-                visualDensity: VisualDensity.compact,
-                tooltip: 'Mở Rộng Đảo',
-                icon: const Icon(
-                  Icons.landscape_rounded,
-                  color: DauVietColors.heritageGreen,
-                  size: 22,
-                ),
-                onPressed: island != null
-                    ? () => _openUpgradePanel(island)
-                    : null,
+          if (!isCompactHeader) ...[
+            // Nút Kho Đồ
+            IconButton(
+              visualDensity: VisualDensity.compact,
+              tooltip: 'Kho Đồ Di Sản',
+              icon: const Icon(
+                Icons.inventory_2_rounded,
+                color: DauVietColors.woodBrown,
+                size: 21,
               ),
-              if (island != null && island.canUpgrade && !island.isMaxTier)
-                Positioned(
-                  right: 6,
-                  top: 6,
-                  child: Container(
-                    width: 9,
-                    height: 9,
-                    decoration: BoxDecoration(
-                      color: DauVietColors.cinnabarRed,
-                      shape: BoxShape.circle,
-                      border: Border.all(
-                        color: DauVietColors.parchmentSurface,
-                        width: 1.5,
+              onPressed: island != null
+                  ? () {
+                      final empty =
+                          island.slots.where((s) => s.isEmpty).firstOrNull ??
+                          island.slots.firstOrNull;
+                      if (empty != null) {
+                        _openInventorySheet(empty);
+                      } else {
+                        context.push('/island/shop');
+                      }
+                    }
+                  : () => context.push('/island/shop'),
+            ),
+
+            // Nút Cửa Hàng
+            IconButton(
+              visualDensity: VisualDensity.compact,
+              tooltip: 'Cửa Hàng Di Sản',
+              icon: const Icon(
+                Icons.storefront_rounded,
+                color: DauVietColors.cinnabarRed,
+                size: 22,
+              ),
+              onPressed: () => context.push('/island/shop'),
+            ),
+
+            // Nút Mở Rộng Đảo
+            Stack(
+              clipBehavior: Clip.none,
+              children: [
+                IconButton(
+                  visualDensity: VisualDensity.compact,
+                  tooltip: 'Mở Rộng Đảo',
+                  icon: const Icon(
+                    Icons.landscape_rounded,
+                    color: DauVietColors.heritageGreen,
+                    size: 22,
+                  ),
+                  onPressed: island != null
+                      ? () => _openUpgradePanel(island)
+                      : null,
+                ),
+                if (island != null && island.canUpgrade && !island.isMaxTier)
+                  Positioned(
+                    right: 6,
+                    top: 6,
+                    child: Container(
+                      width: 9,
+                      height: 9,
+                      decoration: BoxDecoration(
+                        color: DauVietColors.cinnabarRed,
+                        shape: BoxShape.circle,
+                        border: Border.all(
+                          color: DauVietColors.parchmentSurface,
+                          width: 1.5,
+                        ),
                       ),
                     ),
                   ),
-                ),
-            ],
-          ),
-
+              ],
+            ),
+          ],
           // Nút Xem lại hướng dẫn (C5)
           IconButton(
             visualDensity: VisualDensity.compact,
@@ -646,7 +646,7 @@ class _IslandScreenState extends ConsumerState<IslandScreen>
           ),
 
         // 5. Bottom Sheet chi tiết tile/slot gọn gàng, chuẩn phong cách Cozy Heritage (Part D4)
-        if (!isAnimatingExpansion && selectedSlot != null)
+        if (!isAnimatingExpansion && !_showWelcomeCard && selectedSlot != null)
           Positioned(
             left: 0,
             right: 0,
@@ -688,45 +688,48 @@ class _IslandScreenState extends ConsumerState<IslandScreen>
                       ),
                     ],
                   ),
-                  child: Row(
-                    mainAxisAlignment: MainAxisAlignment.spaceEvenly,
-                    children: [
-                      _buildFloatingActionBtn(
-                        icon: Icons.inventory_2_outlined,
-                        label: 'Kho đồ',
-                        onTap: () {
-                          final empty =
-                              island.slots.where((s) => s.isEmpty).firstOrNull ??
-                              island.slots.firstOrNull;
-                          if (empty != null) {
-                            _openInventorySheet(empty);
-                          } else {
-                            context.push('/island/shop');
-                          }
-                        },
-                      ),
-                      _buildFloatingActionBtn(
-                        icon: Icons.storefront_outlined,
-                        label: 'Cửa hàng',
-                        onTap: () => context.push('/island/shop'),
-                      ),
-                      _buildFloatingActionBtn(
-                        icon: Icons.landscape_rounded,
-                        label: 'Mở rộng đảo',
-                        isHighlight: island.canUpgrade && !island.isMaxTier,
-                        onTap: () => _openUpgradePanel(island),
-                      ),
-                      _buildFloatingActionBtn(
-                        icon: Icons.threesixty_rounded,
-                        label: 'Góc ${_cameraDirection.shortCode}',
-                        onTap: _rotateCameraRight,
-                      ),
-                      _buildFloatingActionBtn(
-                        icon: Icons.center_focus_strong_rounded,
-                        label: 'Căn giữa',
-                        onTap: _resetCameraAndAngle,
-                      ),
-                    ],
+                  child: FittedBox(
+                    fit: BoxFit.scaleDown,
+                    child: Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+                      children: [
+                        _buildFloatingActionBtn(
+                          icon: Icons.inventory_2_outlined,
+                          label: 'Kho đồ',
+                          onTap: () {
+                            final empty =
+                                island.slots.where((s) => s.isEmpty).firstOrNull ??
+                                island.slots.firstOrNull;
+                            if (empty != null) {
+                              _openInventorySheet(empty);
+                            } else {
+                              context.push('/island/shop');
+                            }
+                          },
+                        ),
+                        _buildFloatingActionBtn(
+                          icon: Icons.storefront_outlined,
+                          label: 'Cửa hàng',
+                          onTap: () => context.push('/island/shop'),
+                        ),
+                        _buildFloatingActionBtn(
+                          icon: Icons.landscape_rounded,
+                          label: 'Mở rộng đảo',
+                          isHighlight: island.canUpgrade && !island.isMaxTier,
+                          onTap: () => _openUpgradePanel(island),
+                        ),
+                        _buildFloatingActionBtn(
+                          icon: Icons.threesixty_rounded,
+                          label: 'Góc ${_cameraDirection.shortCode}',
+                          onTap: _rotateCameraRight,
+                        ),
+                        _buildFloatingActionBtn(
+                          icon: Icons.center_focus_strong_rounded,
+                          label: 'Căn giữa',
+                          onTap: _resetCameraAndAngle,
+                        ),
+                      ],
+                    ),
                   ),
                 ),
               ),

@@ -1,4 +1,5 @@
 import 'dart:convert';
+import 'lesson_cover_resolver.dart';
 import 'dart:typed_data';
 
 import 'package:flutter/material.dart';
@@ -503,7 +504,7 @@ class _LessonCoverHeroState extends ConsumerState<_LessonCoverHero> {
   Widget build(BuildContext context) {
     final id = widget.coverAssetId;
     if (id == null || id.isEmpty || _future == null) {
-      return const _DefaultLessonHeroFallback();
+      return _DefaultLessonHeroFallback(title: widget.title);
     }
 
     ref.listen<AuthState>(authSessionProvider, (prev, next) {
@@ -535,17 +536,17 @@ class _LessonCoverHeroState extends ConsumerState<_LessonCoverHero> {
             future: _future,
             builder: (context, snapshot) {
               if (snapshot.connectionState != ConnectionState.done) {
-                return const Center(
-                  child: SizedBox(
-                    width: 28,
-                    height: 28,
-                    child: CircularProgressIndicator(strokeWidth: 2),
-                  ),
+                return _DefaultLessonHeroFallback(
+                  title: widget.title,
+                  embedded: true,
                 );
               }
               final bytes = snapshot.data;
               if (snapshot.hasError || bytes == null || bytes.isEmpty) {
-                return const _DefaultLessonHeroFallback(embedded: true);
+                return _DefaultLessonHeroFallback(
+                  title: widget.title,
+                  embedded: true,
+                );
               }
               return Image.memory(
                 Uint8List.fromList(bytes),
@@ -553,8 +554,10 @@ class _LessonCoverHeroState extends ConsumerState<_LessonCoverHero> {
                 height: double.infinity,
                 fit: BoxFit.cover,
                 semanticLabel: widget.title,
-                errorBuilder: (_, _, _) =>
-                    const _DefaultLessonHeroFallback(embedded: true),
+                errorBuilder: (_, _, _) => _DefaultLessonHeroFallback(
+                  title: widget.title,
+                  embedded: true,
+                ),
               );
             },
           ),
@@ -565,21 +568,36 @@ class _LessonCoverHeroState extends ConsumerState<_LessonCoverHero> {
 }
 
 class _DefaultLessonHeroFallback extends StatelessWidget {
+  final String title;
   final bool embedded;
 
-  const _DefaultLessonHeroFallback({this.embedded = false});
+  const _DefaultLessonHeroFallback({
+    required this.title,
+    this.embedded = false,
+  });
 
   @override
   Widget build(BuildContext context) {
-    const iconChild = Center(
-      child: Icon(
-        Icons.account_balance_rounded,
-        size: 64,
-        color: DauVietColors.heritageGreen,
+    final assetPath = resolveLessonFallbackAsset(title);
+    final imageChild = Image.asset(
+      assetPath,
+      width: double.infinity,
+      height: double.infinity,
+      fit: BoxFit.cover,
+      semanticLabel: title,
+      errorBuilder: (_, _, _) => const ColoredBox(
+        color: Color(0xFFEFE8DA),
+        child: Center(
+          child: Icon(
+            Icons.account_balance_rounded,
+            size: 64,
+            color: DauVietColors.heritageGreen,
+          ),
+        ),
       ),
     );
     if (embedded) {
-      return const ColoredBox(color: Color(0xFFEFE8DA), child: iconChild);
+      return imageChild;
     }
     return ClipRRect(
       borderRadius: BorderRadius.circular(16),
@@ -595,10 +613,8 @@ class _DefaultLessonHeroFallback extends StatelessWidget {
             ),
           ],
         ),
-        child: const AspectRatio(
-          aspectRatio: 16 / 10,
-          child: ColoredBox(color: Color(0xFFEFE8DA), child: iconChild),
-        ),
+        clipBehavior: Clip.antiAlias,
+        child: AspectRatio(aspectRatio: 16 / 10, child: imageChild),
       ),
     );
   }

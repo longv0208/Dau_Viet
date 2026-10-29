@@ -369,6 +369,7 @@ void main() {
           find.textContaining('Hoằng Thao là đứa trẻ khờ dại'),
           findsOneWidget,
         );
+        await tester.ensureVisible(find.text('ĐÃ ĐỌC XONG, TIẾP TỤC'));
         await tester.tap(find.text('ĐÃ ĐỌC XONG, TIẾP TỤC'));
         await tester.pump();
         expect(submitted, isEmpty);

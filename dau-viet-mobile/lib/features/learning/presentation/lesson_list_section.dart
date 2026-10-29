@@ -9,6 +9,7 @@ import '../../../core/theme/dau_viet_typography.dart';
 import '../data/learning_dtos.dart';
 import '../data/learning_providers.dart';
 import 'renderers/learning_asset_image.dart';
+import 'lesson_cover_resolver.dart';
 
 /// Danh sách bài học đã xuất bản của một sự kiện — gọi thật
 /// `GET /api/v1/events/{eventId}/lessons`. Empty state rõ ràng khi chưa có
@@ -131,10 +132,7 @@ class _LessonCardThumbnail extends ConsumerStatefulWidget {
   final String? coverAssetId;
   final String title;
 
-  const _LessonCardThumbnail({
-    required this.coverAssetId,
-    required this.title,
-  });
+  const _LessonCardThumbnail({required this.coverAssetId, required this.title});
 
   @override
   ConsumerState<_LessonCardThumbnail> createState() =>
@@ -171,31 +169,17 @@ class _LessonCardThumbnailState extends ConsumerState<_LessonCardThumbnail> {
   Widget build(BuildContext context) {
     final id = widget.coverAssetId;
     if (id == null || id.isEmpty || _future == null) {
-      return const _DefaultLessonIconBadge();
+      return _DefaultLessonIconBadge(title: widget.title);
     }
     return FutureBuilder<List<int>>(
       future: _future,
       builder: (context, snapshot) {
         if (snapshot.connectionState != ConnectionState.done) {
-          return Container(
-            width: 64,
-            height: 36,
-            decoration: BoxDecoration(
-              color: DauVietColors.parchmentContainer,
-              borderRadius: BorderRadius.circular(8),
-              border: Border.all(color: DauVietColors.outlineVariant),
-            ),
-            alignment: Alignment.center,
-            child: const SizedBox(
-              width: 14,
-              height: 14,
-              child: CircularProgressIndicator(strokeWidth: 1.8),
-            ),
-          );
+          return _DefaultLessonIconBadge(title: widget.title);
         }
         final bytes = snapshot.data;
         if (snapshot.hasError || bytes == null || bytes.isEmpty) {
-          return const _DefaultLessonIconBadge();
+          return _DefaultLessonIconBadge(title: widget.title);
         }
         return ClipRRect(
           borderRadius: BorderRadius.circular(8),
@@ -206,7 +190,8 @@ class _LessonCardThumbnailState extends ConsumerState<_LessonCardThumbnail> {
               Uint8List.fromList(bytes),
               fit: BoxFit.cover,
               semanticLabel: widget.title,
-              errorBuilder: (_, _, _) => const _DefaultLessonIconBadge(),
+              errorBuilder: (_, _, _) =>
+                  _DefaultLessonIconBadge(title: widget.title),
             ),
           ),
         );
@@ -216,22 +201,36 @@ class _LessonCardThumbnailState extends ConsumerState<_LessonCardThumbnail> {
 }
 
 class _DefaultLessonIconBadge extends StatelessWidget {
-  const _DefaultLessonIconBadge();
+  final String title;
+
+  const _DefaultLessonIconBadge({this.title = ''});
 
   @override
   Widget build(BuildContext context) {
-    return Container(
-      width: 36,
-      height: 36,
-      decoration: BoxDecoration(
-        shape: BoxShape.circle,
-        color: DauVietColors.cinnabarRed.withValues(alpha: 0.12),
-      ),
-      alignment: Alignment.center,
-      child: const Icon(
-        Icons.menu_book_rounded,
-        size: 18,
-        color: DauVietColors.cinnabarRed,
+    final assetPath = resolveLessonFallbackAsset(title);
+    return ClipRRect(
+      borderRadius: BorderRadius.circular(8),
+      child: SizedBox(
+        width: 64,
+        height: 36,
+        child: Image.asset(
+          assetPath,
+          fit: BoxFit.cover,
+          errorBuilder: (_, _, _) => Container(
+            width: 36,
+            height: 36,
+            decoration: BoxDecoration(
+              shape: BoxShape.circle,
+              color: DauVietColors.cinnabarRed.withValues(alpha: 0.12),
+            ),
+            alignment: Alignment.center,
+            child: const Icon(
+              Icons.menu_book_rounded,
+              size: 18,
+              color: DauVietColors.cinnabarRed,
+            ),
+          ),
+        ),
       ),
     );
   }

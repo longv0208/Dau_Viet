@@ -235,6 +235,7 @@ public class MapLocationService {
                     isUnlocked,
                     state,
                     loc.getCoverAssetId(),
+                    loc.getMapAssetId(),
                     required,
                     List.copyOf(eventIdsSet),
                     linkedEventDtos,

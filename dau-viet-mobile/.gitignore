@@ -43,3 +43,8 @@ app.*.map.json
 /android/app/debug
 /android/app/profile
 /android/app/release
+
+# E2E Playwright artifacts
+/e2e/node_modules/
+/e2e/test-results/
+/e2e/playwright-report/

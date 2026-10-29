@@ -375,87 +375,106 @@ class IslandIsometricRenderer extends StatelessWidget {
     final objW = tileW * 1.38;
     final objH = tileH * 2.95;
 
+    final Widget tileStack = Stack(
+      alignment: Alignment.bottomCenter,
+      clipBehavior: Clip.none,
+      children: [
+        // 1. Công trình di sản người học đã đặt trên đảo
+        if (slot != null && slot.placement != null && !isLocked)
+          IslandHeritageBuilding(
+            placement: slot.placement!,
+            isSelected: isSelected,
+            tileWidth: tileW,
+            tileHeight: tileH,
+            flipHorizontally:
+                cameraDirection == IslandCameraDirection.southEast ||
+                cameraDirection == IslandCameraDirection.southWest,
+            onTap: () => onSlotTap(slot),
+          )
+
+        // 2. Ô đất xây dựng trống đã mở khóa: Nền móng đá & gỗ cổ tự nhiên
+        else if (slot != null && !isLocked && tile.buildable)
+          _buildSubtleBuildableSlotPlinth(
+            slot: slot,
+            tile: tile,
+            isSelected: isSelected,
+            tileW: tileW,
+            tileH: tileH,
+          )
+
+        // 3. Tiểu cảnh làng Việt 2.5D (hiển thị cả khi mở khóa lẫn trong làn sương vùng khóa)
+        else if (IslandVisualAssetManager.hasSceneryVisual(tile))
+          GestureDetector(
+            onTap: () => slot != null
+                ? onSlotTap(slot)
+                : onTileTap((tile.row, tile.col)),
+            behavior: HitTestBehavior.translucent,
+            child: Stack(
+              alignment: Alignment.bottomCenter,
+              clipBehavior: Clip.none,
+              children: [
+                IslandVisualAssetManager.renderSceneryItem(
+                  visualKey: tile.decorKey,
+                  tileWidth: tileW,
+                  tileHeight: tileH,
+                  row: tile.row,
+                  col: tile.col,
+                  isLocked: isLocked,
+                  cameraDirection: cameraDirection,
+                ),
+                if (isLocked)
+                  Positioned(
+                    bottom: 0,
+                    child: _buildMistyFogVeil(tileW: tileW, tileH: tileH),
+                  ),
+              ],
+            ),
+          )
+
+        // 4. Vùng đất chưa mở khóa (chỉ hiện biểu tượng khóa nhỏ trên ô có slot xây dựng)
+        else if (isLocked)
+          _buildAtmosphericLockedCue(
+            tile: tile,
+            isSelected: isSelected,
+            tileW: tileW,
+            tileH: tileH,
+            slot: slot,
+          )
+
+        // 5. Ô mặt đất mở khóa bình thường (cỏ, đường gạch, sân đình)
+        else
+          GestureDetector(
+            onTap: () => onTileTap((tile.row, tile.col)),
+            behavior: HitTestBehavior.translucent,
+            child: SizedBox(width: tileW * 0.92, height: tileH * 0.92),
+          ),
+      ],
+    );
+
+    final String? slotKeyLabel = slot == null
+        ? null
+        : (slot.stableSlotKey != null && slot.stableSlotKey!.isNotEmpty
+              ? slot.stableSlotKey!
+              : slot.slotId);
+
     return Positioned(
       left: isoPos.dx - (objW * 0.5),
       top: isoPos.dy + (tileH * 0.5) - objH,
       width: objW,
       height: objH,
-      child: Stack(
-        alignment: Alignment.bottomCenter,
-        clipBehavior: Clip.none,
-        children: [
-          // 1. Công trình di sản người học đã đặt trên đảo
-          if (slot != null && slot.placement != null && !isLocked)
-            IslandHeritageBuilding(
-              placement: slot.placement!,
-              isSelected: isSelected,
-              tileWidth: tileW,
-              tileHeight: tileH,
-              flipHorizontally:
-                  cameraDirection == IslandCameraDirection.southEast ||
-                  cameraDirection == IslandCameraDirection.southWest,
+      child: slot != null
+          ? Semantics(
+              button: true,
+              container: true,
+              label: slot.placement != null && !isLocked
+                  ? 'Ô di sản $slotKeyLabel: ${slot.placement!.name}'
+                  : (!isLocked
+                        ? 'Ô trống $slotKeyLabel'
+                        : 'Ô khóa $slotKeyLabel Cấp ${slot.unlockTier}'),
               onTap: () => onSlotTap(slot),
+              child: tileStack,
             )
-
-          // 2. Ô đất xây dựng trống đã mở khóa: Nền móng đá & gỗ cổ tự nhiên
-          else if (slot != null && !isLocked && tile.buildable)
-            _buildSubtleBuildableSlotPlinth(
-              slot: slot,
-              tile: tile,
-              isSelected: isSelected,
-              tileW: tileW,
-              tileH: tileH,
-            )
-
-          // 3. Tiểu cảnh làng Việt 2.5D (hiển thị cả khi mở khóa lẫn trong làn sương vùng khóa)
-          else if (IslandVisualAssetManager.hasSceneryVisual(tile))
-            GestureDetector(
-              onTap: () => slot != null ? onSlotTap(slot) : onTileTap((tile.row, tile.col)),
-              behavior: HitTestBehavior.translucent,
-              child: Stack(
-                alignment: Alignment.bottomCenter,
-                clipBehavior: Clip.none,
-                children: [
-                  IslandVisualAssetManager.renderSceneryItem(
-                    visualKey: tile.decorKey,
-                    tileWidth: tileW,
-                    tileHeight: tileH,
-                    row: tile.row,
-                    col: tile.col,
-                    isLocked: isLocked,
-                    cameraDirection: cameraDirection,
-                  ),
-                  if (isLocked)
-                    Positioned(
-                      bottom: 0,
-                      child: _buildMistyFogVeil(tileW: tileW, tileH: tileH),
-                    ),
-                ],
-              ),
-            )
-
-          // 4. Vùng đất chưa mở khóa (chỉ hiện biểu tượng khóa nhỏ trên ô có slot xây dựng)
-          else if (isLocked)
-            _buildAtmosphericLockedCue(
-              tile: tile,
-              isSelected: isSelected,
-              tileW: tileW,
-              tileH: tileH,
-              slot: slot,
-            )
-
-          // 5. Ô mặt đất mở khóa bình thường (cỏ, đường gạch, sân đình)
-          else
-            GestureDetector(
-              onTap: () => onTileTap((tile.row, tile.col)),
-              behavior: HitTestBehavior.translucent,
-              child: SizedBox(
-                width: tileW * 0.92,
-                height: tileH * 0.92,
-              ),
-            ),
-        ],
-      ),
+          : tileStack,
     );
   }
 

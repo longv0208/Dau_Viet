@@ -1,0 +1,15 @@
+{
+  "name": "dau-viet-mobile-e2e",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "End-to-end Playwright test suite for Dau Viet Flutter Mobile Web (Issue #27)",
+  "scripts": {
+    "build:web": "flutter build web --dart-define=USE_MOCK=false --dart-define=API_BASE_URL=http://localhost:8080",
+    "serve:web": "node scripts/serve-flutter-web.mjs",
+    "test:e2e": "playwright test"
+  },
+  "devDependencies": {
+    "@playwright/test": "1.64.1"
+  }
+}

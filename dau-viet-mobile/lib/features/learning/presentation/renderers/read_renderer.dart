@@ -11,6 +11,7 @@ import '../animations/runtime/animation_manifest_dto.dart';
 import '../animations/runtime/animation_runtime_registry.dart';
 import '../animations/runtime/cinematic_state.dart';
 import 'renderer_base.dart';
+import '../lesson_cover_resolver.dart';
 
 /// READ — nội dung đọc + nút "Đã đọc xong, tiếp tục" (acknowledgment `{}`).
 /// Không chấm điểm phía client; server trả COMPLETED.
@@ -214,6 +215,27 @@ class ReadRenderer extends StatelessWidget {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
+              if (!isHtmlScene &&
+                  animation == null &&
+                  !unsupportedManifest) ...[
+                ClipRRect(
+                  borderRadius: BorderRadius.circular(12),
+                  child: SizedBox(
+                    height: 150,
+                    width: double.infinity,
+                    child: Image.asset(
+                      resolveLessonFallbackAsset(
+                        title ?? '',
+                        '${subtitle ?? ''} ${activity.instruction ?? ''} ${body ?? ''}',
+                      ),
+                      width: double.infinity,
+                      fit: BoxFit.cover,
+                      errorBuilder: (_, _, _) => const SizedBox.shrink(),
+                    ),
+                  ),
+                ),
+                const SizedBox(height: 14),
+              ],
               if (title != null) ...[
                 Text(
                   title,

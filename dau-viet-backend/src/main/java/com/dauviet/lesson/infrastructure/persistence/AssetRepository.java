@@ -141,7 +141,7 @@ public interface AssetRepository extends JpaRepository<Asset, UUID> {
                 OR EXISTS (
                     SELECT 1
                     FROM map_locations ml
-                    WHERE ml.cover_asset_id = :assetId
+                    WHERE (ml.cover_asset_id = :assetId OR ml.map_asset_id = :assetId)
                       AND ml.status = 'PUBLISHED'
                 )
                 OR EXISTS (
@@ -150,7 +150,17 @@ public interface AssetRepository extends JpaRepository<Asset, UUID> {
                     JOIN map_locations ml ON ml.id = mlm.location_id
                     WHERE mlm.asset_id = :assetId
                       AND ml.status = 'PUBLISHED'
-                      AND mlm.visibility IN ('PUBLIC', 'UNLOCKED_ONLY')
+                      AND mlm.visibility IN ('PUBLIC', 'PUBLIC_PREVIEW', 'UNLOCKED_ONLY')
+                )
+                OR EXISTS (
+                    SELECT 1
+                    FROM historical_events he
+                    WHERE he.cover_asset_key IN (
+                        CAST(:assetId AS text),
+                        CONCAT('/api/v1/assets/', CAST(:assetId AS text), '/content'),
+                        CONCAT('/api/v1/admin/assets/', CAST(:assetId AS text), '/content')
+                    )
+                      AND he.status = 'PUBLISHED'
                 )
             )
             """, nativeQuery = true)

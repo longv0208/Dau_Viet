@@ -31,8 +31,25 @@ public final class AdminStandaloneMapLocationDtos {
             String visibility,
             String unlockRuleMode,
             UUID coverAssetId,
+            UUID mapAssetId,
             Integer displayOrder
     ) {
+        public StandaloneLocationRequest(
+                String slug,
+                String title,
+                String shortSummary,
+                String description,
+                String kind,
+                Double latitude,
+                Double longitude,
+                String coordinatePrecision,
+                String visibility,
+                String unlockRuleMode,
+                UUID coverAssetId,
+                Integer displayOrder) {
+            this(slug, title, shortSummary, description, kind, latitude, longitude,
+                    coordinatePrecision, visibility, unlockRuleMode, coverAssetId, null, displayOrder);
+        }
     }
 
     public record EventLinkInput(
@@ -103,6 +120,7 @@ public final class AdminStandaloneMapLocationDtos {
             String visibility,
             String unlockRuleMode,
             UUID coverAssetId,
+            UUID mapAssetId,
             int displayOrder,
             String status,
             boolean everPublished,

@@ -233,6 +233,7 @@ class _LessonPlayerScreenState extends ConsumerState<LessonPlayerScreen> {
       _needsFreshKey = false;
     }
 
+    _dismissEnergyPenaltyToast();
     setState(() {
       _state = st.copyWith(submitting: true, feedback: () => null);
     });
@@ -338,6 +339,7 @@ class _LessonPlayerScreenState extends ConsumerState<LessonPlayerScreen> {
     if (!hasDetails) {
       ref.read(energyProvider.notifier).refresh();
     }
+    _dismissEnergyPenaltyToast();
     setState(() {
       _state = _state!.copyWith(submitting: false);
     });

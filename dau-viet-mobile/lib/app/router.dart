@@ -68,6 +68,7 @@ const _demoOnlyPrefixes = [
 /// Bộ định tuyến toàn cục của Dấu Việt Mobile (go_router)
 final appRouter = GoRouter(
   initialLocation: '/',
+  refreshListenable: authRouterRefreshNotifier,
   redirect: (context, state) {
     // Đọc auth state qua container toàn cục (router tạo trước ProviderScope).
     final container = appContainer;
