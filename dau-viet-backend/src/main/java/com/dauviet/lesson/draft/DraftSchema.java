@@ -44,11 +44,14 @@ public final class DraftSchema {
      */
     public static final Map<StageType, Set<ActivityType>> STAGE_ALLOWED_ACTIVITIES = Map.of(
             StageType.CONTEXT, Set.of(ActivityType.READ, ActivityType.VIEW_IMAGE),
-            StageType.DISCOVERY, Set.of(ActivityType.EXPLORE_MAP, ActivityType.VIEW_IMAGE, ActivityType.READ),
-            StageType.EVIDENCE, Set.of(ActivityType.EVIDENCE_SELECT, ActivityType.MULTIPLE_CHOICE, ActivityType.READ),
+            StageType.DISCOVERY, Set.of(ActivityType.EXPLORE_MAP, ActivityType.VIEW_IMAGE,
+                    ActivityType.MULTIPLE_CHOICE, ActivityType.READ),
+            StageType.EVIDENCE, Set.of(ActivityType.EVIDENCE_SELECT, ActivityType.MULTIPLE_CHOICE,
+                    ActivityType.VIEW_IMAGE, ActivityType.READ),
             StageType.REASONING, Set.of(ActivityType.MATCHING, ActivityType.REASONING_CONNECT,
                     ActivityType.MULTIPLE_CHOICE, ActivityType.READ),
-            StageType.HYPOTHESIS, Set.of(ActivityType.HYPOTHESIS_CHOICE, ActivityType.READ),
+            StageType.HYPOTHESIS, Set.of(ActivityType.HYPOTHESIS_CHOICE, ActivityType.MULTIPLE_CHOICE,
+                    ActivityType.READ),
             StageType.RECONSTRUCTION, Set.of(ActivityType.DRAG_ORDER, ActivityType.READ),
             StageType.VERIFICATION, Set.of(ActivityType.VERIFICATION, ActivityType.MULTIPLE_CHOICE,
                     ActivityType.READ),

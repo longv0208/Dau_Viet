@@ -363,6 +363,10 @@ public final class SimpleActivityValidators {
                             path + ".config.acceptedRelationSets[" + i + "]", errors);
                 }
             }
+            // Retry budget only meaningful when the handler actually grades.
+            if (config != null && config.path("graded").asBoolean(false)) {
+                requireBoundedInt(config, "maxAttempts", path, 1, 20, errors);
+            }
         }
 
         private boolean isNonEmptyArray(JsonNode node) {
@@ -450,6 +454,8 @@ public final class SimpleActivityValidators {
                     }
                 }
             }
+            // Retry budget for auto-graded matching (default 3 in handler).
+            requireBoundedInt(config, "maxAttempts", path, 1, 20, errors);
         }
     }
 
@@ -479,6 +485,8 @@ public final class SimpleActivityValidators {
                     }
                 }
             }
+            // Retry budget for auto-graded ordering (default 3 in handler).
+            requireBoundedInt(config, "maxAttempts", path, 1, 20, errors);
         }
     }
 }
