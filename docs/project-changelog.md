@@ -2,6 +2,23 @@
 
 > Detailed record of significant changes, features và fixes. Newest first.
 
+## 2026-10-29 — TASK-0021 / Issue #34: OTP đăng ký, quên mật khẩu và đăng nhập Google
+
+**Scope:** Nâng cấp xác thực theo Issue #34 — đăng ký xác thực OTP qua email, quên/đặt lại mật khẩu bằng OTP với thu hồi phiên, đăng nhập Google (idToken) có account linking. Plan: `plans/261029-issue-34-auth-otp-google/plan.md`.
+
+**Database**
+- `V51__auth_otp_and_google_oauth.sql` — `users.password_hash` nullable (tài khoản Google-only); bảng `auth_otp_challenges` (mã OTP 6 số băm SHA-256 có salt, purpose `REGISTER_VERIFY`/`PASSWORD_RESET`, partial unique `ux_otp_active` đảm bảo một challenge active/(email,purpose)); bảng `user_oauth_accounts` (`UNIQUE (provider, provider_subject)`).
+
+**Backend**
+- `POST /api/v1/auth/register` đổi contract: tạo REGISTER_VERIFY challenge → `202 OtpChallengeResponse` (không tạo user). `POST /auth/register/verify` tạo user `email_verified_at=now()` + trả `TokenResponse`. `POST /auth/otp/resend` (cooldown 60s → `429 OTP_RESEND_COOLDOWN`). `POST /auth/password/forgot` luôn `200` (anti-enumeration); `POST /auth/password/reset` verify OTP + BCrypt mật khẩu mới + revoke toàn bộ `auth_refresh_tokens` của user. `POST /auth/google` verify idToken qua `GoogleIdTokenVerifier` (sig/iss/aud/exp/email_verified), link-or-create LEARNER, từ chối link vào email chưa verified (`403 GOOGLE_EMAIL_UNVERIFIED`).
+- `OtpService` (issue/verify/resend, max 5 attempts, hết hạn 300s), `OtpSender` với `SmtpOtpSender` (`MAIL_ENABLED=true`) và `LoggingOtpSender` fallback chỉ log mã khi profile `local`. Error codes mới: `OTP_INVALID`, `OTP_EXPIRED`, `OTP_MAX_ATTEMPTS_EXCEEDED`, `OTP_RESEND_COOLDOWN`, `OTP_NO_CHALLENGE`, `GOOGLE_TOKEN_INVALID`, `GOOGLE_EMAIL_UNVERIFIED`.
+
+**Mobile**
+- `RegisterScreen` → luồng 2 bước qua `OtpVerificationScreen` mới (ô nhập 6 số, countdown resend 60s); `ForgotPasswordScreen` + `ResetPasswordScreen` cho luồng khôi phục; nút "Quên mật khẩu?" và "Tiếp tục với Google" trên `AuthScreen` (`google_sign_in` + gateway provider mockable). Routes mới: `/auth/forgot`, `/auth/otp`, `/auth/reset-password`.
+
+**Tests/Docs** — `OtpServiceTest` (11), `AuthServiceTest` viết lại (15), `GoogleAuthServiceTest` (7), `AuthControllerIT` viết lại cho contract OTP (Docker-blocked locally), mobile auth tests 29/29 pass. Docs: `API_SPEC.md`, `DATABASE_DESIGN.md`, `backend-runbook.md` (`MAIL_*`/`GOOGLE_CLIENT_IDS` envs).
+
+
 ## 2026-10-28 — PATH-2.0 & HERITAGE-MAP-2.0 (Epics A–F, Issues #2–#26): Luồng Học Theo Thời Kỳ & Bản Đồ Di Sản
 
 **Scope:** Nâng cấp toàn diện lộ trình học lịch sử phân cấp (`ERA -> PERIOD -> PHASE -> EVENT -> LESSON`), mở khóa tuần tự theo từng thời kỳ, tách địa điểm di tích thành thực thể độc lập liên kết N–N với sự kiện và bài học (`ANY`/`ALL`), tích hợp Admin CMS, Flutter Mobile, kiểm thử End-to-End và chốt lộ trình gỡ cột deprecated (ADR-009). Plan: `plans/261028-issue-26-e2e-integration-docs/plan.md`.

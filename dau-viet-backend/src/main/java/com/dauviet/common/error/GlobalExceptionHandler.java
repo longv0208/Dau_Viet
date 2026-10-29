@@ -536,6 +536,62 @@ public class GlobalExceptionHandler {
                 ex.getMessage(), Map.of());
     }
 
+    @ExceptionHandler(com.dauviet.common.error.FeatureDisabledException.class)
+    public ResponseEntity<ApiError> handleCommonFeatureDisabled(
+            com.dauviet.common.error.FeatureDisabledException ex) {
+        return build(HttpStatus.SERVICE_UNAVAILABLE, ErrorCode.FEATURE_DISABLED,
+                ex.getMessage(), Map.of());
+    }
+
+    /* Issue #34 — OTP + Google auth failures. */
+
+    @ExceptionHandler(com.dauviet.auth.domain.OtpException.Invalid.class)
+    public ResponseEntity<ApiError> handleOtpInvalid(
+            com.dauviet.auth.domain.OtpException.Invalid ex) {
+        return build(HttpStatus.BAD_REQUEST, ErrorCode.OTP_INVALID,
+                ex.getMessage(), Map.of("attemptsLeft", ex.getAttemptsLeft()));
+    }
+
+    @ExceptionHandler(com.dauviet.auth.domain.OtpException.Expired.class)
+    public ResponseEntity<ApiError> handleOtpExpired(
+            com.dauviet.auth.domain.OtpException.Expired ex) {
+        return build(HttpStatus.BAD_REQUEST, ErrorCode.OTP_EXPIRED, ex.getMessage(), Map.of());
+    }
+
+    @ExceptionHandler(com.dauviet.auth.domain.OtpException.MaxAttemptsExceeded.class)
+    public ResponseEntity<ApiError> handleOtpMaxAttempts(
+            com.dauviet.auth.domain.OtpException.MaxAttemptsExceeded ex) {
+        return build(HttpStatus.TOO_MANY_REQUESTS, ErrorCode.OTP_MAX_ATTEMPTS_EXCEEDED,
+                ex.getMessage(), Map.of());
+    }
+
+    @ExceptionHandler(com.dauviet.auth.domain.OtpException.ResendCooldown.class)
+    public ResponseEntity<ApiError> handleOtpResendCooldown(
+            com.dauviet.auth.domain.OtpException.ResendCooldown ex) {
+        return build(HttpStatus.TOO_MANY_REQUESTS, ErrorCode.OTP_RESEND_COOLDOWN,
+                ex.getMessage(), Map.of("retryAfterSeconds", ex.getRetryAfterSeconds()));
+    }
+
+    @ExceptionHandler(com.dauviet.auth.domain.OtpException.NoChallenge.class)
+    public ResponseEntity<ApiError> handleOtpNoChallenge(
+            com.dauviet.auth.domain.OtpException.NoChallenge ex) {
+        return build(HttpStatus.BAD_REQUEST, ErrorCode.OTP_NO_CHALLENGE, ex.getMessage(), Map.of());
+    }
+
+    @ExceptionHandler(com.dauviet.auth.domain.GoogleTokenInvalidException.class)
+    public ResponseEntity<ApiError> handleGoogleTokenInvalid(
+            com.dauviet.auth.domain.GoogleTokenInvalidException ex) {
+        return build(HttpStatus.UNAUTHORIZED, ErrorCode.GOOGLE_TOKEN_INVALID,
+                "Google sign-in failed", Map.of());
+    }
+
+    @ExceptionHandler(com.dauviet.auth.domain.GoogleEmailUnverifiedException.class)
+    public ResponseEntity<ApiError> handleGoogleEmailUnverified(
+            com.dauviet.auth.domain.GoogleEmailUnverifiedException ex) {
+        return build(HttpStatus.FORBIDDEN, ErrorCode.GOOGLE_EMAIL_UNVERIFIED,
+                "Verify your email before linking Google sign-in", Map.of());
+    }
+
     /** 503 â€” Cáº¥u hĂ¬nh Island (tier policy hoáº·c level thresholds) khĂ´ng há»£p lá»‡ (ISLAND-02). */
     @ExceptionHandler(com.dauviet.island.domain.IslandExceptions.IslandConfigurationInvalidException.class)
     public ResponseEntity<ApiError> handleIslandConfigurationInvalid(

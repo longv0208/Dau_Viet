@@ -41,7 +41,10 @@ erDiagram
 
 | Table | Trường chính | Ghi chú |
 |---|---|---|
-| `users` | `id`, `email`, `password_hash`, `role`, `display_name`, `created_at` | Role tối thiểu `LEARNER`, `CONTENT_ADMIN`; password hash không trả client |
+| `users` | `id`, `email`, `password_hash` (nullable từ V51), `role`, `display_name`, `status`, `email_verified_at`, `last_login_at`, `created_at`, `row_version` | Role `LEARNER`, `CONTENT_ADMIN`; status `ACTIVE/LOCKED/DISABLED`; `password_hash` NULL cho tài khoản Google-only (login password → INVALID_CREDENTIALS); hash không trả client |
+| `auth_refresh_tokens` | `id`, `user_id` → users, `token_hash` UNIQUE, `token_family_id`, `previous_token_id`, `expires_at`, `revoked_at`, `last_used_at` | Chỉ lưu SHA-256 của raw token; rotation revoke theo family (reuse detection); password reset revoke theo `user_id` (V51 flow) |
+| `auth_otp_challenges` | `id`, `email` (lowercase), `purpose` (`REGISTER_VERIFY`/`PASSWORD_RESET`), `code_hash` (salted SHA-256), `payload_json` JSONB, `attempts`, `max_attempts` (5), `expires_at`, `consumed_at`, `created_at` | **V51 (Issue #34)** — partial unique `ux_otp_active (lower(email), purpose) WHERE consumed_at IS NULL` → tối đa 1 challenge active/(email,purpose); `payload_json` mang `{displayName,passwordHash,salt}` (register) hoặc `{userId,salt}` (reset); plaintext OTP không bao giờ lưu |
+| `user_oauth_accounts` | `id`, `user_id` → users CASCADE, `provider` (`GOOGLE`), `provider_subject`, `provider_email`, `created_at` | **V51 (Issue #34)** — `UNIQUE (provider, provider_subject)`; Google `sub` link 1-1 về user; index `(user_id)` |
 | `historical_events` | `id`, `title`, `period`, `start_year`, `summary`, `cover_asset_id`, `status` | Dữ liệu tri thức; không lẫn lesson |
 | `lesson_templates` | `id`, `code`, `name`, `schema_version`, `preset_json`, `enabled` | Preset stage/activity/rule (không chứa nội dung sự kiện) |
 | `lessons` | `id`, `event_id`, `template_id`, `title`, `central_question`, `objectives_json`, `draft_json`, `status`, `current_version_id` | Chỉnh sửa ở draft; `current_version_id` có thể null ban đầu |

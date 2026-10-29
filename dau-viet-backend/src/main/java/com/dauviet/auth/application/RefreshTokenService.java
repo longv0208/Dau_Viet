@@ -125,6 +125,17 @@ public class RefreshTokenService {
         });
     }
 
+    /**
+    * Password reset / account-recovery containment: revoke every active
+    * refresh token the user holds, all families (Issue #34). Runs inside the
+    * caller's transaction so it commits or rolls back with the password
+    * update.
+    */
+    @Transactional
+    public int revokeAllForUser(java.util.UUID userId) {
+        return tokens.revokeActiveByUser(userId, Instant.now());
+    }
+
     public Optional<RefreshToken> findByRaw(String raw) {
         return tokens.findByTokenHash(hash(raw));
     }

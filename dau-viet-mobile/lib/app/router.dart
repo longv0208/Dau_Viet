@@ -3,6 +3,9 @@ import '../core/api/api_config.dart';
 import '../features/auth/data/auth_state.dart';
 import '../features/auth/presentation/auth_screen.dart';
 import '../features/auth/presentation/register_screen.dart';
+import '../features/auth/presentation/forgot_password_screen.dart';
+import '../features/auth/presentation/otp_verification_screen.dart';
+import '../features/auth/presentation/reset_password_screen.dart';
 import '../features/auth/presentation/splash_screen.dart';
 import '../features/campaign/presentation/campaign_detail_screen.dart';
 import '../features/collection/presentation/collection_detail_screen.dart';
@@ -88,6 +91,12 @@ final appRouter = GoRouter(
       return '/dashboard';
     }
 
+    // Đã login mà vào màn phụ của auth flow → về dashboard.
+    if (auth.status == AuthStatus.authenticated &&
+        (loc == '/auth/otp' || loc == '/auth/forgot' || loc == '/auth/reset-password')) {
+      return '/dashboard';
+    }
+
     // Real mode: màn nội dung demo-only không có dữ liệu thật → dashboard.
     if (!ApiConfig.useMock && _demoOnlyPrefixes.any((p) => loc.startsWith(p))) {
       return '/dashboard';
@@ -120,6 +129,35 @@ final appRouter = GoRouter(
       path: '/register',
       name: 'register',
       builder: (context, state) => const RegisterScreen(),
+    ),
+
+    // Issue #34: quên mật khẩu — bước 1 (email → gửi OTP).
+    GoRoute(
+      path: '/auth/forgot',
+      name: 'forgot-password',
+      builder: (context, state) => const ForgotPasswordScreen(),
+    ),
+
+    // Issue #34: nhập mã OTP 6 số (đăng ký | quên mật khẩu).
+    GoRoute(
+      path: '/auth/otp',
+      name: 'otp-verify',
+      builder: (context, state) {
+        final args = state.extra as OtpFlowArgs?;
+        if (args == null) return const AuthScreen();
+        return OtpVerificationScreen(args: args);
+      },
+    ),
+
+    // Issue #34: quên mật khẩu — bước 2 (OTP + mật khẩu mới).
+    GoRoute(
+      path: '/auth/reset-password',
+      name: 'reset-password',
+      builder: (context, state) {
+        final args = state.extra as ({String email, String otpCode})?;
+        if (args == null) return const ForgotPasswordScreen();
+        return ResetPasswordScreen(email: args.email, otpCode: args.otpCode);
+      },
     ),
 
     // P1-02: Onboarding 3 bước — chỉ hiện lần đầu (splash điều hướng).

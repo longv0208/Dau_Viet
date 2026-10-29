@@ -49,6 +49,20 @@
             <groupId>org.springframework.boot</groupId>
             <artifactId>spring-boot-starter-actuator</artifactId>
         </dependency>
+        <dependency>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-starter-mail</artifactId>
+        </dependency>
+
+        <!-- Google ID-token verification for POST /auth/google (Issue #34).
+             google-api-client ships GoogleIdTokenVerifier: fetches+caches
+             Google's public certs, checks signature/iss/exp and the aud
+             whitelist we configure. -->
+        <dependency>
+            <groupId>com.google.api-client</groupId>
+            <artifactId>google-api-client</artifactId>
+            <version>2.7.2</version>
+        </dependency>
 
         <dependency>
             <groupId>org.flywaydb</groupId>

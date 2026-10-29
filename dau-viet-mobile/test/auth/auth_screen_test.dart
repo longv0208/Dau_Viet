@@ -23,8 +23,9 @@ void main() {
       expect(find.text('Mật khẩu'), findsOneWidget);
       expect(find.text('Quên mật khẩu?'), findsOneWidget);
 
-      // Verify social buttons & divider
-      expect(find.text('Hoặc đăng nhập bằng'), findsOneWidget);
+      // Google sign-in button + divider (Issue #34)
+      expect(find.text('hoặc'), findsOneWidget);
+      expect(find.text('Tiếp tục với Google'), findsOneWidget);
       expect(find.text('Chưa có tài khoản? '), findsOneWidget);
       expect(find.text('Đăng ký ngay'), findsOneWidget);
     });
