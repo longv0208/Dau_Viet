@@ -179,4 +179,94 @@ class ScoredHandlersTest {
                 HandlerTestSupport.sub("do", "{\"orderedIds\":[\"i2\",\"i1\"]}"));
         assertThat(r.outcome()).isEqualTo(ActivityResult.INCORRECT);
     }
+
+    @Test
+    void matching_partialPairs_partial_notCompleted() {
+        JsonNode act = HandlerTestSupport.json(
+                "{\"id\":\"mt\",\"type\":\"MATCHING\",\"config\":{"
+              + "\"pairs\":[{\"left\":{\"id\":\"l1\"},\"right\":{\"id\":\"r1\"}},"
+              + "            {\"left\":{\"id\":\"l2\"},\"right\":{\"id\":\"r2\"}}],"
+              + "\"correctPairs\":[{\"left\":\"l1\",\"right\":\"r1\"},"
+              + "                 {\"left\":\"l2\",\"right\":\"r2\"}],"
+              + "\"maxAttempts\":3}}");
+        ActivityResult r = matching.evaluate(
+                HandlerTestSupport.ctx(act, snapshot()),
+                HandlerTestSupport.sub("mt",
+                        "{\"pairs\":[{\"leftId\":\"l1\",\"rightId\":\"r1\"},"
+                        + "          {\"leftId\":\"l2\",\"rightId\":\"r1\"}]}"));
+        assertThat(r.outcome()).isEqualTo(ActivityResult.PARTIAL);
+        assertThat(r.completed()).isFalse();
+        assertThat(r.output().get("matchedCount").asInt()).isEqualTo(1);
+        assertThat(r.output().get("correctPositions").asInt()).isEqualTo(1);
+        assertThat(r.output().get("totalItems").asInt()).isEqualTo(2);
+        assertThat(r.output().get("attemptCount").asInt()).isEqualTo(1);
+    }
+
+    @Test
+    void matching_maxAttemptsReached_exhausted_completes() {
+        JsonNode act = HandlerTestSupport.json(
+                "{\"id\":\"mt\",\"type\":\"MATCHING\",\"config\":{"
+              + "\"pairs\":[{\"left\":{\"id\":\"l1\"},\"right\":{\"id\":\"r1\"}},"
+              + "            {\"left\":{\"id\":\"l2\"},\"right\":{\"id\":\"r2\"}}],"
+              + "\"correctPairs\":[{\"left\":\"l1\",\"right\":\"r1\"},"
+              + "                 {\"left\":\"l2\",\"right\":\"r2\"}],"
+              + "\"maxAttempts\":1}}");
+        ActivityResult r = matching.evaluate(
+                HandlerTestSupport.ctx(act, snapshot()),
+                HandlerTestSupport.sub("mt",
+                        "{\"pairs\":[{\"leftId\":\"l1\",\"rightId\":\"r2\"},"
+                        + "          {\"leftId\":\"l2\",\"rightId\":\"r1\"}]}"));
+        assertThat(r.outcome()).isEqualTo(ActivityResult.INCORRECT);
+        assertThat(r.completed()).isTrue();
+        assertThat(r.output().get("exhausted").asBoolean()).isTrue();
+    }
+
+    @Test
+    void dragOrder_halfPositions_partial() {
+        JsonNode act = HandlerTestSupport.json(
+                "{\"id\":\"do\",\"type\":\"DRAG_ORDER\",\"config\":{"
+              + "\"items\":[{\"id\":\"i1\"},{\"id\":\"i2\"},{\"id\":\"i3\"},{\"id\":\"i4\"}],"
+              + "\"expectedOrder\":[\"i1\",\"i2\",\"i3\",\"i4\"],"
+              + "\"maxAttempts\":3}}");
+        ActivityResult r = dragOrder.evaluate(
+                HandlerTestSupport.ctx(act, snapshot()),
+                HandlerTestSupport.sub("do",
+                        "{\"orderedIds\":[\"i1\",\"i2\",\"i4\",\"i3\"]}"));
+        assertThat(r.outcome()).isEqualTo(ActivityResult.PARTIAL);
+        assertThat(r.completed()).isFalse();
+        assertThat(r.output().get("correctPositions").asInt()).isEqualTo(2);
+        assertThat(r.output().get("totalItems").asInt()).isEqualTo(4);
+        assertThat(r.output().has("expectedOrder")).isFalse();
+    }
+
+    @Test
+    void dragOrder_belowHalf_incorrect() {
+        JsonNode act = HandlerTestSupport.json(
+                "{\"id\":\"do\",\"type\":\"DRAG_ORDER\",\"config\":{"
+              + "\"items\":[{\"id\":\"i1\"},{\"id\":\"i2\"},{\"id\":\"i3\"},{\"id\":\"i4\"}],"
+              + "\"expectedOrder\":[\"i1\",\"i2\",\"i3\",\"i4\"],"
+              + "\"maxAttempts\":3}}");
+        ActivityResult r = dragOrder.evaluate(
+                HandlerTestSupport.ctx(act, snapshot()),
+                HandlerTestSupport.sub("do",
+                        "{\"orderedIds\":[\"i4\",\"i3\",\"i2\",\"i1\"]}"));
+        assertThat(r.outcome()).isEqualTo(ActivityResult.INCORRECT);
+        assertThat(r.output().get("correctPositions").asInt()).isEqualTo(0);
+    }
+
+    @Test
+    void dragOrder_maxAttemptsReached_exhausted_completes() {
+        JsonNode act = HandlerTestSupport.json(
+                "{\"id\":\"do\",\"type\":\"DRAG_ORDER\",\"config\":{"
+              + "\"items\":[{\"id\":\"i1\"},{\"id\":\"i2\"}],"
+              + "\"expectedOrder\":[\"i1\",\"i2\"],"
+              + "\"maxAttempts\":1}}");
+        ActivityResult r = dragOrder.evaluate(
+                HandlerTestSupport.ctx(act, snapshot()),
+                HandlerTestSupport.sub("do",
+                        "{\"orderedIds\":[\"i2\",\"i1\"]}"));
+        assertThat(r.outcome()).isEqualTo(ActivityResult.INCORRECT);
+        assertThat(r.completed()).isTrue();
+        assertThat(r.output().get("exhausted").asBoolean()).isTrue();
+    }
 }

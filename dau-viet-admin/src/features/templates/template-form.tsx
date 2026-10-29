@@ -63,11 +63,16 @@ function stagesFromPreset(presetJson: string): { stages: Stage[]; draft: Draft |
   }
 }
 
+// Issue #35: preset mirrors the 4-phase learner journey (Khám phá 4 Dấu Vết
+// -> Đặt giả thuyết -> Kiểm chứng -> Dựng lại -> Kết luận CER).
 const DEFAULT_PRESET: Stage[] = [
-  { id: "context", type: "CONTEXT", title: "Bối cảnh lịch sử", required: true, activities: [], nextStageIds: [] },
-  { id: "evidence", type: "EVIDENCE", title: "Điều tra bằng chứng", required: true, activities: [], nextStageIds: [] },
-  { id: "reconstruction", type: "RECONSTRUCTION", title: "Tái dựng diễn biến", required: true, activities: [], nextStageIds: [] },
-  { id: "conclusion", type: "CONCLUSION", title: "Lập luận và kết luận", required: true, activities: [], nextStageIds: [] },
+  { id: "context", type: "CONTEXT", title: "Bối cảnh lịch sử", required: true, activities: [], nextStageIds: ["discovery"] },
+  { id: "discovery", type: "DISCOVERY", title: "Khám phá bản đồ / dấu vết", required: true, activities: [], nextStageIds: ["evidence"] },
+  { id: "evidence", type: "EVIDENCE", title: "Khám phá 4 Dấu Vết", required: true, activities: [], nextStageIds: ["hypothesis"] },
+  { id: "hypothesis", type: "HYPOTHESIS", title: "Đặt giả thuyết", required: true, activities: [], nextStageIds: ["verification"] },
+  { id: "verification", type: "VERIFICATION", title: "Kiểm chứng dữ kiện", required: true, activities: [], nextStageIds: ["reconstruction"] },
+  { id: "reconstruction", type: "RECONSTRUCTION", title: "Dựng lại sự kiện", required: true, activities: [], nextStageIds: ["conclusion"] },
+  { id: "conclusion", type: "CONCLUSION", title: "Kết luận (CER)", required: true, activities: [], nextStageIds: [] },
 ];
 
 interface Props {

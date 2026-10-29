@@ -213,4 +213,78 @@ void main() {
       expect(dto.evidenceById('nope'), isNull);
     });
   });
+
+  group('EvaluationDto grading detail (Issue #35)', () {
+    test('parse correctPositions / totalItems / attemptCount / exhausted', () {
+      final dto = EvaluationDto.fromJson({
+        'outcome': 'PARTIAL',
+        'completed': false,
+        'feedbackCode': 'PARTIAL',
+        'output': {
+          'correctPositions': 2,
+          'totalItems': 4,
+          'attemptCount': 1,
+          'correct': false,
+        },
+      });
+      expect(dto.correctPositions, 2);
+      expect(dto.totalItems, 4);
+      expect(dto.attemptCount, 1);
+      expect(dto.exhausted, isFalse);
+    });
+
+    test('exhausted true khi output.exhausted', () {
+      final dto = EvaluationDto.fromJson({
+        'outcome': 'INCORRECT',
+        'completed': true,
+        'output': {'correct': false, 'exhausted': true, 'attemptCount': 3},
+      });
+      expect(dto.exhausted, isTrue);
+      expect(dto.attemptCount, 3);
+    });
+
+    test('matchedCount + partsCorrect aliases', () {
+      final m = EvaluationDto.fromJson({
+        'outcome': 'PARTIAL',
+        'completed': false,
+        'output': {'matchedCount': 2, 'correctPositions': 2, 'totalItems': 3},
+      });
+      expect(m.matchedCount, 2);
+      final c = EvaluationDto.fromJson({
+        'outcome': 'PARTIAL',
+        'completed': false,
+        'output': {'partsCorrect': 2},
+      });
+      expect(c.partsCorrect, 2);
+    });
+
+    test('verificationVerdict từ output.verification, fallback outcome', () {
+      final v = EvaluationDto.fromJson({
+        'outcome': 'PARTIAL',
+        'completed': false,
+        'output': {'verification': 'CONTRADICTED'},
+      });
+      expect(v.verificationVerdict, 'CONTRADICTED');
+      final o = EvaluationDto.fromJson({
+        'outcome': 'SUPPORTED',
+        'completed': true,
+      });
+      expect(o.verificationVerdict, 'SUPPORTED');
+    });
+  });
+
+  group('ActivityRefDto.maxAttempts', () {
+    test('đọc config.maxAttempts', () {
+      final dto = ActivityRefDto.fromJson({
+        'id': 'a1',
+        'type': 'DRAG_ORDER',
+        'config': {'maxAttempts': 3, 'items': []},
+      });
+      expect(dto.maxAttempts, 3);
+    });
+    test('null khi không có', () {
+      final dto = ActivityRefDto.fromJson({'id': 'a1', 'type': 'READ'});
+      expect(dto.maxAttempts, isNull);
+    });
+  });
 }

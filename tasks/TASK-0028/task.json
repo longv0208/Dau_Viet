@@ -2,59 +2,62 @@
   "schemaVersion": 1,
   "id": "TASK-0028",
   "type": "feature",
-  "risk": "high",
-  "status": "verifying",
-  "goal": "[LEARNING-MAP] Issue #36 — Học trực tiếp trên Bản đồ Dấu Ấn (learning-path làm trục chính), mở khóa Địa điểm Di tích sau khi hoàn thành bài học (ghim vệ tinh), đồng bộ copy Admin 'tùy chọn'.",
+  "risk": "high-risk",
+  "status": "implementing",
+  "goal": "[LEARNING-FLOW] Issue #35 — Chuẩn hóa chuỗi hoạt động 4 giai đoạn (Khám phá 4 Dấu Vết → Đặt giả thuyết → Kiểm chứng → Dựng lại sự kiện → Kết luận CER) chấm tự động 100% trên backend, đồng bộ Admin Builder và feedback 3 mức trên Mobile, không lộ đáp án xuống learner.",
   "owner": "claude",
-  "modules": ["mobile", "admin"],
+  "modules": ["backend", "admin", "mobile"],
   "scope": [
-    "dau-viet-mobile/lib/features/map/",
-    "dau-viet-mobile/lib/features/learning_path/",
-    "dau-viet-mobile/lib/features/learning/presentation/lesson_result_screen.dart",
+    "dau-viet-backend/src/main/java/com/dauviet/lesson/draft/DraftSchema.java",
+    "dau-viet-backend/src/main/java/com/dauviet/learning/handler/ScoredHandlers.java",
+    "dau-viet-backend/src/main/java/com/dauviet/lesson/draft/SimpleActivityValidators.java",
+    "dau-viet-backend/src/test/java/com/dauviet/learning/handler/ScoredHandlersTest.java",
+    "dau-viet-backend/src/test/java/com/dauviet/learning/HiddenKeyLeakIT.java",
+    "dau-viet-backend/src/main/resources/db/migration/",
+    "dau-viet-admin/src/features/lessons/builder/",
+    "dau-viet-admin/src/features/templates/template-form.tsx",
+    "dau-viet-admin/src/features/lessons/preview/",
+    "dau-viet-admin/src/test/fixtures.ts",
+    "dau-viet-admin/scripts/e2e-backend-stub.mjs",
+    "dau-viet-mobile/lib/features/learning/data/attempt_dtos.dart",
     "dau-viet-mobile/lib/features/learning/presentation/lesson_player_screen.dart",
-    "dau-viet-mobile/lib/features/learning/presentation/widgets/unlocked_location_banner.dart",
-    "dau-viet-mobile/lib/features/dashboard/presentation/learner_dashboard_screen.dart",
-    "dau-viet-mobile/lib/features/timeline/presentation/timeline_screen.dart",
-    "dau-viet-mobile/lib/core/widgets/main_bottom_nav.dart",
-    "dau-viet-mobile/lib/app/router.dart",
-    "dau-viet-mobile/test/",
-    "dau-viet-admin/src/features/lessons/builder/unlocked-locations-card.tsx",
-    "dau-viet-admin/src/features/map-locations/map-locations-page.tsx",
-    "docs/",
+    "dau-viet-mobile/lib/features/learning/presentation/renderers/",
+    "dau-viet-mobile/test/learning/",
+    "docs/LEARNING_ENGINE_DESIGN.md",
+    "docs/API_SPEC.md",
     "tasks/TASK-0028/",
-    "plans/261029-issue-36-map-learning/"
+    "plans/261029-issue-35-4-stage-flow/"
   ],
   "acceptanceCriteria": [
-    {
-      "id": "AC-1",
-      "text": "Người học xem lộ trình Thời kỳ -> Sự kiện -> Bài học và bấm Bắt đầu/Tiếp tục học trực tiếp trên Bản đồ Dấu Ấn mà không phải chuyển qua các màn danh sách rời rạc."
-    },
-    {
-      "id": "AC-2",
-      "text": "Các bài học không gắn địa điểm di tích vẫn hiển thị, học và mở khóa bài tiếp theo trên Bản đồ Dấu Ấn hoàn toàn liền mạch."
-    },
-    {
-      "id": "AC-3",
-      "text": "Khi hoàn thành bài học có gắn địa điểm di tích (ANY/ALL), địa điểm đó mới được mở khóa, hiển thị thông báo trên LessonResultScreen và bấm vào khám phá hồ sơ di tích ngay trên Bản đồ Dấu Ấn (ghim vệ tinh + LocationProfileSheet)."
-    },
-    {
-      "id": "AC-4",
-      "text": "Toàn bộ unit/widget/integration tests cho luồng học trên Bản đồ Dấu Ấn và mở khóa địa điểm sau bài học đều pass; flutter analyze sạch; admin lint/test sạch."
-    }
+    { "id": "AC-1", "text": "Tất cả hoạt động trong chuỗi Khám phá 4 Dấu Vết → Đặt giả thuyết → Kiểm chứng → Dựng lại sự kiện → Kết luận đều có đáp án chuẩn server-side và chấm tự động tức thì, không cần người chấm thủ công." },
+    { "id": "AC-2", "text": "DraftSchema.STAGE_ALLOWED_ACTIVITIES và Admin Builder cho phép VIEW_IMAGE trong EVIDENCE và MULTIPLE_CHOICE trong DISCOVERY / HYPOTHESIS." },
+    { "id": "AC-3", "text": "DragOrderHandler và MatchingHandler hỗ trợ chấm 3 mức (COMPLETED / PARTIAL / INCORRECT) kèm giới hạn lượt thử maxAttempts (exhausted → completed), trả correctPositions/totalItems hoặc số cặp đúng." },
+    { "id": "AC-4", "text": "Toàn bộ khóa đáp án của mọi loại activity bị loại bỏ khỏi learner-safe snapshot/API; HiddenKeyLeakIT pass với draft đủ HYPOTHESIS_CHOICE, VERIFICATION, MATCHING, CER_CHOICE." },
+    { "id": "AC-5", "text": "4 bài học mẫu (Bạch Đằng 938, Hai Bà Trưng, Như Nguyệt 1077, Điện Biên Phủ 1954) có đủ 4 nhóm dấu vết và chuỗi EVIDENCE_SELECT→HYPOTHESIS_CHOICE→VERIFICATION→DRAG_ORDER→CER_CHOICE; mobile hiển thị feedback 3 mức + lượt thử." }
   ],
   "dependencies": [],
-  "planPath": "plans/261029-issue-36-map-learning/plan.md",
+  "planPath": "plans/261029-issue-35-4-stage-flow/plan.md",
   "evidenceRefs": [
-    "flutter analyze -> 0 errors (2026-10-29)",
-    "flutter test test/map/ test/learning/unlocked_location_banner_test.dart test/timeline_events_test.dart test/widget_test.dart test/dashboard/ -> all passed (24 tests)",
-    "dau-viet-admin: npx vitest run src/features/events/map-locations-section.test.tsx src/features/lessons -> 83/83 pass",
-    "dau-viet-admin: npx tsc --noEmit -> chỉ còn lỗi pre-existing (qk import map-locations-page.tsx:172,180,900,921; map-location.ts union), không do thay đổi này",
-    "changelog: docs/project-changelog.md mục 2026-10-29 Issue #36"
+    "dau-viet-backend mvn test: 532/532 unit pass; *IT: 391/391 pass incl. V51 migration on Testcontainers Postgres",
+    "dau-viet-admin npx vitest run: 290/290 pass; npm run typecheck clean on edited files (pre-existing island-builder/map-locations errors only)",
+    "dau-viet-mobile flutter analyze: clean on all edited files; flutter test test/learning: 282 pass + 3 pre-existing failures bisected to base",
+    "tasks/TASK-0028/handoff.md"
   ],
-  "notes": [
-    "Đã chốt: /journey redirect -> /map (xóa PeriodSelectionScreen/PeriodJourneyScreen); tab bottom-nav 'Hành trình'; ghim di tích vệ tinh inline trên canvas.",
-    "Backend Java/Flyway không đổi — contract hiện đủ dùng.",
-    "Verify: flutter analyze sạch; 24 widget tests pass; admin 83/83 pass; AC-1/2/3 cover bởi path_map_test.dart; chờ review cuối + smoke app."
+  "acEvidence": [
+    { "id": "AC-1", "evidence": "ScoredHandlers.java Matching/DragOrder emit COMPLETED/PARTIAL/INCORRECT with correctPositions/totalItems/attemptCount/exhausted; EVIDENCE_SELECT F1, CER_CHOICE partsCorrect/3, VERIFICATION verdict — all server-side, zero client grading.", "artifact": "ScoredHandlersTest (16/16), HiddenKeyLeakIT" },
+    { "id": "AC-2", "evidence": "DraftSchema.STAGE_ALLOWED_ACTIVITIES: DISCOVERY⊇{EXPLORE_MAP,VIEW_IMAGE,MULTIPLE_CHOICE,READ}, EVIDENCE⊇{EVIDENCE_SELECT,MULTIPLE_CHOICE,VIEW_IMAGE,READ}, HYPOTHESIS⊇{HYPOTHESIS_CHOICE,MULTIPLE_CHOICE,READ}; admin draft-model.ts allow-list synced.", "artifact": "DraftSchema.java:45-59, draft-model.ts:40-49" },
+    { "id": "AC-3", "evidence": "MatchingHandler counts correctPairs individually (was submitted.size); DragOrder positional vs canonical; both emit PARTIAL + maxAttempts default 3 + EXHAUSTED feedback.", "artifact": "ScoredHandlers.java, ScoredHandlersTest +5 tests" },
+    { "id": "AC-4", "evidence": "HiddenKeyLeakIT expanded to 8-stage draft (READ→graded EVIDENCE_SELECT+MC→MATCHING→HYPOTHESIS_CHOICE→VERIFICATION→DRAG_ORDER→CER_CHOICE); LEARNER_HIDDEN_KEYS strip covers all keys.", "artifact": "HiddenKeyLeakIT passes in IT suite" },
+    { "id": "AC-5", "evidence": "V51 migration: 4 lessons upserted with 16 group evidences + 7-stage draft_json, published as lesson_versions v2 with embedded evidence/assets; V52 updates HISTORY_INVESTIGATION preset to 6-stage chain; mobile renders InlineGradingHint + verdict-aware celebration.", "artifact": "V51__upgrade_lessons_4phase_chain.sql, V52__update_history_template_4phase_preset.sql, flutter test test/learning" }
   ],
-  "nextAction": "Optional smoke-run `flutter run` kiểm tra visual /map; sau đó commit (cần user authorize) + chuyển status done."
+  "reviewRefs": ["Issue35Review → REQUEST_CHANGES → all findings addressed (see handoff.md 'Independent review — addressed')"],
+  "baseCommit": "2544112",
+  "handoffRef": "tasks/TASK-0028/handoff.md",
+  "inputFingerprint": null,
+  "snapshot": null,
+  "blockedReason": null,
+  "resumeFrom": null,
+  "nextAction": "Independent code-reviewer pass (high-risk gate) → commit + push under user authorization.",
+  "createdAt": "2026-10-29T00:00:00+07:00",
+  "updatedAt": "2026-10-29T00:00:00+07:00"
 }

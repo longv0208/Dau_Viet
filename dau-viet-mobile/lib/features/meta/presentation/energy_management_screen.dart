@@ -160,8 +160,12 @@ class _EnergyManagementScreenState extends ConsumerState<EnergyManagementScreen>
           _buildPhysicianAdviceCard(),
           const SizedBox(height: 20),
           DongSonButton(
-            label: 'VỀ BÀN HỌC TẬP (DASHBOARD)',
-            icon: Icons.home_rounded,
+            label: context.canPop()
+                ? 'QUAY LẠI BÀI HỌC'
+                : 'VỀ BÀN HỌC TẬP (DASHBOARD)',
+            icon: context.canPop()
+                ? Icons.arrow_back_rounded
+                : Icons.home_rounded,
             variant: DongSonButtonVariant.secondaryParchment,
             height: 48,
             onPressed: () {
@@ -196,6 +200,8 @@ class _EnergyManagementScreenState extends ConsumerState<EnergyManagementScreen>
           IconButton(
             icon: const Icon(Icons.arrow_back_rounded, size: 22),
             color: DauVietColors.inkText,
+            tooltip: 'Quay lại',
+            constraints: const BoxConstraints(minWidth: 44, minHeight: 44),
             onPressed: () {
               if (context.canPop()) {
                 context.pop();

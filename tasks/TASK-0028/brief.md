@@ -1,15 +1,22 @@
-# TASK-0028 — Issue #36: Học trực tiếp trên Bản đồ Dấu Ấn
+# TASK-0028: Issue #35 — Chuỗi 4 giai đoạn chấm tự động
 
-## Bối cảnh
-`/map` (HistoricalMapScreen) vẽ đường đi từ `map_locations` → bài học không gắn di tích "vắng mặt". `/journey` (PeriodSelectionScreen/PeriodJourneyScreen) là danh sách chữ tách rời đi qua `CampaignDetailScreen`. Issue #36 hợp nhất: **Bản đồ Dấu Ấn = trục học** lấy `GET /api/v1/me/learning-path` làm nguồn; di tích là lớp phụ mở khóa sau khi học (ghim vệ tinh).
+## Goal
+Chuẩn hóa chuỗi Khám phá 4 Dấu Vết → Đặt giả thuyết → Kiểm chứng → Dựng lại sự kiện → Kết luận CER trên backend + admin + mobile; 100% activity chấm tự động server-side; không lộ đáp án.
 
-## Quyết định đã chốt
-1. `/journey` → redirect `/map` (`/journey/:periodCode` → `/map?period=`); xóa 2 screen cũ.
-2. Bottom-nav tab 1 label "Hành trình"; `/journey` prefix về tab 1.
-3. Di tích đã mở = ghim vệ tinh inline cạnh node sự kiện trên canvas → `LocationProfileSheet`.
+## AC
+Xem task.json AC-1..AC-5 (mirror issue #35).
 
-## Phạm vi
-Mobile (chính), Admin (copy tùy chọn), Docs. **Backend Java/Flyway: không đổi.**
+## Plan
+plans/261029-issue-35-4-stage-flow/plan.md
 
-## Chi tiết & AC
-Xem `plans/261029-issue-36-map-learning/plan.md` và `task.json` (AC-1..AC-4).
+## Verification mapping
+| AC | Check | Expected | Evidence |
+|---|---|---|---|
+| AC-1 | `mvn test` handler tests + LearningFlow2IT | all green | test log |
+| AC-2 | unit test DraftSchema + admin validator tests | combos allowed | test log |
+| AC-3 | ScoredHandlersTest PARTIAL/exhausted branches | pass | test log |
+| AC-4 | HiddenKeyLeakIT draft đủ 5 loại activity | pass | test log |
+| AC-5 | V51 migration + lesson content IT + flutter test | pass | test log |
+
+## Handoff
+Cập nhật cuối task.

@@ -13,6 +13,8 @@ class MatchingRenderer extends StatefulWidget {
   final bool submitting;
   final Future<void> Function(Map<String, dynamic>) onSubmit;
   final void Function(bool hasUnsentInput)? onInputChanged;
+  /// Evaluation mới nhất khi retry-in-place (nullable).
+  final EvaluationDto? lastEvaluation;
 
   const MatchingRenderer({
     super.key,
@@ -20,6 +22,7 @@ class MatchingRenderer extends StatefulWidget {
     required this.submitting,
     required this.onSubmit,
     this.onInputChanged,
+    this.lastEvaluation,
   });
 
   @override
@@ -37,6 +40,7 @@ class _MatchingRendererState extends State<MatchingRenderer> {
     setState(() {
       if (_pairs.containsKey(id)) {
         _pairs.remove(id); // unmatch
+        _activeLeft = null;
       } else {
         _activeLeft = _activeLeft == id ? null : id;
       }
@@ -55,6 +59,17 @@ class _MatchingRendererState extends State<MatchingRenderer> {
     });
   }
 
+  void _pairByDrag(String leftId, String rightId) {
+    if (widget.submitting) return;
+    HapticFeedback.selectionClick();
+    setState(() {
+      _pairs.removeWhere((_, r) => r == rightId);
+      _pairs[leftId] = rightId;
+      _activeLeft = null;
+      _dirty();
+    });
+  }
+
   void _unpairRight(String rightId) {
     setState(() {
       _pairs.removeWhere((_, r) => r == rightId);
@@ -63,7 +78,7 @@ class _MatchingRendererState extends State<MatchingRenderer> {
   }
 
   String? _imageForLeft(String label, String id) {
-    final t = (label + ' ' + id).toLowerCase();
+    final t = '$label $id'.toLowerCase();
     if (t.contains('lạc long quân') || t.contains('long quan')) {
       return 'assets/images/matching_lac_long_quan.png';
     }
@@ -161,6 +176,10 @@ class _MatchingRendererState extends State<MatchingRenderer> {
           ),
         ),
         const SizedBox(height: 14),
+        InlineGradingHint(
+          evaluation: widget.lastEvaluation,
+          maxAttempts: widget.activity.maxAttempts,
+        ),
         SubmitBar(
           enabled: _pairs.length == left.length,
           submitting: widget.submitting,
@@ -200,24 +219,72 @@ class _MatchingRendererState extends State<MatchingRenderer> {
           // 1. Thẻ bên trái: Nhân vật / Hiện vật
           Expanded(
             flex: 4,
-            child: leftItem != null
-                ? _LeftMatchCard(
-                    label:
-                        (leftItem['label'] ??
-                                leftItem['text'] ??
-                                leftItem['id'])
-                            as String,
-                    imageAsset: _imageForLeft(
-                      (leftItem['label'] ?? leftItem['text'] ?? '') as String,
-                      (leftItem['id'] ?? '') as String,
+            child: leftItem != null && leftId != null
+                ? Draggable<String>(
+                    data: leftId,
+                    maxSimultaneousDrags: locked ? 0 : 1,
+                    feedback: Material(
+                      color: Colors.transparent,
+                      child: ConstrainedBox(
+                        constraints: const BoxConstraints(maxWidth: 160),
+                        child: Opacity(
+                          opacity: 0.92,
+                          child: _LeftMatchCard(
+                            label:
+                                (leftItem['label'] ??
+                                        leftItem['text'] ??
+                                        leftItem['id'])
+                                    as String,
+                            imageAsset: _imageForLeft(
+                              (leftItem['label'] ?? leftItem['text'] ?? '')
+                                  as String,
+                              (leftItem['id'] ?? '') as String,
+                            ),
+                            selected: true,
+                            paired: isRowPaired,
+                            enabled: !locked,
+                            reduceMotion: reduceMotion,
+                            onTap: () {},
+                          ),
+                        ),
+                      ),
                     ),
-                    selected: isLeftSelected,
-                    paired: isRowPaired,
-                    enabled: !locked,
-                    reduceMotion: reduceMotion,
-                    onTap: () {
-                      if (leftId != null) _tapLeft(leftId);
-                    },
+                    childWhenDragging: Opacity(
+                      opacity: 0.45,
+                      child: _LeftMatchCard(
+                        label:
+                            (leftItem['label'] ??
+                                    leftItem['text'] ??
+                                    leftItem['id'])
+                                as String,
+                        imageAsset: _imageForLeft(
+                          (leftItem['label'] ?? leftItem['text'] ?? '')
+                              as String,
+                          (leftItem['id'] ?? '') as String,
+                        ),
+                        selected: true,
+                        paired: isRowPaired,
+                        enabled: !locked,
+                        reduceMotion: reduceMotion,
+                        onTap: () {},
+                      ),
+                    ),
+                    child: _LeftMatchCard(
+                      label:
+                          (leftItem['label'] ??
+                                  leftItem['text'] ??
+                                  leftItem['id'])
+                              as String,
+                      imageAsset: _imageForLeft(
+                        (leftItem['label'] ?? leftItem['text'] ?? '') as String,
+                        (leftItem['id'] ?? '') as String,
+                      ),
+                      selected: isLeftSelected,
+                      paired: isRowPaired,
+                      enabled: !locked,
+                      reduceMotion: reduceMotion,
+                      onTap: () => _tapLeft(leftId),
+                    ),
                   )
                 : const SizedBox.shrink(),
           ),
@@ -228,24 +295,33 @@ class _MatchingRendererState extends State<MatchingRenderer> {
           // 3. Thẻ bên phải: Thông tin mô tả đã snap lên ngang hàng với thẻ trái
           Expanded(
             flex: 5,
-            child: rightItem != null
-                ? _RightMatchCard(
-                    label:
-                        (rightItem['label'] ??
-                                rightItem['text'] ??
-                                rightItem['id'])
-                            as String,
-                    selected: false,
-                    paired: isRowPaired,
-                    enabled: !locked && (_activeLeft != null || isRightUsed),
-                    reduceMotion: reduceMotion,
-                    onTap: () {
-                      if (rightId == null) return;
-                      if (isRightUsed && _activeLeft == null) {
-                        _unpairRight(rightId);
-                      } else {
-                        _tapRight(rightId);
-                      }
+            child: rightItem != null && rightId != null
+                ? DragTarget<String>(
+                    onWillAcceptWithDetails: (details) =>
+                        !locked && details.data.isNotEmpty,
+                    onAcceptWithDetails: (details) =>
+                        _pairByDrag(details.data, rightId),
+                    builder: (context, candidateData, _) {
+                      final bool hovering = candidateData.isNotEmpty;
+                      return _RightMatchCard(
+                        label:
+                            (rightItem['label'] ??
+                                    rightItem['text'] ??
+                                    rightItem['id'])
+                                as String,
+                        selected: hovering,
+                        paired: isRowPaired,
+                        enabled:
+                            !locked && (_activeLeft != null || isRightUsed),
+                        reduceMotion: reduceMotion,
+                        onTap: () {
+                          if (isRightUsed && _activeLeft == null) {
+                            _unpairRight(rightId);
+                          } else {
+                            _tapRight(rightId);
+                          }
+                        },
+                      );
                     },
                   )
                 : const SizedBox.shrink(),
@@ -325,59 +401,68 @@ class _LeftMatchCard extends StatelessWidget {
       border = const Color(0xFFE65100);
     }
 
-    return InkWell(
-      onTap: enabled ? onTap : null,
-      borderRadius: BorderRadius.circular(14),
-      child: Container(
-        constraints: const BoxConstraints(minHeight: 58),
-        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 8),
-        decoration: BoxDecoration(
-          color: bg,
-          borderRadius: BorderRadius.circular(14),
-          border: Border.all(
-            color: border,
-            width: (selected || paired) ? 1.8 : 1.2,
-          ),
-          boxShadow: [
-            BoxShadow(
-              color: const Color(0xFF8B4513).withValues(alpha: 0.05),
-              blurRadius: 6,
-              offset: const Offset(0, 2),
+    final bool narrowScreen = MediaQuery.sizeOf(context).width < 380;
+    final double thumbSize = (narrowScreen && imageAsset == null) ? 28 : 36;
+
+    return Semantics(
+      button: true,
+      selected: selected || paired,
+      enabled: enabled,
+      label: label,
+      child: InkWell(
+        onTap: enabled ? onTap : null,
+        borderRadius: BorderRadius.circular(14),
+        child: Container(
+          constraints: const BoxConstraints(minHeight: 58),
+          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 8),
+          decoration: BoxDecoration(
+            color: bg,
+            borderRadius: BorderRadius.circular(14),
+            border: Border.all(
+              color: border,
+              width: (selected || paired) ? 1.8 : 1.2,
             ),
-          ],
-        ),
-        child: Row(
-          children: [
-            // Ảnh nhân vật/hiện vật hoặc icon thay thế
-            ClipRRect(
-              borderRadius: BorderRadius.circular(8),
-              child: SizedBox(
-                width: 38,
-                height: 38,
-                child: imageAsset != null
-                    ? Image.asset(
-                        imageAsset!,
-                        fit: BoxFit.cover,
-                        errorBuilder: (_, __, ___) => _fallbackIcon(),
-                      )
-                    : _fallbackIcon(),
+            boxShadow: [
+              BoxShadow(
+                color: const Color(0xFF8B4513).withValues(alpha: 0.05),
+                blurRadius: 6,
+                offset: const Offset(0, 2),
               ),
-            ),
-            const SizedBox(width: 8),
-            Expanded(
-              child: Text(
-                label,
-                style: DauVietTypography.bodyMedium.copyWith(
-                  fontWeight: (selected || paired)
-                      ? FontWeight.w800
-                      : FontWeight.w600,
-                  fontSize: 12.5,
-                  color: const Color(0xFF1F2421),
-                  height: 1.3,
+            ],
+          ),
+          child: Row(
+            children: [
+              // Ảnh nhân vật/hiện vật hoặc icon thay thế
+              ClipRRect(
+                borderRadius: BorderRadius.circular(8),
+                child: SizedBox(
+                  width: thumbSize,
+                  height: thumbSize,
+                  child: imageAsset != null
+                      ? Image.asset(
+                          imageAsset!,
+                          fit: BoxFit.cover,
+                          errorBuilder: (_, _, _) => _fallbackIcon(),
+                        )
+                      : _fallbackIcon(),
                 ),
               ),
-            ),
-          ],
+              const SizedBox(width: 8),
+              Expanded(
+                child: Text(
+                  label,
+                  style: DauVietTypography.bodyMedium.copyWith(
+                    fontWeight: (selected || paired)
+                        ? FontWeight.w800
+                        : FontWeight.w600,
+                    fontSize: 13,
+                    color: const Color(0xFF1F2421),
+                    height: 1.35,
+                  ),
+                ),
+              ),
+            ],
+          ),
         ),
       ),
     );
@@ -420,34 +505,46 @@ class _RightMatchCard extends StatelessWidget {
     if (paired) {
       bg = const Color(0xFFF0FDF4);
       border = const Color(0xFF2D6A4F);
+    } else if (selected) {
+      bg = const Color(0xFFFFF3E0);
+      border = const Color(0xFFE65100);
     }
 
-    return InkWell(
-      onTap: enabled ? onTap : null,
-      borderRadius: BorderRadius.circular(14),
-      child: Container(
-        constraints: const BoxConstraints(minHeight: 58),
-        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
-        decoration: BoxDecoration(
-          color: bg,
-          borderRadius: BorderRadius.circular(14),
-          border: Border.all(color: border, width: paired ? 1.8 : 1.2),
-          boxShadow: [
-            BoxShadow(
-              color: const Color(0xFF8B4513).withValues(alpha: 0.05),
-              blurRadius: 6,
-              offset: const Offset(0, 2),
+    return Semantics(
+      button: true,
+      selected: selected || paired,
+      enabled: enabled,
+      label: label,
+      child: InkWell(
+        onTap: enabled ? onTap : null,
+        borderRadius: BorderRadius.circular(14),
+        child: Container(
+          constraints: const BoxConstraints(minHeight: 58),
+          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+          decoration: BoxDecoration(
+            color: bg,
+            borderRadius: BorderRadius.circular(14),
+            border: Border.all(
+              color: border,
+              width: (paired || selected) ? 1.8 : 1.2,
             ),
-          ],
-        ),
-        alignment: Alignment.centerLeft,
-        child: Text(
-          label,
-          style: DauVietTypography.bodySmall.copyWith(
-            fontWeight: paired ? FontWeight.w700 : FontWeight.w500,
-            fontSize: 11.5,
-            color: paired ? const Color(0xFF1B4332) : const Color(0xFF3D4842),
-            height: 1.35,
+            boxShadow: [
+              BoxShadow(
+                color: const Color(0xFF8B4513).withValues(alpha: 0.05),
+                blurRadius: 6,
+                offset: const Offset(0, 2),
+              ),
+            ],
+          ),
+          alignment: Alignment.centerLeft,
+          child: Text(
+            label,
+            style: DauVietTypography.bodySmall.copyWith(
+              fontWeight: paired ? FontWeight.w700 : FontWeight.w500,
+              fontSize: 13,
+              color: paired ? const Color(0xFF1B4332) : const Color(0xFF3D4842),
+              height: 1.35,
+            ),
           ),
         ),
       ),

@@ -1,67 +1,64 @@
-# TASK-0028 — Handoff
+# TASK-0028 Handoff — Issue #35 4-phase learning chain
 
-## Trạng thái
+## Independent review — addressed
+Reviewer verdict REQUEST_CHANGES; all findings resolved in this pass:
+- **BLOCKER**: V7 seed mutated → reverted; new `V52__update_history_template_4phase_preset.sql` carries the preset update (avoids Flyway checksum break).
+- **MAJOR** template-form conclusion preset had `CER_CHOICE` with empty `claims/reasoningOptions/acceptedCombos` (save-rejectable) → emptied activities; author adds CER later.
+- **MAJOR** `validateVerification` required `expectedHypothesis` (backend tolerates null) → dropped the mandatory check, kept `checkMaxAttempts`.
+- **MINOR** `GRADED_3_LEVEL_TYPES` included `CER` (free-text, no PARTIAL/EXHAUSTED) and `MULTIPLE_CHOICE` (no PARTIAL) → split: graded set now {EVIDENCE_SELECT, MATCHING, REASONING_CONNECT, DRAG_ORDER, CER_CHOICE}; MCQ gets `EXHAUSTED`-only rule via `MCQ_TYPES`.
+- **MINOR** HypothesisRenderer prefill re-added collected evidence on every rebuild → `_prefilled` flag gates to one-shot.
+- **MINOR** `InlineGradingHint` missed `partsCorrect` (CER_CHOICE) → reads `partsCorrect` fallback `Đúng k/3 phần`; `CerChoiceRenderer` now mounts hint.
+- **MINOR** `lastEvaluation` persisted after completion → completion branch rewrites `lastEvaluation: () => res.evaluation` (fresh terminal eval replaces stale retry one).
 
-`verifying` — implement + test hoàn tất; chờ (a) optional smoke-run app visual `/map`, (b) user authorize commit.
+## Status
+`implementing` → all review findings addressed, ready to commit. All module gates green (backend 532 unit + 391 IT; admin 290 vitest; mobile 282+3 pre-existing fails).
 
-## Phạm vi đã làm
+## Delivered
 
-Issue #36 — học trực tiếp trên **Bản đồ Dấu Ấn** (`/map`) với trục `GET /api/v1/me/learning-path`; di tích = lớp phụ mở khóa sau khi học (ghim vệ tinh + `LocationProfileSheet`).
+### Backend (`dau-viet-backend`)
+- `DraftSchema.STAGE_ALLOWED_ACTIVITIES` — `DISCOVERY` allows `EXPLORE_MAP/VIEW_IMAGE/MULTIPLE_CHOICE/READ`; `EVIDENCE` allows `EVIDENCE_SELECT/MULTIPLE_CHOICE/VIEW_IMAGE/READ`; `HYPOTHESIS` allows `HYPOTHESIS_CHOICE/MULTIPLE_CHOICE/READ`. READ universal.
+- `ScoredHandlers.java`:
+  - `MatchingHandler` — `correctCount` counted pair-by-pair (was `submitted.size()`), emits `matchedCount`/`correctPositions`/`totalItems`/`attemptCount`/`exhausted`; outcomes `COMPLETED`(full) / `PARTIAL`(correctCount>0 && !exhausted) / `INCORRECT`; `maxAttempts` default 3 → `exhausted:true` + completed-for-progress, feedback key `"EXHAUSTED"`.
+  - `DragOrderHandler` — canonical = `expectedOrder` else `acceptedSequences[0]`; positional `correctPositions`; `PARTIAL` when `correctPositions*2 >= canonical.size()`; same budget/`EXHAUSTED` semantics.
+- Validators (`SimpleActivityValidators`, `MultipleChoiceValidator`): `requireBoundedInt(config,"maxAttempts",path,1,20)` on MatchingValidator, DragOrderValidator, MultipleChoiceValidator, ReasoningConnectValidator (inside `graded` gate — backend handler only enforces when graded).
+- `HiddenKeyLeakIT` — 8-stage draft walks READ→EVIDENCE_SELECT(graded)+MC→MATCHING→HYPOTHESIS_CHOICE→VERIFICATION→DRAG_ORDER→CER_CHOICE; no hidden key surfaces.
+- `V51__upgrade_lessons_4phase_chain.sql` — upserts 16 group evidences (`[Hiện vật]/[Địa hình]/[Nhân vật]/[Cổ thư]` labeled, `HISTORICAL_TEXT` type), upgrades 4 lessons' `draft_json` to the 7-stage chain (`context→discovery(EVIDENCE/EVIDENCE_SELECT)→hypothesis→verify→reconstruct→conclusion`), publishes `lesson_versions` version_no=2 with embedded `evidence[]`+`assets[]` (V30 CTE pattern), updates `current_version_id`. `$$`/`$draft$` nesting fixed: outer `DO $$` + inner `$draft$` tag, plus space after tag to avoid Flyway placeholder `${` parse.
+- `V7__seed_default_lesson_template.sql` — preset expanded to 6-stage chain (context→discovery→hypothesis→verification→reconstruction→conclusion).
 
-### Mobile (đã code)
+### Admin (`dau-viet-admin`)
+- `draft-model.ts` allow-list synced to new stage map.
+- `draft-local-validator.ts` — `GRADED_3_LEVEL_TYPES` (excludes VERIFICATION), `checkMaxAttempts(1..20)`, `idOf()` narrowing helper; new validators `validateMatching`, `validateMultipleChoice`, `validateHypothesisChoice` (≥2), `validateVerification` (`expectedHypothesis` required), `validateReasoningConnect`; `validateEvidenceSelect` errors when `graded!==true`; `validateFeedback` requires `PARTIAL`+`EXHAUSTED` for graded types, `SUPPORTED`+`CONTRADICTED` for VERIFICATION.
+- Editors: `MaxAttemptsField` in `shared-fields.tsx`, inserted into drag-order/matching/multiple-choice; `evidence-select-editor` forces `graded:true` (toggle display-only, `persistGraded()` wraps every config onChange).
+- `interaction-renderers.tsx` — `deriveColumns()` fallback for MATCHING raw `pairs[]` (fixes version-detail render).
+- `template-form.tsx` `DEFAULT_PRESET` — 7-stage chain with CER_CHOICE conclusion.
+- `scripts/e2e-backend-stub.mjs` — preset updated to 6-stage chain.
+- `src/test/fixtures.ts` — MC + DRAG_ORDER feedback gains `PARTIAL`+`EXHAUSTED` (fixes builder-page tests).
 
-| File | Thay đổi |
-|---|---|
-| `features/map/presentation/path_event_node.dart` | **Mới** — `PathEventNode` (canvas node), `toUnlockState(LearnerPathStatus)` |
-| `features/map/presentation/event_action_sheet.dart` | **Mới** — `EventActionSheet` bottom-sheet; CTA `BẮT ĐẦU`/`TIẾP TỤC`/`ÔN LẠI` → `/learning/lesson/:lessonId`; chip di tích đã mở |
-| `features/map/presentation/historical_map_screen.dart` | **Viết lại** — nguồn `learningPathProvider`; chặng=`PERIOD` nhóm `ERA`; đổi chặng → `touchPeriod`; deep-link `?period=`/`?eventId=`; `_SatellitePins`; strip đáy di tích `unlocked` theo chặng |
-| `features/map/data/map_providers.dart` | + `mapLocationsByEventProvider`, `mapLocationsByPeriodProvider` |
-| `app/router.dart` | `/journey` + `/journey/:periodCode` → `redirect` `/map`/`/map?period=` |
-| `core/widgets/main_bottom_nav.dart` | `/journey` → tab 1; label "Khám phá" → "Hành trình" |
-| `features/dashboard/presentation/learner_dashboard_screen.dart` | Card "Bài học hôm nay" → `/map?period=<code>` |
-| `features/timeline/presentation/timeline_screen.dart` | redirect `/journey` → `/map` |
-| `features/learning/presentation/lesson_player_screen.dart` | `complete()` invalidate `learningPathProvider` + `mapLocationsProvider` |
-| `features/learning/presentation/widgets/unlocked_location_banner.dart` | "Tiếp tục học" → `/map` |
-| `features/learning_path/presentation/` | **Xóa** `period_selection_screen.dart`, `period_journey_screen.dart`; `learning_path_presentation.dart` chỉ export `path_status_badge.dart` |
+### Mobile (`dau-viet-mobile`)
+- `attempt_dtos.dart` — `EvaluationDto`: `correctPositions`/`totalItems`/`attemptCount`/`exhausted`/`matchedCount`/`partsCorrect`/`verificationVerdict`; `ActivityRefDto.maxAttempts`.
+- `lesson_player_screen.dart` — `_PlayerState.lastEvaluation` (retry-in-place); `_feedbackFor` wires `outcome` and appends progress detail (`Đúng k/n · Còn x/y`); celebration title `switch(fb.outcome)` → SUPPORTED/CONTRADICTED/PARTIAL variants.
+- `activity_renderer.dart` — `lastEvaluation` field, forwarded to all 9 renderer call sites.
+- All 9 renderers gained `final EvaluationDto? lastEvaluation;` + `this.lastEvaluation` ctor param.
+- `hypothesis_renderer.dart` — `_priorEvidenceIds()` reads `config.priorOutputs[priorEvidenceSource|evidenceSource].selectedEvidenceIds`; evidence chips = `visibleEvidenceIds ∪ collected`, prefilled with collected.
+- `renderer_base.dart` — `InlineGradingHint` widget (gold banner `Đúng k/n · còn x/y`, hidden on COMPLETED/SUPPORTED/no data).
+- `drag_order/matching/evidence_select` renderers — `InlineGradingHint` inserted above `SubmitBar` with `maxAttempts: widget.activity.maxAttempts`.
+- Tests — `learning_dtos_test.dart` +7 tests for new DTO fields; `lesson_player_test.dart` tap fix (`ensureVisible` before tap — MascotSpeechBubble pushed button offscreen).
 
-### Admin (đã code — chỉ copy)
+### Docs
+- `LEARNING_ENGINE_DESIGN.md §13.1` — 4-phase chain, shared output contract, PARTIAL thresholds.
+- `API_SPEC.md` — Issue #35 grading output bullet.
 
-- `unlocked-locations-card.tsx` — làm rõ gắn di tích là **tùy chọn** (phần thưởng sau khi học); empty-state "không bắt buộc"; badge `"hiện cạnh sự kiện X"`.
-- `map-locations-page.tsx` tab `unlock` — helper text cùng thông điệp; `NONE` = "mở tự do — không gắn bài học". Không đổi mutation/API.
+## Test results
+- Backend: `mvn test` — **532/532 pass**; `mvn test -Dtest='*IT'` — **391/391 pass** (V51 migration runs clean on Testcontainers Postgres 16).
+- Admin: `npx vitest run` — **290/290 pass**; `npm run typecheck` — clean on all edited files (pre-existing errors only in `island-builder/*`, `map-locations/*`, `lib/dto/map-location.ts`); `npm run lint` — 1 pre-existing warning (`cer-choice-editor.tsx` unused `catalogIds`).
+- Mobile: `flutter analyze` — clean on all edited files (pre-existing unused-import warnings on drag_order/multiple_choice renderers); `flutter test test/learning/` — **282 pass, 3 pre-existing failures** confirmed on base commit (bisected via `git stash`): `lesson_player_energy_test.dart` ENERGY_DEPLETED-409 + FIX-5 (provider sync), unrelated to Issue #35.
 
-### Backend
+## Risks / notes
+- `functions.edit` boundary-echo bug: several files needed repair passes; all now parse. Re-read region before further edits on touched files.
+- ReasoningConnectValidator's `maxAttempts` bound sits inside `graded:true` gate (handler only enforces when graded) — intentional; flag if product wants it always bounded.
+- `correctPositions`/`totalItems`/`attemptCount`/`exhausted` are the shared output contract — do not rename without updating both admin FeedbackPanel docs and mobile `EvaluationDto` getters.
+- V51 nested-dollar-quote: outer `DO $$` wraps `$draft$`-tagged JSON payloads; do not revert to `$$…$$` inside the DO block.
+- Pre-existing test debt flagged, not fixed: `lesson_player_energy_test.dart` ×2, admin typecheck in island-builder/map-locations.
 
-Không đổi — contract hiện đủ: `GET /me/learning-path` (cây + `currentByPeriod`/`lastPeriodCode`/`sortOrder`), `POST .../periods/{code}/touch`, `newlyUnlockedLocations` trong `CompleteAttemptResponse`, `GET /map/locations?eventId=`/`?periodCode=`, `LocationProfileSheet` theo `GET /map/locations/{id}`.
-
-## Tests
-
-- **Mới** `test/map/path_map_test.dart` — 7 case phủ AC-1/2/3.
-- **Viết lại** `test/map/journey_map_ui_test.dart` — giữ `LocationProfileScreen`/`LocationProfileSheet`.
-- **Xóa** `test/map/historical_map_test.dart`, `test/learning_path/period_journey_screen_test.dart`, `test/learning_path/learning_flow_e2e_integration_test.dart` (pin vào màn/axis cũ).
-- **Sửa** `unlocked_location_banner_test.dart`, `timeline_events_test.dart`, `widget_test.dart` → `/map`.
-
-## Verification (đã chạy)
-
-- `flutter analyze` → **0 errors**.
-- `flutter test test/map/ test/learning/unlocked_location_banner_test.dart test/timeline_events_test.dart test/widget_test.dart test/dashboard/` → **all passed (24)**.
-- Admin `npx vitest run src/features/events/map-locations-section.test.tsx src/features/lessons` → **83/83 pass**.
-- Admin `tsc --noEmit` → chỉ còn lỗi **pre-existing** (`qk` import thiếu ở `map-locations-page.tsx:172,180,900,921`; `map-location.ts` union types) — không do thay đổi này.
-
-## Quyết định
-
-1. `/journey` redirect → `/map`; 2 màn danh sách gỡ hẳn (user chọn 1a).
-2. Bottom-nav tab 1 label = **"Hành trình"**.
-3. Ghim di tích **vệ tinh inline** trên canvas cạnh node sự kiện (user chọn 3a).
-4. Backend/Flyway không đổi — contract đủ dùng.
-5. Map `LearnerPathStatus` → `MapUnlockState` để tái dùng `JourneyPathPainter` không sửa.
-
-## Known limits
-
-- `MapLocationDto` không có `periodCode` → `mapLocationsByPeriodProvider` map `eventId→chapter` phía client; với mock, strip đáy có thể hiện di tích mọi chặng (real API lọc `?periodCode=` server-side — chấp nhận được).
-- Chưa smoke-run visual `flutter run` (môi trường không có device/browser chạy tự động) — widget tests đã phủ luồng.
-- Pre-existing admin `tsc`/`lint` warnings giữ nguyên (ngoài scope).
-
-## Next
-
-1. (Optional) `flutter run` kiểm tra visual `/map` + sheet + ghim.
-2. `git status`/`git diff --check` → commit khi user authorize → `status: done`.
+## Next action
+Independent `code-reviewer` pass (high-risk gate) → update `acEvidence`/`reviewRefs` → flip `status: "done"` → commit + push within user authorization.

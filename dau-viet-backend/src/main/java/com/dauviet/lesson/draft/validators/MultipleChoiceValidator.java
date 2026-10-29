@@ -54,5 +54,6 @@ public class MultipleChoiceValidator extends AbstractActivityValidator {
                     path + ".config." + (hasCorrect ? "correctOptionIds" : "multiCorrect"),
                     "INVALID_CONFIG", errors);
         }
+        requireBoundedInt(config, "maxAttempts", path, 1, 20, errors);
     }
 }

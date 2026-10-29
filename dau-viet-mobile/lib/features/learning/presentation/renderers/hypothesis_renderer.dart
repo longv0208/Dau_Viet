@@ -14,6 +14,8 @@ class HypothesisRenderer extends StatefulWidget {
   final bool submitting;
   final Future<void> Function(Map<String, dynamic>) onSubmit;
   final void Function(bool hasUnsentInput)? onInputChanged;
+  /// Evaluation mới nhất khi retry-in-place (nullable).
+  final EvaluationDto? lastEvaluation;
 
   const HypothesisRenderer({
     super.key,
@@ -22,6 +24,7 @@ class HypothesisRenderer extends StatefulWidget {
     required this.submitting,
     required this.onSubmit,
     this.onInputChanged,
+    this.lastEvaluation,
   });
 
   @override
@@ -31,6 +34,7 @@ class HypothesisRenderer extends StatefulWidget {
 class _HypothesisRendererState extends State<HypothesisRenderer> {
   String? _hypothesisId;
   final Set<String> _evidenceIds = {};
+  bool _prefilled = false;
 
   void _dirty() => widget.onInputChanged?.call(
     _hypothesisId != null || _evidenceIds.isNotEmpty,
@@ -41,8 +45,27 @@ class _HypothesisRendererState extends State<HypothesisRenderer> {
     final config = widget.activity.config;
     final String? prompt = configText(config, ['prompt', 'question', 'title']);
     final hypotheses = configList(config, 'hypotheses');
-    final evidenceIds = configIdList(config, 'visibleEvidenceIds');
+    // Issue #35: ưu tiên dấu vết học viên đã thu thập ở EVIDENCE_SELECT
+    // (injected qua config.priorOutputs[priorEvidenceSource]) rồi mới tới
+    // visibleEvidenceIds tĩnh — learner gắn bằng chứng thật vào giả thuyết.
+    final collected = _priorEvidenceIds();
+    final evidenceIds = <String>{
+      ...configIdList(config, 'visibleEvidenceIds'),
+      ...collected,
+    }.toList();
+    final int rawMinEvidence =
+        ((config['minEvidence'] ?? config['minRequired']) as num?)?.toInt() ??
+        (evidenceIds.isNotEmpty ? 1 : 0);
+    final int minEvidence = evidenceIds.isEmpty
+        ? 0
+        : rawMinEvidence.clamp(1, evidenceIds.length);
 
+    // Prefill các dấu vết đã thu thập MỘT LẦN (không ghi đè lựa chọn sau đó —
+    // learner phải được bỏ chọn mà không bị add lại).
+    if (!_prefilled && collected.isNotEmpty) {
+      _evidenceIds.addAll(collected);
+      _prefilled = true;
+    }
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
@@ -93,9 +116,13 @@ class _HypothesisRendererState extends State<HypothesisRenderer> {
             children: [
               for (final id in evidenceIds)
                 FilterChip(
-                  label: Text(
-                    _evidenceTitle(id),
-                    style: DauVietTypography.bodySmall,
+                  label: ConstrainedBox(
+                    constraints: const BoxConstraints(maxWidth: 280),
+                    child: Text(
+                      _evidenceTitle(id),
+                      softWrap: true,
+                      style: DauVietTypography.bodySmall.copyWith(fontSize: 13),
+                    ),
                   ),
                   selected: _evidenceIds.contains(id),
                   onSelected: widget.submitting
@@ -114,7 +141,7 @@ class _HypothesisRendererState extends State<HypothesisRenderer> {
         ],
         const SizedBox(height: 14),
         SubmitBar(
-          enabled: _hypothesisId != null,
+          enabled: _hypothesisId != null && _evidenceIds.length >= minEvidence,
           submitting: widget.submitting,
           onPressed: () => widget.onSubmit({
             'hypothesisId': _hypothesisId,
@@ -124,9 +151,22 @@ class _HypothesisRendererState extends State<HypothesisRenderer> {
       ],
     );
   }
-
   String _evidenceTitle(String id) {
     final e = widget.content.evidenceById(id);
     return (e?['title'] as String?) ?? id;
+  }
+
+  /// Dấu vết đã thu thập: `config.priorEvidenceSource` (hoặc `evidenceSource`)
+  /// trỏ vào output của activity trước, injected dưới `config.priorOutputs`.
+  List<String> _priorEvidenceIds() {
+    final config = widget.activity.config;
+    final source = config['priorEvidenceSource'] ?? config['evidenceSource'];
+    final prior = config['priorOutputs'];
+    if (source is! String || prior is! Map) return const [];
+    final out = prior[source];
+    if (out is! Map) return const [];
+    final ids = out['selectedEvidenceIds'] ?? out['evidenceIds'];
+    if (ids is! List) return const [];
+    return ids.whereType<String>().toList();
   }
 }

@@ -12,6 +12,8 @@ class ReasoningConnectRenderer extends StatefulWidget {
   final bool submitting;
   final Future<void> Function(Map<String, dynamic>) onSubmit;
   final void Function(bool hasUnsentInput)? onInputChanged;
+  /// Evaluation mới nhất khi retry-in-place (nullable).
+  final EvaluationDto? lastEvaluation;
 
   const ReasoningConnectRenderer({
     super.key,
@@ -19,6 +21,7 @@ class ReasoningConnectRenderer extends StatefulWidget {
     required this.submitting,
     required this.onSubmit,
     this.onInputChanged,
+    this.lastEvaluation,
   });
 
   @override
@@ -32,8 +35,9 @@ class _ReasoningConnectRendererState extends State<ReasoningConnectRenderer> {
   String? _relation;
   final List<Map<String, String>> _relations = [];
 
-  void _dirty() => widget.onInputChanged?.call(_relations.isNotEmpty);
-
+  void _dirty() => widget.onInputChanged?.call(
+    _relations.isNotEmpty || _from != null || _to != null || _relation != null,
+  );
   void _add() {
     if (_from == null || _to == null || _relation == null) return;
     setState(() {
@@ -55,6 +59,14 @@ class _ReasoningConnectRendererState extends State<ReasoningConnectRenderer> {
     String nodeLabel(String? id) {
       for (final n in nodes) {
         if (n['id'] == id) return (n['label'] ?? n['text'] ?? id) as String;
+      }
+      return id ?? '';
+    }
+
+    String relLabel(String? id) {
+      for (final r in rels) {
+        final rId = r['id'] as String? ?? r['label'] as String?;
+        if (rId == id) return (r['label'] ?? r['text'] ?? id) as String;
       }
       return id ?? '';
     }
@@ -91,7 +103,10 @@ class _ReasoningConnectRendererState extends State<ReasoningConnectRenderer> {
                 ),
               ),
           ],
-          onChanged: (v) => setState(() => _from = v),
+          onChanged: (v) => setState(() {
+            _from = v;
+            _dirty();
+          }),
         ),
         const SizedBox(height: 8),
         _dropdown(
@@ -107,7 +122,10 @@ class _ReasoningConnectRendererState extends State<ReasoningConnectRenderer> {
                 ),
               ),
           ],
-          onChanged: (v) => setState(() => _relation = v),
+          onChanged: (v) => setState(() {
+            _relation = v;
+            _dirty();
+          }),
         ),
         const SizedBox(height: 8),
         _dropdown(
@@ -123,7 +141,10 @@ class _ReasoningConnectRendererState extends State<ReasoningConnectRenderer> {
                 ),
               ),
           ],
-          onChanged: (v) => setState(() => _to = v),
+          onChanged: (v) => setState(() {
+            _to = v;
+            _dirty();
+          }),
         ),
         const SizedBox(height: 8),
         Align(
@@ -159,15 +180,19 @@ class _ReasoningConnectRendererState extends State<ReasoningConnectRenderer> {
                   Expanded(
                     child: Text(
                       '${nodeLabel(_relations[i]['from'])} '
-                      '—${_relations[i]['relation']}→ '
+                      '—${relLabel(_relations[i]['relation'])}→ '
                       '${nodeLabel(_relations[i]['to'])}',
-                      style: DauVietTypography.bodySmall,
+                      style: DauVietTypography.bodySmall.copyWith(fontSize: 13),
                     ),
                   ),
                   IconButton(
                     icon: const Icon(Icons.close, size: 18),
                     color: DauVietColors.inkMuted,
-                    visualDensity: VisualDensity.compact,
+                    tooltip: 'Xóa liên kết',
+                    constraints: const BoxConstraints(
+                      minWidth: 44,
+                      minHeight: 44,
+                    ),
                     onPressed: widget.submitting
                         ? null
                         : () => setState(() {

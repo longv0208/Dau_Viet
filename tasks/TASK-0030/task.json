@@ -1,0 +1,61 @@
+{
+  "schemaVersion": 1,
+  "id": "TASK-0030",
+  "type": "feature",
+  "risk": "high",
+  "status": "verifying",
+  "goal": "[LEARNING-MAP] Issue #36 — Học trực tiếp trên Bản đồ Dấu Ấn (learning-path làm trục chính), mở khóa Địa điểm Di tích sau khi hoàn thành bài học (ghim vệ tinh), đồng bộ copy Admin 'tùy chọn'.",
+  "owner": "claude",
+  "modules": ["mobile", "admin"],
+  "scope": [
+    "dau-viet-mobile/lib/features/map/",
+    "dau-viet-mobile/lib/features/learning_path/",
+    "dau-viet-mobile/lib/features/learning/presentation/lesson_result_screen.dart",
+    "dau-viet-mobile/lib/features/learning/presentation/lesson_player_screen.dart",
+    "dau-viet-mobile/lib/features/learning/presentation/widgets/unlocked_location_banner.dart",
+    "dau-viet-mobile/lib/features/dashboard/presentation/learner_dashboard_screen.dart",
+    "dau-viet-mobile/lib/features/timeline/presentation/timeline_screen.dart",
+    "dau-viet-mobile/lib/core/widgets/main_bottom_nav.dart",
+    "dau-viet-mobile/lib/app/router.dart",
+    "dau-viet-mobile/test/",
+    "dau-viet-admin/src/features/lessons/builder/unlocked-locations-card.tsx",
+    "dau-viet-admin/src/features/map-locations/map-locations-page.tsx",
+    "docs/",
+    "tasks/TASK-0030/",
+    "plans/261029-issue-36-map-learning/"
+  ],
+  "acceptanceCriteria": [
+    {
+      "id": "AC-1",
+      "text": "Người học xem lộ trình Thời kỳ -> Sự kiện -> Bài học và bấm Bắt đầu/Tiếp tục học trực tiếp trên Bản đồ Dấu Ấn mà không phải chuyển qua các màn danh sách rời rạc."
+    },
+    {
+      "id": "AC-2",
+      "text": "Các bài học không gắn địa điểm di tích vẫn hiển thị, học và mở khóa bài tiếp theo trên Bản đồ Dấu Ấn hoàn toàn liền mạch."
+    },
+    {
+      "id": "AC-3",
+      "text": "Khi hoàn thành bài học có gắn địa điểm di tích (ANY/ALL), địa điểm đó mới được mở khóa, hiển thị thông báo trên LessonResultScreen và bấm vào khám phá hồ sơ di tích ngay trên Bản đồ Dấu Ấn (ghim vệ tinh + LocationProfileSheet)."
+    },
+    {
+      "id": "AC-4",
+      "text": "Toàn bộ unit/widget/integration tests cho luồng học trên Bản đồ Dấu Ấn và mở khóa địa điểm sau bài học đều pass; flutter analyze sạch; admin lint/test sạch."
+    }
+  ],
+  "dependencies": [],
+  "planPath": "plans/261029-issue-36-map-learning/plan.md",
+  "evidenceRefs": [
+    "flutter analyze -> 0 errors (2026-10-29)",
+    "flutter test test/map/ test/learning/unlocked_location_banner_test.dart test/timeline_events_test.dart test/widget_test.dart test/dashboard/ -> all passed (24 tests)",
+    "dau-viet-admin: npx vitest run src/features/events/map-locations-section.test.tsx src/features/lessons -> 83/83 pass",
+    "dau-viet-admin: npx tsc --noEmit -> chỉ còn lỗi pre-existing (qk import map-locations-page.tsx:172,180,900,921; map-location.ts union), không do thay đổi này",
+    "changelog: docs/project-changelog.md mục 2026-10-29 Issue #36"
+  ],
+  "notes": [
+    "Đã chốt: /journey redirect -> /map (xóa PeriodSelectionScreen/PeriodJourneyScreen); tab bottom-nav 'Hành trình'; ghim di tích vệ tinh inline trên canvas.",
+    "Backend Java/Flyway không đổi — contract hiện đủ dùng.",
+    "Verify: flutter analyze sạch; 24 widget tests pass; admin 83/83 pass; AC-1/2/3 cover bởi path_map_test.dart; chờ review cuối + smoke app.",
+    "TASK id rename: branch này bắt đầu với TASK-0028 nhưng main đã dùng TASK-0028 cho Issue #35 và TASK-0029 cho Issue #29 -> đổi sang TASK-0030 khi merge."
+  ],
+  "nextAction": "Optional smoke-run `flutter run` kiểm tra visual /map; sau đó merge vào main + status done."
+}

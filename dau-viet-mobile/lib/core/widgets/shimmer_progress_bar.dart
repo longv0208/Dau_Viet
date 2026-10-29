@@ -59,6 +59,7 @@ class _ShimmerProgressBarState extends State<ShimmerProgressBar>
     final clampedProgress = widget.progress.clamp(0.0, 1.0);
 
     return Container(
+      width: double.infinity,
       height: widget.height,
       decoration: BoxDecoration(
         color: widget.trackColor,
@@ -70,7 +71,9 @@ class _ShimmerProgressBarState extends State<ShimmerProgressBar>
       ),
       child: LayoutBuilder(
         builder: (context, constraints) {
-          final totalWidth = constraints.maxWidth;
+          final totalWidth = constraints.maxWidth.isFinite
+              ? constraints.maxWidth
+              : 200.0;
 
           return TweenAnimationBuilder<double>(
             tween: Tween<double>(begin: 0.0, end: clampedProgress),
@@ -80,7 +83,9 @@ class _ShimmerProgressBarState extends State<ShimmerProgressBar>
               final fillWidth = totalWidth * animatedProgress;
 
               return Stack(
+                alignment: Alignment.centerLeft,
                 children: [
+                  SizedBox(width: totalWidth, height: widget.height),
                   // 1. Dải màu tiến độ đã hoàn thành
                   Container(
                     width: fillWidth,

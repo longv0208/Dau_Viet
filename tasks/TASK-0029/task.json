@@ -1,0 +1,96 @@
+{
+  "schemaVersion": 1,
+  "id": "TASK-0029",
+  "type": "test",
+  "risk": "normal",
+  "status": "done",
+  "goal": "[UI/UX & QA] Danh gia chi tiet va bo Test Case toan dien cho Luong Hoc Tap Lich Su (Issue #29) — Ra soat UI/UX toan bo 7 chang cua luong hoc tap (Discovery -> LessonEntry -> LessonPlayer & 12+ Activity Renderers -> Feedback & Energy Loop -> Continuity/Version Pinning -> LessonResult), khac phuc cac loi UI/UX phat hien va thuc thi bo 68 test cases (TC-NAV, TC-PLAYER, TC-ACT, TC-FB, TC-ENG, TC-RES, TC-ERR, TC-VIS).",
+  "owner": "claude",
+  "modules": ["mobile", "backend", "docs"],
+  "scope": [
+    "dau-viet-mobile/lib/features/learning/",
+    "dau-viet-mobile/lib/features/learning_path/",
+    "dau-viet-mobile/lib/features/dashboard/",
+    "dau-viet-mobile/lib/features/meta/presentation/energy_management_screen.dart",
+    "dau-viet-mobile/test/learning/",
+    "dau-viet-mobile/test/learning_path/",
+    "dau-viet-mobile/e2e/",
+    "tasks/TASK-0029/",
+    "plans/261028-issue-29-learning-flow-ui-ux/"
+  ],
+  "acceptanceCriteria": [
+    {
+      "id": "AC-1",
+      "text": "Ra soat thuc te toan bo 7 chang cua luong hoc tap tren 360x800 va 390x844, lap bang ghi nhan moi loi UI/UX (tran bo cuc, de lop, thieu trang thai, lech mau/font, thieu tap fallback) kem anh chup man hinh minh chung."
+    },
+    {
+      "id": "AC-2",
+      "text": "Sua toan bo cac diem chua dong bo hoac loi hien thi tren LessonEntryScreen, LessonPlayerScreen, 12 ActivityRenderer, EnergyManagementScreen, va LessonResultScreen theo dung chuan UI/UX Pro Max & DauVietColors."
+    },
+    {
+      "id": "AC-3",
+      "text": "Thuc thi va vuot qua bo Widget Test / Integration Test (flutter test) va E2E Playwright (390x844 & 360x800) bao phu cac nhom kich ban TC-NAV, TC-PLAYER, TC-ACT, TC-FB, TC-ENG, TC-RES, TC-ERR, TC-VIS."
+    },
+    {
+      "id": "AC-4",
+      "text": "flutter analyze dat 0 issues; khi chay thuc te luong hoc tu dau den cuoi dat 0 loi console.error / FlutterError / RenderFlex overflowed."
+    }
+  ],
+  "dependencies": [],
+  "planPath": "plans/261028-issue-29-learning-flow-ui-ux/plan.md",
+  "evidenceRefs": [
+    "tasks/TASK-0029/e2e_audit_report.json",
+    "tasks/TASK-0029/handoff.md",
+    "dau-viet-mobile/test/learning/learning_flow_issue_29_test.dart",
+    "dau-viet-mobile/e2e/verify_issue_29_learning_flow_e2e.py"
+  ],
+  "reviewRefs": [
+    "tasks/TASK-0029/handoff.md"
+  ],
+  "roleReports": [
+    "plans/261028-issue-29-learning-flow-ui-ux/plan.md",
+    "tasks/TASK-0029/handoff.md"
+  ],
+  "acEvidence": {
+    "AC-1": [
+      "tasks/TASK-0029/e2e_audit_report.json",
+      "tasks/TASK-0029/handoff.md",
+      "tasks/TASK-0029/screenshots/stage1_dashboard_390x844.png",
+      "tasks/TASK-0029/screenshots/stage1_dashboard_360x800.png",
+      "tasks/TASK-0029/screenshots/stage2_lesson_entry_390x844.png",
+      "tasks/TASK-0029/screenshots/stage2_lesson_entry_360x800.png",
+      "tasks/TASK-0029/screenshots/stage3_lesson_player_390x844.png",
+      "tasks/TASK-0029/screenshots/stage3_lesson_player_360x800.png",
+      "tasks/TASK-0029/screenshots/stage5_energy_management_390x844.png",
+      "tasks/TASK-0029/screenshots/stage5_energy_management_360x800.png",
+      "tasks/TASK-0029/screenshots/stage6_reload_continuity_390x844.png",
+      "tasks/TASK-0029/screenshots/stage7_lesson_result_390x844.png",
+      "tasks/TASK-0029/screenshots/stage7_lesson_result_360x800.png"
+    ],
+    "AC-2": [
+      "dau-viet-mobile/lib/features/learning/presentation/lesson_entry_screen.dart",
+      "dau-viet-mobile/lib/features/learning/presentation/lesson_player_screen.dart",
+      "dau-viet-mobile/lib/features/learning/presentation/lesson_result_screen.dart",
+      "dau-viet-mobile/lib/features/meta/presentation/energy_management_screen.dart",
+      "dau-viet-mobile/lib/features/learning/presentation/renderers/"
+    ],
+    "AC-3": [
+      "dau-viet-mobile/test/learning/learning_flow_issue_29_test.dart",
+      "dau-viet-mobile/e2e/verify_issue_29_learning_flow_e2e.py",
+      "tasks/TASK-0029/e2e_audit_report.json"
+    ],
+    "AC-4": [
+      "tasks/TASK-0029/e2e_audit_report.json",
+      "dau-viet-mobile/test/learning/learning_flow_issue_29_test.dart"
+    ]
+  },
+  "nextAction": "Ready for user review and commit on branch feat/issue-29-learning-flow-ui-ux.",
+  "baseCommit": "0c2046d",
+  "inputFingerprint": null,
+  "snapshot": null,
+  "blockedReason": null,
+  "resumeFrom": null,
+  "handoffRef": "tasks/TASK-0029/handoff.md",
+  "createdAt": "2026-10-28T19:52:00+07:00",
+  "updatedAt": "2026-10-28T21:15:00+07:00"
+}

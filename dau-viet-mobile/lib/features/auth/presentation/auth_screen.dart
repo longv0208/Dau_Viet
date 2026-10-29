@@ -119,7 +119,7 @@ class _AuthScreenState extends ConsumerState<AuthScreen> {
                   'assets/images/lotus_footer.png',
                   fit: BoxFit.fitWidth,
                   alignment: Alignment.bottomCenter,
-                  errorBuilder: (_, __, ___) => const SizedBox.shrink(),
+                  errorBuilder: (_, _, _) => const SizedBox.shrink(),
                 ),
               ),
             ),
@@ -232,10 +232,7 @@ class _AuthScreenState extends ConsumerState<AuthScreen> {
       decoration: BoxDecoration(
         color: Colors.white,
         borderRadius: BorderRadius.circular(24),
-        border: Border.all(
-          color: const Color(0xFFEBE6DC),
-          width: 1.0,
-        ),
+        border: Border.all(color: const Color(0xFFEBE6DC), width: 1.0),
         boxShadow: [
           BoxShadow(
             color: const Color(0xFF1E4D3B).withValues(alpha: 0.06),
@@ -302,9 +299,8 @@ class _AuthScreenState extends ConsumerState<AuthScreen> {
                   onPressed: () => setState(() => _obscure = !_obscure),
                 ),
               ),
-              validator: (v) => (v == null || v.isEmpty)
-                  ? 'Vui lòng nhập mật khẩu'
-                  : null,
+              validator: (v) =>
+                  (v == null || v.isEmpty) ? 'Vui lòng nhập mật khẩu' : null,
             ),
 
             // (Quên mật khẩu — chưa triển khai backend, ẩn tạm)
@@ -312,7 +308,10 @@ class _AuthScreenState extends ConsumerState<AuthScreen> {
             // Thông báo lỗi nếu có
             if (_error != null) ...[
               Container(
-                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 12,
+                  vertical: 8,
+                ),
                 decoration: BoxDecoration(
                   color: const Color(0xFFFDEEEC),
                   borderRadius: BorderRadius.circular(10),
@@ -436,11 +435,7 @@ class _AuthScreenState extends ConsumerState<AuthScreen> {
         color: const Color(0xFFA0A7A2),
         fontSize: 13.5,
       ),
-      prefixIcon: Icon(
-        icon,
-        size: 20,
-        color: const Color(0xFF8A948E),
-      ),
+      prefixIcon: Icon(icon, size: 20, color: const Color(0xFF8A948E)),
       suffixIcon: suffix,
       filled: true,
       fillColor: const Color(0xFFF7F6F2),

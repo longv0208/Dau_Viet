@@ -1,7 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
-import '../../../../core/theme/dau_viet_colors.dart';
 import '../../../../core/theme/dau_viet_typography.dart';
 import '../../../../core/widgets/tactile_3d_card.dart';
 import '../../data/attempt_dtos.dart';
@@ -16,6 +15,8 @@ class MultipleChoiceRenderer extends StatefulWidget {
   final bool submitting;
   final Future<void> Function(Map<String, dynamic>) onSubmit;
   final void Function(bool hasUnsentInput)? onInputChanged;
+  /// Evaluation mới nhất khi retry-in-place (nullable).
+  final EvaluationDto? lastEvaluation;
 
   const MultipleChoiceRenderer({
     super.key,
@@ -23,6 +24,7 @@ class MultipleChoiceRenderer extends StatefulWidget {
     required this.submitting,
     required this.onSubmit,
     this.onInputChanged,
+    this.lastEvaluation,
   });
 
   @override
@@ -44,10 +46,8 @@ class _MultipleChoiceRendererState extends State<MultipleChoiceRenderer> {
         .toString()
         .toLowerCase()
         .trim();
-    return (l0.contains('đúng') && l1.contains('sai')) ||
-        (l0.contains('sai') && l1.contains('đúng')) ||
-        (l0 == 'true' && l1 == 'false') ||
-        (l0 == 'yes' && l1 == 'no');
+    const tfTokens = {'đúng', 'sai', 'true', 'false', 'yes', 'no'};
+    return tfTokens.contains(l0) && tfTokens.contains(l1) && l0 != l1;
   }
 
   void _tap(String id) {
@@ -179,7 +179,7 @@ class _MultipleChoiceRendererState extends State<MultipleChoiceRenderer> {
                 child: Image.asset(
                   imagePath,
                   fit: BoxFit.cover,
-                  errorBuilder: (_, __, ___) => Container(
+                  errorBuilder: (_, _, _) => Container(
                     color: const Color(0xFFF3ECE0),
                     child: const Icon(
                       Icons.image_outlined,
@@ -210,8 +210,7 @@ class _MultipleChoiceRendererState extends State<MultipleChoiceRenderer> {
             ],
           ),
           child: Text(
-            question ??
-                'Thời Hùng Vương, người Việt đã biết trồng lúa nước, làm nhà sàn và sống thành các làng bản.',
+            question ?? widget.activity.instruction ?? '',
             textAlign: TextAlign.center,
             style: DauVietTypography.headlineMedium.copyWith(
               fontSize: 15,
@@ -228,56 +227,62 @@ class _MultipleChoiceRendererState extends State<MultipleChoiceRenderer> {
           children: [
             // Nút Đúng
             Expanded(
-              child: GestureDetector(
-                onTap: widget.submitting ? null : () => _tap(trueId),
-                child: AnimatedContainer(
-                  duration: const Duration(milliseconds: 150),
-                  padding: const EdgeInsets.symmetric(vertical: 14),
-                  decoration: BoxDecoration(
-                    color: isTrueSelected
-                        ? const Color(0xFF2D6A4F)
-                        : const Color(0xFFE8F5E9),
-                    borderRadius: BorderRadius.circular(16),
-                    border: Border.all(
+              child: Semantics(
+                button: true,
+                selected: isTrueSelected,
+                enabled: !widget.submitting,
+                label: 'Đúng',
+                child: GestureDetector(
+                  onTap: widget.submitting ? null : () => _tap(trueId),
+                  child: AnimatedContainer(
+                    duration: const Duration(milliseconds: 150),
+                    padding: const EdgeInsets.symmetric(vertical: 14),
+                    decoration: BoxDecoration(
                       color: isTrueSelected
-                          ? const Color(0xFF1B4332)
-                          : const Color(0xFFA5D6A7),
-                      width: isTrueSelected ? 2.2 : 1.2,
-                    ),
-                    boxShadow: isTrueSelected
-                        ? [
-                            BoxShadow(
-                              color: const Color(
-                                0xFF2D6A4F,
-                              ).withValues(alpha: 0.35),
-                              blurRadius: 8,
-                              offset: const Offset(0, 3),
-                            ),
-                          ]
-                        : null,
-                  ),
-                  child: Row(
-                    mainAxisAlignment: MainAxisAlignment.center,
-                    children: [
-                      Icon(
-                        Icons.check_circle_rounded,
-                        size: 20,
+                          ? const Color(0xFF2D6A4F)
+                          : const Color(0xFFE8F5E9),
+                      borderRadius: BorderRadius.circular(16),
+                      border: Border.all(
                         color: isTrueSelected
-                            ? Colors.white
-                            : const Color(0xFF2E7D32),
+                            ? const Color(0xFF1B4332)
+                            : const Color(0xFFA5D6A7),
+                        width: isTrueSelected ? 2.2 : 1.2,
                       ),
-                      const SizedBox(width: 8),
-                      Text(
-                        'Đúng',
-                        style: DauVietTypography.labelLarge.copyWith(
-                          fontSize: 16,
-                          fontWeight: FontWeight.w800,
+                      boxShadow: isTrueSelected
+                          ? [
+                              BoxShadow(
+                                color: const Color(
+                                  0xFF2D6A4F,
+                                ).withValues(alpha: 0.35),
+                                blurRadius: 8,
+                                offset: const Offset(0, 3),
+                              ),
+                            ]
+                          : null,
+                    ),
+                    child: Row(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
+                        Icon(
+                          Icons.check_circle_rounded,
+                          size: 20,
                           color: isTrueSelected
                               ? Colors.white
-                              : const Color(0xFF1B5E20),
+                              : const Color(0xFF2E7D32),
                         ),
-                      ),
-                    ],
+                        const SizedBox(width: 8),
+                        Text(
+                          'Đúng',
+                          style: DauVietTypography.labelLarge.copyWith(
+                            fontSize: 16,
+                            fontWeight: FontWeight.w800,
+                            color: isTrueSelected
+                                ? Colors.white
+                                : const Color(0xFF1B5E20),
+                          ),
+                        ),
+                      ],
+                    ),
                   ),
                 ),
               ),
@@ -286,56 +291,62 @@ class _MultipleChoiceRendererState extends State<MultipleChoiceRenderer> {
 
             // Nút Sai
             Expanded(
-              child: GestureDetector(
-                onTap: widget.submitting ? null : () => _tap(falseId),
-                child: AnimatedContainer(
-                  duration: const Duration(milliseconds: 150),
-                  padding: const EdgeInsets.symmetric(vertical: 14),
-                  decoration: BoxDecoration(
-                    color: isFalseSelected
-                        ? const Color(0xFFC2410C)
-                        : const Color(0xFFFFEBEE),
-                    borderRadius: BorderRadius.circular(16),
-                    border: Border.all(
+              child: Semantics(
+                button: true,
+                selected: isFalseSelected,
+                enabled: !widget.submitting,
+                label: 'Sai',
+                child: GestureDetector(
+                  onTap: widget.submitting ? null : () => _tap(falseId),
+                  child: AnimatedContainer(
+                    duration: const Duration(milliseconds: 150),
+                    padding: const EdgeInsets.symmetric(vertical: 14),
+                    decoration: BoxDecoration(
                       color: isFalseSelected
-                          ? const Color(0xFF9A3412)
-                          : const Color(0xFFFFCDD2),
-                      width: isFalseSelected ? 2.2 : 1.2,
-                    ),
-                    boxShadow: isFalseSelected
-                        ? [
-                            BoxShadow(
-                              color: const Color(
-                                0xFFC2410C,
-                              ).withValues(alpha: 0.35),
-                              blurRadius: 8,
-                              offset: const Offset(0, 3),
-                            ),
-                          ]
-                        : null,
-                  ),
-                  child: Row(
-                    mainAxisAlignment: MainAxisAlignment.center,
-                    children: [
-                      Icon(
-                        Icons.cancel_rounded,
-                        size: 20,
+                          ? const Color(0xFFC2410C)
+                          : const Color(0xFFFFEBEE),
+                      borderRadius: BorderRadius.circular(16),
+                      border: Border.all(
                         color: isFalseSelected
-                            ? Colors.white
-                            : const Color(0xFFC62828),
+                            ? const Color(0xFF9A3412)
+                            : const Color(0xFFFFCDD2),
+                        width: isFalseSelected ? 2.2 : 1.2,
                       ),
-                      const SizedBox(width: 8),
-                      Text(
-                        'Sai',
-                        style: DauVietTypography.labelLarge.copyWith(
-                          fontSize: 16,
-                          fontWeight: FontWeight.w800,
+                      boxShadow: isFalseSelected
+                          ? [
+                              BoxShadow(
+                                color: const Color(
+                                  0xFFC2410C,
+                                ).withValues(alpha: 0.35),
+                                blurRadius: 8,
+                                offset: const Offset(0, 3),
+                              ),
+                            ]
+                          : null,
+                    ),
+                    child: Row(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
+                        Icon(
+                          Icons.cancel_rounded,
+                          size: 20,
                           color: isFalseSelected
                               ? Colors.white
-                              : const Color(0xFFB71C1C),
+                              : const Color(0xFFC62828),
                         ),
-                      ),
-                    ],
+                        const SizedBox(width: 8),
+                        Text(
+                          'Sai',
+                          style: DauVietTypography.labelLarge.copyWith(
+                            fontSize: 16,
+                            fontWeight: FontWeight.w800,
+                            color: isFalseSelected
+                                ? Colors.white
+                                : const Color(0xFFB71C1C),
+                          ),
+                        ),
+                      ],
+                    ),
                   ),
                 ),
               ),
@@ -443,98 +454,106 @@ class _OptionTile extends StatelessWidget {
   Widget build(BuildContext context) {
     final iconData = _iconForOption(label, index);
 
-    return Padding(
-      padding: const EdgeInsets.only(bottom: 10),
-      child: Tactile3DCard(
-        isSelected: selected,
-        isEnabled: enabled,
-        depth: 3.5,
-        borderRadius: BorderRadius.circular(16),
-        backgroundColor: selected ? const Color(0xFFF0FDF4) : Colors.white,
-        borderColor: selected
-            ? const Color(0xFF2D6A4F)
-            : const Color(0xFFE5DDD0),
-        bottomColor: selected
-            ? const Color(0xFF1B4332)
-            : const Color(0xFFD6CFC7),
-        borderWidth: selected ? 2.0 : 1.2,
-        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
-        onTap: onTap,
-        child: Row(
-          crossAxisAlignment: CrossAxisAlignment.center,
-          children: [
-            // Icon minh hoạ danh mục (chuẩn Screen 2 trong mockup)
-            Container(
-              width: 36,
-              height: 36,
-              decoration: BoxDecoration(
-                color: selected
-                    ? const Color(0xFF2D6A4F).withValues(alpha: 0.15)
-                    : const Color(0xFFF5EEDB),
-                borderRadius: BorderRadius.circular(10),
-                border: Border.all(
+    return Semantics(
+      button: true,
+      selected: selected,
+      enabled: enabled,
+      label: label,
+      child: Padding(
+        padding: const EdgeInsets.only(bottom: 10),
+        child: Tactile3DCard(
+          isSelected: selected,
+          isEnabled: enabled,
+          depth: 3.5,
+          borderRadius: BorderRadius.circular(16),
+          backgroundColor: selected ? const Color(0xFFF0FDF4) : Colors.white,
+          borderColor: selected
+              ? const Color(0xFF2D6A4F)
+              : const Color(0xFFE5DDD0),
+          bottomColor: selected
+              ? const Color(0xFF1B4332)
+              : const Color(0xFFD6CFC7),
+          borderWidth: selected ? 2.0 : 1.2,
+          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+          onTap: onTap,
+          child: Row(
+            crossAxisAlignment: CrossAxisAlignment.center,
+            children: [
+              // Icon minh hoạ danh mục (chuẩn Screen 2 trong mockup)
+              Container(
+                width: 36,
+                height: 36,
+                decoration: BoxDecoration(
+                  color: selected
+                      ? const Color(0xFF2D6A4F).withValues(alpha: 0.15)
+                      : const Color(0xFFF5EEDB),
+                  borderRadius: BorderRadius.circular(10),
+                  border: Border.all(
+                    color: selected
+                        ? const Color(0xFF2D6A4F)
+                        : const Color(0xFFE5DAC6),
+                    width: 1,
+                  ),
+                ),
+                child: Icon(
+                  iconData,
+                  size: 20,
                   color: selected
                       ? const Color(0xFF2D6A4F)
-                      : const Color(0xFFE5DAC6),
-                  width: 1,
+                      : const Color(0xFF8B4513),
                 ),
               ),
-              child: Icon(
-                iconData,
-                size: 20,
-                color: selected
-                    ? const Color(0xFF2D6A4F)
-                    : const Color(0xFF8B4513),
-              ),
-            ),
-            const SizedBox(width: 12),
+              const SizedBox(width: 12),
 
-            // Nhãn nội dung đáp án
-            Expanded(
-              child: Text(
-                label,
-                style: DauVietTypography.bodyMedium.copyWith(
-                  color: selected
-                      ? const Color(0xFF1B4332)
-                      : (enabled
-                            ? const Color(0xFF1F2421)
-                            : const Color(0xFF75807A)),
-                  fontSize: 14.5,
-                  fontWeight: selected ? FontWeight.w700 : FontWeight.w600,
-                  height: 1.35,
+              // Nhãn nội dung đáp án
+              Expanded(
+                child: Text(
+                  label,
+                  style: DauVietTypography.bodyMedium.copyWith(
+                    color: selected
+                        ? const Color(0xFF1B4332)
+                        : (enabled
+                              ? const Color(0xFF1F2421)
+                              : const Color(0xFF75807A)),
+                    fontSize: 14.5,
+                    fontWeight: selected ? FontWeight.w700 : FontWeight.w600,
+                    height: 1.35,
+                  ),
                 ),
               ),
-            ),
 
-            // Dấu tích chọn (Checkmark circle)
-            const SizedBox(width: 8),
-            AnimatedContainer(
-              duration: reduceMotion
-                  ? Duration.zero
-                  : const Duration(milliseconds: 140),
-              curve: Curves.easeOut,
-              width: 24,
-              height: 24,
-              decoration: BoxDecoration(
-                shape: multi ? BoxShape.rectangle : BoxShape.circle,
-                borderRadius: multi ? BorderRadius.circular(6) : null,
-                color: selected ? const Color(0xFF2D6A4F) : Colors.transparent,
-                border: Border.all(
+              // Dấu tích chọn (Checkmark circle)
+              const SizedBox(width: 8),
+              AnimatedContainer(
+                duration: reduceMotion
+                    ? Duration.zero
+                    : const Duration(milliseconds: 140),
+                curve: Curves.easeOut,
+                width: 24,
+                height: 24,
+                decoration: BoxDecoration(
+                  shape: multi ? BoxShape.rectangle : BoxShape.circle,
+                  borderRadius: multi ? BorderRadius.circular(6) : null,
                   color: selected
                       ? const Color(0xFF2D6A4F)
-                      : const Color(0xFFD8C8B0),
-                  width: selected ? 2.0 : 1.5,
+                      : Colors.transparent,
+                  border: Border.all(
+                    color: selected
+                        ? const Color(0xFF2D6A4F)
+                        : const Color(0xFFD8C8B0),
+                    width: selected ? 2.0 : 1.5,
+                  ),
                 ),
+                child: selected
+                    ? const Icon(
+                        Icons.check_rounded,
+                        size: 16,
+                        color: Colors.white,
+                      )
+                    : null,
               ),
-              child: selected
-                  ? const Icon(
-                      Icons.check_rounded,
-                      size: 16,
-                      color: Colors.white,
-                    )
-                  : null,
-            ),
-          ],
+            ],
+          ),
         ),
       ),
     );
