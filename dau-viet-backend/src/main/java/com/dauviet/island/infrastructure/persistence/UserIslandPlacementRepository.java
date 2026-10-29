@@ -52,4 +52,16 @@ public interface UserIslandPlacementRepository
             """, nativeQuery = true)
     int deleteByUserIdAndSlotId(@Param("userId") UUID userId,
                                 @Param("slotId") UUID slotId);
+
+    /**
+     * Xoá toàn bộ placement của user (V51) — dùng khi upgrade đảo sang layout
+     * lớn hơn: slot_id của version cũ không còn ý nghĩa, item "về kho" qua
+     * user_inventory (không đụng).
+     */
+    @Modifying
+    @Query(value = """
+            DELETE FROM user_island_placements
+            WHERE user_id = :userId
+            """, nativeQuery = true)
+    int deleteAllByUserId(@Param("userId") UUID userId);
 }

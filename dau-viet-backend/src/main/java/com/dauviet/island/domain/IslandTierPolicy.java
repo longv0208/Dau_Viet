@@ -42,8 +42,23 @@ public class IslandTierPolicy {
     @Column(name = "required_level", updatable = false)
     private Integer requiredLevel;
 
+    /** V51: key định danh tier (tier.small|tier.medium|tier.grand). */
+    @Column(name = "name_key", updatable = false)
+    private String nameKey;
+
+    /** V51: tên giai đoạn (Sơ Khai / Định Cư / Toàn Bích). */
+    @Column(name = "stage_label", updatable = false)
+    private String stageLabel;
+
+    @org.hibernate.annotations.JdbcTypeCode(org.hibernate.type.SqlTypes.JSON)
+    @Column(name = "highlights_json", updatable = false, columnDefinition = "jsonb")
+    private String highlightsJson = "[]";
+
     @Column(name = "active", nullable = false, updatable = false)
     private boolean active;
+    public String getNameKey()               { return nameKey; }
+    public String getStageLabel()            { return stageLabel; }
+    public String getHighlightsJson()        { return highlightsJson; }
 
     public IslandTierPolicy() {
     }

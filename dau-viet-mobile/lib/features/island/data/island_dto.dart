@@ -428,6 +428,22 @@ class IslandBoardDto {
     this.fromBackend = false,
   });
 
+
+  /// V51: trả bản board chỉ giữ các tile được cung cấp — dùng để preview
+  /// tier thấp hơn (đảo nhỏ/vừa = subset của đảo lớn).
+  IslandBoardDto copyWithTiles(List<IslandTileDto> newTiles) {
+    return IslandBoardDto(
+      rows: rows,
+      cols: cols,
+      tileWidth: tileWidth,
+      tileHeight: tileHeight,
+      originX: originX,
+      originY: originY,
+      projectionType: projectionType,
+      fromBackend: fromBackend,
+      tiles: newTiles,
+    );
+  }
   /// Tìm tile theo (row, col)
   IslandTileDto? tileAt(int row, int col) {
     for (final t in tiles) {
@@ -992,6 +1008,9 @@ class IslandDto {
   final List<IslandLayoutRegionDto> regions;
   /// Danh sách scene layers theo render_order.
   final List<IslandSceneLayerDto> sceneLayers;
+
+  /// V51: metadata 3 cấp đảo (tên, giai đoạn, điều kiện mở khoá).
+  final List<IslandTierInfoDto> tiers;
   /// Lưới địa hình ô vuông/thoi (Board/Tile) theo phong cách game isometric.
   final IslandBoardDto? board;
 
@@ -1016,6 +1035,7 @@ class IslandDto {
     this.themeKey,
     this.regions = const [],
     this.sceneLayers = const [],
+    this.tiers = const [],
     this.board,
   });
 
@@ -1074,6 +1094,7 @@ class IslandDto {
     String? themeKey,
     List<IslandLayoutRegionDto>? regions,
     List<IslandSceneLayerDto>? sceneLayers,
+    List<IslandTierInfoDto>? tiers,
     IslandBoardDto? board,
   }) {
     return IslandDto(
@@ -1097,6 +1118,7 @@ class IslandDto {
       themeKey: themeKey ?? this.themeKey,
       regions: regions ?? this.regions,
       sceneLayers: sceneLayers ?? this.sceneLayers,
+      tiers: tiers ?? this.tiers,
       board: board ?? this.board,
     );
   }
@@ -1204,6 +1226,13 @@ class IslandDto {
               .toList()
           : const [],
       board: board,
+      tiers: (json['tiers'] is List)
+          ? (json['tiers'] as List)
+              .whereType<Map>()
+              .map((e) => IslandTierInfoDto.fromJson(
+                    e.cast<String, dynamic>()))
+              .toList()
+          : const <IslandTierInfoDto>[],
     );
   }
 
@@ -1225,6 +1254,62 @@ class IslandDto {
     'canvasHeight': canvasHeight,
     if (themeKey != null) 'themeKey': themeKey,
     if (board != null) 'board': board!.toJson(),
+  };
+}
+
+/// Metadata một cấp đảo Đảo Di Sản (V51): tên, giai đoạn, điều kiện mở khoá.
+@immutable
+class IslandTierInfoDto {
+  final int tier;
+  final String? nameKey;
+  final String? stageLabel;
+  final int slotCount;
+  final int requiredCompletedEvents;
+  final int? requiredLevel;
+  final int? requiredExp;
+  final bool unlocked;
+  final List<String> highlights;
+
+  const IslandTierInfoDto({
+    this.tier = 1,
+    this.nameKey,
+    this.stageLabel,
+    this.slotCount = 12,
+    this.requiredCompletedEvents = 0,
+    this.requiredLevel,
+    this.requiredExp,
+    this.unlocked = false,
+    this.highlights = const [],
+  });
+
+  factory IslandTierInfoDto.fromJson(Map<String, dynamic> json) {
+    final rawHighlights = json['highlights'];
+    return IslandTierInfoDto(
+      tier: (json['tier'] as num?)?.toInt() ?? 1,
+      nameKey: json['nameKey'] as String?,
+      stageLabel: json['stageLabel'] as String?,
+      slotCount: (json['slotCount'] as num?)?.toInt() ?? 12,
+      requiredCompletedEvents:
+          (json['requiredCompletedEvents'] as num?)?.toInt() ?? 0,
+      requiredLevel: (json['requiredLevel'] as num?)?.toInt(),
+      requiredExp: (json['requiredExp'] as num?)?.toInt(),
+      unlocked: json['unlocked'] as bool? ?? false,
+      highlights: rawHighlights is List
+          ? rawHighlights.whereType<String>().toList()
+          : const [],
+    );
+  }
+
+  Map<String, dynamic> toJson() => {
+    'tier': tier,
+    'nameKey': nameKey,
+    'stageLabel': stageLabel,
+    'slotCount': slotCount,
+    'requiredCompletedEvents': requiredCompletedEvents,
+    'requiredLevel': requiredLevel,
+    'requiredExp': requiredExp,
+    'unlocked': unlocked,
+    'highlights': highlights,
   };
 }
 
