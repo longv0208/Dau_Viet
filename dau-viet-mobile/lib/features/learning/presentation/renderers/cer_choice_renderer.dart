@@ -19,6 +19,8 @@ class CerChoiceRenderer extends StatefulWidget {
   final bool submitting;
   final Future<void> Function(Map<String, dynamic>) onSubmit;
   final void Function(bool hasUnsentInput)? onInputChanged;
+  /// Evaluation mới nhất khi retry-in-place (nullable).
+  final EvaluationDto? lastEvaluation;
 
   const CerChoiceRenderer({
     super.key,
@@ -27,6 +29,7 @@ class CerChoiceRenderer extends StatefulWidget {
     required this.submitting,
     required this.onSubmit,
     this.onInputChanged,
+    this.lastEvaluation,
   });
 
   @override
@@ -200,6 +203,10 @@ class _CerChoiceRendererState extends State<CerChoiceRenderer> {
             onTap: () => _pickReasoning(r['id'] as String? ?? ''),
           ),
         const SizedBox(height: 14),
+        InlineGradingHint(
+          evaluation: widget.lastEvaluation,
+          maxAttempts: widget.activity.maxAttempts,
+        ),
         SubmitBar(
           enabled: _canSubmit,
           submitting: widget.submitting,

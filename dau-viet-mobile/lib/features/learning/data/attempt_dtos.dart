@@ -129,6 +129,10 @@ class ActivityRefDto {
     incorrectPenalty: (json?['incorrectPenalty'] as num?)?.toInt(),
   );
 
+  /// Số lượt thử tối đa được cấu hình cho activity (auto-graded).
+  /// Đọc từ config.maxAttempts; null khi handler không giới hạn.
+  int? get maxAttempts => (config['maxAttempts'] as num?)?.toInt();
+
   /// Resolve feedbackCode → text từ feedback map (key có thể null).
   String? feedbackText(String? code) {
     if (code == null) return null;
@@ -187,6 +191,29 @@ class EvaluationDto {
     output: (json?['output'] as Map?)?.cast<String, dynamic>(),
     feedbackCode: json?['feedbackCode'] as String?,
   );
+
+  /// Số vị trí/cặp/phần đã đúng (DRAG_ORDER, MATCHING, CER_CHOICE…).
+  int? get correctPositions => (output?['correctPositions'] as num?)?.toInt();
+
+  /// Tổng số mục cần đúng.
+  int? get totalItems => (output?['totalItems'] as num?)?.toInt();
+
+  /// Lượt thử đã dùng (1-based theo submit hiện tại).
+  int? get attemptCount => (output?['attemptCount'] as num?)?.toInt();
+
+  /// Đã hết ngân sách lượt thử — server hoàn tất tiến độ.
+  bool get exhausted => output?['exhausted'] == true;
+
+  /// Số cặp ghép đúng (MATCHING) — alias ngắn gọn của correctPositions.
+  int? get matchedCount => (output?['matchedCount'] as num?)?.toInt();
+
+  /// Số phần CER đúng (0..3).
+  int? get partsCorrect => (output?['partsCorrect'] as num?)?.toInt();
+
+  /// Verdict kiểm chứng (SUPPORTED/PARTIAL/CONTRADICTED) — lấy từ
+  /// output.verification, fallback outcome khi handler nhét vào outcome.
+  String? get verificationVerdict =>
+      (output?['verification'] as String?) ?? outcome;
 }
 
 /// next {stageId, activityId, activityType, learnerConfig}.

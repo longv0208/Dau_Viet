@@ -13,6 +13,8 @@ class DragOrderRenderer extends StatefulWidget {
   final bool submitting;
   final Future<void> Function(Map<String, dynamic>) onSubmit;
   final void Function(bool hasUnsentInput)? onInputChanged;
+  /// Evaluation mới nhất khi retry-in-place (nullable).
+  final EvaluationDto? lastEvaluation;
 
   const DragOrderRenderer({
     super.key,
@@ -20,6 +22,7 @@ class DragOrderRenderer extends StatefulWidget {
     required this.submitting,
     required this.onSubmit,
     this.onInputChanged,
+    this.lastEvaluation,
   });
 
   @override
@@ -121,6 +124,10 @@ class _DragOrderRendererState extends State<DragOrderRenderer> {
           },
         ),
         const SizedBox(height: 16),
+        InlineGradingHint(
+          evaluation: widget.lastEvaluation,
+          maxAttempts: widget.activity.maxAttempts,
+        ),
         SubmitBar(
           enabled: true,
           submitting: widget.submitting,

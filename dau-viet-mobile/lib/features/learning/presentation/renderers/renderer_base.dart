@@ -106,3 +106,64 @@ abstract class ActivityRendererState<W extends StatefulWidget>
 /// Helper lấy instruction an toàn.
 String activityInstruction(ActivityRefDto activity) =>
     activity.instruction ?? '';
+
+/// Issue #35: banner inline "Đúng k/n mục · Còn x/y lượt" — đọc
+/// EvaluationDto trả về sau một submit retry-in-place. Trả SizedBox.shrink()
+/// khi không có gì để nói (lần render đầu, hoặc outcome COMPLETED/SUPPORTED).
+class InlineGradingHint extends StatelessWidget {
+  final EvaluationDto? evaluation;
+  final int? maxAttempts;
+
+  const InlineGradingHint({super.key, this.evaluation, this.maxAttempts});
+
+  @override
+  Widget build(BuildContext context) {
+    final e = evaluation;
+    if (e == null) return const SizedBox.shrink();
+    // Chỉ gợi ý khi chưa hoàn thành thật (retry đường PARTIAL/INCORRECT).
+    final outcome = e.outcome;
+    if (outcome == 'COMPLETED' || outcome == 'SUPPORTED') {
+      return const SizedBox.shrink();
+    }
+    final cp = e.correctPositions;
+    final ti = e.totalItems;
+    final pc = e.partsCorrect;
+    final used = e.attemptCount;
+    final parts = <String>[];
+    if (cp != null && ti != null && ti > 0) {
+      parts.add('Đúng $cp/$ti mục');
+    } else if (pc != null && pc > 0) {
+      parts.add('Đúng $pc/3 phần');
+    }
+    if (maxAttempts != null && used != null && !e.exhausted) {
+      final left = maxAttempts! - used;
+      if (left >= 0) parts.add('còn $left/$maxAttempts lượt');
+    }
+    if (parts.isEmpty) return const SizedBox.shrink();
+    return Container(
+      margin: const EdgeInsets.only(top: 8),
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+      decoration: BoxDecoration(
+        color: DauVietColors.imperialGold.withValues(alpha: 0.14),
+        borderRadius: BorderRadius.circular(10),
+        border: Border.all(color: DauVietColors.imperialGold.withValues(alpha: 0.5)),
+      ),
+      child: Row(
+        children: [
+          const Icon(Icons.lightbulb_outline_rounded,
+              size: 16, color: DauVietColors.cinnabarRed),
+          const SizedBox(width: 6),
+          Expanded(
+            child: Text(
+              parts.join(' · '),
+              style: DauVietTypography.bodySmall.copyWith(
+                color: DauVietColors.inkText,
+                fontWeight: FontWeight.w600,
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
