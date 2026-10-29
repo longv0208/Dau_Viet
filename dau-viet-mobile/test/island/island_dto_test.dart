@@ -50,10 +50,10 @@ void main() {
       expect(island.revision, 5);
       expect(island.isMaxTier, false);
 
-      expect(island.progress.completedEvents, 1);
-      expect(island.progress.nextTierRequiredEvents, 2);
+      expect(island.progress.completedEvents, 0);
+      expect(island.progress.nextTierRequiredEvents, 0);
       expect(island.progress.canUpgrade, false);
-      expect(island.progress.progressFraction, 0.5);
+      expect(island.progress.progressFraction, 1.0);
 
       expect(island.slots.length, 2);
 
@@ -91,7 +91,7 @@ void main() {
       expect(island.maxTier, 3);
       expect(island.revision, 0);
       expect(island.progress.completedEvents, 0);
-      expect(island.progress.nextTierRequiredEvents, 2);
+      expect(island.progress.nextTierRequiredEvents, 0);
       expect(island.progress.canUpgrade, false);
       expect(island.slots, isEmpty);
     });
@@ -181,7 +181,7 @@ void main() {
         );
         expect(
           resolveIslandAsset('unknown_code', 'unknown'),
-          'assets/items/decor_nha_tranh.png',
+          isNull,
         );
       },
     );

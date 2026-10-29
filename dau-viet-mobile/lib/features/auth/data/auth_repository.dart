@@ -56,7 +56,7 @@ class AuthRepository {
 
   Future<AuthState> login(String email, String password) async {
     final AuthTokenDto dto = await _api.login(email, password);
-    _storeTokens(dto);
+    await _storeTokens(dto);
     try {
       _profile = await _api.me();
     } catch (_) {
@@ -111,7 +111,7 @@ class AuthRepository {
     if (current == null) return null;
     try {
       final AuthTokenDto dto = await _api.refresh(current.refreshToken);
-      _storeTokens(dto);
+      await _storeTokens(dto);
       return _tokens;
     } on ApiException catch (e) {
       if (e.isUnauthorized || e.isForbidden) {
@@ -140,7 +140,7 @@ class AuthRepository {
     await _storage.clear();
   }
 
-  void _storeTokens(AuthTokenDto dto) {
+  Future<void> _storeTokens(AuthTokenDto dto) async {
     final int expiry =
         DateTime.now().millisecondsSinceEpoch ~/ 1000 + dto.expiresIn;
     _tokens = AuthTokens(
@@ -148,6 +148,6 @@ class AuthRepository {
       refreshToken: dto.refreshToken,
       accessExpiresAt: expiry,
     );
-    _storage.save(_tokens!);
+    await _storage.save(_tokens!);
   }
 }

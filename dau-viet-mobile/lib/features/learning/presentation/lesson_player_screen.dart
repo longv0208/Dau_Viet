@@ -141,6 +141,20 @@ class _LessonPlayerScreenState extends ConsumerState<LessonPlayerScreen> {
   /// eventProgressProvider sau complete (null = lesson không gắn event).
   String? _lessonEventId;
 
+
+  /// Entry toast trừ Thể lực đang hiển thị — hủy ngay khi submit mới hoặc thoát.
+  OverlayEntry? _energyToastEntry;
+
+  void _dismissEnergyPenaltyToast() {
+    _energyToastEntry?.remove();
+    _energyToastEntry = null;
+  }
+
+  @override
+  void dispose() {
+    _dismissEnergyPenaltyToast();
+    super.dispose();
+  }
   /// Renderer báo input thay đổi — chỉ nhận khi còn được phép sửa.
   /// setState để PopScope rebuild và cập nhật canPop; sau khi server đã
   /// ghi nhận answer, edit mới sẽ bật dirty trở lại.
@@ -217,6 +231,7 @@ class _LessonPlayerScreenState extends ConsumerState<LessonPlayerScreen> {
       _needsFreshKey = false;
     }
 
+    _dismissEnergyPenaltyToast();
     setState(() {
       _state = st.copyWith(submitting: true, feedback: () => null);
     });
@@ -320,6 +335,7 @@ class _LessonPlayerScreenState extends ConsumerState<LessonPlayerScreen> {
     if (prev == null && !hasDetails) {
       ref.read(energyProvider.notifier).refresh();
     }
+    _dismissEnergyPenaltyToast();
     setState(() {
       _state = _state!.copyWith(submitting: false);
     });
@@ -707,14 +723,27 @@ class _LessonPlayerScreenState extends ConsumerState<LessonPlayerScreen> {
   String _resolveMascotPrompt(_PlayerState st) {
     final cur = st.current;
     final act = cur.activity;
-    if (act == null)
+    if (act == null) {
       return 'Khám phá sử liệu cùng mình nhé! Bạn sẽ làm rất tốt!';
+    }
 
     final type = act.type;
     if (type == 'MULTIPLE_CHOICE') {
       final opts = (act.config['options'] as List? ?? const []);
-      if (opts.length == 2) {
-        return 'Đây là câu hỏi cuối cùng! Bạn hãy chọn Đúng hoặc Sai nhé!';
+      final isTrueFalse =
+          opts.length == 2 &&
+          opts.every((o) {
+            final label = (o is Map ? (o['label'] ?? o['text'] ?? '') : '')
+                .toString()
+                .trim()
+                .toLowerCase();
+            return label == 'đúng' ||
+                label == 'sai' ||
+                label == 'true' ||
+                label == 'false';
+          });
+      if (isTrueFalse) {
+        return 'Hãy suy nghĩ kỹ và chọn Đúng hoặc Sai nhé!';
       }
       return 'Cùng suy nghĩ nào! Bạn làm được mà! 💪';
     } else if (type == 'MATCHING') {
@@ -1288,13 +1317,22 @@ class _LessonPlayerScreenState extends ConsumerState<LessonPlayerScreen> {
   /// vì SnackBar để kiểm soát animation + không bị che bởi bottom bar.
   /// Rung medium = cảm giác "bị phạt" chứ không phải lỗi hệ thống.
   void _showEnergyPenaltyToast(int amount) {
+    _dismissEnergyPenaltyToast();
     HapticFeedback.mediumImpact();
     final overlay = Overlay.of(context);
     late final OverlayEntry entry;
     entry = OverlayEntry(
-      builder: (_) =>
-          _EnergyPenaltyToast(amount: amount, onDone: () => entry.remove()),
+      builder: (_) => _EnergyPenaltyToast(
+        amount: amount,
+        onDone: () {
+          if (_energyToastEntry == entry) {
+            _energyToastEntry = null;
+          }
+          entry.remove();
+        },
+      ),
     );
+    _energyToastEntry = entry;
     overlay.insert(entry);
   }
 }
@@ -1359,7 +1397,7 @@ class _EnergyPenaltyToastState extends State<_EnergyPenaltyToast>
         child: Align(
           alignment: Alignment.bottomCenter,
           child: Padding(
-            padding: const EdgeInsets.only(bottom: 110),
+            padding: const EdgeInsets.only(bottom: 168),
             child: Material(
               color: Colors.transparent,
               child: Container(
@@ -1421,7 +1459,7 @@ class _StreakBadge extends ConsumerWidget {
     final String value = streakAsync.when(
       data: (s) => '${s.currentStreak}',
       loading: () => '—',
-      error: (_, __) => '—',
+      error: (_, _) => '—',
     );
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 2),

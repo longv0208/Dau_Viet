@@ -183,18 +183,30 @@ class _KabiMascotWidgetState extends State<KabiMascotWidget> {
         width: widget.width,
         height: widget.height,
         child: controller == null
-            ? const SizedBox.shrink()
+            ? _buildFallbackMascot()
             : rive.RiveWidget(controller: controller, fit: rive.Fit.contain),
       ),
     );
   }
 
   Widget _buildFallbackMascot() {
-    // Không hiển thị bất kỳ icon vui / buồn nào làm chớp nháy trước khi mascot tải xong
     return GestureDetector(
       onTap: _handleTap,
       behavior: HitTestBehavior.opaque,
-      child: SizedBox(width: widget.width, height: widget.height),
+      child: SizedBox(
+        width: widget.width,
+        height: widget.height,
+        child: DauVietAudioService.isTestEnvironment
+            ? null
+            : Image.asset(
+                'assets/images/turtle_welcome.png',
+                fit: BoxFit.contain,
+                errorBuilder: (_, _, _) => const Icon(
+                  Icons.school_rounded,
+                  color: Color(0xFF2E7D32),
+                ),
+              ),
+      ),
     );
   }
 }
