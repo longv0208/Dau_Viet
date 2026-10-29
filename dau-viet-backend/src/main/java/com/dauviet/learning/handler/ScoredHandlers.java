@@ -103,15 +103,31 @@ public final class ScoredHandlers {
                     if (l != null && r != null) expected.add(l + "=" + r);
                 }
             }
+            int correctCount = 0;
+            for (String p : submitted) {
+                if (expected.contains(p)) correctCount++;
+            }
             boolean right = !expected.isEmpty() && submitted.equals(expected);
+            int maxAttempts = config.path("maxAttempts").asInt(3);
+            int attemptNo = priorAttempts(ctx) + 1;
+            boolean exhausted = !right && maxAttempts > 0 && attemptNo >= maxAttempts;
+            boolean done = right || exhausted;
+
             JsonNodeFactory f = JsonNodeFactory.instance;
             ObjectNode out = f.objectNode();
             out.put("correct", right);
-            out.put("matchedCount", submitted.size());
-            String outcome = right ? ActivityResult.COMPLETED : ActivityResult.INCORRECT;
-            return result(outcome, right, out,
-                    feedbackFor(ctx.activity(), outcome));
+            out.put("matchedCount", correctCount);
+            out.put("correctPositions", correctCount);
+            out.put("totalItems", expected.size());
+            out.put("attemptCount", attemptNo);
+            if (exhausted) out.put("exhausted", true);
+            String outcome = right ? ActivityResult.COMPLETED
+                    : correctCount > 0 && !exhausted ? ActivityResult.PARTIAL
+                    : ActivityResult.INCORRECT;
+            return result(outcome, done, out,
+                    feedbackFor(ctx.activity(), exhausted ? "EXHAUSTED" : outcome));
         }
+
     }
 
     @Component
@@ -138,12 +154,34 @@ public final class ScoredHandlers {
                 for (JsonNode seq : extra) accepted.add(toList(seq));
             }
             boolean right = !accepted.isEmpty() && accepted.contains(ordered);
+            // Positions correct vs the canonical expected order (first accepted
+            // sequence), reported so the client can show "k/n correct" hints.
+            List<String> canonical = expected.isEmpty()
+                    ? (accepted.isEmpty() ? List.of() : accepted.iterator().next())
+                    : expected;
+            int correctPositions = 0;
+            for (int i = 0; i < ordered.size() && i < canonical.size(); i++) {
+                if (ordered.get(i).equals(canonical.get(i))) correctPositions++;
+            }
+            int maxAttempts = config.path("maxAttempts").asInt(3);
+            int attemptNo = priorAttempts(ctx) + 1;
+            boolean exhausted = !right && maxAttempts > 0 && attemptNo >= maxAttempts;
+            boolean done = right || exhausted;
+
             JsonNodeFactory f = JsonNodeFactory.instance;
             ObjectNode out = f.objectNode();
             out.put("correct", right);
-            String outcome = right ? ActivityResult.COMPLETED : ActivityResult.INCORRECT;
-            return result(outcome, right, out,
-                    feedbackFor(ctx.activity(), outcome));
+            out.put("correctPositions", correctPositions);
+            out.put("totalItems", canonical.size());
+            out.put("attemptCount", attemptNo);
+            if (exhausted) out.put("exhausted", true);
+            boolean partial = !right && !canonical.isEmpty()
+                    && correctPositions * 2 >= canonical.size();
+            String outcome = right ? ActivityResult.COMPLETED
+                    : partial && !exhausted ? ActivityResult.PARTIAL
+                    : ActivityResult.INCORRECT;
+            return result(outcome, done, out,
+                    feedbackFor(ctx.activity(), exhausted ? "EXHAUSTED" : outcome));
         }
 
         private List<String> toList(JsonNode array) {

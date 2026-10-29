@@ -8,7 +8,7 @@ import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 
 import { genItemId } from "../draft-id";
-import { ActivityCommonFields, type EditorProps } from "./shared-fields";
+import { ActivityCommonFields, MaxAttemptsField, type EditorProps } from "./shared-fields";
 
 interface Option extends Record<string, unknown> {
   id: string;
@@ -74,6 +74,7 @@ export function MultipleChoiceEditor(props: EditorProps) {
   return (
     <div className="flex flex-col gap-3 rounded-md border border-border bg-white p-3">
       <ActivityCommonFields {...props} />
+      <MaxAttemptsField {...props} />
       <div className="flex flex-col gap-1.5">
         <Label htmlFor={`q-${activity.id}`}>Câu hỏi *</Label>
         <Textarea

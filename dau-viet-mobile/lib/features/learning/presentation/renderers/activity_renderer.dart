@@ -32,6 +32,10 @@ class ActivityRenderer extends StatelessWidget {
   /// chặn thoát/khôi phục draft. Chỉ renderer nhập liệu tự do mới gọi.
   final void Function(bool hasUnsentInput)? onInputChanged;
 
+  /// Evaluation mới nhất khi retry-in-place — renderer tự chọn hiển thị
+  /// inline progress (k/n đúng, lượt còn) nếu có. null lần render đầu.
+  final EvaluationDto? lastEvaluation;
+
   const ActivityRenderer({
     super.key,
     required this.activity,
@@ -40,6 +44,7 @@ class ActivityRenderer extends StatelessWidget {
     this.hasSubmitError = false,
     required this.onSubmit,
     this.onInputChanged,
+    this.lastEvaluation,
   });
 
   @override
@@ -65,6 +70,7 @@ class ActivityRenderer extends StatelessWidget {
           submitting: submitting,
           onSubmit: onSubmit,
           onInputChanged: onInputChanged,
+          lastEvaluation: lastEvaluation,
         );
       case 'EVIDENCE_SELECT':
         return EvidenceSelectRenderer(
@@ -73,6 +79,7 @@ class ActivityRenderer extends StatelessWidget {
           submitting: submitting,
           onSubmit: onSubmit,
           onInputChanged: onInputChanged,
+          lastEvaluation: lastEvaluation,
         );
       case 'MATCHING':
         return MatchingRenderer(
@@ -80,6 +87,7 @@ class ActivityRenderer extends StatelessWidget {
           submitting: submitting,
           onSubmit: onSubmit,
           onInputChanged: onInputChanged,
+          lastEvaluation: lastEvaluation,
         );
       case 'DRAG_ORDER':
         return DragOrderRenderer(
@@ -87,6 +95,7 @@ class ActivityRenderer extends StatelessWidget {
           submitting: submitting,
           onSubmit: onSubmit,
           onInputChanged: onInputChanged,
+          lastEvaluation: lastEvaluation,
         );
       case 'HYPOTHESIS_CHOICE':
         return HypothesisRenderer(
@@ -95,6 +104,7 @@ class ActivityRenderer extends StatelessWidget {
           submitting: submitting,
           onSubmit: onSubmit,
           onInputChanged: onInputChanged,
+          lastEvaluation: lastEvaluation,
         );
       case 'VERIFICATION':
         return VerificationRenderer(
@@ -109,6 +119,7 @@ class ActivityRenderer extends StatelessWidget {
           submitting: submitting,
           onSubmit: onSubmit,
           onInputChanged: onInputChanged,
+          lastEvaluation: lastEvaluation,
         );
       case 'EXPLORE_MAP':
         return ExploreMapRenderer(
@@ -125,6 +136,7 @@ class ActivityRenderer extends StatelessWidget {
           submitting: submitting,
           onSubmit: onSubmit,
           onInputChanged: onInputChanged,
+          lastEvaluation: lastEvaluation,
         );
       case 'CER':
         return CerRenderer(
@@ -133,6 +145,7 @@ class ActivityRenderer extends StatelessWidget {
           submitting: submitting,
           onSubmit: onSubmit,
           onInputChanged: onInputChanged,
+          lastEvaluation: lastEvaluation,
         );
       case 'REFLECTION_PROMPT':
         return ReflectionRenderer(
@@ -140,6 +153,7 @@ class ActivityRenderer extends StatelessWidget {
           submitting: submitting,
           onSubmit: onSubmit,
           onInputChanged: onInputChanged,
+          lastEvaluation: lastEvaluation,
         );
       default:
         return UnsupportedRenderer(type: activity.type ?? 'UNKNOWN');

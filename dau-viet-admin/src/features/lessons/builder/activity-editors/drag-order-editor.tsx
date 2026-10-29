@@ -7,7 +7,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 
 import { genItemId } from "../draft-id";
-import { ActivityCommonFields, type EditorProps } from "./shared-fields";
+import { ActivityCommonFields, MaxAttemptsField, type EditorProps } from "./shared-fields";
 
 interface Item extends Record<string, unknown> {
   id: string;
@@ -48,6 +48,7 @@ export function DragOrderEditor(props: EditorProps) {
   return (
     <div className="flex flex-col gap-3 rounded-md border border-border bg-white p-3">
       <ActivityCommonFields {...props} />
+      <MaxAttemptsField {...props} />
       <div className="flex flex-col gap-2">
         <Label>Các bước/sự kiện — theo đúng thứ tự (thứ tự này là đáp án đúng)</Label>
         {items.map((it, i) => (

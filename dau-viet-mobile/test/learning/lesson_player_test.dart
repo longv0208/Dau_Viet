@@ -108,6 +108,8 @@ void main() {
         await _pump(tester, repo);
         final callsBefore = repo.getCurrentCalls;
         submitted = true;
+        await tester.ensureVisible(find.text('ĐÃ ĐỌC XONG, TIẾP TỤC'));
+        await tester.pumpAndSettle();
         await tester.tap(find.text('ĐÃ ĐỌC XONG, TIẾP TỤC'));
         await tester.pumpAndSettle();
         expect(repo.submittedKeys.single, isNotNull);

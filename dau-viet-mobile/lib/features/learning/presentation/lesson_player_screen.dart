@@ -40,7 +40,10 @@ enum _FeedbackTone { success, info, warning, error }
 class _Feedback {
   final String text;
   final _FeedbackTone tone;
-  const _Feedback(this.text, this.tone);
+  /// Outcome thô từ server (SUPPORTED/PARTIAL/CONTRADICTED/COMPLETED/…)
+  /// để UI phân biệt verdict kiểm chứng thay vì chỉ 2 mức đúng/sai.
+  final String? outcome;
+  const _Feedback(this.text, this.tone, {this.outcome});
 }
 
 /// Trạng thái nội bộ của Lesson Player.
@@ -50,6 +53,9 @@ class _PlayerState {
   final bool submitting;
   final _Feedback? feedback;
 
+  /// Evaluation mới nhất từ submit trước (retry-in-place) — renderer dùng
+  /// để hiển thị inline k/n đúng + số lượt còn lại khi chưa advance.
+  final EvaluationDto? lastEvaluation;
   /// Đã submit và server báo next/cursor nhảy — đang chờ learner bấm
   /// "Tiếp tục" trước khi fetch activity kế. Không auto-advance.
   final bool awaitingContinue;
@@ -60,6 +66,7 @@ class _PlayerState {
     required this.content,
     this.submitting = false,
     this.feedback,
+    this.lastEvaluation,
     this.awaitingContinue = false,
     this.completionReady = false,
   });
@@ -68,6 +75,7 @@ class _PlayerState {
     CurrentActivityDto? current,
     bool? submitting,
     _Feedback? Function()? feedback,
+    EvaluationDto? Function()? lastEvaluation,
     bool? awaitingContinue,
     bool? completionReady,
   }) => _PlayerState(
@@ -75,6 +83,8 @@ class _PlayerState {
     content: content,
     submitting: submitting ?? this.submitting,
     feedback: feedback == null ? this.feedback : feedback(),
+    lastEvaluation:
+        lastEvaluation == null ? this.lastEvaluation : lastEvaluation(),
     awaitingContinue: awaitingContinue ?? this.awaitingContinue,
     completionReady: completionReady ?? this.completionReady,
   );
@@ -428,8 +438,10 @@ class _LessonPlayerScreenState extends ConsumerState<LessonPlayerScreen> {
     switch (res.evaluation.outcome) {
       case 'COMPLETED':
       case 'SUPPORTED':
-        return _Feedback(authored ?? 'Chính xác!', _FeedbackTone.success);
-      case 'PARTIAL':
+        return _Feedback(authored ?? 'Chính xác!', _FeedbackTone.success,
+            outcome: res.evaluation.outcome);
+      case 'PARTIAL': {
+        final detail = _progressDetail(res, activity);
         // Reviewed-exhausted terminal (TASK-0020 final): verification spent
         // its budget on a non-SUPPORTED verdict → completed-for-progress,
         // never promoted. Learner finished the lesson; knowledge is partial.
@@ -438,23 +450,31 @@ class _LessonPlayerScreenState extends ConsumerState<LessonPlayerScreen> {
             authored ??
                 'Bạn đã hoàn thành lượt học, nhưng chưa kiểm chứng thành công.',
             _FeedbackTone.warning,
+            outcome: res.evaluation.outcome,
           );
         }
         return _Feedback(
-          authored ?? 'Đúng một phần — xem lại rồi thử tiếp.',
+          _join(
+            authored ?? 'Đúng một phần — xem lại rồi thử tiếp.',
+            detail,
+          ),
           _FeedbackTone.warning,
+          outcome: res.evaluation.outcome,
         );
+      }
       case 'CONTRADICTED':
         if (res.evaluation.output?['exhausted'] == true) {
           return _Feedback(
             authored ??
                 'Bạn đã hoàn thành lượt học, nhưng chưa kiểm chứng thành công.',
             _FeedbackTone.warning,
+            outcome: res.evaluation.outcome,
           );
         }
         return _Feedback(
           authored ?? 'Chưa thuyết phục — kiểm tra lại lập luận.',
           _FeedbackTone.warning,
+          outcome: res.evaluation.outcome,
         );
       case 'INCORRECT':
         // Retry đã cạn (output.exhausted) → không hứa "thử lại" — server
@@ -471,12 +491,35 @@ class _LessonPlayerScreenState extends ConsumerState<LessonPlayerScreen> {
         return _Feedback(
           res.energyDeducted > 0
               ? '$base −${res.energyDeducted} Thể lực'
-              : base,
+              : _join(base, _progressDetail(res, activity)),
           _FeedbackTone.error,
+          outcome: res.evaluation.outcome,
         );
       default:
-        return _Feedback(authored ?? 'Đã ghi nhận.', _FeedbackTone.info);
+        return _Feedback(authored ?? 'Đã ghi nhận.', _FeedbackTone.info,
+            outcome: res.evaluation.outcome);
     }
+  }
+
+  /// Ghép hint số mục đúng + số lượt còn lại vào câu feedback.
+  static String _join(String base, String? detail) =>
+      detail == null ? base : '$base\n$detail';
+
+  /// "Đúng k/n mục" + "Còn x/y lượt" — đọc output server, null nếu không có.
+  String? _progressDetail(SubmitResultDto res, ActivityRefDto? activity) {
+    final parts = <String>[];
+    final cp = res.evaluation.correctPositions;
+    final ti = res.evaluation.totalItems;
+    if (cp != null && ti != null && ti > 0) {
+      parts.add('Đúng $cp/$ti mục.');
+    }
+    final maxA = activity?.maxAttempts;
+    final used = res.evaluation.attemptCount;
+    if (maxA != null && used != null && !res.evaluation.exhausted) {
+      final left = maxA - used;
+      if (left >= 0) parts.add('Còn $left/$maxA lượt thử.');
+    }
+    return parts.isEmpty ? null : parts.join(' ');
   }
 
   void _applyResult(SubmitResultDto res) {
@@ -527,6 +570,7 @@ class _LessonPlayerScreenState extends ConsumerState<LessonPlayerScreen> {
           submitting: false,
           feedback: () => fb,
           awaitingContinue: true,
+          lastEvaluation: () => res.evaluation,
         );
         _pendingAnswer = null;
         _hasUnsentInput = false; // input đã được server chấp nhận
@@ -535,7 +579,11 @@ class _LessonPlayerScreenState extends ConsumerState<LessonPlayerScreen> {
       // Chưa complete, không next → giữ cursor, cho retry. Input hiện tại
       // đã được server ghi nhận → không còn "unsent".
       setState(() {
-        _state = st.copyWith(submitting: false, feedback: () => fb);
+        _state = st.copyWith(
+          submitting: false,
+          feedback: () => fb,
+          lastEvaluation: () => res.evaluation,
+        );
         _hasUnsentInput = false;
       });
     }
@@ -876,6 +924,7 @@ class _LessonPlayerScreenState extends ConsumerState<LessonPlayerScreen> {
                     hasSubmitError: st.feedback?.tone == _FeedbackTone.error,
                     onSubmit: _submit,
                     onInputChanged: _onInputChanged,
+                    lastEvaluation: st.lastEvaluation,
                   ),
                 ],
               ),
@@ -1076,7 +1125,136 @@ class _LessonPlayerScreenState extends ConsumerState<LessonPlayerScreen> {
     );
   }
 
-  /// Thẻ feedback theo `_FeedbackTone` — hiển thị rõ 4 sắc thái từ server.
+  /// Màn Ăn Mừng / Động Viên riêng biệt toàn màn hình chuẩn Duolingo.
+  /// Chỉ hiển thị duy nhất 1 Mascot Kabi to lớn (140x140) ở trung tâm.
+  Widget _buildCelebrationScreen(_PlayerState st) {
+    final isSuccess = st.feedback?.tone == _FeedbackTone.success;
+    final fb = st.feedback;
+
+    // Issue #35: phân biệt verdict kiểm chứng — CONTRADICTED/PARTIAL là kết
+    // quả đối chiếu giả thuyết, không phải "chưa chính xác" chung chung.
+    final title = switch (fb?.outcome) {
+      'SUPPORTED' => 'GIẢ THUYẾT ĐƯỢC ỦNG HỘ!',
+      'CONTRADICTED' => 'GIẢ THUYẾT BỊ BÁC BỎ',
+      'PARTIAL' => 'KIỂM CHỨNG MỘT PHẦN',
+      _ => isSuccess ? 'CHÍNH XÁC! XUẤT SẮC!' : 'CHƯA CHÍNH XÁC RỒI!',
+    };
+    final titleColor = isSuccess
+        ? const Color(0xFF1B5E20)
+        : DauVietColors.cinnabarRed;
+    final badgeBg = isSuccess
+        ? const Color(0xFFDDF3E4)
+        : const Color(0xFFFDE8E5);
+    final badgeBorder = isSuccess
+        ? const Color(0xFF4C7C44)
+        : DauVietColors.cinnabarRed;
+
+    return Expanded(
+      child: GoldConfettiOverlay(
+        trigger: isSuccess,
+        child: Container(
+          width: double.infinity,
+          decoration: BoxDecoration(
+            gradient: LinearGradient(
+              begin: Alignment.topCenter,
+              end: Alignment.bottomCenter,
+              colors: isSuccess
+                  ? [const Color(0xFFF2FAF4), DauVietColors.parchmentSurface]
+                  : [const Color(0xFFFDF4F2), DauVietColors.parchmentSurface],
+            ),
+          ),
+          child: Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 16),
+            child: Column(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                const Spacer(),
+                // DUY NHẤT 1 LINH VẬT KABI TO LỚN Ở TRUNG TÂM (140x140)
+                KabiMascotWidget(
+                  mood: isSuccess ? KabiMood.cheering : KabiMood.thinking,
+                  width: 140,
+                  height: 140,
+                  headOnly: false,
+                ),
+                const SizedBox(height: 18),
+                // Huy hiệu trạng thái (loại bỏ hoàn toàn icon vui / buồn gây nhiễu trước mascot)
+                Container(
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 16,
+                    vertical: 6,
+                  ),
+                  decoration: BoxDecoration(
+                    color: badgeBg,
+                    borderRadius: BorderRadius.circular(20),
+                    border: Border.all(color: badgeBorder, width: 1.4),
+                  ),
+                  child: Text(
+                    title,
+                    style: DauVietTypography.headlineMedium.copyWith(
+                      color: titleColor,
+                      fontSize: 16,
+                      fontWeight: FontWeight.w900,
+                      letterSpacing: 0.5,
+                    ),
+                  ),
+                ),
+                const SizedBox(height: 14),
+                // Thẻ giải thích sử liệu
+                if (fb != null)
+                  Container(
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 16,
+                      vertical: 12,
+                    ),
+                    decoration: BoxDecoration(
+                      color: Colors.white.withValues(alpha: 0.9),
+                      borderRadius: BorderRadius.circular(16),
+                      border: Border.all(
+                        color: DauVietColors.outlineVariant.withValues(
+                          alpha: 0.5,
+                        ),
+                      ),
+                      boxShadow: [
+                        BoxShadow(
+                          color: Colors.black.withValues(alpha: 0.04),
+                          blurRadius: 10,
+                          offset: const Offset(0, 3),
+                        ),
+                      ],
+                    ),
+                    child: Text(
+                      fb.text,
+                      textAlign: TextAlign.center,
+                      style: DauVietTypography.bodyMedium.copyWith(
+                        color: DauVietColors.inkText,
+                        fontWeight: FontWeight.w600,
+                        fontSize: 14,
+                        height: 1.4,
+                      ),
+                    ),
+                  ),
+                const Spacer(),
+                // Nút 3D Tiếp tục câu hỏi
+                DongSonButton(
+                  label: 'TIẾP TỤC ›',
+                  icon: Icons.arrow_forward_rounded,
+                  variant: isSuccess
+                      ? DongSonButtonVariant.natureGreen
+                      : DongSonButtonVariant.primaryCinnabar,
+                  isLoading: st.submitting,
+                  height: 52,
+                  onPressed: st.submitting ? null : _onContinue,
+                ),
+                const SizedBox(height: 10),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
+  /// Thẻ feedback theo `_FeedbackTone` — Duolingo style sheet banner kèm Mascot Kabi TO RÕ.
   Widget _feedbackCard(_Feedback fb) {
     final (icon, iconColor, fgColor, titleText) = switch (fb.tone) {
       _FeedbackTone.success => (

@@ -19,6 +19,8 @@ class EvidenceSelectRenderer extends StatefulWidget {
   final bool submitting;
   final Future<void> Function(Map<String, dynamic>) onSubmit;
   final void Function(bool hasUnsentInput)? onInputChanged;
+  /// Evaluation mới nhất khi retry-in-place (nullable).
+  final EvaluationDto? lastEvaluation;
 
   const EvidenceSelectRenderer({
     super.key,
@@ -27,6 +29,7 @@ class EvidenceSelectRenderer extends StatefulWidget {
     required this.submitting,
     required this.onSubmit,
     this.onInputChanged,
+    this.lastEvaluation,
   });
 
   @override
@@ -97,6 +100,10 @@ class _EvidenceSelectRendererState extends State<EvidenceSelectRenderer> {
           ),
         ),
         const SizedBox(height: 8),
+        InlineGradingHint(
+          evaluation: widget.lastEvaluation,
+          maxAttempts: widget.activity.maxAttempts,
+        ),
         SubmitBar(
           enabled: _selected.length >= minRequired,
           submitting: widget.submitting,

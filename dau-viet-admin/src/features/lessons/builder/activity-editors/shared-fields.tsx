@@ -60,6 +60,43 @@ export function ActivityCommonFields({ stage, activity, readOnly, onChange }: Ed
 }
 
 /**
+ * Issue #35: ô nhập `config.maxAttempts` (1–20) cho các activity chấm tự động.
+ * Để trống → backend dùng mặc định của từng handler (MC=1, DRAG_ORDER/MATCHING=3).
+ */
+export function MaxAttemptsField({ activity, readOnly, onChange }: EditorProps) {
+  const raw = activity.config?.maxAttempts;
+  const value = typeof raw === "number" ? String(raw) : "";
+  return (
+    <div className="flex flex-col gap-1.5">
+      <Label htmlFor={`maxatt-${activity.id}`}>Số lượt thử tối đa (maxAttempts)</Label>
+      <Input
+        id={`maxatt-${activity.id}`}
+        type="number"
+        min={1}
+        max={20}
+        value={value}
+        disabled={readOnly}
+        placeholder="Mặc định theo loại (thường 3)"
+        onChange={(e) => {
+          const v = e.target.value;
+          const n = v === "" ? undefined : Number.parseInt(v, 10);
+          const config = { ...(activity.config ?? {}) };
+          if (n == null || Number.isNaN(n)) {
+            delete config.maxAttempts;
+          } else {
+            config.maxAttempts = n;
+          }
+          onChange({ config });
+        }}
+      />
+      <p className="text-xs text-ink-muted">
+        Hết lượt → hoạt động tự hoàn tất tiến độ (EXHAUSTED), không kẹt học viên.
+      </p>
+    </div>
+  );
+}
+
+/**
  * TASK-0020 §P0/§P5 + round-3 FIX 2: upstream EVIDENCE_SELECT candidates for
  * config.evidenceSource / config.priorEvidenceSource dropdowns.
  * A REQUIRED consumer may only depend on a source that is guaranteed to run:

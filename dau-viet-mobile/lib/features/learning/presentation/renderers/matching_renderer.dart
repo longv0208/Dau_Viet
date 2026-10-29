@@ -13,6 +13,8 @@ class MatchingRenderer extends StatefulWidget {
   final bool submitting;
   final Future<void> Function(Map<String, dynamic>) onSubmit;
   final void Function(bool hasUnsentInput)? onInputChanged;
+  /// Evaluation mới nhất khi retry-in-place (nullable).
+  final EvaluationDto? lastEvaluation;
 
   const MatchingRenderer({
     super.key,
@@ -20,6 +22,7 @@ class MatchingRenderer extends StatefulWidget {
     required this.submitting,
     required this.onSubmit,
     this.onInputChanged,
+    this.lastEvaluation,
   });
 
   @override
@@ -173,6 +176,10 @@ class _MatchingRendererState extends State<MatchingRenderer> {
           ),
         ),
         const SizedBox(height: 14),
+        InlineGradingHint(
+          evaluation: widget.lastEvaluation,
+          maxAttempts: widget.activity.maxAttempts,
+        ),
         SubmitBar(
           enabled: _pairs.length == left.length,
           submitting: widget.submitting,

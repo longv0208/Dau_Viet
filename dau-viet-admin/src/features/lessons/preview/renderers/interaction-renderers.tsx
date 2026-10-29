@@ -1,7 +1,7 @@
 "use client";
 
 import { ArrowDown, ArrowUp } from "lucide-react";
-import { useState } from "react";
+import { useMemo, useState } from "react";
 
 import { Button } from "@/components/ui/button";
 
@@ -26,6 +26,34 @@ function readItems(raw: unknown): Item[] {
 
 function readStrings(raw: unknown): string[] {
   return Array.isArray(raw) ? raw.map((x) => String(x ?? "")).filter(Boolean) : [];
+}
+
+/**
+ * Build the two independent MATCHING columns. Prefers the projected
+ * leftItems/rightItems; falls back to deriving them from raw pairs[] on an
+ * admin (un-projected) snapshot so version detail still renders.
+ */
+function deriveColumns(config: PreviewActivityProps["activity"]["config"]) {
+  const left = readItems(config?.leftItems);
+  const right = readItems(config?.rightItems);
+  if (left.length > 0 || right.length > 0) return { left, right };
+  const pairs = Array.isArray(config?.pairs) ? config.pairs : [];
+  const l: Item[] = [];
+  const r: Item[] = [];
+  for (const p of pairs) {
+    if (!p || typeof p !== "object") continue;
+    const lp = "left" in p ? p.left : undefined;
+    const rp = "right" in p ? p.right : undefined;
+    const li = lp && typeof lp === "object" && "id" in lp
+      ? { id: String(lp.id), label: String("label" in lp ? lp.label ?? "" : "") }
+      : null;
+    const ri = rp && typeof rp === "object" && "id" in rp
+      ? { id: String(rp.id), label: String("label" in rp ? rp.label ?? "" : "") }
+      : null;
+    if (li?.id) l.push(li);
+    if (ri?.id) r.push(ri);
+  }
+  return { left: l, right: r };
 }
 
 /**
@@ -99,8 +127,12 @@ export function EvidenceSelectActivityView({ activity, evidence }: PreviewActivi
  * learners connect a left id to a right id, preview only shows the columns.
  */
 export function MatchingActivityView({ activity }: PreviewActivityProps) {
-  const left = readItems(activity.config?.leftItems);
-  const right = readItems(activity.config?.rightItems);
+  // Learner projection supplies leftItems/rightItems with `pairs` removed.
+  // A raw admin snapshot only carries pairs[] — derive the two columns from
+  // it so the version-detail view renders instead of a blank column.
+  const derived = useMemo(() => deriveColumns(activity.config), [activity.config]);
+  const left = derived.left;
+  const right = derived.right;
   const [selectedLeft, setSelectedLeft] = useState<string | null>(null);
   const [links, setLinks] = useState<Record<string, string>>({});
 
