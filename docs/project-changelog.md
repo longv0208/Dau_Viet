@@ -250,3 +250,42 @@
 - Mobile `dart format --set-exit-if-changed`: clean. `flutter analyze`: 0 issues. `flutter test`: **430/430 PASS** (thêm `test/campaign/event_progress_section_test.dart` 6 widget tests).
 
 **Docs updated:** `docs/API_SPEC.md`, `docs/DATABASE_DESIGN.md`, `docs/project-changelog.md`.
+## 2026-10-29 — GAME-07 (Issue #28): Viện Thái Y end-to-end
+
+Phương án B: 4 vật phẩm Viện Thái Y + cài đặt chính sách Thể lực runtime, refill API server-authoritative, Web Admin `/thai-y-vien`, Mobile `EnergyManagementScreen` nâng cấp UI/UX Pro Max.
+
+**DB (V49)** — `V49__thai_y_vien_settings_and_remedies.sql`
+- `energy_policy_settings` singleton (id=1 CHECK): `enabled`, `max_energy` (CHECK 1..100 khớp V21), `incorrect_penalty`, `recovery_amount`, `recovery_interval_seconds` (CHECK 60..86400), `row_version`. Seed `(1,true,100,10,5,900)`.
+- `energy_remedies`: UUID PK, `code` UNIQUE immutable (trace key trong `energy_transactions.reference_json`), `rarity` CHECK COMMON/UNCOMMON/RARE/EPIC, `asset_id`?→assets, `energy_gain`, `points_cost`, `cooldown_seconds` (0=không giới hạn), `active`, `sort_order`, `row_version`. Index `idx_energy_remedies_active_sort`. Seed 4 UUIDs `e7e00000-...-0001..0004`.
+
+**Backend**
+- `EnergyPolicySetting`, `EnergyRemedy` JPA entities + repositories (`findSingleton`/`insertIgnore` + `findAllActiveOrdered`/`findActiveByCode`/`existsByCodeIgnoreCase`).
+- `EnergyTransactionRepository.findRecentRemedyUsages` (native SQL `reference_json->>'remedyCode'` `MAX(created_at)` `GROUP BY` `REASON='REFILL_PURCHASE'`) + `RemedyUsageProjection`.
+- `EnergyRefillExceptions`: `RemedyNotFoundException` (404), `RefillNotEligibleException` (422, `details{currentEnergy,maxEnergy,blockReasons}`), `RefillRateLimitedException` (409, `details{remedyCode,lastRefillAt,nextEligibleAt,serverTime}`).
+- `EnergyService` rewrite: `PolicySnapshot` record đọc DB mỗi request (không cache → admin PUT hiệu lực ngay, fallback `EnergyProperties` khi DB trống); `stateOf()` trả `pointsBalance` + `remedies[]`; `refill(userId, remedyCode, idempotencyKey)` 8-step: `IdempotencyService` → lock `user_energy` → `findActiveByCode` → `ENERGY_FULL` 422 → cooldown 409 → `wallet.debit` → `ledger.insertIgnore` → `e.credit(..., anchorNowIfFull)`. Lock order: `user_energy` → `wallet_accounts` (contract §5).
+- `AdminEnergyService` + `AdminEnergyController` `/api/v1/admin/energy`: GET/PUT `/settings` + GET/POST `/remedies` + GET/PUT/PATCH/DELETE `/remedies/{id}`.
+- `EnergyController`: POST `/me/energy/refills` yêu cầu `Idempotency-Key` header + `@Valid EnergyRefillRequest`.
+- `RewardService.summary()`: `historyPoints = max(0, earned - walletLedger.sumDebits)` (QA-19 — số dư khả dụng thay vì tích lũy suốt đời).
+- `ErrorCode` + `GlobalExceptionHandler`: `REMEDY_NOT_FOUND`/`REFILL_NOT_ELIGIBLE`/`REFILL_RATE_LIMITED`.
+
+**Web Admin `/thai-y-vien`**
+- `admin-shell.tsx`: nav item "Viện Thái Y & Thể lực" (`HeartPulse` icon); fix `History` collision với DOM type (import + `satisfies` typing).
+- `thai-y-vien-api.ts`: typed client cho settings/remedies endpoints.
+- `thai-y-vien-manager.tsx`: settings form (enabled/max/penalty/recovery + live preview math) + remedies table (rarity tag, cost/cooldown, toggle active, delete, add/edit modal, preview modal theo learner view).
+- `app/(admin)/thai-y-vien/page.tsx` — route mounted.
+
+**Mobile `EnergyManagementScreen` (UI/UX Pro Max)**
+- `energy_dto.dart`: `EnergyStateDto` +`pointsBalance` +`remedies[]`; `EnergyRemedyDto` (`isFree`/`isRateLimited`/`isEnergyFull`/`isInsufficientFunds`/`assetImagePath`/`timeUntilAvailable`); `EnergyRefillResultDto`.
+- `energy_api_client.dart` + `api_energy_repository.dart` + `mock_energy_repository.dart` + `energy_repository.dart`: `refillEnergy({remedyCode, idempotencyKey})` POST `/me/energy/refills` với `Idempotency-Key` header.
+- `energy_providers.dart`: `EnergyController.refillEnergy` sinh UUID v4 mỗi bấm, `applySnapshot` update UI ngay, invalidate `rewardSummaryProvider` + `islandWalletProvider` (QA-19).
+- `energy_management_screen.dart` rewrite: gradient parchment, `RefreshIndicator`, top bar + `_buildWalletPill` (parchmentContainer + imperialGold border + stars icon + AnimatedSwitcher), hero card Nhật Quang (SUNG MÃN/ĐIỀU HÒA/CẦN BỒI BỔ badge + 10-segment `TweenAnimationBuilder` bar + countdown recovery), 4 remedy cards với rarity icon + `Tactile3DButton` (NHẬN NGAY free heritageGreen / BỒI BỔ paid cinnabar / `Hồi sau HH:MM:SS` cooldown pill / `ĐÃ ĐẦY SINH LỰC` / `THIẾU X ĐIỂM` disabled), confirm dialog với before→after energy + wallet math (paid), success dialog `+X⚡ Thể lực` + wallet remaining.
+- Cooldown countdown dùng `timeUntilAvailable(dto.serverNow)` (server clock offset, không device-skew); `_inFlightRemedies` guard chặn double-tap.
+
+**Tests**
+- Backend `EnergyRecoveryTest` +6 tests (stateOf remedies eligibility, NUOC_VOI free credit, TRA_SEN debit, ENERGY_FULL 422, cooldown 409, paidClamp+anchor): **29/29 PASS**.
+- Backend `EnergySystemIT` +7 ITs (remedies+pointsBalance in /me/energy, NUOC_VOI refill+idempotent replay+ledger single, TRA_SEN wallet debit, atMax 422, missing-key 400, unknown-remedy 404, rate-limited 409) — Testcontainers V1–V49 (requires Docker; skipped locally per runbook).
+- Mobile `flutter test test/energy/energy_management_screen_test.dart`: **11/11 PASS** (wallet pill, 4 remedy cards, NHẬN NGAY flow, confirm dialog, ĐÃ ĐẦY/THIẾU ĐIỂM states, cooldown countdown).
+- Admin `npm run typecheck`: thai-y-vien files clean; pre-existing `island-builder/*` errors out-of-scope.
+- Mobile `flutter analyze` on touched files: **0 issues**.
+
+**Docs updated:** `docs/DATABASE_DESIGN.md`, `docs/API_SPEC.md`, `docs/GAMIFICATION_BUSINESS_RULES.md`, `docs/project-changelog.md`.

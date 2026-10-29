@@ -252,7 +252,18 @@ Chỉ backend xác định sai dựa vào published lesson version đã pin; cli
 2. Transaction: lock user/wallet/energy theo thứ tự cố định → tính hồi natural → kiểm tra điều kiện → trừ 30 điểm → cộng `min(20, max-current)` → ghi lịch sử và thời điểm → commit.
 3. Retry cùng request không trừ thêm hoặc hồi thêm. Nếu một bước fail, rollback toàn bộ.
 4. Các nút hồi trong màn `energy_management_screen.dart` hiện chỉ mô phỏng; không được cho Flutter `setState` tăng điểm rồi hiển thị đã mua khi server chưa xác nhận.
-5. Các gói Nước Vối/Trà Sen/Nấm Linh Chi/Sâm Ngọc Linh và Đồng Cổ/Kim Cương đang ở bản demo không tự xem là SKU hợp lệ; V1 chỉ có **một gói +20/30 điểm** cho đến khi Admin/BA chốt catalog hồi phục.
+5. **GAME-07 (Issue #28) — catalog Viện Thái Y**: V1 bổ sung 4 vật phẩm Phương án B (seed V49); mỗi remedy có `cooldown_seconds` per-user tra cứu qua `energy_transactions.reference_json->>'remedyCode'`. Server quyết `eligible`/`blockReasons` (`ENERGY_FULL`/`INSUFFICIENT_FUNDS`/`REFILL_RATE_LIMITED`/`POLICY_DISABLED`) + `effectiveEnergyGain` (clamp `min(energyGain, maxEnergy - current)`) — client chỉ render + gửi intent với `Idempotency-Key`.
+
+Catalog Phương án B (V49):
+
+| Code | Title | Hồi Thể lực | Giá Điểm Sử Ký | Cooldown | Rarity |
+|---|---|---|---|---|---|
+| `NUOC_VOI` | Nước vối đầu giếng | +20 ⚡ | 0 (miễn phí) | 24h | COMMON |
+| `TRA_SEN` | Trà sen Tây Hồ | +30 ⚡ | 30 | 4h | UNCOMMON |
+| `NAM_LINH_CHI` | Nấm linh chi quý | +50 ⚡ | 55 | 12h | RARE |
+| `SAM_NGOC_LINH` | Sâm Ngọc Linh | +100 ⚡ | 90 | 24h | EPIC |
+
+6. `Idempotency-Key` bắt buộc ở header `POST /me/energy/refills` — client sinh UUID v4 mỗi lần bấm, retry mạng trả cùng response (không trừ điểm/cộng energy 2 lần). DB-layer backstop: `cause_key = "REFILL:"+idempotencyKey` UNIQUE trong cả `wallet_transactions` và `energy_transactions`.
 
 ---
 

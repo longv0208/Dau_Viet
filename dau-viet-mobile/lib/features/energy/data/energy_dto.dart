@@ -57,6 +57,14 @@ class EnergyStateDto {
   /// Khi backend flag tắt thì luôn true (không phạt/không chặn).
   final bool canSubmitGraded;
 
+  /// Số Điểm Sử Ký hiện có (GAME-07, Issue #28) — server quyết, ví
+  /// _buildWalletPill đọc trực tiếp. Default 0 nếu backend cũ chưa gửi.
+  final int pointsBalance;
+
+  /// Catalog Viện Thái Y — remedies active với eligible/blockReasons
+  /// do server quyết. Empty nếu backend cũ chưa gửi (GAME-02 only).
+  final List<EnergyRemedyDto> remedies;
+
   /// "Bây giờ theo server" chốt tại lúc nhận response.
   final DateTime _serverNowAtParse;
 
@@ -75,11 +83,14 @@ class EnergyStateDto {
     this.nextRecoveryAt,
     this.serverTime,
     this.canSubmitGraded = true,
+    this.pointsBalance = 0,
+    this.remedies = const [],
   }) : _deviceNowAtParse = _deviceNowUtc(),
        _serverNowAtParse = serverTime ?? _deviceNowUtc(),
        _elapsedAtParse = (_testElapsedMicrosOverride ?? _stopwatchNowMicros)();
 
   factory EnergyStateDto.fromJson(Map<String, dynamic> json) {
+    final remediesJson = json['remedies'];
     return EnergyStateDto(
       current: (json['current'] as num?)?.toInt() ?? 0,
       max: (json['max'] as num?)?.toInt() ?? 0,
@@ -89,6 +100,13 @@ class EnergyStateDto {
       nextRecoveryAt: _parseInstant(json['nextRecoveryAt']),
       serverTime: _parseInstant(json['serverTime']),
       canSubmitGraded: json['canSubmitGraded'] as bool? ?? true,
+      pointsBalance: (json['pointsBalance'] as num?)?.toInt() ?? 0,
+      remedies: remediesJson is List
+          ? remediesJson
+              .whereType<Map<String, dynamic>>()
+              .map(EnergyRemedyDto.fromJson)
+              .toList()
+          : const [],
     );
   }
 
@@ -131,4 +149,122 @@ class EnergyStateDto {
 
   /// Chu kỳ hồi dạng phút để hiển thị ("+5 Thể lực mỗi 15 phút").
   int get recoveryIntervalMinutes => recoveryIntervalSeconds ~/ 60;
+}
+
+/// DTO một vật phẩm Viện Thái Y (GAME-07, Issue #28) — khớp
+/// EnergyRemedyDto phía backend. Server quyết `eligible`/`blockReasons`
+/// (client chỉ render); `effectiveEnergyGain` là số Thể lực THỰC sẽ cộng
+/// sau clamp trần max.
+class EnergyRemedyDto {
+  final String id;
+  final String code;
+  final String title;
+  final String description;
+  final String rarity;
+  final String iconKey;
+  final String? assetId;
+  final int energyGain;
+  final int pointsCost;
+  final int cooldownSeconds;
+  final bool eligible;
+  final int effectiveEnergyGain;
+  final DateTime? cooldownEndsAt;
+  final List<String> blockReasons;
+
+  const EnergyRemedyDto({
+    required this.id,
+    required this.code,
+    required this.title,
+    required this.description,
+    required this.rarity,
+    required this.iconKey,
+    this.assetId,
+    required this.energyGain,
+    required this.pointsCost,
+    required this.cooldownSeconds,
+    required this.eligible,
+    required this.effectiveEnergyGain,
+    this.cooldownEndsAt,
+    required this.blockReasons,
+  });
+
+  factory EnergyRemedyDto.fromJson(Map<String, dynamic> json) {
+    return EnergyRemedyDto(
+      id: (json['id'] ?? '') as String,
+      code: (json['code'] ?? '') as String,
+      title: (json['title'] ?? '') as String,
+      description: (json['description'] ?? '') as String,
+      rarity: (json['rarity'] ?? 'COMMON') as String,
+      iconKey: (json['iconKey'] ?? 'energy_nuoc_voi') as String,
+      assetId: json['assetId'] as String?,
+      energyGain: (json['energyGain'] as num?)?.toInt() ?? 0,
+      pointsCost: (json['pointsCost'] as num?)?.toInt() ?? 0,
+      cooldownSeconds: (json['cooldownSeconds'] as num?)?.toInt() ?? 0,
+      eligible: json['eligible'] as bool? ?? false,
+      effectiveEnergyGain:
+          (json['effectiveEnergyGain'] as num?)?.toInt() ?? 0,
+      cooldownEndsAt: EnergyStateDto._parseInstant(json['cooldownEndsAt']),
+      blockReasons: (json['blockReasons'] as List?)
+              ?.whereType<String>()
+              .toList() ??
+          const [],
+    );
+  }
+
+  bool get isFree => pointsCost <= 0;
+  bool get isRateLimited => blockReasons.contains('REFILL_RATE_LIMITED');
+  bool get isEnergyFull => blockReasons.contains('ENERGY_FULL');
+  bool get isInsufficientFunds =>
+      blockReasons.contains('INSUFFICIENT_FUNDS');
+
+  /// Asset path cho minh họa — khớp cấu trúc `assets/items/` của app.
+  String get assetImagePath => 'assets/items/$iconKey.png';
+
+  /// Thời gian còn lại tới khi remedy hết cooldown — dùng serverNow từ
+  /// parent EnergyStateDto để bù clock skew.
+  Duration? timeUntilAvailable(DateTime currentServerNow) {
+    final ends = cooldownEndsAt;
+    if (ends == null) return null;
+    final Duration remain = ends.difference(currentServerNow);
+    return remain.isNegative ? Duration.zero : remain;
+  }
+}
+
+/// Response POST /api/v1/me/energy/refills — snapshot đầy đủ sau refill
+/// để UI apply ngay (không cần GET lại).
+class EnergyRefillResultDto {
+  final EnergyStateDto energy;
+  final String remedyCode;
+  final int energyCredited;
+  final int pointsSpent;
+  final int walletBalance;
+  final DateTime? refillAt;
+  final DateTime? nextEligibleAt;
+  final DateTime? serverTime;
+
+  const EnergyRefillResultDto({
+    required this.energy,
+    required this.remedyCode,
+    required this.energyCredited,
+    required this.pointsSpent,
+    required this.walletBalance,
+    this.refillAt,
+    this.nextEligibleAt,
+    this.serverTime,
+  });
+
+  factory EnergyRefillResultDto.fromJson(Map<String, dynamic> json) {
+    return EnergyRefillResultDto(
+      energy: json['energy'] is Map<String, dynamic>
+          ? EnergyStateDto.fromJson(json['energy'] as Map<String, dynamic>)
+          : EnergyStateDto(current: 0, max: 0),
+      remedyCode: (json['remedyCode'] ?? '') as String,
+      energyCredited: (json['energyCredited'] as num?)?.toInt() ?? 0,
+      pointsSpent: (json['pointsSpent'] as num?)?.toInt() ?? 0,
+      walletBalance: (json['walletBalance'] as num?)?.toInt() ?? 0,
+      refillAt: EnergyStateDto._parseInstant(json['refillAt']),
+      nextEligibleAt: EnergyStateDto._parseInstant(json['nextEligibleAt']),
+      serverTime: EnergyStateDto._parseInstant(json['serverTime']),
+    );
+  }
 }

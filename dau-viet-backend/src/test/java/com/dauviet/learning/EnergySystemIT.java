@@ -683,4 +683,135 @@ class EnergySystemIT extends AbstractPostgresIT {
         assertThat(currentEnergy()).isEqualTo(90);
         assertThat(energy(otherToken).get("current").asInt()).isEqualTo(100);
     }
+
+    /* ---------- GAME-07 (Issue #28): Viện Thái Y ---------- */
+
+    @Test
+    void me_energy_includesRemediesAndPointsBalance() throws Exception {
+        JsonNode s = energy(learnerToken);
+        assertThat(s.get("pointsBalance").asLong()).isGreaterThanOrEqualTo(0);
+        assertThat(s.get("remedies").isArray()).isTrue();
+        assertThat(s.get("remedies").size()).isEqualTo(4);
+        assertThat(s.get("remedies").get(0).get("code").asText())
+                .isEqualTo("NUOC_VOI");
+    }
+
+    @Test
+    void refill_nuocVoi_free_creditsEnergy() throws Exception {
+        // Trừ energy xuống 80 trước để NUOC_VOI (+20) có chỗ cộng.
+        // setEnergy đảm bảo row tồn tại (lazy-create sẽ =100 → ENERGY_FULL).
+        setEnergy(80);
+        String key = "nuoc-" + UUID.randomUUID();
+        MvcResult r = mvc.perform(post("/api/v1/me/energy/refills")
+                        .header("Authorization", learnerToken)
+                        .header("Idempotency-Key", key)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"remedyCode\":\"NUOC_VOI\"}"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.remedyCode").value("NUOC_VOI"))
+                .andExpect(jsonPath("$.energyCredited").value(20))
+                .andExpect(jsonPath("$.pointsSpent").value(0))
+                .andExpect(jsonPath("$.energy.current").value(100))
+                .andReturn();
+        // Idempotent replay — cùng key → cùng response, không credit lại
+        JsonNode first = om.readTree(r.getResponse().getContentAsString());
+        MvcResult r2 = mvc.perform(post("/api/v1/me/energy/refills")
+                        .header("Authorization", learnerToken)
+                        .header("Idempotency-Key", key)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"remedyCode\":\"NUOC_VOI\"}"))
+                .andExpect(status().isOk())
+                .andReturn();
+        JsonNode second = om.readTree(r2.getResponse().getContentAsString());
+        assertThat(second.get("energy").get("current").asInt())
+                .isEqualTo(first.get("energy").get("current").asInt());
+        // Vẫn chỉ 1 ledger entry REFILL_PURCHASE cho user
+        Integer count = jdbc.queryForObject(
+                "select count(*) from energy_transactions"
+                        + " where user_id = ? and reason = 'REFILL_PURCHASE'",
+                Integer.class, UUID.fromString(learnerId));
+        assertThat(count).isEqualTo(1);
+    }
+
+    @Test
+    void refill_traSen_paid_debitsWallet() throws Exception {
+        // Trừ energy + nạp Điểm Sử Ký cho learner (qua wallet_transactions).
+        // setEnergy đảm bảo row tồn tại (lazy-create sẽ =100 → ENERGY_FULL).
+        setEnergy(70);
+        jdbc.update("insert into wallet_transactions"
+                + " (id, user_id, currency, direction, amount, reason,"
+                + " cause_key, balance_after, created_at) values"
+                + " (gen_random_uuid(), ?, 'HISTORY_POINTS', 'CREDIT',"
+                + " 100, 'ADMIN_GRANT', 'seed-1', 100, now())",
+                UUID.fromString(learnerId));
+        MvcResult r = mvc.perform(post("/api/v1/me/energy/refills")
+                        .header("Authorization", learnerToken)
+                        .header("Idempotency-Key", "tra-" + UUID.randomUUID())
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"remedyCode\":\"TRA_SEN\"}"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.energyCredited").value(30))
+                .andExpect(jsonPath("$.pointsSpent").value(30))
+                .andExpect(jsonPath("$.energy.current").value(100))
+                .andReturn();
+        Integer debit = jdbc.queryForObject(
+                "select count(*) from wallet_transactions"
+                        + " where user_id = ? and direction = 'DEBIT'"
+                        + " and reason = 'REFILL_PURCHASE'",
+                Integer.class, UUID.fromString(learnerId));
+        assertThat(debit).isEqualTo(1);
+    }
+
+    @Test
+    void refill_atMax_throwsEnergyFull422() throws Exception {
+        // Energy 100 (default) — refill phải bị 422.
+        mvc.perform(post("/api/v1/me/energy/refills")
+                        .header("Authorization", learnerToken)
+                        .header("Idempotency-Key", "full-" + UUID.randomUUID())
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"remedyCode\":\"NUOC_VOI\"}"))
+                .andExpect(status().isUnprocessableEntity())
+                .andExpect(jsonPath("$.code").value("REFILL_NOT_ELIGIBLE"));
+    }
+
+    @Test
+    void refill_missingKey_throws400() throws Exception {
+        mvc.perform(post("/api/v1/me/energy/refills")
+                        .header("Authorization", learnerToken)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"remedyCode\":\"NUOC_VOI\"}"))
+                .andExpect(status().isBadRequest());
+    }
+
+    @Test
+    void refill_unknownRemedy_throws404() throws Exception {
+        mvc.perform(post("/api/v1/me/energy/refills")
+                        .header("Authorization", learnerToken)
+                        .header("Idempotency-Key", "x-" + UUID.randomUUID())
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"remedyCode\":\"NGOC_THANH\"}"))
+                .andExpect(status().isNotFound())
+                .andExpect(jsonPath("$.code").value("REMEDY_NOT_FOUND"));
+    }
+
+    @Test
+    void refill_rateLimited_throws409() throws Exception {
+        setEnergy(50);
+        String key = "rl-" + UUID.randomUUID();
+        // Refill 1st → success
+        mvc.perform(post("/api/v1/me/energy/refills")
+                        .header("Authorization", learnerToken)
+                        .header("Idempotency-Key", key)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"remedyCode\":\"NUOC_VOI\"}"))
+                .andExpect(status().isOk());
+        // Refill lại NUOC_VOI ngay (cooldown 24h) → 409 REFILL_RATE_LIMITED
+        mvc.perform(post("/api/v1/me/energy/refills")
+                        .header("Authorization", learnerToken)
+                        .header("Idempotency-Key", "rl2-" + UUID.randomUUID())
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"remedyCode\":\"NUOC_VOI\"}"))
+                .andExpect(status().isConflict())
+                .andExpect(jsonPath("$.code").value("REFILL_RATE_LIMITED"));
+    }
 }

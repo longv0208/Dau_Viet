@@ -8,6 +8,7 @@ import {
   FileText,
   Film,
   Gift,
+  HeartPulse,
   History,
   Image as ImageIcon,
   LayoutDashboard,
@@ -40,6 +41,7 @@ const NAV_ITEMS = [
   { href: "/map-locations", label: "Địa điểm di tích", icon: MapPin },
   { href: "/island-builder", label: "Đảo Di Sản", icon: Compass },
   { href: "/island-shop", label: "Cửa hàng Đảo Di Sản", icon: Store },
+  { href: "/thai-y-vien", label: "Viện Thái Y & Thể lực", icon: HeartPulse },
   { href: "/templates", label: "Mẫu bài học", icon: LayoutTemplate },
   { href: "/assets", label: "Thư viện media", icon: ImageIcon },
   { href: "/animations", label: "Hoạt họa lịch sử", icon: Film },
@@ -48,7 +50,7 @@ const NAV_ITEMS = [
   { href: "/versions", label: "Phiên bản", icon: History },
   { href: "/dossiers", label: "Hồ sơ lịch sử", icon: BookMarked },
   { href: "/items", label: "Vật phẩm thưởng", icon: Gift },
-];
+] satisfies { href: string; label: string; icon: React.ComponentType<{ className?: string }> }[];
 
 function NavLinks({ collapsed, onNavigate }: { collapsed: boolean; onNavigate?: () => void }) {
   const pathname = usePathname();

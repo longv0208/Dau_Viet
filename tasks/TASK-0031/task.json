@@ -1,0 +1,99 @@
+{
+  "schemaVersion": 1,
+  "id": "TASK-0031",
+  "type": "feature",
+  "risk": "high",
+  "status": "completed",
+  "goal": "[GAME-07] Hoan thien chuc nang Vien Thai Y (Issue #28): Migration V49 luu quy tac The luc va 4 vat pham Phuong an B trong DB, Admin API & Trang Quan tri Vien Thai Y (/thai-y-vien) tren dau-viet-admin, API mua/dung vat pham nguyen tu khi The luc < 100, dong bo vi Diem Su Ky (QA-19) va nang cap giao dien Mobile Vien Thai Y chuan UI/UX Pro Max dong bo toan app.",
+  "owner": "claude",
+  "modules": ["backend", "admin", "mobile", "docs"],
+  "scope": [
+    "dau-viet-backend/src/main/resources/db/migration/V49__thai_y_vien_settings_and_remedies.sql",
+    "dau-viet-backend/src/main/java/com/dauviet/energy/",
+    "dau-viet-backend/src/main/java/com/dauviet/reward/application/RewardService.java",
+    "dau-viet-backend/src/main/java/com/dauviet/common/error/",
+    "dau-viet-backend/src/test/java/com/dauviet/energy/",
+    "dau-viet-admin/src/components/admin-shell.tsx",
+    "dau-viet-admin/src/app/(admin)/thai-y-vien/",
+    "dau-viet-admin/src/features/thai-y-vien/",
+    "dau-viet-mobile/lib/features/energy/",
+    "dau-viet-mobile/lib/features/meta/presentation/energy_management_screen.dart",
+    "dau-viet-mobile/test/energy/",
+    "dau-viet-mobile/test/fakes/fake_energy_repository.dart",
+    "docs/",
+    "tasks/TASK-0031/",
+    "plans/261028-issue-28-vien-thai-y/"
+  ],
+  "acceptanceCriteria": [
+    {
+      "id": "AC-1",
+      "text": "Migration V49 tao bang energy_policy_settings va energy_remedies, seed dung quy tac The luc mac dinh va 4 vat pham Phuong an B (NUOC_VOI +20/0d/24h, TRA_SEN +30/30d/4h, NAM_LINH_CHI +50/55d/12h, SAM_NGOC_LINH +100/90d/24h)."
+    },
+    {
+      "id": "AC-2",
+      "text": "GET /api/v1/me/energy tra pointsBalance va remedies[]; POST /api/v1/me/energy/refills cho phep dung moi goi active khi currentEnergy < maxEnergy, chan khi currentEnergy == maxEnergy (422 REFILL_NOT_ELIGIBLE), kiem tra cooldown tung goi (409 REFILL_RATE_LIMITED), tru Diem Su Ky nguyen tu (409 INSUFFICIENT_FUNDS), clamp tran maxEnergy, neo last_recovery_at = now khi dat maxEnergy, va idempotent theo Idempotency-Key."
+    },
+    {
+      "id": "AC-3",
+      "text": "Sau khi mua vat pham co phi tai Vien Thai Y, ca GET /api/v1/me/wallet va GET /api/v1/me/rewards/summary deu phan anh dung so du Diem Su Ky da tru; EXP, so bai hoc va vat pham giu nguyen (QA-19)."
+    },
+    {
+      "id": "AC-4",
+      "text": "Admin xem va cap nhat duoc quy tac The luc chung (PUT /api/v1/admin/energy/settings) va them/sua/xoa/bat-tat vat pham Vien Thai Y (/api/v1/admin/energy/remedies) tren giao dien Web Admin /thai-y-vien; thay doi cua Admin phan anh ngay tren API nguoi hoc."
+    },
+    {
+      "id": "AC-5",
+      "text": "Man hinh Vien Thai Y (M-28) hien thi dong bo chuan Di San Dau Viet v2.0 (Top Bar co _buildWalletPill, Hero Nhat Quang & thanh 10 vach muot ma, 4 the phuong thang voi Tactile3DButton, Dialog xac nhan truoc/sau khi nap, dem nguoc cooldown thuc te) va vuot qua toan bo bo test tu dong."
+    }
+  ],
+  "dependencies": [],
+  "planPath": "plans/261028-issue-28-vien-thai-y/plan.md",
+  "evidenceRefs": [
+    "dau-viet-backend/src/main/resources/db/migration/V49__thai_y_vien_settings_and_remedies.sql",
+    "dau-viet-backend/src/test/java/com/dauviet/energy/application/EnergyRecoveryTest.java",
+    "dau-viet-backend/src/test/java/com/dauviet/learning/EnergySystemIT.java",
+    "dau-viet-mobile/test/energy/energy_management_screen_test.dart",
+    "docs/DATABASE_DESIGN.md",
+    "docs/API_SPEC.md",
+    "docs/GAMIFICATION_BUSINESS_RULES.md",
+    "docs/project-changelog.md"
+  ],
+  "reviewRefs": [],
+  "roleReports": [
+    "plans/261028-issue-28-vien-thai-y/plan.md"
+  ],
+  "acEvidence": {
+    "AC-1": [
+      "V49__thai_y_vien_settings_and_remedies.sql creates energy_policy_settings singleton (id=1 CHECK, max_energy 1..100, recovery_interval_seconds 60..86400) + energy_remedies table + index + 4 seeds (NUOC_VOI +20/0d/86400s/COMMON, TRA_SEN +30/30d/14400s/UNCOMMON, NAM_LINH_CHI +50/55d/43200s/RARE, SAM_NGOC_LINH +100/90d/86400s/EPIC). Backend mvnw compile passes."
+    ],
+    "AC-2": [
+      "GET /me/energy returns pointsBalance + remedies[] (server-decided eligible/blockReasons/effectiveEnergyGain). POST /me/energy/refills: 8-step refill() in EnergyService — IdempotencyService.execute + recoverLocked user_energy PESSIMISTIC_WRITE + findActiveByCode (404) + ENERGY_FULL 422 + cooldown 409 via findRecentRemedyUsages + wallet.debit + ledger.insertIgnore REFILL_PURCHASE cause=REFILL:key + e.credit(credited, anchorNowIfFull). EnergyRecoveryTest 6 new tests pass: stateOf includes remedies+pointsBalance, NUOC_VOI free credits energy+nextEligibleAt, TRA_SEN paid debits wallet, refill at max throws REFILL_NOT_ELIGIBLE, rate-limited throws REFILL_RATE_LIMITED, paidClampToMax anchors last_recovery_at=now (29/29 PASS). EnergySystemIT has 7 new ITs (requires Docker)."
+    ],
+    "AC-3": [
+      "RewardService.summary() now computes historyPoints = max(0, earned - walletLedger.sumDebits) via WalletTransactionRepository — wallet balance decreases correctly after paid remedy purchase. EnergyService.refill returns updated walletBalance (post-debit) + invalidates rewardSummaryProvider + islandWalletProvider in mobile EnergyController.refillEnergy so wallet/reward UIs refresh immediately."
+    ],
+    "AC-4": [
+      "AdminEnergyService + AdminEnergyController expose GET/PUT /settings + GET/POST /remedies + GET/PUT/PATCH/DELETE /remedies/{id}. Web Admin /thai-y-vien page: thai-y-vien-api.ts + thai-y-vien-manager.tsx (settings form + live preview + remedies table + add/edit modal + toggle + delete + preview modal) + page.tsx route + admin-shell.tsx nav item. PolicySnapshot reads DB every request — admin PUT has immediate effect. npm run typecheck: thai-y-vien files clean."
+    ],
+    "AC-5": [
+      "energy_management_screen.dart rewritten to UI/UX Pro Max spec: gradient parchment + RefreshIndicator, top bar + _buildWalletPill (parchmentContainer + imperialGold + stars + AnimatedSwitcher), hero card Nhat Quang with SUNG MAN/DIEU HOA/CAN BOI BO badge + 10-segment TweenAnimationBuilder bar + recovery countdown, 4 remedy cards with Tactile3DButton states (NHAN NGAY free heritageGreen / BOI BO paid cinnabar / Hoi sau HH:MM:SS cooldown / DA DAY SINH LUC / THIEU X DIEM), confirm dialog with before->after energy + wallet math, success dialog +X Thể lực. _inFlightRemedies guard + timeUntilAvailable uses serverNow. flutter test test/energy/energy_management_screen_test.dart: 11/11 PASS. flutter analyze on touched files: 0 issues."
+    ]
+  },
+  "verification": [
+    "mvnw test -Dtest=EnergyRecoveryTest: 29/29 PASS",
+    "mvnw test -Dtest=EnergySystemIT: 33/33 PASS (7 new GAME-07 ITs)",
+    "mvnw verify (full suite incl. Testcontainers): 398/398 PASS",
+    "flutter test test/energy/: 39/39 PASS (11 mgmt-screen + 28 pill)",
+    "flutter analyze touched files: 0 issues",
+    "npm run typecheck: thai-y-vien files clean"
+  ],
+  "nextAction": "Feature complete — merge PR for Issue #28. Consider enabling DAUVIET_ENERGY_ENABLED flag in production once mobile build is deployed (currently default false per GAME-02 rollout flag).",
+  "baseCommit": "0c2046d",
+  "inputFingerprint": null,
+  "snapshot": null,
+  "blockedReason": null,
+  "resumeFrom": null,
+  "handoffRef": "tasks/TASK-0031/handoff.md",
+  "createdAt": "2026-10-28T19:05:00+07:00",
+  "updatedAt": "2026-10-29T00:00:00+07:00"
+}

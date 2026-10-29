@@ -42,8 +42,9 @@ import com.fasterxml.jackson.databind.ObjectMapper;
  */
 @Service
 public class RewardService {
-
     private final RewardTransactionRepository rewards;
+    private final com.dauviet.wallet.infrastructure.persistence
+            .WalletTransactionRepository walletLedger;
     private final UserInventoryRepository inventory;
     private final ItemCatalogRepository items;
     private final ItemUnlockRuleRepository rules;
@@ -62,6 +63,8 @@ public class RewardService {
     private final AccountLevelService levelService;
 
     public RewardService(RewardTransactionRepository rewards,
+                         com.dauviet.wallet.infrastructure.persistence
+                                 .WalletTransactionRepository walletLedger,
                          UserInventoryRepository inventory,
                          ItemCatalogRepository items,
                          ItemUnlockRuleRepository rules,
@@ -79,6 +82,7 @@ public class RewardService {
                          com.dauviet.island.infrastructure.persistence.UserIslandPlacementRepository placements,
                          AccountLevelService levelService) {
         this.rewards = rewards;
+        this.walletLedger = walletLedger;
         this.inventory = inventory;
         this.items = items;
         this.rules = rules;
@@ -96,19 +100,30 @@ public class RewardService {
         this.levelService = levelService;
     }
 
-    /** Tổng EXP / Điểm Lịch sử + Level tài khoản + số liệu phụ trợ cho màn hình hành trình. */
+    /**
+     * Tổng EXP / Điểm Lịch sử khả dụng + Level tài khoản.
+     *
+     * <p>historyPoints (QA-19): tính = SUM(HISTORY_POINTS credit từ
+     * reward_transactions) − SUM(wallet DEBIT) — nghĩa là sau khi learner
+     * tiêu điểm ở Viện Thái Y / Cửa hàng Đảo, số hiển thị phản ánh đúng
+     * số dư thực. Clamp 0 để không trả số âm khi bridge chưa chạy hoặc
+     * ledger đang race.
+     */
     @Transactional(readOnly = true)
     public RewardSummaryResponse summary(UUID userId) {
         long exp = rewards.sumAmount(userId, RewardTransaction.TYPE_EXP);
         int level = levelService.levelForExp(exp);
+        long earned = rewards.sumAmount(userId,
+                RewardTransaction.TYPE_HISTORY_POINTS);
+        long spent = walletLedger.sumDebits(userId);
+        long availablePoints = Math.max(0L, earned - spent);
         return new RewardSummaryResponse(
                 exp,
-                rewards.sumAmount(userId, RewardTransaction.TYPE_HISTORY_POINTS),
+                availablePoints,
                 attempts.countDistinctCompletedLessons(userId),
                 inventory.findByUserIdOrderByAcquiredAtDesc(userId).size(),
                 level);
     }
-
     /** Lịch sử bút toán — mới nhất trước; lessonId resolve qua attempt. */
     @Transactional(readOnly = true)
     public PageResponse<RewardTransactionResponse> transactions(

@@ -327,6 +327,35 @@ public class GlobalExceptionHandler {
         return build(HttpStatus.CONFLICT, ErrorCode.ENERGY_DEPLETED,
                 ex.getMessage(), details);
     }
+    /* ---------- GAME-07 (Issue #28): Viện Thái Y ---------- */
+
+    @ExceptionHandler(com.dauviet.energy.domain.EnergyRefillExceptions
+            .RemedyNotFoundException.class)
+    public ResponseEntity<ApiError> handleRemedyNotFound(
+            com.dauviet.energy.domain.EnergyRefillExceptions
+                    .RemedyNotFoundException ex) {
+        return build(HttpStatus.NOT_FOUND, ErrorCode.REMEDY_NOT_FOUND,
+                ex.getMessage(), Map.of("code", ex.getCode()));
+    }
+
+    @ExceptionHandler(com.dauviet.energy.domain.EnergyRefillExceptions
+            .RefillNotEligibleException.class)
+    public ResponseEntity<ApiError> handleRefillNotEligible(
+            com.dauviet.energy.domain.EnergyRefillExceptions
+                    .RefillNotEligibleException ex) {
+        return build(HttpStatus.UNPROCESSABLE_ENTITY,
+                ErrorCode.REFILL_NOT_ELIGIBLE, ex.getMessage(),
+                ex.details());
+    }
+
+    @ExceptionHandler(com.dauviet.energy.domain.EnergyRefillExceptions
+            .RefillRateLimitedException.class)
+    public ResponseEntity<ApiError> handleRefillRateLimited(
+            com.dauviet.energy.domain.EnergyRefillExceptions
+                    .RefillRateLimitedException ex) {
+        return build(HttpStatus.CONFLICT, ErrorCode.REFILL_RATE_LIMITED,
+                ex.getMessage(), ex.details());
+    }
 
     @ExceptionHandler(com.dauviet.learning.domain.ResultNotFoundException.class)
     public ResponseEntity<ApiError> handleResultNotFound(

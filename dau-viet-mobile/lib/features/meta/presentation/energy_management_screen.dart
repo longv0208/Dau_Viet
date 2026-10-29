@@ -3,18 +3,28 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
+import 'package:uuid/uuid.dart';
 
+import '../../../core/api/api_exception.dart';
 import '../../../core/theme/dau_viet_colors.dart';
 import '../../../core/theme/dau_viet_typography.dart';
 import '../../../core/widgets/async_state_view.dart';
 import '../../../core/widgets/dong_son_button.dart';
 import '../../../core/widgets/parchment_card.dart';
+import '../../../core/widgets/tactile_3d_button.dart';
 import '../../energy/data/energy_dto.dart';
 import '../../energy/data/energy_providers.dart';
 
 /// Màn hình M-28: Quản Lý Năng Lượng & Viện Thái Y (Energy Management)
-/// GAME-03: toàn bộ số liệu đến từ GET /me/energy — không còn state giả;
-/// countdown tính theo serverTime (bù clock skew), chỉ refresh khi chạm 0.
+/// GAME-07 (Issue #28): 4 vật phẩm Phương án B — server quyết eligible/
+/// cooldown/price; client chỉ render + gửi intent với Idempotency-Key.
+///
+/// UI/UX Pro Max — đồng bộ `IslandShopScreen` + `LearnerDashboardScreen`:
+/// - Top Bar có `_buildWalletPill` (ví Điểm Sử Ký từ `dto.pointsBalance`).
+/// - Hero Card Nhật Quang với thanh Thể lực 10 vạch + Badge trạng thái
+///   sinh lực (SUNG MÃN / ĐIỀU HÒA / CẦN BỒI BỔ).
+/// - 4 thẻ phương thang với `Tactile3DButton`, countdown cooldown thực tế.
+/// - Dialog xác nhận trước + Dialog chúc mừng sau khi bồi bổ.
 class EnergyManagementScreen extends ConsumerStatefulWidget {
   const EnergyManagementScreen({super.key});
 
@@ -32,6 +42,9 @@ class _EnergyManagementScreenState extends ConsumerState<EnergyManagementScreen>
   /// lên lịch thêm request nữa cho tới khi fetch xong).
   bool _refreshingAtZero = false;
 
+  /// Chặn double-tap refill cùng remedy — key = remedyCode.
+  final Set<String> _inFlightRemedies = <String>{};
+
   @override
   void initState() {
     super.initState();
@@ -45,11 +58,15 @@ class _EnergyManagementScreenState extends ConsumerState<EnergyManagementScreen>
   }
 
   /// Đồng bộ ticker với trạng thái hiện tại: chỉ tick khi THỰC SỰ có mốc
-  /// hồi để đếm (đầy/lỗi/loading → không timer → pumpAndSettle/test OK,
-  /// không tốn CPU vô ích). Mỗi tick chỉ rebuild phần hiển thị — không
-  /// gọi API.
+  /// hồi để đếm hoặc remedy nào đó còn cooldown (đầy/lỗi/loading → không
+  /// timer → pumpAndSettle/test OK, không tốn CPU vô ích). Mỗi tick chỉ
+  /// rebuild phần hiển thị — không gọi API.
   void _syncTicker(EnergyStateDto? dto) {
-    final bool needTick = dto?.timeUntilNextRecovery() != null;
+    final bool needRecoveryTick = dto?.timeUntilNextRecovery() != null;
+    final bool needCooldownTick = dto?.remedies
+            .any((r) => r.timeUntilAvailable(dto.serverNow) != null) ??
+        false;
+    final bool needTick = needRecoveryTick || needCooldownTick;
     if (needTick && _ticker == null) {
       _ticker = Timer.periodic(const Duration(seconds: 1), (_) {
         if (!mounted) return;
@@ -108,16 +125,16 @@ class _EnergyManagementScreenState extends ConsumerState<EnergyManagementScreen>
             begin: Alignment.topCenter,
             end: Alignment.bottomCenter,
             colors: [
-              Color(0xFFF2F8F4), // Xanh lá thảo dược viện thái y
-              DauVietColors.parchmentSurface,
-              Color(0xFFFAF2E4),
+              Color(0xFFFFFBF4), // Giấy dó tầng sáng
+              Color(0xFFF7F2E7),
+              Color(0xFFF2EADC),
             ],
           ),
         ),
         child: SafeArea(
           child: Column(
             children: [
-              _buildTopBar(context),
+              _buildTopBar(context, energyAsync.value),
               Expanded(
                 child: energyAsync.when(
                   loading: () => const Center(
@@ -137,7 +154,12 @@ class _EnergyManagementScreenState extends ConsumerState<EnergyManagementScreen>
                       ),
                     ),
                   ),
-                  data: (dto) => _buildContent(context, dto),
+                  data: (dto) => RefreshIndicator(
+                    color: DauVietColors.cinnabarRed,
+                    onRefresh: () =>
+                        ref.read(energyProvider.notifier).refresh(),
+                    child: _buildContent(context, dto),
+                  ),
                 ),
               ),
             ],
@@ -149,13 +171,16 @@ class _EnergyManagementScreenState extends ConsumerState<EnergyManagementScreen>
 
   Widget _buildContent(BuildContext context, EnergyStateDto dto) {
     return SingleChildScrollView(
-      physics: const BouncingScrollPhysics(),
+      physics: const AlwaysScrollableScrollPhysics(
+        parent: BouncingScrollPhysics(),
+      ),
       padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
       child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
           _buildEnergyGaugeHero(dto),
           const SizedBox(height: 16),
-          _buildRemediesList(),
+          _buildRemediesList(dto),
           const SizedBox(height: 16),
           _buildPhysicianAdviceCard(),
           const SizedBox(height: 20),
@@ -182,8 +207,11 @@ class _EnergyManagementScreenState extends ConsumerState<EnergyManagementScreen>
     );
   }
 
-  // Header đỉnh trang
-  Widget _buildTopBar(BuildContext context) {
+  /* ==================== TOP BAR ==================== */
+
+  // Header đỉnh trang — đồng bộ IslandShopScreen: back button 44dp +
+  // badge "VIỆN THÁI Y" heritageGreen + tiêu đề + ví Điểm Sử Ký góc phải.
+  Widget _buildTopBar(BuildContext context, EnergyStateDto? dto) {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
       decoration: BoxDecoration(
@@ -223,7 +251,7 @@ class _EnergyManagementScreenState extends ConsumerState<EnergyManagementScreen>
                         vertical: 2,
                       ),
                       decoration: BoxDecoration(
-                        color: DauVietColors.natureGreen,
+                        color: DauVietColors.heritageGreen,
                         borderRadius: BorderRadius.circular(4),
                       ),
                       child: Text(
@@ -259,18 +287,58 @@ class _EnergyManagementScreenState extends ConsumerState<EnergyManagementScreen>
               ],
             ),
           ),
+          _buildWalletPill(dto?.pointsBalance),
         ],
       ),
     );
   }
 
-  // Khung thước đo năng lượng Hero — số liệu thật từ server.
+  /// Badge Ví Điểm Sử Ký — đồng bộ với `_buildWalletPill` của
+  /// IslandShopScreen: parchmentContainer + viền imperialGold 1.5px +
+  /// icon stars_rounded + AnimatedSwitcher hiển thị số.
+  Widget _buildWalletPill(int? points) {
+    return Container(
+      margin: const EdgeInsets.symmetric(vertical: 4),
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
+      decoration: BoxDecoration(
+        color: DauVietColors.parchmentContainer,
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: DauVietColors.imperialGold, width: 1.5),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          const Icon(
+            Icons.stars_rounded,
+            color: DauVietColors.imperialGold,
+            size: 20,
+          ),
+          const SizedBox(width: 6),
+          AnimatedSwitcher(
+            duration: const Duration(milliseconds: 250),
+            child: Text(
+              points != null ? '$points' : '...',
+              key: ValueKey<int?>(points),
+              style: DauVietTypography.bodyMedium.copyWith(
+                fontWeight: FontWeight.bold,
+                color: DauVietColors.woodBrown,
+                fontSize: 14,
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  /* ==================== HERO GAUGE ==================== */
+
+  // Hero Card Nhật Quang — ParchmentCard viền kép imperialGold + vòng
+  // huy hiệu Nhật Quang trái + số chỉ số + Badge trạng thái sinh lực +
+  // thanh 10 vạch TweenAnimationBuilder.
   Widget _buildEnergyGaugeHero(EnergyStateDto dto) {
-    final double percent = dto.fraction;
-    final Color barColor = dto.isDepleted
-        ? DauVietColors.cinnabarRed
-        : (percent < 0.3 ? const Color(0xFFC05621) : DauVietColors.natureGreen);
     final Duration? remain = dto.timeUntilNextRecovery();
+    final _VitalStatus status = _vitalStatusOf(dto);
 
     return ParchmentCard(
       backgroundColor: const Color(0xFFFBF4E4),
@@ -280,68 +348,69 @@ class _EnergyManagementScreenState extends ConsumerState<EnergyManagementScreen>
       child: Column(
         children: [
           Row(
+            crossAxisAlignment: CrossAxisAlignment.center,
             children: [
-              Icon(
-                Icons.bolt_rounded,
-                color: dto.isDepleted
-                    ? DauVietColors.cinnabarRed
-                    : DauVietColors.imperialGold,
-                size: 24,
-              ),
-              const SizedBox(width: 6),
+              // Vòng huy hiệu Nhật Quang (Đông Sơn)
+              _buildSunDiskBadge(dto),
+              const SizedBox(width: 14),
               Expanded(
-                child: Text(
-                  'THỂ LỰC HIỆN TẠI',
-                  style: DauVietTypography.labelSmall.copyWith(
-                    fontWeight: FontWeight.w800,
-                    color: DauVietColors.cinnabarRed,
-                    letterSpacing: 0.8,
-                  ),
-                  overflow: TextOverflow.ellipsis,
-                ),
-              ),
-              const SizedBox(width: 8),
-              Text(
-                '${dto.current} / ${dto.max}',
-                style: DauVietTypography.labelMedium.copyWith(
-                  fontWeight: FontWeight.w900,
-                  fontSize: 16,
-                  color: dto.isDepleted
-                      ? DauVietColors.cinnabarRed
-                      : DauVietColors.inkText,
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      'THỂ LỰC HIỆN TẠI',
+                      style: DauVietTypography.labelSmall.copyWith(
+                        fontWeight: FontWeight.w800,
+                        color: DauVietColors.cinnabarRed,
+                        letterSpacing: 0.8,
+                      ),
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                    const SizedBox(height: 4),
+                    Row(
+                      crossAxisAlignment: CrossAxisAlignment.end,
+                      children: [
+                        Text(
+                          '${dto.current}',
+                          style: DauVietTypography.headlineLarge.copyWith(
+                            fontWeight: FontWeight.w900,
+                            fontSize: 32,
+                            color: dto.isDepleted
+                                ? DauVietColors.cinnabarRed
+                                : DauVietColors.inkText,
+                            height: 1.0,
+                          ),
+                        ),
+                        const SizedBox(width: 6),
+                        Padding(
+                          padding: const EdgeInsets.only(bottom: 4),
+                          child: Text(
+                            '/ ${dto.max} ⚡',
+                            style: DauVietTypography.labelMedium.copyWith(
+                              fontWeight: FontWeight.w700,
+                              fontSize: 14,
+                              color: DauVietColors.inkMuted,
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 6),
+                    _buildVitalBadge(status),
+                  ],
                 ),
               ),
             ],
           ),
+          const SizedBox(height: 14),
+
+          // Thanh Sinh Lực 10 vạch — TweenAnimationBuilder trượt mượt.
+          _buildSegmentedEnergyBar(dto),
           const SizedBox(height: 12),
 
-          ClipRRect(
-            borderRadius: BorderRadius.circular(8),
-            child: LinearProgressIndicator(
-              value: percent,
-              minHeight: 14,
-              backgroundColor: DauVietColors.outlineVariant.withValues(
-                alpha: 0.4,
-              ),
-              valueColor: AlwaysStoppedAnimation<Color>(barColor),
-            ),
-          ),
-          const SizedBox(height: 12),
+          // Dải hồi phục tự nhiên + countdown.
+          _recoveryLine(dto, remain),
 
-          // Trạng thái hồi phục: đầy / cạn / đang đếm ngược — số liệu
-          // server, không tự suy quy tắc.
-          Row(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              const Icon(
-                Icons.timelapse_rounded,
-                size: 16,
-                color: DauVietColors.inkMuted,
-              ),
-              const SizedBox(width: 4),
-              Expanded(child: _recoveryLine(dto, remain)),
-            ],
-          ),
           if (dto.isDepleted) ...[
             const SizedBox(height: 10),
             Container(
@@ -370,46 +439,178 @@ class _EnergyManagementScreenState extends ConsumerState<EnergyManagementScreen>
     );
   }
 
+  /// Vòng huy hiệu Nhật Quang — icon bolt + viền đồng.
+  Widget _buildSunDiskBadge(EnergyStateDto dto) {
+    final bool depleted = dto.isDepleted;
+    return Container(
+      width: 68,
+      height: 68,
+      decoration: BoxDecoration(
+        shape: BoxShape.circle,
+        gradient: LinearGradient(
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+          colors: depleted
+              ? [
+                  DauVietColors.cinnabarRed.withValues(alpha: 0.15),
+                  DauVietColors.cinnabarRed.withValues(alpha: 0.05),
+                ]
+              : [
+                  DauVietColors.imperialGold.withValues(alpha: 0.35),
+                  DauVietColors.imperialGold.withValues(alpha: 0.12),
+                ],
+        ),
+        border: Border.all(
+          color: depleted
+              ? DauVietColors.cinnabarRed
+              : DauVietColors.imperialGold,
+          width: 2.0,
+        ),
+      ),
+      child: Icon(
+        Icons.bolt_rounded,
+        color: depleted
+            ? DauVietColors.cinnabarRed
+            : DauVietColors.imperialGold,
+        size: 34,
+      ),
+    );
+  }
+
+  /// Badge trạng thái sinh lực — 3 ngưỡng theo spec.
+  _VitalStatus _vitalStatusOf(EnergyStateDto dto) {
+    if (dto.current >= 80) return _VitalStatus.sungMan;
+    if (dto.current >= 30) return _VitalStatus.dieuHoa;
+    return _VitalStatus.canBoiBo;
+  }
+
+  Widget _buildVitalBadge(_VitalStatus status) {
+    final (label, color) = switch (status) {
+      _VitalStatus.sungMan => ('SUNG MÃN', DauVietColors.heritageGreen),
+      _VitalStatus.dieuHoa => ('ĐIỀU HÒA', DauVietColors.imperialGold),
+      _VitalStatus.canBoiBo => ('CẦN BỒI BỔ', DauVietColors.cinnabarRed),
+    };
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+      decoration: BoxDecoration(
+        color: color.withValues(alpha: 0.14),
+        borderRadius: BorderRadius.circular(10),
+        border: Border.all(color: color.withValues(alpha: 0.55), width: 1),
+      ),
+      child: Text(
+        label,
+        style: DauVietTypography.labelSmall.copyWith(
+          fontSize: 10,
+          fontWeight: FontWeight.w800,
+          color: color,
+          letterSpacing: 0.5,
+        ),
+      ),
+    );
+  }
+
+  /// Thanh Sinh Lực 10 vạch — TweenAnimationBuilder cho trượt mượt khi
+  /// nạp; mỗi vạch 10⚡ tương ứng 1 lượt chịu sai câu chấm điểm.
+  Widget _buildSegmentedEnergyBar(EnergyStateDto dto) {
+    return TweenAnimationBuilder<double>(
+      tween: Tween<double>(begin: 0, end: dto.fraction),
+      duration: const Duration(milliseconds: 400),
+      curve: Curves.easeOutCubic,
+      builder: (context, value, _) {
+        return ClipRRect(
+          borderRadius: BorderRadius.circular(8),
+          child: SizedBox(
+            height: 14,
+            child: Stack(
+              children: [
+                // Track nền
+                Container(
+                  color: DauVietColors.outlineVariant.withValues(alpha: 0.4),
+                ),
+                // Thanh fill
+                FractionallySizedBox(
+                  widthFactor: value.clamp(0.0, 1.0),
+                  child: Container(
+                    decoration: BoxDecoration(
+                      gradient: LinearGradient(
+                        colors: dto.isDepleted
+                            ? const [Color(0xFFE85A4F), Color(0xFFC8402F)]
+                            : const [Color(0xFF6AB04C), Color(0xFF3E8E5E)],
+                      ),
+                    ),
+                  ),
+                ),
+                // 9 vạch phân cách trắng chia 10 ô
+                LayoutBuilder(
+                  builder: (context, constraints) {
+                    final w = constraints.maxWidth;
+                    return Stack(
+                      children: [
+                        for (int i = 1; i < 10; i++)
+                          Positioned(
+                            left: (w * i / 10) - 0.75,
+                            top: 0,
+                            bottom: 0,
+                            width: 1.5,
+                            child: Container(
+                              color: Colors.white
+                                  .withValues(alpha: 0.75),
+                            ),
+                          ),
+                      ],
+                    );
+                  },
+                ),
+              ],
+            ),
+          ),
+        );
+      },
+    );
+  }
+
   Widget _recoveryLine(EnergyStateDto dto, Duration? remain) {
     final String rate = dto.recoveryIntervalMinutes > 0
-        ? '+${dto.recoveryAmount} Thể lực mỗi ${dto.recoveryIntervalMinutes} phút'
+        ? 'Hồi tự nhiên: +${dto.recoveryAmount} Thể lực / '
+            '${dto.recoveryIntervalMinutes} phút'
         : 'Hồi phục theo cấu hình máy chủ';
-    if (dto.isFull) {
-      return Text(
-        '$rate — Thể lực đã đầy',
-        style: DauVietTypography.bodySmall.copyWith(
-          fontSize: 11,
-          color: DauVietColors.natureGreen,
-          fontWeight: FontWeight.w700,
-        ),
-      );
-    }
-    if (remain == null) {
-      return Text(
-        rate,
-        style: DauVietTypography.bodySmall.copyWith(
-          fontSize: 11,
-          color: DauVietColors.inkMuted,
-        ),
-      );
-    }
-    return Column(
+    return Row(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Text(
-          rate,
-          style: DauVietTypography.bodySmall.copyWith(
-            fontSize: 11,
-            color: DauVietColors.inkMuted,
-          ),
+        const Icon(
+          Icons.timelapse_rounded,
+          size: 16,
+          color: DauVietColors.inkMuted,
         ),
-        const SizedBox(height: 2),
-        Text(
-          'Hồi tiếp sau ${_formatCountdown(remain)}',
-          style: DauVietTypography.labelSmall.copyWith(
-            fontSize: 11.5,
-            fontWeight: FontWeight.w800,
-            color: DauVietColors.riverBlue,
+        const SizedBox(width: 6),
+        Expanded(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                rate,
+                style: DauVietTypography.bodySmall.copyWith(
+                  fontSize: 11,
+                  color: dto.isFull
+                      ? DauVietColors.natureGreen
+                      : DauVietColors.inkMuted,
+                  fontWeight:
+                      dto.isFull ? FontWeight.w700 : FontWeight.normal,
+                ),
+              ),
+              if (!dto.isFull && remain != null) ...[
+                const SizedBox(height: 2),
+                Text(
+                  'Hồi tiếp: ${_formatCountdown(remain)}',
+                  style: DauVietTypography.labelSmall.copyWith(
+                    fontSize: 11.5,
+                    fontWeight: FontWeight.w800,
+                    color: DauVietColors.riverBlue,
+                    fontFeatures: const [FontFeature.tabularFigures()],
+                  ),
+                ),
+              ],
+            ],
           ),
         ),
       ],
@@ -429,41 +630,11 @@ class _EnergyManagementScreenState extends ConsumerState<EnergyManagementScreen>
     return '${m.toString().padLeft(2, '0')}:${s.toString().padLeft(2, '0')}';
   }
 
-  // Danh sách liệu pháp — GAME-03: giữ thiết kế nhưng KHÔNG cho tương
-  // tác/cộng năng lượng giả. Wallet/chi tiêu chưa có backend (GAME-07)
-  // nên mọi item hiển thị trạng thái "Sắp mở".
-  Widget _buildRemediesList() {
-    final remedies = [
-      {
-        'title': 'Nước Vối Tĩnh Tâm',
-        'desc': 'Bát nước vối ấm lành tính giúp sĩ tử thư giãn gân cốt.',
-        'assetImage': 'assets/items/energy_nuoc_voi.png',
-        'icon': Icons.psychology_rounded,
-        'color': DauVietColors.natureGreen,
-      },
-      {
-        'title': 'Trà Sen Tây Hồ',
-        'desc': 'Trà sen ướp hương thơm ngát giúp tinh thần minh mẫn.',
-        'assetImage': 'assets/items/energy_tra_sen.png',
-        'icon': Icons.local_cafe_rounded,
-        'color': DauVietColors.imperialGold,
-      },
-      {
-        'title': 'Nấm Linh Chi Ngự Dược',
-        'desc': 'Thảo dược đại bổ triều đình bồi bổ nguyên khí.',
-        'assetImage': 'assets/items/energy_linh_chi.png',
-        'icon': Icons.spa_rounded,
-        'color': const Color(0xFFC05621),
-      },
-      {
-        'title': 'Sâm Ngọc Linh Hoàng Gia',
-        'desc': 'Bảo vật sâm rừng nghìn năm phục hồi sinh lực tức thì.',
-        'assetImage': 'assets/items/energy_sam_ngoc_linh.png',
-        'icon': Icons.stars_rounded,
-        'color': DauVietColors.cinnabarRed,
-      },
-    ];
+  /* ==================== REMEDIES LIST ==================== */
 
+  // Danh sách thẻ phương thang — server quyết eligible/blockReasons;
+  // client chỉ render + mở dialog + gọi refill.
+  Widget _buildRemediesList(EnergyStateDto dto) {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
@@ -471,7 +642,7 @@ class _EnergyManagementScreenState extends ConsumerState<EnergyManagementScreen>
           children: [
             const Icon(
               Icons.medical_services_outlined,
-              color: DauVietColors.natureGreen,
+              color: DauVietColors.heritageGreen,
               size: 18,
             ),
             const SizedBox(width: 8),
@@ -487,124 +658,604 @@ class _EnergyManagementScreenState extends ConsumerState<EnergyManagementScreen>
         ),
         const SizedBox(height: 10),
 
-        ...remedies.map((rem) {
-          return Container(
-            margin: const EdgeInsets.only(bottom: 10),
-            padding: const EdgeInsets.all(12),
+        if (dto.remedies.isEmpty)
+          Container(
+            width: double.infinity,
+            padding: const EdgeInsets.all(16),
             decoration: BoxDecoration(
-              color: Colors.white.withValues(alpha: 0.9),
-              borderRadius: BorderRadius.circular(10),
+              color: Colors.white.withValues(alpha: 0.85),
+              borderRadius: BorderRadius.circular(12),
               border: Border.all(
-                color: (rem['color'] as Color).withValues(alpha: 0.5),
-                width: 1.2,
+                color: DauVietColors.outlineVariant.withValues(alpha: 0.6),
               ),
             ),
-            child: Row(
-              children: [
-                Container(
-                  width: 48,
-                  height: 48,
-                  padding: const EdgeInsets.all(4),
-                  decoration: BoxDecoration(
-                    color: Colors.white,
-                    borderRadius: BorderRadius.circular(8),
-                    border: Border.all(
-                      color: (rem['color'] as Color).withValues(alpha: 0.4),
-                      width: 1.2,
-                    ),
-                  ),
-                  child: Image.asset(
-                    rem['assetImage'] as String,
-                    fit: BoxFit.contain,
-                    errorBuilder: (context, error, stackTrace) => Container(
-                      decoration: BoxDecoration(
-                        color: (rem['color'] as Color).withValues(alpha: 0.15),
-                        borderRadius: BorderRadius.circular(6),
-                      ),
-                      child: Icon(
-                        rem['icon'] as IconData,
-                        color: rem['color'] as Color,
-                        size: 22,
-                      ),
-                    ),
-                  ),
-                ),
-                const SizedBox(width: 10),
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        rem['title'] as String,
-                        style: DauVietTypography.labelSmall.copyWith(
-                          fontWeight: FontWeight.w800,
-                          color: DauVietColors.inkText,
-                        ),
-                      ),
-                      const SizedBox(height: 2),
-                      Text(
-                        rem['desc'] as String,
-                        style: DauVietTypography.bodySmall.copyWith(
-                          fontSize: 10.5,
-                          color: DauVietColors.inkMuted,
-                          height: 1.3,
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-                const SizedBox(width: 8),
-                Container(
-                  padding: const EdgeInsets.symmetric(
-                    horizontal: 8,
-                    vertical: 4,
-                  ),
-                  decoration: BoxDecoration(
-                    color: DauVietColors.outlineVariant.withValues(alpha: 0.4),
-                    borderRadius: BorderRadius.circular(12),
-                  ),
-                  child: Text(
-                    'Sắp mở',
-                    style: DauVietTypography.labelSmall.copyWith(
-                      fontSize: 10,
-                      fontWeight: FontWeight.w800,
-                      color: DauVietColors.inkMuted,
-                    ),
-                  ),
-                ),
-              ],
+            child: Text(
+              'Viện Thái Y đang soạn thang thuốc. Vui lòng quay lại sau.',
+              textAlign: TextAlign.center,
+              style: DauVietTypography.bodySmall.copyWith(
+                fontSize: 11.5,
+                fontStyle: FontStyle.italic,
+                color: DauVietColors.inkMuted,
+              ),
             ),
-          );
-        }),
+          )
+        else
+          ...dto.remedies.map((r) => _buildRemedyCard(dto, r)),
+      ],
+    );
+  }
 
-        // GAME-03: chưa có Wallet Service — liệu pháp bằng Điểm Sử Ký
-        // chỉ công bố, không CTA mua.
-        Container(
-          width: double.infinity,
-          padding: const EdgeInsets.all(10),
-          decoration: BoxDecoration(
-            color: const Color(0xFFF9F1E2),
-            borderRadius: BorderRadius.circular(8),
-            border: Border.all(
-              color: DauVietColors.imperialGold.withValues(alpha: 0.6),
+  /// Một thẻ phương thang — bo góc 20px + viền rarity + nút CTA trạng
+  /// thái do server quyết.
+  Widget _buildRemedyCard(EnergyStateDto dto, EnergyRemedyDto remedy) {
+    final _RarityStyle rarityStyle = _rarityStyleOf(remedy.rarity);
+    final Duration? cooldownRemain =
+        remedy.timeUntilAvailable(dto.serverNow);
+    final bool inFlight = _inFlightRemedies.contains(remedy.code);
+
+    return Container(
+      margin: const EdgeInsets.only(bottom: 10),
+      decoration: BoxDecoration(
+        color: DauVietColors.parchmentContainer,
+        borderRadius: BorderRadius.circular(20),
+        border: Border.all(
+          color: rarityStyle.borderColor.withValues(alpha: 0.65),
+          width: 1.4,
+        ),
+        boxShadow: [
+          BoxShadow(
+            color: DauVietColors.inkMuted.withValues(alpha: 0.15),
+            blurRadius: 8,
+            offset: const Offset(0, 3),
+          ),
+        ],
+      ),
+      padding: const EdgeInsets.all(14),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              // Khung tranh 76x76 + badge +N⚡
+              Stack(
+                clipBehavior: Clip.none,
+                children: [
+                  Container(
+                    width: 76,
+                    height: 76,
+                    decoration: BoxDecoration(
+                      color: Colors.white,
+                      borderRadius: BorderRadius.circular(14),
+                      border: Border.all(
+                        color: rarityStyle.borderColor
+                            .withValues(alpha: 0.55),
+                        width: 1.2,
+                      ),
+                    ),
+                    clipBehavior: Clip.antiAlias,
+                    child: Image.asset(
+                      remedy.assetImagePath,
+                      fit: BoxFit.contain,
+                      errorBuilder: (context, error, stackTrace) =>
+                          Container(
+                        color: rarityStyle.borderColor
+                            .withValues(alpha: 0.12),
+                        child: Icon(
+                          _remedyIconOf(remedy.code),
+                          color: rarityStyle.borderColor,
+                          size: 32,
+                        ),
+                      ),
+                    ),
+                  ),
+                  Positioned(
+                    right: -4,
+                    bottom: -4,
+                    child: Container(
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 6,
+                        vertical: 2,
+                      ),
+                      decoration: BoxDecoration(
+                        color: DauVietColors.heritageGreen,
+                        borderRadius: BorderRadius.circular(10),
+                        border: Border.all(color: Colors.white, width: 1.5),
+                      ),
+                      child: Text(
+                        '+${remedy.energyGain} ⚡',
+                        style: DauVietTypography.labelSmall.copyWith(
+                          color: Colors.white,
+                          fontSize: 10,
+                          fontWeight: FontWeight.w900,
+                        ),
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    // Tag Phẩm cấp + Tag Hồi chiêu
+                    Wrap(
+                      spacing: 6,
+                      runSpacing: 4,
+                      children: [
+                        _miniTag(
+                          _rarityLabel(remedy.rarity),
+                          rarityStyle.textColor,
+                          rarityStyle.borderColor,
+                        ),
+                        if (remedy.cooldownSeconds > 0)
+                          _miniTag(
+                            _cooldownLabel(remedy.cooldownSeconds),
+                            DauVietColors.riverBlue,
+                            DauVietColors.riverBlue,
+                          ),
+                      ],
+                    ),
+                    const SizedBox(height: 5),
+                    Text(
+                      remedy.title,
+                      style: DauVietTypography.labelSmall.copyWith(
+                        fontWeight: FontWeight.w800,
+                        fontSize: 14,
+                        color: DauVietColors.inkText,
+                      ),
+                    ),
+                    const SizedBox(height: 2),
+                    Text(
+                      remedy.description,
+                      style: DauVietTypography.bodySmall.copyWith(
+                        fontSize: 11,
+                        color: DauVietColors.inkMuted,
+                        height: 1.3,
+                      ),
+                      maxLines: 2,
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 10),
+
+          // Hàng Giá & CTA
+          _remedyCtaRow(dto, remedy, cooldownRemain, inFlight),
+        ],
+      ),
+    );
+  }
+
+  Widget _miniTag(String label, Color fg, Color border) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+      decoration: BoxDecoration(
+        color: fg.withValues(alpha: 0.10),
+        borderRadius: BorderRadius.circular(6),
+        border: Border.all(color: border.withValues(alpha: 0.4), width: 0.8),
+      ),
+      child: Text(
+        label,
+        style: DauVietTypography.labelSmall.copyWith(
+          fontSize: 9.5,
+          fontWeight: FontWeight.w700,
+          color: fg,
+        ),
+      ),
+    );
+  }
+
+  /// Hàng giá + nút hành động — switch theo server-decided blockReasons.
+  Widget _remedyCtaRow(EnergyStateDto dto, EnergyRemedyDto remedy,
+      Duration? cooldownRemain, bool inFlight) {
+    // Đầy sinh lực → pill trạng thái, không nút.
+    if (remedy.isEnergyFull) {
+      return _statusPill(
+        'ĐÃ ĐẦY SINH LỰC',
+        color: DauVietColors.natureGreen,
+        icon: Icons.check_circle_rounded,
+      );
+    }
+    // Cooldown → pill countdown thực tế.
+    if (remedy.isRateLimited && cooldownRemain != null) {
+      return _statusPill(
+        'Hồi sau ${_formatCountdown(cooldownRemain)}',
+        color: DauVietColors.riverBlue,
+        icon: Icons.hourglass_bottom_rounded,
+      );
+    }
+    // Thiếu điểm → nút disabled với lý do.
+    if (remedy.isInsufficientFunds) {
+      final int missing = remedy.pointsCost - dto.pointsBalance;
+      return Row(
+        children: [
+          Expanded(
+            child: Text(
+              '★ ${remedy.pointsCost} Điểm Sử Ký',
+              style: DauVietTypography.labelMedium.copyWith(
+                fontWeight: FontWeight.w800,
+                color: DauVietColors.errorRed,
+              ),
             ),
           ),
-          child: Text(
-            'Liệu pháp hồi phục bằng Điểm Sử Ký sẽ được mở ở bản cập '
-            'nhật tiếp theo.',
-            textAlign: TextAlign.center,
-            style: DauVietTypography.bodySmall.copyWith(
-              fontSize: 11,
-              fontStyle: FontStyle.italic,
-              color: DauVietColors.inkMuted,
-            ),
+          Tactile3DButton(
+            label: 'THIẾU $missing ĐIỂM',
+            variant: Tactile3DVariant.secondaryParchment,
+            height: 40,
+            onPressed: null,
           ),
+        ],
+      );
+    }
+    // Eligible → nút theo free/paid.
+    final String cta = remedy.isFree ? 'NHẬN NGAY' : 'BỒI BỔ';
+    final Tactile3DVariant variant = remedy.isFree
+        ? Tactile3DVariant.heritageGreen
+        : Tactile3DVariant.primaryCinnabar;
+    final String priceLabel = remedy.isFree
+        ? 'Miễn phí (1 lần/ngày)'
+        : '★ ${remedy.pointsCost} Điểm Sử Ký';
+    final Color priceColor = remedy.isFree
+        ? DauVietColors.heritageGreen
+        : DauVietColors.imperialGold;
+    return Row(
+      children: [
+        Expanded(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                priceLabel,
+                style: DauVietTypography.labelMedium.copyWith(
+                  fontWeight: FontWeight.w800,
+                  fontSize: 13,
+                  color: priceColor,
+                ),
+              ),
+              if (remedy.effectiveEnergyGain < remedy.energyGain)
+                Text(
+                  'Hồi thực +${remedy.effectiveEnergyGain}⚡ (gần đầy bình)',
+                  style: DauVietTypography.bodySmall.copyWith(
+                    fontSize: 10,
+                    color: DauVietColors.inkMuted,
+                    fontStyle: FontStyle.italic,
+                  ),
+                ),
+            ],
+          ),
+        ),
+        Tactile3DButton(
+          label: inFlight ? 'ĐANG DÙNG...' : cta,
+          variant: variant,
+          height: 42,
+          onPressed:
+              inFlight || !remedy.eligible ? null : () => _useRemedy(dto, remedy),
         ),
       ],
     );
   }
 
-  // Khung lời dặn của Ngự Y
+  Widget _statusPill(String label,
+      {required Color color, required IconData icon}) {
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+      decoration: BoxDecoration(
+        color: color.withValues(alpha: 0.10),
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: color.withValues(alpha: 0.4), width: 1),
+      ),
+      child: Row(
+        mainAxisAlignment: MainAxisAlignment.center,
+        children: [
+          Icon(icon, size: 16, color: color),
+          const SizedBox(width: 6),
+          Text(
+            label,
+            style: DauVietTypography.labelSmall.copyWith(
+              fontSize: 11.5,
+              fontWeight: FontWeight.w800,
+              color: color,
+              fontFeatures: const [FontFeature.tabularFigures()],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  /* ==================== REFILL FLOW ==================== */
+
+  /// Tap nút trên thẻ — free → xác nhận nhẹ rồi execute; paid → dialog
+  /// xác nhận so sánh trước/sau (giống IslandShopScreen).
+  Future<void> _useRemedy(EnergyStateDto dto, EnergyRemedyDto remedy) async {
+    if (!remedy.eligible || _inFlightRemedies.contains(remedy.code)) {
+      return;
+    }
+    if (remedy.isFree) {
+      // Gói free — xác nhận nhẹ qua SnackBar-style dialog ngắn.
+      final ok = await _confirmUseRemedy(dto, remedy, isFree: true);
+      if (ok == true) await _executeRefill(dto, remedy);
+    } else {
+      final ok = await _confirmUseRemedy(dto, remedy, isFree: false);
+      if (ok == true) await _executeRefill(dto, remedy);
+    }
+  }
+
+  /// Dialog xác nhận trước khi dùng — so sánh Sinh lực trước → sau +
+  /// bảng đối chiếu ví cho gói có phí.
+  Future<bool?> _confirmUseRemedy(EnergyStateDto dto, EnergyRemedyDto remedy,
+      {required bool isFree}) async {
+    final int projected =
+        (dto.current + remedy.effectiveEnergyGain).clamp(0, dto.max);
+    return showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        backgroundColor: DauVietColors.parchmentSurface,
+        shape:
+            RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+        title: Text(
+          isFree ? 'XÁC NHẬN NHẬN LIỆU PHÁP' : 'XÁC NHẬN BỒI BỔ SINH LỰC',
+          style: DauVietTypography.headlineSmall.copyWith(
+            fontWeight: FontWeight.bold,
+            color: DauVietColors.cinnabarRed,
+          ),
+        ),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(
+              'Bạn muốn dùng "${remedy.title}" để bồi bổ '
+              '+${remedy.effectiveEnergyGain}⚡ Thể lực?',
+              style: DauVietTypography.bodyMedium.copyWith(
+                color: DauVietColors.inkText,
+              ),
+            ),
+            const SizedBox(height: 14),
+            Container(
+              padding: const EdgeInsets.all(12),
+              decoration: BoxDecoration(
+                color: DauVietColors.parchmentContainer,
+                borderRadius: BorderRadius.circular(12),
+              ),
+              child: Column(
+                children: [
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    children: [
+                      const Text('Sinh lực hiện tại:'),
+                      Text(
+                        '${dto.current}/${dto.max} ⚡',
+                        style:
+                            const TextStyle(fontWeight: FontWeight.bold),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 6),
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    children: [
+                      const Text('Sau khi dùng:'),
+                      Text(
+                        '$projected/${dto.max} ⚡ '
+                        '(+${remedy.effectiveEnergyGain}⚡)',
+                        style: const TextStyle(
+                          fontWeight: FontWeight.bold,
+                          color: DauVietColors.heritageGreen,
+                        ),
+                      ),
+                    ],
+                  ),
+                  if (!isFree) ...[
+                    const Divider(height: 16),
+                    Row(
+                      mainAxisAlignment:
+                          MainAxisAlignment.spaceBetween,
+                      children: [
+                        const Text('Điểm hiện có:'),
+                        Text(
+                          '${dto.pointsBalance}',
+                          style: const TextStyle(
+                              fontWeight: FontWeight.bold),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 6),
+                    Row(
+                      mainAxisAlignment:
+                          MainAxisAlignment.spaceBetween,
+                      children: [
+                        const Text('Chi phí phương thang:'),
+                        Text(
+                          '-${remedy.pointsCost}',
+                          style: const TextStyle(
+                            fontWeight: FontWeight.bold,
+                            color: DauVietColors.cinnabarRed,
+                          ),
+                        ),
+                      ],
+                    ),
+                    const Divider(height: 16),
+                    Row(
+                      mainAxisAlignment:
+                          MainAxisAlignment.spaceBetween,
+                      children: [
+                        const Text('Số dư còn lại:'),
+                        Text(
+                          '${dto.pointsBalance - remedy.pointsCost}',
+                          style: const TextStyle(
+                            fontWeight: FontWeight.bold,
+                            color: DauVietColors.heritageGreen,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ],
+                ],
+              ),
+            ),
+          ],
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(ctx).pop(false),
+            child: Text(
+              'HỦY',
+              style: DauVietTypography.bodyMedium.copyWith(
+                color: DauVietColors.inkMuted,
+              ),
+            ),
+          ),
+          ElevatedButton(
+            style: ElevatedButton.styleFrom(
+              backgroundColor: isFree
+                  ? DauVietColors.heritageGreen
+                  : DauVietColors.cinnabarRed,
+              foregroundColor: Colors.white,
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(12),
+              ),
+            ),
+            onPressed: () => Navigator.of(ctx).pop(true),
+            child: Text(isFree ? 'NHẬN NGAY' : 'XÁC NHẬN DÙNG'),
+          ),
+        ],
+      ),
+    );
+  }
+
+  /// Execute POST refills — server quyết mọi số liệu, client chỉ nhận
+  /// snapshot mới. Idempotency-Key UUID v4 mỗi lần bấm.
+  Future<void> _executeRefill(
+      EnergyStateDto dto, EnergyRemedyDto remedy) async {
+    if (_inFlightRemedies.contains(remedy.code)) return;
+    setState(() {
+      _inFlightRemedies.add(remedy.code);
+    });
+    final String idempotencyKey = const Uuid().v4();
+    try {
+      final result = await ref.read(energyProvider.notifier).refillEnergy(
+            remedyCode: remedy.code,
+            idempotencyKey: idempotencyKey,
+          );
+      if (!mounted) return;
+      _showRefillSuccessDialog(dto, remedy, result);
+    } on ApiException catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(e.error.message),
+          backgroundColor: DauVietColors.errorRed,
+        ),
+      );
+    } catch (_) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text(
+            'Liệu pháp chưa hoàn tất, vui lòng thử lại.',
+          ),
+          backgroundColor: DauVietColors.errorRed,
+        ),
+      );
+    } finally {
+      if (mounted) {
+        setState(() {
+          _inFlightRemedies.remove(remedy.code);
+        });
+      }
+    }
+  }
+
+  /// Dialog chúc mừng sau khi refill thành công — icon check + số ⚡ cộng.
+  void _showRefillSuccessDialog(EnergyStateDto old, EnergyRemedyDto remedy,
+      EnergyRefillResultDto result) {
+    showDialog(
+      context: context,
+      barrierDismissible: false,
+      builder: (ctx) => AlertDialog(
+        backgroundColor: DauVietColors.parchmentSurface,
+        shape:
+            RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Container(
+              padding: const EdgeInsets.all(16),
+              decoration: const BoxDecoration(
+                color: Color(0xFFE8F5E9),
+                shape: BoxShape.circle,
+              ),
+              child: const Icon(
+                Icons.check_circle_rounded,
+                color: DauVietColors.natureGreen,
+                size: 48,
+              ),
+            ),
+            const SizedBox(height: 16),
+            Text(
+              'BỒI BỔ THÀNH CÔNG!',
+              style: DauVietTypography.headlineSmall.copyWith(
+                fontWeight: FontWeight.bold,
+                color: DauVietColors.heritageGreen,
+              ),
+            ),
+            const SizedBox(height: 8),
+            Text(
+              '"${remedy.title}" đã phục hồi '
+              '+${result.energyCredited}⚡ Thể lực.',
+              textAlign: TextAlign.center,
+              style: DauVietTypography.bodyMedium.copyWith(
+                color: DauVietColors.inkText,
+              ),
+            ),
+            if (result.pointsSpent > 0) ...[
+              const SizedBox(height: 4),
+              Text(
+                'Đã trừ ${result.pointsSpent} Điểm Sử Ký — '
+                'còn ${result.walletBalance} Điểm.',
+                textAlign: TextAlign.center,
+                style: DauVietTypography.bodySmall.copyWith(
+                  color: DauVietColors.inkMuted,
+                  fontStyle: FontStyle.italic,
+                ),
+              ),
+            ],
+          ],
+        ),
+        actions: [
+          ElevatedButton(
+            style: ElevatedButton.styleFrom(
+              backgroundColor: DauVietColors.heritageGreen,
+              foregroundColor: Colors.white,
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(12),
+              ),
+            ),
+            onPressed: () {
+              Navigator.of(ctx).pop();
+              if (context.canPop()) {
+                context.pop();
+              }
+            },
+            child: Text(
+              context.canPop() ? 'QUAY LẠI BÀI HỌC' : 'TIẾP TỤC',
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  /* ==================== PHYSICIAN ADVICE ==================== */
+
+  // Khung lời dặn của Ngự Y — giữ nguyên bản GAME-03.
   Widget _buildPhysicianAdviceCard() {
     return Container(
       padding: const EdgeInsets.all(14),
@@ -653,4 +1304,79 @@ class _EnergyManagementScreenState extends ConsumerState<EnergyManagementScreen>
       ),
     );
   }
+
+  /* ==================== HELPERS ==================== */
+
+  _RarityStyle _rarityStyleOf(String rarity) {
+    return switch (rarity) {
+      'COMMON' => _RarityStyle(
+          borderColor: DauVietColors.inkMuted,
+          textColor: DauVietColors.inkMuted,
+        ),
+      'UNCOMMON' => _RarityStyle(
+          borderColor: DauVietColors.heritageGreen,
+          textColor: DauVietColors.heritageGreen,
+        ),
+      'RARE' => _RarityStyle(
+          borderColor: DauVietColors.riverBlue,
+          textColor: DauVietColors.riverBlue,
+        ),
+      'EPIC' => _RarityStyle(
+          borderColor: DauVietColors.cinnabarRed,
+          textColor: DauVietColors.cinnabarRed,
+        ),
+      _ => _RarityStyle(
+          borderColor: DauVietColors.inkMuted,
+          textColor: DauVietColors.inkMuted,
+        ),
+    };
+  }
+
+  String _rarityLabel(String rarity) {
+    return switch (rarity) {
+      'COMMON' => 'Phổ thông',
+      'UNCOMMON' => 'Thanh tao',
+      'RARE' => 'Quý hiếm',
+      'EPIC' => 'Bảo vật',
+      _ => rarity,
+    };
+  }
+
+  String _cooldownLabel(int seconds) {
+    if (seconds % 3600 == 0) {
+      final h = seconds ~/ 3600;
+      return '${h}h';
+    }
+    if (seconds % 60 == 0) {
+      return '${seconds ~/ 60}p';
+    }
+    return '${seconds}s';
+  }
+
+  IconData _remedyIconOf(String code) {
+    final lower = code.toLowerCase();
+    if (lower.contains('nuoc') || lower.contains('voi')) {
+      return Icons.local_drink_rounded;
+    }
+    if (lower.contains('tra') || lower.contains('sen')) {
+      return Icons.local_cafe_rounded;
+    }
+    if (lower.contains('linh') || lower.contains('nam')) {
+      return Icons.spa_rounded;
+    }
+    if (lower.contains('sam') || lower.contains('ngoc')) {
+      return Icons.stars_rounded;
+    }
+    return Icons.medication_rounded;
+  }
+}
+
+/// Trạng thái sinh lực — 3 ngưỡng theo spec UI/UX Pro Max.
+enum _VitalStatus { sungMan, dieuHoa, canBoiBo }
+
+/// Style phẩm cấp remedy — border + text theo rarity.
+class _RarityStyle {
+  final Color borderColor;
+  final Color textColor;
+  const _RarityStyle({required this.borderColor, required this.textColor});
 }

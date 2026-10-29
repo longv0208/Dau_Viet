@@ -1,9 +1,12 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:uuid/uuid.dart';
 
 import '../../../core/api/api_config.dart';
 import '../../auth/data/auth_state.dart';
 import '../../events/data/events_providers.dart';
+import '../../island/data/island_providers.dart';
 import '../../learning/data/learning_providers.dart';
+import '../../rewards/data/reward_providers.dart';
 import 'api_energy_repository.dart';
 import 'energy_api_client.dart';
 import 'energy_dto.dart';
@@ -145,5 +148,35 @@ class EnergyController extends AsyncNotifier<EnergyStateDto> {
     } catch (_) {
       // AsyncError đã nằm trong state — UI tự hiển thị error view.
     }
+  }
+
+  /// GAME-07 (Issue #28): refill Thể lực bằng vật phẩm Viện Thái Y.
+  ///
+  /// Sinh `Idempotency-Key` (UUID v4) mỗi lần bấm để retry mạng không
+  /// trừ Điểm Sử Ký/cộng energy hai lần phía server. Sau thành công:
+  /// - `applySnapshot(result.energy)` cập nhật UI ngay (không cần GET lại).
+  /// - Invalidate `rewardSummaryProvider` + `islandWalletProvider` để
+  ///   ví Điểm Sử Ký trên Profile / Dashboard / Island đồng bộ (QA-19).
+  Future<EnergyRefillResultDto> refillEnergy({
+    required String remedyCode,
+    String? idempotencyKey,
+  }) async {
+    if (!_sessionAlive) {
+      throw StateError('energy session no longer active');
+    }
+    final key = idempotencyKey ?? const Uuid().v4();
+    final repo = ref.read(energyRepositoryProvider);
+    final result = ApiConfig.useMock
+        ? await repo.refillEnergy(
+            remedyCode: remedyCode, idempotencyKey: key)
+        : await ref.read(authRepositoryProvider).withAuth(
+            () => repo.refillEnergy(
+                remedyCode: remedyCode, idempotencyKey: key));
+    if (!_sessionAlive) return result;
+    _applyIfFresher(result.energy);
+    // Đồng bộ ví Điểm Sử Ký toàn app.
+    ref.invalidate(rewardSummaryProvider);
+    ref.invalidate(islandWalletProvider);
+    return result;
   }
 }
