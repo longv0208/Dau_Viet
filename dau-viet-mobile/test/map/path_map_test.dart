@@ -3,7 +3,6 @@ import 'package:dau_viet_mobile/core/api/api_exception.dart';
 import 'package:dau_viet_mobile/features/learning_path/data/learning_path_dto.dart';
 import 'package:dau_viet_mobile/features/learning_path/data/learning_path_providers.dart';
 import 'package:dau_viet_mobile/features/learning_path/data/learning_path_repository.dart';
-import 'package:dau_viet_mobile/features/learning_path/data/mock_learning_path_repository.dart';
 import 'package:dau_viet_mobile/features/map/data/map_location_dto.dart';
 import 'package:dau_viet_mobile/features/map/data/map_providers.dart';
 import 'package:dau_viet_mobile/features/map/data/map_repository.dart';
@@ -50,8 +49,8 @@ class _FakeMapRepo implements MapRepository {
   final Map<String, List<MapLocationDto>> byEventId;
   final List<MapLocationDto> all;
 
-  _FakeMapRepo({this.byEventId = const {}, this.all = const []});
-
+  _FakeMapRepo({this.byEventId = const {}, List<MapLocationDto>? all})
+    : all = all ?? const [];
   @override
   Future<List<MapLocationDto>> listLocations({
     String? periodCode,
