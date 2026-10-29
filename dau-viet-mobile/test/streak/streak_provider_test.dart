@@ -27,12 +27,25 @@ void main() {
       serverTime: DateTime.utc(2026, 10, 26, 10, minute),
     );
 
-    StreakInfoDto info(int current, {required int minute}) => StreakInfoDto(
+    StreakInfoDto info(
+      int current, {
+      required int minute,
+      bool shieldConsumed = false,
+      int shieldCount = 0,
+      int bonusExp = 0,
+      int bonusPoints = 0,
+      int? milestoneDay,
+    }) => StreakInfoDto(
       dayRecorded: true,
       currentStreak: current,
       longestStreak: current,
       studyDate: DateTime(2026, 10, 26),
       serverTime: DateTime.utc(2026, 10, 26, 10, minute),
+      shieldConsumed: shieldConsumed,
+      shieldCount: shieldCount,
+      bonusExp: bonusExp,
+      bonusPoints: bonusPoints,
+      milestoneDay: milestoneDay,
     );
 
     Future<ProviderContainer> newContainer(FakeStreakRepository repo) async {
@@ -129,6 +142,64 @@ void main() {
       c.read(streakProvider.notifier).applyStreakInfo(info(5, minute: 6));
       c.read(streakProvider.notifier).applyStreakInfo(info(6, minute: 7));
       expect(c.read(streakProvider).value?.currentStreak, 6);
+    });
+
+    /* ---------- STREAK-02: shield + rewards ---------- */
+
+    test(
+      'applyStreakInfo đồng bộ shieldCount khi khiên vừa tự cứu chuỗi',
+      () async {
+        final repo = FakeStreakRepository()..next = st(4, minute: 5);
+        final c = await newContainer(repo);
+        await c.read(streakProvider.future);
+
+        c.read(streakProvider.notifier).applyStreakInfo(
+          info(5, minute: 6, shieldConsumed: true, shieldCount: 2),
+        );
+        final s = c.read(streakProvider).value!;
+        expect(s.currentStreak, 5);
+        expect(s.shieldCount, 2);
+      },
+    );
+
+    test('buyShield gọi repo và cập nhật shieldCount trong state', () async {
+      final repo = FakeStreakRepository()
+        ..next = st(5, minute: 5)
+        ..shieldResult = const StreakShieldPurchaseDto(
+          shieldCount: 2,
+          maxShields: 3,
+          costPoints: 20,
+          balanceAfter: 60,
+        );
+      final c = await newContainer(repo);
+      await c.read(streakProvider.future);
+
+      final res = await c
+          .read(streakProvider.notifier)
+          .buyShield(idempotencyKey: 'test-key-1');
+      expect(res.shieldCount, 2);
+      expect(res.balanceAfter, 60);
+      expect(repo.buyCalls, 1);
+      expect(repo.lastIdempotencyKey, 'test-key-1');
+      expect(c.read(streakProvider).value?.shieldCount, 2);
+    });
+
+    test('buyShield ném lỗi lên caller (422/409) và không đổi state',
+        () async {
+      final repo = FakeStreakRepository()
+        ..next = st(5, minute: 5)
+        ..buyError = Exception('shield at max');
+      final c = await newContainer(repo);
+      await c.read(streakProvider.future);
+
+      expect(
+        () => c
+            .read(streakProvider.notifier)
+            .buyShield(idempotencyKey: 'test-key-2'),
+        throwsA(isA<Exception>()),
+      );
+      // state vẫn giữ shieldCount cũ (0) — lỗi không cập nhật.
+      expect(c.read(streakProvider).value?.shieldCount, 0);
     });
   });
 }

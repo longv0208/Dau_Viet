@@ -1,10 +1,13 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
+import 'package:uuid/uuid.dart';
 
+import '../../../core/api/api_exception.dart';
 import '../../../core/theme/dau_viet_colors.dart';
 import '../../../core/theme/dau_viet_typography.dart';
 import '../../../core/widgets/dong_son_button.dart';
+import '../../island/data/island_providers.dart';
 import '../../learning/data/learning_providers.dart';
 import '../data/streak_dto.dart';
 import '../data/streak_providers.dart';
@@ -99,7 +102,7 @@ class _LearningStreakScreenState extends ConsumerState<LearningStreakScreen> {
   }
 }
 
-class _Body extends StatelessWidget {
+class _Body extends ConsumerWidget {
   final LearningStreakDto streak;
   final DateTime visibleMonth;
   final AsyncValue<LearningStreakCalendarDto> calendar;
@@ -113,7 +116,9 @@ class _Body extends StatelessWidget {
   });
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
+    final walletAsync = ref.watch(islandWalletProvider);
+    final int? balance = walletAsync.value?.historyPoints;
     return SingleChildScrollView(
       padding: const EdgeInsets.fromLTRB(20, 8, 20, 24),
       child: Column(
@@ -159,7 +164,15 @@ class _Body extends StatelessWidget {
           ),
           const SizedBox(height: 18),
 
-          // Lịch tháng — chấm đỏ ngày đã học theo server
+          // STREAK-02: Thẻ Khiên Bảo Vệ Chuỗi — X/3 khiên, đổi 20 điểm.
+          _ShieldCard(streak: streak, balance: balance),
+          const SizedBox(height: 18),
+
+          // STREAK-02: Mốc thưởng chuỗi 3/7/14/30.
+          _MilestoneCard(streak: streak),
+          const SizedBox(height: 18),
+
+          // Lịch tháng — chấm đỏ ngày đã học theo server + marker 🛡️
           _MonthCalendar(
             month: visibleMonth,
             calendar: calendar,
@@ -325,6 +338,262 @@ class _StatCard extends StatelessWidget {
   }
 }
 
+/// STREAK-02: Thẻ Khiên Bảo Vệ Chuỗi — X/3 khiên, nút đổi 20 Điểm Sử Ký.
+/// Số khiên/giá/giới hạn đều đọc từ server (LearningStreakDto) — không
+/// hard-code. Số dư ví đọc islandWalletProvider; nút disable khi đã 3/3
+/// hoặc đang gọi API (chặn double-tap).
+class _ShieldCard extends ConsumerStatefulWidget {
+  final LearningStreakDto streak;
+  final int? balance;
+  const _ShieldCard({required this.streak, required this.balance});
+
+  @override
+  ConsumerState<_ShieldCard> createState() => _ShieldCardState();
+}
+
+class _ShieldCardState extends ConsumerState<_ShieldCard> {
+  bool _buying = false;
+
+  Future<void> _buy() async {
+    if (_buying) return;
+    setState(() => _buying = true);
+    try {
+      final res = await ref
+          .read(streakProvider.notifier)
+          .buyShield(idempotencyKey: const Uuid().v4());
+      if (!mounted) return;
+      // Invalidate ví để pill Điểm Sử Ký đồng bộ balance mới.
+      ref.invalidate(islandWalletProvider);
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(
+            'Đã đổi 1 Khiên Bảo Vệ · còn ${res.balanceAfter} Điểm Sử Ký',
+          ),
+        ),
+      );
+    } on ApiException catch (e) {
+      if (!mounted) return;
+      final msg = switch (e.error.code) {
+        'SHIELD_AT_MAX_CAPACITY' =>
+            'Đã đủ ${widget.streak.maxShields}/${widget.streak.maxShields} '
+                'khiên — không thể đổi thêm.',
+        'INSUFFICIENT_FUNDS' =>
+            'Không đủ Điểm Sử Ký (cần ${widget.streak.shieldCostPoints}).',
+        _ => 'Không đổi được khiên — thử lại sau.',
+      };
+      ScaffoldMessenger.of(context)
+          .showSnackBar(SnackBar(content: Text(msg)));
+    } catch (_) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Không đổi được khiên — thử lại sau.')),
+      );
+    } finally {
+      if (mounted) setState(() => _buying = false);
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final streak = widget.streak;
+    final atMax = streak.shieldCount >= streak.maxShields;
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.all(14),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: const Color(0xFFE5DAC6), width: 1.2),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              const Icon(Icons.shield_rounded,
+                  size: 18, color: DauVietColors.heritageGreen),
+              const SizedBox(width: 6),
+              Text(
+                'BẢO VỆ CHUỖI',
+                style: DauVietTypography.labelMedium.copyWith(
+                  fontWeight: FontWeight.w800,
+                  color: const Color(0xFF1F2421),
+                  letterSpacing: 0.6,
+                ),
+              ),
+              const Spacer(),
+              Text(
+                '${streak.shieldCount}/${streak.maxShields} khiên',
+                style: DauVietTypography.labelMedium.copyWith(
+                  fontWeight: FontWeight.w800,
+                  color: DauVietColors.heritageGreen,
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 10),
+          // 3 ô khiên — sáng lên theo số đang có.
+          Row(
+            children: [
+              for (int i = 0; i < streak.maxShields; i++)
+                Padding(
+                  padding: const EdgeInsets.only(right: 8),
+                  child: Icon(
+                    Icons.shield_rounded,
+                    size: 34,
+                    color: i < streak.shieldCount
+                        ? DauVietColors.heritageGreen
+                        : const Color(0xFFE0D8C8),
+                  ),
+                ),
+              const SizedBox(width: 6),
+              Expanded(
+                child: Text(
+                  'Khi quay lại học sau khi bỏ lỡ đúng một ngày, hệ thống '
+                  'tự dùng một khiên để giữ chuỗi. Nghỉ lâu hơn sẽ bắt '
+                  'đầu chuỗi mới.',
+                  style: DauVietTypography.bodySmall.copyWith(
+                    fontSize: 10.5,
+                    color: const Color(0xFF75807A),
+                    height: 1.35,
+                  ),
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 10),
+          if (streak.atRiskToday && streak.shieldCount > 0)
+            Padding(
+              padding: const EdgeInsets.only(bottom: 10),
+              child: Text(
+                'Hôm nay chuỗi của bạn sẽ được khiên bảo vệ nếu bỏ lỡ.',
+                style: DauVietTypography.bodySmall.copyWith(
+                  fontSize: 10.5,
+                  color: DauVietColors.heritageGreen,
+                  fontWeight: FontWeight.w700,
+                ),
+              ),
+            ),
+          DongSonButton(
+            label: atMax
+                ? 'ĐÃ ĐỦ ${streak.maxShields}/${streak.maxShields} KHIÊN'
+                : 'ĐỔI KHIÊN · ${streak.shieldCostPoints} ĐIỂM'
+                    '${widget.balance == null ? '' : ' (CÒN ${widget.balance})'}',
+            icon: Icons.shield_outlined,
+            variant: DongSonButtonVariant.imperialGold,
+            isLoading: _buying,
+            onPressed: (atMax || _buying) ? null : _buy,
+            height: 44,
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+/// STREAK-02: Card tiến độ mốc thưởng chuỗi 3/7/14/30 — mỗi mốc hiển
+/// thị thưởng EXP + Điểm Sử Ký; đánh dấu mốc đã đạt và khoảng cách tới
+/// mốc kế tiếp.
+class _MilestoneCard extends StatelessWidget {
+  final LearningStreakDto streak;
+  const _MilestoneCard({required this.streak});
+
+  @override
+  Widget build(BuildContext context) {
+    final current = streak.currentStreak;
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.all(14),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: const Color(0xFFE5DAC6), width: 1.2),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              const Icon(Icons.military_tech_rounded,
+                  size: 18, color: DauVietColors.imperialGold),
+              const SizedBox(width: 6),
+              Text(
+                'THƯỞNG MỐC CHUỖI',
+                style: DauVietTypography.labelMedium.copyWith(
+                  fontWeight: FontWeight.w800,
+                  color: const Color(0xFF1F2421),
+                  letterSpacing: 0.6,
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 8),
+          Text(
+            'Duy trì mỗi ngày từ ngày 2: +5 EXP, +5 Điểm Sử Ký. '
+            'Thưởng lớn tại các mốc:',
+            style: DauVietTypography.bodySmall.copyWith(
+              fontSize: 10.5,
+              color: const Color(0xFF75807A),
+              height: 1.35,
+            ),
+          ),
+          const SizedBox(height: 8),
+          for (final m in streak.milestones)
+            _MilestoneRow(milestone: m, current: current),
+        ],
+      ),
+    );
+  }
+}
+
+class _MilestoneRow extends StatelessWidget {
+  final StreakMilestoneDto milestone;
+  final int current;
+  const _MilestoneRow({required this.milestone, required this.current});
+
+  @override
+  Widget build(BuildContext context) {
+    final reached = current >= milestone.day;
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 5),
+      child: Row(
+        children: [
+          Icon(
+            reached
+                ? Icons.check_circle_rounded
+                : Icons.radio_button_unchecked_rounded,
+            size: 18,
+            color: reached
+                ? DauVietColors.heritageGreen
+                : const Color(0xFFC9BFAC),
+          ),
+          const SizedBox(width: 8),
+          Text(
+            '${milestone.day} ngày',
+            style: DauVietTypography.labelMedium.copyWith(
+              fontWeight: FontWeight.w800,
+              color: reached
+                  ? DauVietColors.heritageGreen
+                  : const Color(0xFF3D4842),
+            ),
+          ),
+          const Spacer(),
+          Text(
+            '+${milestone.bonusExp} EXP · +${milestone.bonusPoints} Điểm',
+            style: DauVietTypography.bodySmall.copyWith(
+              fontSize: 11,
+              color: reached
+                  ? const Color(0xFF75807A)
+                  : DauVietColors.imperialGold,
+              fontWeight: FontWeight.w700,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
 /// Lịch tháng — ngày đã học chấm đỏ son; hôm nay viền vàng kim.
 /// Header có nút qua tháng; provider family cache từng tháng riêng.
 class _MonthCalendar extends StatelessWidget {
@@ -348,6 +617,13 @@ class _MonthCalendar extends StatelessWidget {
         ? const <int>{}
         : {
             for (final d in calendar.value!.days)
+              if (d.year == month.year && d.month == month.month) d.day,
+          };
+    // STREAK-02: ngày được khiên cứu — marker 🛡️ khác ngày học thực.
+    final protectedDays = calendar.value == null
+        ? const <int>{}
+        : {
+            for (final d in calendar.value!.protectedDates)
               if (d.year == month.year && d.month == month.month) d.day,
           };
     final daysInMonth = DateTime(month.year, month.month + 1, 0).day;
@@ -417,6 +693,7 @@ class _MonthCalendar extends StatelessWidget {
               if (i < leadingBlanks) return const SizedBox.shrink();
               final day = i - leadingBlanks + 1;
               final studied = studiedDays.contains(day);
+              final shielded = protectedDays.contains(day);
               final isToday =
                   todayVn != null &&
                   todayVn.year == month.year &&
@@ -433,17 +710,27 @@ class _MonthCalendar extends StatelessWidget {
                           color: DauVietColors.imperialGold,
                           width: 1.6,
                         )
-                      : null,
+                      : shielded
+                          ? Border.all(
+                              color: DauVietColors.heritageGreen,
+                              width: 1.4,
+                            )
+                          : null,
                 ),
                 alignment: Alignment.center,
-                child: Text(
-                  '$day',
-                  style: DauVietTypography.bodySmall.copyWith(
-                    fontSize: 11.5,
-                    fontWeight: FontWeight.w700,
-                    color: studied ? Colors.white : const Color(0xFF3D4842),
-                  ),
-                ),
+                child: shielded
+                    ? const Icon(Icons.shield_rounded,
+                        size: 14, color: Colors.white)
+                    : Text(
+                        '$day',
+                        style: DauVietTypography.bodySmall.copyWith(
+                          fontSize: 11.5,
+                          fontWeight: FontWeight.w700,
+                          color: studied
+                              ? Colors.white
+                              : const Color(0xFF3D4842),
+                        ),
+                      ),
               );
             },
           ),

@@ -9,4 +9,10 @@ abstract class StreakRepository {
 
   /// GET /api/v1/me/streak/calendar — các ngày đã học trong [from, to].
   Future<LearningStreakCalendarDto> getCalendar(DateTime from, DateTime to);
+
+  /// POST /api/v1/me/streak/shields — đổi 20 Điểm Sử Ký lấy 1 Khiên
+  /// (STREAK-02). [idempotencyKey] bắt buộc, một key = một giao dịch.
+  Future<StreakShieldPurchaseDto> buyShield({
+    required String idempotencyKey,
+  });
 }

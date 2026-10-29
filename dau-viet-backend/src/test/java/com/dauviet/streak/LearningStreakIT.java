@@ -149,7 +149,10 @@ class LearningStreakIT extends AbstractPostgresIT {
         return attemptId;
     }
 
-    /** Dịch completed_at của attempt về Instant chỉ định — điều khiển ngày VN. */
+    /** Dịch completed_at của attempt về Instant chỉ định — điều khiển ngày VN.
+     * Đồng bộ cả streak_days.study_date lẫn aggregate last_qualified_date để
+     * mô phỏng "attempt thực sự hoàn thành ngày đó": lần complete kế tiếp
+     * phải thấy last = ngày vừa dịch, không phải hôm nay. */
     private void setCompletedAt(String attemptId, Instant at) {
         jdbc.update("update learner_attempts set completed_at = ? "
                   + "where id = ?::uuid",
@@ -160,6 +163,17 @@ class LearningStreakIT extends AbstractPostgresIT {
                   + "where learner_attempt_id = ?::uuid",
                 java.sql.Timestamp.from(at), java.sql.Timestamp.from(at),
                 attemptId);
+        // Aggregate: last_qualified_date = ngày mới nhất còn lại trong
+        // ledger — mô phỏng đúng "attempt thực sự hoàn thành ngày đó"
+        // kể cả khi dịch lùi nhiều bậc (t-6 rồi t-5 rồi t-2...).
+        jdbc.update("update user_learning_streaks set "
+                  + "last_qualified_date = (select max(study_date) "
+                  + "  from user_learning_streak_days "
+                  + "  where user_id = (select user_id from learner_attempts "
+                  + "                   where id = ?::uuid)) "
+                  + "where user_id = (select user_id from learner_attempts "
+                  + "                 where id = ?::uuid)",
+                attemptId, attemptId);
     }
 
     /** Ngày VN hôm nay theo giờ DB server. */
@@ -636,5 +650,224 @@ class LearningStreakIT extends AbstractPostgresIT {
         JsonNode days = om.readTree(cal.getResponse().getContentAsString())
                 .get("days");
         assertThat(days.size()).isEqualTo(5);
+    }
+
+    /* ---------- 14. STREAK-02: mua khiên ---------- */
+
+    private void grantPoints(String userId, long points) {
+        // Ghi trực tiếp HISTORY_POINTS — wallet bridge sẽ mirror sang
+        // wallet_accounts khi user chạm ví/mua khiên.
+        jdbc.update("insert into reward_transactions "
+                  + "(id, user_id, learner_attempt_id, reward_type, amount, "
+                  + " reason, cause_key, created_at) "
+                  + "values (gen_random_uuid(), ?::uuid, null, "
+                  + "'HISTORY_POINTS', ?, 'seed', "
+                  + "'SEED:' || ?::text || ':' || gen_random_uuid()::text, "
+                  + "now())",
+                userId, points, userId);
+    }
+
+    @Test
+    void buyShieldDebitsPointsAndCapsAtThree() throws Exception {
+        grantPoints(learnerId, 100);
+        // Lần 1 → 201 + shieldCount=1
+        MvcResult r1 = mvc.perform(post("/api/v1/me/streak/shields")
+                        .header("Authorization", learnerToken)
+                        .header("Idempotency-Key", "sk-1"))
+                .andExpect(status().isCreated()).andReturn();
+        JsonNode j1 = om.readTree(r1.getResponse().getContentAsString());
+        assertThat(j1.get("shieldCount").asInt()).isEqualTo(1);
+        assertThat(j1.get("balanceAfter").asInt()).isEqualTo(80);
+
+        // Replay cùng key → stored response, không debit lần 2.
+        MvcResult replay = mvc.perform(post("/api/v1/me/streak/shields")
+                        .header("Authorization", learnerToken)
+                        .header("Idempotency-Key", "sk-1"))
+                .andExpect(status().isCreated()).andReturn();
+        JsonNode jr = om.readTree(replay.getResponse().getContentAsString());
+        assertThat(jr.get("shieldCount").asInt()).isEqualTo(1);
+
+        // Mua thêm 2 lần nữa → 3/3.
+        mvc.perform(post("/api/v1/me/streak/shields")
+                        .header("Authorization", learnerToken)
+                        .header("Idempotency-Key", "sk-2"))
+                .andExpect(status().isCreated());
+        mvc.perform(post("/api/v1/me/streak/shields")
+                        .header("Authorization", learnerToken)
+                        .header("Idempotency-Key", "sk-3"))
+                .andExpect(status().isCreated());
+        // Lần 4 → 422 SHIELD_AT_MAX_CAPACITY.
+        mvc.perform(post("/api/v1/me/streak/shields")
+                        .header("Authorization", learnerToken)
+                        .header("Idempotency-Key", "sk-4"))
+                .andExpect(status().isUnprocessableEntity())
+                .andExpect(jsonPath("$.code")
+                        .value("SHIELD_AT_MAX_CAPACITY"));
+
+        JsonNode s = streakState(learnerToken);
+        assertThat(s.get("shieldCount").asInt()).isEqualTo(3);
+        assertThat(s.get("maxShields").asInt()).isEqualTo(3);
+        assertThat(s.get("shieldCostPoints").asInt()).isEqualTo(20);
+    }
+
+    @Test
+    void buyShieldInsufficientFunds() throws Exception {
+        grantPoints(learnerId, 10); // thiếu 20
+        mvc.perform(post("/api/v1/me/streak/shields")
+                        .header("Authorization", learnerToken)
+                        .header("Idempotency-Key", "sk-poor"))
+                .andExpect(status().isConflict())
+                .andExpect(jsonPath("$.code").value("INSUFFICIENT_FUNDS"));
+    }
+
+    /* ---------- 15. STREAK-02: khiên tự cứu chuỗi ---------- */
+
+    @Test
+    void shieldAutoProtectsAfterOneMissedDay() throws Exception {
+        String lessonId = publish();
+        LocalDate today = todayVn();
+        // Học hôm kia (t-2) → streak 1.
+        String a1 = completeLesson(learnerToken, lessonId);
+        setCompletedAt(a1, today.minusDays(2).atTime(9, 0)
+                .atZone(VN).toInstant());
+        // Nạp 1 khiên trực tiếp (đã qua flow mua ở test khác).
+        jdbc.update("update user_learning_streaks set shield_count = 1 "
+                  + "where user_id = ?::uuid", learnerId);
+
+        // Học lại hôm nay → bỏ lỡ đúng 1 ngày (t-1) → khiên tự trừ,
+        // chuỗi nối 2, ledger có SHIELD_PROTECTED ở t-1.
+        completeLesson(learnerToken, lessonId);
+
+        Integer shields = jdbc.queryForObject(
+                "select shield_count from user_learning_streaks "
+              + "where user_id = ?::uuid", Integer.class, learnerId);
+        assertThat(shields).isZero();
+        Integer streak = jdbc.queryForObject(
+                "select current_streak from user_learning_streaks "
+              + "where user_id = ?::uuid", Integer.class, learnerId);
+        assertThat(streak).isEqualTo(2);
+
+        Long protectedRows = jdbc.queryForObject(
+                "select count(*) from user_learning_streak_days "
+              + "where user_id = ?::uuid and day_type = 'SHIELD_PROTECTED'",
+                Long.class, learnerId);
+        assertThat(protectedRows).isEqualTo(1);
+
+        // Calendar API trả protectedDates chứa t-1.
+        MvcResult cal = mvc.perform(get("/api/v1/me/streak/calendar")
+                        .param("from", today.minusDays(3).toString())
+                        .param("to", today.toString())
+                        .header("Authorization", learnerToken))
+                .andExpect(status().isOk()).andReturn();
+        JsonNode pd = om.readTree(cal.getResponse().getContentAsString())
+                .get("protectedDates");
+        assertThat(pd.size()).isEqualTo(1);
+        assertThat(pd.get(0).asText())
+                .isEqualTo(today.minusDays(1).toString());
+    }
+
+    @Test
+    void missedOneDayNoShieldResetsStreak() throws Exception {
+        String lessonId = publish();
+        LocalDate today = todayVn();
+        String a1 = completeLesson(learnerToken, lessonId);
+        setCompletedAt(a1, today.minusDays(2).atTime(9, 0)
+                .atZone(VN).toInstant());
+        // Không khiên → học lại hôm nay reset về 1.
+        completeLesson(learnerToken, lessonId);
+        Integer streak = jdbc.queryForObject(
+                "select current_streak from user_learning_streaks "
+              + "where user_id = ?::uuid", Integer.class, learnerId);
+        assertThat(streak).isEqualTo(1);
+    }
+
+    @Test
+    void missedTwoDaysWithShieldsStillResets() throws Exception {
+        String lessonId = publish();
+        LocalDate today = todayVn();
+        String a1 = completeLesson(learnerToken, lessonId);
+        setCompletedAt(a1, today.minusDays(3).atTime(9, 0)
+                .atZone(VN).toInstant());
+        jdbc.update("update user_learning_streaks set shield_count = 3 "
+                  + "where user_id = ?::uuid", learnerId);
+        // Bỏ 2 ngày (t-2, t-1) dù còn 3 khiên → reset 1, không trừ khiên.
+        completeLesson(learnerToken, lessonId);
+        var row = jdbc.queryForMap(
+                "select current_streak, shield_count "
+              + "from user_learning_streaks where user_id = ?::uuid",
+                learnerId);
+        assertThat(((Number) row.get("current_streak")).intValue())
+                .isEqualTo(1);
+        assertThat(((Number) row.get("shield_count")).intValue())
+                .isEqualTo(3);
+    }
+
+    /* ---------- 16. STREAK-02: thưởng chuỗi ---------- */
+
+    @Test
+    void streakDailyAndMilestoneRewards() throws Exception {
+        String lessonId = publish();
+        LocalDate today = todayVn();
+        // Seed chuỗi đang chạy: ledger 2 ngày quá khứ + aggregate
+        // current=2, last=hôm qua — mô phỏng user đã học t-2, t-1.
+        // (Reward chỉ ghi theo study_date THẬT lúc server complete, nên
+        // không thể dựng chuỗi nhiều ngày bằng setCompletedAt — đó là
+        // đúng thiết kế.)
+        String a1 = completeLesson(learnerToken, lessonId);
+        setCompletedAt(a1, today.minusDays(2).atTime(9, 0)
+                .atZone(VN).toInstant());
+        jdbc.update("insert into user_learning_streak_days "
+                  + "(user_id, study_date, lesson_id, learner_attempt_id, "
+                  + " completed_at, day_type, created_at) "
+                  + "values (?::uuid, ?, ?::uuid, ?::uuid, ?, "
+                  + " 'STUDY', now()) "
+                  + "on conflict do nothing",
+                learnerId, java.sql.Date.valueOf(today.minusDays(1)),
+                lessonId, a1,
+                java.sql.Timestamp.from(
+                        today.minusDays(1).atTime(9, 0)
+                                .atZone(VN).toInstant()));
+        jdbc.update("update user_learning_streaks set current_streak = 2, "
+                  + "longest_streak = 2, last_qualified_date = ? "
+                  + "where user_id = ?::uuid",
+                java.sql.Date.valueOf(today.minusDays(1)), learnerId);
+
+        // Complete hôm nay → ngày 3 liên tiếp → advance +1 → current=3
+        // → daily (+5/+5) + mốc 3 (+15/+10) = 4 rows STREAK.
+        completeLesson(learnerToken, lessonId);
+
+        Long streakRewards = jdbc.queryForObject(
+                "select count(*) from reward_transactions "
+              + "where user_id = ?::uuid and cause_key like 'STREAK:%'",
+                Long.class, learnerId);
+        assertThat(streakRewards).isEqualTo(4);
+
+        // Bút toán đúng số lượng: EXP 5+15=20, POINTS 5+10=15.
+        Long expSum = jdbc.queryForObject(
+                "select coalesce(sum(amount),0) from reward_transactions "
+              + "where user_id = ?::uuid and cause_key like 'STREAK:%' "
+              + "and reward_type = 'EXP'", Long.class, learnerId);
+        Long pointSum = jdbc.queryForObject(
+                "select coalesce(sum(amount),0) from reward_transactions "
+              + "where user_id = ?::uuid and cause_key like 'STREAK:%' "
+              + "and reward_type = 'HISTORY_POINTS'", Long.class,
+                learnerId);
+        assertThat(expSum).isEqualTo(20);
+        assertThat(pointSum).isEqualTo(15);
+
+        Long milestoneRows = jdbc.queryForObject(
+                "select count(*) from user_learning_streak_days "
+              + "where user_id = ?::uuid and milestone_day = 3",
+                Long.class, learnerId);
+        assertThat(milestoneRows).isEqualTo(1);
+
+        // Idempotent: complete thêm bài nữa cùng ngày → ledger trùng →
+        // không grant thêm (vẫn 4 rows).
+        completeLesson(learnerToken, lessonId);
+        Long after = jdbc.queryForObject(
+                "select count(*) from reward_transactions "
+              + "where user_id = ?::uuid and cause_key like 'STREAK:%'",
+                Long.class, learnerId);
+        assertThat(after).isEqualTo(4);
     }
 }

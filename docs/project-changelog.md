@@ -52,6 +52,30 @@
 - `RegisterScreen` → luồng 2 bước qua `OtpVerificationScreen` mới (ô nhập 6 số, countdown resend 60s); `ForgotPasswordScreen` + `ResetPasswordScreen` cho luồng khôi phục; nút "Quên mật khẩu?" và "Tiếp tục với Google" trên `AuthScreen` (`google_sign_in` + gateway provider mockable). Routes mới: `/auth/forgot`, `/auth/otp`, `/auth/reset-password`.
 
 **Tests/Docs** — `OtpServiceTest` (11), `AuthServiceTest` viết lại (15), `GoogleAuthServiceTest` (7), `AuthControllerIT` viết lại cho contract OTP (Docker-blocked locally), mobile auth tests 29/29 pass. Docs: `API_SPEC.md`, `DATABASE_DESIGN.md`, `backend-runbook.md` (`MAIL_*`/`GOOGLE_CLIENT_IDS` envs).
+## 2026-10-29 — Issue #38: Khiên Chuỗi & Thưởng Chuỗi (Streak Shields & Rewards)
+
+**Scope:** Mở rộng Learning Streak — khiên bảo vệ tự cứu chuỗi khi bỏ đúng 1 ngày, phạt reset khi đứt, thưởng daily + milestone đổ vào `reward_transactions`. Backend là source of truth (server ngày `Asia/Ho_Chi_Minh`, idempotent 3 lớp); Điểm Sử Ký của thưởng đổ qua lazy-bridge wallet (không `WalletService.credit` mới). Branch `feat/issue-38-streak-shields-and-rewards`.
+
+**Database**
+- `V51__streak_shields_and_rewards.sql` — `user_learning_streaks.shield_count` (0–3, `CHECK`); `user_learning_streak_days` thêm `day_type ∈ (STUDY, SHIELD_PROTECTED)` (default STUDY), `reward_exp`, `reward_points`, `milestone_day` + partial index `day_type='SHIELD_PROTECTED'` cho `protectedDates` API.
+
+**Backend**
+- `UserLearningStreak`: `MAX_SHIELDS=3`, `shieldCount`, `addShield()`, `advanceTo` trả `AdvanceResult{dayRecorded, shieldConsumed, protectedDate}` — 4 nhánh (`== last` no-op; `== last+1` → +1; `== last+2 && shield>0` → trừ 1 khiên + ghi protectedDate; else reset 1).
+- `UserLearningStreakDay`: `dayType`, `rewardExp`, `rewardPoints`, `milestoneDay` + factory 10 tham số; repo `findProtectedDatesBetween`, `updateReward`.
+- `StreakRewardPolicy` (`@Component`): daily +5 EXP/+5 pts khi `current≥2`; milestones {3→15/10, 7→30/25, 14→60/50, 30→120/100}; `causeKey = STREAK:{user}:{date}:{DAILY|MILESTONE_N}:{EXP|POINTS}` — `insertIgnore` idempotent. Ngày SHIELD_PROTECTED không daily reward nhưng vẫn đếm `current` cho milestone.
+- `LearningStreakService.recordCompletion`: sau advance ghi `SHIELD_PROTECTED` row (FK reuse lesson/attempt — `insertIgnore` → STUDY thắng race), grant daily+milestone qua `RewardTransactionRepository.insertIgnore`, `updateReward` trên row STUDY.
+- `buyShield` trong `IdempotencyService.execute` op `STREAK_SHIELD_PURCHASE`: lock `user_learning_streaks` → cap-check 422 `SHIELD_AT_MAX_CAPACITY` → `wallet.debit(20, REASON_STREAK_SHIELD_PURCHASE, STREAK_SHIELD:{key})` → +1 khiên. Lock-order khác `doComplete` → deadlock-safe. `POST /api/v1/me/streak/shields` 201, Idempotency-Key bắt buộc.
+- `CompleteAttemptResponse.streak` additive: `shieldConsumed`, `shieldCount`, `bonusExp`, `bonusPoints`, `milestoneDay`. `GET /me/streak` + `shieldCount`/`maxShields`/`shieldCostPoints`/`streakAtRisk`/`milestones[]`; `GET /me/streak/calendar` + `protectedDates[]`. `ErrorCode.SHIELD_AT_MAX_CAPACITY` → 422.
+
+**Mobile**
+- `streak_dto`: `StreakMilestoneDto`, `StreakShieldPurchaseDto`, shield fields trên `LearningStreakDto`/`StreakInfoDto`, `protectedDates` trên `LearningStreakCalendarDto`. `streak_api_client.buyShield` + `StreakController.buyShield` (StateError nếu session chết); `applyStreakInfo` đồng bộ `shieldCount` theo `serverTime` freshness.
+- `LearningStreakScreen`: `_ShieldCard` (3-slot icons, nút "Đổi 20đ" khi `shieldCount<3`, notice `streakAtRisk`), `_MilestoneCard`, calendar 🛡️ markers từ `protectedDays`. Dashboard `_StreakMiniPill` hiển thị 🛡️ count, `_StreakWeekStrip` shield set + icon. `LessonResultScreen` `_StreakShieldAndBonusNote` dưới flame banner.
+
+**Tests & verification**
+- Backend: `LearningStreakServiceTest` **27/27** (11 test mới: shield auto-consume, reset không khiên/đủ ngày, daily+milestone grant, buyShield debit/cap/idempotent); `LearningStreakIT` **19/19** trên Testcontainers PostgreSQL 16 (`buyShieldDebitsPointsAndCapsAtThree`, `buyShieldInsufficientFunds`, `shieldAutoProtectsAfterOneMissedDay`, `missedOneDayNoShieldResets`, `missedTwoDaysWithShieldsStillResets`, `streakDailyAndMilestoneRewards`). Sửa `setCompletedAt` helper đồng bộ `last_qualified_date = MAX(study_date)` trong ledger — mô phỏng đúng "attempt hoàn thành ngày đó" khi dịch lùi nhiều bậc.
+- Mobile: `streak_provider_test` **9/9** (+applyStreakInfo shieldCount sync, +buyShield repo/state, +buyShield error no-op); `flutter analyze` clean; `FakeStreakRepository` tách `buyError` khỏi fetch `error`.
+
+**Docs updated:** `docs/GAMIFICATION_BUSINESS_RULES.md` (STRK-05 viết lại — streak nay ĐÃ ghi `reward_transactions`; +STRK-09..12), `docs/GAMIFICATION_TECHNICAL_CONTRACT.md` §5.1 (advanceTo 4 nhánh, lock-order, cause scheme, SHIELD_PROTECTED), `docs/API_SPEC.md` (route `/me/streak/shields`, response fields, error codes), `docs/project-changelog.md`.
 
 ## 2026-10-28 — PATH-2.0 & HERITAGE-MAP-2.0 (Epics A–F, Issues #2–#26): Luồng Học Theo Thời Kỳ & Bản Đồ Di Sản
 

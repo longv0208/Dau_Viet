@@ -469,6 +469,17 @@ public class GlobalExceptionHandler {
                 ex.getMessage(), details);
     }
 
+    /** STREAK-02 (V51): đổi khiên khi đã tích trữ đủ 3/3 → 422. */
+    @ExceptionHandler(com.dauviet.streak.domain.StreakExceptions.ShieldAtMaxCapacityException.class)
+    public ResponseEntity<ApiError> handleShieldAtMaxCapacity(
+            com.dauviet.streak.domain.StreakExceptions.ShieldAtMaxCapacityException ex) {
+        Map<String, Object> details = Map.of(
+                "shieldCount", ex.getShieldCount(),
+                "maxShields", ex.getMaxShields());
+        return build(HttpStatus.UNPROCESSABLE_ENTITY,
+                ErrorCode.SHIELD_AT_MAX_CAPACITY, ex.getMessage(), details);
+    }
+
     @ExceptionHandler(com.dauviet.island.domain.IslandExceptions.ItemNotOwnedException.class)
     public ResponseEntity<ApiError> handleItemNotOwned(
             com.dauviet.island.domain.IslandExceptions.ItemNotOwnedException ex) {

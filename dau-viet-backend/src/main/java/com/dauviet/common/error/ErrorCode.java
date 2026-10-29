@@ -86,5 +86,7 @@ public enum ErrorCode {
     OTP_NO_CHALLENGE,
     GOOGLE_TOKEN_INVALID,
     GOOGLE_EMAIL_UNVERIFIED,
+    // STREAK-02 (V51): Khiên Bảo Vệ Chuỗi đã đạt giới hạn tích trữ
+    SHIELD_AT_MAX_CAPACITY,
     INTERNAL_ERROR
 }

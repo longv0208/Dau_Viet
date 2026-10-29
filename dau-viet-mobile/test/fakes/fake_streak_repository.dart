@@ -38,4 +38,29 @@ class FakeStreakRepository implements StreakRepository {
   ) async {
     return calendar;
   }
+
+  /// Script kết quả buyShield — test đặt trước khi gọi notifier.
+  StreakShieldPurchaseDto? shieldResult;
+  int buyCalls = 0;
+  String? lastIdempotencyKey;
+
+  @override
+  Future<StreakShieldPurchaseDto> buyShield({
+    required String idempotencyKey,
+  }) async {
+    buyCalls++;
+    lastIdempotencyKey = idempotencyKey;
+    if (buyError != null) throw buyError!;
+    return shieldResult ??
+        const StreakShieldPurchaseDto(
+          shieldCount: 1,
+          maxShields: 3,
+          costPoints: 20,
+          balanceAfter: 80,
+        );
+  }
+
+  /// Lỗi riêng cho buyShield — tách khỏi [error] của getMyStreak để test
+  /// mua khiên fail mà provider vẫn build được.
+  Object? buyError;
 }

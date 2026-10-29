@@ -14,14 +14,22 @@ import org.springframework.transaction.annotation.Propagation;
 import org.springframework.transaction.annotation.Transactional;
 
 import com.dauviet.learning.api.dto.CompleteAttemptResponse;
+import com.dauviet.learning.application.IdempotencyService;
+import com.dauviet.reward.infrastructure.persistence.RewardTransactionRepository;
 import com.dauviet.streak.api.dto.LearningStreakCalendarResponse;
 import com.dauviet.streak.api.dto.LearningStreakResponse;
+import com.dauviet.streak.api.dto.StreakMilestoneDto;
+import com.dauviet.streak.api.dto.StreakShieldPurchaseResponse;
+import com.dauviet.streak.domain.StreakExceptions;
 import com.dauviet.streak.domain.UserLearningStreak;
+import com.dauviet.streak.domain.UserLearningStreakDay;
 import com.dauviet.streak.infrastructure.persistence.UserLearningStreakDayRepository;
 import com.dauviet.streak.infrastructure.persistence.UserLearningStreakRepository;
+import com.dauviet.wallet.application.WalletService;
+import com.dauviet.wallet.domain.WalletTransaction;
 
 /**
- * Chuỗi Ngày Học — Ngọn Lửa Hào Khí (STREAK-01, V31).
+ * Chuỗi Ngày Học — Ngọn Lửa Hào Khí (STREAK-01 V31 + STREAK-02 V51).
  *
  * <p>Nguồn sự thật: server-side {@code learner_attempts.completed_at} chuyển
  * sang ngày theo timezone {@link #TZ_HCM}. KHÔNG tin client time — request
@@ -31,10 +39,22 @@ import com.dauviet.streak.infrastructure.persistence.UserLearningStreakRepositor
  * .doComplete() — completion rollback thì streak rollback cùng, không có
  * trạng thái "complete rồi nhưng streak chưa ghi". Idempotency 3 lớp:
  *   1. Caller chỉ gọi khi attempt flip IN_PROGRESS → COMPLETED lần đầu;
-     attempt COMPLETED sẵn thì vào nhánh already-completed, không tới đây.
+ *     attempt COMPLETED sẵn thì vào nhánh already-completed, không tới đây.
  *   2. UNIQUE(user_id, study_date) trên ledger chống duplicate khi caller
  *      hoặc concurrency bypass lớp 1.
  *   3. advanceTo() của domain là no-op khi newDate == lastQualifiedDate.
+ *
+ * <p>Thưởng chuỗi (STREAK-02): chỉ grant khi server vừa công nhận MỘT
+ * ngày học mới (ledger insertIgnore trả 1). RewardTransaction UNIQUE
+ * cause_key 'STREAK:{user}:{date}:{type}:{bucket}' là backstop tầng DB —
+ * reward rollback cùng attempt nếu complete fail. Ngày SHIELD_PROTECTED
+ * không thưởng (user không học ngày đó); mốc tính theo current_streak
+ * sau advance nên chuỗi được khiên cứu vẫn cộng bình thường.
+ *
+ * <p>Mua khiên (STREAK-02): {@link #buyShield} chạy tx riêng, lock
+ * streak row → check capacity → debit wallet → addShield. Lock-order
+ * streaks→wallet_accounts không xung đột với doComplete (attempts→
+ * streak_days→streaks) vì hai đường không chia sẻ lock pair ngược.
  *
  * <p>Concurrency: mọi ghi serialize qua {@code findForUpdate} trên
  * user_learning_streaks — hai thiết bị complete cùng ngày của cùng user,
@@ -42,8 +62,7 @@ import com.dauviet.streak.infrastructure.persistence.UserLearningStreakRepositor
  * → advanceTo no-op đúng chuẩn.
  *
  * <p>Đọc API ({@link #stateOf}, {@link #calendarOf}) KHÔNG ghi DB —
- * {@code readOnly=true} tránh việc mở transaction "read" vẫn trigger lazy
- * update kiểu energy recovery. Ngày học đã qua KHÔNG tự động reset current
+ * {@code readOnly=true}. Ngày học đã qua KHÔNG tự động reset current
  * streak ở đây — đọc được tính streakAlive để client hiển thị "còn kịp
  * giữ chuỗi hôm nay"; lần ghi tiếp theo sẽ set current=1 đúng quy tắc.
  */
@@ -53,21 +72,36 @@ public class LearningStreakService {
     private static final Logger log = LoggerFactory
             .getLogger(LearningStreakService.class);
 
-    /** Timezone nghiệp vụ — giờ Việt Nam, khớp business rule STREAK-01. */
+    /** Timezone nghiệp vụ — giờ Việt Nam, khớp business rule STREAK-02. */
     public static final ZoneId TZ_HCM = ZoneId.of("Asia/Ho_Chi_Minh");
 
     /** Số ngày tối đa trả trong calendar — client không được kéo cả lịch sử. */
     private static final int CALENDAR_MAX_DAYS = 92;
 
+    /** Giá đổi một Khiên Bảo Vệ Chuỗi — Điểm Sử Ký (V51). */
+    public static final long SHIELD_COST_POINTS = 20;
+
+    /** Operation idempotent cho POST /me/streak/shields. */
+    private static final String OP_SHIELD_PURCHASE = "STREAK_SHIELD_PURCHASE";
+
     private final UserLearningStreakRepository streaks;
     private final UserLearningStreakDayRepository days;
+    private final RewardTransactionRepository rewards;
+    private final WalletService wallet;
+    private final IdempotencyService idempotency;
     private final Clock clock;
 
     public LearningStreakService(UserLearningStreakRepository streaks,
                                  UserLearningStreakDayRepository days,
+                                 RewardTransactionRepository rewards,
+                                 WalletService wallet,
+                                 IdempotencyService idempotency,
                                  Clock clock) {
         this.streaks = streaks;
         this.days = days;
+        this.rewards = rewards;
+        this.wallet = wallet;
+        this.idempotency = idempotency;
         this.clock = clock;
     }
 
@@ -91,33 +125,122 @@ public class LearningStreakService {
         LocalDate studyDate = LocalDate.ofInstant(completedAtUtc, TZ_HCM);
 
         // Ledger-first: UNIQUE(user, date) chặn concurrent duplicate — chỉ
-        // tx thắng race mới đi tiếp update aggregate. Row kia chưa commit
-        // thì tx này insert thành công và lastQualifiedDate cập nhật đúng;
-        // row kia rollback thì tx này vẫn là chủ duy nhất của ngày.
-        int written = days.insertIgnore(userId, studyDate, lessonId, attemptId,
-                completedAtUtc, now);
+        // tx thắng race mới đi tiếp update aggregate + grant reward.
+        int written = days.insertIgnore(userId, studyDate, lessonId,
+                attemptId, completedAtUtc,
+                UserLearningStreakDay.DAY_TYPE_STUDY, 0, 0, null, now);
         if (written == 0) {
-            // Ngày đã công nhận — replay/concurrent same-day. Không đụng
-            // aggregate nữa.
+            // Ngày đã công nhận — replay/concurrent same-day.
             return null;
         }
 
         // Serialize ghi trên row streak — lock-order nhất quán sau
         // learner_attempts (caller đã lock attempt trước).
         UserLearningStreak s = lockOrCreate(userId, now);
-        s.advanceTo(studyDate, now);
+        UserLearningStreak.AdvanceResult result = s.advanceTo(studyDate, now);
         streaks.save(s);
-        log.info("streak advance user={} date={} current={} longest={}",
-                userId, studyDate, s.getCurrentStreak(), s.getLongestStreak());
+        if (!result.dayRecorded()) {
+            // Không thể xảy ra (ledger insertIgnore vừa thắng → ngày mới),
+            // nhưng phòng thủ: không grant khi advance no-op.
+            return null;
+        }
+
+        // Ngày bỏ lỡ vừa được khiên cứu → ghi ledger SHIELD_PROTECTED để
+        // calendar đánh dấu 🛡️. insertIgnore: nếu một tx khác đã ghi ngày
+        // đó là STUDY (race hai thiết bị), STUDY thắng — không ghi đè.
+        if (result.shieldConsumed() && result.protectedDate() != null) {
+            days.insertIgnore(userId, result.protectedDate(), lessonId,
+                    attemptId, completedAtUtc,
+                    UserLearningStreakDay.DAY_TYPE_SHIELD_PROTECTED,
+                    0, 0, null, now);
+            log.info("streak shield consumed user={} protected={} "
+                            + "shields_left={} streak={}",
+                    userId, result.protectedDate(), s.getShieldCount(),
+                    s.getCurrentStreak());
+        }
+
+        // Thưởng chuỗi — chỉ ngày học thực, tính trên current_streak sau
+        // advance (chuỗi được khiên cứu vẫn cộng bình thường).
+        int current = s.getCurrentStreak();
+        List<StreakRewardPolicy.Grant> grants =
+                StreakRewardPolicyHolder.grantsFor(
+                        userId, studyDate, current);
+        int bonusExp = 0;
+        int bonusPoints = 0;
+        for (StreakRewardPolicy.Grant g : grants) {
+            int inserted = rewards.insertIgnore(userId, attemptId,
+                    g.rewardType(), g.amount(), g.reason(),
+                    StreakRewardPolicy.causeKey(userId, studyDate,
+                            g.rewardType(), g.bucket()));
+            if (inserted > 0) {
+                if (com.dauviet.reward.domain.RewardTransaction.TYPE_EXP
+                        .equals(g.rewardType())) {
+                    bonusExp += (int) g.amount();
+                } else {
+                    bonusPoints += (int) g.amount();
+                }
+            }
+        }
+        Integer milestone = StreakRewardPolicy.milestoneOf(current);
+        // Đắp reward vào row ledger vừa ghi — audit sau này.
+        if (bonusExp > 0 || bonusPoints > 0 || milestone != null) {
+            days.updateReward(userId, studyDate, bonusExp, bonusPoints,
+                    milestone);
+        }
+        log.info("streak advance user={} date={} current={} longest={} "
+                        + "bonusExp={} bonusPoints={} milestone={}",
+                userId, studyDate, current, s.getLongestStreak(),
+                bonusExp, bonusPoints, milestone);
         return new CompleteAttemptResponse.StreakInfo(true,
-                s.getCurrentStreak(), s.getLongestStreak(), studyDate, now);
+                current, s.getLongestStreak(), studyDate, now,
+                result.shieldConsumed(), s.getShieldCount(),
+                bonusExp, bonusPoints, milestone);
+    }
+
+    /**
+     * Đổi 20 Điểm Sử Ký lấy 1 Khiên Bảo Vệ Chuỗi — idempotent qua
+     * Idempotency-Key bắt buộc (một key = một giao dịch).
+     *
+     * <p>Thứ tự trong tx: lock streak row (lazy-create) → check capacity
+     * → wallet.debit → addShield → save. Debit throw thì rollback cả
+     * increment; shieldCount kiểm tra DƯỚI lock nên hai request concurrent
+     * không thể vượt MAX_SHIELDS.
+     *
+     * @return shieldCount mới + balance sau debit
+     */
+    @Transactional(propagation = Propagation.REQUIRED)
+    public StreakShieldPurchaseResponse buyShield(UUID userId,
+                                                  String idempotencyKey) {
+        return idempotency.execute(userId, OP_SHIELD_PURCHASE,
+                idempotencyKey, "shield=1",
+                () -> doBuyShield(userId, idempotencyKey),
+                StreakShieldPurchaseResponse.class);
+    }
+
+    private StreakShieldPurchaseResponse doBuyShield(UUID userId,
+                                                     String idempotencyKey) {
+        Instant now = Instant.now(clock);
+        UserLearningStreak s = lockOrCreate(userId, now);
+        if (s.getShieldCount() >= UserLearningStreak.MAX_SHIELDS) {
+            throw new StreakExceptions.ShieldAtMaxCapacityException(
+                    s.getShieldCount(), UserLearningStreak.MAX_SHIELDS);
+        }
+        long balanceAfter = wallet.debit(userId, SHIELD_COST_POINTS,
+                WalletTransaction.REASON_STREAK_SHIELD_PURCHASE,
+                "STREAK_SHIELD:" + idempotencyKey,
+                "streak-shield");
+        s.addShield(now);
+        streaks.save(s);
+        log.info("streak shield purchased user={} shields={} balance={}",
+                userId, s.getShieldCount(), balanceAfter);
+        return new StreakShieldPurchaseResponse(s.getShieldCount(),
+                UserLearningStreak.MAX_SHIELDS, SHIELD_COST_POINTS,
+                balanceAfter, now);
     }
 
     /**
      * Trạng thái streak hiện tại cho GET /me/streak — đọc-only, KHÔNG ghi
-     * DB (đúng contract: "Đọc API không được âm thầm sửa trạng thái").
-     * Lazy-create ở đây không áp — user mới chưa học trả bộ default
-     * (current=0, alive=false).
+     * DB. Lazy-create ở đây không áp — user mới chưa học trả bộ default.
      */
     @Transactional(readOnly = true)
     public LearningStreakResponse stateOf(UUID userId) {
@@ -125,16 +248,10 @@ public class LearningStreakService {
         LocalDate today = LocalDate.ofInstant(now, TZ_HCM);
         UserLearningStreak s = streaks.findById(userId).orElse(null);
 
-        // STREAK contract: chuỗi HIỆU LỰC tại thời điểm GET — khác với
-        // current_streak lưu trong aggregate. Aggregate giữ giá trị lần ghi
-        // cuối; nếu user đã bỏ lỡ trọn ≥1 ngày (last < hôm qua VN) thì chuỗi
-        // thực tế đã ngắt → trả 0, longest giữ nguyên. KHÔNG ghi reset vào DB
-        // ở đây (read-only); lần complete tiếp theo advanceTo() sẽ đặt
-        // current=1 tự nhiên. Quy tắc:
-        //   last == null        → chưa học         → 0
-        //   last == today       → đã học hôm nay   → sống, giữ aggregate
-        //   last == today - 1   → học hôm qua      → còn cửa, giữ aggregate
-        //   last < today - 1    → bỏ lỡ trọn ngày  → chuỗi ngắt → 0
+        // STRK contract: chuỗi HIỆU LỰC tại thời điểm GET — aggregate giữ
+        // giá trị lần ghi cuối; last < hôm qua VN → chuỗi thực tế đã ngắt
+        // → trả 0, longest giữ nguyên. KHÔNG ghi reset ở đây (read-only);
+        // advanceTo() lần complete tiếp theo đặt current=1 đúng luật.
         LocalDate last = s == null ? null : s.getLastQualifiedDate();
         boolean completedToday = last != null && last.equals(today);
         boolean streakAlive = last != null
@@ -143,15 +260,23 @@ public class LearningStreakService {
                 ? 0
                 : s.getCurrentStreak();
         int longest = s == null ? 0 : s.getLongestStreak();
+        int shieldCount = s == null ? 0 : s.getShieldCount();
+        // Chuỗi đang có nguy cơ đứt HÔM NAY: học hôm qua nhưng chưa học
+        // hôm nay → nếu không học sẽ vào nhánh shield/reset ở lần sau.
+        boolean atRiskToday = last != null && last.equals(today.minusDays(1));
+        // Khiên sẽ tự cứu NẾU hôm nay không học (bỏ lỡ đúng 1 ngày) —
+        // client hiển thị "yên tâm, khiên sẽ bảo vệ".
+        boolean shieldWillProtectToday = atRiskToday && shieldCount > 0;
 
         return new LearningStreakResponse(effectiveCurrent, longest,
                 completedToday, streakAlive, last, today, TZ_HCM.getId(),
-                now);
+                now, shieldCount, UserLearningStreak.MAX_SHIELDS,
+                SHIELD_COST_POINTS, atRiskToday, shieldWillProtectToday,
+                milestoneDtos());
     }
 
     /**
-     * Lịch sử ngày đã học [from, to] — đọc-only. Giới hạn span để tránh
-     * payload vô hạn; client điều chỉnh window theo viewport (theo tháng).
+     * Lịch sử ngày đã học + ngày được khiên bảo vệ [from, to] — đọc-only.
      */
     @Transactional(readOnly = true)
     public LearningStreakCalendarResponse calendarOf(UUID userId,
@@ -162,14 +287,23 @@ public class LearningStreakService {
             throw new IllegalArgumentException(
                     "invalid range: from must be <= to");
         }
-        if (to.isBefore(from.plusDays(0))
-                || java.time.temporal.ChronoUnit.DAYS.between(from, to)
-                        > CALENDAR_MAX_DAYS) {
+        if (java.time.temporal.ChronoUnit.DAYS.between(from, to)
+                > CALENDAR_MAX_DAYS) {
             to = from.plusDays(CALENDAR_MAX_DAYS);
         }
         List<LocalDate> list = days.findDatesBetween(userId, from, to);
+        List<LocalDate> protectedDates =
+                days.findProtectedDatesBetween(userId, from, to);
         return new LearningStreakCalendarResponse(from, to, TZ_HCM.getId(),
-                list, now);
+                list, protectedDates, now);
+    }
+
+    /** Bảng mốc thưởng tĩnh cho response — client không hard-code. */
+    private static List<StreakMilestoneDto> milestoneDtos() {
+        return StreakRewardPolicy.MILESTONES.stream()
+                .map(m -> new StreakMilestoneDto(m.day(), m.bonusExp(),
+                        m.bonusPoints()))
+                .toList();
     }
 
     /**
@@ -186,5 +320,15 @@ public class LearningStreakService {
                             "user_learning_streaks insert lost for " + userId));
         }
         return s;
+    }
+
+    /** Giữ policy ở một nơi test được mà không inject bean (static table). */
+    private static final class StreakRewardPolicyHolder {
+        static List<StreakRewardPolicy.Grant> grantsFor(UUID userId,
+                                                        LocalDate studyDate,
+                                                        int currentStreak) {
+            return new StreakRewardPolicy().grantsFor(userId, studyDate,
+                    currentStreak);
+        }
     }
 }
