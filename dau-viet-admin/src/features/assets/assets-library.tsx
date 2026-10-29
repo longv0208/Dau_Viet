@@ -9,13 +9,14 @@ import { toUserMessage } from "@/lib/api-error";
 import type { PageResponse } from "@/lib/dto/common";
 import type { AdminAsset } from "@/lib/dto/evidence";
 import { qk } from "@/lib/query-keys";
+import { EmptyStateCard } from "@/components/atoms/empty-state-card";
+import { PaperCard } from "@/components/atoms/paper-card";
+import { SectionDivider } from "@/components/atoms/section-divider";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Skeleton } from "@/components/ui/skeleton";
 import { ErrorState } from "@/components/error-state";
-import { EmptyState } from "@/components/empty-state";
-
 import { uploadAsset, validateAssetFile } from "./asset-api";
 import { AssetCard } from "./asset-card";
 import { AssetPreviewDialog } from "./asset-preview-dialog";
@@ -73,9 +74,16 @@ export function AssetsLibrary() {
 
   return (
     <div className="flex flex-col gap-4">
-      <div className="flex flex-wrap items-end gap-3 rounded-md border border-border bg-white p-4">
-        <div className="flex min-w-64 flex-1 flex-col gap-1.5">
-          <Label htmlFor="assetAlt">Mô tả ảnh</Label>
+      <PaperCard className="p-5">
+        <SectionDivider
+          eyebrow="TẢI LÊN"
+          eyebrowColor="jade"
+          title="Thêm ảnh vào thư viện"
+          className="mb-4"
+        />
+        <div className="flex flex-wrap items-end gap-3">
+          <div className="flex min-w-64 flex-1 flex-col gap-1.5">
+            <Label htmlFor="assetAlt" className="font-medium text-ink-secondary">Mô tả ảnh</Label>
           <Input
             id="assetAlt"
             value={altText}
@@ -104,7 +112,8 @@ export function AssetsLibrary() {
           </Button>
           <p className="mt-1 text-xs text-ink-muted">PNG, JPEG hoặc WebP — tối đa 10&nbsp;MB.</p>
         </div>
-      </div>
+        </div>
+      </PaperCard>
 
       <form
         onSubmit={(e) => {
@@ -140,7 +149,7 @@ export function AssetsLibrary() {
       )}
       {query.isError && <ErrorState error={query.error} onRetry={() => query.refetch()} />}
       {query.isSuccess && items.length === 0 && (
-        <EmptyState
+        <EmptyStateCard
           title="Chưa có ảnh nào trong thư viện"
           description="Tải ảnh lên để tái sử dụng trong nhiều bài học."
         />

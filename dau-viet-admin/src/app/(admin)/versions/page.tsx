@@ -20,7 +20,7 @@ export default async function VersionsPage({
   const { lesson } = await searchParams;
   return (
     <div className="flex flex-col gap-4">
-      <PageHeader title="Phiên bản" />
+      <PageHeader eyebrow="QUẢN TRỊ · PHIÊN BẢN" title="Phiên bản" />
       <Suspense fallback={<Skeleton className="h-64 w-full" />}>
         <VersionsBrowser initialLessonId={lesson} />
       </Suspense>

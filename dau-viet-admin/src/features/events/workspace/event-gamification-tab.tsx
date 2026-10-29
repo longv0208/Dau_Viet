@@ -14,8 +14,9 @@ import type {
   AdminPolicyValidation,
 } from "@/lib/dto/gamification";
 import { qk } from "@/lib/query-keys";
+import { PaperCard } from "@/components/atoms/paper-card";
+import { SectionDivider } from "@/components/atoms/section-divider";
 import { Button } from "@/components/ui/button";
-import { Card } from "@/components/ui/card";
 import { ErrorState } from "@/components/error-state";
 import { Skeleton } from "@/components/ui/skeleton";
 import { ConfirmDialog } from "@/components/confirm-dialog";
@@ -226,26 +227,26 @@ export function EventGamificationTab({ event }: { event: AdminEventDetail }) {
 
       {/* ---------- Section 1: completion policy ---------- */}
       <section className="flex flex-col gap-3">
-        <div className="flex items-center justify-between">
-          <div>
-            <h2 className="font-display text-lg font-semibold text-ink">
-              Chính sách hoàn thành sự kiện
-            </h2>
-            <p className="text-sm text-ink-muted">
-              {published
-                ? `Đang áp dụng v${published.policyVersion} — ngưỡng mastered ${
-                    published.masteryThreshold ?? "—"
-                  }`
-                : "Chưa cấu hình — sự kiện chưa đánh giá hoàn thành."}
-            </p>
-          </div>
-          {draft == null && editing == null && (
-            <Button onClick={() => setEditing("new")}>Tạo bản nháp</Button>
-          )}
-        </div>
+        <SectionDivider
+          eyebrow="GAMIFICATION"
+          eyebrowColor="brand"
+          title="Chính sách hoàn thành sự kiện"
+          description={
+            published
+              ? `Đang áp dụng v${published.policyVersion} — ngưỡng mastered ${
+                  published.masteryThreshold ?? "—"
+                }`
+              : "Chưa cấu hình — sự kiện chưa đánh giá hoàn thành."
+          }
+          action={
+            draft == null && editing == null ? (
+              <Button onClick={() => setEditing("new")}>Tạo bản nháp</Button>
+            ) : undefined
+          }
+        />
 
         {editing != null && (
-          <Card className="p-4">
+          <PaperCard className="p-4">
             <h3 className="mb-3 text-sm font-semibold text-ink">
               {editing === "new"
                 ? `Bản nháp v${(policies.data?.[0]?.policyVersion ?? 0) + 1}`
@@ -269,7 +270,7 @@ export function EventGamificationTab({ event }: { event: AdminEventDetail }) {
                 Lưu bản nháp trước để chạy kiểm tra và xuất bản.
               </p>
             )}
-          </Card>
+          </PaperCard>
         )}
 
         <PolicyList
@@ -297,41 +298,39 @@ export function EventGamificationTab({ event }: { event: AdminEventDetail }) {
 
       {/* ---------- Section 2: dossier links ---------- */}
       <section className="flex flex-col gap-3">
-        <div className="flex items-center justify-between">
-          <div>
-            <h2 className="font-display text-lg font-semibold text-ink">
-              Hồ sơ liên kết
-            </h2>
-            <p className="text-sm text-ink-muted">
-              Learner mở khoá khi hoàn thành sự kiện — chỉ hồ sơ PUBLISHED.
-            </p>
-          </div>
-          <div className="flex gap-2">
-            {dirty && (
-              <>
-                <Button
-                  disabled={saveLinks.isPending}
-                  onClick={() =>
-                    saveLinks.mutate(
-                      effectiveLinks.map((l) => ({
-                        dossierId: l.dossierId,
-                        displayOrder: l.displayOrder,
-                      })),
-                    )
-                  }
-                >
-                  {saveLinks.isPending ? "Đang lưu…" : "Lưu thay đổi"}
-                </Button>
-                <Button variant="secondary" onClick={() => setLocalLinks(null)}>
-                  Huỷ
-                </Button>
-              </>
-            )}
-            <Button variant="secondary" onClick={() => setPickerOpen(true)}>
-              Liên kết hồ sơ
-            </Button>
-          </div>
-        </div>
+        <SectionDivider
+          eyebrow="HỒ SƠ NHÂN VẬT"
+          eyebrowColor="jade"
+          title="Hồ sơ liên kết"
+          description="Learner mở khoá khi hoàn thành sự kiện — chỉ hồ sơ PUBLISHED."
+          action={
+            <div className="flex gap-2">
+              {dirty && (
+                <>
+                  <Button
+                    disabled={saveLinks.isPending}
+                    onClick={() =>
+                      saveLinks.mutate(
+                        effectiveLinks.map((l) => ({
+                          dossierId: l.dossierId,
+                          displayOrder: l.displayOrder,
+                        })),
+                      )
+                    }
+                  >
+                    {saveLinks.isPending ? "Đang lưu…" : "Lưu thay đổi"}
+                  </Button>
+                  <Button variant="secondary" onClick={() => setLocalLinks(null)}>
+                    Huỷ
+                  </Button>
+                </>
+              )}
+              <Button variant="secondary" onClick={() => setPickerOpen(true)}>
+                Liên kết hồ sơ
+              </Button>
+            </div>
+          }
+        />
         <DossierLinkTable
           rows={effectiveLinks}
           onMove={moveLink}

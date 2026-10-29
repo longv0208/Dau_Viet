@@ -1,13 +1,17 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
+import '../../../../core/theme/dau_viet_colors.dart';
 import '../../../../core/theme/dau_viet_typography.dart';
+import '../../../../core/widgets/section_eyebrow.dart';
+import '../../../../core/widgets/stamp_seal_badge.dart';
+import '../../../../core/widgets/tactile_card.dart';
 import '../../data/attempt_dtos.dart';
 import 'renderer_base.dart';
 
-/// MATCHING — Hoạt động ghép cặp kiến thức (Screen 3 chuẩn UI/UX Pro Max)
-/// Hiển thị cột trái các nhân vật/hiện vật với tranh chân dung nhỏ,
-/// cột phải là các thông tin mô tả kèm điểm neo nối trực quan.
+/// MATCHING — Hoạt động ghép cặp kiến thức: 2 cột (left/right) dùng
+/// [TactileCard] mini, trạng thái đang chọn viền `jade` 2px, cặp đã ghép đóng
+/// dấu [StampSealBadge.success] kèm viền `natureGreen`.
 class MatchingRenderer extends StatefulWidget {
   final ActivityRefDto activity;
   final bool submitting;
@@ -136,19 +140,21 @@ class _MatchingRendererState extends State<MatchingRenderer> {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
+        const Align(
+          alignment: Alignment.centerLeft,
+          child: SectionEyebrow('GHÉP NỐI · KẾT NỐI DẤU VẾT'),
+        ),
+        const SizedBox(height: 8),
         Padding(
-          padding: const EdgeInsets.symmetric(vertical: 8, horizontal: 4),
+          padding: const EdgeInsets.symmetric(vertical: 4, horizontal: 2),
           child: Text(
             'Ghép mỗi nhân vật, hiện vật với thông tin phù hợp',
-            textAlign: TextAlign.center,
-            style: DauVietTypography.headlineMedium.copyWith(
-              fontSize: 16.5,
-              fontWeight: FontWeight.w800,
-              color: const Color(0xFF1F2421),
+            style: DauVietTypography.headlineSmall.copyWith(
+              color: DauVietColors.inkHeading,
             ),
           ),
         ),
-        const SizedBox(height: 6),
+        const SizedBox(height: 8),
         // Danh sách các hàng ghép đôi: 2 thẻ nối chạy lên ngang hàng nhau, tự co giãn theo độ dài văn bản
         for (var i = 0; i < rowCount; i++) ...[
           _buildMatchRow(
@@ -167,8 +173,8 @@ class _MatchingRendererState extends State<MatchingRenderer> {
           textAlign: TextAlign.center,
           style: DauVietTypography.bodySmall.copyWith(
             color: _pairs.length == left.length
-                ? const Color(0xFF2D6A4F)
-                : const Color(0xFF75807A),
+                ? DauVietColors.natureGreen
+                : DauVietColors.inkMuted,
             fontWeight: _pairs.length == left.length
                 ? FontWeight.w800
                 : FontWeight.w600,
@@ -224,11 +230,13 @@ class _MatchingRendererState extends State<MatchingRenderer> {
                     data: leftId,
                     maxSimultaneousDrags: locked ? 0 : 1,
                     feedback: Material(
-                      color: Colors.transparent,
+                      color: DauVietColors.paperCard,
+                      borderRadius: BorderRadius.circular(12),
+                      elevation: 6,
                       child: ConstrainedBox(
                         constraints: const BoxConstraints(maxWidth: 160),
                         child: Opacity(
-                          opacity: 0.92,
+                          opacity: 0.94,
                           child: _LeftMatchCard(
                             label:
                                 (leftItem['label'] ??
@@ -341,8 +349,8 @@ class _ConnectorDot extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final Color dotColor = isPaired
-        ? const Color(0xFF2D6A4F)
-        : (isActive ? const Color(0xFFC2410C) : const Color(0xFFD8C8B0));
+        ? DauVietColors.natureGreen
+        : (isActive ? DauVietColors.jade : DauVietColors.outlineVariant);
 
     return SizedBox(
       width: 22,
@@ -353,15 +361,7 @@ class _ConnectorDot extends StatelessWidget {
           decoration: BoxDecoration(
             shape: BoxShape.circle,
             color: dotColor,
-            boxShadow: isPaired
-                ? [
-                    BoxShadow(
-                      color: const Color(0xFF2D6A4F).withValues(alpha: 0.35),
-                      blurRadius: 4,
-                      offset: const Offset(0, 1),
-                    ),
-                  ]
-                : null,
+            boxShadow: isPaired ? DauVietColors.pixelShadowSm : null,
           ),
         ),
       ),
@@ -390,16 +390,13 @@ class _LeftMatchCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    Color bg = Colors.white;
-    Color border = const Color(0xFFE5DAC6);
-
-    if (paired) {
-      bg = const Color(0xFFF0FDF4);
-      border = const Color(0xFF2D6A4F);
-    } else if (selected) {
-      bg = const Color(0xFFFFF3E0);
-      border = const Color(0xFFE65100);
-    }
+    final Color bg = (paired || selected)
+        ? DauVietColors.paperCardHi
+        : DauVietColors.paperCard;
+    final Color border = paired
+        ? DauVietColors.natureGreen
+        : (selected ? DauVietColors.jade : DauVietColors.outlineVariant);
+    final double borderWidth = (paired || selected) ? 2.0 : 1.4;
 
     final bool narrowScreen = MediaQuery.sizeOf(context).width < 380;
     final double thumbSize = (narrowScreen && imageAsset == null) ? 28 : 36;
@@ -409,30 +406,18 @@ class _LeftMatchCard extends StatelessWidget {
       selected: selected || paired,
       enabled: enabled,
       label: label,
-      child: InkWell(
+      child: TactileCard(
+        padding: const EdgeInsets.all(10),
+        borderRadius: 12,
+        backgroundColor: bg,
+        borderColor: border,
+        borderWidth: borderWidth,
+        enabled: enabled,
         onTap: enabled ? onTap : null,
-        borderRadius: BorderRadius.circular(14),
-        child: Container(
-          constraints: const BoxConstraints(minHeight: 58),
-          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 8),
-          decoration: BoxDecoration(
-            color: bg,
-            borderRadius: BorderRadius.circular(14),
-            border: Border.all(
-              color: border,
-              width: (selected || paired) ? 1.8 : 1.2,
-            ),
-            boxShadow: [
-              BoxShadow(
-                color: const Color(0xFF8B4513).withValues(alpha: 0.05),
-                blurRadius: 6,
-                offset: const Offset(0, 2),
-              ),
-            ],
-          ),
+        child: ConstrainedBox(
+          constraints: const BoxConstraints(minHeight: 44),
           child: Row(
             children: [
-              // Ảnh nhân vật/hiện vật hoặc icon thay thế
               ClipRRect(
                 borderRadius: BorderRadius.circular(8),
                 child: SizedBox(
@@ -456,11 +441,15 @@ class _LeftMatchCard extends StatelessWidget {
                         ? FontWeight.w800
                         : FontWeight.w600,
                     fontSize: 13,
-                    color: const Color(0xFF1F2421),
+                    color: DauVietColors.inkText,
                     height: 1.35,
                   ),
                 ),
               ),
+              if (paired) ...[
+                const SizedBox(width: 6),
+                const StampSealBadge.success('✓', size: 24),
+              ],
             ],
           ),
         ),
@@ -470,11 +459,11 @@ class _LeftMatchCard extends StatelessWidget {
 
   Widget _fallbackIcon() {
     return Container(
-      color: const Color(0xFFF5EEDB),
+      color: DauVietColors.paperCardHi,
       child: const Icon(
         Icons.account_balance_rounded,
         size: 20,
-        color: Color(0xFFB45309),
+        color: DauVietColors.imperialGoldDark,
       ),
     );
   }
@@ -499,52 +488,49 @@ class _RightMatchCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    Color bg = Colors.white;
-    Color border = const Color(0xFFE5DAC6);
-
-    if (paired) {
-      bg = const Color(0xFFF0FDF4);
-      border = const Color(0xFF2D6A4F);
-    } else if (selected) {
-      bg = const Color(0xFFFFF3E0);
-      border = const Color(0xFFE65100);
-    }
+    final Color bg = (paired || selected)
+        ? DauVietColors.paperCardHi
+        : DauVietColors.paperCard;
+    final Color border = paired
+        ? DauVietColors.natureGreen
+        : (selected ? DauVietColors.jade : DauVietColors.outlineVariant);
+    final double borderWidth = (paired || selected) ? 2.0 : 1.4;
 
     return Semantics(
       button: true,
       selected: selected || paired,
       enabled: enabled,
       label: label,
-      child: InkWell(
+      child: TactileCard(
+        padding: const EdgeInsets.all(10),
+        borderRadius: 12,
+        backgroundColor: bg,
+        borderColor: border,
+        borderWidth: borderWidth,
+        enabled: enabled,
         onTap: enabled ? onTap : null,
-        borderRadius: BorderRadius.circular(14),
-        child: Container(
-          constraints: const BoxConstraints(minHeight: 58),
-          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
-          decoration: BoxDecoration(
-            color: bg,
-            borderRadius: BorderRadius.circular(14),
-            border: Border.all(
-              color: border,
-              width: (paired || selected) ? 1.8 : 1.2,
-            ),
-            boxShadow: [
-              BoxShadow(
-                color: const Color(0xFF8B4513).withValues(alpha: 0.05),
-                blurRadius: 6,
-                offset: const Offset(0, 2),
+        child: ConstrainedBox(
+          constraints: const BoxConstraints(minHeight: 44),
+          child: Row(
+            children: [
+              Expanded(
+                child: Text(
+                  label,
+                  style: DauVietTypography.bodySmall.copyWith(
+                    fontWeight: paired ? FontWeight.w700 : FontWeight.w500,
+                    fontSize: 13,
+                    color: paired
+                        ? DauVietColors.heritageGreen
+                        : DauVietColors.inkSecondary,
+                    height: 1.35,
+                  ),
+                ),
               ),
+              if (paired) ...[
+                const SizedBox(width: 6),
+                const StampSealBadge.success('✓', size: 24),
+              ],
             ],
-          ),
-          alignment: Alignment.centerLeft,
-          child: Text(
-            label,
-            style: DauVietTypography.bodySmall.copyWith(
-              fontWeight: paired ? FontWeight.w700 : FontWeight.w500,
-              fontSize: 13,
-              color: paired ? const Color(0xFF1B4332) : const Color(0xFF3D4842),
-              height: 1.35,
-            ),
           ),
         ),
       ),

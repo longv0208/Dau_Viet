@@ -2,6 +2,10 @@ import 'package:flutter/material.dart';
 
 import '../../../../core/theme/dau_viet_colors.dart';
 import '../../../../core/theme/dau_viet_typography.dart';
+import '../../../../core/widgets/dong_son_button.dart';
+import '../../../../core/widgets/section_eyebrow.dart';
+import '../../../../core/widgets/stamp_seal_badge.dart';
+import '../../../../core/widgets/tactile_card.dart';
 import '../../data/attempt_dtos.dart';
 import '../../data/learning_dtos.dart';
 import 'learning_asset_image.dart';
@@ -36,6 +40,7 @@ class ViewImageRenderer extends StatelessWidget {
     final String? caption = configText(config, [
       'caption',
       'description',
+      'alt',
       'source',
     ]);
     // Gợi ý quan sát: câu hỏi dẫn learner nhìn kỹ chi tiết ảnh.
@@ -60,32 +65,50 @@ class ViewImageRenderer extends StatelessWidget {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
-        ActivityCard(
+        TactileCard(
           padding: const EdgeInsets.all(10),
+          borderWidth: 2.4,
+          borderColor: DauVietColors.inkHeading,
+          usePixelShadow: true,
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
-              if (assetId != null)
-                LearningAssetImage(
-                  assetId: assetId,
-                  altText: alt,
-                  height: 240,
-                  fit: BoxFit.cover,
-                  tappable: !submitting,
-                )
-              else
-                _NoImage(altText: alt),
-              if (caption != null)
-                Padding(
-                  padding: const EdgeInsets.only(top: 10),
-                  child: Text(
-                    caption,
-                    style: DauVietTypography.bodySmall.copyWith(
-                      fontStyle: FontStyle.italic,
-                      height: 1.45,
+              Stack(
+                children: [
+                  if (assetId != null)
+                    LearningAssetImage(
+                      assetId: assetId,
+                      altText: alt,
+                      height: 240,
+                      fit: BoxFit.cover,
+                      tappable: !submitting,
+                    )
+                  else
+                    _NoImage(altText: alt),
+                  const Positioned(
+                    top: 8,
+                    right: 8,
+                    child: IgnorePointer(
+                      child: StampSealBadge('XEM', size: 32),
                     ),
                   ),
+                ],
+              ),
+              if (caption != null) ...[
+                const SizedBox(height: 10),
+                const Align(
+                  alignment: Alignment.centerLeft,
+                  child: SectionEyebrow('HIỆN VẬT'),
                 ),
+                const SizedBox(height: 6),
+                Text(
+                  caption,
+                  style: DauVietTypography.bodySmall.copyWith(
+                    fontStyle: FontStyle.italic,
+                    height: 1.45,
+                  ),
+                ),
+              ],
               if (attribution != null && attribution.isNotEmpty)
                 Padding(
                   padding: const EdgeInsets.only(top: 4),
@@ -97,12 +120,23 @@ class ViewImageRenderer extends StatelessWidget {
                     ),
                   ),
                 ),
+              const SizedBox(height: 10),
+              DongSonButton(
+                label: 'Soi chi tiết',
+                icon: Icons.zoom_in,
+                variant: DongSonButtonVariant.secondaryParchment,
+                height: 44,
+                onPressed: submitting
+                    ? null
+                    : () => _openZoomDialog(context, assetId, alt),
+              ),
             ],
           ),
         ),
         if (observePrompt != null) ...[
           const SizedBox(height: 10),
-          ActivityCard(
+          TactileCard(
+            usePixelShadow: false,
             padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
             child: Row(
               crossAxisAlignment: CrossAxisAlignment.start,
@@ -137,6 +171,45 @@ class ViewImageRenderer extends StatelessWidget {
       ],
     );
   }
+
+  void _openZoomDialog(BuildContext context, String? assetId, String alt) {
+    showDialog<void>(
+      context: context,
+      builder: (ctx) => Dialog.fullscreen(
+        backgroundColor: DauVietColors.inkText.withValues(alpha: 0.92),
+        child: Stack(
+          children: [
+            Positioned.fill(
+              child: InteractiveViewer(
+                minScale: 0.5,
+                maxScale: 4.0,
+                child: Center(
+                  child: assetId != null
+                      ? LearningAssetImage(
+                          assetId: assetId,
+                          altText: alt,
+                          fit: BoxFit.contain,
+                          tappable: false,
+                        )
+                      : _NoImage(altText: alt),
+                ),
+              ),
+            ),
+            SafeArea(
+              child: Align(
+                alignment: Alignment.topRight,
+                child: IconButton(
+                  icon: const Icon(Icons.close_rounded, color: Colors.white),
+                  tooltip: 'Đóng',
+                  onPressed: () => Navigator.of(ctx).pop(),
+                ),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
 }
 
 class _NoImage extends StatelessWidget {
@@ -149,7 +222,7 @@ class _NoImage extends StatelessWidget {
       height: 200,
       alignment: Alignment.center,
       decoration: BoxDecoration(
-        color: DauVietColors.parchmentContainer.withValues(alpha: 0.5),
+        color: DauVietColors.paperCardHi.withValues(alpha: 0.5),
         borderRadius: BorderRadius.circular(10),
         border: Border.all(color: DauVietColors.outlineVariant),
       ),

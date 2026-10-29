@@ -5,10 +5,17 @@ import '../../../core/api/api_config.dart';
 import '../../../core/theme/dau_viet_colors.dart';
 import '../../../core/theme/dau_viet_typography.dart';
 import '../../../core/widgets/async_state_view.dart';
+import '../../../core/widgets/chapter_number_badge.dart';
+import '../../../core/widgets/clue_tag.dart';
 import '../../../core/widgets/dong_son_button.dart';
 import '../../../core/widgets/energy_pill.dart';
 import '../../../core/widgets/event_cover_image.dart';
-import '../../../core/widgets/parchment_card.dart';
+import '../../../core/widgets/hero_paper_banner.dart';
+import '../../../core/widgets/paper_grain_overlay.dart';
+import '../../../core/widgets/section_divider.dart';
+import '../../../core/widgets/section_eyebrow.dart';
+import '../../../core/widgets/stamp_seal_badge.dart';
+import '../../../core/widgets/tactile_card.dart';
 import '../../../mock/data/mock_bach_dang_data.dart';
 import '../../../mock/models/lesson_models.dart';
 import '../../events/data/events_providers.dart';
@@ -52,13 +59,13 @@ class CampaignDetailScreen extends ConsumerWidget {
 
   Widget _buildScaffold(BuildContext context, Widget body) {
     return Scaffold(
-      backgroundColor: DauVietColors.parchmentSurface,
+      backgroundColor: DauVietColors.paperBackground,
       body: Container(
         decoration: const BoxDecoration(
           gradient: LinearGradient(
             begin: Alignment.topCenter,
             end: Alignment.bottomCenter,
-            colors: [DauVietColors.parchmentSurface, Color(0xFFFAF2E4)],
+            colors: [DauVietColors.paperBackground, DauVietColors.paperCard],
           ),
         ),
         child: SafeArea(child: Column(children: [_buildTopBar(context), body])),
@@ -146,7 +153,7 @@ class CampaignDetailScreen extends ConsumerWidget {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
       decoration: BoxDecoration(
-        color: DauVietColors.parchmentSurface,
+        color: DauVietColors.paperBackground,
         border: Border(
           bottom: BorderSide(
             color: DauVietColors.outlineVariant.withValues(alpha: 0.5),
@@ -156,27 +163,37 @@ class CampaignDetailScreen extends ConsumerWidget {
       ),
       child: Row(
         children: [
-          IconButton(
-            icon: const Icon(Icons.arrow_back_ios_new_rounded, size: 20),
-            color: DauVietColors.inkText,
-            onPressed: () {
-              if (context.canPop()) {
-                context.pop();
-              } else {
-                context.go('/timeline');
-              }
-            },
+          Semantics(
+            button: true,
+            label: 'Quay lại',
+            child: IconButton(
+              icon: const Icon(Icons.arrow_back_ios_new_rounded, size: 20),
+              color: DauVietColors.inkText,
+              tooltip: 'Quay lại',
+              onPressed: () {
+                if (context.canPop()) {
+                  context.pop();
+                } else {
+                  context.go('/timeline');
+                }
+              },
+            ),
           ),
           const SizedBox(width: 4),
           Expanded(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
+                const SectionEyebrow(
+                  'CHIẾN DỊCH',
+                  padding: EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+                ),
+                const SizedBox(height: 4),
                 Text(
                   'CHI TIẾT CHIẾN DỊCH',
                   style: DauVietTypography.headlineMedium.copyWith(
                     fontSize: 16,
-                    color: DauVietColors.inkText,
+                    color: DauVietColors.inkHeading,
                   ),
                 ),
                 Text(
@@ -205,87 +222,79 @@ class CampaignDetailScreen extends ConsumerWidget {
   // [heroAssetPath] do AssetResolver map từ `coverAssetKey` của backend —
   // null/rỗng → EventCoverImage tự render placeholder (AC-6).
   Widget _buildHeroBanner(BuildContext context, HistoricalEventModel event) {
-    return Container(
-      decoration: BoxDecoration(
-        color: const Color(0xFF2B3A42),
-        borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: DauVietColors.imperialGold, width: 2),
-        boxShadow: DauVietColors.heritageShadow,
-      ),
-      clipBehavior: Clip.antiAlias,
-      child: AspectRatio(
-        aspectRatio: 16 / 9,
-        child: Stack(
-          children: [
-            // Ảnh Hero Banner chiến dịch — từ asset path đã resolve
-            EventCoverImage(
-              assetPath: event.heroBannerUrl,
-              width: double.infinity,
-              height: double.infinity,
-            ),
+    final eyebrowText = event.era.trim().isNotEmpty
+        ? '${event.era} • NĂM ${event.year}'
+        : 'SỰ KIỆN • NĂM ${event.year}';
 
-            // Lớp phủ thông tin chữ vàng trên nền khói sóng
-            Container(
-              padding: const EdgeInsets.all(18),
-              decoration: BoxDecoration(
-                gradient: LinearGradient(
-                  begin: Alignment.topCenter,
-                  end: Alignment.bottomCenter,
-                  colors: [
-                    Colors.transparent,
-                    Colors.black.withValues(alpha: 0.85),
-                  ],
-                ),
-              ),
-              child: Column(
-                mainAxisAlignment: MainAxisAlignment.end,
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Container(
-                    padding: const EdgeInsets.symmetric(
-                      horizontal: 8,
-                      vertical: 3,
-                    ),
-                    decoration: BoxDecoration(
-                      color: DauVietColors.cinnabarRed,
-                      borderRadius: BorderRadius.circular(4),
-                    ),
-                    child: Text(
-                      // Badge/headline dùng metadata event thật — demo
-                      // Bạch Đằng có copy riêng trong mock payload.
-                      'SỰ KIỆN • NĂM ${event.year}',
-                      style: DauVietTypography.labelSmall.copyWith(
-                        color: Colors.white,
-                        fontWeight: FontWeight.w800,
-                        fontSize: 10,
-                      ),
-                    ),
-                  ),
-                  const SizedBox(height: 6),
-                  Text(
-                    event.title,
-                    style: DauVietTypography.headlineMedium.copyWith(
-                      color: DauVietColors.imperialGold,
-                      fontSize: 18,
-                      height: 1.25,
-                    ),
-                  ),
-                  const SizedBox(height: 4),
-                  // Tóm tắt chiến dịch từ backend (HistoricalEventModel.summary)
-                  Text(
-                    event.summary,
-                    maxLines: 2,
-                    overflow: TextOverflow.ellipsis,
-                    style: DauVietTypography.bodySmall.copyWith(
-                      color: const Color(0xFFE2E2E2),
-                      fontSize: 11,
-                    ),
-                  ),
+    return HeroPaperBanner(
+      height: 200,
+      padding: EdgeInsets.zero,
+      showGrain: true,
+      eyebrow: eyebrowText,
+      title: event.title,
+      subtitle: event.summary,
+      child: Stack(
+        fit: StackFit.expand,
+        children: [
+          // Ảnh Hero Banner chiến dịch — từ asset path đã resolve
+          EventCoverImage(
+            assetPath: event.heroBannerUrl,
+            width: double.infinity,
+            height: double.infinity,
+          ),
+
+          // Lớp phủ thông tin chữ vàng trên nền khói sóng
+          DecoratedBox(
+            decoration: BoxDecoration(
+              gradient: LinearGradient(
+                begin: Alignment.topCenter,
+                end: Alignment.bottomCenter,
+                colors: [
+                  DauVietColors.inkHeading.withValues(alpha: 0.08),
+                  DauVietColors.inkHeading.withValues(alpha: 0.88),
                 ],
               ),
             ),
-          ],
-        ),
+          ),
+          const PaperGrainOverlay(opacity: 0.05),
+          Padding(
+            padding: const EdgeInsets.all(18),
+            child: Column(
+              mainAxisAlignment: MainAxisAlignment.end,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                SectionEyebrow(
+                  eyebrowText,
+                  color: DauVietColors.imperialGold,
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 8,
+                    vertical: 3,
+                  ),
+                ),
+                const SizedBox(height: 6),
+                Text(
+                  event.title,
+                  style: DauVietTypography.headlineMedium.copyWith(
+                    color: DauVietColors.imperialGold,
+                    fontSize: 18,
+                    height: 1.25,
+                  ),
+                ),
+                const SizedBox(height: 4),
+                // Tóm tắt chiến dịch từ backend (HistoricalEventModel.summary)
+                Text(
+                  event.summary,
+                  maxLines: 2,
+                  overflow: TextOverflow.ellipsis,
+                  style: DauVietTypography.bodySmall.copyWith(
+                    color: DauVietColors.paperCard,
+                    fontSize: 11,
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ],
       ),
     );
   }
@@ -294,8 +303,9 @@ class CampaignDetailScreen extends ConsumerWidget {
   // Thời gian/Địa bàn lấy từ API (event.year / summary); phần chỉ huy/đối thủ/
   // chi phí chưa có trường backend — giữ copy mô tả cho tới task mở rộng DTO.
   Widget _buildCampaignMetadata(HistoricalEventModel event) {
-    return ParchmentCard(
-      backgroundColor: DauVietColors.parchmentContainer,
+    return TactileCard(
+      usePixelShadow: false,
+      backgroundColor: DauVietColors.paperCard,
       borderColor: DauVietColors.imperialGold,
       borderWidth: 1.5,
       padding: const EdgeInsets.all(16),
@@ -311,12 +321,18 @@ class CampaignDetailScreen extends ConsumerWidget {
             ),
           ),
           const SizedBox(height: 12),
-          _buildMetaRow(Icons.auto_stories_rounded, 'Chiến dịch:', event.title),
+          _buildMetaRow(
+            Icons.auto_stories_rounded,
+            'Chiến dịch:',
+            event.title,
+            iconColor: DauVietColors.heritageGreen,
+          ),
           const SizedBox(height: 8),
           _buildMetaRow(
             Icons.calendar_today_rounded,
             'Niên đại:',
             'Năm ${event.year} • ${event.era}',
+            iconColor: DauVietColors.jade,
           ),
           const SizedBox(height: 8),
           // Địa bàn/Chỉ huy/Đối thủ/Chi phí là copy demo Bạch Đằng — chưa
@@ -326,24 +342,28 @@ class CampaignDetailScreen extends ConsumerWidget {
               Icons.location_on_rounded,
               'Địa bàn:',
               'Cửa sông Bạch Đằng (Quảng Ninh & Hải Phòng)',
+              iconColor: DauVietColors.jade,
             ),
             const SizedBox(height: 8),
             _buildMetaRow(
               Icons.shield_rounded,
               'Chỉ huy Ta:',
               'Tiền Ngô Vương Ngô Quyền (Ái Châu)',
+              iconColor: DauVietColors.heritageGreen,
             ),
             const SizedBox(height: 8),
             _buildMetaRow(
               Icons.dangerous_rounded,
               'Đối thủ:',
               'Vạn sứ quân Nam Hán dưới trướng Lưu Hoằng Tháo',
+              iconColor: DauVietColors.heritageGreen,
             ),
             const SizedBox(height: 8),
             _buildMetaRow(
               Icons.bolt_rounded,
               'Chi phí:',
               '⚡ 20 Thể lực  •  Nhận 150 Điểm Sử Ký + 50 XP',
+              iconColor: DauVietColors.jade,
             ),
           ],
         ],
@@ -351,17 +371,22 @@ class CampaignDetailScreen extends ConsumerWidget {
     );
   }
 
-  Widget _buildMetaRow(IconData icon, String title, String value) {
+  Widget _buildMetaRow(
+    IconData icon,
+    String title,
+    String value, {
+    Color iconColor = DauVietColors.jade,
+  }) {
     return Row(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Icon(icon, size: 16, color: DauVietColors.cinnabarRed),
+        Icon(icon, size: 16, color: iconColor),
         const SizedBox(width: 8),
         Text(
           title,
           style: DauVietTypography.labelSmall.copyWith(
             fontWeight: FontWeight.w700,
-            color: DauVietColors.inkText,
+            color: DauVietColors.inkHeading,
           ),
         ),
         const SizedBox(width: 6),
@@ -379,41 +404,32 @@ class CampaignDetailScreen extends ConsumerWidget {
 
   // Câu hỏi sử học trung tâm
   Widget _buildInquiryQuestionCard(String question) {
-    return Container(
+    return TactileCard(
+      usePixelShadow: false,
+      backgroundColor: DauVietColors.paperCardHi,
+      borderColor: DauVietColors.cinnabarRed,
+      borderWidth: 1.5,
       padding: const EdgeInsets.all(16),
-      decoration: BoxDecoration(
-        color: DauVietColors.cinnabarRed.withValues(alpha: 0.08),
-        borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: DauVietColors.cinnabarRed, width: 1.2),
-      ),
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          const Icon(
-            Icons.help_outline_rounded,
+          const StampSealBadge(
+            '?',
+            size: 40,
             color: DauVietColors.cinnabarRed,
-            size: 24,
           ),
-          const SizedBox(width: 12),
+          const SizedBox(width: 14),
           Expanded(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Text(
-                  'CÂU HỎI TRUNG TÂM BÀI HỌC',
-                  style: DauVietTypography.labelSmall.copyWith(
-                    color: DauVietColors.cinnabarRed,
-                    fontWeight: FontWeight.w800,
-                    letterSpacing: 0.6,
-                  ),
-                ),
-                const SizedBox(height: 6),
+                const SectionEyebrow('CÂU HỎI TRUNG TÂM'),
+                const SizedBox(height: 8),
                 Text(
                   question,
-                  style: DauVietTypography.headlineMedium.copyWith(
-                    fontSize: 15,
+                  style: DauVietTypography.ancientCitation.copyWith(
                     color: DauVietColors.inkText,
-                    height: 1.4,
+                    fontWeight: FontWeight.w600,
                   ),
                 ),
               ],
@@ -429,101 +445,95 @@ class CampaignDetailScreen extends ConsumerWidget {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Text(
-          '4 DẤU VẾT LỊCH SỬ CẦN GIẢI MÃ',
-          style: DauVietTypography.labelSmall.copyWith(
-            color: DauVietColors.inkMuted,
-            fontWeight: FontWeight.w800,
-            letterSpacing: 0.8,
-          ),
+        const SectionDivider(
+          eyebrow: '4 DẤU VẾT',
+          title: 'Dấu vết then chốt',
+          showLine: true,
+          padding: EdgeInsets.only(top: 4, bottom: 12),
         ),
-        const SizedBox(height: 10),
         _buildTraceTile(
-          '1',
-          'Khảo Cổ & Hiện Vật',
-          'Bãi cọc Yên Giang và vũ khí thế kỷ X',
-          Icons.museum_outlined,
-          true,
+          number: '01',
+          category: 'hiện vật',
+          title: 'Khảo Cổ & Hiện Vật',
+          subtitle: 'Bãi cọc Yên Giang và vũ khí thế kỷ X',
+          isAvailable: true,
         ),
         const SizedBox(height: 8),
         _buildTraceTile(
-          '2',
-          'Nhân Vật & Chiến Lược',
-          'Quân mưu Tiền Ngô Vương và thế trận lòng dân',
-          Icons.person_pin_outlined,
-          true,
+          number: '02',
+          category: 'nhân vật',
+          title: 'Nhân Vật & Chiến Lược',
+          subtitle: 'Quân mưu Tiền Ngô Vương và thế trận lòng dân',
+          isAvailable: true,
         ),
         const SizedBox(height: 8),
         _buildTraceTile(
-          '3',
-          'Sa Bàn Tác Chiến',
-          'Nhịp con nước thủy triều và kế đóng cọc ngầm',
-          Icons.military_tech_outlined,
-          true,
+          number: '03',
+          category: 'địa hình',
+          title: 'Sa Bàn Tác Chiến',
+          subtitle: 'Nhịp con nước thủy triều và kế đóng cọc ngầm',
+          isAvailable: true,
         ),
         const SizedBox(height: 8),
         _buildTraceTile(
-          '4',
-          'Di Sản & Ý Nghĩa',
-          'Dấu mốc son chấm dứt một thiên niên kỷ Bắc thuộc',
-          Icons.auto_stories_outlined,
-          false,
+          number: '04',
+          category: 'cổ thư',
+          title: 'Di Sản & Ý Nghĩa',
+          subtitle: 'Dấu mốc son chấm dứt một thiên niên kỷ Bắc thuộc',
+          isAvailable: false,
         ),
       ],
     );
   }
 
-  Widget _buildTraceTile(
-    String number,
-    String title,
-    String subtitle,
-    IconData icon,
-    bool isAvailable,
-  ) {
-    return Container(
+  Widget _buildTraceTile({
+    required String number,
+    required String category,
+    required String title,
+    required String subtitle,
+    required bool isAvailable,
+  }) {
+    return TactileCard(
+      usePixelShadow: false,
       padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
-      decoration: BoxDecoration(
-        color: Colors.white.withValues(alpha: 0.8),
-        borderRadius: BorderRadius.circular(10),
-        border: Border.all(
-          color: isAvailable
-              ? DauVietColors.imperialGold
-              : DauVietColors.outlineVariant,
-          width: 1,
-        ),
-      ),
+      backgroundColor: isAvailable
+          ? DauVietColors.paperCard
+          : DauVietColors.paperDim,
+      borderColor: isAvailable
+          ? DauVietColors.imperialGold
+          : DauVietColors.outlineVariant,
+      borderWidth: 1.2,
       child: Row(
         children: [
-          Container(
-            width: 28,
-            height: 28,
-            decoration: BoxDecoration(
-              shape: BoxShape.circle,
-              color: isAvailable
-                  ? DauVietColors.cinnabarRed
-                  : DauVietColors.outlineVariant,
-            ),
-            alignment: Alignment.center,
-            child: Text(
-              number,
-              style: const TextStyle(
-                color: Colors.white,
-                fontWeight: FontWeight.bold,
-                fontSize: 13,
-              ),
-            ),
+          ChapterNumberBadge(
+            number,
+            size: 36,
+            filled: isAvailable,
+            color: isAvailable
+                ? DauVietColors.chapterGreen
+                : DauVietColors.inkMuted,
           ),
           const SizedBox(width: 12),
           Expanded(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Text(
-                  title,
-                  style: DauVietTypography.labelMedium.copyWith(
-                    fontWeight: FontWeight.w700,
-                  ),
+                Wrap(
+                  spacing: 6,
+                  runSpacing: 4,
+                  crossAxisAlignment: WrapCrossAlignment.center,
+                  children: [
+                    ClueTag.category(category),
+                    Text(
+                      title,
+                      style: DauVietTypography.labelMedium.copyWith(
+                        fontWeight: FontWeight.w700,
+                        color: DauVietColors.inkHeading,
+                      ),
+                    ),
+                  ],
                 ),
+                const SizedBox(height: 4),
                 Text(
                   subtitle,
                   style: DauVietTypography.bodySmall.copyWith(
@@ -534,13 +544,10 @@ class CampaignDetailScreen extends ConsumerWidget {
               ],
             ),
           ),
-          Icon(
-            icon,
-            size: 20,
-            color: isAvailable
-                ? DauVietColors.cinnabarRed
-                : DauVietColors.inkMuted,
-          ),
+          const SizedBox(width: 8),
+          isAvailable
+              ? const StampSealBadge.success('✓', size: 34)
+              : const StampSealBadge.outline('…', size: 34),
         ],
       ),
     );
@@ -566,15 +573,11 @@ class _CampaignPathLessonListSection extends ConsumerWidget {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Text(
-          'BÀI HỌC LỊCH SỬ',
-          style: DauVietTypography.labelSmall.copyWith(
-            color: DauVietColors.inkMuted,
-            fontWeight: FontWeight.w800,
-            letterSpacing: 0.8,
-          ),
+        const SectionDivider(
+          eyebrow: 'BÀI HỌC',
+          title: 'Nội dung chiến dịch',
+          padding: EdgeInsets.only(top: 4, bottom: 12),
         ),
-        const SizedBox(height: 10),
         lessonsAsync.when(
           loading: () => const Padding(
             padding: EdgeInsets.symmetric(vertical: 12),
@@ -616,19 +619,14 @@ class _CampaignPathLessonListSection extends ConsumerWidget {
               pathEvent,
             );
             if (effectiveLessons.isEmpty) {
-              return Container(
-                width: double.infinity,
+              return TactileCard(
+                usePixelShadow: false,
                 padding: const EdgeInsets.symmetric(
                   horizontal: 14,
                   vertical: 16,
                 ),
-                decoration: BoxDecoration(
-                  color: DauVietColors.parchmentContainer.withValues(
-                    alpha: 0.6,
-                  ),
-                  borderRadius: BorderRadius.circular(12),
-                  border: Border.all(color: DauVietColors.outlineVariant),
-                ),
+                backgroundColor: DauVietColors.paperCard,
+                borderColor: DauVietColors.outlineVariant,
                 child: Row(
                   children: [
                     const Icon(
@@ -652,10 +650,11 @@ class _CampaignPathLessonListSection extends ConsumerWidget {
 
             return Column(
               children: [
-                for (final item in effectiveLessons) ...[
+                for (var i = 0; i < effectiveLessons.length; i++) ...[
                   _CampaignLessonCard(
-                    lesson: item.lesson,
-                    status: item.status,
+                    index: i + 1,
+                    lesson: effectiveLessons[i].lesson,
+                    status: effectiveLessons[i].status,
                     hasPathContext: path != null,
                   ),
                   const SizedBox(height: 8),
@@ -703,11 +702,13 @@ class _CampaignPathLessonListSection extends ConsumerWidget {
 }
 
 class _CampaignLessonCard extends StatelessWidget {
+  final int index;
   final LessonListItemDto lesson;
   final LearnerPathStatus? status;
   final bool hasPathContext;
 
   const _CampaignLessonCard({
+    required this.index,
     required this.lesson,
     required this.status,
     required this.hasPathContext,
@@ -718,6 +719,10 @@ class _CampaignLessonCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final bool canStart = _canStart;
+    final bool isCompleted =
+        status == LearnerPathStatus.completed ||
+        status == LearnerPathStatus.mastered;
+    final String chapterLabel = index.toString().padLeft(2, '0');
     final (
       IconData badgeIcon,
       String badgeLabel,
@@ -727,8 +732,16 @@ class _CampaignLessonCard extends StatelessWidget {
       status,
     );
 
-    return InkWell(
-      borderRadius: BorderRadius.circular(12),
+    return TactileCard(
+      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+      backgroundColor: canStart
+          ? DauVietColors.paperCard
+          : DauVietColors.paperDim,
+      borderColor: canStart
+          ? DauVietColors.imperialGold
+          : DauVietColors.outlineVariant,
+      borderWidth: 1.4,
+      usePixelShadow: canStart,
       onTap: () {
         if (!canStart) {
           final msg = status == LearnerPathStatus.notReady
@@ -746,111 +759,101 @@ class _CampaignLessonCard extends StatelessWidget {
         }
         context.push('/learning/lesson/${lesson.id}');
       },
-      child: Container(
-        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
-        decoration: BoxDecoration(
-          color: canStart
-              ? Colors.white.withValues(alpha: 0.85)
-              : DauVietColors.parchmentContainer.withValues(alpha: 0.55),
-          borderRadius: BorderRadius.circular(12),
-          border: Border.all(
+      child: Row(
+        children: [
+          ChapterNumberBadge(
+            chapterLabel,
+            size: 32,
+            filled: isCompleted,
             color: canStart
-                ? DauVietColors.imperialGold
-                : DauVietColors.outlineVariant,
-            width: 1.2,
+                ? DauVietColors.chapterGreen
+                : DauVietColors.inkMuted,
           ),
-        ),
-        child: Row(
-          children: [
-            Container(
-              width: 36,
-              height: 36,
-              decoration: BoxDecoration(
-                shape: BoxShape.circle,
-                color: canStart
-                    ? DauVietColors.cinnabarRed.withValues(alpha: 0.12)
-                    : DauVietColors.outlineVariant.withValues(alpha: 0.35),
-              ),
-              alignment: Alignment.center,
-              child: Icon(
-                canStart ? Icons.menu_book_rounded : Icons.lock_outline_rounded,
-                size: 18,
-                color: canStart
-                    ? DauVietColors.cinnabarRed
-                    : DauVietColors.inkMuted,
-              ),
-            ),
-            const SizedBox(width: 12),
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
+          const SizedBox(width: 12),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  lesson.title,
+                  style: DauVietTypography.labelMedium.copyWith(
+                    fontWeight: FontWeight.w700,
+                    color: canStart
+                        ? DauVietColors.inkText
+                        : DauVietColors.inkMuted,
+                  ),
+                ),
+                if (lesson.centralQuestion != null &&
+                    lesson.centralQuestion!.isNotEmpty) ...[
+                  const SizedBox(height: 2),
                   Text(
-                    lesson.title,
-                    style: DauVietTypography.labelMedium.copyWith(
-                      fontWeight: FontWeight.w700,
-                      color: canStart
-                          ? DauVietColors.inkText
-                          : DauVietColors.inkMuted,
+                    lesson.centralQuestion!,
+                    maxLines: 2,
+                    overflow: TextOverflow.ellipsis,
+                    style: DauVietTypography.bodySmall.copyWith(
+                      color: DauVietColors.inkMuted,
+                      fontSize: 11,
                     ),
                   ),
-                  if (lesson.centralQuestion != null &&
-                      lesson.centralQuestion!.isNotEmpty) ...[
-                    const SizedBox(height: 2),
-                    Text(
-                      lesson.centralQuestion!,
-                      maxLines: 2,
-                      overflow: TextOverflow.ellipsis,
-                      style: DauVietTypography.bodySmall.copyWith(
-                        color: DauVietColors.inkMuted,
-                        fontSize: 11,
-                      ),
-                    ),
-                  ],
-                  if (hasPathContext) ...[
-                    const SizedBox(height: 6),
-                    Container(
-                      padding: const EdgeInsets.symmetric(
-                        horizontal: 8,
-                        vertical: 2,
-                      ),
-                      decoration: BoxDecoration(
-                        color: badgeBg,
-                        borderRadius: BorderRadius.circular(999),
-                        border: Border.all(
-                          color: badgeFg.withValues(alpha: 0.35),
-                        ),
-                      ),
-                      child: Row(
-                        mainAxisSize: MainAxisSize.min,
-                        children: [
-                          Icon(badgeIcon, size: 12, color: badgeFg),
-                          const SizedBox(width: 4),
-                          Text(
-                            badgeLabel,
-                            style: DauVietTypography.labelSmall.copyWith(
-                              fontSize: 10.5,
-                              fontWeight: FontWeight.w700,
-                              color: badgeFg,
-                            ),
-                          ),
-                        ],
-                      ),
-                    ),
-                  ],
                 ],
-              ),
+                if (hasPathContext) ...[
+                  const SizedBox(height: 6),
+                  Container(
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 8,
+                      vertical: 2,
+                    ),
+                    decoration: BoxDecoration(
+                      color: badgeBg,
+                      borderRadius: BorderRadius.circular(999),
+                      border: Border.all(
+                        color: badgeFg.withValues(alpha: 0.35),
+                      ),
+                    ),
+                    child: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Icon(badgeIcon, size: 12, color: badgeFg),
+                        const SizedBox(width: 4),
+                        Text(
+                          badgeLabel,
+                          style: DauVietTypography.labelSmall.copyWith(
+                            fontSize: 10.5,
+                            fontWeight: FontWeight.w700,
+                            color: badgeFg,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ],
+              ],
             ),
-            Icon(
-              canStart
-                  ? Icons.chevron_right_rounded
-                  : Icons.lock_outline_rounded,
-              color: DauVietColors.inkMuted,
-            ),
-          ],
-        ),
+          ),
+          const SizedBox(width: 8),
+          _buildStatusSeal(status),
+        ],
       ),
     );
+  }
+
+  Widget _buildStatusSeal(LearnerPathStatus? status) {
+    switch (status) {
+      case LearnerPathStatus.completed:
+      case LearnerPathStatus.mastered:
+        return const StampSealBadge.success('✓', size: 34);
+      case LearnerPathStatus.locked:
+      case LearnerPathStatus.notReady:
+        return const StampSealBadge.outline('…', size: 34);
+      case LearnerPathStatus.available:
+      case LearnerPathStatus.inProgress:
+      case null:
+        return const StampSealBadge(
+          'MỞ',
+          size: 34,
+          color: DauVietColors.cinnabarRed,
+        );
+    }
   }
 
   static (IconData, String, Color, Color) _badgePresentation(
@@ -861,7 +864,7 @@ class _CampaignLessonCard extends StatelessWidget {
         Icons.explore_outlined,
         'Tự do khám phá',
         DauVietColors.heritageGreen,
-        const Color(0xFFE8F5E9),
+        DauVietColors.heritageGreenSurface,
       );
     }
     switch (status) {
@@ -869,43 +872,43 @@ class _CampaignLessonCard extends StatelessWidget {
         return (
           Icons.check_circle_rounded,
           status.labelVi,
-          const Color(0xFF2E7D32),
-          const Color(0xFFE8F5E9),
+          DauVietColors.natureGreen,
+          DauVietColors.heritageGreenSurface,
         );
       case LearnerPathStatus.mastered:
         return (
           Icons.workspace_premium_rounded,
           status.labelVi,
-          const Color(0xFFB45309),
-          const Color(0xFFFEF3C7),
+          DauVietColors.imperialGoldDark,
+          DauVietColors.paperCardHi,
         );
       case LearnerPathStatus.inProgress:
         return (
           Icons.timelapse_rounded,
           status.labelVi,
           DauVietColors.cinnabarRed,
-          const Color(0xFFFDF2F2),
+          DauVietColors.paperCardHi,
         );
       case LearnerPathStatus.available:
         return (
           Icons.play_circle_outline_rounded,
           status.labelVi,
           DauVietColors.heritageGreen,
-          const Color(0xFFE8F5E9),
+          DauVietColors.heritageGreenSurface,
         );
       case LearnerPathStatus.locked:
         return (
           Icons.lock_outline_rounded,
           status.labelVi,
           DauVietColors.inkMuted,
-          const Color(0xFFEFEBE2),
+          DauVietColors.paperDim,
         );
       case LearnerPathStatus.notReady:
         return (
           Icons.hourglass_empty_rounded,
           status.labelVi,
           DauVietColors.inkMuted,
-          const Color(0xFFEFEBE2),
+          DauVietColors.paperDim,
         );
     }
   }

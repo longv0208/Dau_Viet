@@ -5,7 +5,7 @@ import 'package:dau_viet_mobile/core/widgets/gold_confetti_overlay.dart';
 import 'package:dau_viet_mobile/core/widgets/kabi_mascot_widget.dart';
 import 'package:dau_viet_mobile/core/widgets/mascot_speech_bubble.dart';
 import 'package:dau_viet_mobile/core/widgets/sound_toggle_button.dart';
-import 'package:dau_viet_mobile/core/widgets/shimmer_progress_bar.dart';
+import 'package:dau_viet_mobile/core/widgets/step_progress_bar.dart';
 import 'package:dau_viet_mobile/features/energy/data/energy_dto.dart';
 import 'package:dau_viet_mobile/features/energy/data/energy_providers.dart';
 import 'package:dau_viet_mobile/features/learning/data/attempt_dtos.dart';
@@ -837,7 +837,9 @@ void main() {
 
         await tester.tap(find.text('Phối hợp thủy triều và cọc'));
         await tester.pump();
-        await tester.tap(find.text('GỬI CÂU TRẢ LỜI'));
+        await tester.ensureVisible(find.text('GỬI CÂU TRẢ LỜI'));
+        await tester.pump();
+        await tester.tap(find.text('GỬI CÂU TRẢ LỜI'), warnIfMissed: false);
         await tester.pump();
         expect(cerChoiceSubmitted, {
           'claimId': 'c1',
@@ -1313,7 +1315,7 @@ void main() {
           addTearDown(tester.view.resetPhysicalSize);
           addTearDown(tester.view.resetDevicePixelRatio);
 
-          // 1. P2-01: ShimmerProgressBar at 0% (0/3) must NOT collapse to 2.4px width
+          // 1. P2-01: StepProgressBar at 0% (0/3) must NOT collapse to narrow width
           final repo = FakeAttemptRepository()
             ..metadata = const LessonMetadataDto(
               id: 'les-me-linh',
@@ -1347,8 +1349,9 @@ void main() {
             ),
           );
           await tester.pumpAndSettle();
-          final Size barSize = tester.getSize(find.byType(ShimmerProgressBar));
+          final Size barSize = tester.getSize(find.byType(StepProgressBar));
           expect(barSize.width, greaterThan(150));
+          expect(find.text('0/3'), findsOneWidget);
 
           // 2. P1-05: BattleSabanScreen on 360x800 renders without RenderFlex overflow
           await tester.pumpWidget(

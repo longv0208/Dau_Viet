@@ -15,6 +15,7 @@ export default async function LessonPreviewRoute({
   return (
     <div>
       <PageHeader
+        eyebrow="QUẢN TRỊ · XEM TRƯỚC"
         title="Xem trước bài học"
         description="Nội dung học viên sẽ thấy — chế độ chỉ đọc, không chấm điểm."
       />

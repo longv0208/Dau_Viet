@@ -7,7 +7,10 @@ import { apiFetch, toQuery } from "@/lib/api-client";
 import type { PageResponse } from "@/lib/dto/common";
 import type { AdminLessonSummary } from "@/lib/dto/lesson";
 import { qk } from "@/lib/query-keys";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { EmptyStateCard } from "@/components/atoms/empty-state-card";
+import { PaperCard } from "@/components/atoms/paper-card";
+import { SectionDivider } from "@/components/atoms/section-divider";
+import { StampSeal } from "@/components/atoms/stamp-seal";
 import { Skeleton } from "@/components/ui/skeleton";
 import { StatusChip } from "@/components/status-chip";
 
@@ -27,11 +30,14 @@ export function RecentLessonsCard() {
   const rows = query.data?.content ?? [];
 
   return (
-    <Card>
-      <CardHeader>
-        <CardTitle className="text-base">Bài học gần đây</CardTitle>
-      </CardHeader>
-      <CardContent>
+    <PaperCard className="p-5">
+      <SectionDivider
+        eyebrow="NỘI DUNG"
+        eyebrowColor="chapter"
+        title="Bài học gần đây"
+        className="mb-4"
+      />
+      <div>
         {query.isPending ? (
           <div className="flex flex-col gap-2">
             {Array.from({ length: 3 }).map((_, i) => (
@@ -41,16 +47,23 @@ export function RecentLessonsCard() {
         ) : query.isError ? (
           <p className="text-sm text-error">Không tải được danh sách bài học.</p>
         ) : rows.length === 0 ? (
-          <p className="text-sm text-ink-muted">Chưa có bài học nào.</p>
+          <EmptyStateCard
+            title="Chưa có bài học nào."
+            description="Tạo bài học mới trong không gian sự kiện để bắt đầu."
+            className="py-6"
+          />
         ) : (
           <ul className="flex flex-col divide-y divide-border">
             {rows.map((lesson) => (
               <li key={lesson.id} className="flex items-center justify-between gap-3 py-2.5">
-                <span className="truncate text-sm text-ink">{lesson.title}</span>
+                <span className="truncate text-sm font-medium text-ink">{lesson.title}</span>
                 <span className="flex shrink-0 items-center gap-2">
                   <span className="text-xs text-ink-muted">
                     {lesson.currentVersionId ? "Đã có phiên bản" : "Chưa xuất bản"}
                   </span>
+                  {lesson.currentVersionId && (
+                    <StampSeal variant="success" label="ẤN" className="scale-90" />
+                  )}
                   <StatusChip status={lesson.status} />
                 </span>
               </li>
@@ -65,7 +78,7 @@ export function RecentLessonsCard() {
             Xem tất cả bài học
           </Link>
         )}
-      </CardContent>
-    </Card>
+      </div>
+    </PaperCard>
   );
 }

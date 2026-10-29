@@ -3,6 +3,11 @@ import 'package:flutter/services.dart';
 
 import '../../../../core/theme/dau_viet_colors.dart';
 import '../../../../core/theme/dau_viet_typography.dart';
+import '../../../../core/widgets/chapter_number_badge.dart';
+import '../../../../core/widgets/clue_tag.dart';
+import '../../../../core/widgets/section_eyebrow.dart';
+import '../../../../core/widgets/stamp_seal_badge.dart';
+import '../../../../core/widgets/tactile_card.dart';
 import '../../data/attempt_dtos.dart';
 import '../../data/learning_dtos.dart';
 import 'renderer_base.dart';
@@ -163,100 +168,151 @@ class _CerChoiceRendererState extends State<CerChoiceRenderer> {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
-        // Card 1 — Claim
-        const _CerRoleHeader(
-          step: '1',
-          title: 'CHỌN KẾT LUẬN (CLAIM)',
-          color: DauVietColors.cinnabarRed,
+        const Align(
+          alignment: Alignment.centerLeft,
+          child: SectionEyebrow('ĐÚC KẾT · LẬP LUẬN CER'),
         ),
-        const SizedBox(height: 6),
-        for (final c in claims)
-          _PickTile(
-            id: c['id'] as String? ?? '',
-            label: (c['text'] ?? c['label'] ?? '') as String,
-            selected: _claimId == c['id'],
-            multi: false,
-            enabled: !widget.submitting,
-            onTap: () => _pickClaim(c['id'] as String? ?? ''),
-          ),
         const SizedBox(height: 12),
 
-        // Card 2 — Evidence
-        const _CerRoleHeader(
-          step: '2',
-          title: 'CHỌN BẰNG CHỨNG HỖ TRỢ (EVIDENCE)',
-          color: Color(0xFFB45309),
-        ),
-        if (priorEvidenceIds.isNotEmpty)
-          Padding(
-            padding: const EdgeInsets.only(top: 4, bottom: 2),
-            child: Text(
-              'Đã điền sẵn ${priorEvidenceIds.length} bằng chứng đã thu thập ở bước trước.',
-              style: DauVietTypography.bodySmall.copyWith(
-                fontSize: 11,
-                fontStyle: FontStyle.italic,
-                color: DauVietColors.inkMuted,
+        // Slot 1 — Claim (Khẳng định)
+        TactileCard(
+          padding: const EdgeInsets.all(14),
+          backgroundColor: DauVietColors.paperCard,
+          borderColor: _claimId != null
+              ? DauVietColors.jade
+              : DauVietColors.outlineVariant,
+          borderWidth: _claimId != null ? 1.8 : 1.4,
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              const _CerRoleHeader(
+                code: 'C',
+                tagLabel: 'Khẳng định',
+                title: 'CHỌN KẾT LUẬN (CLAIM)',
+                color: DauVietColors.jade,
               ),
-            ),
-          ),
-        const SizedBox(height: 6),
-        if (evidenceOptions.isEmpty)
-          Text(
-            'Chưa có bằng chứng nào để chọn.',
-            style: DauVietTypography.bodySmall.copyWith(
-              fontStyle: FontStyle.italic,
-              color: DauVietColors.inkMuted,
-            ),
-          )
-        else
-          for (final e in evidenceOptions)
-            Builder(
-              builder: (ctx) {
-                final id = e['id'] as String? ?? '';
-                final doc = widget.content.evidenceById(id);
-                final label = (doc?['title'] as String?) ?? id;
-                return _PickTile(
-                  id: id,
-                  label: label,
-                  selected: _evidenceIds.contains(id),
-                  multi: true,
+              const SizedBox(height: 10),
+              for (final c in claims)
+                _PickTile(
+                  id: c['id'] as String? ?? '',
+                  label: (c['text'] ?? c['label'] ?? '') as String,
+                  selected: _claimId == c['id'],
+                  multi: false,
+                  accentColor: DauVietColors.jade,
                   enabled: !widget.submitting,
-                  priorCollected: priorEvidenceIds.contains(id),
-                  onTap: () => _toggleEvidence(id),
-                );
-              },
-            ),
-        const SizedBox(height: 12),
-
-        // Card 3 — Reasoning
-        const _CerRoleHeader(
-          step: '3',
-          title: 'CHỌN LẬP LUẬN (REASONING)',
-          color: DauVietColors.heritageGreen,
-        ),
-        const SizedBox(height: 6),
-        for (final r in reasoningOptions)
-          _PickTile(
-            id: r['id'] as String? ?? '',
-            label: (r['text'] ?? r['label'] ?? '') as String,
-            selected: _reasoningId == r['id'],
-            multi: false,
-            enabled: !widget.submitting,
-            onTap: () => _pickReasoning(r['id'] as String? ?? ''),
+                  onTap: () => _pickClaim(c['id'] as String? ?? ''),
+                ),
+            ],
           ),
+        ),
+
+        const _CERConnector(),
+
+        // Slot 2 — Evidence (Bằng chứng)
+        TactileCard(
+          padding: const EdgeInsets.all(14),
+          backgroundColor: DauVietColors.paperCard,
+          borderColor: _evidenceIds.isNotEmpty
+              ? DauVietColors.cinnabarRed
+              : DauVietColors.outlineVariant,
+          borderWidth: _evidenceIds.isNotEmpty ? 1.8 : 1.4,
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              const _CerRoleHeader(
+                code: 'E',
+                tagLabel: 'Bằng chứng',
+                title: 'CHỌN BẰNG CHỨNG HỖ TRỢ (EVIDENCE)',
+                color: DauVietColors.cinnabarRed,
+              ),
+              if (priorEvidenceIds.isNotEmpty)
+                Padding(
+                  padding: const EdgeInsets.only(top: 6, bottom: 2),
+                  child: Text(
+                    'Đã điền sẵn ${priorEvidenceIds.length} bằng chứng đã thu thập ở bước trước.',
+                    style: DauVietTypography.bodySmall.copyWith(
+                      fontSize: 11,
+                      fontStyle: FontStyle.italic,
+                      color: DauVietColors.inkMuted,
+                    ),
+                  ),
+                ),
+              const SizedBox(height: 10),
+              if (evidenceOptions.isEmpty)
+                Text(
+                  'Chưa có bằng chứng nào để chọn.',
+                  style: DauVietTypography.bodySmall.copyWith(
+                    fontStyle: FontStyle.italic,
+                    color: DauVietColors.inkMuted,
+                  ),
+                )
+              else
+                for (final e in evidenceOptions)
+                  Builder(
+                    builder: (ctx) {
+                      final id = e['id'] as String? ?? '';
+                      final doc = widget.content.evidenceById(id);
+                      final label = (doc?['title'] as String?) ?? id;
+                      return _PickTile(
+                        id: id,
+                        label: label,
+                        selected: _evidenceIds.contains(id),
+                        multi: true,
+                        accentColor: DauVietColors.cinnabarRed,
+                        enabled: !widget.submitting,
+                        priorCollected: priorEvidenceIds.contains(id),
+                        onTap: () => _toggleEvidence(id),
+                      );
+                    },
+                  ),
+            ],
+          ),
+        ),
+
+        const _CERConnector(),
+
+        // Slot 3 — Reasoning (Lập luận)
+        TactileCard(
+          padding: const EdgeInsets.all(14),
+          backgroundColor: DauVietColors.paperCard,
+          borderColor: _reasoningId != null
+              ? DauVietColors.imperialGoldDark
+              : DauVietColors.outlineVariant,
+          borderWidth: _reasoningId != null ? 1.8 : 1.4,
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              const _CerRoleHeader(
+                code: 'R',
+                tagLabel: 'Lập luận',
+                title: 'CHỌN LẬP LUẬN (REASONING)',
+                color: DauVietColors.imperialGoldDark,
+              ),
+              const SizedBox(height: 10),
+              for (final r in reasoningOptions)
+                _PickTile(
+                  id: r['id'] as String? ?? '',
+                  label: (r['text'] ?? r['label'] ?? '') as String,
+                  selected: _reasoningId == r['id'],
+                  multi: false,
+                  accentColor: DauVietColors.imperialGoldDark,
+                  enabled: !widget.submitting,
+                  onTap: () => _pickReasoning(r['id'] as String? ?? ''),
+                ),
+            ],
+          ),
+        ),
 
         // Khung tổng hợp kết luận lịch sử C-E-R (TC-ACT-17)
         if (pickedClaimText != null ||
             pickedEvidenceTitles.isNotEmpty ||
             pickedReasoningText != null) ...[
           const SizedBox(height: 12),
-          Container(
+          TactileCard(
             padding: const EdgeInsets.all(14),
-            decoration: BoxDecoration(
-              color: DauVietColors.parchmentContainer,
-              borderRadius: BorderRadius.circular(12),
-              border: Border.all(color: DauVietColors.imperialGold, width: 1.4),
-            ),
+            backgroundColor: DauVietColors.paperCardHi,
+            borderColor: DauVietColors.imperialGold,
+            borderWidth: 1.6,
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
@@ -324,12 +380,14 @@ class _CerChoiceRendererState extends State<CerChoiceRenderer> {
 }
 
 class _CerRoleHeader extends StatelessWidget {
-  final String step;
+  final String code;
+  final String tagLabel;
   final String title;
   final Color color;
 
   const _CerRoleHeader({
-    required this.step,
+    required this.code,
+    required this.tagLabel,
     required this.title,
     required this.color,
   });
@@ -338,19 +396,11 @@ class _CerRoleHeader extends StatelessWidget {
   Widget build(BuildContext context) {
     return Row(
       children: [
-        Container(
-          width: 20,
-          height: 20,
-          alignment: Alignment.center,
-          decoration: BoxDecoration(shape: BoxShape.circle, color: color),
-          child: Text(
-            step,
-            style: const TextStyle(
-              color: Colors.white,
-              fontSize: 11,
-              fontWeight: FontWeight.w800,
-            ),
-          ),
+        ChapterNumberBadge(code, size: 32, color: color),
+        const SizedBox(width: 8),
+        Flexible(
+          flex: 0,
+          child: ClueTag(tagLabel, color: color),
         ),
         const SizedBox(width: 8),
         Expanded(
@@ -361,6 +411,7 @@ class _CerRoleHeader extends StatelessWidget {
               fontWeight: FontWeight.w800,
               letterSpacing: 0.6,
             ),
+            overflow: TextOverflow.ellipsis,
           ),
         ),
       ],
@@ -373,6 +424,7 @@ class _PickTile extends StatelessWidget {
   final String label;
   final bool selected;
   final bool multi;
+  final Color accentColor;
   final bool enabled;
   final VoidCallback onTap;
 
@@ -385,6 +437,7 @@ class _PickTile extends StatelessWidget {
     required this.label,
     required this.selected,
     required this.multi,
+    required this.accentColor,
     required this.enabled,
     required this.onTap,
     this.priorCollected = false,
@@ -392,79 +445,107 @@ class _PickTile extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final reduceMotion = MediaQuery.maybeDisableAnimationsOf(context) ?? false;
     return Semantics(
       button: true,
       selected: selected,
       enabled: enabled,
       label: label,
-      child: Padding(
-        padding: const EdgeInsets.only(bottom: 8),
-        child: Material(
-          color: Colors.transparent,
-          child: InkWell(
-            borderRadius: BorderRadius.circular(12),
-            onTap: enabled ? onTap : null,
-            child: AnimatedContainer(
-              duration: reduceMotion
-                  ? Duration.zero
-                  : const Duration(milliseconds: 150),
-              constraints: const BoxConstraints(minHeight: 50),
-              padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
-              decoration: BoxDecoration(
-                color: selected
-                    ? DauVietColors.cinnabarRed.withValues(alpha: 0.10)
-                    : Colors.white.withValues(alpha: enabled ? 0.85 : 0.55),
-                borderRadius: BorderRadius.circular(12),
-                border: Border.all(
-                  color: selected
-                      ? DauVietColors.cinnabarRed
-                      : DauVietColors.outlineVariant,
-                  width: selected ? 1.7 : 1,
+      child: TactileCard(
+        margin: const EdgeInsets.only(bottom: 8),
+        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+        borderRadius: 12,
+        enabled: enabled,
+        backgroundColor: selected
+            ? DauVietColors.paperCardHi
+            : DauVietColors.paperCard,
+        borderColor: selected ? accentColor : DauVietColors.outlineVariant,
+        borderWidth: selected ? 1.8 : 1.2,
+        onTap: enabled ? onTap : null,
+        child: ConstrainedBox(
+          constraints: const BoxConstraints(minHeight: 44),
+          child: Row(
+            children: [
+              Expanded(
+                child: Text(
+                  label,
+                  style: DauVietTypography.bodyMedium.copyWith(
+                    color: enabled
+                        ? DauVietColors.inkText
+                        : DauVietColors.inkText.withValues(alpha: 0.75),
+                    fontWeight: selected ? FontWeight.w700 : FontWeight.w400,
+                    height: 1.4,
+                  ),
                 ),
               ),
-              child: Row(
-                children: [
-                  Icon(
-                    multi
-                        ? (selected
-                              ? Icons.check_box
-                              : Icons.check_box_outline_blank)
-                        : (selected
-                              ? Icons.radio_button_checked
-                              : Icons.radio_button_off),
-                    size: 21,
-                    color: selected
-                        ? DauVietColors.cinnabarRed
-                        : DauVietColors.inkMuted,
+              if (priorCollected)
+                const Padding(
+                  padding: EdgeInsets.only(left: 8),
+                  child: Icon(
+                    Icons.history_edu_outlined,
+                    size: 16,
+                    color: DauVietColors.inkMuted,
                   ),
-                  const SizedBox(width: 10),
-                  Expanded(
-                    child: Text(
-                      label,
-                      style: DauVietTypography.bodyMedium.copyWith(
-                        color: enabled
-                            ? DauVietColors.inkText
-                            : DauVietColors.inkText.withValues(alpha: 0.75),
-                        height: 1.4,
-                      ),
-                    ),
-                  ),
-                  if (priorCollected)
-                    Padding(
-                      padding: const EdgeInsets.only(left: 8),
-                      child: Icon(
-                        Icons.history_edu_outlined,
-                        size: 16,
-                        color: DauVietColors.inkMuted,
-                      ),
-                    ),
-                ],
-              ),
-            ),
+                ),
+              const SizedBox(width: 8),
+              if (selected)
+                StampSealBadge('✓', size: 28, color: accentColor)
+              else
+                Icon(
+                  multi
+                      ? Icons.check_box_outline_blank
+                      : Icons.radio_button_off,
+                  size: 20,
+                  color: DauVietColors.inkMuted,
+                ),
+            ],
           ),
         ),
       ),
     );
   }
+}
+
+/// Connector dọc nối giữa các slot C → E → R: đường thẳng 2px `inkHeading`
+/// kèm đầu mũi tên nhỏ ở đáy.
+class _CERConnector extends StatelessWidget {
+  const _CERConnector();
+
+  @override
+  Widget build(BuildContext context) {
+    return const Padding(
+      padding: EdgeInsets.symmetric(vertical: 4),
+      child: Center(
+        child: SizedBox(
+          width: 24,
+          height: 22,
+          child: CustomPaint(painter: _CERConnectorPainter()),
+        ),
+      ),
+    );
+  }
+}
+
+class _CERConnectorPainter extends CustomPainter {
+  const _CERConnectorPainter();
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    final paint = Paint()
+      ..color = DauVietColors.inkHeading
+      ..strokeWidth = 2.0
+      ..style = PaintingStyle.stroke
+      ..strokeCap = StrokeCap.round
+      ..strokeJoin = StrokeJoin.round;
+
+    final double cx = size.width / 2;
+    canvas.drawLine(Offset(cx, 0), Offset(cx, size.height - 2), paint);
+    final Path arrow = Path()
+      ..moveTo(cx - 5, size.height - 7)
+      ..lineTo(cx, size.height - 1)
+      ..lineTo(cx + 5, size.height - 7);
+    canvas.drawPath(arrow, paint);
+  }
+
+  @override
+  bool shouldRepaint(covariant CustomPainter oldDelegate) => false;
 }

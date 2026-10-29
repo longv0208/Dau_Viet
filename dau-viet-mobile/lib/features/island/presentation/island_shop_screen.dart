@@ -6,7 +6,13 @@ import 'package:uuid/uuid.dart';
 import '../../../core/api/api_exception.dart';
 import '../../../core/theme/dau_viet_colors.dart';
 import '../../../core/theme/dau_viet_typography.dart';
+import '../../../core/widgets/clue_tag.dart';
+import '../../../core/widgets/empty_state_card.dart';
+import '../../../core/widgets/rare_frame_badge.dart';
+import '../../../core/widgets/section_divider.dart';
+import '../../../core/widgets/stamp_seal_badge.dart';
 import '../../../core/widgets/tactile_3d_button.dart';
+import '../../../core/widgets/tactile_card.dart';
 import '../../rewards/data/reward_providers.dart';
 import '../data/island_dto.dart';
 import '../data/island_providers.dart';
@@ -29,9 +35,9 @@ class _IslandShopScreenState extends ConsumerState<IslandShopScreen> {
     final shopItemsAsync = ref.watch(islandShopItemsProvider);
 
     return Scaffold(
-      backgroundColor: DauVietColors.parchmentSurface,
+      backgroundColor: DauVietColors.paperBackground,
       appBar: AppBar(
-        backgroundColor: DauVietColors.parchmentSurface,
+        backgroundColor: DauVietColors.paperBackground,
         elevation: 0,
         centerTitle: true,
         leading: IconButton(
@@ -113,15 +119,13 @@ class _IslandShopScreenState extends ConsumerState<IslandShopScreen> {
         ),
         data: (items) {
           if (items.isEmpty) {
-            return Center(
+            return const Center(
               child: Padding(
-                padding: const EdgeInsets.all(32),
-                child: Text(
-                  'Hiện chưa có vật phẩm nào được bày bán trong cửa hàng.',
-                  textAlign: TextAlign.center,
-                  style: DauVietTypography.bodyMedium.copyWith(
-                    color: DauVietColors.inkMuted,
-                  ),
+                padding: EdgeInsets.all(24),
+                child: EmptyStateCard(
+                  title: 'Cửa hàng đang cập nhật',
+                  description:
+                      'Hiện chưa có vật phẩm nào được bày bán trong cửa hàng.',
                 ),
               ),
             );
@@ -146,11 +150,16 @@ class _IslandShopScreenState extends ConsumerState<IslandShopScreen> {
                 parent: BouncingScrollPhysics(),
               ),
               children: [
+                const SectionDivider(
+                  eyebrow: 'CỬA HÀNG',
+                  title: 'Móc khóa & trang trí đảo',
+                  padding: EdgeInsets.only(top: 4, bottom: 16),
+                ),
                 if (!ownershipVerified) ...[
                   Container(
                     padding: const EdgeInsets.all(12),
                     decoration: BoxDecoration(
-                      color: const Color(0xFFFFF8E1),
+                      color: DauVietColors.paperCardHi,
                       borderRadius: BorderRadius.circular(14),
                       border: Border.all(
                         color: DauVietColors.imperialGold,
@@ -180,9 +189,9 @@ class _IslandShopScreenState extends ConsumerState<IslandShopScreen> {
                             ref.invalidate(inventoryItemsProvider);
                             ref.invalidate(islandShopItemsProvider);
                           },
-                          child: const Text(
+                          child: Text(
                             'TẢI LẠI',
-                            style: TextStyle(
+                            style: DauVietTypography.labelSmall.copyWith(
                               fontWeight: FontWeight.bold,
                               color: DauVietColors.cinnabarRed,
                             ),
@@ -217,7 +226,7 @@ class _IslandShopScreenState extends ConsumerState<IslandShopScreen> {
       margin: const EdgeInsets.symmetric(vertical: 8),
       padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
       decoration: BoxDecoration(
-        color: DauVietColors.parchmentContainer,
+        color: DauVietColors.paperCard,
         borderRadius: BorderRadius.circular(16),
         border: Border.all(color: DauVietColors.imperialGold, width: 1.5),
       ),
@@ -278,6 +287,19 @@ class _IslandShopScreenState extends ConsumerState<IslandShopScreen> {
     );
   }
 
+  ItemRarity _resolveItemRarity(ShopItemDto item) {
+    final cat = item.category.toUpperCase();
+    if (cat == 'EPIC') return ItemRarity.epic;
+    if (cat == 'RARE') return ItemRarity.rare;
+    if (cat == 'UNCOMMON') return ItemRarity.uncommon;
+    if (cat == 'COMMON') return ItemRarity.common;
+    final pts = item.pricePoints ?? 0;
+    if (pts >= 300) return ItemRarity.epic;
+    if (pts >= 200) return ItemRarity.rare;
+    if (pts >= 100) return ItemRarity.uncommon;
+    return ItemRarity.common;
+  }
+
   Widget _buildShopItemCard({
     required ShopItemDto item,
     required bool walletLoaded,
@@ -293,224 +315,193 @@ class _IslandShopScreenState extends ConsumerState<IslandShopScreen> {
         item.ownershipVerified &&
         isForSale &&
         currentPoints >= item.pricePoints!;
+    final rarity = _resolveItemRarity(item);
 
-    return Container(
-      padding: const EdgeInsets.all(16),
-      decoration: BoxDecoration(
-        color: DauVietColors.parchmentContainer,
-        borderRadius: BorderRadius.circular(20),
-        border: Border.all(
-          color: (item.owned || !isForSale || !item.ownershipVerified)
-              ? DauVietColors.outlineVariant
-              : DauVietColors.imperialGoldLight,
-          width: 1.5,
-        ),
-        boxShadow: const [
-          BoxShadow(
-            color: Color(0x14613B28),
-            offset: Offset(0, 4),
-            blurRadius: 10,
-          ),
-        ],
-      ),
-      child: Row(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          // Ảnh lớn artwork vật phẩm hoặc biểu tượng di sản trung tính
-          Container(
-            width: 90,
-            height: 90,
-            padding: const EdgeInsets.all(8),
-            decoration: BoxDecoration(
-              color: DauVietColors.parchmentSurface,
-              borderRadius: BorderRadius.circular(16),
-              border: Border.all(color: DauVietColors.outlineVariant),
+    return RareFrameBadge(
+      rarity: rarity,
+      borderRadius: 20,
+      showGlow: !item.owned && isForSale,
+      child: TactileCard(
+        padding: const EdgeInsets.all(16),
+        backgroundColor: DauVietColors.paperCard,
+        borderColor: (item.owned || !isForSale || !item.ownershipVerified)
+            ? DauVietColors.outlineVariant
+            : DauVietColors.imperialGoldLight,
+        borderWidth: 1.5,
+        borderRadius: 18,
+        child: Row(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            // Ảnh lớn artwork vật phẩm hoặc biểu tượng di sản trung tính
+            Container(
+              width: 90,
+              height: 90,
+              padding: const EdgeInsets.all(8),
+              decoration: BoxDecoration(
+                color: DauVietColors.paperBackground,
+                borderRadius: BorderRadius.circular(16),
+                border: Border.all(color: DauVietColors.outlineVariant),
+              ),
+              child: assetPath != null
+                  ? Image.asset(
+                      assetPath,
+                      fit: BoxFit.contain,
+                      errorBuilder: (context, error, stackTrace) =>
+                          item.remoteAssetUrl != null
+                          ? Image.network(
+                              item.remoteAssetUrl!,
+                              headers: islandAuthHeaders(item.remoteAssetUrl),
+                              fit: BoxFit.contain,
+                              errorBuilder: (context, error, stackTrace) =>
+                                  _buildNeutralItemArtwork(item),
+                            )
+                          : _buildNeutralItemArtwork(item),
+                    )
+                  : item.remoteAssetUrl != null
+                  ? Image.network(
+                      item.remoteAssetUrl!,
+                      headers: islandAuthHeaders(item.remoteAssetUrl),
+                      fit: BoxFit.contain,
+                      errorBuilder: (context, error, stackTrace) =>
+                          _buildNeutralItemArtwork(item),
+                    )
+                  : _buildNeutralItemArtwork(item),
             ),
-            child: assetPath != null
-                ? Image.asset(
-                    assetPath,
-                    fit: BoxFit.contain,
-                    errorBuilder: (context, error, stackTrace) =>
-                        item.remoteAssetUrl != null
-                        ? Image.network(
-                            item.remoteAssetUrl!,
-                            headers: islandAuthHeaders(item.remoteAssetUrl),
-                            fit: BoxFit.contain,
-                            errorBuilder: (context, error, stackTrace) =>
-                                _buildNeutralItemArtwork(item),
-                          )
-                        : _buildNeutralItemArtwork(item),
-                  )
-                : item.remoteAssetUrl != null
-                ? Image.network(
-                    item.remoteAssetUrl!,
-                    headers: islandAuthHeaders(item.remoteAssetUrl),
-                    fit: BoxFit.contain,
-                    errorBuilder: (context, error, stackTrace) =>
-                        _buildNeutralItemArtwork(item),
-                  )
-                : _buildNeutralItemArtwork(item),
-          ),
-          const SizedBox(width: 14),
+            const SizedBox(width: 14),
 
-          // Thông tin vật phẩm & CTA Mua
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  item.name,
-                  style: DauVietTypography.headlineSmall.copyWith(
-                    fontWeight: FontWeight.bold,
-                    color: DauVietColors.inkText,
-                    fontSize: 15,
-                  ),
-                ),
-                if (item.description != null &&
-                    item.description!.isNotEmpty) ...[
-                  const SizedBox(height: 4),
+            // Thông tin vật phẩm & CTA Mua
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
                   Text(
-                    item.description!,
-                    maxLines: 2,
-                    overflow: TextOverflow.ellipsis,
-                    style: DauVietTypography.bodySmall.copyWith(
-                      color: DauVietColors.inkMuted,
-                      height: 1.3,
+                    item.name,
+                    style: DauVietTypography.headlineSmall.copyWith(
+                      fontWeight: FontWeight.bold,
+                      color: DauVietColors.inkText,
+                      fontSize: 15,
                     ),
+                  ),
+                  if (item.description != null &&
+                      item.description!.isNotEmpty) ...[
+                    const SizedBox(height: 4),
+                    Text(
+                      item.description!,
+                      maxLines: 2,
+                      overflow: TextOverflow.ellipsis,
+                      style: DauVietTypography.bodySmall.copyWith(
+                        color: DauVietColors.inkMuted,
+                        height: 1.3,
+                      ),
+                    ),
+                  ],
+                  const SizedBox(height: 10),
+
+                  // Giá và Nút mua
+                  Wrap(
+                    alignment: WrapAlignment.spaceBetween,
+                    crossAxisAlignment: WrapCrossAlignment.center,
+                    spacing: 8,
+                    runSpacing: 8,
+                    children: [
+                      // Giá Điểm Sử Ký hoặc Chưa mở bán
+                      ClueTag(
+                        hasValidPrice
+                            ? '${item.pricePoints} Điểm'
+                            : 'Chưa mở bán',
+                        icon: hasValidPrice
+                            ? Icons.monetization_on
+                            : Icons.lock_clock_rounded,
+                        color: hasValidPrice
+                            ? DauVietColors.imperialGoldDark
+                            : DauVietColors.inkMuted,
+                      ),
+
+                      // Nút Mua / Đã sở hữu / Chưa mở bán / Chờ xác minh kho
+                      if (!item.ownershipVerified)
+                        Container(
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 10,
+                            vertical: 6,
+                          ),
+                          decoration: BoxDecoration(
+                            color: DauVietColors.paperDim,
+                            borderRadius: BorderRadius.circular(12),
+                            border: Border.all(
+                              color: DauVietColors.outlineVariant,
+                            ),
+                          ),
+                          child: Text(
+                            'CHỜ TẢI KHO',
+                            style: DauVietTypography.bodySmall.copyWith(
+                              fontWeight: FontWeight.bold,
+                              color: DauVietColors.inkMuted,
+                            ),
+                          ),
+                        )
+                      else if (item.owned)
+                        Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            const StampSealBadge.success('✓', size: 28),
+                            const SizedBox(width: 6),
+                            Text(
+                              'ĐÃ SỞ HỮU',
+                              style: DauVietTypography.bodySmall.copyWith(
+                                fontWeight: FontWeight.bold,
+                                color: DauVietColors.natureGreen,
+                              ),
+                            ),
+                          ],
+                        )
+                      else if (!isForSale)
+                        Container(
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 12,
+                            vertical: 6,
+                          ),
+                          decoration: BoxDecoration(
+                            color: DauVietColors.paperDim,
+                            borderRadius: BorderRadius.circular(12),
+                            border: Border.all(
+                              color: DauVietColors.outlineVariant,
+                            ),
+                          ),
+                          child: Text(
+                            'CHƯA MỞ BÁN',
+                            style: DauVietTypography.bodySmall.copyWith(
+                              fontWeight: FontWeight.bold,
+                              color: DauVietColors.inkMuted,
+                            ),
+                          ),
+                        )
+                      else
+                        SizedBox(
+                          width: 86,
+                          height: 44,
+                          child: Tactile3DButton(
+                            label: 'MUA',
+                            height: 40,
+                            depth: 2,
+                            variant: canAfford
+                                ? Tactile3DVariant.primaryCinnabar
+                                : Tactile3DVariant.secondaryParchment,
+                            isLoading: isPurchasing,
+                            onPressed: (walletLoaded &&
+                                    item.ownershipVerified &&
+                                    canAfford &&
+                                    !isPurchasing)
+                                ? () => _confirmPurchase(item, currentPoints)
+                                : null,
+                          ),
+                        ),
+                    ],
                   ),
                 ],
-                const SizedBox(height: 10),
-
-                // Giá và Nút mua
-                Wrap(
-                  alignment: WrapAlignment.spaceBetween,
-                  crossAxisAlignment: WrapCrossAlignment.center,
-                  spacing: 8,
-                  runSpacing: 8,
-                  children: [
-                    // Giá Điểm Sử Ký hoặc Chưa mở bán
-                    Row(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        Icon(
-                          hasValidPrice
-                              ? Icons.stars_rounded
-                              : Icons.lock_clock_rounded,
-                          color: hasValidPrice
-                              ? DauVietColors.imperialGold
-                              : DauVietColors.inkMuted,
-                          size: 20,
-                        ),
-                        const SizedBox(width: 4),
-                        Text(
-                          hasValidPrice
-                              ? '${item.pricePoints} Điểm'
-                              : 'Chưa mở bán',
-                          style: DauVietTypography.bodyMedium.copyWith(
-                            fontWeight: FontWeight.bold,
-                            color: (item.owned ||
-                                    !isForSale ||
-                                    !walletLoaded ||
-                                    !item.ownershipVerified)
-                                ? DauVietColors.inkMuted
-                                : (canAfford
-                                      ? DauVietColors.heritageGreen
-                                      : DauVietColors.errorRed),
-                          ),
-                        ),
-                      ],
-                    ),
-
-                    // Nút Mua / Đã sở hữu / Chưa mở bán / Chờ xác minh kho
-                    if (!item.ownershipVerified)
-                      Container(
-                        padding: const EdgeInsets.symmetric(
-                          horizontal: 10,
-                          vertical: 6,
-                        ),
-                        decoration: BoxDecoration(
-                          color: DauVietColors.parchmentDim,
-                          borderRadius: BorderRadius.circular(12),
-                          border: Border.all(
-                            color: DauVietColors.outlineVariant,
-                          ),
-                        ),
-                        child: Text(
-                          'CHỜ TẢI KHO',
-                          style: DauVietTypography.bodySmall.copyWith(
-                            fontWeight: FontWeight.bold,
-                            color: DauVietColors.inkMuted,
-                          ),
-                        ),
-                      )
-                    else if (item.owned)
-                      Container(
-                        padding: const EdgeInsets.symmetric(
-                          horizontal: 14,
-                          vertical: 6,
-                        ),
-                        decoration: BoxDecoration(
-                          color: DauVietColors.parchmentDim,
-                          borderRadius: BorderRadius.circular(12),
-                          border: Border.all(
-                            color: DauVietColors.outlineVariant,
-                          ),
-                        ),
-                        child: Text(
-                          'ĐÃ SỞ HỮU',
-                          style: DauVietTypography.bodySmall.copyWith(
-                            fontWeight: FontWeight.bold,
-                            color: DauVietColors.inkMuted,
-                          ),
-                        ),
-                      )
-                    else if (!isForSale)
-                      Container(
-                        padding: const EdgeInsets.symmetric(
-                          horizontal: 12,
-                          vertical: 6,
-                        ),
-                        decoration: BoxDecoration(
-                          color: DauVietColors.parchmentDim,
-                          borderRadius: BorderRadius.circular(12),
-                          border: Border.all(
-                            color: DauVietColors.outlineVariant,
-                          ),
-                        ),
-                        child: Text(
-                          'CHƯA MỞ BÁN',
-                          style: DauVietTypography.bodySmall.copyWith(
-                            fontWeight: FontWeight.bold,
-                            color: DauVietColors.inkMuted,
-                          ),
-                        ),
-                      )
-                    else
-                      SizedBox(
-                        width: 86,
-                        height: 36,
-                        child: Tactile3DButton(
-                          label: 'MUA',
-                          height: 36,
-                          depth: 2,
-                          variant: canAfford
-                              ? Tactile3DVariant.primaryCinnabar
-                              : Tactile3DVariant.secondaryParchment,
-                          isLoading: isPurchasing,
-                          onPressed: (walletLoaded &&
-                                  item.ownershipVerified &&
-                                  canAfford &&
-                                  !isPurchasing)
-                              ? () => _confirmPurchase(item, currentPoints)
-                              : null,
-                        ),
-                      ),
-                  ],
-                ),
-              ],
+              ),
             ),
-          ),
-        ],
+          ],
+        ),
       ),
     );
   }
@@ -538,7 +529,7 @@ class _IslandShopScreenState extends ConsumerState<IslandShopScreen> {
     final confirmed = await showDialog<bool>(
       context: context,
       builder: (ctx) => AlertDialog(
-        backgroundColor: DauVietColors.parchmentSurface,
+        backgroundColor: DauVietColors.paperBackground,
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
         title: Text(
           'XÁC NHẬN MUA VẬT PHẨM',
@@ -561,7 +552,7 @@ class _IslandShopScreenState extends ConsumerState<IslandShopScreen> {
             Container(
               padding: const EdgeInsets.all(12),
               decoration: BoxDecoration(
-                color: DauVietColors.parchmentContainer,
+                color: DauVietColors.paperCard,
                 borderRadius: BorderRadius.circular(12),
               ),
               child: Column(
@@ -569,10 +560,15 @@ class _IslandShopScreenState extends ConsumerState<IslandShopScreen> {
                   Row(
                     mainAxisAlignment: MainAxisAlignment.spaceBetween,
                     children: [
-                      const Text('Điểm hiện có:'),
+                      Text(
+                        'Điểm hiện có:',
+                        style: DauVietTypography.bodySmall,
+                      ),
                       Text(
                         '$currentPoints',
-                        style: const TextStyle(fontWeight: FontWeight.bold),
+                        style: DauVietTypography.bodyMedium.copyWith(
+                          fontWeight: FontWeight.bold,
+                        ),
                       ),
                     ],
                   ),
@@ -580,10 +576,13 @@ class _IslandShopScreenState extends ConsumerState<IslandShopScreen> {
                   Row(
                     mainAxisAlignment: MainAxisAlignment.spaceBetween,
                     children: [
-                      const Text('Giá vật phẩm:'),
+                      Text(
+                        'Giá vật phẩm:',
+                        style: DauVietTypography.bodySmall,
+                      ),
                       Text(
                         '-${item.price}',
-                        style: const TextStyle(
+                        style: DauVietTypography.bodyMedium.copyWith(
                           fontWeight: FontWeight.bold,
                           color: DauVietColors.cinnabarRed,
                         ),
@@ -594,10 +593,13 @@ class _IslandShopScreenState extends ConsumerState<IslandShopScreen> {
                   Row(
                     mainAxisAlignment: MainAxisAlignment.spaceBetween,
                     children: [
-                      const Text('Số dư còn lại:'),
+                      Text(
+                        'Số dư còn lại:',
+                        style: DauVietTypography.bodySmall,
+                      ),
                       Text(
                         '${currentPoints - item.price}',
-                        style: const TextStyle(
+                        style: DauVietTypography.bodyMedium.copyWith(
                           fontWeight: FontWeight.bold,
                           color: DauVietColors.heritageGreen,
                         ),
@@ -690,7 +692,7 @@ class _IslandShopScreenState extends ConsumerState<IslandShopScreen> {
       context: context,
       barrierDismissible: false,
       builder: (ctx) => AlertDialog(
-        backgroundColor: DauVietColors.parchmentSurface,
+        backgroundColor: DauVietColors.paperBackground,
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
         content: Column(
           mainAxisSize: MainAxisSize.min,
@@ -698,7 +700,7 @@ class _IslandShopScreenState extends ConsumerState<IslandShopScreen> {
             Container(
               padding: const EdgeInsets.all(16),
               decoration: const BoxDecoration(
-                color: Color(0xFFE8F5E9),
+                color: DauVietColors.heritageGreenSurface,
                 shape: BoxShape.circle,
               ),
               child: const Icon(

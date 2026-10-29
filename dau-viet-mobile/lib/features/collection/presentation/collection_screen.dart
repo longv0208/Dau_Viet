@@ -5,8 +5,13 @@ import 'package:go_router/go_router.dart';
 import '../../../core/theme/dau_viet_colors.dart';
 import '../../../core/theme/dau_viet_typography.dart';
 import '../../../core/widgets/async_state_view.dart';
+import '../../../core/widgets/clue_tag.dart';
+import '../../../core/widgets/empty_state_card.dart';
 import '../../../core/widgets/main_bottom_nav.dart';
-import '../../../core/widgets/parchment_card.dart';
+import '../../../core/widgets/rare_frame_badge.dart';
+import '../../../core/widgets/section_eyebrow.dart';
+import '../../../core/widgets/stamp_seal_badge.dart';
+import '../../../core/widgets/tactile_card.dart';
 import '../../learning/presentation/renderers/learning_asset_image.dart';
 import '../data/collection_dto.dart';
 import '../data/collection_providers.dart';
@@ -52,21 +57,33 @@ class _CollectionScreenState extends ConsumerState<CollectionScreen> {
     return DefaultTabController(
       length: 4,
       child: Scaffold(
-        backgroundColor: DauVietColors.parchmentSurface,
+        backgroundColor: DauVietColors.paperBackground,
         appBar: AppBar(
-          backgroundColor: DauVietColors.parchmentSurface,
+          backgroundColor: DauVietColors.paperBackground,
           elevation: 0,
+          toolbarHeight: 68,
           leading: IconButton(
             icon: const Icon(Icons.arrow_back_ios_new_rounded, size: 20),
             color: DauVietColors.inkText,
             onPressed: () =>
                 context.canPop() ? context.pop() : context.go('/dashboard'),
           ),
-          title: Text(
-            'Bộ Sưu Tập Dấu Việt',
-            style: DauVietTypography.headlineSmall.copyWith(
-              color: DauVietColors.cinnabarRed,
-            ),
+          title: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              const SectionEyebrow(
+                'BẢO TÀNG DẤU VIỆT',
+                padding: EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+              ),
+              const SizedBox(height: 4),
+              Text(
+                'Bộ Sưu Tập Dấu Việt',
+                style: DauVietTypography.headlineSmall.copyWith(
+                  color: DauVietColors.cinnabarRed,
+                ),
+              ),
+            ],
           ),
           centerTitle: false,
           bottom: TabBar(
@@ -168,22 +185,18 @@ class _CollectionScreenState extends ConsumerState<CollectionScreen> {
         itemBuilder: (context, i) {
           final (value, label) = chips[i];
           final selected = _typeFilter == value;
-          return ChoiceChip(
-            label: Text(label),
-            selected: selected,
-            onSelected: (_) => setState(() => _typeFilter = value),
-            labelStyle: DauVietTypography.labelSmall.copyWith(
-              fontWeight: FontWeight.w700,
-              color: selected ? Colors.white : DauVietColors.inkText,
+          return GestureDetector(
+            behavior: HitTestBehavior.opaque,
+            onTap: () => setState(() => _typeFilter = value),
+            child: ConstrainedBox(
+              constraints: const BoxConstraints(minHeight: 44),
+              child: Center(
+                child: ClueTag.category(
+                  label,
+                  filled: selected,
+                ),
+              ),
             ),
-            selectedColor: DauVietColors.cinnabarRed,
-            backgroundColor: DauVietColors.parchmentContainer,
-            side: BorderSide(
-              color: selected
-                  ? DauVietColors.cinnabarRed
-                  : DauVietColors.outlineVariant,
-            ),
-            showCheckmark: false,
           );
         },
       ),
@@ -238,53 +251,13 @@ class _CollectionScreenState extends ConsumerState<CollectionScreen> {
           const SizedBox(height: 80),
           Padding(
             padding: const EdgeInsets.symmetric(horizontal: 24),
-            child: ParchmentCard(
-              padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 28),
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  const Icon(
-                    Icons.auto_stories_outlined,
-                    size: 40,
-                    color: DauVietColors.cinnabarRed,
-                  ),
-                  const SizedBox(height: 14),
-                  Text(
-                    'Bộ sưu tập còn trống',
-                    textAlign: TextAlign.center,
-                    style: DauVietTypography.headlineMedium.copyWith(
-                      fontSize: 16,
-                    ),
-                  ),
-                  const SizedBox(height: 8),
-                  Text(
-                    'Hoàn thành các hoạt động chọn bằng chứng trong bài học '
-                    'để lưu bằng chứng vào đây.',
-                    textAlign: TextAlign.center,
-                    style: DauVietTypography.bodySmall.copyWith(
-                      color: DauVietColors.inkMuted,
-                      height: 1.4,
-                    ),
-                  ),
-                  const SizedBox(height: 18),
-                  TextButton.icon(
-                    onPressed: () => context.go('/dashboard'),
-                    icon: const Icon(Icons.explore_rounded, size: 16),
-                    label: const Text('KHÁM PHÁ BÀI HỌC'),
-                    style: TextButton.styleFrom(
-                      foregroundColor: Colors.white,
-                      backgroundColor: DauVietColors.cinnabarRed,
-                      padding: const EdgeInsets.symmetric(
-                        horizontal: 18,
-                        vertical: 10,
-                      ),
-                      textStyle: DauVietTypography.labelMedium.copyWith(
-                        fontWeight: FontWeight.w800,
-                      ),
-                    ),
-                  ),
-                ],
-              ),
+            child: EmptyStateCard(
+              title: 'Chưa có dấu vết',
+              description:
+                  'Hoàn thành bài học để thu thập dấu vết đầu tiên.',
+              actionLabel: 'Bắt đầu học',
+              onAction: () => context.go('/dashboard'),
+              icon: Icons.museum_outlined,
             ),
           ),
         ],
@@ -331,7 +304,7 @@ class _CollectionScreenState extends ConsumerState<CollectionScreen> {
   Widget _buildLoadMoreError(CollectionListState list) {
     return Padding(
       padding: const EdgeInsets.only(top: 8),
-      child: ParchmentCard(
+      child: TactileCard(
         padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
         borderColor: DauVietColors.errorRed.withValues(alpha: 0.4),
         child: Row(
@@ -368,96 +341,169 @@ class _CollectionScreenState extends ConsumerState<CollectionScreen> {
     );
   }
 
-  Widget _buildCard(CollectionItemDto item) {
+  static const ColorFilter _grayscaleFilter = ColorFilter.matrix(<double>[
+    0.2126, 0.7152, 0.0722, 0, 0,
+    0.2126, 0.7152, 0.0722, 0, 0,
+    0.2126, 0.7152, 0.0722, 0, 0,
+    0, 0, 0, 1, 0,
+  ]);
+
+  Widget _buildCard(
+    CollectionItemDto item, {
+    bool unlocked = true,
+    ItemRarity? rarity,
+  }) {
     final evidence = item.evidence;
-    return Padding(
-      padding: const EdgeInsets.only(bottom: 12),
-      child: ParchmentCard(
-        padding: const EdgeInsets.all(12),
-        onTap: () => context.push('/collection/${item.evidenceId}'),
-        child: Row(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            // Thumbnail: asset thật nếu có; fallback icon loại bằng chứng.
-            ClipRRect(
-              borderRadius: BorderRadius.circular(10),
-              child: SizedBox(
-                width: 72,
-                height: 72,
-                child: item.assetId != null
-                    ? LearningAssetImage(
-                        assetId: item.assetId!,
-                        altText: item.title,
-                        height: 72,
-                        fit: BoxFit.cover,
-                        tappable: false,
-                      )
-                    : Container(
-                        color: DauVietColors.parchmentHigh,
-                        child: Icon(
-                          _typeIcon(item.evidenceType),
-                          size: 30,
-                          color: DauVietColors.cinnabarRed,
-                        ),
-                      ),
-              ),
-            ),
-            const SizedBox(width: 12),
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
+    final rowContent = Row(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        // Thumbnail: asset thật nếu có; fallback icon loại bằng chứng.
+        ClipRRect(
+          borderRadius: BorderRadius.circular(10),
+          child: SizedBox(
+            width: 72,
+            height: 72,
+            child: item.assetId != null
+                ? LearningAssetImage(
+                    assetId: item.assetId!,
+                    altText: item.title,
+                    height: 72,
+                    fit: BoxFit.cover,
+                    tappable: false,
+                  )
+                : Container(
+                    color: DauVietColors.paperCardHi,
+                    alignment: Alignment.center,
+                    child: Icon(
+                      _typeIcon(item.evidenceType),
+                      size: 30,
+                      color: DauVietColors.cinnabarRed,
+                    ),
+                  ),
+          ),
+        ),
+        const SizedBox(width: 12),
+        Expanded(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Row(
                 children: [
-                  Row(
-                    children: [
-                      _typeBadge(item.evidenceType),
-                      const SizedBox(width: 6),
-                      if (item.eventTitle != null)
-                        Expanded(
-                          child: Text(
-                            item.eventTitle!,
-                            maxLines: 1,
-                            overflow: TextOverflow.ellipsis,
-                            textAlign: TextAlign.right,
-                            style: DauVietTypography.labelSmall.copyWith(
-                              color: DauVietColors.inkMuted,
-                            ),
-                          ),
+                  StampSealBadge(
+                    _typeStampLabel(item.evidenceType),
+                    size: 22,
+                    color: _typeStampColor(item.evidenceType),
+                    filled: false,
+                    rotationDeg: -6,
+                  ),
+                  const SizedBox(width: 6),
+                  _typeBadge(item.evidenceType),
+                  const SizedBox(width: 6),
+                  if (item.eventTitle != null)
+                    Expanded(
+                      child: Text(
+                        item.eventTitle!,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        textAlign: TextAlign.right,
+                        style: DauVietTypography.labelSmall.copyWith(
+                          color: DauVietColors.inkMuted,
                         ),
-                    ],
-                  ),
-                  const SizedBox(height: 6),
-                  Text(
-                    item.title,
-                    maxLines: 2,
-                    overflow: TextOverflow.ellipsis,
-                    style: DauVietTypography.labelMedium.copyWith(
-                      fontWeight: FontWeight.w700,
-                    ),
-                  ),
-                  if (evidence?.description != null) ...[
-                    const SizedBox(height: 3),
-                    Text(
-                      evidence!.description!,
-                      maxLines: 2,
-                      overflow: TextOverflow.ellipsis,
-                      style: DauVietTypography.bodySmall.copyWith(
-                        color: DauVietColors.inkMuted,
-                        height: 1.35,
                       ),
                     ),
-                  ],
                 ],
               ),
-            ),
+              const SizedBox(height: 6),
+              Text(
+                item.title,
+                maxLines: 2,
+                overflow: TextOverflow.ellipsis,
+                style: DauVietTypography.labelMedium.copyWith(
+                  fontWeight: FontWeight.w700,
+                ),
+              ),
+              if (evidence?.description != null) ...[
+                const SizedBox(height: 3),
+                Text(
+                  evidence!.description!,
+                  maxLines: 2,
+                  overflow: TextOverflow.ellipsis,
+                  style: DauVietTypography.bodySmall.copyWith(
+                    color: DauVietColors.inkMuted,
+                    height: 1.35,
+                  ),
+                ),
+              ],
+            ],
+          ),
+        ),
+        const SizedBox(width: 8),
+        Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            if (unlocked)
+              const StampSealBadge.success('✓', size: 24)
+            else
+              const StampSealBadge.outline('🔒', size: 24),
+            const SizedBox(height: 8),
             const Icon(
               Icons.chevron_right_rounded,
               color: DauVietColors.inkMuted,
             ),
           ],
         ),
-      ),
+      ],
+    );
+
+    Widget cardBody = unlocked
+        ? rowContent
+        : Stack(
+            alignment: Alignment.topRight,
+            children: [
+              ColorFiltered(
+                colorFilter: _grayscaleFilter,
+                child: rowContent,
+              ),
+              const StampSealBadge.outline('🔒', size: 24),
+            ],
+          );
+
+    Widget card = TactileCard(
+      padding: const EdgeInsets.all(12),
+      onTap: unlocked
+          ? () => context.push('/collection/${item.evidenceId}')
+          : null,
+      child: cardBody,
+    );
+
+    if (rarity != null) {
+      card = RareFrameBadge(
+        rarity: rarity,
+        child: card,
+      );
+    }
+
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 12),
+      child: card,
     );
   }
+
+  String _typeStampLabel(String? type) => switch (type) {
+    'LOCATION' => 'ĐỊA',
+    'CHARACTER' => 'NHÂN',
+    'ARTIFACT' => 'VẬT',
+    'DOCUMENT' => 'THƯ',
+    _ => 'DẤU',
+  };
+
+  Color _typeStampColor(String? type) => switch (type) {
+    'LOCATION' => DauVietColors.riverBlue,
+    'CHARACTER' => DauVietColors.heritageGreen,
+    'ARTIFACT' => DauVietColors.imperialGoldDark,
+    'DOCUMENT' => DauVietColors.cinnabarRed,
+    _ => DauVietColors.jade,
+  };
 
   IconData _typeIcon(String? type) => switch (type) {
     'LOCATION' => Icons.place_rounded,

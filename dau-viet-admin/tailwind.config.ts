@@ -33,6 +33,20 @@ const config: Config = {
         foreground: "var(--color-ink)",
         muted: "var(--color-surface-alt)",
         "muted-foreground": "var(--color-ink-muted)",
+        jade: {
+          DEFAULT: "var(--color-jade)",
+          dark: "var(--color-jade-dark)",
+        },
+        chapter: "var(--color-chapter)",
+        heading: "var(--color-heading)",
+        "gold-dark": "var(--color-gold-dark)",
+        "ink-secondary": "var(--color-ink-secondary)",
+      },
+      boxShadow: {
+        heritage: "var(--shadow-heritage)",
+        pixel: "var(--shadow-pixel)",
+        "pixel-sm": "var(--shadow-pixel-sm)",
+        "pixel-lg": "var(--shadow-pixel-lg)",
       },
       borderRadius: {
         sm: "8px",
@@ -43,6 +57,7 @@ const config: Config = {
       fontFamily: {
         sans: ["var(--font-sans)", "system-ui", "sans-serif"],
         display: ["var(--font-display)", "serif"],
+        pixel: ["var(--font-pixel)", "monospace"],
       },
     },
   },

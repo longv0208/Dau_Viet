@@ -14,6 +14,7 @@ export default function NewEvidencePage() {
   return (
     <div>
       <PageHeader
+        eyebrow="QUẢN TRỊ · BẰNG CHỨNG"
         title="Tạo bằng chứng"
         description="Thêm một bằng chứng lịch sử có nguồn trích dẫn vào hệ thống."
       />

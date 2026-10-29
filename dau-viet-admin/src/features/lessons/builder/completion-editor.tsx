@@ -26,7 +26,7 @@ export function CompletionEditor({ draft, readOnly, onChange }: Props) {
   }
 
   return (
-    <section className="flex flex-col gap-3 rounded-md border border-border bg-white p-3">
+    <section className="flex flex-col gap-3 rounded-md border border-border bg-surface p-3">
       <h4 className="text-sm font-semibold text-ink">Điều kiện hoàn thành</h4>
 
       <label className="flex items-start gap-2 text-sm text-ink">

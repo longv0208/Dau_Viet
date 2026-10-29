@@ -2,7 +2,7 @@ import type { ReactNode } from "react";
 
 import { Skeleton } from "@/components/ui/skeleton";
 
-import { EmptyState } from "./empty-state";
+import { EmptyStateCard } from "@/components/atoms/empty-state-card";
 import { ErrorState } from "./error-state";
 
 export interface Column<T> {
@@ -36,15 +36,19 @@ export function DataTable<T>({
 }) {
   if (error) return <ErrorState error={error} onRetry={onRetry} />;
   if (!loading && rows.length === 0) {
-    return <EmptyState title={emptyTitle} description={emptyDescription} />;
+    return <EmptyStateCard title={emptyTitle} description={emptyDescription} />;
   }
   return (
-    <div className="overflow-x-auto rounded-lg border border-border bg-white">
+    <div className="overflow-x-auto rounded-lg border border-border bg-surface-alt shadow-heritage">
       <table className="w-full text-left text-sm">
         <thead>
-          <tr className="border-b border-border bg-surface-alt">
+          <tr className="border-b-2 border-heading bg-surface-alt">
             {columns.map((c) => (
-              <th key={c.key} scope="col" className="px-4 py-3 font-medium text-ink">
+              <th
+                key={c.key}
+                scope="col"
+                className="px-4 py-3 font-pixel text-[10px] uppercase tracking-wider text-ink-muted"
+              >
                 {c.header}
               </th>
             ))}

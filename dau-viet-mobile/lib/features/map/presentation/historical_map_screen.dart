@@ -7,7 +7,12 @@ import 'package:go_router/go_router.dart';
 import '../../../core/theme/dau_viet_colors.dart';
 import '../../../core/theme/dau_viet_typography.dart';
 import '../../../core/widgets/async_state_view.dart';
+import '../../../core/widgets/clue_tag.dart';
 import '../../../core/widgets/main_bottom_nav.dart';
+import '../../../core/widgets/paper_grain_overlay.dart';
+import '../../../core/widgets/section_divider.dart';
+import '../../../core/widgets/stamp_seal_badge.dart';
+import '../../../core/widgets/tactile_card.dart';
 import '../../learning_path/data/learning_path_dto.dart';
 import '../../learning_path/data/learning_path_providers.dart';
 import '../data/map_location_dto.dart';
@@ -223,14 +228,17 @@ class _HistoricalMapScreenState extends ConsumerState<HistoricalMapScreen> {
   Widget build(BuildContext context) {
     final asyncPath = ref.watch(learningPathProvider);
     return Scaffold(
-      backgroundColor: DauVietColors.parchmentSurface,
+      backgroundColor: DauVietColors.paperBackground,
       appBar: AppBar(
-        backgroundColor: const Color(0xFFFBF8F1),
+        backgroundColor: DauVietColors.paperCard,
         elevation: 0,
-        iconTheme: const IconThemeData(color: Color(0xFF1F2421)),
+        iconTheme: const IconThemeData(color: DauVietColors.inkHeading),
         leading: IconButton(
           tooltip: 'Về Học tập',
-          icon: const Icon(Icons.arrow_back_rounded, color: Color(0xFF1F2421)),
+          icon: const Icon(
+            Icons.arrow_back_rounded,
+            color: DauVietColors.inkHeading,
+          ),
           onPressed: () => context.go('/dashboard'),
         ),
         title: Text('Bản Đồ Dấu Ấn', style: DauVietTypography.headlineSmall),
@@ -238,7 +246,10 @@ class _HistoricalMapScreenState extends ConsumerState<HistoricalMapScreen> {
         actions: [
           IconButton(
             tooltip: 'Tải lại bản đồ',
-            icon: const Icon(Icons.map_outlined, color: Color(0xFF5E6963)),
+            icon: const Icon(
+              Icons.map_outlined,
+              color: DauVietColors.inkSecondary,
+            ),
             onPressed: () {
               ref.invalidate(learningPathProvider);
               ref.invalidate(mapLocationsProvider);
@@ -295,7 +306,7 @@ class _HistoricalMapScreenState extends ConsumerState<HistoricalMapScreen> {
         Container(
           width: double.infinity,
           padding: const EdgeInsets.fromLTRB(16, 2, 16, 6),
-          color: const Color(0xFFFBF8F1),
+          color: DauVietColors.paperCard,
           child: Column(
             children: [
               Text(
@@ -304,7 +315,7 @@ class _HistoricalMapScreenState extends ConsumerState<HistoricalMapScreen> {
                 style: DauVietTypography.headlineMedium.copyWith(
                   fontSize: 16.5,
                   fontWeight: FontWeight.w800,
-                  color: const Color(0xFF1F2421),
+                  color: DauVietColors.inkHeading,
                 ),
               ),
               const SizedBox(height: 2),
@@ -315,7 +326,7 @@ class _HistoricalMapScreenState extends ConsumerState<HistoricalMapScreen> {
                 overflow: TextOverflow.ellipsis,
                 style: DauVietTypography.bodySmall.copyWith(
                   fontSize: 11,
-                  color: const Color(0xFF5E6963),
+                  color: DauVietColors.inkSecondary,
                   height: 1.3,
                 ),
               ),
@@ -332,70 +343,21 @@ class _HistoricalMapScreenState extends ConsumerState<HistoricalMapScreen> {
         // 4. Thanh trượt chọn chặng
         if (chapters.length > 1) _buildChapterSelector(chapters),
 
-        const SizedBox(height: 2),
-
-        // 5. Banner tên thời kỳ
-        Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 2),
-          child: Align(
-            alignment: Alignment.centerLeft,
-            child: Container(
-              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-              decoration: BoxDecoration(
-                color: const Color(0xFFF3ECE0),
-                borderRadius: BorderRadius.circular(8),
-                border: Border.all(color: const Color(0xFFD8C8B0)),
-              ),
-              child: Row(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  const Icon(
-                    Icons.account_balance_rounded,
-                    size: 14,
-                    color: DauVietColors.cinnabarRed,
-                  ),
-                  const SizedBox(width: 6),
-                  Flexible(
-                    child: Text(
-                      [
-                        if (chapter.eraTitle != null) chapter.eraTitle,
-                        chapter.title,
-                      ].join(' • '),
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                      style: DauVietTypography.labelMedium.copyWith(
-                        fontWeight: FontWeight.w800,
-                        fontSize: 11,
-                        color: const Color(0xFF1F2421),
-                      ),
-                    ),
-                  ),
-                  const SizedBox(width: 8),
-                  Container(
-                    padding: const EdgeInsets.symmetric(
-                      horizontal: 5,
-                      vertical: 1.5,
-                    ),
-                    decoration: BoxDecoration(
-                      color: DauVietColors.cinnabarRed.withValues(alpha: 0.12),
-                      borderRadius: BorderRadius.circular(4),
-                    ),
-                    child: Text(
-                      '${events.length} sự kiện',
-                      style: DauVietTypography.labelSmall.copyWith(
-                        fontSize: 9,
-                        fontWeight: FontWeight.w700,
-                        color: DauVietColors.cinnabarRed,
-                      ),
-                    ),
-                  ),
-                ],
-              ),
-            ),
+        // 5. Section header cho chặng (PERIOD chapter)
+        SectionDivider(
+          padding: const EdgeInsets.fromLTRB(16, 4, 16, 6),
+          eyebrow:
+              'CHƯƠNG ${(chapter.index + 1).toString().padLeft(2, '0')}',
+          title: [
+            if (chapter.eraTitle != null) chapter.eraTitle,
+            chapter.title,
+          ].join(' • '),
+          trailing: ClueTag(
+            '${events.length} sự kiện',
+            icon: Icons.account_balance_rounded,
+            color: DauVietColors.cinnabarRed,
           ),
         ),
-        const SizedBox(height: 2),
-
         // 6. Canvas hành trình
         Expanded(child: _buildJourneyCanvas(events)),
 
@@ -460,14 +422,13 @@ class _HistoricalMapScreenState extends ConsumerState<HistoricalMapScreen> {
   }
 
   Widget _buildChapterHeader(_PathChapter chapter, List<_PathChapter> chapters) {
-    return Container(
+    return TactileCard(
       margin: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
-      padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 4),
-      decoration: BoxDecoration(
-        color: DauVietColors.parchmentContainer,
-        borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: DauVietColors.outlineVariant),
-      ),
+      padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 2),
+      borderRadius: 12,
+      backgroundColor: DauVietColors.paperCard,
+      borderColor: DauVietColors.outlineVariant,
+      usePixelShadow: false,
       child: Row(
         children: [
           _navButton(
@@ -487,7 +448,7 @@ class _HistoricalMapScreenState extends ConsumerState<HistoricalMapScreen> {
                   overflow: TextOverflow.ellipsis,
                   textAlign: TextAlign.center,
                   style: DauVietTypography.labelLarge.copyWith(
-                    color: DauVietColors.inkText,
+                    color: DauVietColors.inkHeading,
                   ),
                 ),
                 Text(
@@ -539,7 +500,7 @@ class _HistoricalMapScreenState extends ConsumerState<HistoricalMapScreen> {
         itemBuilder: (context, idx) {
           final ch = chapters[idx];
           final isSelected = idx == _chapterIndex;
-          return GestureDetector(
+          return TactileCard(
             onTap: () {
               setState(() {
                 _chapterIndex = idx;
@@ -556,43 +517,37 @@ class _HistoricalMapScreenState extends ConsumerState<HistoricalMapScreen> {
                 }
               });
             },
-            child: AnimatedContainer(
-              duration: const Duration(milliseconds: 200),
-              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-              decoration: BoxDecoration(
-                color: isSelected ? const Color(0xFFFBF8F1) : Colors.white,
-                borderRadius: BorderRadius.circular(12),
-                border: Border.all(
+            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+            borderRadius: 12,
+            backgroundColor: isSelected
+                ? DauVietColors.paperCardHi
+                : DauVietColors.paperCard,
+            borderColor: isSelected
+                ? DauVietColors.cinnabarRed
+                : DauVietColors.outlineVariant,
+            borderWidth: isSelected ? 2.0 : 1.2,
+            child: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Icon(
+                  Icons.account_balance_rounded,
+                  size: 16,
                   color: isSelected
                       ? DauVietColors.cinnabarRed
-                      : const Color(0xFFD8C8B0),
-                  width: isSelected ? 2.0 : 1.0,
+                      : DauVietColors.heritageGreen,
                 ),
-              ),
-              alignment: Alignment.center,
-              child: Row(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  Icon(
-                    Icons.account_balance_rounded,
-                    size: 16,
+                const SizedBox(width: 6),
+                Text(
+                  'Chặng ${idx + 1}: ${ch.title}',
+                  style: DauVietTypography.labelSmall.copyWith(
+                    fontWeight: FontWeight.w800,
+                    fontSize: 11,
                     color: isSelected
                         ? DauVietColors.cinnabarRed
-                        : DauVietColors.heritageGreen,
+                        : DauVietColors.inkHeading,
                   ),
-                  const SizedBox(width: 6),
-                  Text(
-                    'Chặng ${idx + 1}: ${ch.title}',
-                    style: DauVietTypography.labelSmall.copyWith(
-                      fontWeight: FontWeight.w800,
-                      fontSize: 11,
-                      color: isSelected
-                          ? DauVietColors.cinnabarRed
-                          : const Color(0xFF1F2421),
-                    ),
-                  ),
-                ],
-              ),
+                ),
+              ],
             ),
           );
         },
@@ -615,14 +570,11 @@ class _HistoricalMapScreenState extends ConsumerState<HistoricalMapScreen> {
             margin: const EdgeInsets.fromLTRB(12, 2, 12, 6),
             decoration: BoxDecoration(
               borderRadius: BorderRadius.circular(14),
-              border: Border.all(color: const Color(0xFFD8C8B0), width: 1.5),
-              boxShadow: [
-                BoxShadow(
-                  color: Colors.black.withValues(alpha: 0.08),
-                  blurRadius: 10,
-                  offset: const Offset(0, 3),
-                ),
-              ],
+              border: Border.all(
+                color: DauVietColors.outlineVariant,
+                width: 1.5,
+              ),
+              boxShadow: DauVietColors.heritageShadow,
             ),
             child: SingleChildScrollView(
               controller: _scroll,
@@ -639,7 +591,7 @@ class _HistoricalMapScreenState extends ConsumerState<HistoricalMapScreen> {
                         fit: BoxFit.cover,
                         alignment: Alignment.center,
                         errorBuilder: (_, _, _) =>
-                            Container(color: const Color(0xFFF3ECE0)),
+                            Container(color: DauVietColors.paperCardHi),
                       ),
                     ),
                     // 2. Lớp phủ giấy dó nhẹ
@@ -650,10 +602,10 @@ class _HistoricalMapScreenState extends ConsumerState<HistoricalMapScreen> {
                             begin: Alignment.topCenter,
                             end: Alignment.bottomCenter,
                             colors: [
-                              const Color(0xFFFBF8F1).withValues(alpha: 0.06),
+                              DauVietColors.paperCard.withValues(alpha: 0.06),
                               Colors.transparent,
                               Colors.transparent,
-                              const Color(0xFFFBF8F1).withValues(alpha: 0.10),
+                              DauVietColors.paperCard.withValues(alpha: 0.10),
                             ],
                             stops: const [0.0, 0.05, 0.95, 1.0],
                           ),
@@ -696,6 +648,10 @@ class _HistoricalMapScreenState extends ConsumerState<HistoricalMapScreen> {
                         onTapLocation: _showLocationSheet,
                       ),
                     ],
+                    // 5. Texture hạt giấy dó nhẹ phủ trên cùng
+                    const Positioned.fill(
+                      child: PaperGrainOverlay(opacity: 0.04),
+                    ),
                   ],
                 ),
               ),
@@ -708,7 +664,7 @@ class _HistoricalMapScreenState extends ConsumerState<HistoricalMapScreen> {
 
   Widget _buildUnlockedStrip(List<MapLocationDto> locations) {
     return SizedBox(
-      height: 52,
+      height: 58,
       child: ListView.separated(
         scrollDirection: Axis.horizontal,
         padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
@@ -716,30 +672,23 @@ class _HistoricalMapScreenState extends ConsumerState<HistoricalMapScreen> {
         separatorBuilder: (_, _) => const SizedBox(width: 8),
         itemBuilder: (context, i) {
           final loc = locations[i];
-          return InkWell(
-            onTap: () => _showLocationSheet(loc),
-            borderRadius: BorderRadius.circular(10),
-            child: Container(
-              constraints: const BoxConstraints(maxWidth: 180),
+          return Semantics(
+            button: true,
+            label: 'Mở hồ sơ di tích ${loc.title}',
+            child: TactileCard(
+              onTap: () => _showLocationSheet(loc),
               padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
-              decoration: BoxDecoration(
-                color: DauVietColors.imperialGoldLight.withValues(alpha: 0.4),
-                borderRadius: BorderRadius.circular(10),
-                border: Border.all(
-                  color: DauVietColors.imperialGold.withValues(alpha: 0.9),
-                  width: 1.1,
-                ),
-              ),
+              borderRadius: 12,
+              backgroundColor: DauVietColors.paperCard,
+              borderColor: DauVietColors.imperialGold,
+              borderWidth: 1.4,
               child: Row(
                 mainAxisSize: MainAxisSize.min,
                 children: [
-                  const Icon(
-                    Icons.place_rounded,
-                    size: 15,
-                    color: DauVietColors.woodBrown,
-                  ),
-                  const SizedBox(width: 6),
-                  Flexible(
+                  const StampSealBadge.success('DẤU', size: 24),
+                  const SizedBox(width: 8),
+                  ConstrainedBox(
+                    constraints: const BoxConstraints(maxWidth: 150),
                     child: Text(
                       loc.title,
                       maxLines: 1,
@@ -818,28 +767,28 @@ class _SatellitePin extends StatelessWidget {
         behavior: HitTestBehavior.opaque,
         child: Tooltip(
           message: location.title,
-          child: Container(
-            width: 30,
-            height: 30,
-            decoration: BoxDecoration(
-              shape: BoxShape.circle,
-              color: DauVietColors.imperialGoldLight,
-              border: Border.all(
-                color: DauVietColors.imperialGold,
-                width: 1.6,
-              ),
-              boxShadow: [
-                BoxShadow(
-                  color: Colors.black.withValues(alpha: 0.15),
-                  blurRadius: 4,
-                  offset: const Offset(0, 1.5),
+          child: SizedBox(
+            width: 44,
+            height: 44,
+            child: Center(
+              child: Container(
+                width: 30,
+                height: 30,
+                decoration: BoxDecoration(
+                  shape: BoxShape.circle,
+                  color: DauVietColors.imperialGoldLight,
+                  border: Border.all(
+                    color: DauVietColors.imperialGold,
+                    width: 1.6,
+                  ),
+                  boxShadow: DauVietColors.pixelShadowSm,
                 ),
-              ],
-            ),
-            child: const Icon(
-              Icons.place_rounded,
-              size: 16,
-              color: DauVietColors.woodBrown,
+                child: const Icon(
+                  Icons.place_rounded,
+                  size: 16,
+                  color: DauVietColors.woodBrown,
+                ),
+              ),
             ),
           ),
         ),

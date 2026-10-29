@@ -10,6 +10,7 @@ export default function LessonsPage() {
   return (
     <div>
       <PageHeader
+        eyebrow="QUẢN TRỊ · BÀI HỌC"
         title="Bài học"
         description="Danh sách bài học và trạng thái xuất bản."
         actions={

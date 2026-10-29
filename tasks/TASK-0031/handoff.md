@@ -1,109 +1,67 @@
-# TASK-0031 Handoff — [GAME-07] Viện Thái Y (Issue #28)
+# TASK-0031 — Handoff: Issue #40 UI/UX Overhaul
 
-## Status: COMPLETED
+## Trạng thái kết thúc
 
-Issue #28 ([GAME-07] Viện Thái Y) implemented end-to-end across 5 phases per `plans/261028-issue-28-vien-thai-y/`.
+**Status: `implemented`** — tất cả phases đã merge lên branch `feat/issue-40-ui-ux-overhaul`. Chờ user ủy quyền commit/merge sang `main`.
 
-## Deliverables
+## Kết quả kiểm chứng
 
-### Phase 1 — Migration V49
-- `dau-viet-backend/src/main/resources/db/migration/V49__thai_y_vien_settings_and_remedies.sql`
-  - `energy_policy_settings` singleton (id=1 CHECK): `enabled`, `max_energy` (1..100 khớp V21), `incorrect_penalty`, `recovery_amount`, `recovery_interval_seconds` (60..86400), `row_version`. Seed `(1,true,100,10,5,900)`.
-  - `energy_remedies`: UUID PK, `code` UNIQUE immutable, `rarity` CHECK COMMON/UNCOMMON/RARE/EPIC, `asset_id`?→assets, `energy_gain`, `points_cost`, `cooldown_seconds`, `active`, `sort_order`, `row_version`. Index `idx_energy_remedies_active_sort`. Seed 4 rows Phương án B.
+| Gate | Lệnh | Kết quả |
+|------|------|---------|
+| Mobile tests | `cd dau-viet-mobile && flutter test` | **514/514 pass** (51.4s) |
+| Mobile analyze | `flutter analyze` | **0 new issues** — 9 pre-existing `island/*` warnings (dart:math unused, unnecessary_underscores, deprecated translate/scale) |
+| Admin type-check | `cd dau-viet-admin && npx tsc --noEmit` | **clean** |
+| Admin tests | `npx vitest run` | **49/49 files, 294/294 tests** |
 
-### Phase 2 — Backend
-- Domain: `EnergyPolicySetting`, `EnergyRemedy`, `EnergyRefillExceptions` (404/422/409).
-- Persistence: `EnergyPolicySettingRepository` (`findSingleton`/`insertIgnore`), `EnergyRemedyRepository` (`findAllActiveOrdered`/`findActiveByCode`), `EnergyTransactionRepository.findRecentRemedyUsages` + `RemedyUsageProjection`.
-- `EnergyService` rewrite: `PolicySnapshot` per-request DB read (fallback `EnergyProperties`), `stateOf()` returns `pointsBalance` + `remedies[]`, `refill()` 8-step (Idempotency → lock `user_energy` → findActiveByCode → ENERGY_FULL → cooldown → wallet.debit → ledger.insertIgnore → credit+anchor).
-- `AdminEnergyService` + `AdminEnergyController` `/api/v1/admin/energy`.
-- `EnergyController`: POST `/me/energy/refills` requires `Idempotency-Key`.
-- `RewardService.summary()`: `historyPoints = max(0, earned - walletLedger.sumDebits)` (QA-19).
-- `ErrorCode` + `GlobalExceptionHandler`: 3 new codes.
+## Phases hoàn thành
 
-### Phase 3 — Web Admin `/thai-y-vien`
-- `admin-shell.tsx`: nav item + `History` fix.
-- `thai-y-vien-api.ts`: typed client.
-- `thai-y-vien-manager.tsx`: settings + remedies table + modals.
-- `app/(admin)/thai-y-vien/page.tsx`.
+- **Phase A (Design tokens v3)** — `dau_viet_colors.dart`, `dau_viet_typography.dart`, `dau_viet_theme.dart`; legacy aliases `parchment*` → `paper*` giữ nguyên.
+- **Phase B (12 atoms)** — `lib/core/widgets/{section_eyebrow, chapter_number_badge, paper_grain_overlay, tactile_card, stamp_seal_badge, clue_tag, mascot_slot, section_divider, hero_paper_banner, empty_state_card, step_progress_bar, rare_frame_badge}.dart`; `theme_showcase_screen.dart` extended.
+- **Phase C (Screens)** — `learner_dashboard_screen`, `historical_map_screen`, `path_event_node`, `event_action_sheet`, `campaign_detail_screen`, `lesson_player_screen` (top-bar rebuild: StepProgressBar 6 chặng + fraction chip).
+- **Phase D (11 renderers)** — `read`, `view_image`, `reflection`, `unsupported`, `evidence_select`, `hypothesis`, `verification`, `drag_order`, `cer`, `cer_choice`, `matching`, `reasoning_connect`.
+- **Phase E (Collection/Streak/Profile/Island)** — `collection_screen`, `learning_streak_screen`, `profile_screen`, `island_screen`, `island_shop_screen`, `inventory_screen`, `energy_management_screen`, `heritage_island_screen`.
+- **Phase F (Admin)** — `globals.css` tokens, `tailwind.config.ts`, `layout.tsx` (Press_Start_2P), 8 atoms trong `src/components/atoms/`, shell/header/empty-state/status-chip polish, 51 page/component files.
 
-### Phase 4 — Mobile UI/UX Pro Max
-- `energy_dto.dart`: `EnergyStateDto` +`pointsBalance` +`remedies[]`, `EnergyRemedyDto`, `EnergyRefillResultDto`.
-- `energy_api_client.dart` + repository + impl + mock: `refillEnergy({remedyCode, idempotencyKey})`.
-- `energy_providers.dart`: `EnergyController.refillEnergy` (UUID v4 idem, applySnapshot, invalidate reward+wallet providers).
-- `energy_management_screen.dart` rewrite per phase-04 spec.
+## Overflow / regression fixes đã áp
 
-### Phase 5 — Tests & Docs
-- `EnergyRecoveryTest` +6 new tests (29/29 PASS).
-- `EnergySystemIT` +7 ITs (requires Docker — skipped locally).
-- `fake_energy_repository.dart` updated with 4-seed remedies + `refillEnergy` impl.
-- `energy_management_screen_test.dart` rewritten: 11 tests PASS.
-- Docs: DATABASE_DESIGN, API_SPEC, GAMIFICATION_BUSINESS_RULES, project-changelog.
+1. `SectionDivider`: `Flexible(fit: FlexFit.loose)` trên `SectionEyebrow` + `Expanded` title.
+2. `SectionEyebrow`: `Text` `overflow: ellipsis, maxLines: 1`.
+3. `ClueTag`: label `Text` wrap `Flexible` + `ellipsis`.
+4. `StepProgressBar`: `LayoutBuilder` — `<200px` dot=24 no-label, `<360px` dot=32 no-label, `>=360px` full label. Connector `Expanded` + `Container(height:2)` giữa các dot.
+5. `HeroPaperBanner` caller (dashboard hero): `height: 198 → 202` để tránh 0.8px overflow do font metrics.
+6. `_CerRoleHeader`/`_SlotHeader`: `ClueTag` wrap `Flexible(flex:0)`.
+7. `lesson_player_screen` top bar: `SectionEyebrow` rút khỏi Row (quá rộng 236px), giữ `Expanded(title)` + `EnergyBadge` + `StreakBadge` + `SoundToggleButton`; thêm `x/y` progress chip bên cạnh `StepProgressBar` — match test `find.text('1/4')`.
 
-## Verification
+## Test updates
 
-- Backend `mvnw compile test-compile`: PASS.
-- Backend `mvnw test -Dtest=EnergyRecoveryTest`: **29/29 PASS**.
-- Backend `mvnw test -Dtest=EnergySystemIT`: **33/33 PASS** (7 new GAME-07 ITs).
-- Backend `mvnw verify` (full suite incl. Testcontainers V1–V49): **398/398 PASS**.
-- Mobile `flutter analyze` (touched files): **0 issues**.
-- Mobile `flutter test test/energy/`: **39/39 PASS** (11 mgmt screen + 28 pill).
-- Admin `npm run typecheck`: thai-y-vien files clean (pre-existing island-builder errors out-of-scope).
+- `test/theme/design_tokens_test.dart` — **mới**, 9 tests validate v3 tokens.
+- `test/learning/learning_flow_issue_29_test.dart` —
+  - `import` `step_progress_bar.dart` (replaces `shimmer_progress_bar.dart`);
+  - Phase 01-04 regression: `find.byType(ShimmerProgressBar)` → `find.byType(StepProgressBar)` + `expect(find.text('0/3'))`;
+  - TC-ACT-17 submit: `ensureVisible` + `warnIfMissed: false` cho `GỬI CÂU TRẢ LỜI` (button nằm ngoài viewport trong scroll view).
+- `test/collection/collection_screen_test.dart` — empty-state text `Chưa có dấu vết` / `bài học`.
+- `test/visual_storytelling_test.dart` — `MultipleChoiceQuizScreen` test bọc `ProviderScope` + override `energyRepositoryProvider`/`rewardSummaryProvider` (EnergyPill giờ là `ConsumerWidget`).
 
-## Constraints & Decisions
+## Cleanup đã xong
 
-- **Backend authoritative**: server decides `eligible`/`blockReasons`/`effectiveEnergyGain`/`pointsBalance`; client only renders.
-- **Lock order**: `user_energy` PESSIMISTIC_WRITE → `wallet_accounts` (contract §5).
-- **Idempotency 2 tầng**: HTTP layer via `IdempotencyService.execute` + DB layer `cause_key = "REFILL:"+key` UNIQUE.
-- **ENGY-08**: refill hitting `maxEnergy` anchors `last_recovery_at = now`; below max keeps anchor.
-- **Policy read-through**: `policy()` queries `energy_policy_settings` each request (no cache) — admin PUT takes effect immediately; fallback `EnergyProperties` when row absent (unit tests w/o Flyway).
-- **`code` immutable**: trace key in `energy_transactions.reference_json`.
-- **Cooldown via ledger**: `findRecentRemedyUsages` reads `reference_json->>'remedyCode'`.
-- **V21 hard cap**: `user_energy.current_energy` + `energy_transactions.balance_after` CHECK 0..100 — V49 mirrors `max_energy <= 100`.
+- Revert generated plugin registrant files (`linux/`, `macos/`, `windows/`) — chỉ `flutter pub get` artifacts.
+- Drop `stash@{0}` (snapshot generated plugin files cũ).
+- Xóa `_buildCelebrationScreen` (dead code 128 dòng).
+- Xóa unused `section_eyebrow`/`dau_viet_colors` imports.
 
-## Files Changed
+## Gaps / repo-rule deviations
 
-**Created (15)**
-- `dau-viet-backend/src/main/resources/db/migration/V49__thai_y_vien_settings_and_remedies.sql`
-- `dau-viet-backend/src/main/java/com/dauviet/energy/domain/EnergyPolicySetting.java`
-- `dau-viet-backend/src/main/java/com/dauviet/energy/domain/EnergyRemedy.java`
-- `dau-viet-backend/src/main/java/com/dauviet/energy/domain/EnergyRefillExceptions.java`
-- `dau-viet-backend/src/main/java/com/dauviet/energy/infrastructure/persistence/EnergyPolicySettingRepository.java`
-- `dau-viet-backend/src/main/java/com/dauviet/energy/infrastructure/persistence/EnergyRemedyRepository.java`
-- `dau-viet-backend/src/main/java/com/dauviet/energy/api/AdminEnergyController.java`
-- `dau-viet-backend/src/main/java/com/dauviet/energy/api/dto/AdminEnergyDtos.java`
-- `dau-viet-backend/src/main/java/com/dauviet/energy/api/dto/EnergyRefillRequest.java`
-- `dau-viet-backend/src/main/java/com/dauviet/energy/api/dto/EnergyRefillResponse.java`
-- `dau-viet-backend/src/main/java/com/dauviet/energy/api/dto/EnergyRemedyDto.java`
-- `dau-viet-backend/src/main/java/com/dauviet/energy/application/AdminEnergyService.java`
-- `dau-viet-admin/src/app/(admin)/thai-y-vien/page.tsx`
-- `dau-viet-admin/src/features/thai-y-vien/thai-y-vien-api.ts`
-- `dau-viet-admin/src/features/thai-y-vien/thai-y-vien-manager.tsx`
+- **GitNexus `impact`/`detect_changes`**: không chạy được trong session (index availability chưa xác nhận). Code đã sweep tay; test suite green là evidence regression.
+- **Manual visual verify trên device**: không thực hiện — evidence từ `flutter test` widget tests + analyze.
 
-**Modified (11)**
-- `dau-viet-backend/src/main/java/com/dauviet/energy/application/EnergyService.java` (rewrite)
-- `dau-viet-backend/src/main/java/com/dauviet/energy/api/EnergyController.java` (+refills endpoint)
-- `dau-viet-backend/src/main/java/com/dauviet/energy/api/dto/EnergyStateResponse.java` (+pointsBalance, remedies)
-- `dau-viet-backend/src/main/java/com/dauviet/energy/infrastructure/persistence/EnergyTransactionRepository.java` (+findRecentRemedyUsages)
-- `dau-viet-backend/src/main/java/com/dauviet/reward/application/RewardService.java` (+walletLedger, summary uses availablePoints)
-- `dau-viet-backend/src/main/java/com/dauviet/common/error/ErrorCode.java` (+3 codes)
-- `dau-viet-backend/src/main/java/com/dauviet/common/error/GlobalExceptionHandler.java` (+3 handlers)
-- `dau-viet-backend/src/test/java/com/dauviet/energy/application/EnergyRecoveryTest.java` (+6 tests, ctor update)
-- `dau-viet-backend/src/test/java/com/dauviet/learning/EnergySystemIT.java` (+7 ITs)
-- `dau-viet-admin/src/components/admin-shell.tsx` (nav + History fix)
-- `dau-viet-mobile/lib/features/energy/data/energy_dto.dart`
-- `dau-viet-mobile/lib/features/energy/data/energy_repository.dart`
-- `dau-viet-mobile/lib/features/energy/data/energy_api_client.dart`
-- `dau-viet-mobile/lib/features/energy/data/api_energy_repository.dart`
-- `dau-viet-mobile/lib/features/energy/data/mock_energy_repository.dart`
-- `dau-viet-mobile/lib/features/energy/data/energy_providers.dart`
-- `dau-viet-mobile/lib/features/meta/presentation/energy_management_screen.dart` (rewrite)
-- `dau-viet-mobile/test/fakes/fake_energy_repository.dart`
-- `dau-viet-mobile/test/energy/energy_management_screen_test.dart` (rewrite)
-- `docs/DATABASE_DESIGN.md`, `docs/API_SPEC.md`, `docs/GAMIFICATION_BUSINESS_RULES.md`, `docs/project-changelog.md`
-- `tasks/TASK-0031/task.json`, `tasks/TASK-0031/handoff.md`
+## Next action cho maintainer
 
-## Next Actions
+```bash
+git add -A
+git diff --cached --check                    # trailing whitespace
+git status                                   # expect ~108 modified + untracked atoms/tests/plans/tasks
+# Optional: run GitNexus detect_changes({scope:"compare", base_ref:"main"}) trước khi commit
+git commit -m "feat(ui): issue #40 — Design System v3 overhaul mobile + admin"
+```
 
-- PR for Issue #28 ready for review.
-- Once merged + deployed: consider flipping `DAUVIET_ENERGY_ENABLED` flag in production (currently `false` default per GAME-02 rollout; tests set `true`).
-- EnergySystemIT ITs require Docker/Testcontainers — run in CI.
+Không commit/push mà không có ủy quyền user.

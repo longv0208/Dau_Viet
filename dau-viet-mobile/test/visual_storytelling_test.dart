@@ -147,7 +147,15 @@ void main() {
       tester,
     ) async {
       await tester.pumpWidget(
-        const MaterialApp(home: MultipleChoiceQuizScreen()),
+        ProviderScope(
+          overrides: [
+            energyRepositoryProvider.overrideWithValue(FakeEnergyRepository()),
+            rewardSummaryProvider.overrideWith(
+              (ref) async => RewardSummaryDto.empty,
+            ),
+          ],
+          child: const MaterialApp(home: MultipleChoiceQuizScreen()),
+        ),
       );
 
       expect(find.byType(InteractiveHistoricalMascotWidget), findsOneWidget);

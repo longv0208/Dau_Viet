@@ -13,6 +13,8 @@ import {
   Trash2,
 } from "lucide-react";
 import type { PathChapter, PathDetail, PathNodeType } from "@/lib/dto/learning-path";
+import { EmptyStateCard } from "@/components/atoms/empty-state-card";
+import { SectionDivider } from "@/components/atoms/section-divider";
 import { Button } from "@/components/ui/button";
 import { ConfirmDialog } from "@/components/confirm-dialog";
 import { cn } from "@/lib/utils";
@@ -235,14 +237,12 @@ export function ChapterPanel({
 
   return (
     <section aria-label="Cây lộ trình lịch sử" className="space-y-3 p-4">
-      <div className="flex flex-wrap items-center justify-between gap-2">
-        <div>
-          <h2 className="font-display text-lg font-semibold">Cây lộ trình</h2>
-          <p className="text-xs text-ink-muted">
-            Đại thời kỳ (ERA) → Thời kỳ (PERIOD) → Giai đoạn (PHASE)
-          </p>
-        </div>
-        {!readOnly && (
+      <SectionDivider
+        eyebrow="CẤU TRÚC"
+        title="Cây lộ trình"
+        description="Đại thời kỳ (ERA) → Thời kỳ (PERIOD) → Giai đoạn (PHASE)"
+        action={
+          !readOnly ? (
           <div className="flex gap-1.5">
             <Button
               variant="secondary"
@@ -275,15 +275,18 @@ export function ChapterPanel({
               <Plus aria-hidden />
             </Button>
           </div>
-        )}
-      </div>
+          ) : undefined
+        }
+      />
 
       {renderTreeGroup(treeRoots, null)}
 
       {detail.chapters.length === 0 && (
-        <p className="rounded-lg border border-dashed border-border p-5 text-sm text-ink-muted">
-          Chưa có đơn vị nào trên cây lộ trình. Thêm Đại thời kỳ (ERA) hoặc Thời kỳ (PERIOD) đầu tiên để bắt đầu thiết kế.
-        </p>
+        <EmptyStateCard
+          title="Chưa có đơn vị nào trên cây lộ trình."
+          description="Thêm Đại thời kỳ (ERA) hoặc Thời kỳ (PERIOD) đầu tiên để bắt đầu thiết kế."
+          className="py-6"
+        />
       )}
 
       {modal && (

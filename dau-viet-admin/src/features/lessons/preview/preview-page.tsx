@@ -10,9 +10,10 @@ import { apiFetch } from "@/lib/api-client";
 import { toUserMessage } from "@/lib/api-error";
 import { parseReturnTo, withReturnTo } from "@/lib/return-to";
 import type { LearnerLessonContent } from "@/lib/dto/publish";
+import { EmptyStateCard } from "@/components/atoms/empty-state-card";
+import { PaperCard } from "@/components/atoms/paper-card";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
-
 import { parseDraft, type Draft } from "../builder/draft-model";
 import { MobileFrame } from "./mobile-frame";
 import type { EmbeddedAsset, EmbeddedEvidence } from "./renderers/types";
@@ -70,7 +71,7 @@ export function PreviewPage({ lessonId }: { lessonId: string }) {
 
   return (
     <div className="flex flex-col gap-4">
-      <div className="flex flex-wrap items-center gap-3">
+      <PaperCard className="flex flex-wrap items-center gap-3 p-3.5">
         <p className="rounded-md bg-warning/15 px-3 py-1.5 text-xs font-medium text-ink">
           Chế độ xem trước — chưa chấm điểm · hiển thị bản nháp đã lưu trên máy chủ
         </p>
@@ -90,7 +91,7 @@ export function PreviewPage({ lessonId }: { lessonId: string }) {
             </Link>
           </Button>
         </div>
-      </div>
+      </PaperCard>
 
       {preview.isPending && (
         <div className="mx-auto flex w-full max-w-[390px] flex-col gap-3">
@@ -108,40 +109,45 @@ export function PreviewPage({ lessonId }: { lessonId: string }) {
       {preview.isSuccess && (
         <>
           {stages.length === 0 ? (
-            <div className="rounded-md border border-dashed border-border px-6 py-12 text-center">
-              <p className="text-sm text-ink-muted">
-                Bản nháp chưa có giai đoạn nào — quay lại{" "}
-                <Link
-                  href={withReturnTo(`/lessons/${lessonId}/builder`, returnTo)}
-                  className="text-brand hover:underline"
-                >
-                  trình soạn bài học
-                </Link>{" "}
-                để thêm nội dung.
-              </p>
-            </div>
+            <EmptyStateCard
+              title="Bản nháp chưa có giai đoạn nào"
+              description="Quay lại trình soạn bài học để thêm nội dung."
+              action={
+                <Button asChild variant="secondary" size="sm">
+                  <Link href={withReturnTo(`/lessons/${lessonId}/builder`, returnTo)}>
+                    trình soạn bài học
+                  </Link>
+                </Button>
+              }
+            />
           ) : (
-            <div className="flex flex-col items-center gap-4">
-              <StageNav
-                stages={stages}
-                selectedId={stage?.id ?? null}
-                onSelect={(id) => {
-                  setSelectedStageId(id);
-                  setActivityIndex(0);
-                }}
+            <PaperCard className="relative overflow-hidden p-5">
+              <div
+                aria-hidden
+                className="pointer-events-none absolute inset-0 bg-[radial-gradient(#402C29_1px,transparent_1px)] [background-size:16px_16px] opacity-[0.04]"
               />
-              <MobileFrame>
-                {stage && (
-                  <StageView
-                    stage={stage}
-                    activityIndex={activityIndex}
-                    onActivityChange={setActivityIndex}
-                    evidence={embedded.evidence}
-                    assets={embedded.assets}
-                  />
-                )}
-              </MobileFrame>
-            </div>
+              <div className="relative flex flex-col items-center gap-4">
+                <StageNav
+                  stages={stages}
+                  selectedId={stage?.id ?? null}
+                  onSelect={(id) => {
+                    setSelectedStageId(id);
+                    setActivityIndex(0);
+                  }}
+                />
+                <MobileFrame>
+                  {stage && (
+                    <StageView
+                      stage={stage}
+                      activityIndex={activityIndex}
+                      onActivityChange={setActivityIndex}
+                      evidence={embedded.evidence}
+                      assets={embedded.assets}
+                    />
+                  )}
+                </MobileFrame>
+              </div>
+            </PaperCard>
           )}
         </>
       )}

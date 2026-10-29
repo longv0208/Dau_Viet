@@ -32,7 +32,7 @@ export function VerifyContentCard({ lessonId }: { lessonId: string }) {
   })();
 
   return (
-    <section className="flex flex-col gap-2 rounded-md border border-border bg-white p-3">
+    <section className="flex flex-col gap-2 rounded-md border border-border bg-surface-alt p-3 shadow-heritage">
       <h4 className="flex items-center gap-1.5 text-sm font-semibold text-ink">
         <ShieldCheck className="size-4 text-success" aria-hidden />
         Kiểm tra nội dung học viên

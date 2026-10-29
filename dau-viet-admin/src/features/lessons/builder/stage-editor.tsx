@@ -9,11 +9,11 @@ import type { Activity, ActivityType, Draft, Stage, StageType } from "./draft-mo
 import { STAGE_TYPES } from "./draft-model";
 import { ACTIVITY_LABELS, STAGE_LABELS } from "./labels";
 import { makeActivity } from "./use-builder";
+import { SectionDivider } from "@/components/atoms/section-divider";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select } from "@/components/ui/select";
-
 interface Props {
   draft: Draft;
   stage: Stage;
@@ -49,10 +49,10 @@ export function StageEditor({
 
   return (
     <div className="flex flex-col gap-5">
-      {/* Stage metadata */}
+      <SectionDivider eyebrow="THÔNG TIN" title="Cấu hình giai đoạn" />
       <div className="grid gap-3 sm:grid-cols-2">
         <div className="flex flex-col gap-1.5 sm:col-span-2">
-          <Label htmlFor="stage-title">Tên giai đoạn</Label>
+          <Label htmlFor="stage-title" className="font-medium text-ink-secondary">Tên giai đoạn</Label>
           <Input
             id="stage-title"
             value={stage.title ?? ""}
@@ -62,7 +62,7 @@ export function StageEditor({
           />
         </div>
         <div className="flex flex-col gap-1.5">
-          <Label htmlFor="stage-type">Loại giai đoạn</Label>
+          <Label htmlFor="stage-type" className="font-medium text-ink-secondary">Loại giai đoạn</Label>
           <Select
             id="stage-type"
             value={stage.type}
@@ -78,7 +78,7 @@ export function StageEditor({
           <p className="text-xs text-ink-muted">{STAGE_LABELS[stage.type].description}</p>
         </div>
         <div className="flex flex-col gap-1.5">
-          <Label>Bắt buộc hoàn thành</Label>
+          <Label className="font-medium text-ink-secondary">Bắt buộc hoàn thành</Label>
           <label className="flex h-11 items-center gap-2 rounded-md border border-border px-3">
             <input
               type="checkbox"
@@ -101,7 +101,7 @@ export function StageEditor({
 
       {/* nextStageIds via checkboxes */}
       <div className="flex flex-col gap-1.5">
-        <Label>Giai đoạn tiếp theo</Label>
+        <Label className="font-medium text-ink-secondary">Giai đoạn tiếp theo</Label>
         <p className="text-xs text-ink-muted">
           Để trống = giai đoạn kết thúc. Chọn nhiều để rẽ nhánh.
         </p>
@@ -144,21 +144,23 @@ export function StageEditor({
 
       {/* Activities */}
       <div className="flex flex-col gap-2">
-        <div className="flex items-center justify-between">
-          <h4 className="text-sm font-semibold text-ink">
-            Hoạt động ({stage.activities.length})
-          </h4>
-          {!readOnly && (
-            <Button
-              variant="secondary"
-              size="sm"
-              onClick={() => setPicking((p) => !p)}
-              aria-expanded={picking}
-            >
-              <Plus className="size-4" /> Thêm hoạt động
-            </Button>
-          )}
-        </div>
+        <SectionDivider
+          eyebrow="HOẠT ĐỘNG"
+          eyebrowColor="jade"
+          title={`Hoạt động (${stage.activities.length})`}
+          action={
+            !readOnly ? (
+              <Button
+                variant="secondary"
+                size="sm"
+                onClick={() => setPicking((p) => !p)}
+                aria-expanded={picking}
+              >
+                <Plus className="size-4" /> Thêm hoạt động
+              </Button>
+            ) : undefined
+          }
+        />
 
         {picking && (
           <div className="rounded-md border border-brand/40 bg-brand/5 p-3">
@@ -190,7 +192,7 @@ export function StageEditor({
                 <div
                   className={
                     "flex items-center gap-2 rounded-md border p-2 " +
-                    (selected ? "border-brand bg-brand/5" : "border-border bg-white")
+                    (selected ? "border-brand bg-brand/5" : "border-border bg-surface")
                   }
                 >
                   <button

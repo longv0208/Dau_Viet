@@ -3,6 +3,9 @@
 import { useEffect, useState } from "react";
 import { BookOpen, Compass, Info, Landmark, Trash2 } from "lucide-react";
 import type { PathChapter, PathDetail, PathEvent } from "@/lib/dto/learning-path";
+import { EmptyStateCard } from "@/components/atoms/empty-state-card";
+import { PaperCard } from "@/components/atoms/paper-card";
+import { SectionDivider } from "@/components/atoms/section-divider";
 import { Button } from "@/components/ui/button";
 import { Select } from "@/components/ui/select";
 import { StatusChip } from "@/components/status-chip";
@@ -117,7 +120,7 @@ export function EventPanel({
                   <button
                     type="button"
                     onClick={() => onSelectChapter?.(period.chapter.id)}
-                    className="flex w-full cursor-pointer flex-col rounded-lg border border-border bg-white p-3 text-left shadow-sm transition-colors duration-150 hover:border-brand/50 hover:bg-surface-alt/50"
+                    className="flex w-full cursor-pointer flex-col rounded-lg border border-border bg-surface-alt p-3 text-left shadow-heritage transition-colors duration-150 hover:border-brand/50"
                   >
                     <span className="inline-flex items-center gap-1 text-xs font-semibold text-brand">
                       <Compass className="size-3.5" aria-hidden />
@@ -139,20 +142,11 @@ export function EventPanel({
 
   return (
     <section className="space-y-5 p-4" aria-label="Sự kiện và bài học">
-      <div>
-        <span
-          className={cn(
-            "inline-flex items-center gap-1 rounded px-2 py-0.5 text-xs font-semibold uppercase tracking-wider",
-            meta.badgeClass,
-          )}
-        >
-          {meta.shortLabel} {chapter.chapter.sortOrder}
-        </span>
-        <h2 className="mt-1 font-display text-xl font-semibold">{chapter.chapter.title}</h2>
-        <p className="mt-1 text-sm text-ink-muted">
-          {chapter.chapter.periodLabel} · {chapter.events.length} sự kiện
-        </p>
-      </div>
+      <SectionDivider
+        eyebrow={`${meta.shortLabel} ${chapter.chapter.sortOrder}`}
+        title={chapter.chapter.title}
+        description={`${chapter.chapter.periodLabel} · ${chapter.events.length} sự kiện`}
+      />
 
       <SortableList
         items={chapter.events}
@@ -274,9 +268,11 @@ export function EventPanel({
       </SortableList>
 
       {chapter.events.length === 0 && (
-        <p className="rounded-lg border border-dashed border-border p-4 text-sm text-ink-muted">
-          Thời kỳ / Giai đoạn này chưa có sự kiện nào. Chọn sự kiện từ danh mục bên dưới để thêm vào lộ trình.
-        </p>
+        <EmptyStateCard
+          title="Thời kỳ / Giai đoạn này chưa có sự kiện nào."
+          description="Chọn sự kiện từ danh mục bên dưới để thêm vào lộ trình."
+          className="py-6"
+        />
       )}
       {selected && (
         <LessonPanel

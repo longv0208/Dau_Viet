@@ -12,12 +12,13 @@ import type { AdminEventDetail } from "@/lib/dto/event";
 import type { AdminLessonDetail, LessonTemplate } from "@/lib/dto/lesson";
 import type { PublishResponse } from "@/lib/dto/publish";
 import { qk } from "@/lib/query-keys";
+import { PaperCard } from "@/components/atoms/paper-card";
+import { SectionDivider } from "@/components/atoms/section-divider";
+import { StampSeal } from "@/components/atoms/stamp-seal";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { ErrorState } from "@/components/error-state";
 import { Skeleton } from "@/components/ui/skeleton";
 import { StatusChip } from "@/components/status-chip";
-
 import { PublishReadinessCard } from "../builder/publish-readiness-card";
 import { LessonArchiveButton } from "./lesson-archive-button";
 import { PublishButton } from "./publish-button";
@@ -98,11 +99,9 @@ export function PublishPage({ lessonId }: { lessonId: string }) {
       </div>
 
       <div className="grid gap-4 md:grid-cols-2">
-        <Card>
-          <CardHeader>
-            <CardTitle className="text-base">Sự kiện</CardTitle>
-          </CardHeader>
-          <CardContent className="flex flex-col gap-1">
+        <PaperCard className="p-5">
+          <SectionDivider eyebrow="LIÊN KẾT" title="Sự kiện" className="mb-3" />
+          <div className="flex flex-col gap-1">
             {eventQuery.isPending && <Skeleton className="h-6 w-48" />}
             {event && (
               <>
@@ -120,24 +119,20 @@ export function PublishPage({ lessonId }: { lessonId: string }) {
                 </div>
               </>
             )}
-          </CardContent>
-        </Card>
-        <Card>
-          <CardHeader>
-            <CardTitle className="text-base">Khung bài học</CardTitle>
-          </CardHeader>
-          <CardContent>
+          </div>
+        </PaperCard>
+        <PaperCard className="p-5">
+          <SectionDivider eyebrow="CẤU TRÚC" eyebrowColor="jade" title="Khung bài học" className="mb-3" />
+          <div>
             <p className="text-sm font-medium text-ink">{template?.name ?? "—"}</p>
             {template && <p className="mt-1 text-xs text-ink-muted">{template.description}</p>}
-          </CardContent>
-        </Card>
+          </div>
+        </PaperCard>
       </div>
 
-      <Card>
-        <CardHeader>
-          <CardTitle className="text-base">Thông tin bài học</CardTitle>
-        </CardHeader>
-        <CardContent className="flex flex-col gap-2 text-sm">
+      <PaperCard className="p-5">
+        <SectionDivider eyebrow="THÔNG TIN" title="Thông tin bài học" className="mb-3" />
+        <div className="flex flex-col gap-2 text-sm">
           <div>
             <span className="text-ink-muted">Câu hỏi trung tâm: </span>
             <span className="text-ink">{lesson.centralQuestion}</span>
@@ -152,12 +147,15 @@ export function PublishPage({ lessonId }: { lessonId: string }) {
               </ul>
             </div>
           )}
-          <div className="text-ink-muted">
-            Phiên bản đang phát hành:{" "}
-            {lesson.currentVersionId ? "Đã xuất bản" : "chưa có — bài học chưa từng xuất bản"}
+          <div className="flex items-center gap-2 text-ink-muted">
+            <span>
+              Phiên bản đang phát hành:{" "}
+              {lesson.currentVersionId ? "Đã xuất bản" : "chưa có — bài học chưa từng xuất bản"}
+            </span>
+            {lesson.currentVersionId && <StampSeal variant="success" label="ẤN HÀNH" className="scale-90" />}
           </div>
-        </CardContent>
-      </Card>
+        </div>
+      </PaperCard>
 
       <PublishReadinessCard lessonId={lesson.id} />
 

@@ -3,6 +3,11 @@ import 'package:flutter/services.dart';
 
 import '../../../../core/theme/dau_viet_colors.dart';
 import '../../../../core/theme/dau_viet_typography.dart';
+import '../../../../core/widgets/clue_tag.dart';
+import '../../../../core/widgets/empty_state_card.dart';
+import '../../../../core/widgets/section_eyebrow.dart';
+import '../../../../core/widgets/stamp_seal_badge.dart';
+import '../../../../core/widgets/tactile_card.dart';
 import '../../data/attempt_dtos.dart';
 import '../../data/learning_dtos.dart';
 import 'learning_asset_image.dart';
@@ -66,8 +71,13 @@ class _EvidenceSelectRendererState extends State<EvidenceSelectRenderer> {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
-        SectionLabel('CHỌN ÍT NHẤT $minRequired BẰNG CHỨNG PHÙ HỢP'),
-        const SizedBox(height: 4),
+        Align(
+          alignment: Alignment.centerLeft,
+          child: SectionEyebrow(
+            'THU THẬP DẤU VẾT · CHỌN ÍT NHẤT $minRequired',
+          ),
+        ),
+        const SizedBox(height: 6),
         Text(
           'Chạm vào thẻ để xem chi tiết; chạm dấu tích để chọn.',
           style: DauVietTypography.bodySmall.copyWith(
@@ -76,7 +86,7 @@ class _EvidenceSelectRendererState extends State<EvidenceSelectRenderer> {
             color: DauVietColors.inkMuted,
           ),
         ),
-        const SizedBox(height: 8),
+        const SizedBox(height: 10),
         for (final id in ids)
           _EvidenceCard(
             evidence: widget.content.evidenceById(id),
@@ -92,7 +102,7 @@ class _EvidenceSelectRendererState extends State<EvidenceSelectRenderer> {
           textAlign: TextAlign.center,
           style: DauVietTypography.bodySmall.copyWith(
             color: _selected.length >= minRequired
-                ? const Color(0xFF4C7C44)
+                ? DauVietColors.natureGreen
                 : DauVietColors.inkMuted,
             fontWeight: _selected.length >= minRequired
                 ? FontWeight.w700
@@ -119,7 +129,7 @@ class _EvidenceSelectRendererState extends State<EvidenceSelectRenderer> {
     showModalBottomSheet<void>(
       context: context,
       isScrollControlled: true,
-      backgroundColor: DauVietColors.parchmentSurface,
+      backgroundColor: DauVietColors.paperBackground,
       shape: const RoundedRectangleBorder(
         borderRadius: BorderRadius.vertical(top: Radius.circular(18)),
       ),
@@ -155,6 +165,11 @@ String? _imageAssetId(Map<String, dynamic>? e) {
   return raw is String && raw.isNotEmpty ? raw : null;
 }
 
+String? _evidenceCategory(Map<String, dynamic>? e) {
+  final raw = e?['type'] ?? e?['category'] ?? e?['kind'];
+  return raw is String && raw.trim().isNotEmpty ? raw.trim() : null;
+}
+
 class _EvidenceCard extends StatelessWidget {
   final Map<String, dynamic>? evidence;
   final String fallbackId;
@@ -179,39 +194,41 @@ class _EvidenceCard extends StatelessWidget {
     final String? desc = e?['description'] as String?;
     final String sourceText = _sourceText(e);
     final String? assetId = _imageAssetId(e);
+    final String? category = _evidenceCategory(e);
 
     return Padding(
       padding: const EdgeInsets.only(bottom: 10),
-      child: Material(
-        color: Colors.transparent,
-        child: InkWell(
-          borderRadius: BorderRadius.circular(12),
-          onTap: enabled ? onDetail : null, // mở detail trước
-          child: AnimatedContainer(
-            duration: const Duration(milliseconds: 150),
+      child: Stack(
+        clipBehavior: Clip.none,
+        children: [
+          TactileCard(
+            enabled: enabled,
+            onTap: enabled ? onSelect : null,
+            backgroundColor: selected
+                ? DauVietColors.paperCardHi
+                : DauVietColors.paperCard,
+            borderColor: selected
+                ? DauVietColors.cinnabarRed
+                : DauVietColors.outlineVariant,
+            borderWidth: selected ? 2.4 : 1.4,
             padding: const EdgeInsets.all(12),
-            decoration: BoxDecoration(
-              color: selected
-                  ? DauVietColors.cinnabarRed.withValues(alpha: 0.08)
-                  : Colors.white.withValues(alpha: enabled ? 0.9 : 0.55),
-              borderRadius: BorderRadius.circular(12),
-              border: Border.all(
-                color: selected
-                    ? DauVietColors.cinnabarRed
-                    : DauVietColors.outlineVariant,
-                width: selected ? 1.7 : 1,
-              ),
-            ),
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
+                if (category != null) ...[
+                  ClueTag.category(category, filled: selected),
+                  const SizedBox(height: 8),
+                ],
                 if (assetId != null) ...[
-                  LearningAssetImage(
-                    assetId: assetId,
-                    altText: title,
-                    height: 120,
-                    fit: BoxFit.cover,
-                    tappable: false, // tap card = detail sheet
+                  ClipRRect(
+                    borderRadius: BorderRadius.circular(12),
+                    child: LearningAssetImage(
+                      assetId: assetId,
+                      altText: title,
+                      height: 72,
+                      fit: BoxFit.cover,
+                      tappable: false,
+                    ),
                   ),
                   const SizedBox(height: 8),
                 ],
@@ -245,23 +262,64 @@ class _EvidenceCard extends StatelessWidget {
                             ),
                           if (sourceText.isNotEmpty)
                             Padding(
-                              padding: const EdgeInsets.only(top: 4),
-                              child: Text(
-                                'Nguồn: $sourceText',
-                                maxLines: 1,
-                                overflow: TextOverflow.ellipsis,
-                                style: DauVietTypography.bodySmall.copyWith(
-                                  fontSize: 11,
-                                  fontStyle: FontStyle.italic,
-                                  color: DauVietColors.inkMuted,
+                              padding: const EdgeInsets.only(top: 6),
+                              child: Row(
+                                children: [
+                                  const Icon(
+                                    Icons.menu_book_outlined,
+                                    size: 14,
+                                    color: DauVietColors.jade,
+                                  ),
+                                  const SizedBox(width: 4),
+                                  Expanded(
+                                    child: Text(
+                                      'Nguồn: $sourceText',
+                                      maxLines: 1,
+                                      overflow: TextOverflow.ellipsis,
+                                      style: DauVietTypography.labelSmall
+                                          .copyWith(
+                                            color: DauVietColors.inkMuted,
+                                          ),
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ),
+                          Padding(
+                            padding: const EdgeInsets.only(top: 6),
+                            child: GestureDetector(
+                              behavior: HitTestBehavior.opaque,
+                              onTap: enabled ? onDetail : null,
+                              child: ConstrainedBox(
+                                constraints: const BoxConstraints(
+                                  minHeight: 28,
+                                ),
+                                child: Row(
+                                  mainAxisSize: MainAxisSize.min,
+                                  children: [
+                                    const Icon(
+                                      Icons.manage_search_rounded,
+                                      size: 15,
+                                      color: DauVietColors.jadeDark,
+                                    ),
+                                    const SizedBox(width: 4),
+                                    Text(
+                                      'Xem chi tiết dấu vết',
+                                      style: DauVietTypography.labelSmall
+                                          .copyWith(
+                                            color: DauVietColors.jadeDark,
+                                            fontWeight: FontWeight.w700,
+                                          ),
+                                    ),
+                                  ],
                                 ),
                               ),
                             ),
+                          ),
                         ],
                       ),
                     ),
                     const SizedBox(width: 8),
-                    // Nút chọn riêng — dừng propagation để không mở detail.
                     Semantics(
                       button: true,
                       selected: selected,
@@ -278,15 +336,13 @@ class _EvidenceCard extends StatelessWidget {
                             minHeight: 44,
                           ),
                           alignment: Alignment.center,
-                          child: Icon(
-                            selected
-                                ? Icons.check_circle
-                                : Icons.radio_button_off,
-                            size: 24,
-                            color: selected
-                                ? DauVietColors.cinnabarRed
-                                : DauVietColors.inkMuted,
-                          ),
+                          child: selected
+                              ? const SizedBox(width: 32, height: 32)
+                              : const Icon(
+                                  Icons.radio_button_off,
+                                  size: 24,
+                                  color: DauVietColors.inkMuted,
+                                ),
                         ),
                       ),
                     ),
@@ -295,7 +351,15 @@ class _EvidenceCard extends StatelessWidget {
               ],
             ),
           ),
-        ),
+          if (selected)
+            Positioned(
+              top: 8,
+              right: 8,
+              child: IgnorePointer(
+                child: const StampSealBadge.success('✓', size: 32),
+              ),
+            ),
+        ],
       ),
     );
   }
@@ -413,8 +477,10 @@ class _NoEvidence extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return const ActivityCard(
-      child: Text('Không có bằng chứng nào để chọn trong hoạt động này.'),
+    return const EmptyStateCard(
+      title: 'Chưa có dấu vết',
+      description: 'Hoạt động này chưa có bằng chứng để chọn.',
+      icon: Icons.search_off,
     );
   }
 }

@@ -10,6 +10,7 @@ export default function EventsPage() {
   return (
     <div>
       <PageHeader
+        eyebrow="QUẢN TRỊ · SỰ KIỆN"
         title="Sự kiện"
         description="Danh sách sự kiện lịch sử trong hệ thống."
         actions={

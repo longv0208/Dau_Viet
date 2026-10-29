@@ -1,26 +1,50 @@
-# TASK-0031 — [GAME-07] Hoàn thiện chức năng Viện Thái Y: 4 Vật phẩm Hồi Thể lực, Admin Settings & Mobile UI/UX Pro Max (Issue #28)
+# TASK-0031 — Issue #40 UI/UX Overhaul Brief
 
-- **GitHub Issue:** https://github.com/longv0208/Dau_Viet/issues/28
-- **Branch:** `feat/issue-28-vien-thai-y`
-- **Worktree:** `E:/Telegram Desktop/Dau viet/Dau_Viet-issue-28`
-- **Master Plan:** `plans/261028-issue-28-vien-thai-y/plan.md`
+> Đọc `plans/261029-issue-40-ui-overhaul/plan.md` trước khi sửa bất kỳ file nào.
 
-## 1. Mục tiêu
-Hoàn thiện end-to-end chức năng **Viện Thái Y (`M-28` / `GAME-07`)** trên cả 3 phân hệ (`dau-viet-backend`, `dau-viet-admin`, `dau-viet-mobile`):
-1. Lưu cấu hình quy tắc Thể lực toàn cục (`energy_policy_settings`) và danh mục 4 vật phẩm Viện Thái Y theo Phương án B (`energy_remedies`) trong Database (`V49`).
-2. Cho phép người học bấm mua/dùng mọi vật phẩm đang mở bán miễn là Thể lực chưa đầy (`currentEnergy < maxEnergy`), thực thi nguyên tử & idempotent qua `POST /api/v1/me/energy/refills`, đồng bộ số dư Điểm Sử Ký trên toàn hệ thống (`QA-19`).
-3. Cung cấp trang Quản trị Viện Thái Y (`/thai-y-vien`) trên `dau-viet-admin` để Admin chỉnh sửa quy tắc Thể lực và CRUD vật phẩm Viện Thái Y.
-4. Nâng cấp giao diện Mobile `EnergyManagementScreen` theo chuẩn `UI/UX Pro Max`, đồng bộ 100% với `LearnerDashboardScreen` và `IslandShopScreen`.
+## Bối cảnh
 
-## 2. Bảng 4 Vật phẩm Mặc định (Phương án B)
-1. **`NUOC_VOI` (Nước Vối Tĩnh Tâm):** `+20 ⚡` • `0 Điểm Sử Ký (Miễn phí)` • Cooldown `24 giờ` (`86.400s`) • `COMMON`
-2. **`TRA_SEN` (Trà Sen Tây Hồ):** `+30 ⚡` • `30 Điểm Sử Ký` • Cooldown `4 giờ` (`14.400s`) • `UNCOMMON`
-3. **`NAM_LINH_CHI` (Nấm Linh Chi Ngự Dược):** `+50 ⚡` • `55 Điểm Sử Ký` • Cooldown `12 giờ` (`43.200s`) • `RARE`
-4. **`SAM_NGOC_LINH` (Sâm Ngọc Linh Hoàng Gia):** `+100 ⚡ (Đầy bình)` • `90 Điểm Sử Ký` • Cooldown `24 giờ` (`86.400s`) • `EPIC`
+Issue #40 yêu cầu **đại tu toàn diện UI/UX** cho `dau-viet-mobile` (Flutter) + `dau-viet-admin` (Next.js), khắc phục:
 
-## 3. Tiêu chí Nghiệm thu (Acceptance Criteria)
-- **AC-1:** Migration `V49` tạo bảng `energy_policy_settings` và `energy_remedies`, seed đúng quy tắc Thể lực mặc định và 4 vật phẩm Phương án B.
-- **AC-2:** `GET /api/v1/me/energy` trả `pointsBalance` và `remedies[]`; `POST /api/v1/me/energy/refills` cho phép dùng mọi gói `active` khi `currentEnergy < maxEnergy`, chặn khi `== maxEnergy` (`422 REFILL_NOT_ELIGIBLE`), kiểm tra cooldown từng gói (`409 REFILL_RATE_LIMITED`), trừ Điểm Sử Ký nguyên tử (`409 INSUFFICIENT_FUNDS`), clamp trần `maxEnergy`, neo `last_recovery_at = now` khi đạt `maxEnergy`, và idempotent theo `Idempotency-Key`.
-- **AC-3:** Sau khi mua vật phẩm có phí tại Viện Thái Y, cả `GET /api/v1/me/wallet` và `GET /api/v1/me/rewards/summary` đều phản ánh đúng số dư Điểm Sử Ký đã trừ; EXP, số bài học và vật phẩm giữ nguyên (`QA-19`).
-- **AC-4:** Admin xem và cập nhật được quy tắc Thể lực chung (`PUT /api/v1/admin/energy/settings`) và thêm/sửa/xóa/bật-tắt vật phẩm Viện Thái Y (`/api/v1/admin/energy/remedies`) trên giao diện Web Admin `/thai-y-vien`; thay đổi của Admin phản ánh ngay trên API người học.
-- **AC-5:** Màn hình Viện Thái Y (`M-28`) hiển thị đồng bộ chuẩn Di Sản Dấu Việt v2.0 (Top Bar có `_buildWalletPill`, Hero Nhật Quang & thanh 10 vạch mượt mà, 4 thẻ phương thang với `Tactile3DButton`, Dialog xác nhận trước/sau khi nạp, đếm ngược cooldown thực tế) và vượt qua toàn bộ bộ test tự động.
+1. Ngôn ngữ thiết kế phân mảnh — một số màn dùng tông xanh rêu `#1E4D3B`, số khác dùng list phẳng viền cứng.
+2. Lạm dụng Icon Material default, thiếu minh họa di sản & linh vật.
+3. `LessonPlayerScreen` + renderer giống form trắc nghiệm khô khan, không phải "Sổ tay & Bàn điều tra Thám tử Lịch sử".
+4. Admin CMS còn thô, thiếu hierarchy, empty-state, badge, card layout.
+
+## Nguồn chân lý thiết kế
+
+**Landing Page:** https://dau-viet-landing.vercel.app/ — đã trích tokens thật từ bundle CSS:
+
+```
+--background: #F8F0E0
+--foreground: #49382F
+--lacquer-red: #B93430  /  dark: #85211F
+--heritage-gold: #E0AE45
+--jade: #247D78
+--font-noto-serif, --font-be-vietnam, --font-pixel (Press Start 2P)
+chapter heading: #283F36, border-heading: #3C3026 4px
+shadow-pixel: 4px 4px 0 #402C29  /  shadow-pixel-sm: 2px 2px
+```
+
+## Phạm vi 6 Phase
+
+- **A.** Design tokens v3 + 12 atoms (`SectionEyebrow`, `ChapterNumberBadge`, `PaperGrainOverlay`, `TactileCard`, `StampSealBadge`, `ClueTag`, `MascotSlot`, `SectionDivider`, `HeroPaperBanner`, `EmptyStateCard`, `StepProgressBar`, `RareFrameBadge`).
+- **B.** Dashboard + Map + LearningPath + Campaign chrome.
+- **C.** LessonPlayer header 6-bước + 12 renderer (`READ`, `VIEW_IMAGE`, `EVIDENCE_SELECT`, `HYPOTHESIS`, `VERIFICATION`, `DRAG_ORDER`, `CER`, `MATCHING`, `REASONING_CONNECT`, `MC`, `EXPLORE_MAP`, `REFLECTION`).
+- **D.** Collection + Streak + Profile + Island + Result.
+- **E.** Admin CMS polish (tokens + atoms React + pages).
+- **F.** Docs + golden tests + handoff.
+
+## Invariants
+
+- Không đụng API contract, provider, repo, DTO, schema, auth, reward, learning-engine.
+- Không `Colors.blue|grey|black` inline trong `features/`; mọi màu qua `DauVietColors`.
+- Không `TextStyle(...)` inline trừ khi extend từ `DauVietTypography.*`.
+- Widget tests + golden tests bắt buộc cho atoms và renderer mới.
+- `flutter analyze` sạch sau mỗi phase.
+
+## Workflow
+
+6 PR tuần tự theo `plan.md` §5 — mỗi PR mergeable độc lập, không cross-touch logic.
+
+**Bắt đầu:** `Phase A` — cập nhật `dau_viet_colors.dart` theo bảng plan §2 → atoms → theme_showcase.

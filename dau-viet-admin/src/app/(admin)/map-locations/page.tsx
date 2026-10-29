@@ -10,6 +10,7 @@ export default function MapLocationsRoutePage() {
   return (
     <div className="space-y-4">
       <PageHeader
+        eyebrow="QUẢN TRỊ · ĐỊA ĐIỂM DI TÍCH"
         title="Địa điểm di tích & Bản đồ Lịch sử"
         description="Quản lý độc lập các địa điểm di tích, liên kết đa sự kiện (PRIMARY / RELATED), quy tắc mở khóa đa bài học (NONE / ANY / ALL) và thư viện tư liệu Media."
       />

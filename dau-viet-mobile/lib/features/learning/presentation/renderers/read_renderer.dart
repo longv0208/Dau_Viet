@@ -2,6 +2,11 @@ import 'package:flutter/material.dart';
 
 import '../../../../core/theme/dau_viet_colors.dart';
 import '../../../../core/theme/dau_viet_typography.dart';
+import '../../../../core/widgets/clue_tag.dart';
+import '../../../../core/widgets/paper_grain_overlay.dart';
+import '../../../../core/widgets/section_eyebrow.dart';
+import '../../../../core/widgets/stamp_seal_badge.dart';
+import '../../../../core/widgets/tactile_card.dart';
 import '../../data/attempt_dtos.dart';
 import '../animations/historical_animation_definition.dart';
 import '../animations/historical_animation_player.dart';
@@ -44,7 +49,11 @@ class ReadRenderer extends StatelessWidget {
       'passageTitle',
     ]);
     final String? subtitle = configText(config, ['subtitle', 'lede']);
-    final String? source = configText(config, ['source', 'attribution']);
+    final String? source = configText(config, [
+      'source',
+      'citation',
+      'attribution',
+    ]);
     final String? callout = configText(config, [
       'callout',
       'quote',
@@ -59,9 +68,14 @@ class ReadRenderer extends StatelessWidget {
       'content',
       'passage',
     ]);
+    final bool hasPrimaryBody =
+        configText(config, ['body', 'content', 'text']) != null;
+    bool dropCapApplied = false;
     if (body != null) {
       for (final para in _splitParagraphs(body)) {
-        blocks.add(_Paragraph(para));
+        final useDropCap = hasPrimaryBody && !dropCapApplied;
+        blocks.add(_Paragraph(para, dropCap: useDropCap));
+        dropCapApplied = true;
       }
     }
     final Object? paragraphs = config['paragraphs'];
@@ -111,8 +125,7 @@ class ReadRenderer extends StatelessWidget {
           ),
           child: Text(
             callout.trim(),
-            style: DauVietTypography.bodyMedium.copyWith(
-              fontStyle: FontStyle.italic,
+            style: DauVietTypography.ancientCitation.copyWith(
               fontSize: 14.5,
               height: 1.55,
               color: DauVietColors.inkText,
@@ -210,79 +223,114 @@ class ReadRenderer extends StatelessWidget {
           _UnsupportedAnimationNotice(title: manifestDto?.title ?? ''),
           const SizedBox(height: 14),
         ],
-        ActivityCard(
-          padding: const EdgeInsets.fromLTRB(18, 18, 18, 14),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              if (!isHtmlScene &&
-                  animation == null &&
-                  !unsupportedManifest) ...[
-                ClipRRect(
-                  borderRadius: BorderRadius.circular(12),
-                  child: SizedBox(
-                    height: 150,
-                    width: double.infinity,
-                    child: Image.asset(
-                      resolveLessonFallbackAsset(
-                        title ?? '',
-                        '${subtitle ?? ''} ${activity.instruction ?? ''} ${body ?? ''}',
+        TactileCard(
+          usePixelShadow: false,
+          padding: EdgeInsets.zero,
+          borderColor: DauVietColors.imperialGold,
+          child: ClipRRect(
+            borderRadius: BorderRadius.circular(14.6),
+            child: Stack(
+              children: [
+                const Positioned.fill(
+                  child: PaperGrainOverlay(opacity: 0.04),
+                ),
+                Padding(
+                  padding: const EdgeInsets.fromLTRB(18, 18, 18, 14),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      const Padding(
+                        padding: EdgeInsets.only(right: 44, bottom: 12),
+                        child: SectionEyebrow('CỔ THƯ · ĐỌC KỸ'),
                       ),
-                      width: double.infinity,
-                      fit: BoxFit.cover,
-                      errorBuilder: (_, _, _) => const SizedBox.shrink(),
-                    ),
+                      if (!isHtmlScene &&
+                          animation == null &&
+                          !unsupportedManifest) ...[
+                        ClipRRect(
+                          borderRadius: BorderRadius.circular(12),
+                          child: SizedBox(
+                            height: 150,
+                            width: double.infinity,
+                            child: Image.asset(
+                              resolveLessonFallbackAsset(
+                                title ?? '',
+                                '${subtitle ?? ''} ${activity.instruction ?? ''} ${body ?? ''}',
+                              ),
+                              width: double.infinity,
+                              fit: BoxFit.cover,
+                              errorBuilder: (_, _, _) =>
+                                  const SizedBox.shrink(),
+                            ),
+                          ),
+                        ),
+                        const SizedBox(height: 14),
+                      ],
+                      if (title != null) ...[
+                        Text(
+                          title,
+                          style: DauVietTypography.headlineMedium.copyWith(
+                            fontSize: 19,
+                            height: 1.3,
+                            color: DauVietColors.inkText,
+                            fontWeight: FontWeight.w800,
+                          ),
+                        ),
+                        const SizedBox(height: 6),
+                        Container(
+                          width: 44,
+                          height: 3,
+                          decoration: BoxDecoration(
+                            color: DauVietColors.cinnabarRed,
+                            borderRadius: BorderRadius.circular(2),
+                          ),
+                        ),
+                        const SizedBox(height: 12),
+                      ],
+                      if (subtitle != null)
+                        Padding(
+                          padding: const EdgeInsets.only(bottom: 12),
+                          child: Text(
+                            subtitle,
+                            style: DauVietTypography.bodyMedium.copyWith(
+                              color: DauVietColors.inkMuted,
+                              fontStyle: FontStyle.italic,
+                              height: 1.5,
+                            ),
+                          ),
+                        ),
+                      ...blocks,
+                      if (source != null)
+                        Padding(
+                          padding: const EdgeInsets.only(top: 6),
+                          child: Row(
+                            crossAxisAlignment: CrossAxisAlignment.center,
+                            children: [
+                              const ClueTag('Nguồn'),
+                              const SizedBox(width: 8),
+                              Expanded(
+                                child: Text(
+                                  source,
+                                  style: DauVietTypography.labelSmall.copyWith(
+                                    fontStyle: FontStyle.italic,
+                                    color: DauVietColors.inkSecondary,
+                                  ),
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                    ],
                   ),
                 ),
-                const SizedBox(height: 14),
+                const Positioned(
+                  top: 12,
+                  right: 12,
+                  child: IgnorePointer(
+                    child: StampSealBadge('ĐỌC', size: 36),
+                  ),
+                ),
               ],
-              if (title != null) ...[
-                Text(
-                  title,
-                  style: DauVietTypography.headlineMedium.copyWith(
-                    fontSize: 19,
-                    height: 1.3,
-                    color: DauVietColors.inkText,
-                    fontWeight: FontWeight.w800,
-                  ),
-                ),
-                const SizedBox(height: 6),
-                Container(
-                  width: 44,
-                  height: 3,
-                  decoration: BoxDecoration(
-                    color: DauVietColors.cinnabarRed,
-                    borderRadius: BorderRadius.circular(2),
-                  ),
-                ),
-                const SizedBox(height: 12),
-              ],
-              if (subtitle != null)
-                Padding(
-                  padding: const EdgeInsets.only(bottom: 12),
-                  child: Text(
-                    subtitle,
-                    style: DauVietTypography.bodyMedium.copyWith(
-                      color: DauVietColors.inkMuted,
-                      fontStyle: FontStyle.italic,
-                      height: 1.5,
-                    ),
-                  ),
-                ),
-              ...blocks,
-              if (source != null)
-                Padding(
-                  padding: const EdgeInsets.only(top: 4),
-                  child: Text(
-                    'Nguồn: $source',
-                    style: DauVietTypography.bodySmall.copyWith(
-                      fontSize: 11,
-                      fontStyle: FontStyle.italic,
-                      color: DauVietColors.inkMuted,
-                    ),
-                  ),
-                ),
-            ],
+            ),
           ),
         ),
         const SizedBox(height: 14),
@@ -367,7 +415,7 @@ class _UnsupportedAnimationNotice extends StatelessWidget {
     return Container(
       padding: const EdgeInsets.all(12),
       decoration: BoxDecoration(
-        color: DauVietColors.parchmentContainer.withValues(alpha: 0.6),
+        color: DauVietColors.paperCardHi.withValues(alpha: 0.6),
         borderRadius: BorderRadius.circular(10),
         border: Border.all(color: DauVietColors.outlineVariant),
       ),
@@ -436,19 +484,47 @@ class _HtmlSceneSlot extends StatelessWidget {
 
 class _Paragraph extends StatelessWidget {
   final String text;
-  const _Paragraph(this.text);
+  final bool dropCap;
+  const _Paragraph(this.text, {this.dropCap = false});
 
   @override
   Widget build(BuildContext context) {
+    final bodyStyle = DauVietTypography.ancientCitation.copyWith(
+      color: DauVietColors.inkText,
+      fontStyle: FontStyle.normal,
+      height: 1.7,
+      fontSize: 15,
+    );
+    if (dropCap && text.isNotEmpty) {
+      final firstChar = text.characters.first;
+      final rest = text.substring(firstChar.length);
+      return Padding(
+        padding: const EdgeInsets.only(bottom: 12),
+        child: SelectableText.rich(
+          TextSpan(
+            children: [
+              TextSpan(
+                text: firstChar,
+                style: DauVietTypography.chapterNumberSmall.copyWith(
+                  color: DauVietColors.cinnabarRed,
+                  height: 1.2,
+                ),
+              ),
+              if (rest.isNotEmpty)
+                TextSpan(
+                  text: rest,
+                  style: bodyStyle,
+                ),
+            ],
+          ),
+        ),
+      );
+    }
     return Padding(
       padding: const EdgeInsets.only(bottom: 12),
       child: SelectableText(
         text,
-        style: DauVietTypography.bodyMedium.copyWith(
-          color: DauVietColors.inkText,
-          height: 1.7,
-          fontSize: 15,
-        ),
+        style: bodyStyle,
       ),
     );
   }

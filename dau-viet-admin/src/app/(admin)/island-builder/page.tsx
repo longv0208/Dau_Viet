@@ -7,6 +7,7 @@ export default function IslandBuilderListPage() {
   return (
     <div>
       <PageHeader
+        eyebrow="QUẢN TRỊ · ĐẢO DI SẢN"
         title="Quản lý Đảo Di Sản"
         description="Thiết kế bố cục đảo 2.5D, vùng đất theo cấp độ (Tier 1/2/3), vị trí các ô đặt vật phẩm và lớp cảnh quan."
       />

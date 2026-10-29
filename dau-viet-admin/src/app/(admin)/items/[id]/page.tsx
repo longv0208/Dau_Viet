@@ -12,6 +12,7 @@ export default async function ItemDetailPage({
   return (
     <div>
       <PageHeader
+        eyebrow="QUẢN TRỊ · VẬT PHẨM THƯỞNG"
         title="Vật phẩm thưởng"
         description="Thông tin hiển thị và điều kiện mở khóa phía server."
       />

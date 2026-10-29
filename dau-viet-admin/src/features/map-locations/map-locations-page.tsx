@@ -58,6 +58,11 @@ import {
   type UnlockRuleMode,
 } from "@/lib/dto/map-location";
 import { cn } from "@/lib/utils";
+import { ClueTag } from "@/components/atoms/clue-tag";
+import { EmptyStateCard } from "@/components/atoms/empty-state-card";
+import { PaperCard } from "@/components/atoms/paper-card";
+import { SectionDivider } from "@/components/atoms/section-divider";
+import { SectionEyebrow } from "@/components/atoms/section-eyebrow";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -258,14 +263,14 @@ export function MapLocationsWorkspace() {
   return (
     <div className="space-y-5">
       {/* Thanh công cụ tìm kiếm & bộ lọc */}
-      <section
+      <PaperCard
         aria-label="Bộ lọc địa điểm di tích"
-        className="rounded-xl border border-border bg-white p-4 shadow-sm"
+        className="p-4"
       >
         <div className="flex flex-wrap items-end justify-between gap-3">
           <div className="grid min-w-0 flex-1 gap-3 sm:grid-cols-2 lg:grid-cols-4">
             <div>
-              <Label htmlFor="filter-q">Tìm theo tên / slug</Label>
+              <Label htmlFor="filter-q" className="font-medium text-ink-secondary">Tìm theo tên / slug</Label>
               <div className="relative mt-1">
                 <Search
                   className="pointer-events-none absolute left-2.5 top-2.5 size-4 text-ink-muted"
@@ -285,7 +290,7 @@ export function MapLocationsWorkspace() {
             </div>
 
             <div>
-              <Label htmlFor="filter-kind">Loại hình di tích</Label>
+              <Label htmlFor="filter-kind" className="font-medium text-ink-secondary">Loại hình di tích</Label>
               <Select
                 id="filter-kind"
                 className="mt-1"
@@ -305,7 +310,7 @@ export function MapLocationsWorkspace() {
             </div>
 
             <div>
-              <Label htmlFor="filter-status">Trạng thái xuất bản</Label>
+              <Label htmlFor="filter-status" className="font-medium text-ink-secondary">Trạng thái xuất bản</Label>
               <Select
                 id="filter-status"
                 className="mt-1"
@@ -323,7 +328,7 @@ export function MapLocationsWorkspace() {
             </div>
 
             <div>
-              <Label htmlFor="filter-event">Sự kiện liên kết</Label>
+              <Label htmlFor="filter-event" className="font-medium text-ink-secondary">Sự kiện liên kết</Label>
               <Select
                 id="filter-event"
                 className="mt-1"
@@ -355,7 +360,7 @@ export function MapLocationsWorkspace() {
             Thêm địa điểm di tích
           </Button>
         </div>
-      </section>
+      </PaperCard>
 
       {bannerMessage && (
         <div
@@ -388,26 +393,25 @@ export function MapLocationsWorkspace() {
       <div className="grid items-start gap-5 xl:grid-cols-[minmax(22rem,1fr)_minmax(30rem,1.35fr)]">
         {/* Cột trái: Danh sách Địa điểm */}
         <section aria-label="Danh sách địa điểm di tích" className="space-y-3">
-          <div className="flex items-center justify-between">
-            <h2 className="font-display text-base font-semibold text-ink">
-              Danh mục địa điểm ({totalLocations})
-            </h2>
-            {(q || kindFilter || statusFilter || eventFilter) && (
-              <button
-                type="button"
-                onClick={() => {
-                  setQ("");
-                  setKindFilter("");
-                  setStatusFilter("");
-                  setEventFilter("");
-                  setPage(0);
-                }}
-                className="cursor-pointer text-xs font-medium text-brand hover:underline"
-              >
-                Xóa bộ lọc
-              </button>
-            )}
-          </div>
+          <SectionDivider
+            eyebrow="DANH MỤC"
+            title={`Danh mục địa điểm (${totalLocations})`}
+            action={
+              q || kindFilter || statusFilter || eventFilter ? (
+                <ClueTag
+                  label="Xóa bộ lọc"
+                  color="brand"
+                  onClick={() => {
+                    setQ("");
+                    setKindFilter("");
+                    setStatusFilter("");
+                    setEventFilter("");
+                    setPage(0);
+                  }}
+                />
+              ) : undefined
+            }
+          />
 
           {locationsQuery.isPending && (
             <div className="space-y-3">
@@ -425,28 +429,26 @@ export function MapLocationsWorkspace() {
           )}
 
           {locationsQuery.isSuccess && locations.length === 0 && (
-            <div className="rounded-xl border border-dashed border-border bg-white p-8 text-center">
-              <MapPin className="mx-auto size-8 text-ink-muted" aria-hidden />
-              <p className="mt-2 font-medium text-ink">
-                Chưa tìm thấy địa điểm di tích nào khớp bộ lọc
-              </p>
-              <p className="mt-1 text-xs text-ink-muted">
-                Tạo địa điểm di tích mới để liên kết đa sự kiện, cấu hình mở khóa đa bài học và thư viện media.
-              </p>
-              <Button
-                type="button"
-                variant="secondary"
-                size="sm"
-                className="mt-4"
-                onClick={() => {
-                  setSelectedId("new");
-                  setActiveTab("metadata");
-                }}
-              >
-                <Plus className="size-4" aria-hidden />
-                Tạo địa điểm đầu tiên
-              </Button>
-            </div>
+            <EmptyStateCard
+              icon={MapPin}
+              title="Chưa tìm thấy địa điểm di tích nào khớp bộ lọc"
+              description="Tạo địa điểm di tích mới để liên kết đa sự kiện, cấu hình mở khóa đa bài học và thư viện media."
+              action={
+                <Button
+                  type="button"
+                  variant="secondary"
+                  size="sm"
+                  className="mt-2"
+                  onClick={() => {
+                    setSelectedId("new");
+                    setActiveTab("metadata");
+                  }}
+                >
+                  <Plus className="size-4" aria-hidden />
+                  Tạo địa điểm đầu tiên
+                </Button>
+              }
+            />
           )}
 
           <div className="space-y-3">
@@ -454,10 +456,11 @@ export function MapLocationsWorkspace() {
               const isSelected = selectedId === loc.id;
 
               return (
-                <article
+                <PaperCard
                   key={loc.id}
+                  interactive
                   className={cn(
-                    "overflow-hidden rounded-xl border bg-white shadow-sm transition-all duration-150",
+                    "overflow-hidden",
                     isSelected
                       ? "border-brand ring-2 ring-brand/25"
                       : "border-border hover:border-brand/40",
@@ -470,7 +473,7 @@ export function MapLocationsWorkspace() {
                         setSelectedId(loc.id);
                         setBannerMessage(null);
                       }}
-                      className="relative h-32 w-full shrink-0 cursor-pointer overflow-hidden bg-surface-alt sm:h-auto sm:w-40"
+                      className="relative h-32 w-full shrink-0 cursor-pointer overflow-hidden rounded-t border-b border-border bg-surface-alt sm:h-auto sm:w-40 sm:rounded-l sm:rounded-tr-none sm:border-b-0 sm:border-r"
                     >
                       <LocationCardThumbnail loc={loc} />
                       <span className="absolute bottom-1.5 left-1.5 rounded bg-black/70 px-1.5 py-0.5 text-[10px] font-medium text-white">
@@ -573,13 +576,13 @@ export function MapLocationsWorkspace() {
                       </div>
                     </div>
                   </div>
-                </article>
+                </PaperCard>
               );
             })}
           </div>
 
           {totalLocations > 0 && (
-            <div className="flex items-center justify-between rounded-xl border border-border bg-white px-3.5 py-2.5 text-sm text-ink-muted shadow-sm">
+            <PaperCard className="flex items-center justify-between px-3.5 py-2.5 text-sm text-ink-muted">
               <span>
                 Trang {page + 1} / {totalPages} · {totalLocations} địa điểm
               </span>
@@ -603,36 +606,35 @@ export function MapLocationsWorkspace() {
                   Sau
                 </Button>
               </div>
-            </div>
+            </PaperCard>
           )}
         </section>
 
         {/* Cột phải: Không gian Biên tập 4 Tab */}
-        <section
+        <PaperCard
           aria-label="Chi tiết và cấu hình địa điểm di tích"
-          className="sticky top-20 rounded-xl border border-border bg-white shadow-sm"
+          className="sticky top-20 overflow-hidden"
         >
           {selectedId === null ? (
-            <div className="p-10 text-center">
-              <MapPin className="mx-auto size-10 text-brand/70" aria-hidden />
-              <h3 className="mt-3 font-display text-lg font-semibold text-ink">
-                Chọn một Địa điểm Di tích để thiết kế
-              </h3>
-              <p className="mx-auto mt-1 max-w-md text-sm text-ink-muted">
-                Quản lý thông tin tọa độ bản đồ, liên kết đa sự kiện lịch sử (PRIMARY / RELATED), điều kiện mở khóa đa bài học (NONE / ANY / ALL) và thư viện Media tư liệu.
-              </p>
-              <Button
-                type="button"
-                className="mt-4"
-                onClick={() => {
-                  setSelectedId("new");
-                  setActiveTab("metadata");
-                }}
-              >
-                <Plus className="size-4" aria-hidden />
-                Tạo địa điểm mới
-              </Button>
-            </div>
+            <EmptyStateCard
+              icon={MapPin}
+              title="Chọn một Địa điểm Di tích để thiết kế"
+              description="Quản lý thông tin tọa độ bản đồ, liên kết đa sự kiện lịch sử (PRIMARY / RELATED), điều kiện mở khóa đa bài học (NONE / ANY / ALL) và thư viện Media tư liệu."
+              action={
+                <Button
+                  type="button"
+                  className="mt-2"
+                  onClick={() => {
+                    setSelectedId("new");
+                    setActiveTab("metadata");
+                  }}
+                >
+                  <Plus className="size-4" aria-hidden />
+                  Tạo địa điểm mới
+                </Button>
+              }
+              className="border-0 shadow-none"
+            />
           ) : (
             <LocationDetailEditor
               key={selectedId === "new" ? "new" : `${selectedLocation?.id}:${selectedLocation?.rowVersion}`}
@@ -656,7 +658,7 @@ export function MapLocationsWorkspace() {
               onClose={() => setSelectedId(null)}
             />
           )}
-        </section>
+        </PaperCard>
       </div>
     </div>
   );
@@ -1037,15 +1039,15 @@ function LocationDetailEditor({
   return (
     <div className="flex flex-col">
       {/* Header */}
-      <div className="flex items-start justify-between gap-3 border-b border-border bg-surface px-5 py-4">
+      <div className="flex items-start justify-between gap-3 border-b-2 border-heading bg-surface px-5 py-4">
         <div className="min-w-0">
           <div className="flex items-center gap-2">
-            <span className="text-xs font-semibold uppercase tracking-wider text-brand">
+            <SectionEyebrow color="brand">
               {isNew ? "Tạo mới địa điểm" : "Không gian thiết kế địa điểm"}
-            </span>
+            </SectionEyebrow>
             {location && <StatusChip status={location.status} />}
           </div>
-          <h3 className="mt-1 truncate font-display text-lg font-semibold text-ink">
+          <h3 className="mt-2 truncate font-display text-lg font-semibold text-ink">
             {isNew ? "Địa điểm di tích lịch sử mới" : location.title}
           </h3>
         </div>
@@ -1063,7 +1065,7 @@ function LocationDetailEditor({
       <div
         role="tablist"
         aria-label="Các mục cấu hình địa điểm"
-        className="flex flex-wrap border-b border-border bg-white px-2"
+        className="flex flex-wrap border-b border-border bg-surface-alt px-2"
       >
         {tabs.map((t) => {
           const Icon = t.icon;
@@ -1102,7 +1104,7 @@ function LocationDetailEditor({
           <div className="space-y-4">
             <div className="grid gap-3 sm:grid-cols-2">
               <div>
-                <Label htmlFor="loc-title">Tên địa điểm di tích *</Label>
+                <Label htmlFor="loc-title" className="font-medium text-ink-secondary">Tên địa điểm di tích *</Label>
                 <Input
                   id="loc-title"
                   value={title}
@@ -1116,7 +1118,7 @@ function LocationDetailEditor({
                 />
               </div>
               <div>
-                <Label htmlFor="loc-slug">Định danh Slug (Duy nhất)</Label>
+                <Label htmlFor="loc-slug" className="font-medium text-ink-secondary">Định danh Slug (Duy nhất)</Label>
                 <div className="flex gap-1.5">
                   <Input
                     id="loc-slug"
@@ -1139,7 +1141,7 @@ function LocationDetailEditor({
 
             <div className="grid gap-3 sm:grid-cols-3">
               <div>
-                <Label htmlFor="loc-kind">Loại hình di tích</Label>
+                <Label htmlFor="loc-kind" className="font-medium text-ink-secondary">Loại hình di tích</Label>
                 <Select
                   id="loc-kind"
                   value={kind}
@@ -1153,7 +1155,7 @@ function LocationDetailEditor({
                 </Select>
               </div>
               <div>
-                <Label htmlFor="loc-precision">Độ chính xác tọa độ</Label>
+                <Label htmlFor="loc-precision" className="font-medium text-ink-secondary">Độ chính xác tọa độ</Label>
                 <Select
                   id="loc-precision"
                   value={coordinatePrecision}
@@ -1171,7 +1173,7 @@ function LocationDetailEditor({
                 </Select>
               </div>
               <div>
-                <Label htmlFor="loc-order">Thứ tự hiển thị</Label>
+                <Label htmlFor="loc-order" className="font-medium text-ink-secondary">Thứ tự hiển thị</Label>
                 <Input
                   id="loc-order"
                   type="number"
@@ -1182,7 +1184,7 @@ function LocationDetailEditor({
             </div>
 
             <div>
-              <Label htmlFor="loc-visibility">Chế độ hiển thị trên bản đồ học viên</Label>
+              <Label htmlFor="loc-visibility" className="font-medium text-ink-secondary">Chế độ hiển thị trên bản đồ học viên</Label>
               <Select
                 id="loc-visibility"
                 value={visibility}
@@ -1199,7 +1201,7 @@ function LocationDetailEditor({
             </div>
 
             <div>
-              <Label htmlFor="loc-summary">Tóm tắt ngắn (Hiển thị trên thẻ ghim bản đồ)</Label>
+              <Label htmlFor="loc-summary" className="font-medium text-ink-secondary">Tóm tắt ngắn (Hiển thị trên thẻ ghim bản đồ)</Label>
               <Input
                 id="loc-summary"
                 maxLength={500}
@@ -1210,7 +1212,7 @@ function LocationDetailEditor({
             </div>
 
             <div>
-              <Label htmlFor="loc-desc">Mô tả lịch sử chi tiết</Label>
+              <Label htmlFor="loc-desc" className="font-medium text-ink-secondary">Mô tả lịch sử chi tiết</Label>
               <Textarea
                 id="loc-desc"
                 rows={3}

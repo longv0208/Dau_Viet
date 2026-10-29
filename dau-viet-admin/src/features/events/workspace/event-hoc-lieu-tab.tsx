@@ -10,7 +10,8 @@ import { withReturnTo } from "@/lib/return-to";
 import type { PageResponse } from "@/lib/dto/common";
 import type { AdminAsset } from "@/lib/dto/evidence";
 import { qk } from "@/lib/query-keys";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { PaperCard } from "@/components/atoms/paper-card";
+import { SectionDivider } from "@/components/atoms/section-divider";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import { EvidenceTable } from "@/features/evidence/evidence-table";
@@ -47,17 +48,15 @@ function EventScenesSection({ eventId, returnTo }: { eventId: string; returnTo: 
   const rows = query.data?.content ?? [];
 
   return (
-    <Card>
-      <CardHeader className="flex flex-row items-center justify-between">
-        <div>
-          <CardTitle className="text-base">Hoạt họa HTML</CardTitle>
-          <p className="mt-1 text-xs text-ink-muted">
-            Kéo thả file .html hoàn chỉnh. Sau khi xem trước và xuất bản, hoạt họa
-            dùng được trong nhiều bài học.
-          </p>
-        </div>
-      </CardHeader>
-      <CardContent className="flex flex-col gap-4">
+    <PaperCard className="p-5">
+      <SectionDivider
+        eyebrow="HOẠT HỌA"
+        eyebrowColor="jade"
+        title="Hoạt họa HTML"
+        description="Kéo thả file .html hoàn chỉnh. Sau khi xem trước và xuất bản, hoạt họa dùng được trong nhiều bài học."
+        className="mb-4"
+      />
+      <div className="flex flex-col gap-4">
         <div className="max-w-xl">
           <HtmlImportDropzone
             disabled={htmlImport.isPending}
@@ -85,7 +84,7 @@ function EventScenesSection({ eventId, returnTo }: { eventId: string; returnTo: 
           {rows.map((s: AnimationSceneSummary) => (
             <li
               key={s.id}
-              className="flex items-center justify-between rounded-md border border-border px-3 py-2"
+              className="flex items-center justify-between rounded-md border border-border bg-surface px-3 py-2"
             >
               <Link
                 href={withReturnTo(`/animations/${s.id}/edit`, returnTo)}
@@ -105,8 +104,8 @@ function EventScenesSection({ eventId, returnTo }: { eventId: string; returnTo: 
             </li>
           ))}
         </ul>
-      </CardContent>
-    </Card>
+      </div>
+    </PaperCard>
   );
 }
 
@@ -140,15 +139,15 @@ function EventMediaSection({ eventId }: { eventId: string }) {
   });
 
   return (
-    <Card>
-      <CardHeader>
-        <CardTitle className="text-base">Hình ảnh / Media</CardTitle>
-        <p className="mt-1 text-xs text-ink-muted">
-          Assets dùng chung trong thư viện — hiển thị các file đang được tham
-          chiếu bởi bằng chứng của sự kiện này.
-        </p>
-      </CardHeader>
-      <CardContent className="flex flex-col gap-3">
+    <PaperCard className="p-5">
+      <SectionDivider
+        eyebrow="MEDIA"
+        eyebrowColor="gold"
+        title="Hình ảnh / Media"
+        description="Assets dùng chung trong thư viện — hiển thị các file đang được tham chiếu bởi bằng chứng của sự kiện này."
+        className="mb-4"
+      />
+      <div className="flex flex-col gap-3">
         {evidences.isPending && <Skeleton className="h-16 w-full" />}
         {evidences.data && assetIds.length === 0 && (
           <p className="text-sm text-ink-muted">
@@ -160,12 +159,12 @@ function EventMediaSection({ eventId }: { eventId: string }) {
             {assets.isPending && <Skeleton className="h-20 w-full" />}
             <ul className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
               {(assets.data ?? []).map((a) => (
-                <li key={a.id} className="rounded-md border border-border p-2">
+                <li key={a.id} className="rounded-md border border-border bg-surface p-2">
                   <a
                     href={a.contentUrl}
                     target="_blank"
                     rel="noreferrer"
-                    className="block truncate text-sm font-medium text-primary hover:underline"
+                    className="block truncate text-sm font-medium text-brand hover:underline"
                   >
                     {a.originalFilename ?? a.id}
                   </a>
@@ -180,8 +179,8 @@ function EventMediaSection({ eventId }: { eventId: string }) {
         <Button asChild variant="secondary" className="self-start">
           <Link href="/assets">Mở thư viện media</Link>
         </Button>
-      </CardContent>
-    </Card>
+      </div>
+    </PaperCard>
   );
 }
 
@@ -192,24 +191,25 @@ export function EventHocLieuTab({ event }: { event: AdminEventDetail }) {
 
   return (
     <div className="flex flex-col gap-6">
-      <Card>
-        <CardHeader className="flex flex-row items-center justify-between">
-          <div>
-            <CardTitle className="text-base">Bằng chứng lịch sử</CardTitle>
-            <p className="mt-1 text-xs text-ink-muted">
-              Tư liệu có nguồn trích dẫn, dùng để hỗ trợ câu hỏi và hoạt động học tập.
-            </p>
-          </div>
-          <Button asChild>
-            <Link href={withReturnTo(`/evidence/new?event=${eventId}`, returnTo)}>
-              + Thêm bằng chứng
-            </Link>
-          </Button>
-        </CardHeader>
-        <CardContent>
+      <PaperCard className="p-5">
+        <SectionDivider
+          eyebrow="TƯ LIỆU"
+          eyebrowColor="brand"
+          title="Bằng chứng lịch sử"
+          description="Tư liệu có nguồn trích dẫn, dùng để hỗ trợ câu hỏi và hoạt động học tập."
+          action={
+            <Button asChild>
+              <Link href={withReturnTo(`/evidence/new?event=${eventId}`, returnTo)}>
+                + Thêm bằng chứng
+              </Link>
+            </Button>
+          }
+          className="mb-4"
+        />
+        <div>
           <EvidenceTable lockedEventId={eventId} returnTo={returnTo} />
-        </CardContent>
-      </Card>
+        </div>
+      </PaperCard>
 
       <EventMediaSection eventId={eventId} />
       <EventScenesSection eventId={eventId} returnTo={returnTo} />

@@ -17,6 +17,9 @@ import type {
   MapLocationStatus,
 } from "@/lib/dto/map-location";
 import { qk } from "@/lib/query-keys";
+import { EmptyStateCard } from "@/components/atoms/empty-state-card";
+import { PaperCard } from "@/components/atoms/paper-card";
+import { SectionDivider } from "@/components/atoms/section-divider";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -300,18 +303,20 @@ export function MapLocationsSection({
   };
 
   return (
-    <section aria-labelledby="map-locations-heading" className="flex flex-col gap-3">
-      <div className="flex items-center justify-between">
-        <h2 id="map-locations-heading" className="text-base font-semibold">
-          Địa điểm trên bản đồ
-        </h2>
-        {!showForm && (
-          <Button type="button" variant="secondary" onClick={startCreate}>
-            + Thêm địa điểm
-          </Button>
-        )}
-      </div>
-
+    <PaperCard className="p-5">
+      <section aria-label="Địa điểm trên bản đồ" className="flex flex-col gap-3">
+        <SectionDivider
+          eyebrow="BẢN ĐỒ"
+          eyebrowColor="jade"
+          title={<span id="map-locations-heading">Địa điểm trên bản đồ</span>}
+          action={
+            !showForm ? (
+              <Button type="button" variant="secondary" onClick={startCreate}>
+                + Thêm địa điểm
+              </Button>
+            ) : undefined
+          }
+        />
       {listQuery.isPending && (
         <div className="flex flex-col gap-2">
           <Skeleton className="h-10 w-full" />
@@ -322,9 +327,11 @@ export function MapLocationsSection({
         <ErrorState error={listQuery.error} onRetry={() => listQuery.refetch()} />
       )}
       {listQuery.data && listQuery.data.length === 0 && !showForm && (
-        <p className="text-sm text-ink-muted">
-          Chưa có địa điểm nào — thêm địa điểm để hiển thị trên bản đồ của học viên.
-        </p>
+        <EmptyStateCard
+          title="Chưa có địa điểm nào"
+          description="Chưa có địa điểm nào — thêm địa điểm để hiển thị trên bản đồ của học viên."
+          className="py-8"
+        />
       )}
 
       {listQuery.data && listQuery.data.length > 0 && (
@@ -332,7 +339,7 @@ export function MapLocationsSection({
           {listQuery.data.map((loc) => (
             <li
               key={loc.id}
-              className="flex flex-wrap items-center gap-3 rounded-md border border-border px-3 py-2"
+              className="flex flex-wrap items-center gap-3 rounded-md border border-border bg-surface px-3.5 py-2.5"
             >
               <div className="min-w-0 flex-1">
                 <p className="truncate text-sm font-medium">{loc.title}</p>
@@ -385,14 +392,14 @@ export function MapLocationsSection({
         <form
           onSubmit={handleSubmit((v) => save.mutate(v))}
           noValidate
-          className="flex flex-col gap-4 rounded-md border border-border p-4"
+          className="flex flex-col gap-4 rounded-md border border-border bg-surface p-4"
         >
-          <p className="text-sm font-medium">
+          <p className="font-display text-sm font-semibold text-ink">
             {editing ? "Sửa địa điểm" : "Thêm địa điểm mới"}
           </p>
           <div className="grid gap-4 md:grid-cols-2">
             <div className="flex flex-col gap-1.5">
-              <Label htmlFor="ml-title">Tên địa điểm *</Label>
+              <Label htmlFor="ml-title" className="font-medium text-ink-secondary">Tên địa điểm *</Label>
               <Input
                 id="ml-title"
                 placeholder="Bến Bạch Đằng"
@@ -404,7 +411,7 @@ export function MapLocationsSection({
               )}
             </div>
             <div className="flex flex-col gap-1.5">
-              <Label htmlFor="ml-order">Thứ tự hiển thị</Label>
+              <Label htmlFor="ml-order" className="font-medium text-ink-secondary">Thứ tự hiển thị</Label>
               <Input id="ml-order" inputMode="numeric" placeholder="0" {...register("displayOrder")} />
               {errors.displayOrder && (
                 <p role="alert" className="text-xs text-error">{errors.displayOrder.message}</p>
@@ -413,7 +420,7 @@ export function MapLocationsSection({
           </div>
 
           <div className="flex flex-col gap-1.5">
-            <Label>Vị trí trên bản đồ *</Label>
+            <Label className="font-medium text-ink-secondary">Vị trí trên bản đồ *</Label>
             <LatLngMapPicker
               value={pickerValue}
               imageSrc={mapImage.src}
@@ -432,7 +439,7 @@ export function MapLocationsSection({
 
           <div className="grid gap-4 md:grid-cols-2">
             <div className="flex flex-col gap-1.5">
-              <Label htmlFor="ml-lat">Vị trí dọc % (0–100) *</Label>
+              <Label htmlFor="ml-lat" className="font-medium text-ink-secondary">Vị trí dọc % (0–100) *</Label>
               <Input
                 id="ml-lat"
                 inputMode="decimal"
@@ -445,7 +452,7 @@ export function MapLocationsSection({
               )}
             </div>
             <div className="flex flex-col gap-1.5">
-              <Label htmlFor="ml-lng">Vị trí ngang % (0–100) *</Label>
+              <Label htmlFor="ml-lng" className="font-medium text-ink-secondary">Vị trí ngang % (0–100) *</Label>
               <Input
                 id="ml-lng"
                 inputMode="decimal"
@@ -460,7 +467,7 @@ export function MapLocationsSection({
           </div>
 
           <div className="flex flex-col gap-1.5">
-            <Label htmlFor="ml-desc">Mô tả</Label>
+            <Label htmlFor="ml-desc" className="font-medium text-ink-secondary">Mô tả</Label>
             <Textarea
               id="ml-desc"
               rows={3}
@@ -473,7 +480,7 @@ export function MapLocationsSection({
           </div>
 
           <div className="flex flex-col gap-1.5">
-            <Label htmlFor="ml-lesson">Bài học mở khoá</Label>
+            <Label htmlFor="ml-lesson" className="font-medium text-ink-secondary">Bài học mở khoá</Label>
             {lessonsQuery.isPending ? (
               <Skeleton className="h-9 w-full" />
             ) : lessonsQuery.isError ? (
@@ -539,6 +546,7 @@ export function MapLocationsSection({
           </div>
         </form>
       )}
-    </section>
+      </section>
+    </PaperCard>
   );
 }

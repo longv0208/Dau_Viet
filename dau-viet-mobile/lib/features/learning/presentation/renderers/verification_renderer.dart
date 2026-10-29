@@ -1,7 +1,13 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 
 import '../../../../core/theme/dau_viet_colors.dart';
 import '../../../../core/theme/dau_viet_typography.dart';
+import '../../../../core/widgets/chapter_number_badge.dart';
+import '../../../../core/widgets/clue_tag.dart';
+import '../../../../core/widgets/section_eyebrow.dart';
+import '../../../../core/widgets/stamp_seal_badge.dart';
+import '../../../../core/widgets/tactile_card.dart';
 import '../../data/attempt_dtos.dart';
 import '../../data/learning_dtos.dart';
 import 'renderer_base.dart';
@@ -12,12 +18,13 @@ import 'renderer_base.dart';
 /// bằng chứng kèm giả thuyết ở snapshot cũ), cộng với `visibleSourceIds` để
 /// đối chiếu. Học viên thực hiện một hành động kiểm chứng có chủ đích —
 /// submit `{action: "verify"}`; server chấm SUPPORTED/PARTIAL/CONTRADICTED.
-/// Không có chọn verdict phía client (verdict do backend quyết định).
-class VerificationRenderer extends StatelessWidget {
+/// Không có chọn verdict phía client trong payload (verdict do backend quyết định).
+class VerificationRenderer extends StatefulWidget {
   final ActivityRefDto activity;
   final LessonContentDto content;
   final bool submitting;
   final Future<void> Function(Map<String, dynamic>) onSubmit;
+  final EvaluationDto? lastEvaluation;
 
   const VerificationRenderer({
     super.key,
@@ -25,7 +32,15 @@ class VerificationRenderer extends StatelessWidget {
     required this.content,
     required this.submitting,
     required this.onSubmit,
+    this.lastEvaluation,
   });
+
+  @override
+  State<VerificationRenderer> createState() => _VerificationRendererState();
+}
+
+class _VerificationRendererState extends State<VerificationRenderer> {
+  String? _selectedVerdict;
 
   /// Id giả thuyết đã chọn — đọc từ priorOutputs (bất kỳ output nào mang
   /// `hypothesisId`), cùng contract VerificationHandler dùng để chấm.
@@ -41,8 +56,8 @@ class VerificationRenderer extends StatelessWidget {
   }
 
   /// Tra cứu nhãn tiếng Việt của giả thuyết trong `content.stages` nếu có;
-  /// fallback về `hypothesisId` khi chạy preview độc lập không có stages.
   String _resolveHypothesisLabel(String hypothesisId) {
+    final content = widget.content;
     for (final s in content.stages) {
       final acts = s['activities'];
       if (acts is! List) continue;
@@ -86,40 +101,69 @@ class VerificationRenderer extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final config = activity.config;
-    final String? prompt = configText(config, ['prompt', 'question', 'text']);
+    final config = widget.activity.config;
+    final String? prompt = configText(
+      config,
+      ['prompt', 'question', 'text', 'claim', 'statement'],
+    );
     final sourceIds = configIdList(config, 'visibleSourceIds').isNotEmpty
         ? configIdList(config, 'visibleSourceIds')
         : configIdList(config, 'visibleEvidenceIds');
     final hypothesisId = _priorHypothesisId(config);
     final givenIds = _evidenceGiven(config);
+    final evaluation = widget.lastEvaluation;
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
-        if (prompt != null)
-          ActivityCard(
+        const Align(
+          alignment: Alignment.centerLeft,
+          child: SectionEyebrow('KIỂM CHỨNG · ĐỐI CHIẾU NGUỒN'),
+        ),
+        if (evaluation != null) ...[
+          const SizedBox(height: 8),
+          _VerificationFeedbackCard(evaluation: evaluation),
+        ],
+        if (prompt != null) ...[
+          const SizedBox(height: 8),
+          TactileCard(
+            backgroundColor: DauVietColors.paperCardHi,
+            borderColor: DauVietColors.imperialGold,
+            padding: const EdgeInsets.all(12),
             child: Text(
               prompt,
-              style: DauVietTypography.bodyMedium.copyWith(height: 1.5),
+              style: DauVietTypography.ancientCitation.copyWith(
+                color: DauVietColors.inkText,
+              ),
             ),
           ),
+        ],
 
         // Giả thuyết đã chọn ở bước HYPOTHESIS — ngữ cảnh kiểm chứng.
         if (hypothesisId != null) ...[
-          const SizedBox(height: 10),
-          const SectionLabel('GIẢ THUYẾT ĐÃ CHỌN'),
+          const SizedBox(height: 8),
+          const Align(
+            alignment: Alignment.centerLeft,
+            child: SectionEyebrow('GIẢ THUYẾT ĐÃ CHỌN'),
+          ),
           const SizedBox(height: 6),
           _PickedTile(
             label: _resolveHypothesisLabel(hypothesisId),
             icon: Icons.lightbulb_outline,
+            isCitation: true,
           ),
         ],
 
         // Bằng chứng đã thu thập trước đó — server dùng chính tập này để chấm.
         if (givenIds.isNotEmpty) ...[
-          const SizedBox(height: 10),
-          const SectionLabel('BẰNG CHỨNG ĐÃ THU THẬP'),
+          const SizedBox(height: 8),
+          const Align(
+            alignment: Alignment.centerLeft,
+            child: SectionEyebrow(
+              'BẰNG CHỨNG ĐÃ THU THẬP',
+              color: DauVietColors.jadeDark,
+            ),
+          ),
           const SizedBox(height: 6),
           for (final id in givenIds)
             _PickedTile(
@@ -129,25 +173,208 @@ class VerificationRenderer extends StatelessWidget {
         ],
 
         if (sourceIds.isNotEmpty) ...[
-          const SizedBox(height: 10),
-          const SectionLabel('ĐỐI CHIẾU CÁC NGUỒN SAU'),
+          const SizedBox(height: 8),
+          const Align(
+            alignment: Alignment.centerLeft,
+            child: SectionEyebrow(
+              'ĐỐI CHIẾU CÁC NGUỒN SAU',
+              color: DauVietColors.chapterGreen,
+            ),
+          ),
           const SizedBox(height: 6),
-          for (final id in sourceIds) _SourceTile(id: id, content: content),
+          for (final id in sourceIds)
+            _SourceTile(id: id, content: widget.content),
         ],
-        const SizedBox(height: 14),
+
+        const SizedBox(height: 8),
+        _buildVerdictRow(),
+        const SizedBox(height: 10),
         SubmitBar(
           label: 'KIỂM CHỨNG',
           enabled: true,
-          submitting: submitting,
-          onPressed: () => onSubmit({'action': 'verify'}),
+          submitting: widget.submitting,
+          onPressed: () => widget.onSubmit({'action': 'verify'}),
         ),
       ],
     );
   }
 
+  Widget _buildVerdictRow() {
+    const items = <_VerdictOptionSpec>[
+      _VerdictOptionSpec(
+        code: 'SUPPORTED',
+        badge: 'A',
+        label: 'Chứng thực',
+        color: DauVietColors.natureGreen,
+      ),
+      _VerdictOptionSpec(
+        code: 'PARTIAL',
+        badge: 'B',
+        label: 'Một phần',
+        color: DauVietColors.imperialGoldDark,
+      ),
+      _VerdictOptionSpec(
+        code: 'CONTRADICTED',
+        badge: 'C',
+        label: 'Mâu thuẫn',
+        color: DauVietColors.cinnabarRed,
+      ),
+    ];
+
+    return Row(
+      children: [
+        for (int i = 0; i < items.length; i++) ...[
+          if (i > 0) const SizedBox(width: 8),
+          Expanded(
+            child: _buildVerdictCard(items[i]),
+          ),
+        ],
+      ],
+    );
+  }
+
+  Widget _buildVerdictCard(_VerdictOptionSpec spec) {
+    final bool selected = _selectedVerdict == spec.code;
+    return TactileCard(
+      enabled: !widget.submitting,
+      onTap: widget.submitting
+          ? null
+          : () {
+              HapticFeedback.selectionClick();
+              setState(() => _selectedVerdict = spec.code);
+            },
+      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 8),
+      backgroundColor: selected
+          ? DauVietColors.paperCardHi
+          : DauVietColors.paperCard,
+      borderColor: selected ? spec.color : DauVietColors.outlineVariant,
+      borderWidth: selected ? 2.2 : 1.2,
+      borderRadius: 12,
+      child: Row(
+        mainAxisAlignment: MainAxisAlignment.center,
+        children: [
+          ChapterNumberBadge(
+            spec.badge,
+            size: 26,
+            color: spec.color,
+            filled: selected,
+          ),
+          const SizedBox(width: 6),
+          Flexible(
+            child: Text(
+              spec.label,
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              style: DauVietTypography.labelSmall.copyWith(
+                color: selected ? spec.color : DauVietColors.inkText,
+                fontWeight: selected ? FontWeight.w800 : FontWeight.w600,
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
   String _evidenceTitle(String id) {
-    final e = content.evidenceById(id);
+    final e = widget.content.evidenceById(id);
     return (e?['title'] as String?) ?? id;
+  }
+}
+
+class _VerdictOptionSpec {
+  final String code;
+  final String badge;
+  final String label;
+  final Color color;
+
+  const _VerdictOptionSpec({
+    required this.code,
+    required this.badge,
+    required this.label,
+    required this.color,
+  });
+}
+
+/// Phản hồi 3 mức khi `lastEvaluation != null`:
+/// SUPPORTED -> Chính xác | PARTIAL -> Gần chính xác | CONTRADICTED -> Cần xem lại.
+class _VerificationFeedbackCard extends StatelessWidget {
+  final EvaluationDto evaluation;
+
+  const _VerificationFeedbackCard({required this.evaluation});
+
+  @override
+  Widget build(BuildContext context) {
+    final String outcome = (evaluation.outcome ?? '').toUpperCase();
+    late final Widget tag;
+    late final Widget seal;
+    late final Color borderColor;
+    late final String detail;
+
+    if (outcome == 'SUPPORTED' || outcome == 'COMPLETED') {
+      tag = const ClueTag(
+        'Chính xác',
+        color: DauVietColors.natureGreen,
+        filled: true,
+      );
+      seal = const StampSealBadge.success('✓', size: 36);
+      borderColor = DauVietColors.natureGreen;
+      detail = 'Giả thuyết được sử liệu và bằng chứng khảo cổ chứng thực.';
+    } else if (outcome == 'PARTIAL') {
+      tag = const ClueTag(
+        'Gần chính xác',
+        color: DauVietColors.imperialGold,
+        filled: true,
+      );
+      seal = const StampSealBadge(
+        '≈',
+        size: 36,
+        color: DauVietColors.imperialGoldDark,
+      );
+      borderColor = DauVietColors.imperialGoldDark;
+      detail = 'Giả thuyết mới phản ánh một phần bức tranh lịch sử.';
+    } else {
+      tag = const ClueTag(
+        'Cần xem lại',
+        color: DauVietColors.cinnabarRed,
+        filled: true,
+      );
+      seal = const StampSealBadge(
+        '!',
+        size: 36,
+        color: DauVietColors.cinnabarRed,
+      );
+      borderColor = DauVietColors.cinnabarRed;
+      detail = 'Giả thuyết mâu thuẫn với các nguồn sử liệu đối chiếu.';
+    }
+
+    return TactileCard(
+      backgroundColor: DauVietColors.paperCardHi,
+      borderColor: borderColor,
+      borderWidth: 2.0,
+      padding: const EdgeInsets.all(12),
+      child: Row(
+        children: [
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                tag,
+                const SizedBox(height: 6),
+                Text(
+                  detail,
+                  style: DauVietTypography.bodySmall.copyWith(
+                    color: DauVietColors.inkText,
+                  ),
+                ),
+              ],
+            ),
+          ),
+          const SizedBox(width: 10),
+          seal,
+        ],
+      ),
+    );
   }
 }
 
@@ -155,20 +382,24 @@ class VerificationRenderer extends StatelessWidget {
 class _PickedTile extends StatelessWidget {
   final String label;
   final IconData icon;
+  final bool isCitation;
 
-  const _PickedTile({required this.label, required this.icon});
+  const _PickedTile({
+    required this.label,
+    required this.icon,
+    this.isCitation = false,
+  });
 
   @override
   Widget build(BuildContext context) {
     return Padding(
-      padding: const EdgeInsets.only(bottom: 8),
-      child: Container(
-        padding: const EdgeInsets.all(12),
-        decoration: BoxDecoration(
-          color: DauVietColors.cinnabarRed.withValues(alpha: 0.08),
-          borderRadius: BorderRadius.circular(10),
-          border: Border.all(color: DauVietColors.cinnabarRed),
-        ),
+      padding: const EdgeInsets.only(bottom: 6),
+      child: TactileCard(
+        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+        backgroundColor: DauVietColors.paperCardHi,
+        borderColor: DauVietColors.cinnabarRed,
+        borderWidth: 1.6,
+        borderRadius: 12,
         child: Row(
           children: [
             Icon(icon, size: 18, color: DauVietColors.cinnabarRed),
@@ -176,10 +407,16 @@ class _PickedTile extends StatelessWidget {
             Expanded(
               child: Text(
                 label,
-                style: DauVietTypography.labelMedium.copyWith(
-                  fontWeight: FontWeight.w700,
-                  color: DauVietColors.inkText,
-                ),
+                style: isCitation
+                    ? DauVietTypography.ancientCitation.copyWith(
+                        fontSize: 13.5,
+                        fontWeight: FontWeight.w700,
+                        color: DauVietColors.inkText,
+                      )
+                    : DauVietTypography.labelMedium.copyWith(
+                        fontWeight: FontWeight.w700,
+                        color: DauVietColors.inkText,
+                      ),
               ),
             ),
           ],
@@ -210,13 +447,11 @@ class _SourceTile extends StatelessWidget {
 
     return Padding(
       padding: const EdgeInsets.only(bottom: 8),
-      child: Container(
+      child: TactileCard(
         padding: const EdgeInsets.all(12),
-        decoration: BoxDecoration(
-          color: Colors.white.withValues(alpha: 0.85),
-          borderRadius: BorderRadius.circular(10),
-          border: Border.all(color: DauVietColors.outlineVariant),
-        ),
+        backgroundColor: DauVietColors.paperCard,
+        borderColor: DauVietColors.outlineVariant,
+        borderRadius: 12,
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
@@ -225,7 +460,7 @@ class _SourceTile extends StatelessWidget {
                 const Icon(
                   Icons.menu_book_outlined,
                   size: 18,
-                  color: DauVietColors.cinnabarRed,
+                  color: DauVietColors.jade,
                 ),
                 const SizedBox(width: 8),
                 Expanded(
@@ -244,9 +479,10 @@ class _SourceTile extends StatelessWidget {
                 padding: const EdgeInsets.only(top: 6),
                 child: Text(
                   desc,
-                  style: DauVietTypography.bodySmall.copyWith(
-                    color: DauVietColors.inkMuted,
-                    height: 1.4,
+                  style: DauVietTypography.ancientCitation.copyWith(
+                    fontSize: 13,
+                    color: DauVietColors.inkSecondary,
+                    height: 1.45,
                   ),
                 ),
               ),
@@ -255,8 +491,7 @@ class _SourceTile extends StatelessWidget {
                 padding: const EdgeInsets.only(top: 4),
                 child: Text(
                   'Nguồn: $sourceText',
-                  style: DauVietTypography.bodySmall.copyWith(
-                    fontSize: 11,
+                  style: DauVietTypography.labelSmall.copyWith(
                     fontStyle: FontStyle.italic,
                     color: DauVietColors.inkMuted,
                   ),

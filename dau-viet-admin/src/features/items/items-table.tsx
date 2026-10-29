@@ -8,6 +8,8 @@ import { apiFetch, toQuery } from "@/lib/api-client";
 import type { PageResponse } from "@/lib/dto/common";
 import type { AdminItem } from "@/lib/dto/item";
 import { qk } from "@/lib/query-keys";
+import { ClueTag } from "@/components/atoms/clue-tag";
+import { PaperCard } from "@/components/atoms/paper-card";
 import { DataTable, type Column } from "@/components/data-table";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -71,7 +73,7 @@ export function ItemsTable() {
       cell: (r) => (
         <Link
           href={`/items/${r.id}`}
-          className="font-medium text-primary hover:underline"
+          className="font-medium text-brand hover:underline"
         >
           {r.name}
         </Link>
@@ -80,27 +82,23 @@ export function ItemsTable() {
     {
       key: "code",
       header: "Mã",
-      cell: (r) => <code className="text-xs">{r.code}</code>,
+      cell: (r) => <ClueTag label={r.code} color="jade" className="font-mono" />,
     },
     {
       key: "itemType",
       header: "Loại",
-      cell: (r) => TYPE_LABELS[r.itemType] ?? r.itemType,
+      cell: (r) => <ClueTag label={TYPE_LABELS[r.itemType] ?? r.itemType} color="gold" />,
     },
     {
       key: "placeable",
       header: "Đặt lên đảo",
       cell: (r) => (
         <div className="flex flex-col gap-0.5">
-          <span
-            className={
-              r.placeable
-                ? "inline-flex w-fit items-center rounded-full bg-brand/15 px-2 py-0.5 text-xs font-medium text-brand"
-                : "text-xs text-ink-muted"
-            }
-          >
-            {r.placeable ? "Có thể đặt" : "Không"}
-          </span>
+          {r.placeable ? (
+            <ClueTag label="Có thể đặt" color="brand" className="w-fit" />
+          ) : (
+            <span className="text-xs text-ink-muted">Không</span>
+          )}
           {r.renderKey && (
             <code className="text-[11px] text-ink-muted">{r.renderKey}</code>
           )}
@@ -124,15 +122,10 @@ export function ItemsTable() {
       key: "active",
       header: "Trạng thái",
       cell: (r) => (
-        <span
-          className={
-            r.active
-              ? "inline-flex items-center rounded-full bg-success/20 px-2.5 py-0.5 text-xs font-medium text-ink"
-              : "inline-flex items-center rounded-full bg-surface-alt px-2.5 py-0.5 text-xs font-medium text-ink-muted"
-          }
-        >
-          {r.active ? "Đang bật" : "Đã ẩn"}
-        </span>
+        <ClueTag
+          label={r.active ? "Đang bật" : "Đã ẩn"}
+          color={r.active ? "jade" : "gold"}
+        />
       ),
     },
   ];
@@ -142,7 +135,7 @@ export function ItemsTable() {
 
   return (
     <div className="flex flex-col gap-4">
-      <div className="flex flex-wrap items-center gap-3">
+      <PaperCard className="flex flex-wrap items-center gap-3 p-4">
         <form
           onSubmit={(e) => {
             e.preventDefault();
@@ -190,7 +183,7 @@ export function ItemsTable() {
           <option value="true">Đang bật</option>
           <option value="false">Đã ẩn</option>
         </Select>
-      </div>
+      </PaperCard>
 
       <DataTable
         columns={columns}

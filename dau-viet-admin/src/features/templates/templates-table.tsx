@@ -8,11 +8,12 @@ import { apiFetch, toQuery } from "@/lib/api-client";
 import type { PageResponse } from "@/lib/dto/common";
 import type { LessonTemplate } from "@/lib/dto/lesson";
 import { qk } from "@/lib/query-keys";
+import { ClueTag } from "@/components/atoms/clue-tag";
+import { PaperCard } from "@/components/atoms/paper-card";
 import { DataTable, type Column } from "@/components/data-table";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Select } from "@/components/ui/select";
-
 const PAGE_SIZE = 20;
 
 const COLUMNS: Column<LessonTemplate>[] = [
@@ -20,12 +21,12 @@ const COLUMNS: Column<LessonTemplate>[] = [
     key: "name",
     header: "Tên mẫu",
     cell: (r) => (
-      <Link href={`/templates/${r.id}`} className="font-medium text-primary hover:underline">
+      <Link href={`/templates/${r.id}`} className="font-medium text-brand hover:underline">
         {r.name}
       </Link>
     ),
   },
-  { key: "code", header: "Mã", cell: (r) => <code className="text-xs">{r.code}</code> },
+  { key: "code", header: "Mã", cell: (r) => <ClueTag label={r.code} color="jade" className="font-mono" /> },
   {
     key: "description",
     header: "Mô tả",
@@ -35,15 +36,10 @@ const COLUMNS: Column<LessonTemplate>[] = [
     key: "enabled",
     header: "Trạng thái",
     cell: (r) => (
-      <span
-        className={
-          r.enabled
-            ? "inline-flex items-center rounded-full bg-success/20 px-2.5 py-0.5 text-xs font-medium text-ink"
-            : "inline-flex items-center rounded-full bg-surface-alt px-2.5 py-0.5 text-xs font-medium text-ink-muted"
-        }
-      >
-        {r.enabled ? "Đang bật" : "Đã tắt"}
-      </span>
+      <ClueTag
+        label={r.enabled ? "Đang bật" : "Đã tắt"}
+        color={r.enabled ? "jade" : "gold"}
+      />
     ),
   },
 ];
@@ -92,7 +88,7 @@ export function TemplatesTable() {
 
   return (
     <div className="flex flex-col gap-4">
-      <div className="flex flex-wrap items-center gap-3">
+      <PaperCard className="flex flex-wrap items-center gap-3 p-4">
         <form
           onSubmit={(e) => {
             e.preventDefault();
@@ -124,7 +120,7 @@ export function TemplatesTable() {
           <option value="true">Đang bật</option>
           <option value="false">Đã tắt</option>
         </Select>
-      </div>
+      </PaperCard>
 
       <DataTable
         columns={COLUMNS}

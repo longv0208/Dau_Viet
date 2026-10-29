@@ -10,7 +10,8 @@ import '../../../core/theme/dau_viet_colors.dart';
 import '../../../core/theme/dau_viet_typography.dart';
 import '../../../core/widgets/async_state_view.dart';
 import '../../../core/widgets/dong_son_button.dart';
-import '../../../core/widgets/parchment_card.dart';
+import '../../../core/widgets/section_eyebrow.dart';
+import '../../../core/widgets/tactile_card.dart';
 import '../../../core/widgets/tactile_3d_button.dart';
 import '../../energy/data/energy_dto.dart';
 import '../../energy/data/energy_providers.dart';
@@ -118,7 +119,7 @@ class _EnergyManagementScreenState extends ConsumerState<EnergyManagementScreen>
     ref.listen(energyProvider, (_, next) => _syncTicker(next.value));
 
     return Scaffold(
-      backgroundColor: DauVietColors.parchmentSurface,
+      backgroundColor: DauVietColors.paperBackground,
       body: Container(
         decoration: const BoxDecoration(
           gradient: LinearGradient(
@@ -191,7 +192,7 @@ class _EnergyManagementScreenState extends ConsumerState<EnergyManagementScreen>
             icon: context.canPop()
                 ? Icons.arrow_back_rounded
                 : Icons.home_rounded,
-            variant: DongSonButtonVariant.secondaryParchment,
+            variant: DongSonButtonVariant.imperialGold,
             height: 48,
             onPressed: () {
               if (context.canPop()) {
@@ -215,7 +216,7 @@ class _EnergyManagementScreenState extends ConsumerState<EnergyManagementScreen>
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
       decoration: BoxDecoration(
-        color: DauVietColors.parchmentSurface,
+        color: DauVietColors.paperBackground,
         border: Border(
           bottom: BorderSide(
             color: DauVietColors.outlineVariant.withValues(alpha: 0.5),
@@ -245,22 +246,13 @@ class _EnergyManagementScreenState extends ConsumerState<EnergyManagementScreen>
               children: [
                 Row(
                   children: [
-                    Container(
-                      padding: const EdgeInsets.symmetric(
+                    const SectionEyebrow(
+                      'VIỆN THÁI Y',
+                      color: DauVietColors.jade,
+                      showShadow: false,
+                      padding: EdgeInsets.symmetric(
                         horizontal: 6,
                         vertical: 2,
-                      ),
-                      decoration: BoxDecoration(
-                        color: DauVietColors.heritageGreen,
-                        borderRadius: BorderRadius.circular(4),
-                      ),
-                      child: Text(
-                        'VIỆN THÁI Y',
-                        style: DauVietTypography.labelSmall.copyWith(
-                          color: Colors.white,
-                          fontSize: 9,
-                          fontWeight: FontWeight.w800,
-                        ),
                       ),
                     ),
                     const SizedBox(width: 8),
@@ -337,11 +329,12 @@ class _EnergyManagementScreenState extends ConsumerState<EnergyManagementScreen>
   // huy hiệu Nhật Quang trái + số chỉ số + Badge trạng thái sinh lực +
   // thanh 10 vạch TweenAnimationBuilder.
   Widget _buildEnergyGaugeHero(EnergyStateDto dto) {
+
     final Duration? remain = dto.timeUntilNextRecovery();
     final _VitalStatus status = _vitalStatusOf(dto);
 
-    return ParchmentCard(
-      backgroundColor: const Color(0xFFFBF4E4),
+    return TactileCard(
+      backgroundColor: DauVietColors.paperCard,
       borderColor: DauVietColors.imperialGold,
       borderWidth: 2.0,
       padding: const EdgeInsets.all(18),
@@ -1257,13 +1250,11 @@ class _EnergyManagementScreenState extends ConsumerState<EnergyManagementScreen>
 
   // Khung lời dặn của Ngự Y — giữ nguyên bản GAME-03.
   Widget _buildPhysicianAdviceCard() {
-    return Container(
+    return TactileCard(
       padding: const EdgeInsets.all(14),
-      decoration: BoxDecoration(
-        color: const Color(0xFFF9F1E2),
-        borderRadius: BorderRadius.circular(10),
-        border: Border.all(color: DauVietColors.imperialGold, width: 1.2),
-      ),
+      backgroundColor: DauVietColors.paperCardHi,
+      borderColor: DauVietColors.imperialGold,
+      borderWidth: 1.4,
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
@@ -1271,7 +1262,7 @@ class _EnergyManagementScreenState extends ConsumerState<EnergyManagementScreen>
             children: [
               const Icon(
                 Icons.spa_rounded,
-                color: DauVietColors.cinnabarRed,
+                color: DauVietColors.jade,
                 size: 18,
               ),
               const SizedBox(width: 6),
@@ -1293,11 +1284,10 @@ class _EnergyManagementScreenState extends ConsumerState<EnergyManagementScreen>
             '“Học sử cần tinh tấn nhưng dưỡng thần cần điều hòa. '
             'Nghỉ ngơi tĩnh tâm giữa các đợt khảo cứu để tâm trí luôn '
             'sáng suốt, hào khí luôn tràn đầy.”',
-            style: DauVietTypography.bodySmall.copyWith(
+            style: DauVietTypography.ancientCitation.copyWith(
               color: DauVietColors.inkText,
-              fontStyle: FontStyle.italic,
-              height: 1.4,
-              fontSize: 11.5,
+              fontSize: 12,
+              height: 1.45,
             ),
           ),
         ],
