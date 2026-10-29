@@ -82,16 +82,20 @@ class IslandTierTabs extends StatelessWidget {
           children: [
             Text(icon, style: const TextStyle(fontSize: 13)),
             const SizedBox(width: 4),
-            Text(
-              label,
-              style: DauVietTypography.bodySmall.copyWith(
-                fontSize: 11,
-                fontWeight: FontWeight.bold,
-                color: isActive
-                    ? Colors.white
-                    : isUnlocked
-                        ? DauVietColors.inkText
-                        : DauVietColors.inkMuted,
+            Flexible(
+              child: Text(
+                label,
+                style: DauVietTypography.bodySmall.copyWith(
+                  fontSize: 11,
+                  fontWeight: FontWeight.bold,
+                  color: isActive
+                      ? Colors.white
+                      : isUnlocked
+                          ? DauVietColors.inkText
+                          : DauVietColors.inkMuted,
+                ),
+                overflow: TextOverflow.ellipsis,
+                maxLines: 1,
               ),
             ),
             if (!isUnlocked) ...[
@@ -137,6 +141,8 @@ class IslandTierTabs extends StatelessWidget {
                     ? DauVietColors.inkText
                     : DauVietColors.inkMuted,
           ),
+          overflow: TextOverflow.ellipsis,
+          maxLines: 1,
         ),
       ),
     );

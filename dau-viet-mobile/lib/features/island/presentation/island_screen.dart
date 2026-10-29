@@ -566,9 +566,11 @@ class _IslandScreenState extends ConsumerState<IslandScreen>
         if (!isAnimatingExpansion && !_showWelcomeCard)
           Positioned(
             top: 12,
-            left: 0,
-            right: 0,
-            child: Center(
+            left: 10,
+            // Chừa ~140px bên phải cho camera-rotation pod (tránh overlap).
+            right: 140,
+            child: Align(
+              alignment: Alignment.centerLeft,
               child: IslandTierTabs(
                 island: island,
                 previewTier: _previewTier,
@@ -1218,6 +1220,8 @@ class _IslandScreenState extends ConsumerState<IslandScreen>
         const SnackBar(
           content: Text('Đã đặt vật phẩm lên Đảo Di Sản thành công!'),
           backgroundColor: DauVietColors.heritageGreen,
+          behavior: SnackBarBehavior.floating,
+          margin: EdgeInsets.only(left: 20, right: 20, bottom: 220),
         ),
       );
     } on ApiException catch (e) {
@@ -1262,6 +1266,8 @@ class _IslandScreenState extends ConsumerState<IslandScreen>
             'Đã cất vật phẩm về kho. Bạn có thể chọn vật phẩm khác cho ô này.',
           ),
           backgroundColor: DauVietColors.heritageGreen,
+          behavior: SnackBarBehavior.floating,
+          margin: EdgeInsets.only(left: 20, right: 20, bottom: 220),
         ),
       );
     } on ApiException catch (e) {

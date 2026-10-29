@@ -527,7 +527,6 @@ class _LearnerDashboardScreenState
       label: label,
       variant: DongSonButtonVariant.heritageGreen,
       height: 44,
-      width: 148,
       onPressed: onTap,
     );
   }
@@ -1414,7 +1413,7 @@ class _StreakMiniPill extends ConsumerWidget {
         child: Center(
           child: TactileCard(
             onTap: () => context.push('/streak'),
-            padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 4),
+            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
             borderRadius: 999,
             backgroundColor: DauVietColors.paperCard,
             borderColor: DauVietColors.cinnabarRed,

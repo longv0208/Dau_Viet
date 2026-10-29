@@ -47,7 +47,13 @@ class ChapterNumberBadge extends StatelessWidget {
         border: Border.all(color: color, width: 2),
         boxShadow: DauVietColors.pixelShadowSm,
       ),
-      child: Text(label, style: textStyle),
+      child: FittedBox(
+        fit: BoxFit.scaleDown,
+        child: Padding(
+          padding: EdgeInsets.all(size * 0.15),
+          child: Text(label, style: textStyle, textAlign: TextAlign.center),
+        ),
+      ),
     );
   }
 }
