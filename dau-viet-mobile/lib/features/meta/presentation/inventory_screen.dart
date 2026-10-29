@@ -3,9 +3,15 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import '../../../core/theme/dau_viet_colors.dart';
 import '../../../core/theme/dau_viet_typography.dart';
+import '../../../core/widgets/clue_tag.dart';
 import '../../../core/widgets/dong_son_button.dart';
+import '../../../core/widgets/empty_state_card.dart';
 import '../../../core/widgets/energy_pill.dart';
-import '../../../core/widgets/parchment_card.dart';
+import '../../../core/widgets/hero_paper_banner.dart';
+import '../../../core/widgets/rare_frame_badge.dart';
+import '../../../core/widgets/section_eyebrow.dart';
+import '../../../core/widgets/stamp_seal_badge.dart';
+import '../../../core/widgets/tactile_card.dart';
 import '../../rewards/data/reward_dtos.dart';
 import '../../rewards/data/reward_providers.dart';
 
@@ -51,6 +57,21 @@ class _InventoryScreenState extends ConsumerState<InventoryScreen> {
     'COMMEMORATIVE_BADGE': Icons.workspace_premium_rounded,
   };
 
+  static const _typeLabels = {
+    'HISTORICAL_REPLICA': 'Mô hình lịch sử',
+    'DIGITAL_EDITION': 'Ấn bản số',
+    'COMMEMORATIVE_BADGE': 'Huy hiệu kỷ niệm',
+  };
+
+  ItemRarity _parseRarity(String raw) {
+    return switch (raw.toUpperCase()) {
+      'EPIC' => ItemRarity.epic,
+      'RARE' => ItemRarity.rare,
+      'UNCOMMON' => ItemRarity.uncommon,
+      _ => ItemRarity.common,
+    };
+  }
+
   List<CatalogItemDto> _filter(List<CatalogItemDto> items) {
     if (_selectedCategory == 'all') return items;
     return items.where((i) => i.category == _selectedCategory).toList();
@@ -61,16 +82,16 @@ class _InventoryScreenState extends ConsumerState<InventoryScreen> {
     final catalog = ref.watch(inventoryCatalogProvider);
 
     return Scaffold(
-      backgroundColor: DauVietColors.parchmentSurface,
+      backgroundColor: DauVietColors.paperBackground,
       body: Container(
         decoration: const BoxDecoration(
           gradient: LinearGradient(
             begin: Alignment.topCenter,
             end: Alignment.bottomCenter,
             colors: [
-              Color(0xFFFFF7EB),
-              DauVietColors.parchmentSurface,
-              Color(0xFFF7ECDA),
+              DauVietColors.paperCard,
+              DauVietColors.paperBackground,
+              DauVietColors.paperCardHi,
             ],
           ),
         ),
@@ -122,15 +143,11 @@ class _InventoryScreenState extends ConsumerState<InventoryScreen> {
           _buildCategoryFilters(items),
           const SizedBox(height: 14),
           if (filtered.isEmpty)
-            Padding(
-              padding: const EdgeInsets.symmetric(vertical: 24),
-              child: Center(
-                child: Text(
-                  'Chưa có vật phẩm nào trong nhóm này.',
-                  style: DauVietTypography.bodySmall.copyWith(
-                    color: DauVietColors.inkMuted,
-                  ),
-                ),
+            const Padding(
+              padding: EdgeInsets.symmetric(vertical: 16),
+              child: EmptyStateCard(
+                title: 'Chưa có vật phẩm',
+                description: 'Chưa có vật phẩm nào trong nhóm này.',
               ),
             )
           else
@@ -160,7 +177,7 @@ class _InventoryScreenState extends ConsumerState<InventoryScreen> {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
       decoration: BoxDecoration(
-        color: DauVietColors.parchmentSurface,
+        color: DauVietColors.paperBackground,
         border: Border(
           bottom: BorderSide(
             color: DauVietColors.outlineVariant.withValues(alpha: 0.5),
@@ -188,22 +205,12 @@ class _InventoryScreenState extends ConsumerState<InventoryScreen> {
               children: [
                 Row(
                   children: [
-                    Container(
-                      padding: const EdgeInsets.symmetric(
+                    const SectionEyebrow(
+                      'KHO VẬT PHẨM',
+                      showShadow: false,
+                      padding: EdgeInsets.symmetric(
                         horizontal: 6,
                         vertical: 2,
-                      ),
-                      decoration: BoxDecoration(
-                        color: DauVietColors.cinnabarRed,
-                        borderRadius: BorderRadius.circular(4),
-                      ),
-                      child: Text(
-                        'KHO VẬT PHẨM',
-                        style: DauVietTypography.labelSmall.copyWith(
-                          color: Colors.white,
-                          fontSize: 9,
-                          fontWeight: FontWeight.w800,
-                        ),
                       ),
                     ),
                     const SizedBox(width: 8),
@@ -263,35 +270,25 @@ class _InventoryScreenState extends ConsumerState<InventoryScreen> {
           return Padding(
             padding: const EdgeInsets.only(right: 8),
             child: GestureDetector(
+              behavior: HitTestBehavior.opaque,
               onTap: () {
                 setState(() {
                   _selectedCategory = cat['key']!;
                 });
               },
-              child: AnimatedContainer(
-                duration: const Duration(milliseconds: 200),
-                padding: const EdgeInsets.symmetric(
-                  horizontal: 12,
-                  vertical: 6,
-                ),
-                decoration: BoxDecoration(
-                  color: isSelected
-                      ? DauVietColors.cinnabarRed
-                      : Colors.white.withValues(alpha: 0.9),
-                  borderRadius: BorderRadius.circular(20),
-                  border: Border.all(
+              child: ConstrainedBox(
+                constraints: const BoxConstraints(minHeight: 44),
+                child: Center(
+                  child: ClueTag(
+                    cat['label']!,
                     color: isSelected
                         ? DauVietColors.cinnabarRed
-                        : DauVietColors.outlineVariant,
-                    width: 1.2,
-                  ),
-                ),
-                child: Text(
-                  cat['label']!,
-                  style: DauVietTypography.labelSmall.copyWith(
-                    fontWeight: isSelected ? FontWeight.w800 : FontWeight.w600,
-                    color: isSelected ? Colors.white : DauVietColors.inkText,
-                    fontSize: 11,
+                        : DauVietColors.jade,
+                    filled: isSelected,
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 12,
+                      vertical: 8,
+                    ),
                   ),
                 ),
               ),
@@ -312,7 +309,7 @@ class _InventoryScreenState extends ConsumerState<InventoryScreen> {
         crossAxisCount: 2,
         mainAxisSpacing: 10,
         crossAxisSpacing: 10,
-        childAspectRatio: 1.05,
+        childAspectRatio: 1.0,
       ),
       itemBuilder: (context, index) {
         final item = items[index];
@@ -321,29 +318,27 @@ class _InventoryScreenState extends ConsumerState<InventoryScreen> {
             (_selectedItemId == null && index == 0);
         final rarityColor =
             _rarityColors[item.rarity] ?? DauVietColors.outlineVariant;
+        final parsedRarity = _parseRarity(item.rarity);
 
-        return GestureDetector(
-          onTap: () {
-            setState(() {
-              _selectedItemId = item.itemId;
-            });
-          },
-          child: AnimatedContainer(
-            duration: const Duration(milliseconds: 200),
+        return RareFrameBadge(
+          rarity: parsedRarity,
+          borderRadius: 16,
+          borderWidth: isSelected ? 2.4 : 1.6,
+          showGlow: isSelected || item.owned,
+          child: TactileCard(
+            onTap: () {
+              setState(() {
+                _selectedItemId = item.itemId;
+              });
+            },
             padding: const EdgeInsets.all(10),
-            decoration: BoxDecoration(
-              color: isSelected
-                  ? const Color(0xFFFBF4E4)
-                  : Colors.white.withValues(alpha: 0.9),
-              borderRadius: BorderRadius.circular(12),
-              border: Border.all(
-                color: isSelected
-                    ? DauVietColors.cinnabarRed
-                    : rarityColor.withValues(alpha: 0.5),
-                width: isSelected ? 2.0 : 1.2,
-              ),
-              boxShadow: isSelected ? DauVietColors.heritageShadow : null,
-            ),
+            backgroundColor: isSelected
+                ? DauVietColors.paperCardHi
+                : DauVietColors.paperCard,
+            borderColor: isSelected
+                ? DauVietColors.cinnabarRed
+                : rarityColor.withValues(alpha: 0.5),
+            borderWidth: isSelected ? 2.0 : 1.2,
             child: Opacity(
               opacity: item.owned ? 1.0 : 0.55,
               child: Column(
@@ -352,21 +347,13 @@ class _InventoryScreenState extends ConsumerState<InventoryScreen> {
                   Row(
                     mainAxisAlignment: MainAxisAlignment.spaceBetween,
                     children: [
-                      Container(
-                        padding: const EdgeInsets.symmetric(
-                          horizontal: 5,
-                          vertical: 2,
-                        ),
-                        decoration: BoxDecoration(
-                          color: rarityColor.withValues(alpha: 0.15),
-                          borderRadius: BorderRadius.circular(4),
-                        ),
-                        child: Text(
+                      Flexible(
+                        child: ClueTag(
                           _categoryLabels[item.category] ?? item.category,
-                          style: TextStyle(
-                            color: rarityColor,
-                            fontWeight: FontWeight.w800,
-                            fontSize: 9.5,
+                          color: rarityColor,
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 6,
+                            vertical: 2,
                           ),
                         ),
                       ),
@@ -391,19 +378,13 @@ class _InventoryScreenState extends ConsumerState<InventoryScreen> {
                       height: 52,
                       padding: const EdgeInsets.all(4),
                       decoration: BoxDecoration(
-                        color: Colors.white,
+                        color: DauVietColors.paperBackground,
                         shape: BoxShape.circle,
                         border: Border.all(
                           color: rarityColor.withValues(alpha: 0.4),
                           width: 1.2,
                         ),
-                        boxShadow: const [
-                          BoxShadow(
-                            color: Color(0x14000000),
-                            blurRadius: 4,
-                            offset: Offset(0, 1),
-                          ),
-                        ],
+                        boxShadow: DauVietColors.pixelShadowSm,
                       ),
                       child: Icon(
                         _typeIcons[item.itemType] ??
@@ -441,78 +422,100 @@ class _InventoryScreenState extends ConsumerState<InventoryScreen> {
   Widget _buildItemInspectorCard(CatalogItemDto item) {
     final rarityColor =
         _rarityColors[item.rarity] ?? DauVietColors.outlineVariant;
+    final parsedRarity = _parseRarity(item.rarity);
     final req = item.requirement;
+    final categoryLabel = _categoryLabels[item.category] ?? item.category;
+    final typeLabel = _typeLabels[item.itemType] ?? item.itemType;
 
-    return ParchmentCard(
-      backgroundColor: const Color(0xFFFBF4E4),
+    return TactileCard(
+      backgroundColor: DauVietColors.paperCard,
       borderColor: DauVietColors.imperialGold,
       borderWidth: 1.8,
       padding: const EdgeInsets.all(14),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Row(
-            children: [
-              Container(
-                width: 48,
-                height: 48,
-                padding: const EdgeInsets.all(4),
-                decoration: BoxDecoration(
-                  color: Colors.white,
-                  borderRadius: BorderRadius.circular(10),
-                  border: Border.all(color: rarityColor, width: 1.5),
-                  boxShadow: const [
-                    BoxShadow(
-                      color: Color(0x18000000),
-                      blurRadius: 4,
-                      offset: Offset(0, 1),
+          HeroPaperBanner(
+            height: 140,
+            padding: const EdgeInsets.all(14),
+            child: Row(
+              crossAxisAlignment: CrossAxisAlignment.center,
+              children: [
+                RareFrameBadge(
+                  rarity: parsedRarity,
+                  borderRadius: 12,
+                  child: Container(
+                    width: 54,
+                    height: 54,
+                    padding: const EdgeInsets.all(6),
+                    decoration: BoxDecoration(
+                      color: DauVietColors.paperCard,
+                      borderRadius: BorderRadius.circular(10),
                     ),
-                  ],
+                    child: Icon(
+                      _typeIcons[item.itemType] ??
+                          Icons.workspace_premium_rounded,
+                      color: item.owned ? rarityColor : DauVietColors.inkLight,
+                      size: 28,
+                    ),
+                  ),
                 ),
-                child: Icon(
-                  _typeIcons[item.itemType] ?? Icons.workspace_premium_rounded,
-                  color: item.owned ? rarityColor : DauVietColors.inkLight,
-                  size: 24,
-                ),
-              ),
-              const SizedBox(width: 12),
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Container(
-                      padding: const EdgeInsets.symmetric(
-                        horizontal: 6,
-                        vertical: 2,
-                      ),
-                      decoration: BoxDecoration(
-                        color: rarityColor,
-                        borderRadius: BorderRadius.circular(4),
-                      ),
-                      child: Text(
+                const SizedBox(width: 12),
+                Expanded(
+                  child: Column(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      SectionEyebrow(
                         _rarityLabels[item.rarity] ?? item.rarity,
-                        style: const TextStyle(
-                          color: Colors.white,
-                          fontSize: 9.5,
-                          fontWeight: FontWeight.bold,
+                        color: rarityColor,
+                        showShadow: false,
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 6,
+                          vertical: 2,
                         ),
                       ),
-                    ),
-                    const SizedBox(height: 3),
-                    Text(
-                      item.name,
-                      style: DauVietTypography.headlineMedium.copyWith(
-                        fontSize: 14.5,
-                        color: DauVietColors.inkText,
+                      const SizedBox(height: 6),
+                      Text(
+                        item.name,
+                        style: DauVietTypography.headlineMedium.copyWith(
+                          fontSize: 15,
+                          color: DauVietColors.inkHeading,
+                        ),
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
                       ),
-                      overflow: TextOverflow.ellipsis,
-                    ),
-                  ],
+                      const SizedBox(height: 6),
+                      Wrap(
+                        spacing: 6,
+                        runSpacing: 4,
+                        children: [
+                          ClueTag(
+                            categoryLabel,
+                            color: DauVietColors.jade,
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: 8,
+                              vertical: 2,
+                            ),
+                          ),
+                          if (typeLabel.isNotEmpty)
+                            ClueTag(
+                              typeLabel,
+                              color: DauVietColors.imperialGoldDark,
+                              padding: const EdgeInsets.symmetric(
+                                horizontal: 8,
+                                vertical: 2,
+                              ),
+                            ),
+                        ],
+                      ),
+                    ],
+                  ),
                 ),
-              ),
-            ],
+              ],
+            ),
           ),
-          const SizedBox(height: 10),
+          const SizedBox(height: 12),
           Text(
             item.description ?? '',
             style: DauVietTypography.bodySmall.copyWith(
@@ -537,12 +540,8 @@ class _InventoryScreenState extends ConsumerState<InventoryScreen> {
           if (item.owned)
             Row(
               children: [
-                const Icon(
-                  Icons.check_circle_rounded,
-                  color: DauVietColors.natureGreen,
-                  size: 16,
-                ),
-                const SizedBox(width: 6),
+                const StampSealBadge.success('✓', size: 28),
+                const SizedBox(width: 8),
                 Text(
                   'Đã sở hữu',
                   style: DauVietTypography.bodySmall.copyWith(
@@ -680,7 +679,7 @@ class _RequirementTree extends StatelessWidget {
                   child: LinearProgressIndicator(
                     value: progress,
                     minHeight: 5,
-                    backgroundColor: DauVietColors.parchmentHigh,
+                    backgroundColor: DauVietColors.paperCardHi,
                     valueColor: const AlwaysStoppedAnimation<Color>(
                       DauVietColors.imperialGold,
                     ),

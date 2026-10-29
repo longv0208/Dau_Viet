@@ -8,16 +8,27 @@
  * which resolve through these variables; never hard-code hex in components.
  */
 :root {
-  --color-brand: #a51f18; /* brand.red.700 — CTA, primary */
-  --color-brand-press: #751b19; /* brand.red.900 — pressed state */
-  --color-surface: #fffbf4; /* surface.cream — page background */
-  --color-surface-alt: #fff1d5; /* surface.parchment — cards */
+  --color-brand: #B93430; /* brand.red.700 — CTA, primary */
+  --color-brand-press: #85211F; /* brand.red.900 — pressed state */
+  --color-surface: #F8F0E0; /* surface.cream — page background */
+  --color-surface-alt: #FBF8F1; /* surface.parchment — cards */
   --color-ink: #30251f; /* ink.primary — body text */
   --color-ink-muted: #685f56; /* ink.secondary — supporting text */
+  --color-ink-secondary: #49382F;
   --color-border: #e7e0d6; /* muted wood-derived border */
   --color-error: #b3261e; /* state.error — validation */
   --color-success: #64824c; /* nature.green — always with icon, never color-only */
-  --color-warning: #e7b451; /* heritage.gold.500 — dark text only */
+  --color-warning: #E0AE45; /* heritage.gold.500 — dark text only */
+  --color-jade: #247D78;
+  --color-jade-dark: #1A5F5B;
+  --color-chapter: #283F36;
+  --color-heading: #3C3026;
+  --color-gold-dark: #A97932;
+  --color-pixel-shadow: #402C29;
+  --shadow-heritage: 0 4px 12px rgba(97,59,40,0.10);
+  --shadow-pixel: 4px 4px 0 #402C29;
+  --shadow-pixel-sm: 2px 2px 0 #402C29;
+  --shadow-pixel-lg: 6px 6px 0 #402C29;
   --ring: var(--color-brand);
 }
 

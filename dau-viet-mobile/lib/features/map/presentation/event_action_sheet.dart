@@ -2,14 +2,18 @@ import 'package:flutter/material.dart';
 
 import '../../../core/theme/dau_viet_colors.dart';
 import '../../../core/theme/dau_viet_typography.dart';
+import '../../../core/widgets/clue_tag.dart';
 import '../../../core/widgets/dong_son_button.dart';
 import '../../../core/widgets/event_cover_image.dart';
+import '../../../core/widgets/hero_paper_banner.dart';
+import '../../../core/widgets/paper_grain_overlay.dart';
 import '../../../core/widgets/parchment_card.dart';
+import '../../../core/widgets/section_eyebrow.dart';
+import '../../../core/widgets/stamp_seal_badge.dart';
 import '../../learning_path/data/learning_path_dto.dart';
-import '../../learning_path/presentation/path_status_badge.dart';
 import '../data/map_location_dto.dart';
 
-/// Bottom sheet hành động của một NÚT SỰ KIỆN trên Bản Đồ Dấu Ấn (Issue #36).
+/// Bottom sheet hành động của một NÚT SỰ KIỆN trên Bản Đồ Dấu Ấn (Issue #36 / #40).
 ///
 /// Mở khi người học chạm vào [PathEventNode]. Hiển thị nhanh bối cảnh sự
 /// kiện và CTA chính — "BẮT ĐẦU HỌC" / "TIẾP TỤC HỌC" — đi thẳng vào
@@ -49,6 +53,9 @@ class EventActionSheet extends StatelessWidget {
     return null;
   }
 
+  bool get _hasCover =>
+      event.coverAssetKey != null && event.coverAssetKey!.trim().isNotEmpty;
+
   @override
   Widget build(BuildContext context) {
     final bottomInset = MediaQuery.of(context).viewInsets.bottom;
@@ -60,30 +67,42 @@ class EventActionSheet extends StatelessWidget {
       child: SafeArea(
         child: ConstrainedBox(
           constraints: BoxConstraints(
-            maxHeight: MediaQuery.of(context).size.height * 0.8,
+            maxHeight: MediaQuery.of(context).size.height * 0.82,
           ),
           child: ParchmentCard(
-            padding: const EdgeInsets.all(20),
-            child: SingleChildScrollView(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.stretch,
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  _buildHeader(),
-                  const SizedBox(height: 12),
-                  _buildProgressRow(),
-                  const SizedBox(height: 16),
-                  _buildPrimaryCta(context, status, primary),
-                  if (status != LearnerPathStatus.locked) ...[
-                    const SizedBox(height: 8),
-                    _buildSecondaryCta(context),
-                  ],
-                  if (unlockedLocations.isNotEmpty) ...[
-                    const SizedBox(height: 16),
-                    _buildLocationsSection(),
-                  ],
-                ],
-              ),
+            padding: EdgeInsets.zero,
+            child: Stack(
+              children: [
+                SingleChildScrollView(
+                  padding: const EdgeInsets.all(20),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.stretch,
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      if (_hasCover) ...[
+                        _buildHeroCover(),
+                        const SizedBox(height: 14),
+                      ],
+                      _buildTitleRow(),
+                      const SizedBox(height: 12),
+                      _buildProgressRow(),
+                      const SizedBox(height: 16),
+                      _buildPrimaryCta(context, status, primary),
+                      if (status != LearnerPathStatus.locked) ...[
+                        const SizedBox(height: 8),
+                        _buildSecondaryCta(context),
+                      ],
+                      if (unlockedLocations.isNotEmpty) ...[
+                        const SizedBox(height: 16),
+                        _buildLocationsSection(),
+                      ],
+                    ],
+                  ),
+                ),
+                const Positioned.fill(
+                  child: PaperGrainOverlay(opacity: 0.04),
+                ),
+              ],
             ),
           ),
         ),
@@ -91,45 +110,93 @@ class EventActionSheet extends StatelessWidget {
     );
   }
 
-  Widget _buildHeader() {
+  Widget _buildHeroCover() {
+    return HeroPaperBanner(
+      height: 140,
+      padding: EdgeInsets.zero,
+      child: Stack(
+        fit: StackFit.expand,
+        children: [
+          EventCoverImage(assetPath: event.coverAssetKey),
+          DecoratedBox(
+            decoration: BoxDecoration(
+              gradient: LinearGradient(
+                begin: Alignment.topCenter,
+                end: Alignment.bottomCenter,
+                colors: [
+                  Colors.transparent,
+                  DauVietColors.paperBackground.withValues(alpha: 0.65),
+                ],
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildTitleRow() {
     return Row(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        ClipRRect(
-          borderRadius: BorderRadius.circular(10),
-          child: SizedBox(
-            width: 64,
-            height: 64,
-            child: EventCoverImage(assetPath: event.coverAssetKey),
+        if (!_hasCover) ...[
+          ClipRRect(
+            borderRadius: BorderRadius.circular(10),
+            child: SizedBox(
+              width: 56,
+              height: 56,
+              child: EventCoverImage(assetPath: event.coverAssetKey),
+            ),
           ),
-        ),
-        const SizedBox(width: 12),
+          const SizedBox(width: 12),
+        ],
         Expanded(
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              if (event.yearLabel.isNotEmpty)
-                Text(
-                  event.yearLabel.toUpperCase(),
-                  style: DauVietTypography.labelSmall.copyWith(
-                    color: DauVietColors.cinnabarRed,
-                    fontWeight: FontWeight.w800,
-                    letterSpacing: 0.6,
-                  ),
-                ),
-              const SizedBox(height: 2),
+              if (event.yearLabel.trim().isNotEmpty) ...[
+                SectionEyebrow(event.yearLabel.trim()),
+                const SizedBox(height: 8),
+              ],
               Text(
                 event.title,
                 maxLines: 3,
                 overflow: TextOverflow.ellipsis,
-                style: DauVietTypography.headlineSmall.copyWith(fontSize: 16),
+                style: DauVietTypography.headlineSmall.copyWith(
+                  fontSize: 17,
+                  color: DauVietColors.inkHeading,
+                ),
               ),
-              const SizedBox(height: 6),
-              PathStatusBadge(status: event.status),
             ],
           ),
         ),
+        const SizedBox(width: 12),
+        _buildStatusSeal(event.status),
       ],
+    );
+  }
+
+  Widget _buildStatusSeal(LearnerPathStatus status) {
+    final Widget badge = switch (status) {
+      LearnerPathStatus.completed || LearnerPathStatus.mastered =>
+        const StampSealBadge.success('✓', size: 42),
+      LearnerPathStatus.locked || LearnerPathStatus.notReady =>
+        const StampSealBadge.outline('KHÓA', size: 42),
+      LearnerPathStatus.inProgress => const StampSealBadge(
+        'ĐANG',
+        size: 42,
+        color: DauVietColors.cinnabarRed,
+      ),
+      LearnerPathStatus.available => const StampSealBadge(
+        'MỞ',
+        size: 42,
+        color: DauVietColors.cinnabarRed,
+      ),
+    };
+    return Semantics(
+      container: true,
+      label: 'Trạng thái: ${status.labelVi}',
+      child: badge,
     );
   }
 
@@ -152,7 +219,7 @@ class EventActionSheet extends StatelessWidget {
             child: LinearProgressIndicator(
               value: total == 0 ? 0 : done / total,
               minHeight: 6,
-              backgroundColor: DauVietColors.parchmentHigh,
+              backgroundColor: DauVietColors.paperCardHi,
               valueColor: const AlwaysStoppedAnimation<Color>(
                 DauVietColors.heritageGreen,
               ),
@@ -202,6 +269,7 @@ class EventActionSheet extends StatelessWidget {
     };
     return DongSonButton(
       label: label,
+      variant: DongSonButtonVariant.primaryCinnabar,
       icon: status.isDone ? Icons.replay_rounded : Icons.play_arrow_rounded,
       onPressed: () => onStartLesson?.call(primary),
     );
@@ -214,6 +282,7 @@ class EventActionSheet extends StatelessWidget {
       icon: const Icon(Icons.map_outlined, size: 16),
       label: const Text('Chi tiết chiến dịch'),
       style: TextButton.styleFrom(
+        minimumSize: const Size(44, 44),
         foregroundColor: DauVietColors.heritageGreen,
         textStyle: DauVietTypography.labelMedium.copyWith(
           fontWeight: FontWeight.w700,
@@ -228,10 +297,8 @@ class EventActionSheet extends StatelessWidget {
       children: [
         Text(
           'ĐỊA ĐIỂM DI TÍCH ĐÃ MỞ',
-          style: DauVietTypography.labelSmall.copyWith(
+          style: DauVietTypography.sectionEyebrow.copyWith(
             color: DauVietColors.woodBrown,
-            fontWeight: FontWeight.w800,
-            letterSpacing: 0.6,
           ),
         ),
         const SizedBox(height: 8),
@@ -254,7 +321,7 @@ class EventActionSheet extends StatelessWidget {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
       decoration: BoxDecoration(
-        color: DauVietColors.parchmentDim,
+        color: DauVietColors.paperDim,
         borderRadius: BorderRadius.circular(10),
         border: Border.all(color: DauVietColors.outlineVariant),
       ),
@@ -289,39 +356,27 @@ class _LocationChip extends StatelessWidget {
       label: 'Địa điểm ${location.title} — đã mở khóa',
       child: InkWell(
         onTap: onTap,
-        borderRadius: BorderRadius.circular(10),
-        child: Container(
-          constraints: const BoxConstraints(maxWidth: 180),
-          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 7),
-          decoration: BoxDecoration(
-            color: DauVietColors.imperialGoldLight.withValues(alpha: 0.45),
-            borderRadius: BorderRadius.circular(10),
-            border: Border.all(
-              color: DauVietColors.imperialGold.withValues(alpha: 0.9),
-              width: 1.1,
-            ),
-          ),
-          child: Row(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              const Icon(
-                Icons.place_rounded,
-                size: 15,
-                color: DauVietColors.woodBrown,
-              ),
-              const SizedBox(width: 5),
-              Flexible(
-                child: Text(
-                  location.title,
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                  style: DauVietTypography.labelMedium.copyWith(
-                    fontSize: 11,
-                    color: DauVietColors.inkText,
+        borderRadius: BorderRadius.circular(999),
+        child: ConstrainedBox(
+          constraints: const BoxConstraints(minHeight: 44),
+          child: Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 2, vertical: 4),
+            child: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                if (location.unlocked) ...[
+                  const StampSealBadge.success('✓', size: 22),
+                  const SizedBox(width: 6),
+                ],
+                Flexible(
+                  child: ClueTag(
+                    location.title,
+                    icon: Icons.place_rounded,
+                    color: DauVietColors.jade,
                   ),
                 ),
-              ),
-            ],
+              ],
+            ),
           ),
         ),
       ),

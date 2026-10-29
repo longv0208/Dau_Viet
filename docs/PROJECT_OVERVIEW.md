@@ -108,6 +108,7 @@ Phân biệt **mục tiêu MVP** ở trên với **đã implement trong source**
 | — | **Collection Dấu** (FR-39–41): `user_evidence` chỉ là schema, chưa có API/UI backend-connected |
 | — | **EXP/reward thật** (FR-34): `reward_transactions` chỉ là schema, `complete()` chưa grant |
 | — | **Heritage Island / Shop / Energy** (design M-22–M-28): UI demo hard-coded, chưa có catalog/ownership/placement backend |
+| **UI/UX Design System v3** (Issue #40): đại tu mobile + admin theo Landing Page (giấy dó `#F8F0E0`, mực nho `#30251F`, chu sa `#B93430`, vàng ngự `#E0AE45`, jade `#247D78`, pixel shadow `4px 4px 0 #402C29`, Noto Serif + Be Vietnam Pro + Press Start 2P); 12 atoms mới mobile + 8 atoms admin; Lesson Player → "Sổ tay Thám tử Lịch sử" (StepProgressBar 6 chặng, clue cards, sa bàn, C-E-R board); 11 renderer thiết kế lại | — |
 
 ## 7. Hoạt động tương tác dự kiến
 

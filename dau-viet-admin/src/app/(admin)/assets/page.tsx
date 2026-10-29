@@ -7,6 +7,7 @@ export default function AssetsPage() {
   return (
     <div>
       <PageHeader
+        eyebrow="QUẢN TRỊ · THƯ VIỆN MEDIA"
         title="Thư viện media"
         description="Quản lý ảnh và tư liệu dùng trong các bài học."
       />

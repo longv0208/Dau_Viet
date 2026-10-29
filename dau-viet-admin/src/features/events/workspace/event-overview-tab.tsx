@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import { useQuery } from "@tanstack/react-query";
+import { BookOpen, Film, ScrollText, type LucideIcon } from "lucide-react";
 
 import { apiFetch, toQuery } from "@/lib/api-client";
 import { parseReturnTo, withReturnTo } from "@/lib/return-to";
@@ -10,7 +11,8 @@ import type { AdminLessonSummary } from "@/lib/dto/lesson";
 import type { Evidence } from "@/lib/dto/evidence";
 import type { AnimationSceneSummary } from "@/features/animations/animation-types";
 import { qk } from "@/lib/query-keys";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { PaperCard } from "@/components/atoms/paper-card";
+import { SectionDivider } from "@/components/atoms/section-divider";
 import { Skeleton } from "@/components/ui/skeleton";
 import { StatusChip } from "@/components/status-chip";
 import { Button } from "@/components/ui/button";
@@ -26,11 +28,28 @@ function useCount(key: readonly unknown[], url: string) {
   return { total: q.data?.totalElements ?? null, isPending: q.isPending };
 }
 
-function StatCard({ label, value, href }: { label: string; value: number | null; href: string }) {
+function StatCard({
+  label,
+  value,
+  href,
+  icon: Icon,
+  iconColor = "text-jade",
+}: {
+  label: string;
+  value: number | null;
+  href: string;
+  icon: LucideIcon;
+  iconColor?: string;
+}) {
   return (
-    <Link href={href} className="block rounded-lg border border-border bg-white p-4 transition-colors hover:bg-surface">
-      <p className="text-sm text-ink-muted">{label}</p>
-      <p className="mt-1 text-2xl font-bold text-ink">{value === null ? "—" : value}</p>
+    <Link href={href} className="block">
+      <PaperCard interactive className="flex items-center justify-between p-4">
+        <div>
+          <p className="text-sm text-ink-muted">{label}</p>
+          <p className="mt-1 font-pixel text-2xl text-chapter">{value === null ? "—" : value}</p>
+        </div>
+        <Icon className={`size-7 shrink-0 ${iconColor}`} aria-hidden />
+      </PaperCard>
     </Link>
   );
 }
@@ -87,19 +106,41 @@ export function EventOverviewTab({ event }: { event: AdminEventDetail }) {
       </p>
 
       <div className="grid gap-3 sm:grid-cols-3">
-        <StatCard label="Bài học" value={lessons.total} href={`/events/${eventId}?tab=lessons`} />
-        <StatCard label="Bằng chứng" value={evidences.total} href={`/events/${eventId}?tab=hoc-lieu`} />
-        <StatCard label="Hoạt họa" value={animations.total} href={`/events/${eventId}?tab=hoc-lieu`} />
+        <StatCard
+          label="Bài học"
+          value={lessons.total}
+          href={`/events/${eventId}?tab=lessons`}
+          icon={BookOpen}
+          iconColor="text-brand"
+        />
+        <StatCard
+          label="Bằng chứng"
+          value={evidences.total}
+          href={`/events/${eventId}?tab=hoc-lieu`}
+          icon={ScrollText}
+          iconColor="text-jade"
+        />
+        <StatCard
+          label="Hoạt họa"
+          value={animations.total}
+          href={`/events/${eventId}?tab=hoc-lieu`}
+          icon={Film}
+          iconColor="text-brand"
+        />
       </div>
 
-      <Card>
-        <CardHeader className="flex flex-row items-center justify-between">
-          <CardTitle className="text-base">Bài học gần đây</CardTitle>
-          <Button asChild variant="secondary" size="sm">
-            <Link href={`/events/${eventId}?tab=lessons`}>Xem tất cả</Link>
-          </Button>
-        </CardHeader>
-        <CardContent>
+      <PaperCard className="p-5">
+        <SectionDivider
+          eyebrow="NỘI DUNG"
+          title="Bài học gần đây"
+          action={
+            <Button asChild variant="secondary" size="sm">
+              <Link href={`/events/${eventId}?tab=lessons`}>Xem tất cả</Link>
+            </Button>
+          }
+          className="mb-4"
+        />
+        <div>
           {recentLessons.isPending && <Skeleton className="h-24 w-full" />}
           {recentLessons.data && recentLessons.data.content.length === 0 && (
             <p className="text-sm text-ink-muted">
@@ -108,7 +149,7 @@ export function EventOverviewTab({ event }: { event: AdminEventDetail }) {
           )}
           <ul className="flex flex-col gap-2">
             {(recentLessons.data?.content ?? []).map((l) => (
-              <li key={l.id} className="flex items-center justify-between rounded-md border border-border px-3 py-2">
+              <li key={l.id} className="flex items-center justify-between rounded-md border border-border bg-surface px-3 py-2">
                 <div className="min-w-0">
                   <Link
                     href={withReturnTo(`/lessons/${l.id}`, returnTo)}
@@ -121,7 +162,7 @@ export function EventOverviewTab({ event }: { event: AdminEventDetail }) {
                   <StatusChip status={l.status} />
                   <Link
                     href={withReturnTo(`/lessons/${l.id}/publish`, returnTo)}
-                    className="text-sm text-primary hover:underline"
+                    className="text-sm font-medium text-brand hover:underline"
                   >
                     Xuất bản
                   </Link>
@@ -129,15 +170,18 @@ export function EventOverviewTab({ event }: { event: AdminEventDetail }) {
               </li>
             ))}
           </ul>
-        </CardContent>
-      </Card>
+        </div>
+      </PaperCard>
 
       <div className="grid gap-4 md:grid-cols-2">
-        <Card>
-          <CardHeader>
-            <CardTitle className="text-base">Bằng chứng chưa phê duyệt</CardTitle>
-          </CardHeader>
-          <CardContent>
+        <PaperCard className="p-5">
+          <SectionDivider
+            eyebrow="CHỜ DUYỆT"
+            eyebrowColor="gold"
+            title="Bằng chứng chưa phê duyệt"
+            className="mb-4"
+          />
+          <div>
             {pendingEvidence.isPending && <Skeleton className="h-16 w-full" />}
             {pendingEvidence.data && pendingEvidence.data.content.length === 0 && (
               <p className="text-sm text-ink-muted">Không có bằng chứng nào đang chờ duyệt.</p>
@@ -147,21 +191,24 @@ export function EventOverviewTab({ event }: { event: AdminEventDetail }) {
                 <li key={e.id}>
                   <Link
                     href={withReturnTo(`/evidence/${e.id}`, parseReturnTo(`/events/${eventId}?tab=hoc-lieu`))}
-                    className="text-sm text-primary hover:underline"
+                    className="text-sm font-medium text-brand hover:underline"
                   >
                     {e.title}
                   </Link>
                 </li>
               ))}
             </ul>
-          </CardContent>
-        </Card>
+          </div>
+        </PaperCard>
 
-        <Card>
-          <CardHeader>
-            <CardTitle className="text-base">Hoạt họa chưa xuất bản</CardTitle>
-          </CardHeader>
-          <CardContent>
+        <PaperCard className="p-5">
+          <SectionDivider
+            eyebrow="BẢN NHÁP"
+            eyebrowColor="jade"
+            title="Hoạt họa chưa xuất bản"
+            className="mb-4"
+          />
+          <div>
             {draftAnimations.isPending && <Skeleton className="h-16 w-full" />}
             {draftAnimations.data && draftAnimations.data.content.length === 0 && (
               <p className="text-sm text-ink-muted">Tất cả hoạt họa đã được xuất bản.</p>
@@ -171,15 +218,15 @@ export function EventOverviewTab({ event }: { event: AdminEventDetail }) {
                 <li key={s.id}>
                   <Link
                     href={withReturnTo(`/animations/${s.id}/edit`, parseReturnTo(`/events/${eventId}?tab=hoc-lieu`))}
-                    className="text-sm text-primary hover:underline"
+                    className="text-sm font-medium text-brand hover:underline"
                   >
                     {s.title}
                   </Link>
                 </li>
               ))}
             </ul>
-          </CardContent>
-        </Card>
+          </div>
+        </PaperCard>
       </div>
 
       <div className="flex flex-wrap gap-2">

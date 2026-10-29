@@ -19,7 +19,7 @@ export default async function VersionDetailPage({
   const { lessonId, versionId } = await params;
   return (
     <div className="flex flex-col gap-4">
-      <PageHeader title="Chi tiết phiên bản" />
+      <PageHeader eyebrow="QUẢN TRỊ · PHIÊN BẢN" title="Chi tiết phiên bản" />
       <Suspense fallback={<Skeleton className="h-[30rem] w-full max-w-[390px]" />}>
         <VersionDetailView lessonId={lessonId} versionId={versionId} />
       </Suspense>

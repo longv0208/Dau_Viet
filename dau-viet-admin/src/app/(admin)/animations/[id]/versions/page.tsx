@@ -12,6 +12,7 @@ export default async function AnimationVersionsPage({
   return (
     <div>
       <PageHeader
+        eyebrow="QUẢN TRỊ · HOẠT HỌA"
         title="Phiên bản đã xuất bản"
         description="Mỗi lần xuất bản tạo một phiên bản bất biến — bài học đang dùng phiên bản nào sẽ giữ nguyên phiên bản đó."
       />

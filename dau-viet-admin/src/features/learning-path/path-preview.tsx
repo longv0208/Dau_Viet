@@ -1,6 +1,7 @@
 "use client";
 
 import { BookOpen, CheckCircle2, Compass, Flag, GitBranch, Landmark } from "lucide-react";
+import { SectionEyebrow } from "@/components/atoms/section-eyebrow";
 import type { PathDetail } from "@/lib/dto/learning-path";
 import { cn } from "@/lib/utils";
 import {
@@ -45,7 +46,7 @@ export function PathPreview({
               ? "bg-brand text-white shadow-sm enabled:hover:bg-brand-press"
               : nodeType === "PERIOD"
                 ? "border border-warning/60 bg-surface-alt text-ink enabled:hover:border-brand/50"
-                : "border border-border bg-white text-ink enabled:hover:border-brand/50",
+                : "border border-border bg-surface-alt text-ink enabled:hover:border-brand/50",
           )}
         >
           <span className="inline-flex items-center gap-1.5 text-xs font-semibold uppercase tracking-wider">
@@ -75,7 +76,7 @@ export function PathPreview({
                     type="button"
                     disabled={!onSelect}
                     onClick={() => onSelect?.(row.chapter.id, event.node.id)}
-                    className="w-full rounded-lg border border-border bg-white p-3 text-left shadow-sm transition-colors duration-150 disabled:cursor-default enabled:cursor-pointer enabled:hover:border-brand/50"
+                    className="w-full rounded-lg border border-border bg-surface-alt p-3 text-left shadow-heritage transition-colors duration-150 disabled:cursor-default enabled:cursor-pointer enabled:hover:border-brand/50"
                   >
                     <span className="text-xs font-semibold text-brand">
                       {historicalYear(event.startYear)}
@@ -114,10 +115,8 @@ export function PathPreview({
   return (
     <div className="space-y-6 p-4" aria-label="Xem trước hành trình">
       <div>
-        <p className="text-xs font-semibold uppercase tracking-widest text-brand">
-          Hành trình Dấu Việt
-        </p>
-        <h2 className="mt-1 font-display text-xl font-semibold">{detail.version.title}</h2>
+        <SectionEyebrow color="brand">Hành trình Dấu Việt</SectionEyebrow>
+        <h2 className="mt-2 font-display text-xl font-semibold text-ink">{detail.version.title}</h2>
         <p className="mt-1 text-xs text-ink-muted">
           Phiên bản {detail.version.versionNo} · Cấu trúc cây phân cấp thực tế
         </p>

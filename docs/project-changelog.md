@@ -2,6 +2,51 @@
 
 > Detailed record of significant changes, features và fixes. Newest first.
 
+## 2026-10-29 — Issue #40: Đại tu & Nâng cấp toàn diện Giao diện (Design System v3)
+
+**Scope:** Đồng bộ `dau-viet-mobile` + `dau-viet-admin` theo Landing Page (https://dau-viet-landing.vercel.app/) — palette giấy dó / mực nho / đỏ chu sa / vàng ngự xưởng / jade; Lesson Player → "Sổ tay Thám tử Lịch sử & Sa bàn Chiến thuật". Plan: `plans/261029-issue-40-ui-overhaul/plan.md`. Backend/Flyway/API contract/providers/renderer constructor signatures: **không đổi**.
+
+**Design tokens v3 (mobile `lib/core/theme/`)**
+- `dau_viet_colors.dart` viết lại: `paperBackground #F8F0E0`, `paperCard #FBF8F1`, `paperCardHi #F3E5CE`, `paperCardLo #EFE3CC`, `inkText #30251F`, `inkHeading #3C3026`, `inkSecondary #49382F`, `cinnabarRed #B93430` / `cinnabarRedDark #85211F`, `imperialGold #E0AE45` / `imperialGoldDark #A97932`, `jade #247D78` / `jadeDark #1A5F5B`, `chapterGreen #283F36`, `pixelShadow 4px/2px/6px #402C29`.
+- Legacy aliases `parchmentSurface/Container/High/Dim` trỏ về paper tokens (file chưa polish compile tiếp).
+- `dau_viet_typography.dart` + `chapterNumber`/`chapterNumberSmall` (`GoogleFonts.pressStart2p`), `sectionEyebrow`, `clueTag`.
+- `dau_viet_theme.dart`: `scaffoldBackgroundColor=paperBackground`, `tertiary=jade`.
+- Admin `globals.css` + `tailwind.config.ts`: brand `#B93430`, surface `#F8F0E0`, jade, chapter-green, ink-secondary, gold-dark, pixel shadow vars.
+
+**Atoms mới**
+- Mobile (`lib/core/widgets/`): `section_eyebrow`, `chapter_number_badge`, `paper_grain_overlay`, `tactile_card`, `stamp_seal_badge`, `clue_tag`, `mascot_slot`, `section_divider`, `hero_paper_banner`, `empty_state_card`, `step_progress_bar`, `rare_frame_badge` (12 files).
+- Admin (`src/components/atoms/`): `EmptyStateCard`, `PaperCard`, `SectionDivider`, `SectionEyebrow`, `ClueTag`, `StampSeal`, `ChapterBadge`, `RareFrame` + `index.ts` barrel + `atoms.test.tsx`.
+
+**Lesson Player → "Sổ tay Thám tử Lịch sử"**
+- Top bar rebuild: border-bottom 3px `inkHeading`, `StepProgressBar` 6 chặng (Bối cảnh→Dấu vết→Giả thuyết→Kiểm chứng→Dựng lại→Kết luận) + fraction chip `x/y`, compact auto `<200px/360px`.
+- Renderer redesign: `READ` (cổ thư + drop-cap + grain), `VIEW_IMAGE` (sa bàn + pinch-zoom dialog), `EVIDENCE_SELECT` (clue cards + flip stamps), `HYPOTHESIS_CHOICE` (reasoning board), `VERIFICATION` (3-level verdict chips), `DRAG_ORDER` (timeline + `ChapterNumberBadge`), `CER`/`CER_CHOICE` (C-E-R slots + `_CERConnectorPainter`), `MATCHING`, `REASONING_CONNECT` (`_RelationEdgePainter`), `REFLECTION_PROMPT`, `UNSUPPORTED` (`EmptyStateCard`).
+
+**Screens polish (mobile)**
+- `learner_dashboard_screen` (2× `HeroPaperBanner`, 4× `SectionDivider`, `MascotSlot`, streak strip `StampSealBadge`/`ChapterNumberBadge`), `historical_map_screen`, `path_event_node` (Stateful + `AnimatedScale`), `event_action_sheet`, `campaign_detail_screen`, `collection_screen` (`ClueTag` filters, `RareFrameBadge`, `EmptyStateCard`), `learning_streak_screen`, `profile_screen`, `island_screen`, `island_shop_screen`, `inventory_screen`, `energy_management_screen`, `heritage_island_screen`.
+
+**Admin**
+- `layout.tsx` load `Press_Start_2P`; shell/header/empty-state/status-chip updated; 51 page/component files polished.
+
+**Overflow / regression fixes**
+- `SectionDivider`: `Flexible(fit: FlexFit.loose)` on eyebrow + `Expanded` title.
+- `SectionEyebrow`/`ClueTag`/`_CerRoleHeader`/`_SlotHeader`: `Flexible` + `Text.ellipsis` (fix `RenderFlex` overflow ở 236-376px).
+- `StepProgressBar`: `LayoutBuilder` switch `<200px` (dot 24, no label) / `<360px` (dot 32, no label) / `>=360px` (full label) — tránh overflow trên mọi width.
+- `learner_dashboard_screen` hero `HeroPaperBanner` height `198→202` (0.8px overflow do font metrics).
+- Xóa `_buildCelebrationScreen` dead code + unused imports `section_eyebrow`/`dau_viet_colors`.
+
+**Tests**
+- `test/theme/design_tokens_test.dart` mới — 9 tests validate v3 palette/typography/theme.
+- `learning_flow_issue_29_test.dart` — `ShimmerProgressBar` → `StepProgressBar`, TC-ACT-17 `ensureVisible` + `warnIfMissed: false`.
+- `collection_screen_test.dart` — empty-state text `Chưa có dấu vết`/`bài học`.
+- `visual_storytelling_test.dart` — `MultipleChoiceQuizScreen` bọc `ProviderScope` + override `energyRepositoryProvider`/`rewardSummaryProvider` (EnergyPill giờ là `ConsumerWidget`).
+
+**Verification**
+- `cd dau-viet-mobile && flutter test` → **514/514 pass**.
+- `cd dau-viet-mobile && flutter analyze` → **0 new issues** (9 pre-existing island/* warnings only).
+- `cd dau-viet-admin && npx tsc --noEmit` → clean; `npx vitest run` → **49/49 files, 294/294 tests**.
+
+**Docs updated:** `docs/project-changelog.md`, `docs/PROJECT_OVERVIEW.md`, `tasks/TASK-0031/{task.json,brief.md,handoff.md}`, `plans/261029-issue-40-ui-overhaul/plan.md`.
+
 
 ## 2026-10-29 — Issue #36: Học trực tiếp trên Bản đồ Dấu Ấn & Mở khóa Di tích sau khi học
 

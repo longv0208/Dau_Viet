@@ -8,8 +8,13 @@ import { Eye, Pencil, Plus, Sparkles, Store, Trash2 } from "lucide-react";
 import { apiFetch, toQuery } from "@/lib/api-client";
 import { toUserMessage } from "@/lib/api-error";
 import type { AdminItem } from "@/lib/dto/item";
+import { ClueTag } from "@/components/atoms/clue-tag";
+import { EmptyStateCard } from "@/components/atoms/empty-state-card";
+import { PaperCard } from "@/components/atoms/paper-card";
+import { RareFrame, type RarityTier } from "@/components/atoms/rare-frame";
+import { SectionDivider } from "@/components/atoms/section-divider";
+import { SectionEyebrow } from "@/components/atoms/section-eyebrow";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select } from "@/components/ui/select";
@@ -203,6 +208,9 @@ export function IslandShopManager() {
     <div className="flex flex-col gap-5">
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div>
+          <div className="mb-1.5">
+            <SectionEyebrow color="gold">QUẢN TRỊ · CỬA HÀNG ĐẢO DI SẢN</SectionEyebrow>
+          </div>
           <h1 className="font-display text-2xl font-bold text-ink">
             Cửa hàng Đảo Di Sản
           </h1>
@@ -234,27 +242,30 @@ export function IslandShopManager() {
         </div>
       )}
 
-      <Card>
-        <CardHeader>
-          <CardTitle>Danh sách vật phẩm trong Shop ({offers.length})</CardTitle>
-          <CardDescription>
-            Chỉ những vật phẩm có <code>purchasable = true</code> (đang bật bán, có giá &gt; 0, có <code>placeable = true</code> và đang hiển thị trong Catalog) mới cho phép học viên mua trên ứng dụng.
-          </CardDescription>
-        </CardHeader>
-        <CardContent>
+      <PaperCard className="p-5">
+        <SectionDivider
+          eyebrow="CỬA HÀNG"
+          eyebrowColor="gold"
+          title={`Danh sách vật phẩm trong Shop (${offers.length})`}
+          description={
+            <>
+              Chỉ những vật phẩm có <code>purchasable = true</code> (đang bật bán, có giá &gt; 0, có <code>placeable = true</code> và đang hiển thị trong Catalog) mới cho phép học viên mua trên ứng dụng.
+            </>
+          }
+          className="mb-4"
+        />
+        <div>
           {offers.length === 0 ? (
-            <div className="rounded-lg border border-dashed border-border p-8 text-center">
-              <Store className="mx-auto mb-2 size-8 text-ink-muted" />
-              <p className="font-medium text-ink">Chưa có vật phẩm nào trong Cửa hàng Đảo Di Sản</p>
-              <p className="mt-1 text-xs text-ink-muted">
-                Nhấn &ldquo;Đưa vật phẩm lên Shop&rdquo; để chọn vật phẩm trang trí từ Catalog.
-              </p>
-            </div>
+            <EmptyStateCard
+              icon={Store}
+              title="Chưa có vật phẩm nào trong Cửa hàng Đảo Di Sản"
+              description="Nhấn “Đưa vật phẩm lên Shop” để chọn vật phẩm trang trí từ Catalog."
+            />
           ) : (
             <div className="overflow-x-auto">
               <table className="w-full border-collapse text-left text-sm">
                 <thead>
-                  <tr className="border-b border-border text-xs font-semibold uppercase text-ink-muted">
+                  <tr className="border-b-2 border-heading bg-surface-alt font-pixel text-[10px] uppercase tracking-wider text-ink-muted">
                     <th className="py-3 pr-3">Thứ tự</th>
                     <th className="px-3 py-3">Artwork / Render Key</th>
                     <th className="px-3 py-3">Vật phẩm</th>
@@ -274,20 +285,21 @@ export function IslandShopManager() {
                         </td>
                         <td className="px-3 py-3">
                           <div className="flex items-center gap-2.5">
-                            {offer.assetId ? (
-                              <div className="relative flex size-10 shrink-0 items-center justify-center overflow-hidden rounded-lg border border-amber-300/70 bg-amber-50 text-amber-800">
-                                {/* eslint-disable-next-line @next/next/no-img-element */}
+                            <RareFrame
+                              rarity={(offer.rarity?.toLowerCase() as RarityTier) ?? "common"}
+                              className="relative flex size-10 shrink-0 items-center justify-center overflow-hidden p-1"
+                            >
+                              {offer.assetId ? (
+                                // eslint-disable-next-line @next/next/no-img-element
                                 <img
                                   src={`/api/proxy/assets/${offer.assetId}/content`}
                                   alt={offer.name}
-                                  className="size-full object-contain p-1"
+                                  className="size-full object-contain"
                                 />
-                              </div>
-                            ) : (
-                              <div className="flex size-10 shrink-0 items-center justify-center rounded-lg border border-amber-300/70 bg-amber-50 text-amber-800">
-                                <Sparkles className="size-5" />
-                              </div>
-                            )}
+                              ) : (
+                                <Sparkles className="size-5 text-gold-dark" />
+                              )}
+                            </RareFrame>
                             <div className="min-w-0">
                               <code className="block truncate text-xs font-medium text-ink">
                                 {offer.renderKey ?? "Chưa gán renderKey"}
@@ -303,7 +315,7 @@ export function IslandShopManager() {
                         <td className="px-3 py-3">
                           <Link
                             href={`/items/${offer.itemId}`}
-                            className="font-medium text-primary hover:underline"
+                            className="font-medium text-brand hover:underline"
                           >
                             {offer.name}
                           </Link>
@@ -338,21 +350,19 @@ export function IslandShopManager() {
                         </td>
                         <td className="px-3 py-3">
                           <div className="flex flex-col gap-1">
-                            <span
-                              className={
+                            <ClueTag
+                              label={
                                 isPurchasable
-                                  ? "inline-flex w-fit items-center rounded-full bg-success/20 px-2.5 py-0.5 text-xs font-medium text-ink"
-                                  : "inline-flex w-fit items-center rounded-full bg-surface-alt px-2.5 py-0.5 text-xs font-medium text-ink-muted"
+                                  ? "Đang mở bán"
+                                  : offer.pricePoints == null
+                                    ? "Chưa mở bán"
+                                    : !offer.active
+                                      ? "Tạm dừng bán"
+                                      : "Không đủ điều kiện bán"
                               }
-                            >
-                              {isPurchasable
-                                ? "Đang mở bán"
-                                : offer.pricePoints == null
-                                  ? "Chưa mở bán"
-                                  : !offer.active
-                                    ? "Tạm dừng bán"
-                                    : "Không đủ điều kiện bán"}
-                            </span>
+                              color={isPurchasable ? "jade" : "gold"}
+                              className="w-fit"
+                            />
                             {(!offer.catalogActive || !offer.placeable) && (
                               <span className="text-[11px] text-error">
                                 {!offer.catalogActive
@@ -406,8 +416,8 @@ export function IslandShopManager() {
               </table>
             </div>
           )}
-        </CardContent>
-      </Card>
+        </div>
+      </PaperCard>
 
       {/* Modal đưa vật phẩm lên Shop */}
       {addModalOpen && (

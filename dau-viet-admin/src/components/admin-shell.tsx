@@ -30,6 +30,7 @@ import { useLogout } from "@/features/auth/use-auth";
 import { SessionBootstrap } from "@/features/auth/session-bootstrap";
 
 import { Breadcrumbs } from "./breadcrumbs";
+import { SectionEyebrow } from "./atoms/section-eyebrow";
 
 // Sự kiện là điểm vào chính — Event Workspace gom bài học/bằng chứng/hoạt họa
 // theo sự kiện. Các mục còn lại là thư viện dùng chung toàn hệ thống.
@@ -66,7 +67,7 @@ function NavLinks({ collapsed, onNavigate }: { collapsed: boolean; onNavigate?: 
             title={collapsed ? item.label : undefined}
             className={cn(
               "flex min-h-[44px] items-center gap-3 rounded-md px-3 text-sm font-medium transition-colors",
-              active ? "bg-brand text-white" : "text-ink hover:bg-surface-alt",
+              active ? "bg-brand/10 border-l-4 border-brand text-brand" : "text-ink hover:bg-surface-alt",
               collapsed && "justify-center px-0",
             )}
           >
@@ -115,16 +116,19 @@ function Shell({ user, children }: { user: UserProfileDto; children: React.React
       {/* Desktop sidebar */}
       <aside
         className={cn(
-          "sticky top-0 hidden h-screen flex-col border-r border-border bg-white transition-all md:flex",
+          "sticky top-0 hidden h-screen flex-col border-r-2 border-border bg-surface-alt transition-all md:flex",
           collapsed ? "w-16" : "w-60",
         )}
       >
-        <div className={cn("flex h-14 items-center border-b border-border", collapsed ? "justify-center px-2" : "justify-between px-3")}>
+        <div className={cn("flex min-h-14 items-center border-b border-border py-2", collapsed ? "justify-center px-2" : "justify-between px-3")}>
           <Link href="/dashboard" className="flex min-w-0 items-center gap-2" title="Dấu Việt — trang quản trị">
             {/* eslint-disable-next-line @next/next/no-img-element -- logo là file tĩnh trong /public */}
             <img src="/logo.svg" alt="Dấu Việt" className="size-8 shrink-0 rounded-full object-cover" />
             {!collapsed && (
-              <span className="truncate font-display text-lg font-bold text-brand">Dấu Việt</span>
+              <div className="flex min-w-0 flex-col items-start gap-0.5">
+                <SectionEyebrow>DAU VIET CMS</SectionEyebrow>
+                <span className="truncate font-display text-lg font-bold text-brand">Dấu Việt</span>
+              </div>
             )}
           </Link>
           {!collapsed && (
@@ -170,11 +174,14 @@ function Shell({ user, children }: { user: UserProfileDto; children: React.React
             onClick={() => setMobileOpen(false)}
             aria-hidden
           />
-          <div className="absolute left-0 top-0 flex h-full w-64 flex-col bg-white shadow-lg">
-            <div className="flex h-14 items-center gap-2 border-b border-border px-4">
+          <div className="absolute left-0 top-0 flex h-full w-64 flex-col bg-surface-alt shadow-lg">
+            <div className="flex min-h-14 items-center gap-2 border-b border-border px-4 py-2">
               {/* eslint-disable-next-line @next/next/no-img-element -- logo là file tĩnh trong /public */}
               <img src="/logo.svg" alt="" className="size-8 rounded-full object-cover" />
-              <span className="font-display text-lg font-bold text-brand">Dấu Việt</span>
+              <div className="flex min-w-0 flex-col items-start gap-0.5">
+                <SectionEyebrow>DAU VIET CMS</SectionEyebrow>
+                <span className="font-display text-lg font-bold text-brand">Dấu Việt</span>
+              </div>
             </div>
             <div className="flex-1 overflow-y-auto">
               <NavLinks collapsed={false} onNavigate={() => setMobileOpen(false)} />
@@ -186,7 +193,7 @@ function Shell({ user, children }: { user: UserProfileDto; children: React.React
 
       {/* Main column */}
       <div className="flex min-w-0 flex-1 flex-col">
-        <header className="sticky top-0 z-40 flex h-14 items-center gap-3 border-b border-border bg-white px-4">
+        <header className="sticky top-0 z-40 flex h-14 items-center gap-3 border-b-4 border-heading bg-surface px-4">
           <button
             type="button"
             onClick={() => setMobileOpen(true)}

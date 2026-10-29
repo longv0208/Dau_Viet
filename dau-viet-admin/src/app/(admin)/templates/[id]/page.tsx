@@ -14,6 +14,7 @@ export default async function EditTemplatePage({
   return (
     <div>
       <PageHeader
+        eyebrow="QUẢN TRỊ · MẪU BÀI HỌC"
         title="Sửa khung bài học"
         description="Chỉnh sửa thông tin và danh sách giai đoạn của khung."
       />

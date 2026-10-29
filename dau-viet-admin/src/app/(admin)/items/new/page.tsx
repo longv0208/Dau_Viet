@@ -7,6 +7,7 @@ export default function NewItemPage() {
   return (
     <div>
       <PageHeader
+        eyebrow="QUẢN TRỊ · VẬT PHẨM THƯỞNG"
         title="Thêm vật phẩm thưởng"
         description="Vật phẩm học tập (mô hình / phiên bản số / huy hiệu) — không phải cổ vật thật."
       />

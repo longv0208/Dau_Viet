@@ -8,6 +8,8 @@ import { apiFetch, toQuery } from "@/lib/api-client";
 import type { PageResponse } from "@/lib/dto/common";
 import type { AdminEventSummary, EventStatus } from "@/lib/dto/event";
 import { qk } from "@/lib/query-keys";
+import { ClueTag } from "@/components/atoms/clue-tag";
+import { PaperCard } from "@/components/atoms/paper-card";
 import { DataTable, type Column } from "@/components/data-table";
 import { StatusChip } from "@/components/status-chip";
 import { Button } from "@/components/ui/button";
@@ -48,13 +50,22 @@ export function EventsTable() {
     {
       key: "tags",
       header: "Tags",
-      cell: (r) => (r.tags.length ? r.tags.join(", ") : <span className="text-ink-muted">—</span>),
+      cell: (r) =>
+        r.tags.length ? (
+          <div className="flex flex-wrap gap-1">
+            {r.tags.map((tag) => (
+              <ClueTag key={tag} label={tag} color="jade" />
+            ))}
+          </div>
+        ) : (
+          <span className="text-ink-muted">—</span>
+        ),
     },
     {
       key: "actions",
       header: "",
       cell: (r) => (
-        <Link href={`/events/${r.id}`} className="text-sm text-primary hover:underline">
+        <Link href={`/events/${r.id}`} className="text-sm font-medium text-brand hover:underline">
           Sửa
         </Link>
       ),
@@ -65,7 +76,7 @@ export function EventsTable() {
 
   return (
     <div className="flex flex-col gap-4">
-      <div className="flex flex-wrap items-center gap-3">
+      <PaperCard className="flex flex-wrap items-center gap-3 p-4">
         <form
           onSubmit={(e) => {
             e.preventDefault();
@@ -98,7 +109,7 @@ export function EventsTable() {
           <option value="PUBLISHED">Đã xuất bản</option>
           <option value="ARCHIVED">Đã lưu trữ</option>
         </Select>
-      </div>
+      </PaperCard>
 
       <DataTable
         columns={columns}

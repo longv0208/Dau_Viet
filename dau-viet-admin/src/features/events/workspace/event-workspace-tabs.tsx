@@ -15,7 +15,7 @@ export function EventWorkspaceTabs({
   active: EventWorkspaceTab;
 }) {
   return (
-    <nav aria-label="Không gian sự kiện" className="flex flex-wrap gap-1 border-b border-border">
+    <nav aria-label="Không gian sự kiện" className="flex flex-wrap gap-1 border-b-2 border-heading">
       {EVENT_WORKSPACE_TABS.map((t) => {
         const href = `/events/${eventId}?tab=${t.slug}`;
         const isActive = t.slug === active;
@@ -27,7 +27,7 @@ export function EventWorkspaceTabs({
             className={cn(
               "rounded-t-md border-b-2 px-4 py-2 text-sm font-medium transition-colors",
               isActive
-                ? "border-brand text-brand"
+                ? "border-brand bg-brand/10 text-brand"
                 : "border-transparent text-ink-muted hover:bg-surface-alt hover:text-ink",
             )}
           >

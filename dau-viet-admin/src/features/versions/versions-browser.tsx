@@ -9,6 +9,8 @@ import type { PageResponse } from "@/lib/dto/common";
 import type { AdminLessonSummary } from "@/lib/dto/lesson";
 import type { LessonVersionSummary } from "@/lib/dto/version";
 import { qk } from "@/lib/query-keys";
+import { PaperCard } from "@/components/atoms/paper-card";
+import { StampSeal } from "@/components/atoms/stamp-seal";
 import { DataTable, type Column } from "@/components/data-table";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -74,12 +76,15 @@ export function VersionsBrowser({ initialLessonId }: { initialLessonId?: string 
         const resolvedLessonId = r.lessonId ?? lessonId;
         const lessonMeta = resolvedLessonId ? lessonsById.get(resolvedLessonId) : undefined;
         return (
-          <span className="font-medium text-ink">
-            Phiên bản {r.versionNo}
+          <span className="inline-flex items-center gap-2 font-medium text-ink">
+            <span>Phiên bản {r.versionNo}</span>
             {lessonMeta?.currentVersionId === r.id && (
-              <span className="ml-2 rounded bg-success/15 px-1.5 py-0.5 text-[10px] font-medium text-success">
-                Đang phát hành
-              </span>
+              <>
+                <span className="rounded bg-jade/15 px-1.5 py-0.5 text-[10px] font-medium text-jade-dark">
+                  Đang phát hành
+                </span>
+                <StampSeal variant="success" label="ẤN" className="scale-75" />
+              </>
             )}
           </span>
         );
@@ -108,7 +113,7 @@ export function VersionsBrowser({ initialLessonId }: { initialLessonId?: string 
         return (
           <Link
             href={`/versions/${resolvedLessonId}/${r.id}`}
-            className="text-sm text-primary hover:underline"
+            className="text-sm font-medium text-brand hover:underline"
           >
             Xem nội dung
           </Link>
@@ -122,7 +127,7 @@ export function VersionsBrowser({ initialLessonId }: { initialLessonId?: string 
 
   return (
     <div className="flex flex-col gap-4">
-      <div className="flex flex-wrap items-center gap-3">
+      <PaperCard className="flex flex-wrap items-center gap-3 p-4">
         <form
           onSubmit={(e) => {
             e.preventDefault();
@@ -158,7 +163,7 @@ export function VersionsBrowser({ initialLessonId }: { initialLessonId?: string 
             </option>
           ))}
         </Select>
-      </div>
+      </PaperCard>
 
       <DataTable
         columns={columns}

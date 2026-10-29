@@ -13,8 +13,10 @@ import Link from "next/link";
 import { apiFetch } from "@/lib/api-client";
 import type { UserProfileDto } from "@/lib/dto/user";
 import { qk } from "@/lib/query-keys";
+import { PaperCard } from "@/components/atoms/paper-card";
+import { SectionDivider } from "@/components/atoms/section-divider";
+import { StampSeal } from "@/components/atoms/stamp-seal";
 import { PageHeader } from "@/components/page-header";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
 
 import { AdminPingCard } from "./admin-ping-card";
@@ -34,60 +36,67 @@ export function DashboardPage() {
 
   return (
     <div className="flex flex-col gap-6">
-      <PageHeader title="Tổng quan" />
+      <PageHeader eyebrow="QUẢN TRỊ · TỔNG QUAN" title="Tổng quan" />
 
-      <Card>
-        <CardContent className="flex items-center gap-4 py-5">
+      <PaperCard className="p-5">
+        <div className="flex items-center justify-between gap-4">
           {me.isPending ? (
             <Skeleton className="h-12 w-full max-w-xs" />
           ) : (
             <>
-              <div className="flex size-12 items-center justify-center rounded-full bg-brand text-lg font-semibold text-white">
-                {me.data?.displayName?.charAt(0)?.toUpperCase() ?? "A"}
+              <div className="flex items-center gap-4">
+                <div className="flex size-12 items-center justify-center rounded-full border-2 border-heading bg-brand text-lg font-semibold text-surface-alt shadow-pixel-sm">
+                  {me.data?.displayName?.charAt(0)?.toUpperCase() ?? "A"}
+                </div>
+                <div>
+                  <p className="font-display text-lg font-semibold text-ink">
+                    Xin chào, {me.data?.displayName ?? "bạn"}
+                  </p>
+                  <p className="text-sm text-ink-muted">Quản trị nội dung</p>
+                </div>
               </div>
-              <div>
-                <p className="font-display text-lg font-semibold text-ink">
-                  Xin chào, {me.data?.displayName ?? "bạn"}
-                </p>
-                <p className="text-sm text-ink-muted">Quản trị nội dung</p>
-              </div>
+              <StampSeal variant="outline" label="QUẢN TRỊ" className="hidden sm:inline-flex" />
             </>
           )}
-        </CardContent>
-      </Card>
+        </div>
+      </PaperCard>
 
       <div className="grid gap-4 md:grid-cols-2">
         <AdminPingCard />
-        <Card>
-          <CardHeader>
-            <CardTitle className="text-base">Truy cập nhanh</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <ul className="grid grid-cols-1 gap-2 sm:grid-cols-2">
-              {QUICK_NAV.map((item) => {
-                const Icon = item.icon;
-                return (
-                  <li key={item.href}>
-                    <Link
-                      href={item.href}
-                      className="flex items-center gap-3 rounded-md border border-border p-3 transition-colors hover:border-brand hover:bg-surface-alt"
-                    >
-                      <Icon className="size-5 shrink-0 text-brand" aria-hidden />
-                      <span className="min-w-0">
-                        <span className="block truncate text-sm font-medium text-ink">
-                          {item.label}
-                        </span>
-                        <span className="block truncate text-xs text-ink-muted">
-                          {item.desc}
-                        </span>
+        <PaperCard className="p-5">
+          <SectionDivider
+            eyebrow="ĐIỀU HƯỚNG"
+            eyebrowColor="jade"
+            title="Truy cập nhanh"
+            className="mb-4"
+          />
+          <ul className="grid grid-cols-1 gap-2.5 sm:grid-cols-2">
+            {QUICK_NAV.map((item, idx) => {
+              const Icon = item.icon;
+              return (
+                <li key={item.href}>
+                  <Link
+                    href={item.href}
+                    className="flex items-center gap-3 rounded-md border border-border bg-surface p-3 transition-all hover:-translate-y-0.5 hover:border-brand hover:bg-surface-alt hover:shadow-pixel-sm"
+                  >
+                    <Icon
+                      className={idx % 2 === 0 ? "size-5 shrink-0 text-brand" : "size-5 shrink-0 text-jade"}
+                      aria-hidden
+                    />
+                    <span className="min-w-0 flex-1">
+                      <span className="block truncate text-sm font-medium text-ink">
+                        {item.label}
                       </span>
-                    </Link>
-                  </li>
-                );
-              })}
-            </ul>
-          </CardContent>
-        </Card>
+                      <span className="block truncate text-xs text-ink-muted">
+                        {item.desc}
+                      </span>
+                    </span>
+                  </Link>
+                </li>
+              );
+            })}
+          </ul>
+        </PaperCard>
       </div>
 
       <RecentLessonsCard />

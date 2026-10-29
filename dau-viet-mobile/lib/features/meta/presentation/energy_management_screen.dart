@@ -8,7 +8,9 @@ import '../../../core/theme/dau_viet_colors.dart';
 import '../../../core/theme/dau_viet_typography.dart';
 import '../../../core/widgets/async_state_view.dart';
 import '../../../core/widgets/dong_son_button.dart';
-import '../../../core/widgets/parchment_card.dart';
+import '../../../core/widgets/section_divider.dart';
+import '../../../core/widgets/section_eyebrow.dart';
+import '../../../core/widgets/tactile_card.dart';
 import '../../energy/data/energy_dto.dart';
 import '../../energy/data/energy_providers.dart';
 
@@ -101,16 +103,16 @@ class _EnergyManagementScreenState extends ConsumerState<EnergyManagementScreen>
     ref.listen(energyProvider, (_, next) => _syncTicker(next.value));
 
     return Scaffold(
-      backgroundColor: DauVietColors.parchmentSurface,
+      backgroundColor: DauVietColors.paperBackground,
       body: Container(
         decoration: const BoxDecoration(
           gradient: LinearGradient(
             begin: Alignment.topCenter,
             end: Alignment.bottomCenter,
             colors: [
-              Color(0xFFF2F8F4), // Xanh lá thảo dược viện thái y
-              DauVietColors.parchmentSurface,
-              Color(0xFFFAF2E4),
+              DauVietColors.paperCard,
+              DauVietColors.paperBackground,
+              DauVietColors.paperCardHi,
             ],
           ),
         ),
@@ -154,9 +156,17 @@ class _EnergyManagementScreenState extends ConsumerState<EnergyManagementScreen>
       child: Column(
         children: [
           _buildEnergyGaugeHero(dto),
-          const SizedBox(height: 16),
+          const SectionDivider(
+            eyebrow: 'THÁI Y VIỆN',
+            title: 'Liệu pháp phục hồi',
+            padding: EdgeInsets.only(top: 20, bottom: 12),
+          ),
           _buildRemediesList(),
-          const SizedBox(height: 16),
+          const SectionDivider(
+            eyebrow: 'DƯỠNG TÂM',
+            title: 'Lời dặn Ngự Y',
+            padding: EdgeInsets.only(top: 16, bottom: 12),
+          ),
           _buildPhysicianAdviceCard(),
           const SizedBox(height: 20),
           DongSonButton(
@@ -166,7 +176,7 @@ class _EnergyManagementScreenState extends ConsumerState<EnergyManagementScreen>
             icon: context.canPop()
                 ? Icons.arrow_back_rounded
                 : Icons.home_rounded,
-            variant: DongSonButtonVariant.secondaryParchment,
+            variant: DongSonButtonVariant.imperialGold,
             height: 48,
             onPressed: () {
               if (context.canPop()) {
@@ -187,7 +197,7 @@ class _EnergyManagementScreenState extends ConsumerState<EnergyManagementScreen>
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
       decoration: BoxDecoration(
-        color: DauVietColors.parchmentSurface,
+        color: DauVietColors.paperBackground,
         border: Border(
           bottom: BorderSide(
             color: DauVietColors.outlineVariant.withValues(alpha: 0.5),
@@ -217,22 +227,13 @@ class _EnergyManagementScreenState extends ConsumerState<EnergyManagementScreen>
               children: [
                 Row(
                   children: [
-                    Container(
-                      padding: const EdgeInsets.symmetric(
+                    const SectionEyebrow(
+                      'VIỆN THÁI Y',
+                      color: DauVietColors.jade,
+                      showShadow: false,
+                      padding: EdgeInsets.symmetric(
                         horizontal: 6,
                         vertical: 2,
-                      ),
-                      decoration: BoxDecoration(
-                        color: DauVietColors.natureGreen,
-                        borderRadius: BorderRadius.circular(4),
-                      ),
-                      child: Text(
-                        'VIỆN THÁI Y',
-                        style: DauVietTypography.labelSmall.copyWith(
-                          color: Colors.white,
-                          fontSize: 9,
-                          fontWeight: FontWeight.w800,
-                        ),
                       ),
                     ),
                     const SizedBox(width: 8),
@@ -269,11 +270,13 @@ class _EnergyManagementScreenState extends ConsumerState<EnergyManagementScreen>
     final double percent = dto.fraction;
     final Color barColor = dto.isDepleted
         ? DauVietColors.cinnabarRed
-        : (percent < 0.3 ? const Color(0xFFC05621) : DauVietColors.natureGreen);
+        : (percent < 0.3
+              ? DauVietColors.imperialGoldDark
+              : DauVietColors.natureGreen);
     final Duration? remain = dto.timeUntilNextRecovery();
 
-    return ParchmentCard(
-      backgroundColor: const Color(0xFFFBF4E4),
+    return TactileCard(
+      backgroundColor: DauVietColors.paperCard,
       borderColor: DauVietColors.imperialGold,
       borderWidth: 2.0,
       padding: const EdgeInsets.all(18),
@@ -289,15 +292,11 @@ class _EnergyManagementScreenState extends ConsumerState<EnergyManagementScreen>
                 size: 24,
               ),
               const SizedBox(width: 6),
-              Expanded(
-                child: Text(
+              const Expanded(
+                child: SectionEyebrow(
                   'THỂ LỰC HIỆN TẠI',
-                  style: DauVietTypography.labelSmall.copyWith(
-                    fontWeight: FontWeight.w800,
-                    color: DauVietColors.cinnabarRed,
-                    letterSpacing: 0.8,
-                  ),
-                  overflow: TextOverflow.ellipsis,
+                  showShadow: false,
+                  padding: EdgeInsets.symmetric(horizontal: 8, vertical: 3),
                 ),
               ),
               const SizedBox(width: 8),
@@ -313,7 +312,17 @@ class _EnergyManagementScreenState extends ConsumerState<EnergyManagementScreen>
               ),
             ],
           ),
-          const SizedBox(height: 12),
+          const SizedBox(height: 16),
+          Text(
+            '${dto.current}',
+            style: DauVietTypography.chapterNumber.copyWith(
+              fontSize: 56,
+              color: dto.isDepleted
+                  ? DauVietColors.cinnabarRed
+                  : DauVietColors.imperialGoldDark,
+            ),
+          ),
+          const SizedBox(height: 14),
 
           ClipRRect(
             borderRadius: BorderRadius.circular(8),
@@ -439,7 +448,7 @@ class _EnergyManagementScreenState extends ConsumerState<EnergyManagementScreen>
         'desc': 'Bát nước vối ấm lành tính giúp sĩ tử thư giãn gân cốt.',
         'assetImage': 'assets/items/energy_nuoc_voi.png',
         'icon': Icons.psychology_rounded,
-        'color': DauVietColors.natureGreen,
+        'color': DauVietColors.jade,
       },
       {
         'title': 'Trà Sen Tây Hồ',
@@ -453,52 +462,28 @@ class _EnergyManagementScreenState extends ConsumerState<EnergyManagementScreen>
         'desc': 'Thảo dược đại bổ triều đình bồi bổ nguyên khí.',
         'assetImage': 'assets/items/energy_linh_chi.png',
         'icon': Icons.spa_rounded,
-        'color': const Color(0xFFC05621),
+        'color': DauVietColors.jadeDark,
       },
       {
         'title': 'Sâm Ngọc Linh Hoàng Gia',
         'desc': 'Bảo vật sâm rừng nghìn năm phục hồi sinh lực tức thì.',
         'assetImage': 'assets/items/energy_sam_ngoc_linh.png',
         'icon': Icons.stars_rounded,
-        'color': DauVietColors.cinnabarRed,
+        'color': DauVietColors.imperialGoldDark,
       },
     ];
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Row(
-          children: [
-            const Icon(
-              Icons.medical_services_outlined,
-              color: DauVietColors.natureGreen,
-              size: 18,
-            ),
-            const SizedBox(width: 8),
-            Text(
-              'LIỆU PHÁP VIỆN THÁI Y:',
-              style: DauVietTypography.labelSmall.copyWith(
-                fontWeight: FontWeight.w800,
-                color: DauVietColors.inkMuted,
-                letterSpacing: 0.6,
-              ),
-            ),
-          ],
-        ),
-        const SizedBox(height: 10),
-
         ...remedies.map((rem) {
-          return Container(
+          final accentColor = rem['color'] as Color;
+          return TactileCard(
             margin: const EdgeInsets.only(bottom: 10),
             padding: const EdgeInsets.all(12),
-            decoration: BoxDecoration(
-              color: Colors.white.withValues(alpha: 0.9),
-              borderRadius: BorderRadius.circular(10),
-              border: Border.all(
-                color: (rem['color'] as Color).withValues(alpha: 0.5),
-                width: 1.2,
-              ),
-            ),
+            backgroundColor: DauVietColors.paperCard,
+            borderColor: accentColor.withValues(alpha: 0.5),
+            borderWidth: 1.4,
             child: Row(
               children: [
                 Container(
@@ -506,10 +491,10 @@ class _EnergyManagementScreenState extends ConsumerState<EnergyManagementScreen>
                   height: 48,
                   padding: const EdgeInsets.all(4),
                   decoration: BoxDecoration(
-                    color: Colors.white,
+                    color: DauVietColors.paperBackground,
                     borderRadius: BorderRadius.circular(8),
                     border: Border.all(
-                      color: (rem['color'] as Color).withValues(alpha: 0.4),
+                      color: accentColor.withValues(alpha: 0.4),
                       width: 1.2,
                     ),
                   ),
@@ -518,12 +503,12 @@ class _EnergyManagementScreenState extends ConsumerState<EnergyManagementScreen>
                     fit: BoxFit.contain,
                     errorBuilder: (context, error, stackTrace) => Container(
                       decoration: BoxDecoration(
-                        color: (rem['color'] as Color).withValues(alpha: 0.15),
+                        color: accentColor.withValues(alpha: 0.15),
                         borderRadius: BorderRadius.circular(6),
                       ),
                       child: Icon(
                         rem['icon'] as IconData,
-                        color: rem['color'] as Color,
+                        color: accentColor,
                         size: 22,
                       ),
                     ),
@@ -579,16 +564,11 @@ class _EnergyManagementScreenState extends ConsumerState<EnergyManagementScreen>
 
         // GAME-03: chưa có Wallet Service — liệu pháp bằng Điểm Sử Ký
         // chỉ công bố, không CTA mua.
-        Container(
-          width: double.infinity,
+        TactileCard(
           padding: const EdgeInsets.all(10),
-          decoration: BoxDecoration(
-            color: const Color(0xFFF9F1E2),
-            borderRadius: BorderRadius.circular(8),
-            border: Border.all(
-              color: DauVietColors.imperialGold.withValues(alpha: 0.6),
-            ),
-          ),
+          backgroundColor: DauVietColors.paperCardHi,
+          borderColor: DauVietColors.imperialGold.withValues(alpha: 0.6),
+          borderRadius: 10,
           child: Text(
             'Liệu pháp hồi phục bằng Điểm Sử Ký sẽ được mở ở bản cập '
             'nhật tiếp theo.',
@@ -606,13 +586,11 @@ class _EnergyManagementScreenState extends ConsumerState<EnergyManagementScreen>
 
   // Khung lời dặn của Ngự Y
   Widget _buildPhysicianAdviceCard() {
-    return Container(
+    return TactileCard(
       padding: const EdgeInsets.all(14),
-      decoration: BoxDecoration(
-        color: const Color(0xFFF9F1E2),
-        borderRadius: BorderRadius.circular(10),
-        border: Border.all(color: DauVietColors.imperialGold, width: 1.2),
-      ),
+      backgroundColor: DauVietColors.paperCardHi,
+      borderColor: DauVietColors.imperialGold,
+      borderWidth: 1.4,
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
@@ -620,7 +598,7 @@ class _EnergyManagementScreenState extends ConsumerState<EnergyManagementScreen>
             children: [
               const Icon(
                 Icons.spa_rounded,
-                color: DauVietColors.cinnabarRed,
+                color: DauVietColors.jade,
                 size: 18,
               ),
               const SizedBox(width: 6),
@@ -642,11 +620,10 @@ class _EnergyManagementScreenState extends ConsumerState<EnergyManagementScreen>
             '“Học sử cần tinh tấn nhưng dưỡng thần cần điều hòa. '
             'Nghỉ ngơi tĩnh tâm giữa các đợt khảo cứu để tâm trí luôn '
             'sáng suốt, hào khí luôn tràn đầy.”',
-            style: DauVietTypography.bodySmall.copyWith(
+            style: DauVietTypography.ancientCitation.copyWith(
               color: DauVietColors.inkText,
-              fontStyle: FontStyle.italic,
-              height: 1.4,
-              fontSize: 11.5,
+              fontSize: 12,
+              height: 1.45,
             ),
           ),
         ],

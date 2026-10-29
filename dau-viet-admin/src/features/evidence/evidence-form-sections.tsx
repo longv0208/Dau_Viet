@@ -2,6 +2,7 @@
 
 import type { UseFormRegister, FieldErrors } from "react-hook-form";
 
+import { SectionDivider } from "@/components/atoms/section-divider";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select } from "@/components/ui/select";
@@ -28,7 +29,7 @@ export function EvidenceBasicFields({
     <>
       <div className="grid gap-4 md:grid-cols-2">
         <div className="flex flex-col gap-1.5">
-          <Label htmlFor="eventId">Sự kiện *</Label>
+          <Label htmlFor="eventId" className="font-medium text-ink-secondary">Sự kiện *</Label>
           <Select
             id="eventId"
             aria-invalid={Boolean(errors.eventId)}
@@ -50,7 +51,7 @@ export function EvidenceBasicFields({
           )}
         </div>
         <div className="flex flex-col gap-1.5">
-          <Label htmlFor="evidenceType">Loại bằng chứng *</Label>
+          <Label htmlFor="evidenceType" className="font-medium text-ink-secondary">Loại bằng chứng *</Label>
           <Select
             id="evidenceType"
             aria-invalid={Boolean(errors.evidenceType)}
@@ -70,7 +71,7 @@ export function EvidenceBasicFields({
       </div>
 
       <div className="flex flex-col gap-1.5">
-        <Label htmlFor="title">Tiêu đề *</Label>
+        <Label htmlFor="title" className="font-medium text-ink-secondary">Tiêu đề *</Label>
         <Input
           id="title"
           placeholder="Ví dụ: Bản đồ sông Bạch Đằng khắc gỗ"
@@ -81,7 +82,7 @@ export function EvidenceBasicFields({
       </div>
 
       <div className="flex flex-col gap-1.5">
-        <Label htmlFor="description">Mô tả</Label>
+        <Label htmlFor="description" className="font-medium text-ink-secondary">Mô tả</Label>
         <Textarea
           id="description"
           rows={3}
@@ -106,14 +107,15 @@ export function EvidenceSourceFields({
 }) {
   return (
     <div className="flex flex-col gap-3 rounded-md border border-border bg-surface p-4">
-      <p className="text-sm font-medium text-ink">Nguồn trích dẫn</p>
-      <p className="text-xs text-ink-muted">
-        Cần ít nhất tên nguồn để đánh dấu là đã chứng thực. Thiếu nguồn, bằng
-        chứng sẽ bị cảnh báo khi dùng trong bài học.
-      </p>
+      <SectionDivider
+        eyebrow="NGUỒN GỐC"
+        eyebrowColor="gold"
+        title="Nguồn trích dẫn"
+        description="Cần ít nhất tên nguồn để đánh dấu là đã chứng thực. Thiếu nguồn, bằng chứng sẽ bị cảnh báo khi dùng trong bài học."
+      />
       <div className="grid gap-4 md:grid-cols-2">
         <div className="flex flex-col gap-1.5 md:col-span-2">
-          <Label htmlFor="sourceTitle">Tên nguồn *</Label>
+          <Label htmlFor="sourceTitle" className="font-medium text-ink-secondary">Tên nguồn *</Label>
           <Input
             id="sourceTitle"
             placeholder="Ví dụ: Đại Việt sử ký toàn thư"
@@ -125,14 +127,14 @@ export function EvidenceSourceFields({
           )}
         </div>
         <div className="flex flex-col gap-1.5">
-          <Label htmlFor="sourceAuthor">Tác giả</Label>
+          <Label htmlFor="sourceAuthor" className="font-medium text-ink-secondary">Tác giả</Label>
           <Input id="sourceAuthor" placeholder="Ngô Sĩ Liên" {...register("sourceAuthor")} />
           {errors.sourceAuthor && (
             <p role="alert" className="text-xs text-error">{errors.sourceAuthor.message}</p>
           )}
         </div>
         <div className="flex flex-col gap-1.5">
-          <Label htmlFor="sourcePublishedAt">Năm xuất bản / triển khai</Label>
+          <Label htmlFor="sourcePublishedAt" className="font-medium text-ink-secondary">Năm xuất bản / triển khai</Label>
           <Input
             id="sourcePublishedAt"
             type="date"
@@ -143,7 +145,7 @@ export function EvidenceSourceFields({
           )}
         </div>
         <div className="flex flex-col gap-1.5 md:col-span-2">
-          <Label htmlFor="sourceUrl">Đường dẫn nguồn</Label>
+          <Label htmlFor="sourceUrl" className="font-medium text-ink-secondary">Đường dẫn nguồn</Label>
           <Input
             id="sourceUrl"
             type="url"
@@ -155,7 +157,7 @@ export function EvidenceSourceFields({
           )}
         </div>
         <div className="flex flex-col gap-1.5 md:col-span-2">
-          <Label htmlFor="sourceCitation">Trích dẫn đầy đủ</Label>
+          <Label htmlFor="sourceCitation" className="font-medium text-ink-secondary">Trích dẫn đầy đủ</Label>
           <Textarea
             id="sourceCitation"
             rows={2}
@@ -167,7 +169,7 @@ export function EvidenceSourceFields({
           )}
         </div>
         <div className="flex flex-col gap-1.5">
-          <Label htmlFor="reliability">Độ tin cậy</Label>
+          <Label htmlFor="reliability" className="font-medium text-ink-secondary">Độ tin cậy</Label>
           <Select id="reliability" {...register("reliability")}>
             <option value="">— Chưa đánh giá —</option>
             {(["HIGH", "MEDIUM", "LOW", "UNASSESSED"] as EvidenceReliability[]).map((r) => (

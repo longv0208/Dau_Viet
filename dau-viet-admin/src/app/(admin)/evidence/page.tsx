@@ -10,6 +10,7 @@ export default function EvidencePage() {
   return (
     <div>
       <PageHeader
+        eyebrow="QUẢN TRỊ · BẰNG CHỨNG"
         title="Bằng chứng lịch sử"
         description="Quản lý các tư liệu nguồn dùng để chứng thực nội dung bài học."
         actions={

@@ -3,6 +3,7 @@
 import { Copy } from "lucide-react";
 import { useState } from "react";
 
+import { PaperCard } from "@/components/atoms/paper-card";
 import { Button } from "@/components/ui/button";
 import type { AdminAsset } from "@/lib/dto/evidence";
 
@@ -35,11 +36,11 @@ export function AssetCard({
   }
 
   return (
-    <div className="group flex flex-col overflow-hidden rounded-md border border-border bg-white">
+    <PaperCard interactive className="group flex flex-col overflow-hidden p-0">
       <button
         type="button"
         onClick={() => onPreview(asset)}
-        className="relative block aspect-square w-full overflow-hidden bg-surface-alt"
+        className="relative block aspect-square w-full overflow-hidden border-b border-border bg-surface"
         aria-label={`Xem ${asset.originalFilename ?? "Ảnh không tên"}`}
       >
         <AssetImage
@@ -74,6 +75,6 @@ export function AssetCard({
           </Button>
         </div>
       </div>
-    </div>
+    </PaperCard>
   );
 }

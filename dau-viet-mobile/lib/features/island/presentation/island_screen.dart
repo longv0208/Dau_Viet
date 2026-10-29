@@ -7,8 +7,13 @@ import '../../../core/api/api_config.dart';
 import '../../../core/api/api_exception.dart';
 import '../../../core/theme/dau_viet_colors.dart';
 import '../../../core/theme/dau_viet_typography.dart';
+import '../../../core/widgets/dong_son_button.dart';
+import '../../../core/widgets/empty_state_card.dart';
 import '../../../core/widgets/gold_confetti_overlay.dart';
-import '../../../core/widgets/tactile_3d_button.dart';
+import '../../../core/widgets/kabi_mascot_widget.dart';
+import '../../../core/widgets/rare_frame_badge.dart';
+import '../../../core/widgets/section_eyebrow.dart';
+import '../../../core/widgets/stamp_seal_badge.dart';
 import '../../auth/data/auth_state.dart';
 import '../../learning/data/learning_providers.dart';
 import '../data/island_dto.dart';
@@ -241,7 +246,7 @@ class _IslandScreenState extends ConsumerState<IslandScreen>
     final walletAsync = ref.watch(islandWalletProvider);
 
     return Scaffold(
-      backgroundColor: DauVietColors.parchmentSurface,
+      backgroundColor: DauVietColors.paperBackground,
       body: GoldConfettiOverlay(
         trigger: false,
         triggerCount: _confettiTriggerCount,
@@ -286,18 +291,12 @@ class _IslandScreenState extends ConsumerState<IslandScreen>
     final bool isCompactHeader = MediaQuery.sizeOf(context).width < 480;
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 6),
-      decoration: BoxDecoration(
-        color: DauVietColors.parchmentSurface,
-        border: const Border(
+      decoration: const BoxDecoration(
+        color: DauVietColors.paperBackground,
+        border: Border(
           bottom: BorderSide(color: DauVietColors.outlineVariant, width: 1),
         ),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withValues(alpha: 0.04),
-            offset: const Offset(0, 2),
-            blurRadius: 4,
-          ),
-        ],
+        boxShadow: DauVietColors.heritageShadow,
       ),
       child: Row(
         children: [
@@ -324,16 +323,13 @@ class _IslandScreenState extends ConsumerState<IslandScreen>
               children: [
                 Row(
                   children: [
-                    Flexible(
-                      child: Text(
+                    const Flexible(
+                      child: SectionEyebrow(
                         'ĐẢO DI SẢN',
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                        style: DauVietTypography.headlineSmall.copyWith(
-                          fontWeight: FontWeight.bold,
-                          color: DauVietColors.cinnabarRed,
-                          letterSpacing: 0.4,
-                          fontSize: 13,
+                        showShadow: false,
+                        padding: EdgeInsets.symmetric(
+                          horizontal: 8,
+                          vertical: 2,
                         ),
                       ),
                     ),
@@ -357,10 +353,16 @@ class _IslandScreenState extends ConsumerState<IslandScreen>
                           ),
                         ),
                       ),
+                      const SizedBox(width: 6),
+                      StampSealBadge(
+                        'LV${island.currentLevel}',
+                        size: 28,
+                        color: DauVietColors.heritageGreen,
+                        rotationDeg: -4,
+                      ),
                     ],
                   ],
                 ),
-                const SizedBox(height: 1),
                 Text(
                   island != null
                       ? '${island.tierScaleLabel} — Level tài khoản ${island.currentLevel}'
@@ -382,7 +384,7 @@ class _IslandScreenState extends ConsumerState<IslandScreen>
             child: Container(
               padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 5),
               decoration: BoxDecoration(
-                color: DauVietColors.parchmentContainer,
+                color: DauVietColors.paperCard,
                 borderRadius: BorderRadius.circular(14),
                 border: Border.all(
                   color: DauVietColors.imperialGold,
@@ -474,7 +476,7 @@ class _IslandScreenState extends ConsumerState<IslandScreen>
                         color: DauVietColors.cinnabarRed,
                         shape: BoxShape.circle,
                         border: Border.all(
-                          color: DauVietColors.parchmentSurface,
+                          color: DauVietColors.paperBackground,
                           width: 1.5,
                         ),
                       ),
@@ -596,7 +598,7 @@ class _IslandScreenState extends ConsumerState<IslandScreen>
                     vertical: 8,
                   ),
                   decoration: BoxDecoration(
-                    color: const Color(0xD930251F),
+                    color: DauVietColors.inkText.withValues(alpha: 0.85),
                     borderRadius: BorderRadius.circular(16),
                     border: Border.all(
                       color: DauVietColors.imperialGold,
@@ -622,25 +624,12 @@ class _IslandScreenState extends ConsumerState<IslandScreen>
                     ],
                   ),
                 ),
-                ElevatedButton.icon(
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: DauVietColors.parchmentSurface,
-                    foregroundColor: DauVietColors.woodBrown,
-                    elevation: 3,
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(16),
-                      side: const BorderSide(
-                        color: DauVietColors.imperialGold,
-                        width: 1.5,
-                      ),
-                    ),
-                  ),
+                DongSonButton(
+                  label: 'BỎ QUA',
+                  icon: Icons.skip_next_rounded,
+                  variant: DongSonButtonVariant.secondaryParchment,
+                  height: 40,
                   onPressed: _skipExpansionAnimation,
-                  icon: const Icon(Icons.skip_next_rounded, size: 18),
-                  label: const Text(
-                    'BỎ QUA',
-                    style: TextStyle(fontWeight: FontWeight.bold, fontSize: 12),
-                  ),
                 ),
               ],
             ),
@@ -721,7 +710,7 @@ class _IslandScreenState extends ConsumerState<IslandScreen>
         if (!isAnimatingExpansion && _showWelcomeCard)
           Positioned.fill(
             child: Container(
-              color: Colors.black38,
+              color: DauVietColors.inkText.withValues(alpha: 0.38),
               alignment: Alignment.center,
               padding: const EdgeInsets.all(20),
               child: _buildWelcomeOnboardingCard(island),
@@ -736,16 +725,10 @@ class _IslandScreenState extends ConsumerState<IslandScreen>
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 4),
       decoration: BoxDecoration(
-        color: const Color(0xF2FFF8EC),
+        color: DauVietColors.paperCard.withValues(alpha: 0.95),
         borderRadius: BorderRadius.circular(20),
-        border: Border.all(color: const Color(0xFFD9C098), width: 1.4),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withValues(alpha: 0.14),
-            blurRadius: 8,
-            offset: const Offset(0, 2),
-          ),
-        ],
+        border: Border.all(color: DauVietColors.outlineVariant, width: 1.4),
+        boxShadow: DauVietColors.pixelShadowSm,
       ),
       child: Row(
         mainAxisSize: MainAxisSize.min,
@@ -795,7 +778,7 @@ class _IslandScreenState extends ConsumerState<IslandScreen>
             width: 1,
             height: 18,
             margin: const EdgeInsets.symmetric(horizontal: 3),
-            color: const Color(0xFFD9C098),
+            color: DauVietColors.outlineVariant,
           ),
           _buildPodIconBtn(
             icon: Icons.center_focus_strong_rounded,
@@ -837,16 +820,10 @@ class _IslandScreenState extends ConsumerState<IslandScreen>
       constraints: const BoxConstraints(maxWidth: 400),
       padding: const EdgeInsets.all(20),
       decoration: BoxDecoration(
-        color: DauVietColors.parchmentSurface,
+        color: DauVietColors.paperBackground,
         borderRadius: BorderRadius.circular(22),
         border: Border.all(color: DauVietColors.imperialGold, width: 2),
-        boxShadow: const [
-          BoxShadow(
-            color: Colors.black38,
-            blurRadius: 18,
-            offset: Offset(0, 8),
-          ),
-        ],
+        boxShadow: DauVietColors.pixelShadow,
       ),
       child: Column(
         mainAxisSize: MainAxisSize.min,
@@ -854,13 +831,11 @@ class _IslandScreenState extends ConsumerState<IslandScreen>
         children: [
           Row(
             children: [
-              Container(
-                padding: const EdgeInsets.all(8),
-                decoration: const BoxDecoration(
-                  color: DauVietColors.parchmentContainer,
-                  shape: BoxShape.circle,
-                ),
-                child: const Icon(
+              const RareFrameBadge(
+                rarity: ItemRarity.rare,
+                borderRadius: 20,
+                padding: EdgeInsets.all(8),
+                child: Icon(
                   Icons.temple_buddhist_rounded,
                   color: DauVietColors.cinnabarRed,
                   size: 24,
@@ -890,6 +865,7 @@ class _IslandScreenState extends ConsumerState<IslandScreen>
           _buildGuideBullet(
             icon: Icons.add_location_alt_rounded,
             color: DauVietColors.heritageGreen,
+            rarity: ItemRarity.uncommon,
             title: 'Trang trí Đảo cá nhân',
             body:
                 'Chạm vào các ô đất trống (+) để đặt công trình văn hóa hoặc mô hình lịch sử từ Kho vật phẩm.',
@@ -898,6 +874,7 @@ class _IslandScreenState extends ConsumerState<IslandScreen>
           _buildGuideBullet(
             icon: Icons.school_rounded,
             color: DauVietColors.cinnabarRed,
+            rarity: ItemRarity.rare,
             title: 'Học bài tích lũy EXP → Nâng Level mở đảo',
             body:
                 'Hoàn thành bài học giúp tích lũy EXP và tăng Level tài khoản. Khi đủ Level, bạn có thể chủ động mở rộng lên Đảo vừa và Đảo lớn.',
@@ -906,6 +883,7 @@ class _IslandScreenState extends ConsumerState<IslandScreen>
           _buildGuideBullet(
             icon: Icons.stars_rounded,
             color: DauVietColors.imperialGold,
+            rarity: ItemRarity.epic,
             title: 'Điểm Sử Ký → Mua vật phẩm Cửa hàng',
             body:
                 'Điểm Sử Ký dùng để mua đồ trang trí trong Cửa Hàng Di Sản (không dùng để nâng Level).',
@@ -929,11 +907,11 @@ class _IslandScreenState extends ConsumerState<IslandScreen>
               const SizedBox(width: 10),
               Expanded(
                 flex: 2,
-                child: Tactile3DButton(
+                child: DongSonButton(
                   label: 'KHÁM PHÁ',
-                  height: 40,
+                  height: 44,
                   icon: Icons.explore_rounded,
-                  variant: Tactile3DVariant.heritageGreen,
+                  variant: DongSonButtonVariant.heritageGreen,
                   onPressed: () =>
                       _markOnboardingCompleted(exploreSlot: true),
                 ),
@@ -948,20 +926,27 @@ class _IslandScreenState extends ConsumerState<IslandScreen>
   Widget _buildGuideBullet({
     required IconData icon,
     required Color color,
+    required ItemRarity rarity,
     required String title,
     required String body,
   }) {
     return Container(
       padding: const EdgeInsets.all(10),
       decoration: BoxDecoration(
-        color: DauVietColors.parchmentContainer,
+        color: DauVietColors.paperCard,
         borderRadius: BorderRadius.circular(12),
         border: Border.all(color: DauVietColors.outlineVariant),
       ),
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Icon(icon, color: color, size: 20),
+          RareFrameBadge(
+            rarity: rarity,
+            borderRadius: 10,
+            showGlow: false,
+            padding: const EdgeInsets.all(5),
+            child: Icon(icon, color: color, size: 18),
+          ),
           const SizedBox(width: 10),
           Expanded(
             child: Column(
@@ -996,7 +981,7 @@ class _IslandScreenState extends ConsumerState<IslandScreen>
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
       decoration: BoxDecoration(
-        color: DauVietColors.parchmentSurface.withValues(alpha: 0.95),
+        color: DauVietColors.paperBackground.withValues(alpha: 0.95),
         borderRadius: BorderRadius.circular(14),
         border: Border.all(color: DauVietColors.heritageGreen, width: 1.4),
       ),
@@ -1035,16 +1020,10 @@ class _IslandScreenState extends ConsumerState<IslandScreen>
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
       decoration: BoxDecoration(
-        color: DauVietColors.parchmentSurface.withValues(alpha: 0.95),
+        color: DauVietColors.paperBackground.withValues(alpha: 0.95),
         borderRadius: BorderRadius.circular(14),
         border: Border.all(color: DauVietColors.imperialGold, width: 1.5),
-        boxShadow: const [
-          BoxShadow(
-            color: Colors.black12,
-            blurRadius: 8,
-            offset: Offset(0, 3),
-          ),
-        ],
+        boxShadow: DauVietColors.heritageShadow,
       ),
       child: Row(
         children: [
@@ -1090,39 +1069,21 @@ class _IslandScreenState extends ConsumerState<IslandScreen>
     return Center(
       child: Padding(
         padding: const EdgeInsets.all(24),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            const Icon(
-              Icons.terrain_rounded,
-              size: 56,
-              color: DauVietColors.woodBrown,
-            ),
-            const SizedBox(height: 16),
-            Text(
-              'Đảo chưa được lập bản đồ',
-              style: DauVietTypography.headlineSmall.copyWith(
-                fontWeight: FontWeight.bold,
-              ),
-            ),
-            const SizedBox(height: 8),
-            Text(
+        child: EmptyStateCard(
+          mood: KabiMood.guiding,
+          illustration: const KabiMascotWidget(
+            mood: KabiMood.guiding,
+            width: 84,
+            height: 84,
+          ),
+          title: 'Đảo chưa được lập bản đồ',
+          description:
               'Bố cục đảo "${island.layoutCode ?? 'hiện tại'}" '
               '(phiên bản ${island.layoutVersionNumber}) chưa có ô đất nào. '
               'Vui lòng báo quản trị viên xuất bản lại layout.',
-              textAlign: TextAlign.center,
-              style: DauVietTypography.bodyMedium.copyWith(
-                color: DauVietColors.inkMuted,
-              ),
-            ),
-            const SizedBox(height: 20),
-            Tactile3DButton(
-              label: 'TẢI LẠI',
-              variant: Tactile3DVariant.secondaryParchment,
-              onPressed: () =>
-                  ref.read(islandControllerProvider.notifier).refresh(),
-            ),
-          ],
+          actionLabel: 'TẢI LẠI',
+          onAction: () =>
+              ref.read(islandControllerProvider.notifier).refresh(),
         ),
       ),
     );
@@ -1158,9 +1119,10 @@ class _IslandScreenState extends ConsumerState<IslandScreen>
               ),
             ),
             const SizedBox(height: 20),
-            Tactile3DButton(
+            DongSonButton(
               label: 'THỬ LẠI',
-              variant: Tactile3DVariant.secondaryParchment,
+              variant: DongSonButtonVariant.secondaryParchment,
+              height: 44,
               onPressed: () =>
                   ref.read(islandControllerProvider.notifier).refresh(),
             ),
@@ -1178,7 +1140,7 @@ class _IslandScreenState extends ConsumerState<IslandScreen>
       await showModalBottomSheet(
         context: context,
         isScrollControlled: true,
-        backgroundColor: Colors.transparent,
+        backgroundColor: DauVietColors.paperBackground.withValues(alpha: 0.0),
         builder: (ctx) => IslandInventorySheet(
           targetSlot: slot,
           onSelectItem: (itemId) => _placeItem(slot, itemId),
@@ -1330,7 +1292,7 @@ class _IslandScreenState extends ConsumerState<IslandScreen>
       await showModalBottomSheet(
         context: context,
         isScrollControlled: true,
-        backgroundColor: Colors.transparent,
+        backgroundColor: DauVietColors.paperBackground.withValues(alpha: 0.0),
         builder: (ctx) => IslandUpgradePanel(
           island: island,
           isUpgrading: _isMutating,
@@ -1463,7 +1425,7 @@ class _IslandScreenState extends ConsumerState<IslandScreen>
     showDialog<void>(
       context: context,
       builder: (ctx) => AlertDialog(
-        backgroundColor: DauVietColors.parchmentSurface,
+        backgroundColor: DauVietColors.paperBackground,
         shape: RoundedRectangleBorder(
           borderRadius: BorderRadius.circular(22),
           side: const BorderSide(color: DauVietColors.imperialGold, width: 2),
@@ -1508,19 +1470,11 @@ class _IslandScreenState extends ConsumerState<IslandScreen>
               ),
             ),
           ),
-          ElevatedButton(
-            style: ElevatedButton.styleFrom(
-              backgroundColor: DauVietColors.heritageGreen,
-              foregroundColor: Colors.white,
-              shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(12),
-              ),
-            ),
+          DongSonButton(
+            label: 'KHÁM PHÁ ĐẢO',
+            variant: DongSonButtonVariant.heritageGreen,
+            height: 44,
             onPressed: () => Navigator.of(ctx).pop(),
-            child: const Text(
-              'KHÁM PHÁ ĐẢO',
-              style: TextStyle(fontWeight: FontWeight.bold),
-            ),
           ),
         ],
       ),

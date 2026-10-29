@@ -1,5 +1,5 @@
 import type { Metadata } from "next";
-import { Be_Vietnam_Pro, Noto_Serif } from "next/font/google";
+import { Be_Vietnam_Pro, Noto_Serif, Press_Start_2P } from "next/font/google";
 import { Toaster } from "sonner";
 
 import { QueryProvider } from "@/components/query-provider";
@@ -18,6 +18,12 @@ const notoSerif = Noto_Serif({
   variable: "--font-display",
 });
 
+const pressStart2P = Press_Start_2P({
+  subsets: ["latin"],
+  weight: ["400"],
+  variable: "--font-pixel",
+});
+
 export const metadata: Metadata = {
   title: "Dấu Việt — Quản trị nội dung",
   description: "Hệ thống quản trị nội dung học lịch sử Dấu Việt",
@@ -25,7 +31,7 @@ export const metadata: Metadata = {
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
-    <html lang="vi" className={`${beVietnamPro.variable} ${notoSerif.variable}`}>
+    <html lang="vi" className={`${beVietnamPro.variable} ${notoSerif.variable} ${pressStart2P.variable}`}>
       <body className="font-sans antialiased">
         <QueryProvider>{children}</QueryProvider>
         <Toaster richColors position="top-right" />

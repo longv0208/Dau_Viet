@@ -12,6 +12,7 @@ export default async function EvidenceDetailPage({
   return (
     <div>
       <PageHeader
+        eyebrow="QUẢN TRỊ · BẰNG CHỨNG"
         title="Bằng chứng"
         description="Xem và chỉnh sửa thông tin bằng chứng lịch sử."
       />

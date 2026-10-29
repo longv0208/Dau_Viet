@@ -258,9 +258,8 @@ void main() {
       final repo = _FakeCollectionRepository()..items = const [];
       await tester.pumpWidget(buildApp(repo));
       await tester.pumpAndSettle();
-
-      expect(find.text('Bộ sưu tập còn trống'), findsOneWidget);
-      expect(find.textContaining('chọn bằng chứng'), findsOneWidget);
+      expect(find.text('Chưa có dấu vết'), findsOneWidget);
+      expect(find.textContaining('bài học'), findsOneWidget);
     });
 
     testWidgets('lỗi API → trạng thái lỗi + THỬ LẠI, không fallback', (

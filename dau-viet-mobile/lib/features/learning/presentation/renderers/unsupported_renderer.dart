@@ -1,8 +1,7 @@
 import 'package:flutter/material.dart';
 
-import '../../../../core/theme/dau_viet_colors.dart';
-import '../../../../core/theme/dau_viet_typography.dart';
-import 'renderer_base.dart';
+import '../../../../core/widgets/clue_tag.dart';
+import '../../../../core/widgets/empty_state_card.dart';
 
 /// Fallback cho activity type chưa được hỗ trợ trên mobile.
 /// KHÔNG có nút submit — học viên không thể tự gửi đáp án kiểu này;
@@ -14,34 +13,19 @@ class UnsupportedRenderer extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return ActivityCard(
-      child: Column(
-        children: [
-          const Icon(
-            Icons.extension_off_outlined,
-            size: 32,
-            color: DauVietColors.inkMuted,
-          ),
+    return Column(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        const EmptyStateCard(
+          title: 'Chưa hỗ trợ',
+          description: 'Hoạt động này sẽ sớm được bổ sung.',
+          icon: Icons.construction_outlined,
+        ),
+        if (type.isNotEmpty) ...[
           const SizedBox(height: 8),
-          Text(
-            'Hoạt động "$type" chưa được hỗ trợ trên phiên bản mobile này.',
-            textAlign: TextAlign.center,
-            style: DauVietTypography.bodySmall.copyWith(
-              color: DauVietColors.inkMuted,
-              height: 1.4,
-            ),
-          ),
-          const SizedBox(height: 4),
-          Text(
-            'Vui lòng cập nhật ứng dụng hoặc học trên nền tảng khác.',
-            textAlign: TextAlign.center,
-            style: DauVietTypography.bodySmall.copyWith(
-              fontSize: 11,
-              color: DauVietColors.inkMuted,
-            ),
-          ),
+          ClueTag(type),
         ],
-      ),
+      ],
     );
   }
 }

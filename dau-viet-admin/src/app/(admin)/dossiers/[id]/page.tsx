@@ -11,7 +11,7 @@ export default async function DossierPage({
   const { id } = await params;
   return (
     <div>
-      <PageHeader title="Hồ sơ lịch sử" />
+      <PageHeader eyebrow="QUẢN TRỊ · HỒ SƠ LỊCH SỬ" title="Hồ sơ lịch sử" />
       <DossierDetail id={id} />
     </div>
   );

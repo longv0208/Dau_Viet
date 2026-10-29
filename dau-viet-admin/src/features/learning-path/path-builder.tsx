@@ -5,6 +5,8 @@ import { useState } from "react";
 import { ArrowLeft, CheckCircle2, Eye, RefreshCw, Save } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Dialog } from "@/components/ui/dialog";
+import { PaperCard } from "@/components/atoms/paper-card";
+import { SectionEyebrow } from "@/components/atoms/section-eyebrow";
 import { ConfirmDialog } from "@/components/confirm-dialog";
 import { ErrorState } from "@/components/error-state";
 import { StatusChip } from "@/components/status-chip";
@@ -44,10 +46,10 @@ export function PathBuilder({ versionId }: { versionId: string }) {
     }
     return result;
   };
-  return <div className="flex h-[calc(100dvh-104px)] min-h-[420px] flex-col overflow-hidden rounded-xl border border-border bg-white shadow-sm">
-    <header className="shrink-0 space-y-3 border-b border-border bg-surface px-4 py-3">
+  return <PaperCard className="flex h-[calc(100dvh-104px)] min-h-[420px] flex-col overflow-hidden p-0">
+    <header className="shrink-0 space-y-3 border-b-2 border-heading bg-surface px-4 py-3">
       <div className="flex flex-wrap items-start justify-between gap-3">
-        <div className="min-w-0"><Link href="/learning-path" className="inline-flex items-center gap-1 text-xs text-brand hover:underline"><ArrowLeft className="size-3" aria-hidden />Các phiên bản</Link><h1 className="mt-1 font-display text-xl font-semibold">{detail.version.title}</h1><div className="mt-1 flex flex-wrap items-center gap-2"><StatusChip status={detail.version.status} /><span className="text-xs text-ink-muted">Phiên bản {detail.version.versionNo} · Lần lưu {detail.version.revision}</span></div></div>
+        <div className="min-w-0"><div className="flex items-center gap-2"><Link href="/learning-path" className="inline-flex items-center gap-1 text-xs font-medium text-brand hover:underline"><ArrowLeft className="size-3" aria-hidden />Các phiên bản</Link><SectionEyebrow color="brand" className="scale-90">THIẾT KẾ LỘ TRÌNH</SectionEyebrow></div><h1 className="mt-1 font-display text-xl font-semibold text-ink">{detail.version.title}</h1><div className="mt-1 flex flex-wrap items-center gap-2"><StatusChip status={detail.version.status} /><span className="text-xs text-ink-muted">Phiên bản {detail.version.versionNo} · Lần lưu {detail.version.revision}</span></div></div>
         <div className="flex flex-wrap gap-2">
           <Button asChild variant="secondary" size="sm"><Link href={`/learning-path/${versionId}/preview`}><Eye aria-hidden />Xem trước</Link></Button>
           <Button variant="secondary" size="sm" disabled={editor.busy} onClick={() => void editor.reload()} aria-label="Tải lại lộ trình"><RefreshCw aria-hidden /></Button>
@@ -71,5 +73,5 @@ export function PathBuilder({ versionId }: { versionId: string }) {
       {editor.validation ? <PathValidation report={editor.validation} detail={detail} onSelect={(id, node) => { select(id, node); setValidationOpen(false); }} /> : <p className="text-sm text-ink-muted">Dữ liệu đã thay đổi. Đóng hộp thoại và kiểm tra lại.</p>}
     </Dialog>
     <ConfirmDialog open={publishOpen} onOpenChange={setPublishOpen} title="Xuất bản lộ trình này?" description="Bản nháp trở thành phiên bản hiện hành. Phiên bản trước được lưu trữ và giữ nguyên lịch sử học tập." confirmLabel="Xác nhận xuất bản" onConfirm={() => { if (canPublish) void editor.publish(); }} />
-  </div>;
+  </PaperCard>;
 }

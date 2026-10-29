@@ -11,6 +11,7 @@ export default function ItemsPage() {
   return (
     <div>
       <PageHeader
+        eyebrow="QUẢN TRỊ · VẬT PHẨM THƯỞNG"
         title="Vật phẩm thưởng"
         description="Danh mục mô hình, phiên bản số và huy hiệu học viên mở khóa được — luôn là vật phẩm học tập, không phải cổ vật thật."
         actions={

@@ -15,6 +15,7 @@ export default async function LessonPublishRoute({
   return (
     <div>
       <PageHeader
+        eyebrow="QUẢN TRỊ · XUẤT BẢN"
         title="Xuất bản bài học"
         description="Kiểm tra sẵn sàng và phát hành phiên bản mới cho học viên."
       />

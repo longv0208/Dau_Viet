@@ -10,6 +10,8 @@ import type { PageResponse } from "@/lib/dto/common";
 import type { AdminEventSummary } from "@/lib/dto/event";
 import type { Evidence, EvidenceStatus } from "@/lib/dto/evidence";
 import { qk } from "@/lib/query-keys";
+import { ClueTag } from "@/components/atoms/clue-tag";
+import { PaperCard } from "@/components/atoms/paper-card";
 import { DataTable, type Column } from "@/components/data-table";
 import { StatusChip } from "@/components/status-chip";
 import { Button } from "@/components/ui/button";
@@ -85,7 +87,7 @@ export function EvidenceTable({
     {
       key: "evidenceType",
       header: "Loại",
-      cell: (r) => <span className="text-sm">{evidenceTypeLabel(r.evidenceType)}</span>,
+      cell: (r) => <ClueTag label={evidenceTypeLabel(r.evidenceType)} color="jade" />,
     },
     ...(lockedEventId
       ? []
@@ -109,9 +111,7 @@ export function EvidenceTable({
             {r.sourceTitle.length > 48 ? `${r.sourceTitle.slice(0, 48)}…` : r.sourceTitle}
           </span>
         ) : (
-          <span className="inline-flex items-center gap-1 rounded-full bg-warning/25 px-2 py-0.5 text-xs font-medium text-ink">
-            Chưa đủ nguồn
-          </span>
+          <ClueTag label="Chưa đủ nguồn" color="gold" />
         ),
     },
     { key: "status", header: "Trạng thái", cell: (r) => <StatusChip status={r.status} /> },
@@ -121,7 +121,7 @@ export function EvidenceTable({
       cell: (r) => (
         <Link
           href={withReturnTo(`/evidence/${r.id}`, returnTo ?? null)}
-          className="text-sm text-primary hover:underline"
+          className="text-sm font-medium text-brand hover:underline"
         >
           Sửa
         </Link>
@@ -133,7 +133,7 @@ export function EvidenceTable({
 
   return (
     <div className="flex flex-col gap-4">
-      <div className="flex flex-wrap items-center gap-3">
+      <PaperCard className="flex flex-wrap items-center gap-3 p-4">
         <form
           onSubmit={(e) => {
             e.preventDefault();
@@ -184,7 +184,7 @@ export function EvidenceTable({
           <option value="APPROVED">Đã phê duyệt</option>
           <option value="ARCHIVED">Đã lưu trữ</option>
         </Select>
-      </div>
+      </PaperCard>
 
       <DataTable
         columns={columns}

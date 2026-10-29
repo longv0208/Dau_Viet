@@ -17,6 +17,8 @@ import { uploadAsset, validateAssetFile } from "@/features/assets/asset-api";
 import { AssetImage } from "@/features/assets/asset-image";
 import { AssetPickerDialog } from "@/features/assets/asset-picker-dialog";
 import { applyServerFieldErrors, toSlug } from "@/lib/form-utils";
+import { PaperCard } from "@/components/atoms/paper-card";
+import { SectionDivider } from "@/components/atoms/section-divider";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -281,10 +283,16 @@ export function EventForm({ initial }: Props) {
   });
 
   return (
-    <form onSubmit={onSubmit} noValidate className="flex flex-col gap-5">
-      <div className="grid gap-4 md:grid-cols-2">
-        <div className="flex flex-col gap-1.5">
-          <Label htmlFor="title">Tiêu đề *</Label>
+    <PaperCard className="p-5">
+      <SectionDivider
+        eyebrow="THÔNG TIN"
+        title={isEdit ? "Thông tin sự kiện lịch sử" : "Khởi tạo sự kiện lịch sử"}
+        className="mb-5"
+      />
+      <form onSubmit={onSubmit} noValidate className="flex flex-col gap-5">
+        <div className="grid gap-4 md:grid-cols-2">
+          <div className="flex flex-col gap-1.5">
+            <Label htmlFor="title" className="font-medium text-ink-secondary">Tiêu đề *</Label>
           <Input
             id="title"
             placeholder="Trận Bạch Đằng năm 938"
@@ -294,7 +302,7 @@ export function EventForm({ initial }: Props) {
           {errors.title && <p role="alert" className="text-xs text-error">{errors.title.message}</p>}
         </div>
         <div className="flex flex-col gap-1.5">
-          <Label htmlFor="slug">Đường dẫn rút gọn *</Label>
+          <Label htmlFor="slug" className="font-medium text-ink-secondary">Đường dẫn rút gọn *</Label>
           <Input
             id="slug"
             placeholder="tran-bach-dang-938"
@@ -310,30 +318,30 @@ export function EventForm({ initial }: Props) {
 
       <div className="grid gap-4 md:grid-cols-3">
         <div className="flex flex-col gap-1.5">
-          <Label htmlFor="era">Thời kỳ</Label>
+          <Label htmlFor="era" className="font-medium text-ink-secondary">Thời kỳ</Label>
           <Input id="era" placeholder="Thời Ngô — Đinh — Tiền Lê" {...register("era")} />
           {errors.era && <p role="alert" className="text-xs text-error">{errors.era.message}</p>}
         </div>
         <div className="flex flex-col gap-1.5">
-          <Label htmlFor="period">Giai đoạn</Label>
+          <Label htmlFor="period" className="font-medium text-ink-secondary">Giai đoạn</Label>
           <Input id="period" placeholder="Mùa Đông 938" {...register("period")} />
           {errors.period && <p role="alert" className="text-xs text-error">{errors.period.message}</p>}
         </div>
         <div className="flex flex-col gap-1.5">
-          <Label htmlFor="startYear">Năm bắt đầu</Label>
+          <Label htmlFor="startYear" className="font-medium text-ink-secondary">Năm bắt đầu</Label>
           <Input id="startYear" inputMode="numeric" placeholder="938" {...register("startYear")} />
           {errors.startYear && <p role="alert" className="text-xs text-error">{errors.startYear.message}</p>}
         </div>
       </div>
 
       <div className="flex flex-col gap-1.5">
-        <Label htmlFor="location">Địa điểm</Label>
+        <Label htmlFor="location" className="font-medium text-ink-secondary">Địa điểm</Label>
         <Input id="location" placeholder="Sông Bạch Đằng, Quảng Ninh" {...register("location")} />
         {errors.location && <p role="alert" className="text-xs text-error">{errors.location.message}</p>}
       </div>
 
       <div className="flex flex-col gap-1.5">
-        <Label htmlFor="summary">Tóm tắt *</Label>
+        <Label htmlFor="summary" className="font-medium text-ink-secondary">Tóm tắt *</Label>
         <Textarea
           id="summary"
           rows={3}
@@ -345,7 +353,7 @@ export function EventForm({ initial }: Props) {
       </div>
 
       <div className="flex flex-col gap-1.5">
-        <Label htmlFor="description">Mô tả chi tiết</Label>
+        <Label htmlFor="description" className="font-medium text-ink-secondary">Mô tả chi tiết</Label>
         <Textarea
           id="description"
           rows={6}
@@ -367,7 +375,7 @@ export function EventForm({ initial }: Props) {
 
         <div className="flex flex-wrap items-start justify-between gap-3">
           <div className="space-y-0.5">
-            <Label htmlFor="coverAssetKey">Ảnh bìa</Label>
+            <Label htmlFor="coverAssetKey" className="font-medium text-ink-secondary">Ảnh bìa</Label>
             <p className="text-xs text-ink-muted">
               Tải ảnh mới lên hoặc chọn ảnh có sẵn từ thư viện media (ưu tiên tỷ lệ 16:9, PNG/JPEG/WebP ≤ 10 MB).
             </p>
@@ -498,7 +506,7 @@ export function EventForm({ initial }: Props) {
       </div>
 
       <div className="flex flex-col gap-2">
-        <Label>Tags</Label>
+        <Label className="font-medium text-ink-secondary">Tags</Label>
         {tags.fields.map((f, i) => (
           <div key={f.id} className="flex items-center gap-2">
             <Input placeholder="ngô-quyền" {...register(`tags.${i}.value` as const)} />
@@ -553,6 +561,7 @@ export function EventForm({ initial }: Props) {
         onOpenChange={setPickerOpen}
         onSelect={handleSelectAsset}
       />
-    </form>
+      </form>
+    </PaperCard>
   );
 }

@@ -7,8 +7,8 @@ import type { ReactNode } from "react";
  */
 export function MobileFrame({ children }: { children: ReactNode }) {
   return (
-    <div className="mx-auto w-full max-w-[390px] overflow-hidden rounded-3xl border border-border bg-white shadow-sm">
-      <div className="flex items-center justify-between bg-ink px-5 py-1.5 text-[10px] font-medium text-white">
+    <div className="mx-auto w-full max-w-[390px] overflow-hidden rounded-3xl border-2 border-heading bg-surface-alt shadow-pixel">
+      <div className="flex items-center justify-between bg-chapter px-5 py-1.5 text-[10px] font-medium text-surface-alt">
         <span>9:41</span>
         <span className="flex items-center gap-1 tracking-wide">
           {/* eslint-disable-next-line @next/next/no-img-element -- logo là file tĩnh trong /public */}

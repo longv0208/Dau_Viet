@@ -15,14 +15,16 @@ import type { PageResponse } from "@/lib/dto/common";
 import type { AdminEventSummary } from "@/lib/dto/event";
 import type { AdminLessonDetail, LessonTemplate } from "@/lib/dto/lesson";
 import { qk } from "@/lib/query-keys";
+import { ChapterBadge } from "@/components/atoms/chapter-badge";
+import { EmptyStateCard } from "@/components/atoms/empty-state-card";
+import { PaperCard } from "@/components/atoms/paper-card";
+import { SectionDivider } from "@/components/atoms/section-divider";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Skeleton } from "@/components/ui/skeleton";
 import { ErrorState } from "@/components/error-state";
-import { EmptyState } from "@/components/empty-state";
 import { useUnsavedChangesGuard } from "@/components/unsaved-changes-guard";
 
 const basicSchema = z.object({
@@ -119,20 +121,10 @@ export function LessonWizard() {
 
   return (
     <div className="flex flex-col gap-6">
-      <ol className="flex flex-wrap items-center gap-2 text-sm">
+      <ol className="flex flex-wrap items-center gap-3 text-sm">
         {STEPS.map((s) => (
           <li key={s.n} className="flex items-center gap-2">
-            <span
-              className={
-                s.n === step
-                  ? "flex size-7 items-center justify-center rounded-full bg-brand text-xs font-semibold text-white"
-                  : s.n < step
-                    ? "flex size-7 items-center justify-center rounded-full bg-success/20 text-xs font-semibold text-ink"
-                    : "flex size-7 items-center justify-center rounded-full bg-surface-alt text-xs text-ink-muted"
-              }
-            >
-              {s.n}
-            </span>
+            <ChapterBadge label={s.n} size={28} filled={s.n === step} />
             <span className={s.n === step ? "font-medium text-ink" : "text-ink-muted"}>
               {s.label}
             </span>
@@ -142,24 +134,28 @@ export function LessonWizard() {
       </ol>
 
       {step === 1 && (
-        <Card>
-          <CardHeader>
-            <CardTitle>Bước 1 — Chọn sự kiện lịch sử</CardTitle>
-            <CardDescription>
-              Bài học sẽ gắn với một sự kiện. Chưa có sự kiện phù hợp?{" "}
-              <Link href="/events/new" className="text-primary underline">
-                Tạo sự kiện mới
-              </Link>
-              .
-            </CardDescription>
-          </CardHeader>
-          <CardContent className="flex flex-col gap-3">
+        <PaperCard className="p-5">
+          <SectionDivider
+            eyebrow="BƯỚC 1"
+            title="Bước 1 — Chọn sự kiện lịch sử"
+            description={
+              <>
+                Bài học sẽ gắn với một sự kiện. Chưa có sự kiện phù hợp?{" "}
+                <Link href="/events/new" className="text-brand underline">
+                  Tạo sự kiện mới
+                </Link>
+                .
+              </>
+            }
+            className="mb-4"
+          />
+          <div className="flex flex-col gap-3">
             {eventsQuery.isPending && <Skeleton className="h-40 w-full" />}
             {eventsQuery.isError && (
               <ErrorState error={eventsQuery.error} onRetry={() => eventsQuery.refetch()} />
             )}
             {eventsQuery.data && eventsQuery.data.content.length === 0 && (
-              <EmptyState
+              <EmptyStateCard
                 title="Chưa có sự kiện nào"
                 description="Bạn cần tạo ít nhất một sự kiện lịch sử trước khi tạo bài học."
                 action={
@@ -179,7 +175,7 @@ export function LessonWizard() {
                     "rounded-md border p-3 text-left transition-colors " +
                     (eventId === ev.id
                       ? "border-brand bg-brand/5"
-                      : "border-border bg-white hover:bg-surface")
+                      : "border-border bg-surface hover:bg-surface-alt")
                   }
                 >
                   <p className="font-medium text-ink">{ev.title}</p>
@@ -194,26 +190,30 @@ export function LessonWizard() {
                 Tiếp tục
               </Button>
             </div>
-          </CardContent>
-        </Card>
+          </div>
+        </PaperCard>
       )}
 
       {step === 2 && (
-        <Card>
-          <CardHeader>
-            <CardTitle>Bước 2 — Chọn khung bài học</CardTitle>
-            <CardDescription>
-              Khung quyết định cấu trúc giai đoạn và hoạt động của bài học. Sự kiện đã chọn:{" "}
-              <strong>{event?.title}</strong>.
-            </CardDescription>
-          </CardHeader>
-          <CardContent className="flex flex-col gap-3">
+        <PaperCard className="p-5">
+          <SectionDivider
+            eyebrow="BƯỚC 2"
+            title="Bước 2 — Chọn khung bài học"
+            description={
+              <>
+                Khung quyết định cấu trúc giai đoạn và hoạt động của bài học. Sự kiện đã chọn:{" "}
+                <strong>{event?.title}</strong>.
+              </>
+            }
+            className="mb-4"
+          />
+          <div className="flex flex-col gap-3">
             {templatesQuery.isPending && <Skeleton className="h-40 w-full" />}
             {templatesQuery.isError && (
               <ErrorState error={templatesQuery.error} onRetry={() => templatesQuery.refetch()} />
             )}
             {templatesQuery.data && templatesQuery.data.length === 0 && (
-              <EmptyState
+              <EmptyStateCard
                 title="Chưa có khung bài học khả dụng"
                 description="Hệ thống chưa có khung bài học nào được bật. Tạo một khung mới để tiếp tục soạn bài học."
                 action={
@@ -239,7 +239,7 @@ export function LessonWizard() {
                     "rounded-md border p-3 text-left transition-colors " +
                     (templateId === t.id
                       ? "border-brand bg-brand/5"
-                      : "border-border bg-white hover:bg-surface")
+                      : "border-border bg-surface hover:bg-surface-alt")
                   }
                 >
                   <p className="font-medium text-ink">{t.name}</p>
@@ -255,22 +255,22 @@ export function LessonWizard() {
                 Tiếp tục
               </Button>
             </div>
-          </CardContent>
-        </Card>
+          </div>
+        </PaperCard>
       )}
 
       {step === 3 && (
-        <Card>
-          <CardHeader>
-            <CardTitle>Bước 3 — Thông tin cơ bản</CardTitle>
-            <CardDescription>
-              Những thông tin này xuất hiện với học viên và trong danh sách quản trị.
-            </CardDescription>
-          </CardHeader>
-          <CardContent>
+        <PaperCard className="p-5">
+          <SectionDivider
+            eyebrow="BƯỚC 3"
+            title="Bước 3 — Thông tin cơ bản"
+            description="Những thông tin này xuất hiện với học viên và trong danh sách quản trị."
+            className="mb-4"
+          />
+          <div>
             <form className="flex flex-col gap-4" onSubmit={handleSubmit(() => next())} noValidate>
               <div className="flex flex-col gap-1.5">
-                <Label htmlFor="title">Tiêu đề bài học *</Label>
+                <Label htmlFor="title" className="font-medium text-ink-secondary">Tiêu đề bài học *</Label>
                 <Input
                   id="title"
                   placeholder="Bí mật chiến thắng Bạch Đằng"
@@ -280,7 +280,7 @@ export function LessonWizard() {
                 {errors.title && <p role="alert" className="text-xs text-error">{errors.title.message}</p>}
               </div>
               <div className="flex flex-col gap-1.5">
-                <Label htmlFor="centralQuestion">Câu hỏi trung tâm *</Label>
+                <Label htmlFor="centralQuestion" className="font-medium text-ink-secondary">Câu hỏi trung tâm *</Label>
                 <Textarea
                   id="centralQuestion"
                   rows={3}
@@ -296,7 +296,7 @@ export function LessonWizard() {
                 )}
               </div>
               <div className="flex flex-col gap-2">
-                <Label>Mục tiêu học tập *</Label>
+                <Label className="font-medium text-ink-secondary">Mục tiêu học tập *</Label>
                 {objectives.fields.map((f, i) => (
                   <div key={f.id} className="flex flex-col gap-1">
                     <div className="flex items-center gap-2">
@@ -342,16 +342,18 @@ export function LessonWizard() {
                 <Button type="submit">Tiếp tục</Button>
               </div>
             </form>
-          </CardContent>
-        </Card>
+          </div>
+        </PaperCard>
       )}
 
       {step === 4 && (
-        <Card>
-          <CardHeader>
-            <CardTitle>Bước 4 — Xác nhận & lưu bản nháp</CardTitle>
-          </CardHeader>
-          <CardContent className="flex flex-col gap-4">
+        <PaperCard className="p-5">
+          <SectionDivider
+            eyebrow="BƯỚC 4"
+            title="Bước 4 — Xác nhận & lưu bản nháp"
+            className="mb-4"
+          />
+          <div className="flex flex-col gap-4">
             <dl className="grid gap-3 rounded-md border border-border bg-surface p-4 text-sm">
               <div>
                 <dt className="text-ink-muted">Sự kiện</dt>
@@ -396,8 +398,8 @@ export function LessonWizard() {
                 {submitting ? "Đang lưu..." : "Lưu bản nháp"}
               </Button>
             </div>
-          </CardContent>
-        </Card>
+          </div>
+        </PaperCard>
       )}
     </div>
   );

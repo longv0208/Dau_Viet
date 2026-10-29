@@ -10,6 +10,7 @@ export default function DossiersPage() {
   return (
     <div>
       <PageHeader
+        eyebrow="QUẢN TRỊ · HỒ SƠ LỊCH SỬ"
         title="Hồ sơ lịch sử"
         description="Thư viện nhân vật, địa điểm, hiện vật và bối cảnh — liên kết vào sự kiện để learner mở khoá."
         actions={

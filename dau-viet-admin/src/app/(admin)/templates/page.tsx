@@ -10,6 +10,7 @@ export default function TemplatesPage() {
   return (
     <div>
       <PageHeader
+        eyebrow="QUẢN TRỊ · MẪU BÀI HỌC"
         title="Mẫu bài học"
         description="Khung hoạt động chuẩn dùng để soạn bài học."
         actions={

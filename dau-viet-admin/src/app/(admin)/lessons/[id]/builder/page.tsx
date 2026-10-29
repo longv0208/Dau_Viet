@@ -15,6 +15,7 @@ export default async function LessonBuilderRoute({
   return (
     <div>
       <PageHeader
+        eyebrow="QUẢN TRỊ · SOẠN BÀI HỌC"
         title="Soạn giai đoạn & hoạt động"
         description="Xây dựng cấu trúc bài học trực quan — lưu vào bản nháp."
       />

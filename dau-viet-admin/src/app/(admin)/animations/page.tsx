@@ -7,6 +7,7 @@ export default function AnimationsPage() {
   return (
     <div>
       <PageHeader
+        eyebrow="QUẢN TRỊ · HOẠT HỌA"
         title="Thư viện hoạt họa"
         description="Tải lên và quản lý hoạt họa HTML — một tệp .html tự chứa cho mỗi cảnh."
       />

@@ -4,6 +4,17 @@ import '../../../core/theme/dau_viet_typography.dart';
 import '../../../core/widgets/dong_son_button.dart';
 import '../../../core/widgets/heritage_scaffold.dart';
 import '../../../core/widgets/parchment_card.dart';
+import '../../../core/widgets/section_divider.dart';
+import '../../../core/widgets/chapter_number_badge.dart';
+import '../../../core/widgets/clue_tag.dart';
+import '../../../core/widgets/stamp_seal_badge.dart';
+import '../../../core/widgets/step_progress_bar.dart';
+import '../../../core/widgets/rare_frame_badge.dart';
+import '../../../core/widgets/tactile_card.dart';
+import '../../../core/widgets/hero_paper_banner.dart';
+import '../../../core/widgets/empty_state_card.dart';
+import '../../../core/widgets/mascot_slot.dart';
+import '../../../core/widgets/kabi_mascot_widget.dart';
 
 /// Màn hình Trưng bày & Kiểm định Theme Di sản v2.0 (Phase M1 Showcase)
 class ThemeShowcaseScreen extends StatelessWidget {
@@ -211,6 +222,128 @@ class ThemeShowcaseScreen extends StatelessWidget {
                   onPressed: () {},
                 ),
               ],
+            ),
+            const SizedBox(height: 32),
+
+            // ─── v3.0 ATOMS ───
+            const SectionDivider(
+              eyebrow: 'v3.0',
+              title: 'Bộ Linh Kiện Di Sản Sống',
+            ),
+
+            const HeroPaperBanner(
+              eyebrow: 'Chương 02 · Trận then chốt',
+              title: 'Bạch Đằng Giang 938',
+              subtitle: 'Cuộc hải chiến chấm dứt 1000 năm Bắc thuộc',
+              height: 180,
+            ),
+            const SizedBox(height: 20),
+
+            Text(
+              'TIẾN TRÌNH 6 CHẶNG',
+              style: DauVietTypography.labelMedium.copyWith(
+                color: DauVietColors.inkMuted,
+              ),
+            ),
+            const SizedBox(height: 8),
+            const TactileCard(
+              child: StepProgressBar(currentStep: 2, showLabels: true),
+            ),
+            const SizedBox(height: 20),
+
+            Text(
+              'HUY HIỆU & ĐÓNG DẤU',
+              style: DauVietTypography.labelMedium.copyWith(
+                color: DauVietColors.inkMuted,
+              ),
+            ),
+            const SizedBox(height: 8),
+            Wrap(
+              spacing: 14,
+              runSpacing: 14,
+              crossAxisAlignment: WrapCrossAlignment.center,
+              children: const [
+                ChapterNumberBadge('01'),
+                ChapterNumberBadge('02'),
+                ChapterNumberBadge.filled('✓', size: 44),
+                ChapterNumberBadge('04', size: 56),
+                StampSealBadge('DẤU'),
+                StampSealBadge.success('✓'),
+                StampSealBadge.outline('?'),
+              ],
+            ),
+            const SizedBox(height: 20),
+
+            Text(
+              'TAG DẤU VẾT',
+              style: DauVietTypography.labelMedium.copyWith(
+                color: DauVietColors.inkMuted,
+              ),
+            ),
+            const SizedBox(height: 8),
+            Wrap(
+              spacing: 8,
+              runSpacing: 8,
+              children: [
+                ClueTag.category('hiện vật'),
+                ClueTag.category('địa hình'),
+                ClueTag.category('nhân vật'),
+                ClueTag.category('cổ thư'),
+                const ClueTag('Thủy triều', icon: Icons.water_outlined),
+              ],
+            ),
+            const SizedBox(height: 20),
+
+            Text(
+              'ĐỘ HIẾM BẢO VẬT',
+              style: DauVietTypography.labelMedium.copyWith(
+                color: DauVietColors.inkMuted,
+              ),
+            ),
+            const SizedBox(height: 8),
+            Wrap(
+              spacing: 12,
+              runSpacing: 12,
+              children: [
+                for (final r in ItemRarity.values)
+                  RareFrameBadge(
+                    rarity: r,
+                    showLabel: true,
+                    child: Container(
+                      width: 72,
+                      height: 72,
+                      decoration: BoxDecoration(
+                        color: DauVietColors.paperCardHi,
+                        borderRadius: BorderRadius.circular(12),
+                      ),
+                      child: const Icon(
+                        Icons.workspace_premium_outlined,
+                        color: DauVietColors.woodBrown,
+                      ),
+                    ),
+                  ),
+              ],
+            ),
+            const SizedBox(height: 20),
+
+            Text(
+              'LINH VẬT ĐỒNG HÀNH',
+              style: DauVietTypography.labelMedium.copyWith(
+                color: DauVietColors.inkMuted,
+              ),
+            ),
+            const SizedBox(height: 8),
+            const MascotSlot(
+              message: 'Chọn một dấu vết để Kabi giúp bạn suy luận nhé!',
+              mood: KabiMood.guiding,
+            ),
+            const SizedBox(height: 12),
+            const EmptyStateCard(
+              title: 'Chưa có bảo vật nào',
+              description:
+                  'Hoàn thành bài học để mở khóa bảo vật đầu tiên trong bảo tàng của bạn.',
+              actionLabel: 'Bắt đầu học',
+              icon: Icons.museum_outlined,
             ),
             const SizedBox(height: 32),
           ],

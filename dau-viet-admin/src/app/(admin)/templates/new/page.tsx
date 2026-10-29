@@ -9,6 +9,7 @@ export default function NewTemplatePage() {
   return (
     <div>
       <PageHeader
+        eyebrow="QUẢN TRỊ · MẪU BÀI HỌC"
         title="Tạo khung bài học"
         description="Định nghĩa một khung giai đoạn dùng lại được cho nhiều bài học."
       />

@@ -10,6 +10,8 @@ import type { PageResponse } from "@/lib/dto/common";
 import type { AdminEventSummary } from "@/lib/dto/event";
 import type { AdminLessonSummary, LessonStatus } from "@/lib/dto/lesson";
 import { qk } from "@/lib/query-keys";
+import { PaperCard } from "@/components/atoms/paper-card";
+import { StampSeal } from "@/components/atoms/stamp-seal";
 import { DataTable, type Column } from "@/components/data-table";
 import { StatusChip } from "@/components/status-chip";
 import { Button } from "@/components/ui/button";
@@ -100,7 +102,10 @@ export function LessonsTable({
       header: "Xuất bản",
       cell: (r) =>
         r.currentVersionId ? (
-          <span className="text-xs">Đã xuất bản</span>
+          <span className="inline-flex items-center gap-1.5 text-xs">
+            <span>Đã xuất bản</span>
+            <StampSeal variant="success" label="ẤN" className="scale-75" />
+          </span>
         ) : (
           <span className="text-xs text-ink-muted">Chưa xuất bản</span>
         ),
@@ -112,7 +117,7 @@ export function LessonsTable({
         <div className="flex items-center gap-3">
           <Link
             href={withReturnTo(`/lessons/${r.id}`, returnTo ?? null)}
-            className="text-sm text-primary hover:underline"
+            className="text-sm font-medium text-brand hover:underline"
           >
             Mở
           </Link>
@@ -143,7 +148,7 @@ export function LessonsTable({
 
   return (
     <div className="flex flex-col gap-4">
-      <div className="flex flex-wrap items-center gap-3">
+      <PaperCard className="flex flex-wrap items-center gap-3 p-4">
         <form
           onSubmit={(e) => {
             e.preventDefault();
@@ -194,7 +199,7 @@ export function LessonsTable({
           <option value="PUBLISHED">Đã xuất bản</option>
           <option value="ARCHIVED">Đã lưu trữ</option>
         </Select>
-      </div>
+      </PaperCard>
 
       <DataTable
         columns={columns}

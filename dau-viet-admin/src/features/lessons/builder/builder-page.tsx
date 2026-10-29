@@ -13,6 +13,7 @@ import type { AdminLessonDetail } from "@/lib/dto/lesson";
 import type { PageResponse } from "@/lib/dto/common";
 import type { Evidence } from "@/lib/dto/evidence";
 import { qk } from "@/lib/query-keys";
+import { PaperCard } from "@/components/atoms/paper-card";
 import { Button } from "@/components/ui/button";
 import { ErrorState } from "@/components/error-state";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -213,9 +214,9 @@ function BuilderInner({
         </Button>
       )}
       {/* Thanh trạng thái + lưu */}
-      <div className="flex flex-wrap items-center gap-3">
+      <PaperCard className="flex flex-wrap items-center gap-3 p-3.5">
         <StatusChip status={lesson.status} />
-        <span className="text-xs text-ink-muted">{lesson.title}</span>
+        <span className="font-display text-sm font-semibold text-ink">{lesson.title}</span>
         {state.dirty ? (
           <span className="rounded bg-warning/15 px-2 py-0.5 text-xs font-medium text-ink">
             Chưa lưu
@@ -284,7 +285,7 @@ function BuilderInner({
           </Link>
         </Button>
         <LessonArchiveButton lesson={lesson} />
-      </div>
+      </PaperCard>
 
       {state.dirty && (
         <p className="rounded-md bg-warning/10 px-3 py-1.5 text-xs text-ink-muted">
@@ -320,7 +321,7 @@ function BuilderInner({
 
       {/* 3-pane */}
       <div className="grid gap-4 lg:grid-cols-[260px_1fr_300px]">
-        <aside className="rounded-md border border-border bg-surface p-3">
+        <PaperCard className="p-3">
           <StageNavigator
             draft={state.draft}
             selectedStageId={state.selectedStageId}
@@ -333,9 +334,9 @@ function BuilderInner({
             onDuplicate={(id) => actions.duplicateStage(id)}
             onRemove={(id) => actions.removeStage(id)}
           />
-        </aside>
+        </PaperCard>
 
-        <main className="min-w-0 rounded-md border border-border bg-surface p-4">
+        <PaperCard className="min-w-0 p-4">
           {selectedStage ? (
             <StageEditor
               draft={state.draft}
@@ -357,9 +358,9 @@ function BuilderInner({
               Chọn một giai đoạn ở cột trái — hoặc thêm giai đoạn mới để bắt đầu.
             </p>
           )}
-        </main>
+        </PaperCard>
 
-        <aside className="flex flex-col gap-3 rounded-md border border-border bg-surface p-3">
+        <PaperCard className="flex flex-col gap-3 p-3">
           <TemplateSeedButton
             templateId={lesson.templateId}
             draft={state.draft}
@@ -395,7 +396,7 @@ function BuilderInner({
               if (aid) actions.selectActivity(aid);
             }}
           />
-        </aside>
+        </PaperCard>
       </div>
     </div>
   );

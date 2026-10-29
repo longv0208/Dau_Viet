@@ -23,8 +23,10 @@ import { applyServerFieldErrors } from "@/lib/form-utils";
 import { qk } from "@/lib/query-keys";
 import { AssetImage } from "@/features/assets/asset-image";
 import { AssetPickerDialog } from "@/features/assets/asset-picker-dialog";
+import { PaperCard } from "@/components/atoms/paper-card";
+import { SectionDivider } from "@/components/atoms/section-divider";
+import { StampSeal } from "@/components/atoms/stamp-seal";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
@@ -280,28 +282,27 @@ export function LessonBasicEditor({ lessonId }: { lessonId: string }) {
       )}
       <div className="flex flex-wrap items-center gap-3">
         <StatusChip status={lesson.status} />
+        {lesson.currentVersionId && (
+          <StampSeal variant="success" label="ẤN HÀNH" className="scale-90" />
+        )}
         <span className="text-xs text-ink-muted">
           Cập nhật {new Date(lesson.updatedAt).toLocaleString("vi-VN")}
         </span>
       </div>
 
       <div className="grid gap-4 md:grid-cols-2">
-        <Card>
-          <CardHeader>
-            <CardTitle className="text-base">Sự kiện</CardTitle>
-          </CardHeader>
-          <CardContent>
+        <PaperCard className="p-5">
+          <SectionDivider eyebrow="LIÊN KẾT" title="Sự kiện" className="mb-3" />
+          <div>
             {eventQuery.isPending && <Skeleton className="h-6 w-48" />}
             {eventQuery.data && (
               <p className="text-sm font-medium text-ink">{eventQuery.data.title}</p>
             )}
-          </CardContent>
-        </Card>
-        <Card>
-          <CardHeader>
-            <CardTitle className="text-base">Khung bài học</CardTitle>
-          </CardHeader>
-          <CardContent>
+          </div>
+        </PaperCard>
+        <PaperCard className="p-5">
+          <SectionDivider eyebrow="CẤU TRÚC" eyebrowColor="jade" title="Khung bài học" className="mb-3" />
+          <div>
             <p className="text-sm font-medium text-ink">{template?.name ?? "—"}</p>
             {template && <p className="mt-1 text-xs text-ink-muted">{template.description}</p>}
             {lesson.status !== "DRAFT" && (
@@ -309,8 +310,8 @@ export function LessonBasicEditor({ lessonId }: { lessonId: string }) {
                 Không đổi khung sau khi đã xuất bản.
               </p>
             )}
-          </CardContent>
-        </Card>
+          </div>
+        </PaperCard>
       </div>
 
       {archived && (
@@ -320,15 +321,16 @@ export function LessonBasicEditor({ lessonId }: { lessonId: string }) {
       )}
 
       {/* Section: Ảnh bìa bài học */}
-      <Card>
-        <CardHeader>
-          <div className="flex flex-wrap items-start justify-between gap-3">
-            <div>
-              <CardTitle className="text-base">Ảnh bìa bài học</CardTitle>
-              <CardDescription>
-                Ảnh bìa/ảnh nền hiển thị trên thẻ bài học, màn giới thiệu bài học trên ứng dụng di động và trong khung thiết kế lộ trình. Ưu tiên tỷ lệ 16:9 (1200×675 px), định dạng JPEG, PNG hoặc WebP.
-              </CardDescription>
-            </div>
+      <PaperCard className="p-5">
+        <div className="mb-4 flex flex-wrap items-start justify-between gap-3">
+          <div className="flex-1">
+            <SectionDivider
+              eyebrow="MEDIA"
+              eyebrowColor="gold"
+              title="Ảnh bìa bài học"
+              description="Ảnh bìa/ảnh nền hiển thị trên thẻ bài học, màn giới thiệu bài học trên ứng dụng di động và trong khung thiết kế lộ trình. Ưu tiên tỷ lệ 16:9 (1200×675 px), định dạng JPEG, PNG hoặc WebP."
+            />
+          </div>
             <div className="flex flex-wrap items-center gap-2">
               {!selectedCoverId ? (
                 <Button
@@ -365,9 +367,8 @@ export function LessonBasicEditor({ lessonId }: { lessonId: string }) {
                 </>
               )}
             </div>
-          </div>
-        </CardHeader>
-        <CardContent className="space-y-4">
+        </div>
+        <div className="space-y-4">
           <div className="grid gap-4 md:grid-cols-[minmax(18rem,26rem)_1fr] md:items-center">
             <div className="overflow-hidden rounded-xl border border-border bg-surface shadow-xs">
               {selectedCoverId && currentCoverAsset ? (
@@ -451,30 +452,32 @@ export function LessonBasicEditor({ lessonId }: { lessonId: string }) {
               )}
             </div>
           </div>
-        </CardContent>
-      </Card>
+        </div>
+      </PaperCard>
 
-      <Card>
-        <CardHeader>
-          <CardTitle className="text-base">Thông tin cơ bản</CardTitle>
-          <CardDescription>Tiêu đề, câu hỏi trung tâm và mục tiêu học tập.</CardDescription>
-        </CardHeader>
-        <CardContent>
+      <PaperCard className="p-5">
+        <SectionDivider
+          eyebrow="THÔNG TIN"
+          title="Thông tin cơ bản"
+          description="Tiêu đề, câu hỏi trung tâm và mục tiêu học tập."
+          className="mb-4"
+        />
+        <div>
           <form onSubmit={onSubmit} noValidate className="flex flex-col gap-4">
             <div className="flex flex-col gap-1.5">
-              <Label htmlFor="title">Tiêu đề *</Label>
+              <Label htmlFor="title" className="font-medium text-ink-secondary">Tiêu đề *</Label>
               <Input id="title" disabled={archived} {...register("title")} />
               {errors.title && <p role="alert" className="text-xs text-error">{errors.title.message}</p>}
             </div>
             <div className="flex flex-col gap-1.5">
-              <Label htmlFor="centralQuestion">Câu hỏi trung tâm *</Label>
+              <Label htmlFor="centralQuestion" className="font-medium text-ink-secondary">Câu hỏi trung tâm *</Label>
               <Textarea id="centralQuestion" rows={3} disabled={archived} {...register("centralQuestion")} />
               {errors.centralQuestion && (
                 <p role="alert" className="text-xs text-error">{errors.centralQuestion.message}</p>
               )}
             </div>
             <div className="flex flex-col gap-2">
-              <Label>Mục tiêu học tập *</Label>
+              <Label className="font-medium text-ink-secondary">Mục tiêu học tập *</Label>
               {objectives.fields.map((f, i) => (
                 <div key={f.id} className="flex flex-col gap-1">
                   <div className="flex items-center gap-2">
@@ -534,17 +537,18 @@ export function LessonBasicEditor({ lessonId }: { lessonId: string }) {
               </div>
             )}
           </form>
-        </CardContent>
-      </Card>
+        </div>
+      </PaperCard>
 
-      <Card>
-        <CardHeader>
-          <CardTitle className="text-base">Giai đoạn & hoạt động</CardTitle>
-          <CardDescription>
-            Xây dựng cấu trúc giai đoạn và các hoạt động học tập của bài học.
-          </CardDescription>
-        </CardHeader>
-        <CardContent className="flex flex-col gap-2">
+      <PaperCard className="p-5">
+        <SectionDivider
+          eyebrow="TRÌNH SOẠN"
+          eyebrowColor="brand"
+          title="Giai đoạn & hoạt động"
+          description="Xây dựng cấu trúc giai đoạn và các hoạt động học tập của bài học."
+          className="mb-4"
+        />
+        <div className="flex flex-col gap-2">
           <p className="text-sm text-ink-muted">
             Xây dựng cấu trúc giai đoạn và hoạt động học tập bằng trình soạn trực quan.
           </p>
@@ -567,8 +571,8 @@ export function LessonBasicEditor({ lessonId }: { lessonId: string }) {
               </Button>
             )}
           </div>
-        </CardContent>
-      </Card>
+        </div>
+      </PaperCard>
 
       <AssetPickerDialog
         open={pickerOpen}

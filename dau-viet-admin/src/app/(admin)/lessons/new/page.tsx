@@ -9,6 +9,7 @@ export default function NewLessonPage() {
   return (
     <div>
       <PageHeader
+        eyebrow="QUẢN TRỊ · BÀI HỌC"
         title="Tạo bài học mới"
         description="Hướng dẫn từng bước để soạn một bài học lịch sử."
       />

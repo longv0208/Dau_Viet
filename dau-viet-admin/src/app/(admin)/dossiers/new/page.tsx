@@ -7,6 +7,7 @@ export default function NewDossierPage() {
   return (
     <div>
       <PageHeader
+        eyebrow="QUẢN TRỊ · HỒ SƠ LỊCH SỬ"
         title="Tạo hồ sơ lịch sử"
         description="Hồ sơ mới ở trạng thái bản nháp — xuất bản sau khi kiểm duyệt nguồn."
       />

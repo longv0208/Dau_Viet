@@ -14,7 +14,7 @@ export default async function LessonDetailPage({
   const { id } = await params;
   return (
     <div>
-      <PageHeader title="Bài học" description="Thông tin cơ bản và trạng thái xuất bản." />
+      <PageHeader eyebrow="QUẢN TRỊ · BÀI HỌC" title="Bài học" description="Thông tin cơ bản và trạng thái xuất bản." />
       {/* Suspense vì LessonBasicEditor đọc ?return= qua useSearchParams */}
       <Suspense fallback={<Skeleton className="h-96 w-full" />}>
         <LessonBasicEditor lessonId={id} />

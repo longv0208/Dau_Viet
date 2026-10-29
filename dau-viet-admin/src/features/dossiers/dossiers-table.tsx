@@ -8,6 +8,8 @@ import { apiFetch, toQuery } from "@/lib/api-client";
 import type { PageResponse } from "@/lib/dto/common";
 import type { AdminDossierSummary } from "@/lib/dto/gamification";
 import { qk } from "@/lib/query-keys";
+import { ClueTag } from "@/components/atoms/clue-tag";
+import { PaperCard } from "@/components/atoms/paper-card";
 import { DataTable, type Column } from "@/components/data-table";
 import { StatusChip } from "@/components/status-chip";
 import { Button } from "@/components/ui/button";
@@ -53,7 +55,7 @@ export function DossiersTable() {
       cell: (d) => (
         <Link
           href={`/dossiers/${d.id}`}
-          className="font-medium text-primary hover:underline"
+          className="font-medium text-brand hover:underline"
         >
           {d.title}
         </Link>
@@ -62,12 +64,12 @@ export function DossiersTable() {
     {
       key: "code",
       header: "Mã",
-      cell: (d) => <code className="text-xs">{d.canonicalCode}</code>,
+      cell: (d) => <ClueTag label={d.canonicalCode} color="jade" className="font-mono" />,
     },
     {
       key: "type",
       header: "Loại",
-      cell: (d) => TYPE_LABELS[d.dossierType] ?? d.dossierType,
+      cell: (d) => <ClueTag label={TYPE_LABELS[d.dossierType] ?? d.dossierType} color="gold" />,
     },
     {
       key: "status",
@@ -94,7 +96,7 @@ export function DossiersTable() {
   const data = query.data;
   return (
     <div className="flex flex-col gap-4">
-      <div className="flex flex-wrap gap-2">
+      <PaperCard className="flex flex-wrap gap-2 p-4">
         <Input
           placeholder="Tìm theo tên hoặc mã…"
           value={q}
@@ -132,7 +134,7 @@ export function DossiersTable() {
           <option value="PUBLISHED">Đã xuất bản</option>
           <option value="ARCHIVED">Đã lưu trữ</option>
         </Select>
-      </div>
+      </PaperCard>
 
       <DataTable
         columns={columns}

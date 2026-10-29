@@ -12,6 +12,8 @@ import type { PageResponse } from "@/lib/dto/common";
 import type { AdminEventSummary } from "@/lib/dto/event";
 import type { AdminAsset, Evidence } from "@/lib/dto/evidence";
 import { qk } from "@/lib/query-keys";
+import { PaperCard } from "@/components/atoms/paper-card";
+import { SectionDivider } from "@/components/atoms/section-divider";
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
@@ -129,18 +131,24 @@ export function EvidenceForm({ initial }: Props) {
   );
 
   return (
-    <form onSubmit={onSubmit} noValidate className="flex flex-col gap-5">
-      <EvidenceBasicFields
-        register={register}
-        errors={errors}
-        isEdit={isEdit}
-        events={eventsQuery.data?.content ?? []}
+    <PaperCard className="p-5">
+      <SectionDivider
+        eyebrow="THÔNG TIN"
+        title={isEdit ? "Thông tin bằng chứng lịch sử" : "Khởi tạo bằng chứng lịch sử"}
+        className="mb-5"
       />
+      <form onSubmit={onSubmit} noValidate className="flex flex-col gap-5">
+        <EvidenceBasicFields
+          register={register}
+          errors={errors}
+          isEdit={isEdit}
+          events={eventsQuery.data?.content ?? []}
+        />
 
-      <EvidenceSourceFields register={register} errors={errors} />
+        <EvidenceSourceFields register={register} errors={errors} />
 
-      <div className="flex flex-col gap-1.5">
-        <Label htmlFor="relevance">Tầm quan trọng / lý do sử dụng</Label>
+        <div className="flex flex-col gap-1.5">
+          <Label htmlFor="relevance" className="font-medium text-ink-secondary">Tầm quan trọng / lý do sử dụng</Label>
         <Textarea
           id="relevance"
           rows={2}
@@ -201,6 +209,7 @@ export function EvidenceForm({ initial }: Props) {
           setAssetCleared(false);
         }}
       />
-    </form>
+      </form>
+    </PaperCard>
   );
 }

@@ -7,12 +7,13 @@ import { apiFetch } from "@/lib/api-client";
 import { ApiClientError, toUserMessage } from "@/lib/api-error";
 import type { Evidence } from "@/lib/dto/evidence";
 import { qk } from "@/lib/query-keys";
+import { PaperCard } from "@/components/atoms/paper-card";
+import { StampSeal } from "@/components/atoms/stamp-seal";
 import { ConfirmDialog } from "@/components/confirm-dialog";
 import { ErrorState } from "@/components/error-state";
 import { Skeleton } from "@/components/ui/skeleton";
 import { StatusChip } from "@/components/status-chip";
 import { Button } from "@/components/ui/button";
-
 import { EvidenceForm } from "./evidence-form";
 
 /** Loads GET /admin/evidences/{id}, renders the form + lifecycle actions. */
@@ -72,8 +73,11 @@ export function EvidenceEditorPage({ evidenceId }: { evidenceId: string }) {
 
   return (
     <div className="flex flex-col gap-4">
-      <div className="flex flex-wrap items-center gap-3">
+      <PaperCard className="flex flex-wrap items-center gap-3 p-3.5">
         <StatusChip status={ev.status} />
+        {ev.status === "APPROVED" && (
+          <StampSeal variant="success" label="CHỨNG THỰC" className="scale-90" />
+        )}
         <span className="text-xs text-ink-muted">
           Cập nhật {new Date(ev.updatedAt).toLocaleString("vi-VN")}
         </span>
@@ -97,7 +101,7 @@ export function EvidenceEditorPage({ evidenceId }: { evidenceId: string }) {
             </Button>
           )}
         </div>
-      </div>
+      </PaperCard>
 
       {actionError && (
         <p role="alert" className="rounded-md bg-error/10 px-3 py-2 text-sm text-error">

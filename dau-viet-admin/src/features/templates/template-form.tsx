@@ -16,6 +16,8 @@ import type {
   LessonTemplate,
 } from "@/lib/dto/lesson";
 import { applyServerFieldErrors, toSlug } from "@/lib/form-utils";
+import { PaperCard } from "@/components/atoms/paper-card";
+import { SectionEyebrow } from "@/components/atoms/section-eyebrow";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -211,16 +213,19 @@ export function TemplateForm({ templateId }: Props) {
       className="flex h-[calc(100vh-13rem)] min-h-[32rem] flex-col gap-3"
     >
       {/* Collapsible setup — keeps metadata out of the panels' way. */}
-      <section className="rounded-lg border border-border bg-white">
+      <PaperCard>
         <button
           type="button"
           onClick={() => setSetupOpen((o) => !o)}
           aria-expanded={setupOpen}
           className="flex w-full items-center justify-between px-4 py-2.5 text-left"
         >
-          <span className="text-sm font-semibold text-ink">
-            Thiết kế khung bài học
-            {nameValue ? ` — ${nameValue}` : ""}
+          <span className="flex items-center gap-2 text-sm font-semibold text-ink">
+            <SectionEyebrow color="brand" className="scale-90">THÔNG TIN KHUNG</SectionEyebrow>
+            <span>
+              Thiết kế khung bài học
+              {nameValue ? ` — ${nameValue}` : ""}
+            </span>
           </span>
           <span className="text-xs text-ink-muted">{setupOpen ? "Thu gọn ▲" : "Thông tin khung ▼"}</span>
         </button>
@@ -228,7 +233,7 @@ export function TemplateForm({ templateId }: Props) {
           <div className="flex flex-col gap-4 border-t border-border px-4 py-4">
             <div className="grid gap-4 md:grid-cols-2">
               <div className="flex flex-col gap-1.5">
-                <Label htmlFor="name">Tên khung *</Label>
+                <Label htmlFor="name" className="font-medium text-ink-secondary">Tên khung *</Label>
                 <Input
                   id="name"
                   placeholder="Điều tra sự kiện lịch sử"
@@ -240,7 +245,7 @@ export function TemplateForm({ templateId }: Props) {
                 )}
               </div>
               <div className="flex flex-col gap-1.5">
-                <Label htmlFor="code">Mã khung *</Label>
+                <Label htmlFor="code" className="font-medium text-ink-secondary">Mã khung *</Label>
                 <Input
                   id="code"
                   placeholder="dieu-tra-su-kien-lich-su"
@@ -259,7 +264,7 @@ export function TemplateForm({ templateId }: Props) {
               </div>
             </div>
             <div className="flex flex-col gap-1.5">
-              <Label htmlFor="description">Mô tả</Label>
+              <Label htmlFor="description" className="font-medium text-ink-secondary">Mô tả</Label>
               <Textarea
                 id="description"
                 rows={2}
@@ -278,7 +283,7 @@ export function TemplateForm({ templateId }: Props) {
             )}
           </div>
         )}
-      </section>
+      </PaperCard>
 
       {serverError && (
         <p role="alert" className="rounded-md bg-error/10 px-3 py-2 text-sm text-error">

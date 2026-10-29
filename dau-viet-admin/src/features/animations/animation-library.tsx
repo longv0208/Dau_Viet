@@ -5,6 +5,7 @@ import Link from "next/link";
 import { useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 
+import { PaperCard } from "@/components/atoms/paper-card";
 import { DataTable, type Column } from "@/components/data-table";
 import { ErrorState } from "@/components/error-state";
 import { StatusChip } from "@/components/status-chip";
@@ -221,7 +222,7 @@ export function AnimationLibrary() {
         )}
       </div>
 
-      <div className="flex flex-wrap items-center gap-3">
+      <PaperCard className="flex flex-wrap items-center gap-3 p-4">
         <Input
           value={q}
           onChange={(e) => {
@@ -247,7 +248,7 @@ export function AnimationLibrary() {
             </option>
           ))}
         </Select>
-      </div>
+      </PaperCard>
 
       {actionError && (
         <p role="alert" className="rounded-md border border-error/40 bg-error/5 px-3 py-2 text-xs text-error">

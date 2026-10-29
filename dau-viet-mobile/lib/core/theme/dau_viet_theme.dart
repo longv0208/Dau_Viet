@@ -2,7 +2,9 @@ import 'package:flutter/material.dart';
 import 'dau_viet_colors.dart';
 import 'dau_viet_typography.dart';
 
-/// Cấu hình ThemeData cho Dấu Việt Mobile
+/// Cấu hình ThemeData cho Dấu Việt Mobile v3.0
+/// Đồng bộ với Landing Page: nền giấy dó ấm, chữ mực nho,
+/// điểm nhấn đỏ chu sa / vàng ngự xưởng / jade.
 class DauVietTheme {
   DauVietTheme._();
 
@@ -10,14 +12,16 @@ class DauVietTheme {
     return ThemeData(
       useMaterial3: true,
       brightness: Brightness.light,
-      scaffoldBackgroundColor: DauVietColors.parchmentSurface,
+      scaffoldBackgroundColor: DauVietColors.paperBackground,
       colorScheme: const ColorScheme(
         brightness: Brightness.light,
         primary: DauVietColors.cinnabarRed,
         onPrimary: Colors.white,
         secondary: DauVietColors.imperialGold,
         onSecondary: DauVietColors.inkText,
-        surface: DauVietColors.parchmentSurface,
+        tertiary: DauVietColors.jade,
+        onTertiary: Colors.white,
+        surface: DauVietColors.paperBackground,
         onSurface: DauVietColors.inkText,
         error: DauVietColors.errorRed,
         onError: Colors.white,
@@ -25,18 +29,21 @@ class DauVietTheme {
         outlineVariant: DauVietColors.outlineVariant,
       ),
       appBarTheme: AppBarTheme(
-        backgroundColor: DauVietColors.parchmentSurface,
+        backgroundColor: DauVietColors.paperBackground,
         elevation: 0,
         centerTitle: true,
         titleTextStyle: DauVietTypography.headlineMedium,
         iconTheme: const IconThemeData(color: DauVietColors.inkText),
       ),
       cardTheme: CardThemeData(
-        color: DauVietColors.parchmentContainer,
+        color: DauVietColors.paperCard,
         elevation: 0,
         shape: RoundedRectangleBorder(
           borderRadius: BorderRadius.circular(16),
-          side: const BorderSide(color: DauVietColors.outlineVariant, width: 1),
+          side: const BorderSide(
+            color: DauVietColors.outlineVariant,
+            width: 1,
+          ),
         ),
       ),
       elevatedButtonTheme: ElevatedButtonThemeData(

@@ -16,8 +16,8 @@ import '../../../core/widgets/gold_confetti_overlay.dart';
 import '../../../core/widgets/kabi_mascot_widget.dart';
 import '../../../core/widgets/tactile_3d_button.dart';
 
-import '../../../core/widgets/shimmer_progress_bar.dart';
 import '../../../core/widgets/sound_toggle_button.dart';
+import '../../../core/widgets/step_progress_bar.dart';
 import '../../collection/data/collection_providers.dart';
 import '../../collection/data/dossier_providers.dart';
 import '../../energy/data/energy_dto.dart';
@@ -944,87 +944,96 @@ class _LessonPlayerScreenState extends ConsumerState<LessonPlayerScreen> {
     return Container(
       padding: const EdgeInsets.fromLTRB(8, 6, 12, 8),
       decoration: BoxDecoration(
-        color: DauVietColors.parchmentSurface,
-        border: Border(
-          bottom: BorderSide(
-            color: DauVietColors.outlineVariant.withValues(alpha: 0.4),
-            width: 1,
-          ),
+        color: DauVietColors.paperBackground,
+        border: const Border(
+          bottom: BorderSide(color: DauVietColors.inkHeading, width: 3),
         ),
       ),
-      child: Row(
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          IconButton(
-            icon: const Icon(Icons.arrow_back_ios_new_rounded, size: 20),
-            color: DauVietColors.inkText,
-            tooltip: 'Thoát bài học',
-            constraints: const BoxConstraints(minWidth: 44, minHeight: 44),
-            onPressed: _confirmExit,
-          ),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Row(
+          Row(
+            children: [
+              IconButton(
+                icon: const Icon(Icons.arrow_back_ios_new_rounded, size: 20),
+                color: DauVietColors.inkText,
+                tooltip: 'Thoát bài học',
+                constraints: const BoxConstraints(minWidth: 44, minHeight: 44),
+                onPressed: _confirmExit,
+              ),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Expanded(
-                      child: Text(
-                        cur.stage?.title ?? 'Bài học',
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                        style: DauVietTypography.headlineMedium.copyWith(
-                          fontSize: 14,
-                          fontWeight: FontWeight.w700,
+                    Row(
+                      children: [
+                        Expanded(
+                          child: Text(
+                            cur.stage?.title ?? 'Bài học',
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                            style: DauVietTypography.headlineMedium.copyWith(
+                              fontSize: 14,
+                              fontWeight: FontWeight.w700,
+                            ),
+                          ),
                         ),
-                      ),
+                        const SizedBox(width: 6),
+                        _EnergyBadge(),
+                        const SizedBox(width: 4),
+                        // STREAK-01: huy hiệu ngọn lửa chuỗi học — số thật từ
+                        // streakProvider (server), không hard-code.
+                        _StreakBadge(),
+                      ],
                     ),
-                    const SizedBox(width: 6),
-                    _EnergyBadge(),
-                    const SizedBox(width: 4),
-                    // STREAK-01: huy hiệu ngọn lửa chuỗi học — số thật từ
-                    // streakProvider (server), không hard-code.
-                    _StreakBadge(),
+                    const SizedBox(height: 4),
+                    // Tiến trình 6 chặng + số bước — compact trên màn hẹp.
+                    Row(
+                      children: [
+                        Expanded(
+                          child: StepProgressBar(
+                            currentStep: (cur.progress.fraction * 5)
+                                .clamp(0, 5)
+                                .round()
+                                .toInt(),
+                            totalSteps: 6,
+                            showLabels: false,
+                            height: 32,
+                          ),
+                        ),
+                        const SizedBox(width: 8),
+                        Container(
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 8,
+                            vertical: 2,
+                          ),
+                          decoration: BoxDecoration(
+                            color: DauVietColors.paperCardHi,
+                            borderRadius: BorderRadius.circular(10),
+                            border: Border.all(
+                              color: DauVietColors.outlineVariant,
+                              width: 1,
+                            ),
+                          ),
+                          child: Text(
+                            '${cur.progress.completedRequired}/${cur.progress.totalRequired}',
+                            style: DauVietTypography.labelSmall.copyWith(
+                              color: DauVietColors.inkSecondary,
+                              fontWeight: FontWeight.w800,
+                              fontSize: 11,
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
                   ],
                 ),
-                const SizedBox(height: 6),
-                Row(
-                  children: [
-                    Expanded(
-                      child: ShimmerProgressBar(
-                        progress: cur.progress.fraction,
-                        height: 8,
-                      ),
-                    ),
-                    const SizedBox(width: 8),
-                    Container(
-                      padding: const EdgeInsets.symmetric(
-                        horizontal: 8,
-                        vertical: 2,
-                      ),
-                      decoration: BoxDecoration(
-                        color: const Color(0xFFEFE8DA),
-                        borderRadius: BorderRadius.circular(10),
-                        border: Border.all(
-                          color: const Color(0xFFD8C8B0),
-                          width: 1,
-                        ),
-                      ),
-                      child: Text(
-                        '${cur.progress.completedRequired}/${cur.progress.totalRequired}',
-                        style: DauVietTypography.labelSmall.copyWith(
-                          color: const Color(0xFF5E6963),
-                          fontWeight: FontWeight.w800,
-                          fontSize: 11,
-                        ),
-                      ),
-                    ),
-                  ],
-                ),
-              ],
-            ),
+              ),
+              const SizedBox(width: 8),
+              const SoundToggleButton(),
+            ],
           ),
-          const SizedBox(width: 8),
-          const SoundToggleButton(),
         ],
       ),
     );
@@ -1128,134 +1137,6 @@ class _LessonPlayerScreenState extends ConsumerState<LessonPlayerScreen> {
     );
   }
 
-  /// Màn Ăn Mừng / Động Viên riêng biệt toàn màn hình chuẩn Duolingo.
-  /// Chỉ hiển thị duy nhất 1 Mascot Kabi to lớn (140x140) ở trung tâm.
-  Widget _buildCelebrationScreen(_PlayerState st) {
-    final isSuccess = st.feedback?.tone == _FeedbackTone.success;
-    final fb = st.feedback;
-
-    // Issue #35: phân biệt verdict kiểm chứng — CONTRADICTED/PARTIAL là kết
-    // quả đối chiếu giả thuyết, không phải "chưa chính xác" chung chung.
-    final title = switch (fb?.outcome) {
-      'SUPPORTED' => 'GIẢ THUYẾT ĐƯỢC ỦNG HỘ!',
-      'CONTRADICTED' => 'GIẢ THUYẾT BỊ BÁC BỎ',
-      'PARTIAL' => 'KIỂM CHỨNG MỘT PHẦN',
-      _ => isSuccess ? 'CHÍNH XÁC! XUẤT SẮC!' : 'CHƯA CHÍNH XÁC RỒI!',
-    };
-    final titleColor = isSuccess
-        ? const Color(0xFF1B5E20)
-        : DauVietColors.cinnabarRed;
-    final badgeBg = isSuccess
-        ? const Color(0xFFDDF3E4)
-        : const Color(0xFFFDE8E5);
-    final badgeBorder = isSuccess
-        ? const Color(0xFF4C7C44)
-        : DauVietColors.cinnabarRed;
-
-    return Expanded(
-      child: GoldConfettiOverlay(
-        trigger: isSuccess,
-        child: Container(
-          width: double.infinity,
-          decoration: BoxDecoration(
-            gradient: LinearGradient(
-              begin: Alignment.topCenter,
-              end: Alignment.bottomCenter,
-              colors: isSuccess
-                  ? [const Color(0xFFF2FAF4), DauVietColors.parchmentSurface]
-                  : [const Color(0xFFFDF4F2), DauVietColors.parchmentSurface],
-            ),
-          ),
-          child: Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 16),
-            child: Column(
-              mainAxisAlignment: MainAxisAlignment.center,
-              children: [
-                const Spacer(),
-                // DUY NHẤT 1 LINH VẬT KABI TO LỚN Ở TRUNG TÂM (140x140)
-                KabiMascotWidget(
-                  mood: isSuccess ? KabiMood.cheering : KabiMood.thinking,
-                  width: 140,
-                  height: 140,
-                  headOnly: false,
-                ),
-                const SizedBox(height: 18),
-                // Huy hiệu trạng thái (loại bỏ hoàn toàn icon vui / buồn gây nhiễu trước mascot)
-                Container(
-                  padding: const EdgeInsets.symmetric(
-                    horizontal: 16,
-                    vertical: 6,
-                  ),
-                  decoration: BoxDecoration(
-                    color: badgeBg,
-                    borderRadius: BorderRadius.circular(20),
-                    border: Border.all(color: badgeBorder, width: 1.4),
-                  ),
-                  child: Text(
-                    title,
-                    style: DauVietTypography.headlineMedium.copyWith(
-                      color: titleColor,
-                      fontSize: 16,
-                      fontWeight: FontWeight.w900,
-                      letterSpacing: 0.5,
-                    ),
-                  ),
-                ),
-                const SizedBox(height: 14),
-                // Thẻ giải thích sử liệu
-                if (fb != null)
-                  Container(
-                    padding: const EdgeInsets.symmetric(
-                      horizontal: 16,
-                      vertical: 12,
-                    ),
-                    decoration: BoxDecoration(
-                      color: Colors.white.withValues(alpha: 0.9),
-                      borderRadius: BorderRadius.circular(16),
-                      border: Border.all(
-                        color: DauVietColors.outlineVariant.withValues(
-                          alpha: 0.5,
-                        ),
-                      ),
-                      boxShadow: [
-                        BoxShadow(
-                          color: Colors.black.withValues(alpha: 0.04),
-                          blurRadius: 10,
-                          offset: const Offset(0, 3),
-                        ),
-                      ],
-                    ),
-                    child: Text(
-                      fb.text,
-                      textAlign: TextAlign.center,
-                      style: DauVietTypography.bodyMedium.copyWith(
-                        color: DauVietColors.inkText,
-                        fontWeight: FontWeight.w600,
-                        fontSize: 14,
-                        height: 1.4,
-                      ),
-                    ),
-                  ),
-                const Spacer(),
-                // Nút 3D Tiếp tục câu hỏi
-                DongSonButton(
-                  label: 'TIẾP TỤC ›',
-                  icon: Icons.arrow_forward_rounded,
-                  variant: isSuccess
-                      ? DongSonButtonVariant.natureGreen
-                      : DongSonButtonVariant.primaryCinnabar,
-                  isLoading: st.submitting,
-                  height: 52,
-                  onPressed: st.submitting ? null : _onContinue,
-                ),
-                const SizedBox(height: 10),
-              ],
-            ),
-          ),
-        ),
-      ),
-    );
-  }
 
   /// Thẻ feedback theo `_FeedbackTone` — Duolingo style sheet banner kèm Mascot Kabi TO RÕ.
   Widget _feedbackCard(_Feedback fb) {
