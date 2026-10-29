@@ -1,4 +1,5 @@
-# DẤU VIỆT — Kiến Trúc Bản Đồ Dấu Ấn 2.0 (Learning Path)
+
+> **Cập nhật Issue #36 (2026-10-29):** Trục học trên mobile đã hợp nhất vào `/map` — Bản Đồ Dấu Ấn lấy `GET /api/v1/me/learning-path` làm nguồn đường đi duy nhất; `/journey` redirect sang `/map`. Địa điểm di tích là lớp phụ (ghim vệ tinh + `LocationProfileSheet`) mở khóa sau khi học. Xem mục 8.5.
 
 > Tài liệu kỹ thuật chuẩn hóa nguồn dữ liệu và lộ trình học tập lịch sử Việt Nam (TASK PATH-01).  
 > Phiên bản baseline: `HISTORY_MAIN` v1 (Flyway V33).
@@ -242,3 +243,14 @@ Mỗi sự kiện trong lộ trình được server đánh giá tự động d�
 - Hai cột `map_locations.event_id` và `map_locations.unlock_lesson_id` đã chuyển sang trạng thái **DEPRECATED** từ `V40__heritage_locations.sql`.
 - Trong giai đoạn chuyển tiếp (Phase 1), `AdminMapLocationService` tự động đồng bộ xuống `map_location_events` và `map_location_unlock_lessons` khi gọi qua endpoint legacy `/api/v1/admin/events/{eventId}/map-locations`, còn `MapLocationService` và `LocationUnlockEvaluator` đọc từ hai bảng nối làm nguồn chuẩn.
 - Việc xóa vật lý hai cột (`ALTER TABLE map_locations DROP COLUMN event_id, DROP COLUMN unlock_lesson_id`) được ấn định vào **Milestone M4 Cleanup** ngay sau khi hoàn tất 4 điều kiện: (1) Mobile E4/E5 và Admin D2/D3 hợp nhất hoàn toàn trên `main`, (2) chuyển/ngừng endpoint `/api/v1/admin/events/{eventId}/map-locations`, (3) cập nhật fixture trong `MapLocationIT`, và (4) truy vấn kiểm toán không còn bản ghi mồ côi giữa cột cũ và bảng nối.
+
+### 8.5. Hợp nhất trục học trên Bản Đồ Dấu Ấn (Issue #36)
+
+- **Trước #36:** `/map` vẽ đường đi từ `map_locations` → bài học không gắn di tích "vắng mặt"; `/journey` (`PeriodSelectionScreen`/`PeriodJourneyScreen`) là danh sách chữ đi qua `CampaignDetailScreen`.
+- **Sau #36:** `HistoricalMapScreen` lấy `learningPathProvider` làm nguồn chính:
+  - "Chặng" = `PERIOD` trong cây `ERA → PERIOD → PHASE`; đổi chặng gọi `touchPeriod(periodCode)`; deep-link `/map?period=<code>`.
+  - Node trên canvas = `LearningPathEventNodeDto` theo `sortOrder`, trạng thái `LOCKED/AVAILABLE/IN_PROGRESS/COMPLETED/MASTERED` ánh xạ `MapUnlockState` cho `JourneyPathPainter`.
+  - Chạm node → `EventActionSheet` → CTA "BẮT ĐẦU HỌC"/"TIẾP TỤC HỌC" đi thẳng `/learning/lesson/:lessonId` (bài `IN_PROGRESS` đầu tiên, không có thì `AVAILABLE` đầu tiên).
+  - `/journey` + `/journey/:periodCode` redirect sang `/map`/`/map?period=`; hai màn danh sách cũ đã gỡ.
+  - Địa điểm di tích là **lớp phụ**: ghim vệ tinh cạnh nút sự kiện chỉ hiện khi `unlocked` (`mapLocationsByEventProvider`), tap → `LocationProfileSheet`; đang khóa `HIDDEN_UNTIL_UNLOCKED` không hiện (không gián đoạn luồng học). Bài học không gắn di tích vẫn học/mở khóa bình thường (AC-2).
+  - `LessonPlayerScreen.complete()` invalidate `learningPathProvider` + `mapLocationsProvider` để nút kế và ghim di tích cập nhật ngay; `UnlockedLocationBanner` "Tiếp tục học" → `/map`; bottom-nav tab 1 "Hành trình".

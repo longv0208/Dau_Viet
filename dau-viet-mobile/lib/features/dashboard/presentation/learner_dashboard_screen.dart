@@ -674,7 +674,15 @@ class _LearnerDashboardScreenState
                     subtitle: subtitle,
                     progressFraction: fraction,
                     progressText: progressText,
-                    onTap: () => context.go('/campaign/${event.eventId}'),
+                    // Issue #36: CTA "Bài học hôm nay" dẫn thẳng Bản Đồ Dấu
+                    // Ấn tại chặng thời kỳ đang học (resume cursor), không
+                    // qua màn danh sách/chiến dịch trung gian.
+                    onTap: () => context.go(
+                      target.period != null &&
+                              target.period!.code.isNotEmpty
+                          ? '/map?period=${target.period!.code}'
+                          : '/map',
+                    ),
                   );
                 }
                 return _buildTodayLessonCard(

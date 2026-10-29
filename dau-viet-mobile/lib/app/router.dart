@@ -24,8 +24,6 @@ import '../features/learning/presentation/lesson_player_screen.dart';
 import '../features/learning/presentation/lesson_result_screen.dart';
 import '../features/learning/presentation/matching_board_screen.dart';
 import '../features/learning/presentation/multiple_choice_quiz_screen.dart';
-import '../features/learning_path/presentation/period_journey_screen.dart';
-import '../features/learning_path/presentation/period_selection_screen.dart';
 import '../features/map/presentation/historical_map_screen.dart';
 import '../features/map/presentation/location_profile_screen.dart';
 import '../features/meta/presentation/energy_management_screen.dart';
@@ -190,18 +188,16 @@ final appRouter = GoRouter(
       builder: (context, state) => const TimelineScreen(),
     ),
 
-    // E2 / A3: Màn Chọn Thời Kỳ & Hành Trình Thời Kỳ (Learning Path 2.0)
+    // Issue #36: `/journey` (danh sách chữ cũ) được hợp nhất vào Bản Đồ
+    // Dấu Ấn `/map` — giữ redirect để deep-link cũ không gãy.
     GoRoute(
       path: '/journey',
-      name: 'period_selection',
-      builder: (context, state) => const PeriodSelectionScreen(),
+      redirect: (context, state) => '/map',
       routes: [
         GoRoute(
           path: ':periodCode',
-          name: 'period_journey',
-          builder: (context, state) => PeriodJourneyScreen(
-            periodCode: state.pathParameters['periodCode'] ?? '',
-          ),
+          redirect: (context, state) =>
+              '/map?period=${state.pathParameters['periodCode'] ?? ''}',
         ),
       ],
     ),
@@ -221,11 +217,13 @@ final appRouter = GoRouter(
       name: 'historical_map',
       builder: (context, state) {
         final view = state.uri.queryParameters['view'];
+        final period = state.uri.queryParameters['period'];
         final eventId = state.uri.queryParameters['eventId'];
         return HistoricalMapScreen(
           initialMode: view == 'timeline'
               ? ExploreViewMode.timeline
               : ExploreViewMode.map,
+          initialPeriodCode: period,
           initialEventId: eventId,
         );
       },

@@ -2,6 +2,41 @@
 
 > Detailed record of significant changes, features và fixes. Newest first.
 
+
+## 2026-10-29 — Issue #36: Học trực tiếp trên Bản đồ Dấu Ấn & Mở khóa Di tích sau khi học
+
+**Scope:** Hợp nhất luồng học chính vào Bản đồ Dấu Ấn (`/map`) — trục đường đi lấy từ `GET /api/v1/me/learning-path` thay vì `map_locations`; di tích trở thành lớp phụ mở khóa sau khi học (ghim vệ tinh). Plan: `plans/261029-issue-36-map-learning/plan.md`. Backend/Flyway: không đổi (contract hiện đủ).
+
+**Mobile (`dau-viet-mobile`)**
+- `features/map/presentation/path_event_node.dart` (mới): `PathEventNode` — nút sự kiện trên canvas; `LearnerPathStatus` → màu/icon (`LOCKED`/`AVAILABLE`/`IN_PROGRESS`/`COMPLETED`/`MASTERED`/`NOT_READY`/`EXPLORATION_ONLY`); chip `x/y bài` khi sự kiện nhiều bài.
+- `features/map/presentation/event_action_sheet.dart` (mới): `EventActionSheet` — bottom sheet khi chạm node; cover `coverAssetKey`, `yearLabel`, tiến độ bài, CTA "BẮT ĐẦU HỌC"/"TIẾP TỤC HỌC"/"ÔN LẠI" đi thẳng `/learning/lesson/:lessonId`; `LOCKED`/`NOT_READY` hiện điều kiện; chip di tích đã mở của sự kiện → `LocationProfileSheet`.
+- `historical_map_screen.dart` (viết lại): nguồn chính `learningPathProvider` (không còn `mapLocationsProvider` làm trục); "Chặng" = `PERIOD` nhóm theo `ERA`; đổi chặng → `touchPeriod(periodCode)`; deep-link `/map?period=<code>` (và `?eventId=` backward-compat); `_SatellitePins` render ghim di tích `unlocked` cạnh node sự kiện → `LocationProfileSheet`; strip đáy = di tích đã mở của chặng (`mapLocationsByPeriodProvider`); `/map?view=timeline` giữ compat.
+- `map_providers.dart`: thêm `mapLocationsByEventProvider(eventId)` + `mapLocationsByPeriodProvider(periodCode)`.
+- `router.dart`: `/journey` + `/journey/:periodCode` → `redirect` sang `/map`/`/map?period=`; xóa import `PeriodSelectionScreen`/`PeriodJourneyScreen`.
+- `main_bottom_nav.dart`: `/journey` → tab 1; label tab 1 đổi "Khám phá" → "Hành trình".
+- `learner_dashboard_screen.dart`: card "Bài học hôm nay" → `/map?period=<code>` (resume cursor trên Bản đồ).
+- `timeline_screen.dart`: redirect `/journey` → `/map`.
+- `lesson_player_screen.dart`: sau `complete()` invalidate `learningPathProvider` + `mapLocationsProvider`.
+- `unlocked_location_banner.dart`: "Tiếp tục học" → `/map` (trước `/dashboard`/`/journey`).
+- **Xóa:** `period_selection_screen.dart`, `period_journey_screen.dart`; cập nhật `learning_path_presentation.dart` (chỉ export `path_status_badge.dart`).
+
+**Admin (`dau-viet-admin`)**
+- `unlocked-locations-card.tsx`: copy nói rõ gắn di tích là **tùy chọn — phần thưởng khám phá sau khi học**; empty-state "không bắt buộc"; badge hiển thị sự kiện liên kết (`"hiện cạnh sự kiện X trên Bản đồ Dấu Ấn"`).
+- `map-locations-page.tsx` (tab `unlock`): helper text cùng thông điệp; `unlockRuleMode NONE` = "mở tự do — không gắn bài học". Không đổi mutation/API.
+
+**Tests**
+- Mới `test/map/path_map_test.dart` (7 case): render node từ learning path; bài không gắn di tích vẫn hiện (AC-2); tap `AVAILABLE` → sheet → `/learning/lesson/:id` (AC-1); `LOCKED` không CTA; ghim vệ tinh chỉ khi `unlocked`, `HIDDEN_UNTIL_UNLOCKED`+locked ẩn (AC-3); đổi chặng → `touchPeriod`; `?period=` deep-link; error + retry.
+- `test/map/journey_map_ui_test.dart`: giữ `LocationProfileScreen`/`LocationProfileSheet` tests; gỡ test map-axis `map_locations` cũ.
+- `test/learning/unlocked_location_banner_test.dart`: "Tiếp tục học" → `/map`.
+- `test/timeline_events_test.dart`, `test/widget_test.dart`: cập nhật `/journey` → `/map`.
+- **Xóa:** `test/map/historical_map_test.dart` (map-axis cũ), `test/learning_path/period_journey_screen_test.dart` + `learning_flow_e2e_integration_test.dart` (pin vào 2 màn đã gỡ).
+
+**Verification**
+- `flutter analyze`: 0 errors.
+- `flutter test test/map/ test/learning/unlocked_location_banner_test.dart test/timeline_events_test.dart test/widget_test.dart test/dashboard/`: all passed (map 10/10, banner, timeline, widget E2E, dashboard).
+- Admin `npx vitest run src/features/events/map-locations-section.test.tsx src/features/lessons`: 83/83 pass; `tsc --noEmit` chỉ còn lỗi pre-existing (`qk` import thiếu ở `map-locations-page.tsx`, `map-location.ts` union types) không do thay đổi này.
+
+**Docs updated:** `docs/LEARNING_PATH_2_0.md` (mục 8.5), `docs/PROJECT_OVERVIEW.md` (bảng đã code), `docs/project-changelog.md`.
 ## 2026-10-29 — TASK-0021 / Issue #34: OTP đăng ký, quên mật khẩu và đăng nhập Google
 
 **Scope:** Nâng cấp xác thực theo Issue #34 — đăng ký xác thực OTP qua email, quên/đặt lại mật khẩu bằng OTP với thu hồi phiên, đăng nhập Google (idToken) có account linking. Plan: `plans/261029-issue-34-auth-otp-google/plan.md`.
@@ -17,7 +52,6 @@
 - `RegisterScreen` → luồng 2 bước qua `OtpVerificationScreen` mới (ô nhập 6 số, countdown resend 60s); `ForgotPasswordScreen` + `ResetPasswordScreen` cho luồng khôi phục; nút "Quên mật khẩu?" và "Tiếp tục với Google" trên `AuthScreen` (`google_sign_in` + gateway provider mockable). Routes mới: `/auth/forgot`, `/auth/otp`, `/auth/reset-password`.
 
 **Tests/Docs** — `OtpServiceTest` (11), `AuthServiceTest` viết lại (15), `GoogleAuthServiceTest` (7), `AuthControllerIT` viết lại cho contract OTP (Docker-blocked locally), mobile auth tests 29/29 pass. Docs: `API_SPEC.md`, `DATABASE_DESIGN.md`, `backend-runbook.md` (`MAIL_*`/`GOOGLE_CLIENT_IDS` envs).
-
 
 ## 2026-10-28 — PATH-2.0 & HERITAGE-MAP-2.0 (Epics A–F, Issues #2–#26): Luồng Học Theo Thời Kỳ & Bản Đồ Di Sản
 

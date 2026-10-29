@@ -104,6 +104,7 @@ Phân biệt **mục tiêu MVP** ở trên với **đã implement trong source**
 | Learner: `lessons/{id}` + `/content`, attempts start/resume/current/content, submissions, complete → `lesson_results`, `/me/attempts`, `/me/progress` | `/me/collection` (chưa có endpoint), reward/EXP grant |
 | Snapshot immutable, learner-safe projection, idempotency persist (`SUBMIT_ACTIVITY`, `COMPLETE_ATTEMPT`) | Story tổng quát sau mọi lesson; UX Submit→Feedback→Continue chưa hoàn thiện phía Flutter |
 | **Learning Path 2.0 & Historical Map v2** (V33–V43, Epics A–F): cây `ERA -> PERIOD -> PHASE -> EVENT -> LESSON`, mở khóa tuần tự theo từng thời kỳ (`GET /me/learning-path`, `POST .../periods/{code}/touch`), địa điểm di tích độc lập N–N sự kiện/bài học (`ANY`/`ALL`), lọc media `UNLOCKED_ONLY`, Admin CMS & Mobile E2E | Gỡ vật lý 2 cột deprecated `map_locations.event_id`, `unlock_lesson_id` ở Milestone M4 Cleanup (ADR-009) |
+| **Học trực tiếp trên Bản Đồ Dấu Ấn** (Issue #36): `/map` lấy `learning-path` làm trục đường đi (không còn `map_locations` làm trục); chạm node sự kiện → sheet → Bắt đầu/Tiếp tục học; `/journey` redirect `/map`; di tích đã mở = ghim vệ tinh cạnh node → `LocationProfileSheet` | — |
 | — | **Collection Dấu** (FR-39–41): `user_evidence` chỉ là schema, chưa có API/UI backend-connected |
 | — | **EXP/reward thật** (FR-34): `reward_transactions` chỉ là schema, `complete()` chưa grant |
 | — | **Heritage Island / Shop / Energy** (design M-22–M-28): UI demo hard-coded, chưa có catalog/ownership/placement backend |
