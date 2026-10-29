@@ -3,7 +3,7 @@
   "id": "TASK-0030",
   "type": "feature",
   "risk": "high",
-  "status": "verifying",
+  "status": "done",
   "goal": "[LEARNING-MAP] Issue #36 — Học trực tiếp trên Bản đồ Dấu Ấn (learning-path làm trục chính), mở khóa Địa điểm Di tích sau khi hoàn thành bài học (ghim vệ tinh), đồng bộ copy Admin 'tùy chọn'.",
   "owner": "claude",
   "modules": ["mobile", "admin"],
@@ -52,10 +52,11 @@
     "changelog: docs/project-changelog.md mục 2026-10-29 Issue #36"
   ],
   "notes": [
+    "Merged to main: feat/issue-36-learning-map-flow -> main (commit 56d5e2f, 2026-10-29). flutter analyze sạch sau merge, test/map/ 10/10 pass.",
     "Đã chốt: /journey redirect -> /map (xóa PeriodSelectionScreen/PeriodJourneyScreen); tab bottom-nav 'Hành trình'; ghim di tích vệ tinh inline trên canvas.",
     "Backend Java/Flyway không đổi — contract hiện đủ dùng.",
     "Verify: flutter analyze sạch; 24 widget tests pass; admin 83/83 pass; AC-1/2/3 cover bởi path_map_test.dart; chờ review cuối + smoke app.",
     "TASK id rename: branch này bắt đầu với TASK-0028 nhưng main đã dùng TASK-0028 cho Issue #35 và TASK-0029 cho Issue #29 -> đổi sang TASK-0030 khi merge."
   ],
-  "nextAction": "Optional smoke-run `flutter run` kiểm tra visual /map; sau đó merge vào main + status done."
+  "nextAction": "Hoàn tất — Issue #36 đã merge vào main (56d5e2f). Smoke-run visual `flutter run` có thể thực hiện khi cần kiểm tra UI thật."
 }
