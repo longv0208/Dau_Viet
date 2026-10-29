@@ -50,6 +50,16 @@ const REQUIRED_FEEDBACK_TYPES = new Set([
   "CER_CHOICE",
 ]);
 
+/** Issue #35: loại chấm tự động trả PARTIAL/EXHAUSTED ngoài COMPLETED/INCORRECT. */
+const GRADED_3_LEVEL_TYPES = new Set([
+  "EVIDENCE_SELECT",
+  "MATCHING",
+  "REASONING_CONNECT",
+  "DRAG_ORDER",
+  "CER_CHOICE",
+]);
+/** MULTIPLE_CHOICE emits COMPLETED/INCORRECT + EXHAUSTED only — no PARTIAL. */
+const MCQ_TYPES = new Set(["MULTIPLE_CHOICE"]);
 function apath(c: Ctx, field?: string): string {
   const base = `stages[id=${c.stage.id}].activities[${c.actIdx}]`;
   return field ? `${base}.config.${field}` : `${base}.config`;
@@ -103,7 +113,12 @@ function validateEvidenceSelect(c: Ctx) {
           `Bằng chứng đúng ${extra.map((x) => evidenceLabel(c.cat, String(x))).join(", ")} chưa nằm trong danh sách hiển thị.`);
       }
     }
+  } else {
+    // Issue #35: chuỗi auto-graded — bắt buộc khai báo đáp án để server chấm.
+    push(c, "graded", "INVALID_CONFIG",
+      "Bắt buộc bật chấm điểm (graded) và khai báo bằng chứng đúng — luồng chuẩn chấm tự động 100%.");
   }
+  checkMaxAttempts(c);
 }
 
 function validateDragOrder(c: Ctx) {
@@ -127,8 +142,110 @@ function validateDragOrder(c: Ctx) {
     push(c, "expectedOrder", "INVALID_CONFIG",
       "Thứ tự đúng phải là hoán vị của các mục — kiểm tra lại id mục.");
   }
+  checkMaxAttempts(c);
 }
 
+function idOf(v: unknown): string | null {
+  if (v && typeof v === "object" && "id" in v && typeof v.id === "string") return v.id;
+  return null;
+}
+
+function validateMatching(c: Ctx) {
+  const cfg = c.act.config ?? {};
+  const pairs = getArray(cfg.pairs) ?? [];
+  if (pairs.length < 2) {
+    push(c, "pairs", "INVALID_CONFIG", "Cần ít nhất 2 cặp để ghép.");
+    return;
+  }
+  const leftIds = new Set<string>();
+  const rightIds = new Set<string>();
+  for (const p of pairs) {
+    if (!p || typeof p !== "object") continue;
+    const l = "left" in p ? idOf(p.left) : null;
+    const r = "right" in p ? idOf(p.right) : null;
+    if (l != null) leftIds.add(l);
+    if (r != null) rightIds.add(r);
+  }
+  const correct = getArray(cfg.correctPairs);
+  if (!correct || correct.length === 0) {
+    push(c, "correctPairs", "MISSING_FIELD",
+      "Chưa khai báo cặp ghép đúng — hoạt động chấm tự động cần đáp án.");
+  } else {
+    for (const cp of correct) {
+      if (!cp || typeof cp !== "object") continue;
+      const l = "left" in cp && typeof cp.left === "string" ? cp.left : null;
+      const r = "right" in cp && typeof cp.right === "string" ? cp.right : null;
+      if (l == null || !leftIds.has(l) || r == null || !rightIds.has(r)) {
+        push(c, "correctPairs", "INVALID_CONFIG",
+          "Cặp đúng phải tham chiếu id đã khai báo trong danh sách cặp.");
+        break;
+      }
+    }
+  }
+  checkMaxAttempts(c);
+}
+
+function validateMultipleChoice(c: Ctx) {
+  const cfg = c.act.config ?? {};
+  const options = getArray(cfg.options) ?? [];
+  if (options.length < 2) {
+    push(c, "options", "INVALID_CONFIG", "Cần ít nhất 2 phương án.");
+    return;
+  }
+  const optIds = new Set(
+    options.map((o) => idOf(o)).filter((x): x is string => x != null),
+  );
+  const correct = getArray(cfg.correctOptionIds);
+  const multi = getArray(cfg.multiCorrect);
+  const chosen = correct && correct.length > 0 ? correct : multi;
+  if (!chosen || chosen.length === 0) {
+    push(c, "correctOptionIds", "MISSING_FIELD",
+      "Chưa khai báo đáp án đúng — hoạt động chấm tự động cần đáp án.");
+  } else if (chosen.some((x) => typeof x === "string" && !optIds.has(x))) {
+    push(c, "correctOptionIds", "INVALID_CONFIG",
+      "Đáp án đúng phải nằm trong danh sách phương án.");
+  }
+  checkMaxAttempts(c);
+}
+
+function validateHypothesisChoice(c: Ctx) {
+  const cfg = c.act.config ?? {};
+  const hyps = getArray(cfg.hypotheses) ?? [];
+  if (hyps.length < 2) {
+    push(c, "hypotheses", "INVALID_CONFIG",
+      "Cần ít nhất 2 giả thuyết để học viên lựa chọn.");
+  }
+}
+
+function validateVerification(c: Ctx) {
+  // Backend VerificationValidator chỉ kiểm id/ref + maxAttempts — không bắt
+  // buộc expectedHypothesis (vắng → auto-SUPPORT khi evidence đủ). Bỏ check
+  // required ở đây để không chặn draft hợp lệ.
+  checkMaxAttempts(c);
+}
+
+function validateReasoningConnect(c: Ctx) {
+  const cfg = c.act.config ?? {};
+  if (cfg.graded === true) {
+    const hasExpected = (getArray(cfg.expectedRelations) ?? []).length > 0;
+    const hasAlts = (getArray(cfg.acceptedRelationSets) ?? []).length > 0;
+    if (!hasExpected && !hasAlts) {
+      push(c, "expectedRelations", "MISSING_FIELD",
+        "Chế độ chấm điểm cần quan hệ đúng hoặc tập chấp nhận được.");
+    }
+  }
+  checkMaxAttempts(c);
+}
+
+function checkMaxAttempts(c: Ctx) {
+  const cfg = c.act.config ?? {};
+  const v = cfg.maxAttempts;
+  if (v == null) return;
+  if (typeof v !== "number" || !Number.isInteger(v) || v < 1 || v > 20) {
+    push(c, "maxAttempts", "INVALID_VALUE",
+      "Số lượt thử tối đa phải là số nguyên 1–20.");
+  }
+}
 function validateCerChoice(c: Ctx) {
   const cfg = c.act.config ?? {};
   const claims = getArray(cfg.claims) ?? [];
@@ -198,6 +315,18 @@ function validateFeedback(c: Ctx) {
   const missing: string[] = [];
   if (typeof fb.COMPLETED !== "string" || !fb.COMPLETED.trim()) missing.push("COMPLETED");
   if (typeof fb.INCORRECT !== "string" || !fb.INCORRECT.trim()) missing.push("INCORRECT");
+  // Issue #35: chuỗi auto-graded báo 3 mức + hết lượt thử.
+  if (GRADED_3_LEVEL_TYPES.has(c.act.type)) {
+    if (typeof fb.PARTIAL !== "string" || !fb.PARTIAL.trim()) missing.push("PARTIAL");
+    if (typeof fb.EXHAUSTED !== "string" || !fb.EXHAUSTED.trim()) missing.push("EXHAUSTED");
+  }
+  if (MCQ_TYPES.has(c.act.type)) {
+    if (typeof fb.EXHAUSTED !== "string" || !fb.EXHAUSTED.trim()) missing.push("EXHAUSTED");
+  }
+  if (c.act.type === "VERIFICATION") {
+    if (typeof fb.SUPPORTED !== "string" || !fb.SUPPORTED.trim()) missing.push("SUPPORTED");
+    if (typeof fb.CONTRADICTED !== "string" || !fb.CONTRADICTED.trim()) missing.push("CONTRADICTED");
+  }
   if (missing.length > 0) {
     c.out.push({
       path: `stages[id=${c.stage.id}].activities[${c.actIdx}].feedback`,
@@ -229,6 +358,11 @@ export function validateDraftLocally(
         case "VIEW_IMAGE": validateViewImage(ctx); break;
         case "EVIDENCE_SELECT": validateEvidenceSelect(ctx); break;
         case "DRAG_ORDER": validateDragOrder(ctx); break;
+        case "MATCHING": validateMatching(ctx); break;
+        case "MULTIPLE_CHOICE": validateMultipleChoice(ctx); break;
+        case "HYPOTHESIS_CHOICE": validateHypothesisChoice(ctx); break;
+        case "VERIFICATION": validateVerification(ctx); break;
+        case "REASONING_CONNECT": validateReasoningConnect(ctx); break;
         case "CER_CHOICE": validateCerChoice(ctx); break;
       }
       validateFeedback(ctx);

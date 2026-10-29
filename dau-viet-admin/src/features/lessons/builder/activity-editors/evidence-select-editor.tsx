@@ -14,8 +14,18 @@ export function EvidenceSelectEditor(props: EditorProps) {
   const { activity, eventId, readOnly, onChange } = props;
   const ids = (activity.config?.visibleEvidenceIds as string[] | undefined) ?? [];
   const minRequired = (activity.config?.minRequired as number | undefined) ?? "";
-  const graded = (activity.config?.graded as boolean | undefined) ?? false;
+  // Issue #35: graded is locked ON — every EVIDENCE_SELECT in the 4-stage
+  // chain auto-grades server-side; the toggle is display-only.
+  const graded = true;
   const acceptedIds = (activity.config?.acceptedEvidenceIds as string[] | undefined) ?? [];
+
+  // Wrap onChange so every config write keeps graded:true persisted —
+  // the handler reads config.graded at evaluation time.
+  const persistGraded = (patch: Parameters<typeof onChange>[0]) => {
+    const next = { ...patch };
+    next.config = { ...(patch.config ?? activity.config ?? {}), graded: true };
+    onChange(next);
+  };
 
   return (
     <div className="flex flex-col gap-3 rounded-md border border-border bg-white p-3">
@@ -28,20 +38,18 @@ export function EvidenceSelectEditor(props: EditorProps) {
         eventId={eventId}
         readOnly={readOnly}
         onChange={(next) =>
-          onChange({ config: { ...activity.config, visibleEvidenceIds: next } })
+          persistGraded({ config: { ...activity.config, visibleEvidenceIds: next } })
         }
       />
       <label className="flex items-center gap-2 text-sm text-ink">
         <input
           type="checkbox"
           className="size-4 accent-brand"
-          checked={graded}
-          disabled={readOnly}
-          onChange={(e) =>
-            onChange({ config: { ...activity.config, graded: e.target.checked || undefined } })
-          }
+          checked={true}
+          disabled={true}
+          readOnly
         />
-        Chấm điểm theo đáp án (graded)
+        Chấm điểm theo đáp án (graded) — bắt buộc theo luồng 4 giai đoạn
       </label>
       {graded && (
         <>
@@ -53,7 +61,7 @@ export function EvidenceSelectEditor(props: EditorProps) {
             eventId={eventId}
             readOnly={readOnly}
             onChange={(next) =>
-              onChange({ config: { ...activity.config, acceptedEvidenceIds: next } })
+              persistGraded({ config: { ...activity.config, acceptedEvidenceIds: next } })
             }
           />
           <div className="flex flex-col gap-1.5">
@@ -69,7 +77,7 @@ export function EvidenceSelectEditor(props: EditorProps) {
                 const n = e.target.value.trim();
                 const v = n === "" ? undefined : Number(n);
                 if (v !== undefined && Number.isNaN(v)) return;
-                onChange({ config: { ...activity.config, maxAttempts: v } });
+                persistGraded({ config: { ...activity.config, maxAttempts: v } });
               }}
             />
             <p className="text-xs text-ink-muted">
@@ -90,7 +98,7 @@ export function EvidenceSelectEditor(props: EditorProps) {
                 const n = e.target.value.trim();
                 const v = n === "" ? undefined : Number(n);
                 if (v !== undefined && Number.isNaN(v)) return;
-                onChange({ config: { ...activity.config, remedialAttempts: v } });
+                persistGraded({ config: { ...activity.config, remedialAttempts: v } });
               }}
             />
             <p className="text-xs text-ink-muted">
@@ -114,7 +122,7 @@ export function EvidenceSelectEditor(props: EditorProps) {
             const n = e.target.value.trim();
             const v = n === "" ? undefined : Number(n);
             if (v !== undefined && Number.isNaN(v)) return;
-            onChange({
+            persistGraded({
               config: { ...activity.config, minRequired: v },
             });
           }}
