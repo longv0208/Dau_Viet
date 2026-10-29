@@ -14,7 +14,9 @@ import '../../learning/data/learning_providers.dart';
 import '../data/island_dto.dart';
 import '../data/island_providers.dart';
 import 'widgets/island_inventory_sheet.dart';
+import 'widgets/island_inventory_tray.dart';
 import 'widgets/island_scene.dart';
+import 'widgets/island_tier_tabs.dart';
 import 'widgets/island_tile_sheet.dart';
 import 'widgets/island_upgrade_panel.dart';
 import 'widgets/island_visual_asset_manager.dart';
@@ -36,6 +38,8 @@ class IslandScreen extends ConsumerStatefulWidget {
 class _IslandScreenState extends ConsumerState<IslandScreen>
     with SingleTickerProviderStateMixin {
   String? _selectedSlotId;
+  String? _selectedTrayItemId;   // V51: item đang chọn trên khay Kho Vật Phẩm
+  int _previewTier = 1;          // V51: tab cấp đảo đang xem (1/2/3)
   bool _isMutating = false;
   bool _isSheetOpen = false;
   int _resetCameraVersion = 0;
@@ -500,6 +504,10 @@ class _IslandScreenState extends ConsumerState<IslandScreen>
   }
 
   Widget _buildIslandContent(IslandDto island) {
+    // Clamp previewTier vào range hợp lệ (1..maxTier)
+    if (_previewTier < 1) _previewTier = 1;
+    if (_previewTier > island.maxTier) _previewTier = island.maxTier;
+
     final selectedSlot = island.slots.cast<IslandSlotDto?>().firstWhere(
       (s) => s?.slotId == _selectedSlotId,
       orElse: () => null,
@@ -510,16 +518,19 @@ class _IslandScreenState extends ConsumerState<IslandScreen>
         _expandingFromTier != null &&
         _expandingToTier != null;
 
+    // V51: đảo xem theo previewTier — chỉ render slots/tiles unlock <= previewTier
+    final visibleIsland = _islandForTier(island, _previewTier);
+
     return Stack(
       children: [
-        // 1. Canvas 2.5D Isometric Scene (lắng nghe tiến độ mở rộng đảo nếu đang chạy)
+        // 1. Canvas 2.5D Isometric Scene
         Positioned.fill(
           child: isAnimatingExpansion
               ? AnimatedBuilder(
                   animation: _expansionController!,
                   builder: (context, _) {
                     return IslandScene(
-                      island: island,
+                      island: visibleIsland,
                       selectedSlotId: _selectedSlotId,
                       transformationController: _transformationController,
                       cameraDirection: _cameraDirection,
@@ -537,7 +548,7 @@ class _IslandScreenState extends ConsumerState<IslandScreen>
                   },
                 )
               : IslandScene(
-                  island: island,
+                  island: visibleIsland,
                   selectedSlotId: _selectedSlotId,
                   transformationController: _transformationController,
                   cameraDirection: _cameraDirection,
@@ -545,14 +556,30 @@ class _IslandScreenState extends ConsumerState<IslandScreen>
                   activeEffectSlotId: _activeEffectSlotId,
                   placementEffectToken: _placementEffectToken,
                   removalEffectToken: _removalEffectToken,
-                  onSelectSlot: (slot) {
-                    setState(() {
-                      _selectedSlotId = slot?.slotId;
-                      if (slot == null) _showSlotStepHint = false;
-                    });
-                  },
+                  onSelectSlot: (slot) => _onSlotTap(slot, island),
                 ),
         ),
+
+        // 2. Thanh chuyển 3 cấp đảo (V51)
+        if (!isAnimatingExpansion && !_showWelcomeCard)
+          Positioned(
+            top: 12,
+            left: 0,
+            right: 0,
+            child: Center(
+              child: IslandTierTabs(
+                island: island,
+                previewTier: _previewTier,
+                onSelectTier: (t) {
+                  setState(() {
+                    _previewTier = t;
+                    _selectedSlotId = null;
+                    _selectedTrayItemId = null;
+                  });
+                },
+              ),
+            ),
+          ),
 
         // 2. Nút "BỎ QUA" khi chuỗi animation mở rộng đảo đang chạy (Part B4)
         if (isAnimatingExpansion)
@@ -665,74 +692,20 @@ class _IslandScreenState extends ConsumerState<IslandScreen>
             ),
           ),
 
-        // Thanh công cụ nổi tối giản ở đáy khi không chọn slot
-        if (!isAnimatingExpansion && selectedSlot == null)
+        // V51: Khay "Kho vật phẩm của bạn" docked đáy — chọn item → chạm ô đất để đặt
+        if (!isAnimatingExpansion && selectedSlot == null && !_showWelcomeCard)
           Positioned(
-            left: 16,
-            right: 16,
-            bottom: 16,
-            child: Center(
-              child: ConstrainedBox(
-                constraints: const BoxConstraints(maxWidth: 540),
-                child: Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-                  decoration: BoxDecoration(
-                    color: const Color(0xF2FFF8EC),
-                    borderRadius: BorderRadius.circular(26),
-                    border: Border.all(color: const Color(0xFFD9C098), width: 1.5),
-                    boxShadow: [
-                      BoxShadow(
-                        color: Colors.black.withValues(alpha: 0.16),
-                        blurRadius: 12,
-                        offset: const Offset(0, 4),
-                      ),
-                    ],
-                  ),
-                  child: FittedBox(
-                    fit: BoxFit.scaleDown,
-                    child: Row(
-                      mainAxisAlignment: MainAxisAlignment.spaceEvenly,
-                      children: [
-                        _buildFloatingActionBtn(
-                          icon: Icons.inventory_2_outlined,
-                          label: 'Kho đồ',
-                          onTap: () {
-                            final empty =
-                                island.slots.where((s) => s.isEmpty).firstOrNull ??
-                                island.slots.firstOrNull;
-                            if (empty != null) {
-                              _openInventorySheet(empty);
-                            } else {
-                              context.push('/island/shop');
-                            }
-                          },
-                        ),
-                        _buildFloatingActionBtn(
-                          icon: Icons.storefront_outlined,
-                          label: 'Cửa hàng',
-                          onTap: () => context.push('/island/shop'),
-                        ),
-                        _buildFloatingActionBtn(
-                          icon: Icons.landscape_rounded,
-                          label: 'Mở rộng đảo',
-                          isHighlight: island.canUpgrade && !island.isMaxTier,
-                          onTap: () => _openUpgradePanel(island),
-                        ),
-                        _buildFloatingActionBtn(
-                          icon: Icons.threesixty_rounded,
-                          label: 'Góc ${_cameraDirection.shortCode}',
-                          onTap: _rotateCameraRight,
-                        ),
-                        _buildFloatingActionBtn(
-                          icon: Icons.center_focus_strong_rounded,
-                          label: 'Căn giữa',
-                          onTap: _resetCameraAndAngle,
-                        ),
-                      ],
-                    ),
-                  ),
-                ),
-              ),
+            left: 0,
+            right: 0,
+            bottom: 0,
+            child: IslandInventoryTray(
+              island: island,
+              selectedItemId: _selectedTrayItemId,
+              onSelectItem: (itemId) {
+                setState(() {
+                  _selectedTrayItemId = itemId;
+                });
+              },
             ),
           ),
 
@@ -856,43 +829,6 @@ class _IslandScreenState extends ConsumerState<IslandScreen>
     );
   }
 
-  Widget _buildFloatingActionBtn({
-    required IconData icon,
-    required String label,
-    required VoidCallback onTap,
-    bool isHighlight = false,
-  }) {
-    return InkWell(
-      onTap: onTap,
-      borderRadius: BorderRadius.circular(16),
-      child: Padding(
-        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
-        child: Row(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Icon(
-              icon,
-              size: 18,
-              color: isHighlight
-                  ? DauVietColors.cinnabarRed
-                  : const Color(0xFF5D4037),
-            ),
-            const SizedBox(width: 5),
-            Text(
-              label,
-              style: DauVietTypography.bodySmall.copyWith(
-                fontWeight: isHighlight ? FontWeight.bold : FontWeight.w600,
-                color: isHighlight
-                    ? DauVietColors.cinnabarRed
-                    : const Color(0xFF49382C),
-                fontSize: 12,
-              ),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
 
   /// Thẻ chào mừng lần đầu ngắn gọn, giải thích rõ mục đích Đảo Di Sản,
   /// sự khác biệt giữa EXP/Level (mở rộng đảo) và Điểm Sử Ký (mua vật phẩm).
@@ -1251,6 +1187,54 @@ class _IslandScreenState extends ConsumerState<IslandScreen>
     } finally {
       _isSheetOpen = false;
     }
+  }
+
+  /// V51: chạm ô đất trên đảo.
+  /// - Nếu có item đang chọn trên khay → đặt trực tiếp (không mở sheet).
+  /// - Ngược lại → mở `IslandTileSheet` inspector.
+  void _onSlotTap(IslandSlotDto? slot, IslandDto island) {
+    if (slot == null) {
+      setState(() {
+        _selectedSlotId = null;
+        _showSlotStepHint = false;
+      });
+      return;
+    }
+    if (_selectedTrayItemId != null &&
+        slot.unlocked &&
+        slot.placement == null) {
+      // Đặt item trực tiếp — cho phép nhiều bản sao (backend V51).
+      _placeItem(slot, _selectedTrayItemId!);
+      return;
+    }
+    setState(() {
+      _selectedSlotId = slot.slotId;
+      _showSlotStepHint = false;
+    });
+  }
+
+  /// V51: trả bản IslandDto chỉ giữ slots/tiles unlocked <= viewTier để
+  /// render 3 cấp đảo (đảo nhỏ = chỉ 12 ô T1, đảo vừa = 28 ô T1+T2, lớn = 56).
+  /// Khi viewTier > island.tier (preview locked), hiển thị slots/tiles của
+  /// tier đó dưới dạng locked (IslandScene tự render khoá theo unlockTier).
+  IslandDto _islandForTier(IslandDto island, int viewTier) {
+    if (viewTier == island.tier) return island;
+    if (island.tiers.isEmpty || island.board == null) return island;
+    // Preview tier thấp hơn: lọc bỏ slots/tiles của tier cao hơn để thu nhỏ đảo.
+    final filteredSlots = island.slots
+        .where((s) => s.unlockTier <= viewTier)
+        .toList();
+    final filteredTiles = island.board!.tiles
+        .where((t) => t.unlockTier <= viewTier)
+        .toList();
+    final filteredRegions = island.regions
+        .where((r) => r.unlockTier <= viewTier)
+        .toList();
+    return island.copyWith(
+      slots: filteredSlots,
+      regions: filteredRegions,
+      board: island.board!.copyWithTiles(filteredTiles),
+    );
   }
 
   Future<void> _placeItem(IslandSlotDto slot, String itemId) async {

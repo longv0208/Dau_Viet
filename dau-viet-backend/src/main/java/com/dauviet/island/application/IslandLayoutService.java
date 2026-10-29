@@ -1662,6 +1662,20 @@ public class IslandLayoutService {
         }
     }
 
+    /**
+     * Parse một JSON array of string an toàn — trả empty list khi lỗi/rỗng.
+     * Dùng cho highlights_json của island_tier_policies (V51).
+     */
+    public List<String> parseStringList(String json) {
+        if (json == null || json.isBlank()) return List.of();
+        try {
+            List<String> list = objectMapper.readValue(json, new TypeReference<List<String>>() {});
+            return list == null ? List.of() : list;
+        } catch (Exception e) {
+            return List.of();
+        }
+    }
+
     private String serializeAllowedCategories(List<String> categories) {
         List<String> clean = (categories == null || categories.isEmpty())
                 ? List.of("DECOR")
