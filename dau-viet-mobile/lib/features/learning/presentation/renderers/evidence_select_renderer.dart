@@ -38,8 +38,14 @@ class _EvidenceSelectRendererState extends State<EvidenceSelectRenderer> {
 
   void _toggle(String id) {
     HapticFeedback.selectionClick();
+    final int? maxSelect = (widget.activity.config['maxSelect'] as num?)
+        ?.toInt();
     setState(() {
-      _selected.contains(id) ? _selected.remove(id) : _selected.add(id);
+      if (_selected.contains(id)) {
+        _selected.remove(id);
+      } else if (maxSelect == null || _selected.length < maxSelect) {
+        _selected.add(id);
+      }
       widget.onInputChanged?.call(_selected.isNotEmpty);
     });
   }
@@ -48,8 +54,8 @@ class _EvidenceSelectRendererState extends State<EvidenceSelectRenderer> {
   Widget build(BuildContext context) {
     final config = widget.activity.config;
     final ids = configIdList(config, 'visibleEvidenceIds');
-    final int minRequired = (config['minRequired'] as num?)?.toInt() ?? 1;
-
+    final int minRequired =
+        ((config['minRequired'] ?? config['minSelect']) as num?)?.toInt() ?? 1;
     if (ids.isEmpty) {
       return const _NoEvidence();
     }
@@ -249,18 +255,31 @@ class _EvidenceCard extends StatelessWidget {
                     ),
                     const SizedBox(width: 8),
                     // Nút chọn riêng — dừng propagation để không mở detail.
-                    GestureDetector(
-                      onTap: enabled ? onSelect : null,
-                      child: Container(
-                        padding: const EdgeInsets.all(6),
-                        child: Icon(
-                          selected
-                              ? Icons.check_circle
-                              : Icons.radio_button_off,
-                          size: 24,
-                          color: selected
-                              ? DauVietColors.cinnabarRed
-                              : DauVietColors.inkMuted,
+                    Semantics(
+                      button: true,
+                      selected: selected,
+                      enabled: enabled,
+                      label: selected
+                          ? 'Bỏ chọn bằng chứng $title'
+                          : 'Chọn bằng chứng $title',
+                      child: GestureDetector(
+                        behavior: HitTestBehavior.opaque,
+                        onTap: enabled ? onSelect : null,
+                        child: Container(
+                          constraints: const BoxConstraints(
+                            minWidth: 44,
+                            minHeight: 44,
+                          ),
+                          alignment: Alignment.center,
+                          child: Icon(
+                            selected
+                                ? Icons.check_circle
+                                : Icons.radio_button_off,
+                            size: 24,
+                            color: selected
+                                ? DauVietColors.cinnabarRed
+                                : DauVietColors.inkMuted,
+                          ),
                         ),
                       ),
                     ),

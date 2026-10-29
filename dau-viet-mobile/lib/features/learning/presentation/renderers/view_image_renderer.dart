@@ -71,6 +71,7 @@ class ViewImageRenderer extends StatelessWidget {
                   altText: alt,
                   height: 240,
                   fit: BoxFit.cover,
+                  tappable: !submitting,
                 )
               else
                 _NoImage(altText: alt),

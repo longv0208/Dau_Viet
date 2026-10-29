@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:rive/rive.dart' as rive;
 
 import '../audio/dau_viet_audio_service.dart';
+import '../theme/dau_viet_colors.dart';
 
 /// Các trạng thái cảm xúc của Mascot Kabi theo chuẩn gamification Duolingo
 enum KabiMood {
@@ -76,12 +77,19 @@ class _KabiMascotWidgetState extends State<KabiMascotWidget> {
               stateMachineSelector: const rive.StateMachineNamed('Kabi'),
             );
             final sm = controller.stateMachine;
+            // ignore: deprecated_member_use
             _poseInput = sm.number('pose');
+            // ignore: deprecated_member_use
             _moodInput = sm.number('mood');
+            // ignore: deprecated_member_use
             _colorInput = sm.number('color');
+            // ignore: deprecated_member_use
             _headOnlyInput = sm.boolean('headOnly');
+            // ignore: deprecated_member_use
             _glassesInput = sm.boolean('glasses');
+            // ignore: deprecated_member_use
             _jumpTrigger = sm.trigger('jump');
+            // ignore: deprecated_member_use
             _pokeTrigger = sm.trigger('poke');
             setState(() => _controller = controller);
             _applyMood();
@@ -183,18 +191,50 @@ class _KabiMascotWidgetState extends State<KabiMascotWidget> {
         width: widget.width,
         height: widget.height,
         child: controller == null
-            ? const SizedBox.shrink()
+            ? _buildFallbackAvatar()
             : rive.RiveWidget(controller: controller, fit: rive.Fit.contain),
       ),
     );
   }
 
   Widget _buildFallbackMascot() {
-    // Không hiển thị bất kỳ icon vui / buồn nào làm chớp nháy trước khi mascot tải xong
-    return GestureDetector(
-      onTap: _handleTap,
-      behavior: HitTestBehavior.opaque,
-      child: SizedBox(width: widget.width, height: widget.height),
+    return Semantics(
+      label: 'Linh vật Kabi',
+      child: GestureDetector(
+        onTap: _handleTap,
+        behavior: HitTestBehavior.opaque,
+        child: SizedBox(
+          width: widget.width,
+          height: widget.height,
+          child: _buildFallbackAvatar(),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildFallbackAvatar() {
+    final String assetPath =
+        (widget.mood == KabiMood.victory || widget.mood == KabiMood.cheering)
+        ? 'assets/images/kabi_celebration_victory.png'
+        : 'assets/images/turtle_welcome.png';
+    return Image.asset(
+      assetPath,
+      width: widget.width,
+      height: widget.height,
+      fit: BoxFit.contain,
+      errorBuilder: (_, _, _) => DecoratedBox(
+        decoration: BoxDecoration(
+          shape: BoxShape.circle,
+          color: DauVietColors.imperialGold.withValues(alpha: 0.18),
+        ),
+        child: Center(
+          child: Icon(
+            Icons.auto_stories_rounded,
+            size: (widget.width * 0.48).clamp(18.0, 48.0),
+            color: DauVietColors.cinnabarRed,
+          ),
+        ),
+      ),
     );
   }
 }

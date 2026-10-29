@@ -42,6 +42,12 @@ class _HypothesisRendererState extends State<HypothesisRenderer> {
     final String? prompt = configText(config, ['prompt', 'question', 'title']);
     final hypotheses = configList(config, 'hypotheses');
     final evidenceIds = configIdList(config, 'visibleEvidenceIds');
+    final int rawMinEvidence =
+        ((config['minEvidence'] ?? config['minRequired']) as num?)?.toInt() ??
+        (evidenceIds.isNotEmpty ? 1 : 0);
+    final int minEvidence = evidenceIds.isEmpty
+        ? 0
+        : rawMinEvidence.clamp(1, evidenceIds.length);
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -93,9 +99,13 @@ class _HypothesisRendererState extends State<HypothesisRenderer> {
             children: [
               for (final id in evidenceIds)
                 FilterChip(
-                  label: Text(
-                    _evidenceTitle(id),
-                    style: DauVietTypography.bodySmall,
+                  label: ConstrainedBox(
+                    constraints: const BoxConstraints(maxWidth: 280),
+                    child: Text(
+                      _evidenceTitle(id),
+                      softWrap: true,
+                      style: DauVietTypography.bodySmall.copyWith(fontSize: 13),
+                    ),
                   ),
                   selected: _evidenceIds.contains(id),
                   onSelected: widget.submitting
@@ -114,7 +124,7 @@ class _HypothesisRendererState extends State<HypothesisRenderer> {
         ],
         const SizedBox(height: 14),
         SubmitBar(
-          enabled: _hypothesisId != null,
+          enabled: _hypothesisId != null && _evidenceIds.length >= minEvidence,
           submitting: widget.submitting,
           onPressed: () => widget.onSubmit({
             'hypothesisId': _hypothesisId,

@@ -334,7 +334,7 @@ class _StreakCard extends ConsumerWidget {
               ),
             ),
           ),
-          error: (_, __) => Row(
+          error: (_, _) => Row(
             children: [
               const Icon(
                 Icons.local_fire_department_rounded,

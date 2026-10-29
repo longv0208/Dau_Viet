@@ -120,69 +120,76 @@ class _CerRendererState extends State<CerRenderer> {
     final bool selected = _evidenceIds.contains(id);
     final String title = (e['title'] as String?) ?? id;
     final String? assetId = _imageAssetId(e);
-    return Padding(
-      padding: const EdgeInsets.only(bottom: 6),
-      child: InkWell(
-        borderRadius: BorderRadius.circular(10),
-        onTap: locked
-            ? null
-            : () => setState(() {
-                selected ? _evidenceIds.remove(id) : _evidenceIds.add(id);
-                _reportDirty();
-              }),
-        child: AnimatedContainer(
-          duration: const Duration(milliseconds: 140),
-          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
-          decoration: BoxDecoration(
-            color: selected
-                ? DauVietColors.cinnabarRed.withValues(alpha: 0.10)
-                : Colors.white.withValues(alpha: 0.8),
-            borderRadius: BorderRadius.circular(10),
-            border: Border.all(
+    return Semantics(
+      button: true,
+      selected: selected,
+      enabled: !locked,
+      label: title,
+      child: Padding(
+        padding: const EdgeInsets.only(bottom: 6),
+        child: InkWell(
+          borderRadius: BorderRadius.circular(10),
+          onTap: locked
+              ? null
+              : () => setState(() {
+                  selected ? _evidenceIds.remove(id) : _evidenceIds.add(id);
+                  _reportDirty();
+                }),
+          child: AnimatedContainer(
+            duration: const Duration(milliseconds: 140),
+            constraints: const BoxConstraints(minHeight: 48),
+            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+            decoration: BoxDecoration(
               color: selected
-                  ? DauVietColors.cinnabarRed
-                  : DauVietColors.outlineVariant,
-              width: selected ? 1.4 : 1,
+                  ? DauVietColors.cinnabarRed.withValues(alpha: 0.10)
+                  : Colors.white.withValues(alpha: 0.8),
+              borderRadius: BorderRadius.circular(10),
+              border: Border.all(
+                color: selected
+                    ? DauVietColors.cinnabarRed
+                    : DauVietColors.outlineVariant,
+                width: selected ? 1.4 : 1,
+              ),
             ),
-          ),
-          child: Row(
-            children: [
-              if (assetId != null) ...[
-                ClipRRect(
-                  borderRadius: BorderRadius.circular(6),
-                  child: SizedBox(
-                    width: 40,
-                    height: 40,
-                    child: LearningAssetImage(
-                      assetId: assetId,
-                      altText: title,
+            child: Row(
+              children: [
+                if (assetId != null) ...[
+                  ClipRRect(
+                    borderRadius: BorderRadius.circular(6),
+                    child: SizedBox(
+                      width: 40,
                       height: 40,
-                      fit: BoxFit.cover,
-                      tappable: false,
+                      child: LearningAssetImage(
+                        assetId: assetId,
+                        altText: title,
+                        height: 40,
+                        fit: BoxFit.cover,
+                        tappable: false,
+                      ),
+                    ),
+                  ),
+                  const SizedBox(width: 8),
+                ],
+                Expanded(
+                  child: Text(
+                    title,
+                    maxLines: 2,
+                    overflow: TextOverflow.ellipsis,
+                    style: DauVietTypography.bodySmall.copyWith(
+                      color: DauVietColors.inkText,
+                      fontWeight: selected ? FontWeight.w600 : FontWeight.w400,
                     ),
                   ),
                 ),
-                const SizedBox(width: 8),
-              ],
-              Expanded(
-                child: Text(
-                  title,
-                  maxLines: 2,
-                  overflow: TextOverflow.ellipsis,
-                  style: DauVietTypography.bodySmall.copyWith(
-                    color: DauVietColors.inkText,
-                    fontWeight: selected ? FontWeight.w600 : FontWeight.w400,
-                  ),
+                Icon(
+                  selected ? Icons.check_circle : Icons.radio_button_off,
+                  size: 20,
+                  color: selected
+                      ? DauVietColors.cinnabarRed
+                      : DauVietColors.inkMuted,
                 ),
-              ),
-              Icon(
-                selected ? Icons.check_circle : Icons.radio_button_off,
-                size: 20,
-                color: selected
-                    ? DauVietColors.cinnabarRed
-                    : DauVietColors.inkMuted,
-              ),
-            ],
+              ],
+            ),
           ),
         ),
       ),

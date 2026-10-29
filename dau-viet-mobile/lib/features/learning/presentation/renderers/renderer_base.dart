@@ -46,12 +46,18 @@ class SubmitBar extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return DongSonButton(
-      label: submitting ? 'ĐANG KIỂM TRA...' : label,
-      icon: Icons.send_rounded,
-      variant: DongSonButtonVariant.primaryCinnabar,
-      height: 50,
-      onPressed: (enabled && !submitting) ? onPressed : null,
+    final String effectiveLabel = submitting ? 'ĐANG KIỂM TRA...' : label;
+    return Semantics(
+      button: true,
+      enabled: enabled && !submitting,
+      label: effectiveLabel,
+      child: DongSonButton(
+        label: effectiveLabel,
+        icon: Icons.send_rounded,
+        variant: DongSonButtonVariant.primaryCinnabar,
+        height: 50,
+        onPressed: (enabled && !submitting) ? onPressed : null,
+      ),
     );
   }
 }

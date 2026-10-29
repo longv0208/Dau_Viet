@@ -25,6 +25,7 @@ class ActivityRenderer extends StatelessWidget {
   final ActivityRefDto activity;
   final LessonContentDto content;
   final bool submitting;
+  final bool hasSubmitError;
   final Future<void> Function(Map<String, dynamic> answer) onSubmit;
 
   /// Optional — renderer báo learner có input chưa gửi (dirty) để player
@@ -36,6 +37,7 @@ class ActivityRenderer extends StatelessWidget {
     required this.activity,
     required this.content,
     required this.submitting,
+    this.hasSubmitError = false,
     required this.onSubmit,
     this.onInputChanged,
   });
@@ -112,7 +114,9 @@ class ActivityRenderer extends StatelessWidget {
         return ExploreMapRenderer(
           activity: activity,
           submitting: submitting,
+          hasSubmitError: hasSubmitError,
           onSubmit: onSubmit,
+          onInputChanged: onInputChanged,
         );
       case 'CER_CHOICE':
         return CerChoiceRenderer(

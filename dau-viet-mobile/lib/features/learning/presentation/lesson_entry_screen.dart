@@ -1,3 +1,4 @@
+import 'dart:convert';
 import 'dart:typed_data';
 
 import 'package:flutter/material.dart';
@@ -11,6 +12,7 @@ import '../../../core/theme/dau_viet_typography.dart';
 import '../../../core/widgets/async_state_view.dart';
 import '../../../core/widgets/dong_son_button.dart';
 import '../../auth/data/auth_state.dart';
+import '../../learning_path/data/learning_path_providers.dart';
 import '../../streak/data/streak_providers.dart';
 import '../data/attempt_dtos.dart';
 import '../data/attempt_repository.dart';
@@ -47,12 +49,30 @@ class LessonEntryScreen extends ConsumerStatefulWidget {
 class _LessonEntryScreenState extends ConsumerState<LessonEntryScreen> {
   bool _starting = false;
   String? _startError;
+  bool _lockedByPath = false;
+
+  List<String> _parseObjectives(String? raw) {
+    if (raw == null || raw.trim().isEmpty) return const [];
+    try {
+      final decoded = jsonDecode(raw);
+      if (decoded is List) {
+        return [
+          for (final item in decoded)
+            if (item is String && item.trim().isNotEmpty) item.trim(),
+        ];
+      }
+    } catch (_) {
+      // Fallback single string objective if not JSON array
+    }
+    return [raw.trim()];
+  }
 
   Future<void> _start() async {
     if (_starting) return;
     setState(() {
       _starting = true;
       _startError = null;
+      _lockedByPath = false;
     });
     try {
       final AttemptRepository repo = ref.read(attemptRepositoryProvider);
@@ -62,18 +82,23 @@ class _LessonEntryScreenState extends ConsumerState<LessonEntryScreen> {
                 .read(authRepositoryProvider)
                 .withAuth(() => repo.startOrResume(widget.lessonId));
       if (!mounted) return;
+      ref.invalidate(myProgressProvider);
+      ref.invalidate(learningPathProvider);
       context.pushReplacement('/learning/attempt/${started.attemptId}');
     } on ApiException catch (e) {
       if (!mounted) return;
       setState(() {
         _starting = false;
         _startError = e.error.message;
+        _lockedByPath =
+            e.error.code == 'LESSON_LOCKED_BY_PATH' || e.statusCode == 403;
       });
     } catch (_) {
       if (!mounted) return;
       setState(() {
         _starting = false;
         _startError = 'Không mở được bài học. Thử lại.';
+        _lockedByPath = false;
       });
     }
   }
@@ -97,22 +122,29 @@ class _LessonEntryScreenState extends ConsumerState<LessonEntryScreen> {
     );
 
     return Scaffold(
-      backgroundColor: const Color(0xFFFBF8F1),
+      backgroundColor: DauVietColors.parchmentSurface,
       appBar: AppBar(
-        backgroundColor: const Color(0xFFFBF8F1),
+        backgroundColor: DauVietColors.parchmentSurface,
         elevation: 0,
         leading: IconButton(
           icon: const Icon(Icons.arrow_back_ios_new_rounded, size: 18),
-          color: const Color(0xFF1F2421),
+          color: DauVietColors.inkText,
           tooltip: 'Quay lại',
-          onPressed: () => context.pop(),
+          constraints: const BoxConstraints(minWidth: 44, minHeight: 44),
+          onPressed: () {
+            if (context.canPop()) {
+              context.pop();
+            } else {
+              context.go('/journey');
+            }
+          },
         ),
         title: Text(
           'Bài học',
           style: DauVietTypography.headlineMedium.copyWith(
             fontSize: 16,
             fontWeight: FontWeight.w800,
-            color: const Color(0xFF1F2421),
+            color: DauVietColors.inkText,
           ),
         ),
         centerTitle: true,
@@ -142,12 +174,12 @@ class _LessonEntryScreenState extends ConsumerState<LessonEntryScreen> {
                   right: 0,
                   bottom: 0,
                   child: Opacity(
-                    opacity: 0.25,
+                    opacity: 0.22,
                     child: Image.asset(
-                      'assets/images/ancient_village_footer.png',
-                      height: 120,
-                      fit: BoxFit.cover,
-                      alignment: Alignment.topCenter,
+                      'assets/images/lotus_footer.png',
+                      height: 110,
+                      fit: BoxFit.fitWidth,
+                      alignment: Alignment.bottomCenter,
                       errorBuilder: (_, _, _) => const SizedBox.shrink(),
                     ),
                   ),
@@ -172,25 +204,124 @@ class _LessonEntryScreenState extends ConsumerState<LessonEntryScreen> {
                         style: DauVietTypography.headlineMedium.copyWith(
                           fontSize: 21,
                           fontWeight: FontWeight.w900,
-                          color: const Color(0xFF1F2421),
+                          color: DauVietColors.inkText,
                           height: 1.25,
                         ),
                       ),
-                      const SizedBox(height: 6),
+                      const SizedBox(height: 10),
 
-                      // 4. Đoạn mô tả / Câu hỏi trung tâm
-                      Text(
-                        (meta.centralQuestion != null &&
-                                meta.centralQuestion!.isNotEmpty)
-                            ? meta.centralQuestion!
-                            : '',
-                        style: DauVietTypography.bodyMedium.copyWith(
-                          fontSize: 13,
-                          color: const Color(0xFF5E6963),
-                          height: 1.45,
+                      // 4. Câu hỏi lịch sử trung tâm trên thẻ giấy dó (TC-NAV-08)
+                      if (meta.centralQuestion != null &&
+                          meta.centralQuestion!.trim().isNotEmpty) ...[
+                        Container(
+                          padding: const EdgeInsets.all(14),
+                          decoration: BoxDecoration(
+                            color: DauVietColors.parchmentContainer,
+                            borderRadius: BorderRadius.circular(12),
+                            border: Border.all(
+                              color: DauVietColors.imperialGold,
+                              width: 1.2,
+                            ),
+                          ),
+                          child: Row(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              const Icon(
+                                Icons.help_outline_rounded,
+                                size: 20,
+                                color: DauVietColors.cinnabarRed,
+                              ),
+                              const SizedBox(width: 10),
+                              Expanded(
+                                child: Column(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  children: [
+                                    Text(
+                                      'CÂU HỎI LỊCH SỬ TRUNG TÂM',
+                                      style: DauVietTypography.labelSmall
+                                          .copyWith(
+                                            color: DauVietColors.cinnabarRed,
+                                            fontWeight: FontWeight.w800,
+                                            letterSpacing: 0.6,
+                                          ),
+                                    ),
+                                    const SizedBox(height: 4),
+                                    Text(
+                                      meta.centralQuestion!.trim(),
+                                      style: DauVietTypography.bodyMedium
+                                          .copyWith(
+                                            fontSize: 14.5,
+                                            color: DauVietColors.inkText,
+                                            fontWeight: FontWeight.w600,
+                                            height: 1.5,
+                                          ),
+                                    ),
+                                  ],
+                                ),
+                              ),
+                            ],
+                          ),
                         ),
-                      ),
-                      const SizedBox(height: 16),
+                        const SizedBox(height: 14),
+                      ],
+
+                      // Mục tiêu bài học (nếu có)
+                      if (_parseObjectives(meta.objectivesJson).isNotEmpty) ...[
+                        Container(
+                          padding: const EdgeInsets.all(14),
+                          decoration: BoxDecoration(
+                            color: Colors.white.withValues(alpha: 0.85),
+                            borderRadius: BorderRadius.circular(12),
+                            border: Border.all(
+                              color: DauVietColors.outlineVariant,
+                            ),
+                          ),
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text(
+                                'MỤC TIÊU KHÁM PHÁ',
+                                style: DauVietTypography.labelSmall.copyWith(
+                                  color: DauVietColors.inkMuted,
+                                  fontWeight: FontWeight.w800,
+                                  letterSpacing: 0.6,
+                                ),
+                              ),
+                              const SizedBox(height: 6),
+                              for (final obj in _parseObjectives(
+                                meta.objectivesJson,
+                              ))
+                                Padding(
+                                  padding: const EdgeInsets.only(bottom: 4),
+                                  child: Row(
+                                    crossAxisAlignment:
+                                        CrossAxisAlignment.start,
+                                    children: [
+                                      const Icon(
+                                        Icons.check_circle_outline_rounded,
+                                        size: 16,
+                                        color: DauVietColors.heritageGreen,
+                                      ),
+                                      const SizedBox(width: 8),
+                                      Expanded(
+                                        child: Text(
+                                          obj,
+                                          style: DauVietTypography.bodyMedium
+                                              .copyWith(
+                                                fontSize: 14,
+                                                color: DauVietColors.inkText,
+                                                height: 1.45,
+                                              ),
+                                        ),
+                                      ),
+                                    ],
+                                  ),
+                                ),
+                            ],
+                          ),
+                        ),
+                        const SizedBox(height: 14),
+                      ],
 
                       // Trạng thái Resume (nếu có bài đang học dở)
                       if (resume != null) ...[
@@ -223,7 +354,7 @@ class _LessonEntryScreenState extends ConsumerState<LessonEntryScreen> {
                                   style: DauVietTypography.bodySmall.copyWith(
                                     color: const Color(0xFF1B5E20),
                                     fontWeight: FontWeight.w700,
-                                    fontSize: 12,
+                                    fontSize: 13,
                                   ),
                                 ),
                               ),
@@ -233,7 +364,7 @@ class _LessonEntryScreenState extends ConsumerState<LessonEntryScreen> {
                         const SizedBox(height: 14),
                       ],
 
-                      // Báo lỗi (nếu có)
+                      // Báo lỗi (nếu có, kèm nút quay lại lộ trình khi bị khóa)
                       if (_startError != null) ...[
                         Container(
                           padding: const EdgeInsets.all(12),
@@ -247,11 +378,58 @@ class _LessonEntryScreenState extends ConsumerState<LessonEntryScreen> {
                               width: 1,
                             ),
                           ),
-                          child: Text(
-                            _startError!,
-                            style: DauVietTypography.bodySmall.copyWith(
-                              color: DauVietColors.cinnabarRed,
-                            ),
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.stretch,
+                            children: [
+                              Row(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  Icon(
+                                    _lockedByPath
+                                        ? Icons.lock_outline_rounded
+                                        : Icons.error_outline_rounded,
+                                    size: 18,
+                                    color: DauVietColors.cinnabarRed,
+                                  ),
+                                  const SizedBox(width: 8),
+                                  Expanded(
+                                    child: Text(
+                                      _startError!,
+                                      style: DauVietTypography.bodyMedium
+                                          .copyWith(
+                                            fontSize: 14,
+                                            color: DauVietColors.cinnabarRed,
+                                            height: 1.45,
+                                          ),
+                                    ),
+                                  ),
+                                ],
+                              ),
+                              if (_lockedByPath) ...[
+                                const SizedBox(height: 10),
+                                OutlinedButton.icon(
+                                  onPressed: () {
+                                    if (context.canPop()) {
+                                      context.pop();
+                                    } else {
+                                      context.go('/journey');
+                                    }
+                                  },
+                                  icon: const Icon(
+                                    Icons.route_rounded,
+                                    size: 18,
+                                  ),
+                                  label: const Text('QUAY LẠI LỘ TRÌNH'),
+                                  style: OutlinedButton.styleFrom(
+                                    foregroundColor: DauVietColors.cinnabarRed,
+                                    minimumSize: const Size.fromHeight(44),
+                                    side: const BorderSide(
+                                      color: DauVietColors.cinnabarRed,
+                                    ),
+                                  ),
+                                ),
+                              ],
+                            ],
                           ),
                         ),
                         const SizedBox(height: 12),
@@ -262,7 +440,7 @@ class _LessonEntryScreenState extends ConsumerState<LessonEntryScreen> {
                         label: _starting
                             ? 'ĐANG MỞ BÀI HỌC...'
                             : (resume != null
-                                  ? 'TIẾP TỤC HỌC ›'
+                                  ? 'TIẾP TỤC BÀI HỌC ›'
                                   : 'BẮT ĐẦU HỌC ›'),
                         icon: Icons.arrow_forward_rounded,
                         variant: DongSonButtonVariant.natureGreen,
@@ -289,10 +467,7 @@ class _LessonCoverHero extends ConsumerStatefulWidget {
   final String? coverAssetId;
   final String title;
 
-  const _LessonCoverHero({
-    required this.coverAssetId,
-    required this.title,
-  });
+  const _LessonCoverHero({required this.coverAssetId, required this.title});
 
   @override
   ConsumerState<_LessonCoverHero> createState() => _LessonCoverHeroState();
@@ -344,10 +519,7 @@ class _LessonCoverHeroState extends ConsumerState<_LessonCoverHero> {
         decoration: BoxDecoration(
           color: const Color(0xFFEFE8DA),
           borderRadius: BorderRadius.circular(16),
-          border: Border.all(
-            color: const Color(0xFFD8C8B0),
-            width: 1.5,
-          ),
+          border: Border.all(color: const Color(0xFFD8C8B0), width: 1.5),
           boxShadow: [
             BoxShadow(
               color: const Color(0xFF8B4513).withValues(alpha: 0.12),
@@ -407,20 +579,14 @@ class _DefaultLessonHeroFallback extends StatelessWidget {
       ),
     );
     if (embedded) {
-      return const ColoredBox(
-        color: Color(0xFFEFE8DA),
-        child: iconChild,
-      );
+      return const ColoredBox(color: Color(0xFFEFE8DA), child: iconChild);
     }
     return ClipRRect(
       borderRadius: BorderRadius.circular(16),
       child: Container(
         decoration: BoxDecoration(
           borderRadius: BorderRadius.circular(16),
-          border: Border.all(
-            color: const Color(0xFFD8C8B0),
-            width: 1.5,
-          ),
+          border: Border.all(color: const Color(0xFFD8C8B0), width: 1.5),
           boxShadow: [
             BoxShadow(
               color: const Color(0xFF8B4513).withValues(alpha: 0.12),
@@ -431,10 +597,7 @@ class _DefaultLessonHeroFallback extends StatelessWidget {
         ),
         child: const AspectRatio(
           aspectRatio: 16 / 10,
-          child: ColoredBox(
-            color: Color(0xFFEFE8DA),
-            child: iconChild,
-          ),
+          child: ColoredBox(color: Color(0xFFEFE8DA), child: iconChild),
         ),
       ),
     );

@@ -75,6 +75,7 @@ class _BattleSabanScreenState extends ConsumerState<BattleSabanScreen> {
                       Row(
                         children: [
                           Expanded(
+                            flex: 3,
                             child: DongSonButton(
                               label: 'Xem Chi Tiết Chiến Dịch',
                               icon: Icons.auto_stories_rounded,
@@ -109,14 +110,17 @@ class _BattleSabanScreenState extends ConsumerState<BattleSabanScreen> {
                             ),
                           ),
                           const SizedBox(width: 10),
-                          DongSonButton(
-                            label: 'Bàn Học',
-                            icon: Icons.home_outlined,
-                            variant: DongSonButtonVariant.secondaryParchment,
-                            height: 48,
-                            onPressed: () {
-                              context.go('/dashboard');
-                            },
+                          Expanded(
+                            flex: 2,
+                            child: DongSonButton(
+                              label: 'Bàn Học',
+                              icon: Icons.home_outlined,
+                              variant: DongSonButtonVariant.secondaryParchment,
+                              height: 48,
+                              onPressed: () {
+                                context.go('/dashboard');
+                              },
+                            ),
                           ),
                         ],
                       ),

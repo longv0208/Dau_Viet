@@ -40,9 +40,30 @@ class VerificationRenderer extends StatelessWidget {
     return null;
   }
 
-  /// Nhãn hiển thị cho giả thuyết — resolve `hypotheses[].id -> text` từ
-  /// config của hoạt động HYPOTHESIS_CHOICE không có sẵn ở đây, nên hiển thị
-  /// id (đủ để học viên nhận ra lựa chọn của mình trong bản preview).
+  /// Tra cứu nhãn tiếng Việt của giả thuyết trong `content.stages` nếu có;
+  /// fallback về `hypothesisId` khi chạy preview độc lập không có stages.
+  String _resolveHypothesisLabel(String hypothesisId) {
+    for (final s in content.stages) {
+      final acts = s['activities'];
+      if (acts is! List) continue;
+      for (final a in acts.whereType<Map>()) {
+        final cfg = a['config'];
+        if (cfg is! Map) continue;
+        final hyps = cfg['hypotheses'];
+        if (hyps is! List) continue;
+        for (final h in hyps.whereType<Map>()) {
+          if (h['id'] == hypothesisId) {
+            final text = (h['text'] ?? h['label']) as String?;
+            if (text != null && text.trim().isNotEmpty) {
+              return text.trim();
+            }
+          }
+        }
+      }
+    }
+    return hypothesisId;
+  }
+
   List<String> _evidenceGiven(Map<String, dynamic> config) {
     final prior = config['priorOutputs'];
     if (prior is! Map) return const [];
@@ -89,7 +110,10 @@ class VerificationRenderer extends StatelessWidget {
           const SizedBox(height: 10),
           const SectionLabel('GIẢ THUYẾT ĐÃ CHỌN'),
           const SizedBox(height: 6),
-          _PickedTile(label: hypothesisId, icon: Icons.lightbulb_outline),
+          _PickedTile(
+            label: _resolveHypothesisLabel(hypothesisId),
+            icon: Icons.lightbulb_outline,
+          ),
         ],
 
         // Bằng chứng đã thu thập trước đó — server dùng chính tập này để chấm.

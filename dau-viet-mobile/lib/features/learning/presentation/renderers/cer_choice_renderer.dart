@@ -93,11 +93,22 @@ class _CerChoiceRendererState extends State<CerChoiceRenderer> {
   bool get _canSubmit =>
       _claimId != null && _reasoningId != null && _evidenceIds.isNotEmpty;
 
+  bool _sameSet(Set<String> a, Set<String> b) =>
+      a.length == b.length && a.containsAll(b);
+
+  void _reportDirty() {
+    final bool dirty =
+        _claimId != null ||
+        _reasoningId != null ||
+        !_sameSet(_evidenceIds, _priorEvidenceIds().toSet());
+    widget.onInputChanged?.call(dirty);
+  }
+
   void _pickClaim(String id) {
     HapticFeedback.selectionClick();
     setState(() {
       _claimId = id;
-      widget.onInputChanged?.call(true);
+      _reportDirty();
     });
   }
 
@@ -107,7 +118,7 @@ class _CerChoiceRendererState extends State<CerChoiceRenderer> {
       _evidenceIds.contains(id)
           ? _evidenceIds.remove(id)
           : _evidenceIds.add(id);
-      widget.onInputChanged?.call(_evidenceIds.isNotEmpty);
+      _reportDirty();
     });
   }
 
@@ -115,7 +126,7 @@ class _CerChoiceRendererState extends State<CerChoiceRenderer> {
     HapticFeedback.selectionClick();
     setState(() {
       _reasoningId = id;
-      widget.onInputChanged?.call(true);
+      _reportDirty();
     });
   }
 
@@ -127,11 +138,34 @@ class _CerChoiceRendererState extends State<CerChoiceRenderer> {
     final evidenceOptions = configList(config, 'evidenceOptions');
     final priorEvidenceIds = _priorEvidenceIds();
 
+    String? pickedClaimText;
+    for (final c in claims) {
+      if (c['id'] == _claimId) {
+        pickedClaimText = (c['text'] ?? c['label']) as String?;
+        break;
+      }
+    }
+    String? pickedReasoningText;
+    for (final r in reasoningOptions) {
+      if (r['id'] == _reasoningId) {
+        pickedReasoningText = (r['text'] ?? r['label']) as String?;
+        break;
+      }
+    }
+    final List<String> pickedEvidenceTitles = [
+      for (final id in _evidenceIds)
+        (widget.content.evidenceById(id)?['title'] as String?) ?? id,
+    ];
+
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
         // Card 1 — Claim
-        const SectionLabel('1. CHỌN KẾT LUẬN'),
+        const _CerRoleHeader(
+          step: '1',
+          title: 'CHỌN KẾT LUẬN (CLAIM)',
+          color: DauVietColors.cinnabarRed,
+        ),
         const SizedBox(height: 6),
         for (final c in claims)
           _PickTile(
@@ -145,7 +179,11 @@ class _CerChoiceRendererState extends State<CerChoiceRenderer> {
         const SizedBox(height: 12),
 
         // Card 2 — Evidence
-        const SectionLabel('2. CHỌN BẰNG CHỨNG HỖ TRỢ'),
+        const _CerRoleHeader(
+          step: '2',
+          title: 'CHỌN BẰNG CHỨNG HỖ TRỢ (EVIDENCE)',
+          color: Color(0xFFB45309),
+        ),
         if (priorEvidenceIds.isNotEmpty)
           Padding(
             padding: const EdgeInsets.only(top: 4, bottom: 2),
@@ -188,7 +226,11 @@ class _CerChoiceRendererState extends State<CerChoiceRenderer> {
         const SizedBox(height: 12),
 
         // Card 3 — Reasoning
-        const SectionLabel('3. CHỌN LẬP LUẬN'),
+        const _CerRoleHeader(
+          step: '3',
+          title: 'CHỌN LẬP LUẬN (REASONING)',
+          color: DauVietColors.heritageGreen,
+        ),
         const SizedBox(height: 6),
         for (final r in reasoningOptions)
           _PickTile(
@@ -199,6 +241,66 @@ class _CerChoiceRendererState extends State<CerChoiceRenderer> {
             enabled: !widget.submitting,
             onTap: () => _pickReasoning(r['id'] as String? ?? ''),
           ),
+
+        // Khung tổng hợp kết luận lịch sử C-E-R (TC-ACT-17)
+        if (pickedClaimText != null ||
+            pickedEvidenceTitles.isNotEmpty ||
+            pickedReasoningText != null) ...[
+          const SizedBox(height: 12),
+          Container(
+            padding: const EdgeInsets.all(14),
+            decoration: BoxDecoration(
+              color: DauVietColors.parchmentContainer,
+              borderRadius: BorderRadius.circular(12),
+              border: Border.all(color: DauVietColors.imperialGold, width: 1.4),
+            ),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  'TỔNG HỢP LẬP LUẬN LỊCH SỬ (C–E–R)',
+                  style: DauVietTypography.labelSmall.copyWith(
+                    color: DauVietColors.cinnabarRed,
+                    fontWeight: FontWeight.w800,
+                    letterSpacing: 0.6,
+                  ),
+                ),
+                const SizedBox(height: 6),
+                if (pickedClaimText != null)
+                  Text(
+                    '• Luận điểm: $pickedClaimText',
+                    style: DauVietTypography.bodySmall.copyWith(
+                      color: DauVietColors.inkText,
+                      fontWeight: FontWeight.w700,
+                      height: 1.4,
+                    ),
+                  ),
+                if (pickedEvidenceTitles.isNotEmpty)
+                  Padding(
+                    padding: const EdgeInsets.only(top: 4),
+                    child: Text(
+                      '• Bằng chứng: ${pickedEvidenceTitles.join('; ')}',
+                      style: DauVietTypography.bodySmall.copyWith(
+                        color: DauVietColors.inkText,
+                        height: 1.4,
+                      ),
+                    ),
+                  ),
+                if (pickedReasoningText != null)
+                  Padding(
+                    padding: const EdgeInsets.only(top: 4),
+                    child: Text(
+                      '• Lập luận: $pickedReasoningText',
+                      style: DauVietTypography.bodySmall.copyWith(
+                        color: DauVietColors.inkText,
+                        height: 1.4,
+                      ),
+                    ),
+                  ),
+              ],
+            ),
+          ),
+        ],
         const SizedBox(height: 14),
         SubmitBar(
           enabled: _canSubmit,
@@ -208,6 +310,51 @@ class _CerChoiceRendererState extends State<CerChoiceRenderer> {
             'evidenceIds': _evidenceIds.toList(),
             'reasoningId': _reasoningId,
           }),
+        ),
+      ],
+    );
+  }
+}
+
+class _CerRoleHeader extends StatelessWidget {
+  final String step;
+  final String title;
+  final Color color;
+
+  const _CerRoleHeader({
+    required this.step,
+    required this.title,
+    required this.color,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Row(
+      children: [
+        Container(
+          width: 20,
+          height: 20,
+          alignment: Alignment.center,
+          decoration: BoxDecoration(shape: BoxShape.circle, color: color),
+          child: Text(
+            step,
+            style: const TextStyle(
+              color: Colors.white,
+              fontSize: 11,
+              fontWeight: FontWeight.w800,
+            ),
+          ),
+        ),
+        const SizedBox(width: 8),
+        Expanded(
+          child: Text(
+            title,
+            style: DauVietTypography.labelSmall.copyWith(
+              color: color,
+              fontWeight: FontWeight.w800,
+              letterSpacing: 0.6,
+            ),
+          ),
         ),
       ],
     );
@@ -239,68 +386,74 @@ class _PickTile extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final reduceMotion = MediaQuery.maybeDisableAnimationsOf(context) ?? false;
-    return Padding(
-      padding: const EdgeInsets.only(bottom: 8),
-      child: Material(
-        color: Colors.transparent,
-        child: InkWell(
-          borderRadius: BorderRadius.circular(12),
-          onTap: enabled ? onTap : null,
-          child: AnimatedContainer(
-            duration: reduceMotion
-                ? Duration.zero
-                : const Duration(milliseconds: 150),
-            constraints: const BoxConstraints(minHeight: 50),
-            padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
-            decoration: BoxDecoration(
-              color: selected
-                  ? DauVietColors.cinnabarRed.withValues(alpha: 0.10)
-                  : Colors.white.withValues(alpha: enabled ? 0.85 : 0.55),
-              borderRadius: BorderRadius.circular(12),
-              border: Border.all(
+    return Semantics(
+      button: true,
+      selected: selected,
+      enabled: enabled,
+      label: label,
+      child: Padding(
+        padding: const EdgeInsets.only(bottom: 8),
+        child: Material(
+          color: Colors.transparent,
+          child: InkWell(
+            borderRadius: BorderRadius.circular(12),
+            onTap: enabled ? onTap : null,
+            child: AnimatedContainer(
+              duration: reduceMotion
+                  ? Duration.zero
+                  : const Duration(milliseconds: 150),
+              constraints: const BoxConstraints(minHeight: 50),
+              padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+              decoration: BoxDecoration(
                 color: selected
-                    ? DauVietColors.cinnabarRed
-                    : DauVietColors.outlineVariant,
-                width: selected ? 1.7 : 1,
-              ),
-            ),
-            child: Row(
-              children: [
-                Icon(
-                  multi
-                      ? (selected
-                            ? Icons.check_box
-                            : Icons.check_box_outline_blank)
-                      : (selected
-                            ? Icons.radio_button_checked
-                            : Icons.radio_button_off),
-                  size: 21,
+                    ? DauVietColors.cinnabarRed.withValues(alpha: 0.10)
+                    : Colors.white.withValues(alpha: enabled ? 0.85 : 0.55),
+                borderRadius: BorderRadius.circular(12),
+                border: Border.all(
                   color: selected
                       ? DauVietColors.cinnabarRed
-                      : DauVietColors.inkMuted,
+                      : DauVietColors.outlineVariant,
+                  width: selected ? 1.7 : 1,
                 ),
-                const SizedBox(width: 10),
-                Expanded(
-                  child: Text(
-                    label,
-                    style: DauVietTypography.bodyMedium.copyWith(
-                      color: enabled
-                          ? DauVietColors.inkText
-                          : DauVietColors.inkText.withValues(alpha: 0.75),
-                      height: 1.4,
+              ),
+              child: Row(
+                children: [
+                  Icon(
+                    multi
+                        ? (selected
+                              ? Icons.check_box
+                              : Icons.check_box_outline_blank)
+                        : (selected
+                              ? Icons.radio_button_checked
+                              : Icons.radio_button_off),
+                    size: 21,
+                    color: selected
+                        ? DauVietColors.cinnabarRed
+                        : DauVietColors.inkMuted,
+                  ),
+                  const SizedBox(width: 10),
+                  Expanded(
+                    child: Text(
+                      label,
+                      style: DauVietTypography.bodyMedium.copyWith(
+                        color: enabled
+                            ? DauVietColors.inkText
+                            : DauVietColors.inkText.withValues(alpha: 0.75),
+                        height: 1.4,
+                      ),
                     ),
                   ),
-                ),
-                if (priorCollected)
-                  Padding(
-                    padding: const EdgeInsets.only(left: 8),
-                    child: Icon(
-                      Icons.history_edu_outlined,
-                      size: 16,
-                      color: DauVietColors.inkMuted,
+                  if (priorCollected)
+                    Padding(
+                      padding: const EdgeInsets.only(left: 8),
+                      child: Icon(
+                        Icons.history_edu_outlined,
+                        size: 16,
+                        color: DauVietColors.inkMuted,
+                      ),
                     ),
-                  ),
-              ],
+                ],
+              ),
             ),
           ),
         ),

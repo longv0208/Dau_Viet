@@ -618,22 +618,47 @@ class _EventTimelineItem extends StatelessWidget {
                         children: [
                           for (int l = 0; l < event.lessons.length; l++) ...[
                             if (l > 0) const SizedBox(height: 6),
-                            Row(
-                              children: [
-                                Expanded(
-                                  child: Text(
-                                    '${l + 1}. ${event.lessons[l].title}',
-                                    style: DauVietTypography.bodySmall.copyWith(
-                                      color: DauVietColors.inkText,
+                            InkWell(
+                              borderRadius: BorderRadius.circular(8),
+                              onTap:
+                                  event.lessons[l].status ==
+                                      LearnerPathStatus.locked
+                                  ? () {
+                                      ScaffoldMessenger.of(
+                                        context,
+                                      ).showSnackBar(
+                                        const SnackBar(
+                                          content: Text(
+                                            'Vui lòng hoàn thành bài học bắt buộc đứng trước trong lộ trình để mở khóa bài học này.',
+                                          ),
+                                          duration: Duration(seconds: 2),
+                                        ),
+                                      );
+                                    }
+                                  : onTap,
+                              child: Padding(
+                                padding: const EdgeInsets.symmetric(
+                                  vertical: 2,
+                                ),
+                                child: Row(
+                                  children: [
+                                    Expanded(
+                                      child: Text(
+                                        '${l + 1}. ${event.lessons[l].title}',
+                                        style: DauVietTypography.bodySmall
+                                            .copyWith(
+                                              color: DauVietColors.inkText,
+                                            ),
+                                      ),
                                     ),
-                                  ),
+                                    const SizedBox(width: 6),
+                                    PathStatusBadge(
+                                      status: event.lessons[l].status,
+                                      compact: true,
+                                    ),
+                                  ],
                                 ),
-                                const SizedBox(width: 8),
-                                PathStatusBadge(
-                                  status: event.lessons[l].status,
-                                  compact: true,
-                                ),
-                              ],
+                              ),
                             ),
                           ],
                         ],

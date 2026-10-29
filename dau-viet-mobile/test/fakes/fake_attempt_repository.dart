@@ -21,6 +21,9 @@ class FakeAttemptRepository implements AttemptRepository {
   Object? nextError;
   bool throwOnGetContent = false;
 
+  MyProgressDto? progressOverride;
+  Object? metadataError;
+  Object? startError;
   final List<Map<String, dynamic>> submittedAnswers = [];
   final List<String?> submittedKeys = [];
   int completeCalls = 0;
@@ -34,8 +37,11 @@ class FakeAttemptRepository implements AttemptRepository {
       lessons;
 
   @override
-  Future<LessonMetadataDto> getLessonMetadata(String lessonId) async =>
-      metadata ?? const LessonMetadataDto(id: 'l', title: 'T', eventId: 'e');
+  Future<LessonMetadataDto> getLessonMetadata(String lessonId) async {
+    if (metadataError != null) throw metadataError!;
+    return metadata ??
+        const LessonMetadataDto(id: 'l', title: 'T', eventId: 'e');
+  }
 
   @override
   Future<LessonContentDto> getAttemptContent(String attemptId) async {
@@ -46,13 +52,15 @@ class FakeAttemptRepository implements AttemptRepository {
   }
 
   @override
-  Future<AttemptStartDto> startOrResume(String lessonId) async =>
-      const AttemptStartDto(
-        attemptId: 'a-1',
-        lessonVersionId: 'v',
-        status: 'IN_PROGRESS',
-        resumed: false,
-      );
+  Future<AttemptStartDto> startOrResume(String lessonId) async {
+    if (startError != null) throw startError!;
+    return const AttemptStartDto(
+      attemptId: 'a-1',
+      lessonVersionId: 'v',
+      status: 'IN_PROGRESS',
+      resumed: false,
+    );
+  }
 
   @override
   Future<CurrentActivityDto> getCurrent(String attemptId) async {
@@ -115,6 +123,7 @@ class FakeAttemptRepository implements AttemptRepository {
 
   @override
   Future<MyProgressDto> myProgress() async =>
+      progressOverride ??
       const MyProgressDto(inProgress: [], completedCount: 0);
 
   @override

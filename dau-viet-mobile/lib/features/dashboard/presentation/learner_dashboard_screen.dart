@@ -141,7 +141,7 @@ class _LearnerDashboardScreenState
                 'assets/images/app_logo.png',
                 height: 38,
                 fit: BoxFit.contain,
-                errorBuilder: (_, __, ___) => Row(
+                errorBuilder: (_, _, _) => Row(
                   children: [
                     Text(
                       'Dấu Việt',
@@ -177,44 +177,49 @@ class _LearnerDashboardScreenState
               // Nút chuông thông báo có chấm đỏ
               Stack(
                 children: [
-                  Container(
-                    width: 38,
-                    height: 38,
-                    decoration: BoxDecoration(
-                      shape: BoxShape.circle,
-                      color: Colors.white,
-                      border: Border.all(
-                        color: const Color(0xFFE5E0D5),
-                        width: 1.0,
-                      ),
-                      boxShadow: [
-                        BoxShadow(
-                          color: Colors.black.withValues(alpha: 0.03),
-                          blurRadius: 6,
-                          offset: const Offset(0, 2),
+                  Semantics(
+                    button: true,
+                    label: 'Thông báo',
+                    child: Container(
+                      width: 44,
+                      height: 44,
+                      decoration: BoxDecoration(
+                        shape: BoxShape.circle,
+                        color: Colors.white,
+                        border: Border.all(
+                          color: const Color(0xFFE5E0D5),
+                          width: 1.0,
                         ),
-                      ],
-                    ),
-                    child: IconButton(
-                      padding: EdgeInsets.zero,
-                      icon: const Icon(
-                        Icons.notifications_none_rounded,
-                        size: 20,
-                        color: Color(0xFF2D3436),
-                      ),
-                      onPressed: () {
-                        ScaffoldMessenger.of(context).showSnackBar(
-                          const SnackBar(
-                            content: Text('Chưa có thông báo mới.'),
-                            duration: Duration(seconds: 1),
+                        boxShadow: [
+                          BoxShadow(
+                            color: Colors.black.withValues(alpha: 0.03),
+                            blurRadius: 6,
+                            offset: const Offset(0, 2),
                           ),
-                        );
-                      },
+                        ],
+                      ),
+                      child: IconButton(
+                        padding: EdgeInsets.zero,
+                        tooltip: 'Thông báo',
+                        icon: const Icon(
+                          Icons.notifications_none_rounded,
+                          size: 20,
+                          color: Color(0xFF2D3436),
+                        ),
+                        onPressed: () {
+                          ScaffoldMessenger.of(context).showSnackBar(
+                            const SnackBar(
+                              content: Text('Chưa có thông báo mới.'),
+                              duration: Duration(seconds: 1),
+                            ),
+                          );
+                        },
+                      ),
                     ),
                   ),
                   Positioned(
-                    top: 8,
-                    right: 8,
+                    top: 10,
+                    right: 10,
                     child: Container(
                       width: 7,
                       height: 7,
@@ -229,36 +234,40 @@ class _LearnerDashboardScreenState
               const SizedBox(width: 10),
 
               // Avatar tròn chú rùa đội nón lá viền vàng
-              GestureDetector(
-                onTap: () => context.go('/profile'),
-                child: Container(
-                  width: 40,
-                  height: 40,
-                  decoration: BoxDecoration(
-                    shape: BoxShape.circle,
-                    color: const Color(0xFFFAF2DC),
-                    border: Border.all(
-                      color: DauVietColors.imperialGold,
-                      width: 2.0,
-                    ),
-                    boxShadow: [
-                      BoxShadow(
-                        color: DauVietColors.imperialGold.withValues(
-                          alpha: 0.25,
-                        ),
-                        blurRadius: 6,
-                        offset: const Offset(0, 2),
+              Semantics(
+                button: true,
+                label: 'Hồ sơ cá nhân',
+                child: GestureDetector(
+                  onTap: () => context.go('/profile'),
+                  child: Container(
+                    width: 44,
+                    height: 44,
+                    decoration: BoxDecoration(
+                      shape: BoxShape.circle,
+                      color: const Color(0xFFFAF2DC),
+                      border: Border.all(
+                        color: DauVietColors.imperialGold,
+                        width: 2.0,
                       ),
-                    ],
-                  ),
-                  child: ClipOval(
-                    child: Image.asset(
-                      'assets/images/turtle_welcome.png',
-                      fit: BoxFit.cover,
-                      alignment: Alignment.topCenter,
-                      errorBuilder: (_, __, ___) => const Icon(
-                        Icons.person_rounded,
-                        color: DauVietColors.heritageGreen,
+                      boxShadow: [
+                        BoxShadow(
+                          color: DauVietColors.imperialGold.withValues(
+                            alpha: 0.25,
+                          ),
+                          blurRadius: 6,
+                          offset: const Offset(0, 2),
+                        ),
+                      ],
+                    ),
+                    child: ClipOval(
+                      child: Image.asset(
+                        'assets/images/turtle_welcome.png',
+                        fit: BoxFit.cover,
+                        alignment: Alignment.topCenter,
+                        errorBuilder: (_, _, _) => const Icon(
+                          Icons.person_rounded,
+                          color: DauVietColors.heritageGreen,
+                        ),
                       ),
                     ),
                   ),
@@ -352,7 +361,7 @@ class _LearnerDashboardScreenState
     final progressAsync = ref.watch(myProgressProvider);
     final learningPathAsync = ref.watch(learnerLearningPathProvider);
     return Container(
-      height: 195,
+      constraints: const BoxConstraints(minHeight: 195),
       decoration: BoxDecoration(
         borderRadius: BorderRadius.circular(24),
         border: Border.all(color: const Color(0xFFE8E2D5), width: 1.2),
@@ -373,7 +382,7 @@ class _LearnerDashboardScreenState
               child: Image.asset(
                 'assets/images/landscape_hero_bg.jpg',
                 fit: BoxFit.cover,
-                errorBuilder: (_, __, ___) =>
+                errorBuilder: (_, _, _) =>
                     Container(color: const Color(0xFFF4ECE1)),
               ),
             ),
@@ -386,32 +395,34 @@ class _LearnerDashboardScreenState
                     begin: Alignment.centerLeft,
                     end: Alignment.centerRight,
                     colors: [
-                      const Color(0xFFFFFDF9).withValues(alpha: 0.95),
-                      const Color(0xFFFFFDF9).withValues(alpha: 0.90),
-                      const Color(0xFFFFFDF9).withValues(alpha: 0.60),
-                      const Color(0xFFFFFDF9).withValues(alpha: 0.10),
+                      const Color(0xFFFFFDF9).withValues(alpha: 0.98),
+                      const Color(0xFFFFFDF9).withValues(alpha: 0.94),
+                      const Color(0xFFFFFDF9).withValues(alpha: 0.72),
+                      const Color(0xFFFFFDF9).withValues(alpha: 0.12),
                     ],
-                    stops: const [0.0, 0.45, 0.72, 1.0],
+                    stops: const [0.0, 0.52, 0.76, 1.0],
                   ),
                 ),
               ),
             ),
 
-            // Layer 3: Mascot Chú Rùa đội nón lá cầm bản đồ (Tách nền 100% bên phải)
+            // Layer 3: Mascot Chú Rùa đội nón lá cầm bản đồ (căn gọn góc phải)
             Positioned(
-              right: -10,
-              bottom: 0,
-              top: 10,
+              right: -12,
+              bottom: -4,
+              width: 148,
+              height: 168,
               child: Image.asset(
                 'assets/images/turtle_map.png',
                 fit: BoxFit.contain,
-                errorBuilder: (_, __, ___) => const SizedBox.shrink(),
+                alignment: Alignment.bottomRight,
+                errorBuilder: (_, _, _) => const SizedBox.shrink(),
               ),
             ),
 
-            // Layer 4: Nội dung chữ & Nút CTA "Tiếp tục học →" / "KHÁM PHÁ NGAY ›"
+            // Layer 4: Nội dung chữ & Nút CTA (chừa 128px bên phải để không đè lên nón lá Kabi)
             Padding(
-              padding: const EdgeInsets.fromLTRB(18, 16, 12, 16),
+              padding: const EdgeInsets.fromLTRB(18, 16, 128, 16),
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 mainAxisAlignment: MainAxisAlignment.spaceBetween,
@@ -561,10 +572,33 @@ class _LearnerDashboardScreenState
               orElse: () => null,
             );
             if (inProgress != null) {
+              final String? resolvedLessonTitle = learningPathAsync.maybeWhen(
+                data: (path) {
+                  final lid = inProgress.lessonId;
+                  if (lid == null || lid.isEmpty) return null;
+                  return path.findLessonById(lid)?.title;
+                },
+                orElse: () => null,
+              );
+              final String rawStage = inProgress.currentStageId ?? '';
+              final String mappedStage = switch (rawStage.toLowerCase()) {
+                'ctx' || 'context' => 'Bối cảnh lịch sử',
+                'ev' => 'Thu thập bằng chứng',
+                'res' || 'reasoning' => 'Suy luận lịch sử',
+                'hyp' || 'hypothesis' => 'Đặt giả thuyết',
+                'ver' || 'verification' => 'Kiểm chứng sử liệu',
+                'cer' || 'conclusion' => 'Kết luận lịch sử',
+                'ref' || 'reflection' => 'Suy ngẫm lịch sử',
+                _ => rawStage,
+              };
               return _buildTodayLessonCard(
-                title: 'Bài học đang tiếp diễn',
-                subtitle: inProgress.currentStageId != null
-                    ? 'Giai đoạn: ${inProgress.currentStageId}'
+                title:
+                    (resolvedLessonTitle != null &&
+                        resolvedLessonTitle.trim().isNotEmpty)
+                    ? resolvedLessonTitle.trim()
+                    : 'Bài học đang tiếp diễn',
+                subtitle: mappedStage.isNotEmpty
+                    ? 'Giai đoạn: $mappedStage'
                     : 'Hành trình đang thực hiện',
                 progressFraction: inProgress.progress.fraction,
                 progressText:
@@ -1188,7 +1222,7 @@ class _LearnerDashboardScreenState
                 'assets/images/bach_dang_938.jpg',
                 fit: BoxFit.cover,
                 alignment: Alignment.center,
-                errorBuilder: (_, __, ___) =>
+                errorBuilder: (_, _, _) =>
                     Container(color: const Color(0xFF2C1810)),
               ),
             ),
@@ -1381,31 +1415,36 @@ class _EnergyMiniPill extends ConsumerWidget {
     final String value = energyAsync.when(
       data: (e) => '${e.current}',
       loading: () => '—',
-      error: (_, __) => '—',
+      error: (_, _) => '—',
     );
-    return GestureDetector(
-      onTap: () => context.push('/energy'),
-      child: Container(
-        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-        decoration: BoxDecoration(
-          color: const Color(0xFFFFF9E6),
-          borderRadius: BorderRadius.circular(16),
-          border: Border.all(color: const Color(0xFFFFE082), width: 1.2),
-        ),
-        child: Row(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            const Text('⚡', style: TextStyle(fontSize: 12)),
-            const SizedBox(width: 3),
-            Text(
-              value,
-              style: const TextStyle(
-                fontSize: 12,
-                fontWeight: FontWeight.w900,
-                color: Color(0xFFB45309),
+    return Semantics(
+      button: true,
+      label: 'Thể lực: $value',
+      child: GestureDetector(
+        onTap: () => context.push('/energy'),
+        child: Container(
+          constraints: const BoxConstraints(minWidth: 44, minHeight: 32),
+          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+          decoration: BoxDecoration(
+            color: const Color(0xFFFFF9E6),
+            borderRadius: BorderRadius.circular(16),
+            border: Border.all(color: const Color(0xFFFFE082), width: 1.2),
+          ),
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              const Text('⚡', style: TextStyle(fontSize: 12)),
+              const SizedBox(width: 3),
+              Text(
+                value,
+                style: const TextStyle(
+                  fontSize: 12,
+                  fontWeight: FontWeight.w900,
+                  color: Color(0xFFB45309),
+                ),
               ),
-            ),
-          ],
+            ],
+          ),
         ),
       ),
     );
@@ -1422,31 +1461,36 @@ class _StreakMiniPill extends ConsumerWidget {
     final String value = streakAsync.when(
       data: (s) => '${s.currentStreak}',
       loading: () => '—',
-      error: (_, __) => '—',
+      error: (_, _) => '—',
     );
-    return GestureDetector(
-      onTap: () => context.push('/streak'),
-      child: Container(
-        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-        decoration: BoxDecoration(
-          color: const Color(0xFFFDF2F2),
-          borderRadius: BorderRadius.circular(16),
-          border: Border.all(color: const Color(0xFFFFCDD2), width: 1.2),
-        ),
-        child: Row(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            const Text('🔥', style: TextStyle(fontSize: 12)),
-            const SizedBox(width: 3),
-            Text(
-              value,
-              style: const TextStyle(
-                fontSize: 12,
-                fontWeight: FontWeight.w900,
-                color: Color(0xFFC62828),
+    return Semantics(
+      button: true,
+      label: 'Chuỗi ngày học: $value',
+      child: GestureDetector(
+        onTap: () => context.push('/streak'),
+        child: Container(
+          constraints: const BoxConstraints(minWidth: 44, minHeight: 32),
+          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+          decoration: BoxDecoration(
+            color: const Color(0xFFFDF2F2),
+            borderRadius: BorderRadius.circular(16),
+            border: Border.all(color: const Color(0xFFFFCDD2), width: 1.2),
+          ),
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              const Text('🔥', style: TextStyle(fontSize: 12)),
+              const SizedBox(width: 3),
+              Text(
+                value,
+                style: const TextStyle(
+                  fontSize: 12,
+                  fontWeight: FontWeight.w900,
+                  color: Color(0xFFC62828),
+                ),
               ),
-            ),
-          ],
+            ],
+          ),
         ),
       ),
     );
