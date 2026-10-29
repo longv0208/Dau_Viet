@@ -1,0 +1,7 @@
+# Flutter-generated platform plugin files — normalize line endings so
+# Windows checkout (CRLF) doesn't flip them vs the LF stored in git.
+linux/flutter/generated_plugin_registrant.* text=auto
+linux/flutter/generated_plugins.cmake text=auto
+macos/Flutter/GeneratedPluginRegistrant.swift text=auto
+windows/flutter/generated_plugin_registrant.* text=auto
+windows/flutter/generated_plugins.cmake text=auto
