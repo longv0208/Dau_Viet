@@ -91,17 +91,28 @@ class _OnboardingScreenState extends ConsumerState<OnboardingScreen> {
               child: Column(
                 children: [
                   // Hàng Bỏ qua — luôn có để không kẹt người dùng.
-                  Align(
-                    alignment: Alignment.centerRight,
-                    child: TextButton(
-                      onPressed: _finish,
-                      child: Text(
-                        'Bỏ qua',
-                        style: DauVietTypography.labelMedium.copyWith(
-                          color: DauVietColors.inkMuted,
-                          fontWeight: FontWeight.w700,
+                  Padding(
+                    padding: const EdgeInsets.fromLTRB(20, 8, 12, 0),
+                    child: Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                      children: [
+                        Image.asset(
+                          'assets/images/app_logo.png',
+                          height: 36,
+                          fit: BoxFit.contain,
+                          errorBuilder: (_, _, _) => const SizedBox.shrink(),
                         ),
-                      ),
+                        TextButton(
+                          onPressed: _finish,
+                          child: Text(
+                            'Bỏ qua',
+                            style: DauVietTypography.labelMedium.copyWith(
+                              color: DauVietColors.inkMuted,
+                              fontWeight: FontWeight.w700,
+                            ),
+                          ),
+                        ),
+                      ],
                     ),
                   ),
                   Expanded(

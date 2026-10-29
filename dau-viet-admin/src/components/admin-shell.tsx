@@ -31,7 +31,6 @@ import { useLogout } from "@/features/auth/use-auth";
 import { SessionBootstrap } from "@/features/auth/session-bootstrap";
 
 import { Breadcrumbs } from "./breadcrumbs";
-import { SectionEyebrow } from "./atoms/section-eyebrow";
 
 // Sự kiện là điểm vào chính — Event Workspace gom bài học/bằng chứng/hoạt họa
 // theo sự kiện. Các mục còn lại là thư viện dùng chung toàn hệ thống.
@@ -124,13 +123,12 @@ function Shell({ user, children }: { user: UserProfileDto; children: React.React
       >
         <div className={cn("flex min-h-14 items-center border-b border-border py-2", collapsed ? "justify-center px-2" : "justify-between px-3")}>
           <Link href="/dashboard" className="flex min-w-0 items-center gap-2" title="Dấu Việt — trang quản trị">
-            {/* eslint-disable-next-line @next/next/no-img-element -- logo là file tĩnh trong /public */}
-            <img src="/logo.svg" alt="Dấu Việt" className="size-8 shrink-0 rounded-full object-cover" />
-            {!collapsed && (
-              <div className="flex min-w-0 flex-col items-start gap-0.5">
-                <SectionEyebrow>DAU VIET CMS</SectionEyebrow>
-                <span className="truncate font-display text-lg font-bold text-brand">Dấu Việt</span>
-              </div>
+            {collapsed ? (
+              /* eslint-disable-next-line @next/next/no-img-element -- logo là file tĩnh trong /public */
+              <img src="/logo-seal.svg" alt="Dấu Việt" className="size-8 shrink-0 object-contain" />
+            ) : (
+              /* eslint-disable-next-line @next/next/no-img-element -- logo là file tĩnh trong /public */
+              <img src="/logo.svg" alt="Dấu Việt" className="h-9 w-auto max-w-[168px] object-contain" />
             )}
           </Link>
           {!collapsed && (
@@ -179,11 +177,7 @@ function Shell({ user, children }: { user: UserProfileDto; children: React.React
           <div className="absolute left-0 top-0 flex h-full w-64 flex-col bg-surface-alt shadow-lg">
             <div className="flex min-h-14 items-center gap-2 border-b border-border px-4 py-2">
               {/* eslint-disable-next-line @next/next/no-img-element -- logo là file tĩnh trong /public */}
-              <img src="/logo.svg" alt="" className="size-8 rounded-full object-cover" />
-              <div className="flex min-w-0 flex-col items-start gap-0.5">
-                <SectionEyebrow>DAU VIET CMS</SectionEyebrow>
-                <span className="font-display text-lg font-bold text-brand">Dấu Việt</span>
-              </div>
+              <img src="/logo.svg" alt="Dấu Việt" className="h-9 w-auto max-w-[180px] object-contain" />
             </div>
             <div className="flex-1 overflow-y-auto">
               <NavLinks collapsed={false} onNavigate={() => setMobileOpen(false)} />
@@ -204,6 +198,8 @@ function Shell({ user, children }: { user: UserProfileDto; children: React.React
           >
             <Menu className="size-5" aria-hidden />
           </button>
+          {/* eslint-disable-next-line @next/next/no-img-element -- logo là file tĩnh trong /public */}
+          <img src="/logo-seal.svg" alt="Dấu Việt" className="size-7 shrink-0 object-contain md:hidden" />
           <Breadcrumbs />
         </header>
         <main className="flex-1 p-4 md:p-6">{children}</main>

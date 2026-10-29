@@ -10,6 +10,8 @@ export function ForbiddenState({ user }: { user?: { displayName?: string; role?:
     <div className="flex min-h-screen items-center justify-center bg-surface p-6">
       <Card className="w-full max-w-md">
         <CardContent className="flex flex-col items-center gap-3 py-10 text-center">
+          {/* eslint-disable-next-line @next/next/no-img-element -- logo là file tĩnh trong /public */}
+          <img src="/logo.svg" alt="Dấu Việt" className="mb-1 h-12 w-auto object-contain" />
           <ShieldAlert className="size-12 text-error" aria-hidden />
           <h1 className="font-display text-xl font-semibold">Không có quyền truy cập</h1>
           <p className="text-sm text-ink-muted">

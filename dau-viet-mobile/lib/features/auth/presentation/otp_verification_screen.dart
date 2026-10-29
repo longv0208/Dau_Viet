@@ -202,6 +202,13 @@ class _OtpVerificationScreenState extends ConsumerState<OtpVerificationScreen> {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.center,
                 children: [
+                  Image.asset(
+                    'assets/images/app_logo.png',
+                    height: 60,
+                    fit: BoxFit.contain,
+                    errorBuilder: (_, _, _) => const SizedBox.shrink(),
+                  ),
+                  const SizedBox(height: 14),
                   Text(
                     'XÁC THỰC EMAIL',
                     style: DauVietTypography.headlineMedium.copyWith(

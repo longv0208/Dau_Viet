@@ -12,7 +12,7 @@ export function MobileFrame({ children }: { children: ReactNode }) {
         <span>9:41</span>
         <span className="flex items-center gap-1 tracking-wide">
           {/* eslint-disable-next-line @next/next/no-img-element -- logo là file tĩnh trong /public */}
-          <img src="/logo.svg" alt="" className="size-3.5 rounded-full object-cover" />
+          <img src="/logo-seal.svg" alt="" className="size-4 object-contain" />
           Dấu Việt — Xem trước
         </span>
         <span aria-hidden>●●●</span>

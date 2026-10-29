@@ -12,8 +12,8 @@ export default function LoginPage() {
       <Card className="w-full max-w-sm">
         <CardHeader className="items-center text-center">
           {/* eslint-disable-next-line @next/next/no-img-element -- logo là file tĩnh trong /public */}
-          <img src="/logo.svg" alt="Dấu Việt" className="size-16 rounded-full object-cover" />
-          <CardTitle className="text-2xl text-brand">Dấu Việt</CardTitle>
+          <img src="/logo.svg" alt="Dấu Việt" className="h-20 w-auto object-contain" />
+          <CardTitle className="sr-only">Dấu Việt</CardTitle>
           <CardDescription>Đăng nhập quản trị nội dung</CardDescription>
         </CardHeader>
         <CardContent>

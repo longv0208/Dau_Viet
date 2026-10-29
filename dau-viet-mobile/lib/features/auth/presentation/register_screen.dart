@@ -121,29 +121,34 @@ class _RegisterScreenState extends ConsumerState<RegisterScreen> {
                   crossAxisAlignment: CrossAxisAlignment.center,
                   children: [
                     const SizedBox(height: 12),
-                    Container(
-                      width: 64,
-                      height: 64,
-                      decoration: BoxDecoration(
-                        color: DauVietColors.cinnabarRed,
-                        borderRadius: BorderRadius.circular(14),
-                        border: Border.all(
-                          color: DauVietColors.imperialGold,
-                          width: 2,
+                    Image.asset(
+                      'assets/images/app_logo.png',
+                      height: 68,
+                      fit: BoxFit.contain,
+                      errorBuilder: (_, _, _) => Container(
+                        width: 64,
+                        height: 64,
+                        decoration: BoxDecoration(
+                          color: DauVietColors.cinnabarRed,
+                          borderRadius: BorderRadius.circular(14),
+                          border: Border.all(
+                            color: DauVietColors.imperialGold,
+                            width: 2,
+                          ),
+                          boxShadow: DauVietColors.heritageShadow,
                         ),
-                        boxShadow: DauVietColors.heritageShadow,
-                      ),
-                      alignment: Alignment.center,
-                      child: const Text(
-                        'DẤU\nVIỆT',
-                        textAlign: TextAlign.center,
-                        style: TextStyle(
-                          fontFamily: 'Noto Serif',
-                          fontSize: 14,
-                          fontWeight: FontWeight.w900,
-                          color: Colors.white,
-                          height: 1.1,
-                          letterSpacing: 1.0,
+                        alignment: Alignment.center,
+                        child: const Text(
+                          'DẤU\nVIỆT',
+                          textAlign: TextAlign.center,
+                          style: TextStyle(
+                            fontFamily: 'Noto Serif',
+                            fontSize: 14,
+                            fontWeight: FontWeight.w900,
+                            color: Colors.white,
+                            height: 1.1,
+                            letterSpacing: 1.0,
+                          ),
                         ),
                       ),
                     ),

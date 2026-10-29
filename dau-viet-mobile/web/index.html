@@ -18,21 +18,58 @@
 
   <meta charset="UTF-8">
   <meta content="IE=Edge" http-equiv="X-UA-Compatible">
-  <meta name="description" content="A new Flutter project.">
+  <meta name="description" content="Dấu Việt — Học Sử Việt, Gìn Giữ Hồn Việt.">
 
   <!-- iOS meta tags & icons -->
   <meta name="mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-status-bar-style" content="black">
-  <meta name="apple-mobile-web-app-title" content="dau_viet_mobile">
+  <meta name="apple-mobile-web-app-title" content="Dấu Việt">
   <link rel="apple-touch-icon" href="icons/Icon-192.png">
 
   <!-- Favicon -->
   <link rel="icon" type="image/png" href="favicon.png"/>
 
-  <title>dau_viet_mobile</title>
+  <title>Dấu Việt — Học Sử Việt, Gìn Giữ Hồn Việt</title>
   <link rel="manifest" href="manifest.json">
+  <style>
+    html, body {
+      margin: 0;
+      padding: 0;
+      background-color: #FBF8F1;
+      height: 100%;
+    }
+    #dv-boot-splash {
+      position: fixed;
+      inset: 0;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      background: radial-gradient(circle, #FFFBF4 0%, #FFF1D5 65%, #F3E0C0 100%);
+      z-index: 9999;
+      transition: opacity 0.35s ease;
+      pointer-events: none;
+    }
+    #dv-boot-splash img {
+      width: min(300px, 78vw);
+      height: auto;
+      filter: drop-shadow(0 6px 18px rgba(97, 59, 40, 0.14));
+    }
+  </style>
 </head>
 <body>
+  <div id="dv-boot-splash">
+    <img src="logo2.svg" alt="Dấu Việt — Học Sử Việt, Gìn Giữ Hồn Việt" />
+  </div>
+  <script>
+    window.addEventListener("flutter-first-frame", function () {
+      var el = document.getElementById("dv-boot-splash");
+      if (el) {
+        el.style.opacity = "0";
+        setTimeout(function () { el.remove(); }, 400);
+      }
+    });
+  </script>
   <!--
     You can customize the "flutter_bootstrap.js" script.
     This is useful to provide a custom configuration to the Flutter loader

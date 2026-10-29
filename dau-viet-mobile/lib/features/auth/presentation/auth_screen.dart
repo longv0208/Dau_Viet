@@ -196,11 +196,19 @@ class _AuthScreenState extends ConsumerState<AuthScreen> {
                         padding: const EdgeInsets.symmetric(horizontal: 20),
                         child: Column(
                           children: [
-                            const SizedBox(height: 6),
+                            const SizedBox(height: 4),
+
+                            // Logo Dấu Việt chính thức từ logo2.svg
+                            Image.asset(
+                              'assets/images/app_logo.png',
+                              height: 54,
+                              fit: BoxFit.contain,
+                              errorBuilder: (_, _, _) => const SizedBox.shrink(),
+                            ),
+                            const SizedBox(height: 8),
 
                             // Mascot Chú Rùa đội nón lá cầm bảng "Chào mừng trở lại!"
                             _buildMascotSection(),
-
                             const SizedBox(height: 12),
 
                             // Card Form Đăng Nhập Trắng Tinh Khiết Chuẩn Mẫu UI Pro Max

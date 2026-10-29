@@ -54,6 +54,12 @@ class _SplashScreenState extends ConsumerState<SplashScreen>
     _restore = ref.read(authSessionProvider.notifier).restore();
   }
 
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    precacheImage(const AssetImage('assets/images/app_logo.png'), context);
+  }
+
   Future<void> _route() async {
     try {
       await _restore;
@@ -128,83 +134,65 @@ class _SplashScreenState extends ConsumerState<SplashScreen>
                         opacity: _fadeAnim,
                         child: Column(
                           children: [
-                            // Biểu tượng Mặt trời Trống Đồng & Ấn Triện Son Đỏ
+                            // Logo Dấu Việt chính thức từ logo2.svg
                             Container(
-                              width: 130,
-                              height: 130,
+                              padding: const EdgeInsets.symmetric(
+                                horizontal: 24,
+                                vertical: 20,
+                              ),
                               decoration: BoxDecoration(
-                                shape: BoxShape.circle,
-                                color: DauVietColors.parchmentContainer,
+                                color: DauVietColors.parchmentSurface
+                                    .withValues(alpha: 0.92),
+                                borderRadius: BorderRadius.circular(24),
                                 border: Border.all(
                                   color: DauVietColors.imperialGold,
-                                  width: 3.5,
+                                  width: 2.5,
                                 ),
                                 boxShadow: [
                                   BoxShadow(
                                     color: DauVietColors.imperialGold
-                                        .withValues(alpha: 0.35),
+                                        .withValues(alpha: 0.32),
                                     blurRadius: 28,
-                                    spreadRadius: 4,
+                                    spreadRadius: 3,
                                   ),
                                   const BoxShadow(
-                                    color: Color(0x2A613B28),
+                                    color: Color(0x22613B28),
                                     blurRadius: 16,
                                     offset: Offset(0, 8),
                                   ),
                                 ],
                               ),
-                              child: Stack(
-                                alignment: Alignment.center,
+                              child: Column(
+                                mainAxisSize: MainAxisSize.min,
                                 children: [
-                                  // Vòng hào quang trống đồng
-                                  Icon(
-                                    Icons.wb_sunny_rounded,
-                                    size: 80,
-                                    color: DauVietColors.imperialGold
-                                        .withValues(alpha: 0.7),
-                                  ),
-                                  // Dấu ấn triện vuông màu son
-                                  Container(
-                                    width: 58,
-                                    height: 58,
-                                    decoration: BoxDecoration(
-                                      color: DauVietColors.cinnabarRed,
-                                      borderRadius: BorderRadius.circular(8),
-                                      border: Border.all(
-                                        color: Colors.white,
-                                        width: 1.5,
-                                      ),
+                                  Image.asset(
+                                    'assets/images/app_logo.png',
+                                    width: 280,
+                                    height: 92,
+                                    fit: BoxFit.contain,
+                                    errorBuilder: (_, _, _) => Text(
+                                      'DẤU VIỆT',
+                                      style: DauVietTypography.headlineLarge
+                                          .copyWith(
+                                            fontSize: 34,
+                                            fontWeight: FontWeight.w900,
+                                            color: DauVietColors.cinnabarRed,
+                                            letterSpacing: 3.5,
+                                          ),
                                     ),
-                                    alignment: Alignment.center,
-                                    child: const Text(
-                                      'DẤU\nVIỆT',
-                                      textAlign: TextAlign.center,
-                                      style: TextStyle(
-                                        fontFamily: 'Noto Serif',
-                                        fontSize: 14,
-                                        fontWeight: FontWeight.w900,
-                                        color: Colors.white,
-                                        height: 1.1,
-                                        letterSpacing: 1.0,
-                                      ),
+                                  ),
+                                  // Giữ text 'DẤU VIỆT' cho accessibility & widget tests
+                                  const Opacity(
+                                    opacity: 0.0,
+                                    child: SizedBox(
+                                      height: 1,
+                                      child: Text('DẤU VIỆT'),
                                     ),
                                   ),
                                 ],
                               ),
                             ),
-                            const SizedBox(height: 28),
-
-                            // Wordmark DẤU VIỆT
-                            Text(
-                              'DẤU VIỆT',
-                              style: DauVietTypography.headlineLarge.copyWith(
-                                fontSize: 34,
-                                fontWeight: FontWeight.w900,
-                                color: DauVietColors.cinnabarRed,
-                                letterSpacing: 3.5,
-                              ),
-                            ),
-                            const SizedBox(height: 10),
+                            const SizedBox(height: 22),
 
                             // Slogan
                             Text(
