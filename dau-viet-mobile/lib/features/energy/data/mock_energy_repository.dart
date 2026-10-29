@@ -14,6 +14,21 @@ class MockEnergyRepository implements EnergyRepository {
       nextRecoveryAt: null, // đầy → không có mốc chờ
       serverTime: DateTime.now().toUtc(),
       canSubmitGraded: true,
+      pointsBalance: 0,
+      remedies: const [],
+    );
+  }
+
+  @override
+  Future<EnergyRefillResultDto> refillEnergy({
+    required String remedyCode,
+    required String idempotencyKey,
+  }) {
+    // Mock không mô phỏng mua — trả state hiện tại. Demo thật dùng
+    // ApiEnergyRepository.
+    throw UnimplementedError(
+      'MockEnergyRepository does not support refillEnergy — '
+      'use real backend for GAME-07',
     );
   }
 }

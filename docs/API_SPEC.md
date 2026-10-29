@@ -169,9 +169,48 @@ Content-Type: application/json
 - `canSubmitGraded` = `current > 0` — client dùng để quyết hiển thị nút submit graded; energy 0 chỉ chặn graded submit, ungraded/read/complete vẫn đi qua.
 - `current`, `nextRecoveryAt`, `serverTime` do server tính tuyệt đối — client không gửi balance, không tự tính chu kỳ hồi.
 - Error `409 ENERGY_DEPLETED` (submit graded khi `current = 0`) mang `details {currentEnergy, nextRecoveryAt, serverTime}` để client hiển thị countdown mà không cần gọi thêm endpoint.
+- **GAME-07 (Issue #28) — response mở rộng**: `pointsBalance` (Điểm Sử Ký hiện có — computed `sumCredits - sumDebits` trên `wallet_transactions`) và `remedies[]` (catalog Viện Thái Y từ `energy_remedies` đang active). Mỗi remedy: `{id, code, title, description, rarity, iconKey, assetId, energyGain, pointsCost, cooldownSeconds, eligible, effectiveEnergyGain, cooldownEndsAt, blockReasons[]}`. Server quyết `eligible`/`blockReasons`/`effectiveEnergyGain` — client chỉ render, KHÔNG tự suy luận. `blockReasons` ∈ `ENERGY_FULL`/`INSUFFICIENT_FUNDS`/`REFILL_RATE_LIMITED`/`POLICY_DISABLED`; `effectiveEnergyGain = min(energyGain, maxEnergy - current)`.
 - **Rollout flag (FIX 3)**: `dauviet.energy.enabled` mặc định `false` qua `application.yml` (`DAUVIET_ENERGY_ENABLED` env-override) — penalty + gate no-op khi tắt, chỉ theo dõi trạng thái; `canSubmitGraded` trả `true`. Bật `true` khi GAME-03 Flutter đã xử lý `ENERGY_DEPLETED` + đồng hồ đếm; bật/tắt không reset `user_energy`/`energy_transactions`. Tests bật explicit qua `src/test/resources/application.yml`.
 
-### GET /me/streak — implemented shape (STREAK-01)
+### POST /me/energy/refills — implemented shape (GAME-07, Issue #28)
+
+`POST /api/v1/me/energy/refills` — authenticated; refill Thể lực bằng một vật phẩm Viện Thái Y (`energy_remedies`).
+
+Request body + Idempotency-Key bắt buộc:
+
+```json
+{
+  "remedyCode": "NUOC_VOI"
+}
+```
+
+Response 200:
+
+```json
+{
+  "energy": { /* EnergyStateResponse đầy đủ — client apply snapshot mà không cần GET lại */ },
+  "remedyCode": "NUOC_VOI",
+  "energyCredited": 20,
+  "pointsSpent": 0,
+  "walletBalance": 80,
+  "refillAt": "2026-10-29T10:00:00Z",
+  "nextEligibleAt": "2026-10-30T10:00:00Z",
+  "serverTime": "2026-10-29T10:00:00Z"
+}
+```
+
+Luồng (lock order: `user_energy` PESSIMISTIC_WRITE → `wallet_accounts`):
+
+1. `IdempotencyService.execute(userId, "ENERGY_REFILL", key, "REFILL:"+code, ...)` — replay cùng key trả response đã lưu, fingerprint mismatch → 409.
+2. Lazy-recovery + lock `user_energy`; `remedyRepo.findActiveByCode` (404 `REMEDY_NOT_FOUND` khi remedy vô hiệu/không tồn tại).
+3. `current >= maxEnergy` → 422 `REFILL_NOT_ELIGIBLE` (`blockReasons=["ENERGY_FULL"]`).
+4. Cooldown per user per remedy từ `energy_transactions.reference_json->>'remedyCode'` `REASON='REFILL_PURCHASE'` `MAX(created_at)` → `cooldownEndsAt > now` → 409 `REFILL_RATE_LIMITED` (`details {remedyCode, lastRefillAt, nextEligibleAt, serverTime}`).
+5. `causeKey = "REFILL:"+idempotencyKey` — `wallet.debit` nếu `pointsCost > 0` (lỗi `INSUFFICIENT_FUNDS` 422 khi thiếu).
+6. `ledger.insertIgnore` `REFILL_PURCHASE` với `reference_json = {remedyCode, remedyId, pointsCost, energyGain}` → `insert=0` → reconcile (idempotent DB backstop).
+7. `e.credit(credited, projected >= max ? now : null)` — ENGY-08: đầy max → anchor `last_recovery_at = now`; dưới max giữ anchor cũ để không mất phút recovery đang đếm dở.
+8. Trả `EnergyRefillResponse` — `energy` đã gồm `pointsBalance` + `remedies[]` mới.
+
+Errors: `400 VALIDATION_ERROR` (missing `Idempotency-Key` / `remedyCode` blank), `404 REMEDY_NOT_FOUND`, `409 REFILL_RATE_LIMITED`, `422 REFILL_NOT_ELIGIBLE` (`ENERGY_FULL`/`INSUFFICIENT_FUNDS`/`POLICY_DISABLED` trong `blockReasons[]`).
 
 `GET /api/v1/me/streak` — authenticated; trả trạng thái Chuỗi Ngày Học của learner. Đọc-only: **không** lazy-create row nào — user chưa học nhận bộ default `current=0`, `streakAlive=false`, `lastQualifiedDate=null` mà DB vẫn trống.
 

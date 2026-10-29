@@ -11,4 +11,14 @@ class ApiEnergyRepository implements EnergyRepository {
 
   @override
   Future<EnergyStateDto> getMyEnergy() => _api.getMyEnergy();
+
+  @override
+  Future<EnergyRefillResultDto> refillEnergy({
+    required String remedyCode,
+    required String idempotencyKey,
+  }) =>
+      _api.refillEnergy(
+        remedyCode: remedyCode,
+        idempotencyKey: idempotencyKey,
+      );
 }

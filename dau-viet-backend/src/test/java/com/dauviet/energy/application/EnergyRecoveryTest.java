@@ -8,6 +8,7 @@ import java.time.Duration;
 import java.time.Instant;
 import java.time.ZoneOffset;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.UUID;
@@ -18,10 +19,18 @@ import org.mockito.ArgumentCaptor;
 import org.mockito.Mockito;
 
 import com.dauviet.energy.domain.EnergyDepletedException;
+import com.dauviet.energy.domain.EnergyRefillExceptions;
+import com.dauviet.energy.domain.EnergyRemedy;
 import com.dauviet.energy.domain.UserEnergy;
+import com.dauviet.energy.infrastructure.persistence.EnergyPolicySettingRepository;
+import com.dauviet.energy.infrastructure.persistence.EnergyRemedyRepository;
 import com.dauviet.energy.infrastructure.persistence.EnergyTransactionRepository;
 import com.dauviet.energy.infrastructure.persistence.EnergyTransactionRepository.StoredCause;
+import com.dauviet.energy.infrastructure.persistence.EnergyTransactionRepository.RemedyUsageProjection;
 import com.dauviet.energy.infrastructure.persistence.UserEnergyRepository;
+import com.dauviet.learning.application.IdempotencyService;
+import com.dauviet.wallet.application.WalletService;
+import com.dauviet.wallet.infrastructure.persistence.WalletTransactionRepository;
 import com.fasterxml.jackson.databind.ObjectMapper;
 
 /**
@@ -37,9 +46,13 @@ class EnergyRecoveryTest {
 
     private UserEnergyRepository energyRepo;
     private EnergyTransactionRepository ledger;
+    private EnergyPolicySettingRepository policyRepo;
+    private EnergyRemedyRepository remedyRepo;
+    private WalletTransactionRepository walletLedger;
+    private WalletService wallet;
+    private IdempotencyService idempotency;
     private MutableClock clock;
     private EnergyService service;
-
     private final Map<UUID, UserEnergy> rows = new HashMap<>();
 
     /** Clock tiến tay — test điều khiển thời gian. */
@@ -59,6 +72,11 @@ class EnergyRecoveryTest {
         clock = new MutableClock(T0);
         energyRepo = Mockito.mock(UserEnergyRepository.class);
         ledger = Mockito.mock(EnergyTransactionRepository.class);
+        policyRepo = Mockito.mock(EnergyPolicySettingRepository.class);
+        remedyRepo = Mockito.mock(EnergyRemedyRepository.class);
+        walletLedger = Mockito.mock(WalletTransactionRepository.class);
+        wallet = Mockito.mock(WalletService.class);
+        idempotency = Mockito.mock(IdempotencyService.class);
 
         Mockito.when(energyRepo.findForUpdate(Mockito.any()))
                 .thenAnswer(inv -> Optional.ofNullable(
@@ -76,10 +94,57 @@ class EnergyRecoveryTest {
         Mockito.when(energyRepo.save(Mockito.any()))
                 .thenAnswer(inv -> inv.getArgument(0));
 
+        // IdempotencyService.execute mặc định chạy supplier trực tiếp
+        // (không replay DB) — test thao túng fingerprint ở tầng ledger.
+        Mockito.when(idempotency.execute(Mockito.any(), Mockito.any(),
+                Mockito.any(), Mockito.any(), Mockito.any(), Mockito.any()))
+                .thenAnswer(inv -> {
+                    java.util.function.Supplier<Object> sup = inv.getArgument(4);
+                    return sup.get();
+                });
+
         service = new EnergyService(new EnergyProperties(true, 100, 10, 5,
-                Duration.ofMinutes(15)), energyRepo, ledger, clock,
+                Duration.ofMinutes(15)), energyRepo, ledger, policyRepo,
+                remedyRepo, walletLedger, wallet, idempotency, clock,
                 new ObjectMapper());
         seedDefaultLedgerBehavior();
+        seedDefaultRemedyRepoBehavior();
+        seedDefaultPolicyRepoBehavior();
+        seedDefaultWalletLedgerBehavior();
+    }
+
+    /* ---------- GAME-07 helper seed ---------- */
+
+    /** Remedy mẫu cho test Viện Thái Y. */
+    private EnergyRemedy remedy(String code, int energyGain,
+                                 long pointsCost, int cooldownSeconds) {
+        return EnergyRemedy.create(UUID.randomUUID(), code,
+                "Thang " + code, "Test remedy", "COMMON",
+                "energy_" + code.toLowerCase(), null,
+                energyGain, pointsCost, cooldownSeconds,
+                true, 0, T0);
+    }
+
+    /** Default: không có policy DB → fallback EnergyProperties. */
+    private void seedDefaultPolicyRepoBehavior() {
+        Mockito.when(policyRepo.findSingleton())
+                .thenReturn(Optional.empty());
+    }
+
+    /** Default: remedyRepo trả empty → các test refill phải seed riêng. */
+    private void seedDefaultRemedyRepoBehavior() {
+        Mockito.when(remedyRepo.findActiveByCode(Mockito.any()))
+                .thenReturn(Optional.empty());
+        Mockito.when(remedyRepo.findAllActiveOrdered())
+                .thenReturn(List.of());
+    }
+
+    /** Default: wallet ledger 0 → đủ kiểm tra eligibility matrix. */
+    private void seedDefaultWalletLedgerBehavior() {
+        Mockito.when(walletLedger.sumCredits(Mockito.any()))
+                .thenReturn(80L);
+        Mockito.when(walletLedger.sumDebits(Mockito.any()))
+                .thenReturn(0L);
     }
 
     /**
@@ -222,7 +287,9 @@ class EnergyRecoveryTest {
         EnergyService off = new EnergyService(
                 new EnergyProperties(false, 100, 10, 5,
                         Duration.ofMinutes(15)),
-                energyRepo, ledger, clock, new ObjectMapper());
+                energyRepo, ledger, policyRepo, remedyRepo,
+                walletLedger, wallet, idempotency, clock,
+                new ObjectMapper());
         seed(0, T0);
         off.gateForGradedSubmit(U);              // không ném
         int debited = off.settleAfterSubmission(U,
@@ -379,5 +446,102 @@ class EnergyRecoveryTest {
         assertThatThrownBy(() -> new EnergyProperties(true, 100, 200, 5,
                 Duration.ofMinutes(15)).validate())
                 .isInstanceOf(IllegalStateException.class); // penalty > max
+    }
+
+    /* ---------- GAME-07: refill Viện Thái Y ---------- */
+
+    @Test
+    void stateOf_includesRemediesAndPointsBalance() {
+        seed(50, T0);
+        Mockito.when(remedyRepo.findAllActiveOrdered())
+                .thenReturn(List.of(
+                        remedy("NUOC_VOI", 20, 0, 86400),
+                        remedy("TRA_SEN", 30, 30, 14400)));
+        var s = service.stateOf(U);
+        assertThat(s.pointsBalance()).isEqualTo(80);
+        assertThat(s.remedies()).hasSize(2);
+        assertThat(s.remedies().get(0).code()).isEqualTo("NUOC_VOI");
+        assertThat(s.remedies().get(0).eligible()).isTrue();
+    }
+
+    @Test
+    void refill_nuocVoi_free_creditsEnergy() {
+        seed(50, T0);
+        Mockito.when(remedyRepo.findActiveByCode("NUOC_VOI"))
+                .thenReturn(Optional.of(remedy("NUOC_VOI", 20, 0, 86400)));
+        var res = service.refill(U, "nuoc_voi", "key-1");
+        assertThat(res.remedyCode()).isEqualTo("NUOC_VOI");
+        assertThat(res.energyCredited()).isEqualTo(20);
+        assertThat(res.pointsSpent()).isZero();
+        assertThat(res.energy().current()).isEqualTo(70);
+        assertThat(res.nextEligibleAt())
+                .isEqualTo(T0.plusSeconds(86400));
+        // Không trừ ví (free)
+        Mockito.verify(wallet, Mockito.never()).debit(
+                Mockito.any(), Mockito.anyInt(), Mockito.any(),
+                Mockito.any(), Mockito.any());
+    }
+
+    @Test
+    void refill_traSen_paid_debitsWallet() {
+        seed(50, T0);
+        Mockito.when(remedyRepo.findActiveByCode("TRA_SEN"))
+                .thenReturn(Optional.of(remedy("TRA_SEN", 30, 30, 14400)));
+        Mockito.when(wallet.debit(U, 30,
+                com.dauviet.wallet.domain.WalletTransaction.REASON_REFILL_PURCHASE,
+                "REFILL:key-2", "TRA_SEN"))
+                .thenReturn(50L);
+        var res = service.refill(U, "TRA_SEN", "key-2");
+        assertThat(res.energyCredited()).isEqualTo(30);
+        assertThat(res.pointsSpent()).isEqualTo(30);
+        assertThat(res.walletBalance()).isEqualTo(50);
+        assertThat(res.energy().current()).isEqualTo(80);
+    }
+
+    @Test
+    void refill_atMax_throwsEnergyFull() {
+        seed(100, T0);
+        Mockito.when(remedyRepo.findActiveByCode("NUOC_VOI"))
+                .thenReturn(Optional.of(remedy("NUOC_VOI", 20, 0, 86400)));
+        assertThatThrownBy(() -> service.refill(U, "NUOC_VOI", "key-3"))
+                .isInstanceOf(
+                    EnergyRefillExceptions.RefillNotEligibleException.class);
+    }
+
+    @Test
+    void refill_rateLimited_throwsConflict() {
+        seed(50, T0);
+        EnergyRemedy r = remedy("TRA_SEN", 30, 30, 14400);
+        Mockito.when(remedyRepo.findActiveByCode("TRA_SEN"))
+                .thenReturn(Optional.of(r));
+        // Lần refill 1 giờ trước → cooldown 4h chưa hết.
+        Mockito.when(ledger.findRecentRemedyUsages(Mockito.any(), Mockito.any()))
+                .thenReturn(List.of(new RemedyUsageProjection() {
+                    @Override public String getRemedyCode() { return "TRA_SEN"; }
+                    @Override public Instant getLastUsedAt() {
+                        return T0.minusSeconds(3600);
+                    }
+                }));
+        assertThatThrownBy(() -> service.refill(U, "TRA_SEN", "key-4"))
+                .isInstanceOf(
+                    EnergyRefillExceptions.RefillRateLimitedException.class);
+    }
+
+    @Test
+    void refill_paidClampToMax_anchorsRecovery() {
+        // Ví còn 80 điểm, remedy 30đ → 50 còn lại. Energy 95 → chỉ +5 thay vì 30.
+        seed(95, T0);
+        Mockito.when(remedyRepo.findActiveByCode("NAM_LINH_CHI"))
+                .thenReturn(Optional.of(remedy("NAM_LINH_CHI", 50, 55, 43200)));
+        Mockito.when(wallet.debit(U, 55,
+                com.dauviet.wallet.domain.WalletTransaction.REASON_REFILL_PURCHASE,
+                "REFILL:key-5", "NAM_LINH_CHI"))
+                .thenReturn(25L);
+        var res = service.refill(U, "NAM_LINH_CHI", "key-5");
+        // Clamp: chỉ +5
+        assertThat(res.energyCredited()).isEqualTo(5);
+        assertThat(res.energy().current()).isEqualTo(100);
+        // ENGY-08: đạt max → last_recovery_at neo lại = now
+        assertThat(rows.get(U).getLastRecoveryAt()).isEqualTo(T0);
     }
 }

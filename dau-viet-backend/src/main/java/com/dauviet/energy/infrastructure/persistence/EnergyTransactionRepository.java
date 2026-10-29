@@ -1,5 +1,6 @@
 package com.dauviet.energy.infrastructure.persistence;
 
+import java.util.List;
 import java.util.UUID;
 
 import org.springframework.data.jpa.repository.JpaRepository;
@@ -67,5 +68,30 @@ public interface EnergyTransactionRepository
         return p == null || p.getBalanceAfter() == null
                 ? null
                 : new StoredCause(p.getBalanceAfter(), p.getCreatedAt());
+    }
+    /**
+     * GAME-07: lần dùng gần nhất theo từng remedyCode — phục vụ kiểm
+     * cooldown per-remedy trong GET /me/energy và POST /me/energy/refills.
+     * Chỉ đọc reason='REFILL_PURCHASE'; NATURAL_RECOVERY/GRADED_INCORRECT
+     * không ảnh hưởng cooldown. `since` lọc tới cửa sổ cooldown tối đa
+     * (86400s) — tránh quét toàn bộ ledger khi user dùng lâu.
+     */
+    @Query(value = """
+            SELECT reference_json->>'remedyCode' AS remedy_code,
+                   MAX(created_at) AS last_used_at
+            FROM energy_transactions
+            WHERE user_id = :userId
+              AND reason = 'REFILL_PURCHASE'
+              AND created_at >= :since
+            GROUP BY reference_json->>'remedyCode'
+            """, nativeQuery = true)
+    List<RemedyUsageProjection> findRecentRemedyUsages(
+            @Param("userId") UUID userId,
+            @Param("since") java.time.Instant since);
+
+    /** Projection interface — Spring Data map alias snake_case → camelCase. */
+    interface RemedyUsageProjection {
+        String getRemedyCode();
+        java.time.Instant getLastUsedAt();
     }
 }

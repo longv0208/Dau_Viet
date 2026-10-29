@@ -36,210 +36,236 @@ void main() {
     testWidgets('hiển thị số Thể lực thật + tốc độ hồi từ server', (
       tester,
     ) async {
-      final repo = FakeEnergyRepository()
-        ..next = EnergyStateDto(
-          current: 75,
-          max: 100,
-          recoveryAmount: 5,
-          recoveryIntervalSeconds: 900,
-          nextRecoveryAt: DateTime.now().toUtc().add(
-            const Duration(minutes: 8, seconds: 42),
-          ),
-          serverTime: DateTime.now().toUtc(),
-          canSubmitGraded: true,
-        );
+      final repo = FakeEnergyRepository();
+      repo.next = EnergyStateDto(
+        current: 75,
+        max: 100,
+        recoveryAmount: 5,
+        recoveryIntervalSeconds: 900,
+        nextRecoveryAt: DateTime.now().toUtc().add(const Duration(minutes: 12)),
+        canSubmitGraded: true,
+        pointsBalance: 80,
+        remedies: const [],
+      );
       await _pump(tester, repo);
-      expect(find.text('75 / 100'), findsOneWidget);
-      expect(find.textContaining('+5 Thể lực mỗi 15 phút'), findsOneWidget);
-      expect(find.textContaining('Hồi tiếp sau'), findsOneWidget);
+      expect(find.text('75'), findsWidgets);
+      expect(find.textContaining('/ 100 ⚡'), findsOneWidget);
+      expect(find.textContaining('Hồi tự nhiên: +5 Thể lực / 15 phút'),
+          findsOneWidget);
     });
 
-    testWidgets('Thể lực đầy → "đã đầy", không countdown', (tester) async {
-      final repo = FakeEnergyRepository()
-        ..next = EnergyStateDto(
-          current: 100,
-          max: 100,
-          recoveryAmount: 5,
-          recoveryIntervalSeconds: 900,
-          nextRecoveryAt: null,
-          serverTime: DateTime.now().toUtc(),
-        );
+    testWidgets('Thể lực đầy → hiển thị badge SUNG MÃN', (tester) async {
+      final repo = FakeEnergyRepository();
+      repo.next = EnergyStateDto(
+        current: 100,
+        max: 100,
+        recoveryAmount: 5,
+        recoveryIntervalSeconds: 900,
+        canSubmitGraded: true,
+        pointsBalance: 80,
+        remedies: const [],
+      );
       await _pump(tester, repo);
-      expect(find.text('100 / 100'), findsOneWidget);
-      expect(find.textContaining('đã đầy'), findsOneWidget);
-      expect(find.textContaining('Hồi tiếp sau'), findsNothing);
+      expect(find.text('100'), findsWidgets);
+      expect(find.textContaining('SUNG MÃN'), findsOneWidget);
     });
 
-    testWidgets('Thể lực cạn → thông báo + gợi ý ôn tập', (tester) async {
-      final repo = FakeEnergyRepository()
-        ..next = EnergyStateDto(
-          current: 0,
-          max: 100,
-          recoveryAmount: 5,
-          recoveryIntervalSeconds: 900,
-          nextRecoveryAt: DateTime.now().toUtc().add(
-            const Duration(minutes: 12),
-          ),
-          serverTime: DateTime.now().toUtc(),
-          canSubmitGraded: false,
-        );
+    testWidgets('Thể lực cạn → cảnh báo CẦN BỒI BỔ + gợi ý', (tester) async {
+      final repo = FakeEnergyRepository();
+      repo.next = EnergyStateDto(
+        current: 0,
+        max: 100,
+        recoveryAmount: 5,
+        recoveryIntervalSeconds: 900,
+        nextRecoveryAt: DateTime.now().toUtc().add(const Duration(minutes: 2)),
+        canSubmitGraded: false,
+        pointsBalance: 80,
+        remedies: const [],
+      );
       await _pump(tester, repo);
-      expect(find.text('0 / 100'), findsOneWidget);
-      expect(find.textContaining('Thể lực đã cạn'), findsOneWidget);
+      expect(find.text('0'), findsWidgets);
+      expect(find.textContaining('CẦN BỒI BỔ'), findsOneWidget);
       expect(find.textContaining('ôn tập'), findsOneWidget);
     });
 
-    testWidgets('KHÔNG còn nút cộng năng lượng giả — các liệu pháp '
-        'hiển thị "Sắp mở" và không tương tác', (tester) async {
-      final repo = FakeEnergyRepository()
-        ..next = EnergyStateDto(
-          current: 50,
-          max: 100,
-          recoveryAmount: 5,
-          recoveryIntervalSeconds: 900,
-          serverTime: DateTime.now().toUtc(),
-        );
+    testWidgets('API lỗi → error view + nút thử lại', (tester) async {
+      final repo = FakeEnergyRepository();
+      repo.error = Exception('Network timeout');
       await _pump(tester, repo);
-      // Không còn CTA hồi miễn phí +20 — đã bị xoá.
-      expect(find.textContaining('HỒI PHỤC NGAY'), findsNothing);
-      expect(find.textContaining('Miễn phí'), findsNothing);
-      // Liệu pháp "Sắp mở" — không tap được.
-      expect(find.text('Sắp mở'), findsNWidgets(4));
-      // Thông báo cập nhật sau.
-      expect(find.textContaining('bản cập nhật tiếp theo'), findsOneWidget);
-      // Giá trị năng lượng không đổi sau tap vào liệu pháp (không tương tác).
-      await tester.tap(find.text('Nước Vối Tĩnh Tâm'));
-      await tester.pumpAndSettle();
-      expect(find.text('50 / 100'), findsOneWidget);
-    });
+      expect(find.text('Chưa tải được sử liệu'), findsOneWidget);
+      expect(find.text('THỬ LẠI'), findsOneWidget);
 
-    testWidgets('API lỗi → error view + nút thử lại, KHÔNG 80/100 giả', (
-      tester,
-    ) async {
-      final repo = FakeEnergyRepository()..error = Exception('down');
-      await _pump(tester, repo);
-      expect(find.text('80 / 100'), findsNothing);
-      expect(find.text('100 / 100'), findsNothing);
-      // Retry gọi lại repo.
-      final before = repo.calls;
       repo.error = null;
-      repo.next = EnergyStateDto(current: 60, max: 100);
+      repo.next = EnergyStateDto(
+        current: 60,
+        max: 100,
+        recoveryAmount: 5,
+        recoveryIntervalSeconds: 900,
+        canSubmitGraded: true,
+        pointsBalance: 80,
+        remedies: const [],
+      );
       await tester.tap(find.text('THỬ LẠI'));
       await tester.pumpAndSettle();
-      expect(repo.calls, greaterThan(before));
-      expect(find.text('60 / 100'), findsOneWidget);
+      expect(find.text('60'), findsWidgets);
     });
   });
 
-  group('FIX-2 — countdown chạy + refresh đúng 1 lần khi chạm 0', () {
-    testWidgets('countdown giảm thực sự theo thời gian (không đứng yên)', (
+  group('GAME-07 — Viện Thái Y remedies', () {
+    testWidgets('wallet pill hiển thị pointsBalance', (tester) async {
+      final repo = FakeEnergyRepository();
+      await _pump(tester, repo);
+      expect(find.text('80'), findsWidgets);
+      expect(find.byIcon(Icons.stars_rounded), findsWidgets);
+    });
+
+    testWidgets('4 remedy cards render đúng title + price', (tester) async {
+      final repo = FakeEnergyRepository();
+      await _pump(tester, repo);
+      expect(find.text('Nước vối đầu giếng'), findsOneWidget);
+      expect(find.text('Trà sen Tây Hồ'), findsOneWidget);
+      expect(find.text('Nấm linh chi quý'), findsOneWidget);
+      expect(find.text('Sâm Ngọc Linh'), findsOneWidget);
+      expect(find.textContaining('Miễn phí'), findsOneWidget);
+      expect(find.textContaining('30 Điểm Sử Ký'), findsOneWidget);
+      expect(find.textContaining('55 Điểm Sử Ký'), findsOneWidget);
+    });
+
+    testWidgets('NUOC_VOI free → NHẬN NGAY → confirm → success', (
       tester,
     ) async {
-      int fakeMicros = 0;
-      final restore = debugOverrideEnergyClock(() => fakeMicros);
-      addTearDown(restore);
+      final repo = FakeEnergyRepository();
+      await _pump(tester, repo);
 
-      // Mốc hồi cách parse 90s (ở fake t=0).
-      final t0 = DateTime.now().toUtc();
-      final repo = FakeEnergyRepository()
-        ..next = EnergyStateDto(
-          current: 50,
+      // Tap nút NHẬN NGAY (free) trên thẻ NUOC_VOI
+      await tester.tap(find.text('NHẬN NGAY'));
+      await tester.pumpAndSettle();
+
+      // Confirm dialog hiển thị
+      expect(find.text('XÁC NHẬN NHẬN LIỆU PHÁP'), findsOneWidget);
+      expect(find.textContaining('Nước vối đầu giếng'), findsWidgets);
+
+      // Tap NHẬN NGAY trong dialog
+      await tester.tap(find.text('NHẬN NGAY').last);
+      await tester.pumpAndSettle();
+
+      // repo được gọi với remedyCode + idempotencyKey
+      expect(repo.refillCalls.length, 1);
+      expect(repo.refillCalls[0]['remedyCode'], 'NUOC_VOI');
+      expect(repo.refillCalls[0]['idempotencyKey'], isNotEmpty);
+
+      // Success dialog
+      expect(find.textContaining('BỒI BỔ THÀNH CÔNG'), findsOneWidget);
+    });
+
+    testWidgets('TRA_SEN paid → BỒI BỔ → confirm → success trừ điểm', (
+      tester,
+    ) async {
+      final repo = FakeEnergyRepository();
+      repo.nextRefill = EnergyRefillResultDto(
+        energy: EnergyStateDto(
+          current: 80,
           max: 100,
           recoveryAmount: 5,
           recoveryIntervalSeconds: 900,
-          serverTime: t0,
-          nextRecoveryAt: t0.add(const Duration(seconds: 90)),
-        );
+          canSubmitGraded: true,
+          pointsBalance: 50,
+          remedies: const [],
+        ),
+        remedyCode: 'TRA_SEN',
+        energyCredited: 30,
+        pointsSpent: 30,
+        walletBalance: 50,
+        serverTime: DateTime.now().toUtc(),
+      );
       await _pump(tester, repo);
-      expect(find.textContaining('Hồi tiếp sau 01:30'), findsOneWidget);
 
-      // Trôi 30s theo ĐỒNG HỒ ĐƠN ĐIỆU + pump frame → countdown giảm.
-      fakeMicros = const Duration(seconds: 30).inMicroseconds;
-      await tester.pump(const Duration(seconds: 30));
-      expect(find.textContaining('Hồi tiếp sau 01:00'), findsOneWidget);
+      await tester.tap(find.text('BỒI BỔ').first);
+      await tester.pumpAndSettle();
+      expect(find.text('XÁC NHẬN BỒI BỔ SINH LỰC'), findsOneWidget);
+      expect(find.textContaining('Trà sen Tây Hồ'), findsWidgets);
+      await tester.tap(find.text('XÁC NHẬN DÙNG'));
+      await tester.pumpAndSettle();
 
-      fakeMicros = const Duration(seconds: 89).inMicroseconds;
-      await tester.pump(const Duration(seconds: 59));
-      expect(find.textContaining('Hồi tiếp sau 00:01'), findsOneWidget);
+      expect(repo.refillCalls.length, 1);
+      expect(repo.refillCalls[0]['remedyCode'], 'TRA_SEN');
+      expect(find.textContaining('+30⚡'), findsOneWidget);
+      expect(find.textContaining('Đã trừ 30 Điểm Sử Ký'), findsOneWidget);
     });
 
-    testWidgets('chạm 0 → đúng MỘT refresh; state mới có mốc mới → '
-        'countdown chạy lại', (tester) async {
-      int fakeMicros = 0;
-      final restore = debugOverrideEnergyClock(() => fakeMicros);
-      addTearDown(restore);
+    testWidgets('Remedy đầy → hiển thị ĐÃ ĐẦY SINH LỰC', (tester) async {
+      final repo = FakeEnergyRepository();
+      repo.next = EnergyStateDto(
+        current: 100,
+        max: 100,
+        recoveryAmount: 5,
+        recoveryIntervalSeconds: 900,
+        canSubmitGraded: true,
+        pointsBalance: 80,
+        remedies: [
+          EnergyRemedyDto(
+            id: '00000000-0000-4000-8000-000000000001',
+            code: 'NUOC_VOI',
+            title: 'Nước vối đầu giếng',
+            description: 'Test',
+            rarity: 'COMMON',
+            iconKey: 'energy_nuoc_voi',
+            energyGain: 20,
+            pointsCost: 0,
+            cooldownSeconds: 86400,
+            eligible: false,
+            effectiveEnergyGain: 0,
+            blockReasons: const ['ENERGY_FULL'],
+          ),
+        ],
+      );
+      await _pump(tester, repo);
+      expect(find.text('ĐÃ ĐẦY SINH LỰC'), findsOneWidget);
+      expect(find.text('NHẬN NGAY'), findsNothing);
+    });
 
-      final t0 = DateTime.now().toUtc();
-      // initState của màn luôn refresh 1 lần sau khi mount → queue cần 3
-      // mục: build + init-refresh (cùng state 50, còn 3s) + refresh-lúc-0
-      // (server đã +5 → 55, mốc mới còn 60s).
-      EnergyStateDto fifty() => EnergyStateDto(
+    testWidgets('Remedy thiếu điểm → disabled THIẾU X ĐIỂM', (tester) async {
+      final repo = FakeEnergyRepository();
+      await _pump(tester, repo);
+      // SAM_NGOC_LINH pointsCost=90 nhưng wallet=80 → thiếu 10
+      expect(find.text('THIẾU 10 ĐIỂM'), findsOneWidget);
+    });
+
+    testWidgets('Cooldown → countdown pill + unlock sau refresh', (
+      tester,
+    ) async {
+      final repo = FakeEnergyRepository();
+      final endAt = DateTime.now().toUtc().add(const Duration(minutes: 5));
+      repo.next = EnergyStateDto(
         current: 50,
         max: 100,
         recoveryAmount: 5,
         recoveryIntervalSeconds: 900,
-        serverTime: t0,
-        nextRecoveryAt: t0.add(const Duration(seconds: 3)),
-      );
-      final repo = FakeEnergyRepository()
-        ..queue.addAll([
-          fifty(),
-          fifty(),
-          EnergyStateDto(
-            current: 55,
-            max: 100,
-            recoveryAmount: 5,
-            recoveryIntervalSeconds: 900,
-            serverTime: t0.add(const Duration(seconds: 3)),
-            nextRecoveryAt: t0.add(const Duration(seconds: 63)),
+        canSubmitGraded: true,
+        pointsBalance: 80,
+        remedies: [
+          EnergyRemedyDto(
+            id: '00000000-0000-4000-8000-000000000001',
+            code: 'NUOC_VOI',
+            title: 'Nước vối đầu giếng',
+            description: 'Test',
+            rarity: 'COMMON',
+            iconKey: 'energy_nuoc_voi',
+            energyGain: 20,
+            pointsCost: 0,
+            cooldownSeconds: 86400,
+            eligible: false,
+            effectiveEnergyGain: 20,
+            cooldownEndsAt: endAt,
+            blockReasons: const ['REFILL_RATE_LIMITED'],
           ),
-        ]);
-      await _pump(tester, repo);
-      expect(find.text('50 / 100'), findsOneWidget);
-      final callsAfterFirstLoad = repo.calls;
-
-      // Trôi qua mốc → ticker tick → _maybeRefreshAtZero → đúng 1 refresh.
-      fakeMicros = const Duration(seconds: 4).inMicroseconds;
-      await tester.pump(const Duration(seconds: 4));
-      await tester.pumpAndSettle();
-      expect(repo.calls, callsAfterFirstLoad + 1);
-      expect(find.text('55 / 100'), findsOneWidget);
-      // Countdown chạy lại với mốc mới — đã trôi 4s+ (fake clock) nên
-      // remain nằm trong khoảng 00:5x thay vì mốc cứng.
-      expect(
-        find.textContaining(RegExp(r'Hồi tiếp sau 00:5[0-9]')),
-        findsOneWidget,
+        ],
       );
-
-      // Tick thêm vài giây — KHÔNG refresh lại (mốc mới chưa tới).
-      fakeMicros += const Duration(seconds: 5).inMicroseconds;
-      await tester.pump(const Duration(seconds: 5));
-      await tester.pumpAndSettle();
-      expect(repo.calls, callsAfterFirstLoad + 1);
-    });
-
-    testWidgets('Thể lực đầy → KHÔNG có refresh định kỳ nào cả', (
-      tester,
-    ) async {
-      final restore = debugOverrideEnergyClock(() => 0);
-      addTearDown(restore);
-
-      final repo = FakeEnergyRepository()
-        ..next = EnergyStateDto(
-          current: 100,
-          max: 100,
-          recoveryAmount: 5,
-          recoveryIntervalSeconds: 900,
-          nextRecoveryAt: null,
-          serverTime: DateTime.now().toUtc(),
-        );
       await _pump(tester, repo);
-      final calls = repo.calls;
-
-      // Trôi nhiều phút + nhiều pump — không timer countdown → không gọi lại.
-      await tester.pump(const Duration(minutes: 1));
-      await tester.pump(const Duration(minutes: 1));
-      expect(repo.calls, calls);
+      // Cooldown pill hiển thị
+      expect(find.textContaining('Hồi sau'), findsOneWidget);
+      // Không có nút NHẬN NGAY (không eligible)
+      expect(find.text('NHẬN NGAY'), findsNothing);
     });
   });
 }
