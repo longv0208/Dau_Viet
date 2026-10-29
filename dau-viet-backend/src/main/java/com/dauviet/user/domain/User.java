@@ -30,7 +30,9 @@ public class User {
     @Column(name = "email", nullable = false, length = 320)
     private String email;
 
-    @Column(name = "password_hash", nullable = false)
+    // Nullable since V51: Google-only accounts have no local password until
+    // they set one. Login treats a NULL hash as INVALID_CREDENTIALS.
+    @Column(name = "password_hash")
     private String passwordHash;
 
     @Column(name = "display_name", length = 120)

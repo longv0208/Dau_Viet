@@ -40,4 +40,13 @@ public interface RefreshTokenRepository extends JpaRepository<RefreshToken, UUID
          + "and t.id <> :excludeId")
     int revokeActiveByFamily(@Param("familyId") UUID familyId, @Param("now") Instant now,
                              @Param("excludeId") UUID excludeId);
+
+    /**
+    * Password-reset containment (Issue #34): revoke every still-active token
+    * for the user, across all families.
+    */
+    @Modifying
+    @Query("update RefreshToken t set t.revokedAt = :now "
+         + "where t.userId = :userId and t.revokedAt is null")
+    int revokeActiveByUser(@Param("userId") UUID userId, @Param("now") Instant now);
 }

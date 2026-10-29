@@ -7,6 +7,7 @@ import '../../../core/theme/dau_viet_colors.dart';
 import '../../../core/theme/dau_viet_typography.dart';
 import '../../../core/widgets/dong_son_button.dart';
 import '../../learning/data/learning_providers.dart';
+import '../data/google_sign_in_provider.dart';
 
 /// Màn hình M-02: Đăng Nhập & Chế Độ Khách (Auth / Guest Mode)
 /// Đã được thiết kế lại theo tiêu chuẩn UI/UX Pro Max và chuẩn nhận diện Di Sản Dấu Việt:
@@ -59,6 +60,59 @@ class _AuthScreenState extends ConsumerState<AuthScreen> {
       setState(() => _error = 'Có lỗi xảy ra, vui lòng thử lại.');
     } finally {
       if (mounted) setState(() => _loading = false);
+    }
+  }
+
+  Future<void> _loginWithGoogle() async {
+    setState(() {
+      _loading = true;
+      _error = null;
+    });
+    try {
+      final idToken =
+          await ref.read(googleSignInGatewayProvider).signInForIdToken();
+      if (idToken == null) {
+        // Người dùng huỷ chọn tài khoản — không phải lỗi.
+        return;
+      }
+      await ref
+          .read(authSessionProvider.notifier)
+          .loginWithGoogle(idToken: idToken);
+      if (!mounted) return;
+      final session = ref.read(authSessionProvider);
+      if (session.isAuthenticated) {
+        context.go('/dashboard');
+      } else {
+        setState(() => _error = 'Đăng nhập Google chưa thành công, thử lại.');
+      }
+    } on ApiException catch (e) {
+      // Đăng nhập thất bại → sign out để lần sau chọn được tài khoản khác.
+      await ref.read(googleSignInGatewayProvider).signOut();
+      if (!mounted) return;
+      setState(() => _error = _mapGoogleError(e));
+    } catch (_) {
+      if (!mounted) return;
+      setState(() => _error = 'Không kết nối được Google, thử lại sau.');
+    } finally {
+      if (mounted) setState(() => _loading = false);
+    }
+  }
+
+  String _mapGoogleError(ApiException e) {
+    if (e.isNetworkError) {
+      return 'Không kết nối được máy chủ. Kiểm tra mạng và thử lại.';
+    }
+    switch (e.error.code) {
+      case 'GOOGLE_TOKEN_INVALID':
+        return 'Xác thực Google thất bại, thử lại nhé.';
+      case 'GOOGLE_EMAIL_UNVERIFIED':
+        return 'Email này chưa xác thực — đăng nhập bằng mật khẩu hoặc hoàn tất OTP đăng ký trước.';
+      case 'FEATURE_DISABLED':
+        return 'Đăng nhập Google chưa được bật trên máy chủ.';
+      default:
+        return e.isUnauthorized
+            ? 'Tài khoản không khả dụng.'
+            : 'Đăng nhập Google thất bại, thử lại nhé.';
     }
   }
 
@@ -307,8 +361,26 @@ class _AuthScreenState extends ConsumerState<AuthScreen> {
                   : null,
             ),
 
-            // (Quên mật khẩu — chưa triển khai backend, ẩn tạm)
 
+            // Quên mật khẩu (Issue #34)
+            Align(
+              alignment: Alignment.centerRight,
+              child: TextButton(
+                onPressed: _loading ? null : () => context.go('/auth/forgot'),
+                style: TextButton.styleFrom(
+                  padding: const EdgeInsets.symmetric(vertical: 4),
+                  minimumSize: Size.zero,
+                  tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                ),
+                child: Text(
+                  'Quên mật khẩu?',
+                  style: DauVietTypography.labelMedium.copyWith(
+                    color: DauVietColors.heritageGreen,
+                    fontWeight: FontWeight.w700,
+                  ),
+                ),
+              ),
+            ),
             // Thông báo lỗi nếu có
             if (_error != null) ...[
               Container(
@@ -354,8 +426,40 @@ class _AuthScreenState extends ConsumerState<AuthScreen> {
             ),
             const SizedBox(height: 18),
 
-            // (Đăng nhập mạng xã hội — chưa tích hợp)
 
+            // Đăng nhập Google (Issue #34)
+            Row(
+              children: [
+                const Expanded(child: Divider(color: Color(0xFFE5E0D4))),
+                Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 12),
+                  child: Text(
+                    'hoặc',
+                    style: DauVietTypography.bodySmall.copyWith(
+                      color: const Color(0xFF8A948E),
+                    ),
+                  ),
+                ),
+                const Expanded(child: Divider(color: Color(0xFFE5E0D4))),
+              ],
+            ),
+            const SizedBox(height: 14),
+            OutlinedButton.icon(
+              onPressed: _loading ? null : _loginWithGoogle,
+              icon: const Icon(Icons.g_mobiledata_rounded, size: 28),
+              label: const Text('Tiếp tục với Google'),
+              style: OutlinedButton.styleFrom(
+                minimumSize: const Size.fromHeight(50),
+                side: const BorderSide(color: Color(0xFFD9D2C2)),
+                foregroundColor: DauVietColors.inkText,
+                textStyle: DauVietTypography.labelLarge.copyWith(
+                  fontWeight: FontWeight.w700,
+                ),
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(14),
+                ),
+              ),
+            ),
             // Chế độ Khách (demo) nếu được phép
             if (allowGuest) ...[
               const SizedBox(height: 14),

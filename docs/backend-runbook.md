@@ -68,7 +68,7 @@ Khi API lỗi app hiển thị lỗi + THỬ LẠI; không tự động đổi s
 
 ## Authentication (TASK-0007)
 
-Endpoints (public): `POST /api/v1/auth/register|login|refresh|logout`.
+Endpoints (public): `POST /api/v1/auth/register|register/verify|otp/resend|password/forgot|password/reset|google|login|refresh|logout`.
 Protected: `GET /api/v1/users/me` (any authenticated), `/api/v1/admin/**`
 (requires `CONTENT_ADMIN`).
 
@@ -84,14 +84,42 @@ Protected: `GET /api/v1/users/me` (any authenticated), `/api/v1/admin/**`
 - **Admin bootstrap (non-local)** — insert directly, e.g.:
 
   ```sql
-  INSERT INTO users (id, email, password_hash, display_name, role, status)
+  INSERT INTO users (id, email, password_hash, display_name, role, status, email_verified_at)
   VALUES (gen_random_uuid(), 'admin@example.com',
-          '<bcrypt-hash>', 'Admin', 'CONTENT_ADMIN', 'ACTIVE');
+          '<bcrypt-hash>', 'Admin', 'CONTENT_ADMIN', 'ACTIVE', now());
   ```
 
   Hash a password with any BCrypt tool (e.g. `htpasswd -bnBC 10 "" pw | tr -d ':\n'`).
 
-Quick check: `curl -X POST localhost:8080/api/v1/auth/register -H "Content-Type: application/json" -d '{"email":"a@b.vn","password":"password123"}'` → 201.
+## OTP + Google sign-in (Issue #34 / TASK-0021)
+
+Registration is now a 2-step OTP flow: `POST /auth/register` issues a
+REGISTER_VERIFY challenge (202, no user yet) and emails a 6-digit code;
+`POST /auth/register/verify` completes it. Password reset:
+`POST /auth/password/forgot` (always 200) → `POST /auth/password/reset`
+(verifies OTP, sets new hash, revokes ALL refresh tokens).
+`POST /auth/otp/resend` re-issues with a 60s cooldown.
+
+- **OTP tuning** — `dauviet.auth.otp.*`: `DAUVIET_OTP_TTL_SECONDS` (300),
+  `DAUVIET_OTP_RESEND_COOLDOWN_SECONDS` (60), `DAUVIET_OTP_MAX_ATTEMPTS` (5).
+- **Mail delivery** — `MAIL_ENABLED=false` (default) selects `LoggingOtpSender`,
+  which prints the OTP **only under the `local` profile** — that's the dev
+  workflow for completing OTP screens without an SMTP server. Production MUST
+  set `MAIL_ENABLED=true` plus `MAIL_HOST`, `MAIL_PORT`, `MAIL_USERNAME`,
+  `MAIL_PASSWORD` (and optionally `MAIL_SMTP_AUTH`, `MAIL_SMTP_STARTTLS`,
+  `MAIL_SENDER`); with mail enabled the code is never logged anywhere.
+- **Google sign-in** — set `GOOGLE_CLIENT_IDS` to a comma-separated whitelist
+  of OAuth client ids (Android/iOS/Web). Server verifies the idToken's
+  signature, `iss`, `exp`, `aud` and `email_verified` via Google's rotating
+  certs. Empty → `/auth/google` returns `503 FEATURE_DISABLED`. Mobile passes
+  the web client id via `--dart-define=GOOGLE_SERVER_CLIENT_ID=<web-client-id>`
+  at run time (only needed when the backend whitelist is the web client id;
+  Android also accepts its own OAuth client id).
+
+Quick check:
+`curl -X POST localhost:8080/api/v1/auth/register -H "Content-Type: application/json" -d '{"email":"a@b.vn","password":"password123"}'`
+→ `202` + (local profile) the OTP code appears in the app log; then
+`curl -X POST localhost:8080/api/v1/auth/register/verify -H "Content-Type: application/json" -d '{"email":"a@b.vn","otpCode":"<code>"}'` → `200` tokens.
 
 ## Common issues
 

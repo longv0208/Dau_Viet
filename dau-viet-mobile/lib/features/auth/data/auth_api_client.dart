@@ -25,6 +25,29 @@ class AuthTokenDto {
   );
 }
 
+
+/// Metadata của một OTP challenge (202 từ /auth/register, /auth/otp/resend).
+class OtpChallengeDto {
+  final String email;
+  final String? otpPurpose;
+  final int otpTtlSeconds;
+  final int resendCooldownSeconds;
+
+  const OtpChallengeDto({
+    required this.email,
+    this.otpPurpose,
+    required this.otpTtlSeconds,
+    required this.resendCooldownSeconds,
+  });
+
+  factory OtpChallengeDto.fromJson(Map<String, dynamic> json) => OtpChallengeDto(
+    email: json['email'] as String? ?? '',
+    otpPurpose: json['otpPurpose'] as String?,
+    otpTtlSeconds: (json['otpTtlSeconds'] as num?)?.toInt() ?? 300,
+    resendCooldownSeconds: (json['resendCooldownSeconds'] as num?)?.toInt() ?? 60,
+  );
+}
+
 /// Hồ sơ người dùng hiện tại — GET /api/v1/users/me.
 class UserProfileDto {
   final String id;
@@ -68,7 +91,9 @@ class AuthApiClient {
     return AuthTokenDto.fromJson(json);
   }
 
-  Future<UserProfileDto> register({
+  /// Issue #34: register giờ chỉ TẠO challenge OTP (202) — user chưa tồn tại
+  /// cho tới khi verifyRegisterOtp thành công.
+  Future<OtpChallengeDto> requestRegisterOtp({
     required String email,
     required String password,
     String? displayName,
@@ -82,9 +107,61 @@ class AuthApiClient {
           'displayName': displayName,
       },
     );
-    return UserProfileDto.fromJson(json);
+    return OtpChallengeDto.fromJson(json);
   }
 
+  /// Verify OTP đăng ký → backend tạo user + trả token pair (200).
+  Future<AuthTokenDto> verifyRegisterOtp({
+    required String email,
+    required String otpCode,
+  }) async {
+    final json = await _client.post(
+      '/api/v1/auth/register/verify',
+      body: {'email': email, 'otpCode': otpCode},
+    );
+    return AuthTokenDto.fromJson(json);
+  }
+
+  /// Gửi lại OTP — purpose: REGISTER_VERIFY | PASSWORD_RESET.
+  Future<OtpChallengeDto> resendOtp({
+    required String email,
+    required String purpose,
+  }) async {
+    final json = await _client.post(
+      '/api/v1/auth/otp/resend',
+      body: {'email': email, 'purpose': purpose},
+    );
+    return OtpChallengeDto.fromJson(json);
+  }
+
+  /// Forgot kickoff — luôn 200 (anti-enumeration).
+  Future<void> forgotPassword({required String email}) async {
+    await _client.post(
+      '/api/v1/auth/password/forgot',
+      body: {'email': email},
+    );
+  }
+
+  /// Reset — verify OTP + đặt mật khẩu mới + revoke refresh tokens (204).
+  Future<void> resetPassword({
+    required String email,
+    required String otpCode,
+    required String newPassword,
+  }) async {
+    await _client.post(
+      '/api/v1/auth/password/reset',
+      body: {'email': email, 'otpCode': otpCode, 'newPassword': newPassword},
+    );
+  }
+
+  /// Google Sign-In — idToken từ Google SDK → token pair (200).
+  Future<AuthTokenDto> loginWithGoogle({required String idToken}) async {
+    final json = await _client.post(
+      '/api/v1/auth/google',
+      body: {'idToken': idToken},
+    );
+    return AuthTokenDto.fromJson(json);
+  }
   Future<AuthTokenDto> refresh(String refreshToken) async {
     final json = await _client.post(
       '/api/v1/auth/refresh',

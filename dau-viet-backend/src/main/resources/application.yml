@@ -19,6 +19,17 @@ spring:
   jackson:
     serialization:
       write-dates-as-timestamps: false
+  mail:
+    host: ${MAIL_HOST:localhost}
+    port: ${MAIL_PORT:587}
+    username: ${MAIL_USERNAME:}
+    password: ${MAIL_PASSWORD:}
+    properties:
+      mail:
+        smtp:
+          auth: ${MAIL_SMTP_AUTH:true}
+          starttls:
+            enable: ${MAIL_SMTP_STARTTLS:true}
 
 management:
   endpoints:
@@ -58,3 +69,18 @@ dauviet:
     html:
       # Hard cap for self-contained .html uploads (15MB default).
       max-bytes: ${DAUVIET_ANIMATION_HTML_MAX_BYTES:15728640}
+
+  auth:
+    otp:
+      ttl-seconds: ${DAUVIET_OTP_TTL_SECONDS:300}
+      resend-cooldown-seconds: ${DAUVIET_OTP_RESEND_COOLDOWN_SECONDS:60}
+      max-attempts: ${DAUVIET_OTP_MAX_ATTEMPTS:5}
+      # false → LoggingOtpSender (local/test fallback): logs the OTP code
+      # only when spring profile "local" is active. Production MUST set
+      # MAIL_ENABLED=true with real SMTP via spring.mail.* / MAIL_* env.
+      mail-enabled: ${MAIL_ENABLED:false}
+      sender-address: ${MAIL_SENDER:no-reply@dauviet.app}
+    google:
+      # Comma-separated OAuth client-id whitelist for idToken aud claim.
+      # Empty → /auth/google returns 503 FEATURE_DISABLED.
+      client-ids: ${GOOGLE_CLIENT_IDS:}

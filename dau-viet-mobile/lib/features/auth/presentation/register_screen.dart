@@ -8,6 +8,7 @@ import '../../../core/theme/dau_viet_typography.dart';
 import '../../../core/widgets/dong_son_button.dart';
 import '../../../core/widgets/parchment_card.dart';
 import '../../learning/data/learning_providers.dart';
+import 'otp_verification_screen.dart';
 
 /// Màn hình đăng ký tài khoản learner (P0-03).
 /// Gọi POST /api/v1/auth/register qua [AuthSessionController.register]
@@ -44,23 +45,26 @@ class _RegisterScreenState extends ConsumerState<RegisterScreen> {
       _loading = true;
       _error = null;
     });
+    final email = _emailCtrl.text.trim();
     try {
-      await ref
+      final challenge = await ref
           .read(authSessionProvider.notifier)
-          .register(
-            email: _emailCtrl.text.trim(),
+          .requestRegisterOtp(
+            email: email,
             password: _passwordCtrl.text,
             displayName: _nameCtrl.text.trim().isEmpty
                 ? null
                 : _nameCtrl.text.trim(),
           );
       if (!mounted) return;
-      final session = ref.read(authSessionProvider);
-      if (session.isAuthenticated) {
-        context.go('/dashboard');
-      } else {
-        setState(() => _error = 'Đăng ký chưa thành công, vui lòng thử lại.');
-      }
+      // Issue #34: sang màn nhập OTP — user chưa tồn tại tới khi verify.
+      context.go(
+        '/auth/otp',
+        extra: OtpFlowArgs.register(
+          email: email,
+          resendCooldownSeconds: challenge.resendCooldownSeconds,
+        ),
+      );
     } on ApiException catch (e) {
       setState(() => _error = _mapError(e));
     } catch (_) {

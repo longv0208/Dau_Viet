@@ -64,16 +64,54 @@ class AuthSessionController extends Notifier<AuthState> {
     state = await ref.read(authRepositoryProvider).login(email, password);
   }
 
-  /// Đăng ký → đăng nhập luôn (repo lo cả hai bước). ApiException
-  /// (EMAIL_TAKEN/VALIDATION_ERROR/mạng) ném ra cho màn hình map message.
-  Future<void> register({
+  /// Issue #34 — đăng ký bước 1: request OTP (không còn auto-login).
+  /// Trả OtpChallengeDto để màn OTP dựng countdown resend.
+  Future<OtpChallengeDto> requestRegisterOtp({
     required String email,
     required String password,
     String? displayName,
+  }) {
+    return ref
+        .read(authRepositoryProvider)
+        .requestRegisterOtp(email: email, password: password, displayName: displayName);
+  }
+
+  /// Đăng ký bước 2: verify OTP → authenticated state → /dashboard.
+  Future<void> verifyRegisterOtp({
+    required String email,
+    required String otpCode,
   }) async {
     state = await ref
         .read(authRepositoryProvider)
-        .register(email: email, password: password, displayName: displayName);
+        .verifyRegisterOtp(email: email, otpCode: otpCode);
+  }
+
+  /// Resend OTP (REGISTER_VERIFY | PASSWORD_RESET).
+  Future<OtpChallengeDto> resendOtp({
+    required String email,
+    required String purpose,
+  }) {
+    return ref.read(authRepositoryProvider).resendOtp(email: email, purpose: purpose);
+  }
+
+  /// Forgot password kickoff — server luôn 200.
+  Future<void> forgotPassword({required String email}) {
+    return ref.read(authRepositoryProvider).forgotPassword(email: email);
+  }
+
+  /// Reset mật khẩu sau khi có OTP hợp lệ.
+  Future<void> resetPassword({
+    required String email,
+    required String otpCode,
+    required String newPassword,
+  }) {
+    return ref.read(authRepositoryProvider).resetPassword(
+      email: email, otpCode: otpCode, newPassword: newPassword);
+  }
+
+  /// Google Sign-In — idToken từ GoogleSignIn SDK.
+  Future<void> loginWithGoogle({required String idToken}) async {
+    state = await ref.read(authRepositoryProvider).loginWithGoogle(idToken: idToken);
   }
 
   /// Demo mode chỉ hợp lệ khi USE_MOCK=true (theo quyết định brief).

@@ -38,25 +38,71 @@ class AuthRepository {
     }
   }
 
-  /// Đăng ký tài khoản learner mới (POST /auth/register → 201 profile),
-  /// sau đó đăng nhập luôn để có token + session. Lỗi 409 EMAIL_TAKEN /
-  /// 400 VALIDATION_ERROR truyền nguyên ApiException cho UI map message.
-  Future<AuthState> register({
+  /// Issue #34 — đăng ký bước 1: tạo REGISTER_VERIFY challenge + gửi OTP.
+  /// Chưa có user/session cho tới khi verifyRegisterOtp thành công.
+  Future<OtpChallengeDto> requestRegisterOtp({
     required String email,
     required String password,
     String? displayName,
-  }) async {
-    await _api.register(
+  }) {
+    return _api.requestRegisterOtp(
       email: email,
       password: password,
       displayName: displayName,
     );
-    return login(email, password);
+  }
+
+  /// Đăng ký bước 2: verify OTP → backend tạo user → lưu token + /users/me.
+  Future<AuthState> verifyRegisterOtp({
+    required String email,
+    required String otpCode,
+  }) async {
+    final AuthTokenDto dto =
+        await _api.verifyRegisterOtp(email: email, otpCode: otpCode);
+    await _storeTokens(dto);
+    return _loadProfileAfterLogin();
+  }
+
+  /// Gửi lại OTP (REGISTER_VERIFY | PASSWORD_RESET).
+  Future<OtpChallengeDto> resendOtp({
+    required String email,
+    required String purpose,
+  }) {
+    return _api.resendOtp(email: email, purpose: purpose);
+  }
+
+  /// Forgot kickoff — server luôn 200.
+  Future<void> forgotPassword({required String email}) {
+    return _api.forgotPassword(email: email);
+  }
+
+  /// Reset mật khẩu qua OTP; server revoke toàn bộ refresh token cũ.
+  Future<void> resetPassword({
+    required String email,
+    required String otpCode,
+    required String newPassword,
+  }) {
+    return _api.resetPassword(
+      email: email,
+      otpCode: otpCode,
+      newPassword: newPassword,
+    );
+  }
+
+  /// Google Sign-In: idToken đã lấy từ google_sign_in SDK.
+  Future<AuthState> loginWithGoogle({required String idToken}) async {
+    final AuthTokenDto dto = await _api.loginWithGoogle(idToken: idToken);
+    await _storeTokens(dto);
+    return _loadProfileAfterLogin();
   }
 
   Future<AuthState> login(String email, String password) async {
     final AuthTokenDto dto = await _api.login(email, password);
     await _storeTokens(dto);
+    return _loadProfileAfterLogin();
+  }
+
+  Future<AuthState> _loadProfileAfterLogin() async {
     try {
       _profile = await _api.me();
     } catch (_) {

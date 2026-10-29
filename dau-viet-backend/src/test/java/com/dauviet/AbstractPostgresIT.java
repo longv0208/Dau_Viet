@@ -64,5 +64,18 @@ public abstract class AbstractPostgresIT {
             """);
         jdbc.update("UPDATE item_catalog SET asset_id = NULL WHERE asset_id IS NOT NULL");
         jdbc.update("DELETE FROM assets");
+        // Issue #34 tables — truncate when present (V51 may be absent on old
+        // snapshot DBs).
+        jdbc.execute("""
+            DO $$
+            BEGIN
+                IF to_regclass('public.auth_otp_challenges') IS NOT NULL THEN
+                    TRUNCATE TABLE auth_otp_challenges CASCADE;
+                END IF;
+                IF to_regclass('public.user_oauth_accounts') IS NOT NULL THEN
+                    TRUNCATE TABLE user_oauth_accounts CASCADE;
+                END IF;
+            END $$;
+            """);
     }
 }

@@ -46,13 +46,79 @@ class _FakeAuthApiClient implements AuthApiClient {
     return loginResponse;
   }
 
+  int requestOtpCalls = 0;
+  int verifyOtpCalls = 0;
+  int resendCalls = 0;
+  int forgotCalls = 0;
+  int resetCalls = 0;
+  int googleCalls = 0;
+  Object? verifyOtpError;
+  Object? resendError;
+  Object? googleError;
+
   @override
-  Future<UserProfileDto> register({
+  Future<OtpChallengeDto> requestRegisterOtp({
     required String email,
     required String password,
     String? displayName,
-  }) async => profile;
+  }) async {
+    requestOtpCalls++;
+    return OtpChallengeDto(
+      email: email,
+      otpPurpose: 'REGISTER_VERIFY',
+      otpTtlSeconds: 300,
+      resendCooldownSeconds: 60,
+    );
+  }
 
+  @override
+  Future<AuthTokenDto> verifyRegisterOtp({
+    required String email,
+    required String otpCode,
+  }) async {
+    verifyOtpCalls++;
+    final err = verifyOtpError;
+    if (err != null) throw err;
+    return loginResponse;
+  }
+
+  @override
+  Future<OtpChallengeDto> resendOtp({
+    required String email,
+    required String purpose,
+  }) async {
+    resendCalls++;
+    final err = resendError;
+    if (err != null) throw err;
+    return OtpChallengeDto(
+      email: email,
+      otpPurpose: purpose,
+      otpTtlSeconds: 300,
+      resendCooldownSeconds: 60,
+    );
+  }
+
+  @override
+  Future<void> forgotPassword({required String email}) async {
+    forgotCalls++;
+  }
+
+  @override
+  Future<void> resetPassword({
+    required String email,
+    required String otpCode,
+    required String newPassword,
+  }) async {
+    resetCalls++;
+  }
+
+  @override
+  Future<AuthTokenDto> loginWithGoogle({required String idToken}) async {
+    googleCalls++;
+    final err = googleError;
+    if (err != null) throw err;
+    return loginResponse;
+  }
   @override
   Future<AuthTokenDto> refresh(String refreshToken) async {
     refreshCalls++;
@@ -255,6 +321,75 @@ void main() {
       await repo.login('a@b.c', 'x');
       api.logoutError = Exception('network');
       await repo.logout();
+      expect(storage.saved, isNull);
+    });
+  });
+
+  group('Issue #34 — OTP register flow', () {
+    test('requestRegisterOtp → trả challenge, chưa lưu token', () async {
+      final ch = await repo.requestRegisterOtp(
+          email: 'a@b.vn', password: 'password123');
+      expect(ch.otpPurpose, 'REGISTER_VERIFY');
+      expect(ch.resendCooldownSeconds, 60);
+      expect(api.requestOtpCalls, 1);
+      expect(storage.saved, isNull); // chưa có session
+    });
+
+    test('verifyRegisterOtp thành công → lưu token + /me → authenticated',
+        () async {
+      final state =
+          await repo.verifyRegisterOtp(email: 'a@b.vn', otpCode: '123456');
+      expect(state.status, AuthStatus.authenticated);
+      expect(state.profile!.email, 'si.tu@dauviet.vn');
+      expect(api.verifyOtpCalls, 1);
+      expect(api.meCalls, 1);
+      expect(storage.saved, isNotNull);
+    });
+
+    test('verifyRegisterOtp OTP_INVALID → ném ApiException, không token',
+        () async {
+      api.verifyOtpError = const ApiException(
+        ApiError(code: 'OTP_INVALID', message: 'wrong'),
+        statusCode: 400,
+      );
+      await expectLater(
+        repo.verifyRegisterOtp(email: 'a@b.vn', otpCode: '000000'),
+        throwsA(isA<ApiException>()),
+      );
+      expect(storage.saved, isNull);
+    });
+
+    test('resendOtp → gọi đúng purpose', () async {
+      await repo.resendOtp(email: 'a@b.vn', purpose: 'PASSWORD_RESET');
+      expect(api.resendCalls, 1);
+    });
+
+    test('forgotPassword + resetPassword → gọi API đúng', () async {
+      await repo.forgotPassword(email: 'a@b.vn');
+      await repo.resetPassword(
+          email: 'a@b.vn', otpCode: '123456', newPassword: 'newpassword1');
+      expect(api.forgotCalls, 1);
+      expect(api.resetCalls, 1);
+    });
+  });
+
+  group('Issue #34 — Google sign-in', () {
+    test('loginWithGoogle thành công → lưu token + authenticated', () async {
+      final state = await repo.loginWithGoogle(idToken: 'google-id-token');
+      expect(state.status, AuthStatus.authenticated);
+      expect(api.googleCalls, 1);
+      expect(storage.saved, isNotNull);
+    });
+
+    test('loginWithGoogle GOOGLE_TOKEN_INVALID → ném ApiException', () async {
+      api.googleError = const ApiException(
+        ApiError(code: 'GOOGLE_TOKEN_INVALID', message: 'bad'),
+        statusCode: 401,
+      );
+      await expectLater(
+        repo.loginWithGoogle(idToken: 'bad'),
+        throwsA(isA<ApiException>()),
+      );
       expect(storage.saved, isNull);
     });
   });

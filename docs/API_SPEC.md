@@ -38,7 +38,12 @@
 
 | Method | Path | Mục đích |
 |---|---|---|
-| POST | `/auth/register` | Đăng ký — **đã implement** (TASK-0007) |
+| POST | `/auth/register` | Đăng ký — tạo REGISTER_VERIFY OTP challenge (202, chưa tạo user) — **updated TASK-0021 (Issue #34)** |
+| POST | `/auth/register/verify` | Xác thực OTP đăng ký → tạo user + token pair — **implemented TASK-0021** |
+| POST | `/auth/otp/resend` | Gửi lại OTP (REGISTER_VERIFY/PASSWORD_RESET), cooldown 60s — **implemented TASK-0021** |
+| POST | `/auth/password/forgot` | Quên mật khẩu — gửi OTP, luôn 200 (anti-enumeration) — **implemented TASK-0021** |
+| POST | `/auth/password/reset` | Đặt lại mật khẩu bằng OTP + revoke toàn bộ refresh token — **implemented TASK-0021** |
+| POST | `/auth/google` | Đăng nhập Google idToken → link/create LEARNER → token pair — **implemented TASK-0021** |
 | POST | `/auth/login` | Trả access + refresh token — **đã implement** (TASK-0007) |
 | POST | `/auth/refresh` | Rotate refresh token — **đã implement** (TASK-0007) |
 | POST | `/auth/logout` | Revoke refresh session — **đã implement** (TASK-0007) |
@@ -245,9 +250,19 @@ Content-Type: application/json
 - Security hiện tại: permit-all cho `GET /api/v1/events/**` + actuator health/info + `POST /api/v1/auth/**`; `/api/v1/admin/**` cần `CONTENT_ADMIN`; còn lại cần JWT Bearer.
 - Error envelope `{code, message, details, traceId}` đã active; mọi response mang header `X-Request-Id` (echo hoặc generate).
 
-### Auth endpoints (implemented — TASK-0007)
+### Auth endpoints (implemented — TASK-0007; OTP + Google added TASK-0021 / Issue #34)
 
-`POST /api/v1/auth/register` — body `{email, password, displayName?, role?}`; `role` khác null → 400 `VALIDATION_ERROR` (không cho tự gán quyền); email chuẩn hoá `trim().toLowerCase`; trùng email → 409 `EMAIL_TAKEN`; thành công → 201 profile DTO (không chứa hash).
+`POST /api/v1/auth/register` — body `{email, password, displayName?, role?}`; `role` khác null → 400 `VALIDATION_ERROR` (không cho tự gán quyền); email chuẩn hoá `trim().toLowerCase`; email đã verified → 409 `EMAIL_TAKEN`. **Breaking change TASK-0021 (Issue #34):** không còn tạo user ngay — tạo `auth_otp_challenges` REGISTER_VERIFY + gửi OTP 6 số qua email → `202 {email, otpPurpose:"REGISTER_VERIFY", otpTtlSeconds, resendCooldownSeconds}`.
+
+`POST /api/v1/auth/register/verify` — `{email, otpCode}` → verify challenge (FOR UPDATE, attempts++ trước khi so hash, max 5 lần sai, hết hạn 300s) → tạo user `LEARNER`/`ACTIVE` với `email_verified_at=now()` → `200 TokenResponse`. Sai mã → 400 `OTP_INVALID` (`details.attemptsLeft`); hết hạn → 400 `OTP_EXPIRED`; quá 5 lần → 429 `OTP_MAX_ATTEMPTS_EXCEEDED` (challenge consumed, phải request mã mới); chưa có challenge → 400 `OTP_NO_CHALLENGE`.
+
+`POST /api/v1/auth/otp/resend` — `{email, purpose}` (`REGISTER_VERIFY`|`PASSWORD_RESET`) → consume challenge cũ + phát hành mã mới → `202 OtpChallengeResponse`. Gửi lặp <60s → 429 `OTP_RESEND_COOLDOWN` (`details.retryAfterSeconds`). REGISTER_VERIFY chưa từng request → 400 `OTP_NO_CHALLENGE`; email đã verified → 409 `EMAIL_TAKEN`. PASSWORD_RESET email không tồn tại/không ACTIVE → vẫn `202` (không lộ account).
+
+`POST /api/v1/auth/password/forgot` — `{email}` → luôn `200` (anti-enumeration); chỉ phát hành PASSWORD_RESET challenge + gửi mail khi user tồn tại và `ACTIVE`.
+
+`POST /api/v1/auth/password/reset` — `{email, otpCode, newPassword}` (8–72 ký tự) → verify OTP → `password_hash=BCrypt(newPassword)` + **revoke toàn bộ `auth_refresh_tokens` đang active của user** → `204`. Lỗi OTP như trên (`OTP_INVALID/OTP_EXPIRED/OTP_MAX_ATTEMPTS_EXCEEDED/OTP_NO_CHALLENGE`).
+
+`POST /api/v1/auth/google` — `{idToken}` → verify chữ ký/claims qua `GoogleIdTokenVerifier` (sig từ Google certs, `iss`, `aud` ∈ `GOOGLE_CLIENT_IDS`, `exp`, `email_verified=true`) → resolve user: đã link qua `user_oauth_accounts(GOOGLE, sub)` → login; email khớp user đã `email_verified` → link + login; email khớp user CHƯA verified → `403 GOOGLE_EMAIL_UNVERIFIED` (chặn capture pending registration); chưa có → tạo `LEARNER` `ACTIVE` `email_verified_at=now()` `password_hash=NULL` + link → `200 TokenResponse`. Token hỏng → 401 `GOOGLE_TOKEN_INVALID`; user `LOCKED`/`DISABLED` → 401 `INVALID_CREDENTIALS`; `GOOGLE_CLIENT_IDS` rỗng → 503 `FEATURE_DISABLED`.
 
 `POST /api/v1/auth/login` — `{email, password}` → 200 `{accessToken, tokenType:"Bearer", expiresIn, refreshToken, refreshExpiresIn}`. Sai mật khẩu / không tồn tại / LOCKED / DISABLED → 401 `INVALID_CREDENTIALS` (đồng nhất, không lộ tài khoản tồn tại).
 
