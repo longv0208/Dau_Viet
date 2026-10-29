@@ -74,5 +74,7 @@ public enum ErrorCode {
     ISLAND_CONFIGURATION_INVALID,
     ITEM_NOT_FOR_SALE,
     FEATURE_DISABLED,
+    // STREAK-02 (V51): Khiên Bảo Vệ Chuỗi đã đạt giới hạn tích trữ
+    SHIELD_AT_MAX_CAPACITY,
     INTERNAL_ERROR
 }

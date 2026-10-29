@@ -19,9 +19,12 @@ import org.junit.jupiter.api.Test;
 import org.mockito.Mockito;
 
 import com.dauviet.learning.api.dto.CompleteAttemptResponse;
+import com.dauviet.learning.application.IdempotencyService;
+import com.dauviet.reward.infrastructure.persistence.RewardTransactionRepository;
 import com.dauviet.streak.domain.UserLearningStreak;
 import com.dauviet.streak.infrastructure.persistence.UserLearningStreakDayRepository;
 import com.dauviet.streak.infrastructure.persistence.UserLearningStreakRepository;
+import com.dauviet.wallet.application.WalletService;
 
 /**
  * Unit test STREAK-01 — kiểm chứng luật streak với Clock giả lập (không cần
@@ -47,6 +50,9 @@ class LearningStreakServiceTest {
 
     private UserLearningStreakRepository streakRepo;
     private UserLearningStreakDayRepository dayRepo;
+    private RewardTransactionRepository rewardRepo;
+    private WalletService wallet;
+    private IdempotencyService idempotency;
     private MutableClock clock;
     private LearningStreakService service;
 
@@ -91,14 +97,51 @@ class LearningStreakServiceTest {
 
         Mockito.when(dayRepo.insertIgnore(Mockito.any(), Mockito.any(),
                         Mockito.any(), Mockito.any(), Mockito.any(),
-                        Mockito.any()))
+                        Mockito.any(), Mockito.anyInt(), Mockito.anyInt(),
+                        Mockito.any(), Mockito.any()))
                 .thenAnswer(inv -> {
                     UUID u = inv.getArgument(0);
                     LocalDate d = inv.getArgument(1);
                     return dayKeys.add(u + ":" + d) ? 1 : 0;
                 });
 
-        service = new LearningStreakService(streakRepo, dayRepo, clock);
+        rewardRepo = Mockito.mock(RewardTransactionRepository.class);
+        Mockito.when(rewardRepo.insertIgnore(Mockito.any(), Mockito.any(),
+                        Mockito.any(), Mockito.anyLong(), Mockito.any(),
+                        Mockito.any()))
+                .thenReturn(1); // mọi grant đều insert thành công trong unit
+
+        wallet = Mockito.mock(WalletService.class);
+        // Idempotency thật trên repo mock in-memory — buyShield cần
+        // execute() hoạt động (claim → executor → storeResponse).
+        var records = new java.util.HashMap<String,
+                com.dauviet.learning.domain.IdempotencyRecord>();
+        var idemRepo = Mockito.mock(
+                com.dauviet.learning.infrastructure.persistence
+                        .IdempotencyRecordRepository.class);
+        Mockito.when(idemRepo.findByUserIdAndOperationAndIdempotencyKey(
+                        Mockito.any(), Mockito.any(), Mockito.any()))
+                .thenAnswer(inv -> java.util.Optional.ofNullable(
+                        records.get(inv.getArgument(0) + "|"
+                                + inv.getArgument(1) + "|"
+                                + inv.getArgument(2))));
+        Mockito.when(idemRepo.saveAndFlush(Mockito.any()))
+                .thenAnswer(inv -> {
+                    var rec = inv.getArgument(0,
+                            com.dauviet.learning.domain.IdempotencyRecord.class);
+                    records.put(rec.getUserId() + "|" + rec.getOperation()
+                            + "|" + rec.getIdempotencyKey(), rec);
+                    return rec;
+                });
+        Mockito.when(idemRepo.save(Mockito.any()))
+                .thenAnswer(inv -> inv.getArgument(0));
+        var mapper = new com.fasterxml.jackson.databind.ObjectMapper()
+                .registerModule(new com.fasterxml.jackson.datatype.jsr310
+                        .JavaTimeModule());
+        idempotency = new IdempotencyService(idemRepo, mapper, 86400);
+
+        service = new LearningStreakService(streakRepo, dayRepo, rewardRepo,
+                wallet, idempotency, clock);
     }
 
     private Instant utcOnVnDate(int year, int month, int day, int hour, int min) {
@@ -320,5 +363,164 @@ class LearningStreakServiceTest {
                 service.recordCompletion(U, LESSON, UUID.randomUUID(),
                         utcOnVnDate(2026, 10, 26, 10, 0));
         assertThat(second).isNull();
+    }
+
+    /* ================= STREAK-02: Khiên Bảo Vệ + Thưởng Chuỗi ================= */
+
+    /** Helper: tạo streak row rồi nạp sẵn khiên cho user. */
+    private void grantShields(int count) {
+        service.recordCompletion(U, LESSON, UUID.randomUUID(),
+                utcOnVnDate(2026, 10, 20, 9, 0));
+        UserLearningStreak s = streaks.get(U);
+        for (int i = 0; i < count; i++) {
+            s.addShield(clock.instant());
+        }
+    }
+
+    @Test
+    void shieldAutoConsumesOnExactlyOneMissedDay() {
+        // Học 26-10, bỏ 27-10, học lại 28-10 với 1 khiên → khiên tự trừ,
+        // chuỗi nối tiếp 2, ngày 27 đánh dấu SHIELD_PROTECTED.
+        service.recordCompletion(U, LESSON, UUID.randomUUID(),
+                utcOnVnDate(2026, 10, 26, 9, 0));
+        streaks.get(U).addShield(clock.instant()); // 1 khiên
+        var info = service.recordCompletion(U, LESSON, UUID.randomUUID(),
+                utcOnVnDate(2026, 10, 28, 9, 0));
+        assertThat(info).isNotNull();
+        assertThat(info.currentStreak()).isEqualTo(2);
+        assertThat(info.shieldConsumed()).isTrue();
+        assertThat(info.shieldCount()).isZero();
+        assertThat(streaks.get(U).getShieldCount()).isZero();
+        // Ledger có row SHIELD_PROTECTED cho 27-10.
+        assertThat(dayKeys).contains(U + ":" + LocalDate.of(2026, 10, 27));
+    }
+
+    @Test
+    void missedOneDayWithoutShieldResetsToOne() {
+        // Cùng kịch bản trên nhưng shieldCount=0 → chuỗi reset về 1.
+        service.recordCompletion(U, LESSON, UUID.randomUUID(),
+                utcOnVnDate(2026, 10, 26, 9, 0));
+        var info = service.recordCompletion(U, LESSON, UUID.randomUUID(),
+                utcOnVnDate(2026, 10, 28, 9, 0));
+        assertThat(info).isNotNull();
+        assertThat(info.currentStreak()).isEqualTo(1);
+        assertThat(info.shieldConsumed()).isFalse();
+        assertThat(dayKeys)
+                .doesNotContain(U + ":" + LocalDate.of(2026, 10, 27));
+    }
+
+    @Test
+    void missedTwoOrMoreDaysWithShieldsStillResets() {
+        // Bỏ >= 2 ngày liên tiếp: khiên KHÔNG cứu được, cũng không bị
+        // trừ vô ích — chuỗi reset về 1.
+        service.recordCompletion(U, LESSON, UUID.randomUUID(),
+                utcOnVnDate(2026, 10, 26, 9, 0));
+        UserLearningStreak s = streaks.get(U);
+        s.addShield(clock.instant());
+        s.addShield(clock.instant());
+        s.addShield(clock.instant()); // 3 khiên
+        var info = service.recordCompletion(U, LESSON, UUID.randomUUID(),
+                utcOnVnDate(2026, 10, 29, 9, 0)); // bỏ 27+28
+        assertThat(info).isNotNull();
+        assertThat(info.currentStreak()).isEqualTo(1);
+        assertThat(info.shieldConsumed()).isFalse();
+        assertThat(s.getShieldCount()).isEqualTo(3); // khiên giữ nguyên
+    }
+
+    @Test
+    void dailyRewardGrantedFromDayTwo() {
+        service.recordCompletion(U, LESSON, UUID.randomUUID(),
+                utcOnVnDate(2026, 10, 26, 9, 0));
+        var info = service.recordCompletion(U, LESSON, UUID.randomUUID(),
+                utcOnVnDate(2026, 10, 27, 9, 0));
+        assertThat(info.bonusExp()).isEqualTo(5);
+        assertThat(info.bonusPoints()).isEqualTo(5);
+        assertThat(info.milestoneDay()).isNull();
+    }
+
+    @Test
+    void milestoneRewardAtDayThree() {
+        service.recordCompletion(U, LESSON, UUID.randomUUID(),
+                utcOnVnDate(2026, 10, 25, 9, 0));
+        service.recordCompletion(U, LESSON, UUID.randomUUID(),
+                utcOnVnDate(2026, 10, 26, 9, 0));
+        var info = service.recordCompletion(U, LESSON, UUID.randomUUID(),
+                utcOnVnDate(2026, 10, 27, 9, 0));
+        // Ngày 3: daily 5+5 cộng mốc 15 EXP + 10 điểm.
+        assertThat(info.milestoneDay()).isEqualTo(3);
+        assertThat(info.bonusExp()).isEqualTo(20);
+        assertThat(info.bonusPoints()).isEqualTo(15);
+    }
+
+    @Test
+    void noRewardOnStreakReset() {
+        // Đứt chuỗi → current=1 → không daily, không mốc (phạt = mất
+        // thu nhập, không trừ điểm).
+        service.recordCompletion(U, LESSON, UUID.randomUUID(),
+                utcOnVnDate(2026, 10, 26, 9, 0));
+        var info = service.recordCompletion(U, LESSON, UUID.randomUUID(),
+                utcOnVnDate(2026, 10, 29, 9, 0));
+        assertThat(info.bonusExp()).isZero();
+        assertThat(info.bonusPoints()).isZero();
+        assertThat(info.milestoneDay()).isNull();
+    }
+
+    @Test
+    void noDailyRewardOnFirstDay() {
+        var info = service.recordCompletion(U, LESSON, UUID.randomUUID(),
+                utcOnVnDate(2026, 10, 26, 9, 0));
+        assertThat(info.bonusExp()).isZero();
+        assertThat(info.bonusPoints()).isZero();
+    }
+
+    @Test
+    void buyShieldDebitsPointsAndIncrements() {
+        Mockito.when(wallet.debit(Mockito.any(), Mockito.anyLong(),
+                        Mockito.any(), Mockito.any(), Mockito.any()))
+                .thenReturn(30L);
+        var res = service.buyShield(U, "key-1");
+        assertThat(res.shieldCount()).isEqualTo(1);
+        assertThat(res.balanceAfter()).isEqualTo(30L);
+        assertThat(streaks.get(U).getShieldCount()).isEqualTo(1);
+        Mockito.verify(wallet).debit(Mockito.eq(U), Mockito.eq(20L),
+                Mockito.eq("STREAK_SHIELD_PURCHASE"),
+                Mockito.eq("STREAK_SHIELD:key-1"), Mockito.any());
+    }
+
+    @Test
+    void buyShieldBlockedAtMaxCapacity() {
+        grantShields(3); // streak row + 3 khiên
+        org.junit.jupiter.api.Assertions.assertThrows(
+                com.dauviet.streak.domain.StreakExceptions
+                        .ShieldAtMaxCapacityException.class,
+                () -> service.buyShield(U, "key-2"));
+        Mockito.verify(wallet, Mockito.never()).debit(Mockito.any(),
+                Mockito.anyLong(), Mockito.any(), Mockito.any(),
+                Mockito.any());
+    }
+
+    @Test
+    void buyShieldIdempotentReplaySameKey() {
+        Mockito.when(wallet.debit(Mockito.any(), Mockito.anyLong(),
+                        Mockito.any(), Mockito.any(), Mockito.any()))
+                .thenReturn(10L);
+        var first = service.buyShield(U, "key-3");
+        var replay = service.buyShield(U, "key-3");
+        // Cùng key → stored response, debit chỉ gọi 1 lần.
+        assertThat(replay.shieldCount()).isEqualTo(first.shieldCount());
+        Mockito.verify(wallet, Mockito.times(1)).debit(Mockito.any(),
+                Mockito.anyLong(), Mockito.any(), Mockito.any(),
+                Mockito.any());
+        assertThat(streaks.get(U).getShieldCount()).isEqualTo(1);
+    }
+
+    @Test
+    void stateOfExposesShieldFields() {
+        grantShields(2);
+        var r = service.stateOf(U);
+        assertThat(r.shieldCount()).isEqualTo(2);
+        assertThat(r.maxShields()).isEqualTo(3);
+        assertThat(r.shieldCostPoints()).isEqualTo(20L);
+        assertThat(r.milestones()).hasSize(4);
     }
 }

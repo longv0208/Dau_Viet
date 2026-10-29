@@ -1458,14 +1458,18 @@ class _StreakMiniPill extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final streakAsync = ref.watch(streakProvider);
+    final streak = streakAsync.value;
     final String value = streakAsync.when(
       data: (s) => '${s.currentStreak}',
       loading: () => '—',
       error: (_, _) => '—',
     );
+    // STREAK-02: hiển thị số khiên còn lại (nhỏ) khi > 0 — nhắc learner
+    // chuỗi đang được bảo vệ.
+    final int shields = streak?.shieldCount ?? 0;
     return Semantics(
       button: true,
-      label: 'Chuỗi ngày học: $value',
+      label: 'Chuỗi ngày học: $value, khiên: $shields',
       child: GestureDetector(
         onTap: () => context.push('/streak'),
         child: Container(
@@ -1489,6 +1493,19 @@ class _StreakMiniPill extends ConsumerWidget {
                   color: Color(0xFFC62828),
                 ),
               ),
+              if (shields > 0) ...[
+                const SizedBox(width: 4),
+                const Icon(Icons.shield_rounded,
+                    size: 11, color: DauVietColors.heritageGreen),
+                Text(
+                  '$shields',
+                  style: const TextStyle(
+                    fontSize: 10,
+                    fontWeight: FontWeight.w900,
+                    color: DauVietColors.heritageGreen,
+                  ),
+                ),
+              ],
             ],
           ),
         ),
@@ -1549,6 +1566,13 @@ class _StreakWeekStrip extends ConsumerWidget {
       for (final d in calPrev.value?.days ?? const <DateTime>[])
         DateTime(d.year, d.month, d.day),
     };
+    // STREAK-02: ngày được khiên cứu — vẽ marker 🛡️ thay màu đỏ trơn.
+    final shielded = <DateTime>{
+      for (final d in calCur.value?.protectedDates ?? const <DateTime>[])
+        DateTime(d.year, d.month, d.day),
+      for (final d in calPrev.value?.protectedDates ?? const <DateTime>[])
+        DateTime(d.year, d.month, d.day),
+    };
     final todayKey = DateTime(today.year, today.month, today.day);
 
     return GestureDetector(
@@ -1567,6 +1591,7 @@ class _StreakWeekStrip extends ConsumerWidget {
               _buildDayCell(
                 weekStart.add(Duration(days: i)),
                 studied,
+                shielded,
                 todayKey,
               ),
           ],
@@ -1575,10 +1600,12 @@ class _StreakWeekStrip extends ConsumerWidget {
     );
   }
 
-  Widget _buildDayCell(DateTime day, Set<DateTime> studied, DateTime todayKey) {
+  Widget _buildDayCell(DateTime day, Set<DateTime> studied,
+      Set<DateTime> shielded, DateTime todayKey) {
     final key = DateTime(day.year, day.month, day.day);
     final isToday = key == todayKey;
     final didStudy = studied.contains(key);
+    final isShielded = shielded.contains(key);
     final isFuture = key.isAfter(todayKey);
     final isMissed = !isToday && !isFuture && !didStudy;
 
@@ -1631,7 +1658,11 @@ class _StreakWeekStrip extends ConsumerWidget {
           ),
           alignment: Alignment.center,
           child: didStudy
-              ? const Icon(Icons.check_rounded, size: 15, color: Colors.white)
+              ? (isShielded
+                  ? const Icon(Icons.shield_rounded,
+                      size: 15, color: Colors.white)
+                  : const Icon(Icons.check_rounded,
+                      size: 15, color: Colors.white))
               : Text(
                   '${day.day}',
                   style: DauVietTypography.bodySmall.copyWith(

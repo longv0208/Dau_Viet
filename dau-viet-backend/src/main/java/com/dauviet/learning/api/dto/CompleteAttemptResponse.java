@@ -49,7 +49,12 @@ public record CompleteAttemptResponse(
                 progress, newlyUnlockedDossiers, streak, List.of());
     }
 
-    /** Thông tin streak do server trả sau khi ghi nhận ngày học. */
+    /**
+     * Thông tin streak do server trả sau khi ghi nhận ngày học. STREAK-02
+     * additive: shieldConsumed = khiên vừa tự trừ để cứu chuỗi;
+     * bonusExp/bonusPoints = thưởng chuỗi vừa grant; milestoneDay = mốc
+     * 3/7/14/30 nếu đạt (null = không mốc).
+     */
     public record StreakInfo(
             /** true = ngày vừa được công nhận mới (animation chạy). */
             boolean dayRecorded,
@@ -60,7 +65,18 @@ public record CompleteAttemptResponse(
             java.time.LocalDate studyDate,
             /** Đồng hồ server lúc ghi — client dùng làm mốc freshness cho
              * state streak, KHÔNG bịa từ đồng hồ thiết bị (clock skew). */
-            Instant serverTime) {
+            Instant serverTime,
+            /** Khiên Bảo Vệ vừa tự tiêu hao để cứu chuỗi (bỏ lỡ đúng 1
+             * ngày + shieldCount > 0). */
+            boolean shieldConsumed,
+            /** Số khiên còn lại sau ghi — UI cập nhật card 🛡️ ngay. */
+            int shieldCount,
+            /** EXP thưởng chuỗi vừa grant trong tx này (0 nếu không). */
+            int bonusExp,
+            /** Điểm Sử Ký thưởng chuỗi vừa grant trong tx này. */
+            int bonusPoints,
+            /** Mốc chuỗi đạt (3/7/14/30) nếu có; null = không mốc. */
+            Integer milestoneDay) {
     }
 
     /** Thông tin địa điểm di tích vừa mở khóa trong lượt hoàn thành bài học. */

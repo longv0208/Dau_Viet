@@ -15,4 +15,10 @@ class ApiStreakRepository implements StreakRepository {
   @override
   Future<LearningStreakCalendarDto> getCalendar(DateTime from, DateTime to) =>
       _api.getCalendar(from, to);
+
+  @override
+  Future<StreakShieldPurchaseDto> buyShield({
+    required String idempotencyKey,
+  }) =>
+      _api.buyShield(idempotencyKey: idempotencyKey);
 }

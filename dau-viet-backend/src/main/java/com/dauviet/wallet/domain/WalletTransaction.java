@@ -27,6 +27,9 @@ public class WalletTransaction {
     public static final String REASON_SHOP_PURCHASE = "SHOP_PURCHASE";
     public static final String REASON_REFILL_PURCHASE = "REFILL_PURCHASE";
     public static final String REASON_ADMIN_ADJUST = "ADMIN_ADJUST";
+    /** STREAK-02 (V51): đổi 20 Điểm Sử Ký lấy 1 Khiên Bảo Vệ Chuỗi. */
+    public static final String REASON_STREAK_SHIELD_PURCHASE =
+            "STREAK_SHIELD_PURCHASE";
 
     @Id
     @Column(name = "id", nullable = false, updatable = false)

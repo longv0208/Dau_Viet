@@ -30,9 +30,25 @@ class MockStreakRepository implements StreakRepository {
     final days = List.generate(5, (i) => today.subtract(Duration(days: 4 - i)));
     return LearningStreakCalendarDto(
       from: from,
-      to: to,
       days: days,
       serverTime: now.toUtc(),
     );
   }
+
+  @override
+  Future<StreakShieldPurchaseDto> buyShield({
+    required String idempotencyKey,
+  }) async {
+    // Mock: luôn thành công, khiên tăng dần tới 3 (demo UI).
+    await Future<void>.delayed(const Duration(milliseconds: 200));
+    return StreakShieldPurchaseDto(
+      shieldCount: _mockShields = (_mockShields + 1).clamp(0, 3),
+      maxShields: 3,
+      costPoints: 20,
+      balanceAfter: 180,
+      serverTime: DateTime.now().toUtc(),
+    );
+  }
+
+  int _mockShields = 1;
 }

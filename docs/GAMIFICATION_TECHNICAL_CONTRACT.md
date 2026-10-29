@@ -200,9 +200,11 @@ Energy recovery là **lazy**: không scheduler. Mọi đọc/ghi `user_energy` t
 - `user_learning_streaks`: 1 row/user (`current_streak`, `longest_streak`, `last_qualified_date`, `row_version`) — lazy-create lần complete đầu tiên, KHÔNG lazy-create khi đọc.
 - `user_learning_streak_days`: append-only ledger PK `(user_id, study_date)` — ground truth; `study_date = (completed_at AT TIME ZONE 'Asia/Ho_Chi_Minh')::date` tính server-side từ `learner_attempts.completed_at` UTC.
 - **Lock-order:** `learner_attempts` (doComplete) → `user_learning_streak_days` (insertIgnore) → `user_learning_streaks` (PESSIMISTIC_WRITE). Ledger insert trước để UNIQUE quyết race; chỉ tx thắng (inserted=1) mới đụng aggregate — thua race trả `null` StreakInfo.
-- `UserLearningStreak.advanceTo(newDate)`: `== last` → no-op; `== last+1` → `current+1`; còn lại → `current=1`; `longest = max(longest, current)`.
+- `UserLearningStreak.advanceTo(newDate)` trả `AdvanceResult{dayRecorded, shieldConsumed, protectedDate}` — 4 nhánh (issue-38): `== last` → no-op (`dayRecorded=false`); `== last+1` → `current+1`; `== last+2 && shield>0` → trừ 1 khiên + `current+1` + `protectedDate=last+1`; còn lại → `current=1`. `longest = max(longest, current)`.
 - Đọc `GET /me/streak` + `/calendar` `readOnly=true`: không reset `current_streak` âm thầm, không lazy-create — `streakAlive` cho UI phân biệt trạng thái.
-- Streak **không ghi `reward_transactions`** (POINT-03) — không EXP/điểm/item nào đính kèm.
+- **Streak rewards (issue-38):** `StreakRewardPolicy` — daily +5 EXP/+5 pts khi `current ≥ 2`; milestone {3,7,14,30} → {+15/+10, +30/+25, +60/+50, +120/+100}. Grant trong cùng tx `doComplete` qua `RewardTransactionRepository.insertIgnore`, `cause_key = STREAK:{user}:{studyDate}:{DAILY|MILESTONE_N}:{EXP|POINTS}` → idempotent; `milestone_day` ghi lên ledger row. Điểm Sử Ký đổ vào ví qua lazy-bridge (không `WalletService.credit`).
+- **Khiên (issue-38):** `shield_count` ∈ [0,3] trên `user_learning_streaks`. `buyShield` trong `IdempotencyService.execute` op `STREAK_SHIELD_PURCHASE`: lock `user_learning_streaks` (PESSIMISTIC_WRITE) → cap check 422 → `wallet.debit(20, REASON_STREAK_SHIELD_PURCHASE, STREAK_SHIELD:{key})` → `addShield()`. Lock-order khác `doComplete` (attempt→days→streaks): không chia sẻ cặp đảo → deadlock-safe.
+- **SHIELD_PROTECTED rows:** ngày được cứu ghi `day_type='SHIELD_PROTECTED'` (FK reuse lesson/attempt của complete hiện tại — FK NOT NULL), `reward_exp=reward_points=0`, `insertIgnore` → STUDY row thắng nếu race. `day_type` check `('STUDY','SHIELD_PROTECTED')`.
 
 ## 6. Thiết kế Wallet
 

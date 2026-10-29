@@ -459,6 +459,10 @@ class _ResultBody extends StatelessWidget {
                 if (result.newlyRecordedStreak != null) ...[
                   const SizedBox(height: 14),
                   _StreakFlameBanner(streak: result.newlyRecordedStreak!),
+                  // STREAK-02: note khiên cứu chuỗi + thưởng ngày học —
+                  // ẩn khi không có gì (shieldConsumed=false, bonus=0).
+                  _StreakShieldAndBonusNote(
+                      streak: result.newlyRecordedStreak!),
                 ],
 
                 // MAP-V2 (E5): banner địa điểm di sản vừa mở khóa — chỉ hiện khi
@@ -873,6 +877,77 @@ class _StreakFlameBanner extends StatelessWidget {
               ],
             ),
           ),
+        ],
+      ),
+    );
+  }
+}
+
+/// STREAK-02: thông báo khiên vừa tự cứu chuỗi + thưởng chuỗi ngày học —
+/// hiển thị ngay dưới banner ngọn lửa trên màn Kết quả bài học.
+class _StreakShieldAndBonusNote extends StatelessWidget {
+  final StreakInfoDto streak;
+  const _StreakShieldAndBonusNote({required this.streak});
+
+  @override
+  Widget build(BuildContext context) {
+    final hasBonus = streak.bonusExp > 0 || streak.bonusPoints > 0;
+    if (!streak.shieldConsumed && !hasBonus) {
+      return const SizedBox.shrink();
+    }
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+      margin: const EdgeInsets.only(top: 8),
+      decoration: BoxDecoration(
+        color: DauVietColors.heritageGreen.withValues(alpha: 0.08),
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: DauVietColors.heritageGreen, width: 1.2),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          if (streak.shieldConsumed)
+            Row(
+              children: [
+                const Icon(Icons.shield_rounded,
+                    size: 16, color: DauVietColors.heritageGreen),
+                const SizedBox(width: 6),
+                Expanded(
+                  child: Text(
+                    'Đã dùng 1 Khiên Bảo Vệ để giữ chuỗi '
+                    '${streak.currentStreak} ngày của bạn!',
+                    style: DauVietTypography.bodySmall.copyWith(
+                      color: DauVietColors.inkText,
+                      fontWeight: FontWeight.w700,
+                      fontSize: 11.5,
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          if (hasBonus) ...[
+            if (streak.shieldConsumed) const SizedBox(height: 4),
+            Row(
+              children: [
+                const Icon(Icons.card_giftcard_rounded,
+                    size: 16, color: DauVietColors.imperialGold),
+                const SizedBox(width: 6),
+                Expanded(
+                  child: Text(
+                    'Thưởng chuỗi ngày học: '
+                    '+${streak.bonusExp} EXP · +${streak.bonusPoints} Điểm Sử Ký'
+                    '${streak.milestoneDay != null ? ' · Mốc ${streak.milestoneDay} ngày!' : ''}',
+                    style: DauVietTypography.bodySmall.copyWith(
+                      color: DauVietColors.inkText,
+                      fontWeight: FontWeight.w700,
+                      fontSize: 11.5,
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ],
         ],
       ),
     );

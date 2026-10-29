@@ -176,6 +176,14 @@ class StreakController extends AsyncNotifier<LearningStreakDto> {
       // Mốc freshness thật từ server — null-safe về epoch nếu backend cũ
       // chưa trả field này.
       serverTime: info.serverTime ?? cur?.serverTime,
+      // STREAK-02: đồng bộ số khiên ngay sau complete — khiên có thể
+      // vừa tự trừ để cứu chuỗi.
+      shieldCount: info.shieldCount,
+      maxShields: cur?.maxShields ?? 3,
+      shieldCostPoints: cur?.shieldCostPoints ?? 20,
+      atRiskToday: false,
+      shieldWillProtectToday: false,
+      milestones: cur?.milestones ?? const [],
     );
     _markApplied(dto, fromComplete: true);
     state = AsyncData(dto);
@@ -201,6 +209,49 @@ class StreakController extends AsyncNotifier<LearningStreakDto> {
     } catch (e, st) {
       state = AsyncError(e, st);
     }
+  }
+
+  /// Đổi 20 Điểm Sử Ký lấy 1 Khiên Bảo Vệ (STREAK-02). Trả response để
+  /// UI cập nhật ví; lỗi ApiException ném lên cho caller hiển thị
+  /// (422 SHIELD_AT_MAX_CAPACITY / 409 INSUFFICIENT_FUNDS).
+  Future<StreakShieldPurchaseDto> buyShield({
+    required String idempotencyKey,
+  }) async {
+    if (!_sessionAlive) {
+      throw StateError('streak session changed');
+    }
+    final repo = ref.read(streakRepositoryProvider);
+    final res = ApiConfig.useMock
+        ? await repo.buyShield(idempotencyKey: idempotencyKey)
+        : await ref
+            .read(authRepositoryProvider)
+            .withAuth(() => repo.buyShield(idempotencyKey: idempotencyKey));
+    // Cập nhật shieldCount trong state hiện tại — response server trả
+    // authoritative; giữ nguyên các field khác.
+    final cur = state is AsyncData<LearningStreakDto>
+        ? (state as AsyncData<LearningStreakDto>).value
+        : null;
+    if (cur != null) {
+      final updated = LearningStreakDto(
+        currentStreak: cur.currentStreak,
+        longestStreak: cur.longestStreak,
+        completedToday: cur.completedToday,
+        streakAlive: cur.streakAlive,
+        lastQualifiedDate: cur.lastQualifiedDate,
+        today: cur.today,
+        timezone: cur.timezone,
+        serverTime: res.serverTime ?? cur.serverTime,
+        shieldCount: res.shieldCount,
+        maxShields: res.maxShields,
+        shieldCostPoints: res.costPoints,
+        atRiskToday: cur.atRiskToday,
+        shieldWillProtectToday: cur.shieldWillProtectToday,
+        milestones: cur.milestones,
+      );
+      _markApplied(updated, fromComplete: false);
+      state = AsyncData(updated);
+    }
+    return res;
   }
 }
 

@@ -66,7 +66,8 @@
 | GET | `/me/progress` | Resume surface: IN_PROGRESS attempts + completed count — **implemented TASK-0012** |
 | GET | `/me/energy` | Thể lực của learner hiện tại (lazy recovery theo server clock) — **implemented GAME-02**; yêu cầu authenticated |
 | GET | `/me/streak` | Chuỗi ngày học hiện tại (server `Asia/Ho_Chi_Minh`) — **implemented STREAK-01**; authenticated, đọc-only không lazy-create |
-| GET | `/me/streak/calendar` | Các ngày đã học trong khoảng `?from=&to=` (ISO date, ≤92 ngày) — **implemented STREAK-01**; authenticated |
+| GET | `/me/streak/calendar` | Các ngày đã học trong khoảng `?from=&to=` (ISO date, ≤92 ngày) — **implemented STREAK-01**; authenticated; `protectedDates` = ngày khiên cứu (issue-38) |
+| POST | `/me/streak/shields` | Mua 1 khiên chuỗi (20 Điểm Sử Ký, cap 3) — **implemented issue-38**; Idempotency-Key bắt buộc; 409 `INSUFFICIENT_FUNDS`, 422 `SHIELD_AT_MAX_CAPACITY` |
 | GET | `/learning-path` | Lộ trình học tập Bản đồ Dấu Ấn 2.0 (`?code=HISTORY_MAIN`) — **implemented PATH-01**; public / authenticated |
 | GET | `/admin/learning-path/audit` | Báo cáo kiểm toán chất lượng dữ liệu lộ trình học tập — **implemented PATH-01**; role CONTENT_ADMIN |
 
@@ -179,12 +180,23 @@ Content-Type: application/json
   "lastQualifiedDate": "2026-10-26",
   "today": "2026-10-26",
   "timezone": "Asia/Ho_Chi_Minh",
-  "serverTime": "2026-10-26T15:30:00Z"
+  "serverTime": "2026-10-26T15:30:00Z",
+  "shieldCount": 2,
+  "maxShields": 3,
+  "shieldCostPoints": 20,
+  "streakAtRisk": false,
+  "milestones": [
+    {"day": 3,  "exp": 15,  "points": 10,  "reached": true},
+    {"day": 7,  "exp": 30,  "points": 25,  "reached": true},
+    {"day": 14, "exp": 60,  "points": 50,  "reached": false},
+    {"day": 30, "exp": 120, "points": 100, "reached": false}
+  ]
 }
 ```
 
 - `streakAlive` = `lastQualifiedDate == today || lastQualifiedDate == today - 1` — phân biệt "đã ghi hôm nay" (`completedToday`) vs "học hôm qua, còn cửa giữ chuỗi" vs "đã đứt". Đọc **không** tự reset `current_streak` — lần complete kế tiếp sẽ set đúng luật trong transaction ghi.
 - `today`, `serverTime` tính theo `Asia/Ho_Chi_Minh` từ `Clock` server — client không gửi ngày, không tự quy đổi múi giờ.
+- `shieldCount`/`maxShields`/`shieldCostPoints` (issue-38): số khiên còn lại, cap 3, giá 20 Điểm Sử Ký. `streakAtRisk` = true khi chuỗi sẽ gãy nếu hôm nay không học (last=today-1) — UI cảnh báo "học ngay để giữ chuỗi". `milestones`: toàn bộ mốc thưởng + `reached` theo `current_streak` (ngày được khiên cứu vẫn đếm).
 
 ### GET /me/streak/calendar — implemented shape (STREAK-01)
 
@@ -196,9 +208,12 @@ Content-Type: application/json
   "to": "2026-10-31",
   "timezone": "Asia/Ho_Chi_Minh",
   "days": ["2026-10-20", "2026-10-24", "2026-10-26"],
+  "protectedDates": ["2026-10-23"],
   "serverTime": "2026-10-26T15:30:00Z"
 }
 ```
+
+- `protectedDates` (issue-38): ngày `day_type='SHIELD_PROTECTED'` trong khoảng — ngày khiên tự cứu chuỗi (không có attempt COMPLETED, không thuộc `days`). UI vẽ marker 🛡️ riêng.
 
 ### POST /attempts/{id}/complete — additive field (STREAK-01)
 
@@ -209,9 +224,36 @@ Content-Type: application/json
   "dayRecorded": true,
   "currentStreak": 5,
   "longestStreak": 12,
-  "studyDate": "2026-10-26"
+  "studyDate": "2026-10-26",
+  "shieldConsumed": false,
+  "shieldCount": 2,
+  "bonusExp": 20,
+  "bonusPoints": 15,
+  "milestoneDay": null
 }
 ```
+
+- `shieldConsumed` (issue-38): true khi lần complete này vừa trừ 1 khiên để cứu chuỗi qua 1 ngày bỏ lỡ — UI banner "🛡️ Khiên cứu chuỗi". `shieldCount` = số khiên còn lại sau complete.
+- `bonusExp`/`bonusPoints` (issue-38): tổng thưởng chuỗi vừa cộng (daily +5/+5 nếu `current ≥ 2` + milestone nếu đạt). `milestoneDay` = N ∈ {3,7,14,30} khi vừa đạt mốc, else `null`. Ngày SHIELD_PROTECTED không có daily reward — nhưng milestone vẫn tính theo `current` sau advance.
+
+### POST /me/streak/shields — mua khiên bảo vệ (issue-38)
+
+`POST /api/v1/me/streak/shields` — authenticated learner; mua 1 khiên giá 20 Điểm Sử Ký. Header `Idempotency-Key` **bắt buộc** (400 `MISSING_IDEMPOTENCY_KEY` nếu thiếu). Cap 3 khiên/user (`CHECK shield_count 0..3`).
+
+```json
+Response 201:
+{
+  "shieldCount": 2,
+  "maxShields": 3,
+  "costPoints": 20,
+  "balanceAfter": 60,
+  "serverTime": "2026-10-26T15:30:00Z"
+}
+```
+
+- Idempotent: cùng `Idempotency-Key` → replay stored response, không debit lần 2 (op `STREAK_SHIELD_PURCHASE`, wallet cause `STREAK_SHIELD:{key}`).
+- Lỗi: 401 unauthenticated; 403 non-learner; 409 `INSUFFICIENT_FUNDS` (điểm < 20); 422 `SHIELD_AT_MAX_CAPACITY` (đã 3/3).
+- Trong cùng tx: lock `user_learning_streaks` → cap-check → `WalletService.debit` (lazy-bridge số dư từ `reward_transactions` HISTORY_POINTS) → `shield_count+1`. Lock-order khác `doComplete` → deadlock-safe.
 
 ### GET /events — implemented shape (TASK-0005)
 
