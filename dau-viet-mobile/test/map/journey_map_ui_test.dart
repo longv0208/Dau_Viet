@@ -1,8 +1,6 @@
 import 'package:dau_viet_mobile/features/map/data/map_location_dto.dart';
 import 'package:dau_viet_mobile/features/map/data/map_providers.dart';
 import 'package:dau_viet_mobile/features/map/data/map_repository.dart';
-import 'package:dau_viet_mobile/features/map/presentation/historical_map_screen.dart';
-import 'package:dau_viet_mobile/features/map/presentation/journey_map_node.dart';
 import 'package:dau_viet_mobile/features/map/presentation/location_profile_screen.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -49,22 +47,26 @@ void main() {
         eventId: 'evt_van_lang',
         title: 'Thời Đại Hùng Vương - Dựng Nước Văn Lang',
         yearLabel: 'Khoảng thế kỷ VII TCN',
+        role: 'PRIMARY',
+        sortOrder: 0,
       ),
     ],
     media: [
       MapLocationMediaDto(
-        id: 'm_img_1',
+        id: 'm1',
         mediaType: 'IMAGE_2D',
         title: 'Toàn cảnh Đền Hùng',
-        caption: 'Ảnh tư liệu núi Nghĩa Lĩnh',
+        externalUrl: '/heritage/den-hung.jpg',
         visibility: 'PUBLIC_PREVIEW',
+        sortOrder: 0,
       ),
       MapLocationMediaDto(
-        id: 'm_vid_1',
+        id: 'm2',
         mediaType: 'DOCUMENTARY_CLIP',
         title: 'Phim tư liệu Văn Lang',
-        caption: 'Tái hiện văn minh Đông Sơn',
+        externalUrl: 'https://example.com/van-lang.mp4',
         visibility: 'PUBLIC_PREVIEW',
+        sortOrder: 1,
       ),
     ],
   );
@@ -91,16 +93,20 @@ void main() {
     ),
     media: [
       MapLocationMediaDto(
-        id: 'm_pub_img',
+        id: 'm3',
         mediaType: 'IMAGE_2D',
         title: 'Tranh Hội thề Hát Môn (Xem trước)',
+        externalUrl: '/heritage/hat-mon.jpg',
         visibility: 'PUBLIC_PREVIEW',
+        sortOrder: 0,
       ),
       MapLocationMediaDto(
-        id: 'm_secret_vid',
+        id: 'm4',
         mediaType: 'DOCUMENTARY_CLIP',
         title: 'Phim giải mã chỉ mở sau khi học',
+        externalUrl: 'https://example.com/hat-mon.mp4',
         visibility: 'UNLOCKED_ONLY',
+        sortOrder: 1,
       ),
     ],
   );
@@ -118,69 +124,7 @@ void main() {
     unlockState: MapUnlockState.available,
   );
 
-  group('Heritage Map v2 & Location Profile Tests (Issue #24)', () {
-    testWidgets(
-      'AC-1: Bản đồ Di sản hiển thị từ dữ liệu API v2, không còn chế độ timeline dựa trên map hay hardcode slug/UUID',
-      (tester) async {
-        await tester.pumpWidget(
-          ProviderScope(
-            overrides: [
-              mapRepositoryProvider.overrideWithValue(
-                _FakeMapRepo([locVanLangUnlocked, locDocsOnly]),
-              ),
-            ],
-            child: const MaterialApp(home: HistoricalMapScreen()),
-          ),
-        );
-        await tester.pumpAndSettle();
-
-        // Không còn nút chuyển chế độ "Dòng thời gian" trên màn Bản đồ.
-        expect(find.text('Dòng thời gian'), findsNothing);
-        expect(find.text('Về Dòng Thời Gian'), findsNothing);
-
-        // Hiển thị tiêu đề Bản đồ Di sản và thông tin chặng từ DTO v2.
-        expect(find.text('Bản đồ Di sản Lịch sử Việt Nam'), findsOneWidget);
-        expect(
-          find.text('Bản Đồ Di Sản: Thời Đại Hùng Vương - Dựng Nước Văn Lang'),
-          findsOneWidget,
-        );
-        expect(find.text('1 mốc toạ độ'), findsOneWidget);
-        expect(find.byType(JourneyMapNode), findsOneWidget);
-        expect(find.text('Khu di tích Đền Hùng'), findsWidgets);
-
-        // Chuyển sang chặng 2.
-        await tester.tap(find.byTooltip('Chặng sau'));
-        await tester.pumpAndSettle();
-        expect(
-          find.text('Bản Đồ Di Sản: Đại Chiến Bạch Đằng 938'),
-          findsOneWidget,
-        );
-        expect(find.text('Bến Bạch Đằng - Trận Địa Cọc'), findsWidgets);
-      },
-    );
-
-    testWidgets(
-      'AC-2: Địa điểm khoá có visibility = PUBLIC vẫn hiện tên và ghim trên bản đồ',
-      (tester) async {
-        await tester.pumpWidget(
-          ProviderScope(
-            overrides: [
-              mapRepositoryProvider.overrideWithValue(
-                _FakeMapRepo([locHaiBaTrungLockedPublic]),
-              ),
-            ],
-            child: const MaterialApp(home: HistoricalMapScreen()),
-          ),
-        );
-        await tester.pumpAndSettle();
-
-        // Ghim địa điểm (JourneyMapNode) và tên vẫn hiển thị dù đang LOCKED.
-        expect(find.byType(JourneyMapNode), findsOneWidget);
-        expect(find.text('Cửa Sông Hát (Hát Môn)'), findsWidgets);
-        expect(find.byIcon(Icons.lock_rounded), findsWidgets);
-      },
-    );
-
+  group('Location Profile (Issue #24/#36)', () {
     testWidgets(
       'Hồ sơ địa điểm: ẩn các tab rỗng (chỉ hiện Tư liệu khi không có Ảnh và Video)',
       (tester) async {
@@ -191,12 +135,13 @@ void main() {
                 _FakeMapRepo([locDocsOnly]),
               ),
             ],
-            child: const MaterialApp(home: HistoricalMapScreen()),
+            child: const MaterialApp(
+              home: Scaffold(
+                body: LocationProfileSheet(initialLocation: locDocsOnly),
+              ),
+            ),
           ),
         );
-        await tester.pumpAndSettle();
-
-        await tester.tap(find.text('Bến Bạch Đằng - Trận Địa Cọc').first);
         await tester.pumpAndSettle();
 
         // Chỉ có tab Tư liệu; tab Ảnh và Video rỗng nên bị ẩn hoàn toàn.
@@ -226,12 +171,15 @@ void main() {
                 _FakeMapRepo([locHaiBaTrungLockedPublic]),
               ),
             ],
-            child: const MaterialApp(home: HistoricalMapScreen()),
+            child: const MaterialApp(
+              home: Scaffold(
+                body: LocationProfileSheet(
+                  initialLocation: locHaiBaTrungLockedPublic,
+                ),
+              ),
+            ),
           ),
         );
-        await tester.pumpAndSettle();
-
-        await tester.tap(find.text('Cửa Sông Hát (Hát Môn)').first);
         await tester.pumpAndSettle();
 
         // Có tab Ảnh (do có 1 ảnh PUBLIC_PREVIEW) và tab Tư liệu, nhưng tab Video

@@ -35,29 +35,30 @@ class _TimelineScreenState extends ConsumerState<TimelineScreen> {
     super.didChangeDependencies();
     if (widget.redirectToJourney &&
         !_hasRedirected &&
-        _hasJourneyRouteInRouter(context)) {
+        _hasMapRouteInRouter(context)) {
       _hasRedirected = true;
       WidgetsBinding.instance.addPostFrameCallback((_) {
         if (mounted) {
-          context.go('/journey');
+          context.go('/map');
         }
       });
     }
   }
 
-  bool _hasJourneyRouteInRouter(BuildContext context) {
+  bool _hasMapRouteInRouter(BuildContext context) {
     final router = GoRouter.maybeOf(context);
     if (router == null) return false;
-    return _containsJourneyRoute(router.configuration.routes);
+    return _containsMapRoute(router.configuration.routes);
   }
 
-  bool _containsJourneyRoute(List<RouteBase> routes) {
+  bool _containsMapRoute(List<RouteBase> routes) {
     for (final route in routes) {
       if (route is GoRoute &&
-          (route.path == '/journey' || route.path == 'journey')) {
+          (route.path == '/map' || route.path == 'map' ||
+              route.path == '/journey' || route.path == 'journey')) {
         return true;
       }
-      if (_containsJourneyRoute(route.routes)) {
+      if (_containsMapRoute(route.routes)) {
         return true;
       }
     }
@@ -232,10 +233,10 @@ class _TimelineScreenState extends ConsumerState<TimelineScreen> {
               Icons.route_rounded,
               color: DauVietColors.heritageGreen,
             ),
-            tooltip: 'Hành trình thời kỳ',
+            tooltip: 'Bản Đồ Dấu Ấn',
             onPressed: () {
-              if (_hasJourneyRouteInRouter(context)) {
-                context.go('/journey');
+              if (_hasMapRouteInRouter(context)) {
+                context.go('/map');
               }
             },
           ),

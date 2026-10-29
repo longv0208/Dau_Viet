@@ -83,15 +83,16 @@ void main() {
       // và bị gate ở real mode — journey giờ đi qua route trực tiếp cho
       // các màn demo để giữ coverage, không qua bottom nav.
 
-      // 4. Mở /timeline — từ Issue #24 tự động chuyển hướng sang /journey (Chọn Thời Kỳ).
+      // 4. Mở /timeline — từ Issue #36 tự động chuyển hướng sang /map
+      // (Bản Đồ Dấu Ấn, trục học = learning-path).
       tester.element(find.text('Học tập').first).go('/timeline');
       await tester.pumpAndSettle();
-      expect(find.text('CHỌN THỜI KỲ LỊCH SỬ'), findsOneWidget);
-      expect(find.text('Buổi đầu độc lập tự chủ'), findsOneWidget);
+      expect(find.text('Bản Đồ Dấu Ấn'), findsOneWidget);
+      expect(find.text('Buổi đầu độc lập tự chủ'), findsWidgets);
 
       // 5. Mở M-06 Sa Bàn qua route trực tiếp (icon saban giờ trùng cả
       // trong nội dung và bottom nav — dùng route để tránh nhầm widget).
-      tester.element(find.text('CHỌN THỜI KỲ LỊCH SỬ')).go('/saban');
+      tester.element(find.text('Bản Đồ Dấu Ấn')).go('/saban');
       await tester.pumpAndSettle();
       expect(find.text('SA BÀN THỦY CHIẾN BẠCH ĐẰNG'), findsOneWidget);
       expect(find.text('CHU KỲ THỦY TRIỀU CHIẾN THUẬT'), findsOneWidget);

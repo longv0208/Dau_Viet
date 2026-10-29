@@ -108,7 +108,7 @@ void main() {
     );
 
     testWidgets(
-      'nút Xem địa điểm điều hướng tới /heritage/:locationId (hoặc /map) và Tiếp tục học điều hướng tới /dashboard',
+      'nút Xem địa điểm điều hướng tới /heritage/:locationId và Tiếp tục học điều hướng tới /map (Issue #36)',
       (tester) async {
         final repo = FakeAttemptRepository();
         String? visitedHeritageId;
@@ -141,6 +141,11 @@ void main() {
                   body: Text('HERITAGE:${state.pathParameters['locationId']}'),
                 );
               },
+            ),
+            GoRoute(
+              path: '/map',
+              builder: (context, state) =>
+                  const Scaffold(body: Text('MAP_SCREEN')),
             ),
             GoRoute(
               path: '/dashboard',
@@ -185,7 +190,7 @@ void main() {
         await tester.tap(find.text('Tiếp tục học'));
         await tester.pumpAndSettle();
 
-        expect(find.text('DASHBOARD_HOME'), findsOneWidget);
+        expect(find.text('MAP_SCREEN'), findsOneWidget);
       },
     );
 

@@ -1683,6 +1683,12 @@ function LocationDetailEditor({
           <div className="space-y-4">
             <div>
               <Label htmlFor="unlock-mode-select">Chế độ mở khóa địa điểm (Unlock Rule Mode)</Label>
+              <p className="mt-0.5 text-xs text-ink-muted">
+                Tùy chọn — phần thưởng khám phá sau khi học: địa điểm chỉ mở
+                khi học viên hoàn thành bài học đã gắn. Địa điểm đã mở hiện
+                như ghim vệ tinh cạnh sự kiện trên Bản đồ Dấu Ấn; bài học
+                không gắn địa điểm vẫn chạy và mở khóa bài kế bình thường.
+              </p>
               <Select
                 id="unlock-mode-select"
                 className="mt-1"
@@ -1699,7 +1705,7 @@ function LocationDetailEditor({
 
             {ruleModeTab === "NONE" ? (
               <div className="rounded-lg border border-success/30 bg-success/10 p-4 text-sm text-ink">
-                Địa điểm đang ở chế độ <strong>Luôn mở (NONE)</strong>: Học viên có thể khám phá toàn bộ nội dung di tích và thư viện media ngay từ đầu mà không cần hoàn thành bài học.
+                Địa điểm đang ở chế độ <strong>Luôn mở (NONE)</strong>: mở tự do — không gắn bài học. Học viên khám phá toàn bộ nội dung di tích và thư viện media ngay từ đầu, không cần hoàn thành bài học nào.
               </div>
             ) : (
               <div className="space-y-3">

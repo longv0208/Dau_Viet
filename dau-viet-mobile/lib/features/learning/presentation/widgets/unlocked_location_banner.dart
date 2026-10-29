@@ -136,12 +136,12 @@ class UnlockedLocationBannerState extends State<UnlockedLocationBanner>
     final router = GoRouter.maybeOf(context);
     if (router != null) {
       final routes = router.configuration.routes;
-      if (_hasRoutePrefix(routes, '/dashboard')) {
-        router.go('/dashboard');
+      if (_hasRoutePrefix(routes, '/map')) {
+        router.go('/map');
         return;
       }
-      if (_hasRoutePrefix(routes, '/journey')) {
-        router.go('/journey');
+      if (_hasRoutePrefix(routes, '/dashboard')) {
+        router.go('/dashboard');
         return;
       }
     }

@@ -116,7 +116,10 @@ export function UnlockedLocationsCard({
       </div>
 
       <p className="text-xs text-ink-muted">
-        Các địa điểm di tích lịch sử được mở khóa khi học viên hoàn thành bài học này.
+        Phần thưởng khám phá sau khi học (tùy chọn): các địa điểm di tích lịch
+        sử sẽ mở khóa cho học viên khi hoàn thành bài học này. Bài học không
+        gắn địa điểm vẫn chạy và mở khóa bài tiếp theo bình thường trên Bản đồ
+        Dấu Ấn.
       </p>
 
       {error && (
@@ -127,7 +130,8 @@ export function UnlockedLocationsCard({
 
       {linkedLocations.length === 0 ? (
         <p className="rounded border border-dashed border-border px-3 py-3 text-center text-xs text-ink-muted">
-          Bài học này chưa được gắn làm điều kiện mở khóa cho địa điểm di tích nào.
+          Bài học này chưa gắn địa điểm mở khóa nào — không bắt buộc: bài học
+          hoạt động độc lập trên Bản đồ Dấu Ấn.
         </p>
       ) : (
         <ul className="space-y-2">
@@ -158,6 +162,12 @@ export function UnlockedLocationsCard({
                   </div>
                   <p className="mt-0.5 text-[11px] text-ink-muted">
                     {LOCATION_KIND_LABELS[loc.kind] ?? loc.kind}
+                    {(() => {
+                      const firstEvent = loc.events[0];
+                      return firstEvent
+                        ? ` • hiện cạnh sự kiện "${firstEvent.title}" trên Bản đồ Dấu Ấn`
+                        : "";
+                    })()}
                   </p>
                   <div className="mt-1 flex items-center justify-between gap-1">
                     <span className="inline-flex items-center gap-1 rounded bg-warning/20 px-1.5 py-0.5 text-[10px] font-semibold text-ink">

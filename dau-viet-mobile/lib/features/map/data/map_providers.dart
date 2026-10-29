@@ -75,3 +75,40 @@ final mapLocationDetailProvider = FutureProvider.family<MapLocationDto, String>(
         .withAuth(() => repo.getLocationDetail(locationId));
   },
 );
+
+/// Các địa điểm di tích LIÊN KẾT một sự kiện — phục vụ ghim vệ tinh trên
+/// Bản Đồ Dấu Ấn (Issue #36): chỉ render ghim bên cạnh node sự kiện cho
+/// địa điểm đã `unlocked`; lớp này là phụ, không quyết định đường đi học.
+final mapLocationsByEventProvider =
+    FutureProvider.family<List<MapLocationDto>, String>(
+      retry: _noRetry,
+      (ref, eventId) async {
+        final sessionKey = _mapSessionKey(ref.watch(authSessionProvider));
+        final repo = ref.watch(mapRepositoryProvider);
+        if (ApiConfig.useMock) {
+          return repo.listLocations(eventId: eventId);
+        }
+        assert(sessionKey.isNotEmpty);
+        return ref
+            .read(authRepositoryProvider)
+            .withAuth(() => repo.listLocations(eventId: eventId));
+      },
+    );
+
+/// Các địa điểm di tích thuộc một thời kỳ — lớp phụ của danh sách đáy
+/// trên Bản Đồ Dấu Ấn (địa điểm đã mở trong chặng đang xem).
+final mapLocationsByPeriodProvider =
+    FutureProvider.family<List<MapLocationDto>, String>(
+      retry: _noRetry,
+      (ref, periodCode) async {
+        final sessionKey = _mapSessionKey(ref.watch(authSessionProvider));
+        final repo = ref.watch(mapRepositoryProvider);
+        if (ApiConfig.useMock) {
+          return repo.listLocations(periodCode: periodCode);
+        }
+        assert(sessionKey.isNotEmpty);
+        return ref
+            .read(authRepositoryProvider)
+            .withAuth(() => repo.listLocations(periodCode: periodCode));
+      },
+    );

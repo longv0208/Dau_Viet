@@ -23,9 +23,9 @@ class MainBottomNav extends StatelessWidget {
     ('/learning', 0),
     ('/campaign', 0),
     ('/traces', 0),
-    ('/journey', 0),
     ('/timeline', 1),
     ('/map', 1),
+    ('/journey', 1),
     ('/saban', 1),
     ('/heritage', 1),
     ('/collection', 2),
@@ -47,7 +47,7 @@ class MainBottomNav extends StatelessWidget {
 
   static const _destinations = [
     ('/dashboard', Icons.school_outlined, Icons.school_rounded, 'Học tập'),
-    ('/map', Icons.explore_outlined, Icons.explore_rounded, 'Khám phá'),
+    ('/map', Icons.explore_outlined, Icons.explore_rounded, 'Hành trình'),
     (
       '/collection',
       Icons.auto_stories_outlined,
