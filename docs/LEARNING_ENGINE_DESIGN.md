@@ -297,6 +297,32 @@ Phần này ghi lại các quyết định semantic cho những điểm BA chưa
 | CER_CHOICE | `claimId` ∈ `claims`, `reasoningId` ∈ `reasoningOptions`, `evidenceIds` ⊆ `evidenceOptions` ∪ snapshot evidence ∪ `priorOutputs[priorEvidenceSource].selectedEvidenceIds`; đúng hoàn toàn khi cả 3 phần khớp chính xác một `acceptedCombos[]{claimId,evidenceIds[],reasoningId}` (evidence set-equality); `score=partsCorrect/3`, partial không promote; `maxAttempts` (default 3) hết → `exhausted` completed-for-progress `correct=false` (chống soft-lock). Legacy flat keys → cartesian combos. Publish reject `minCorrect`. |
 | REFLECTION_PROMPT | `text` non-empty ≤ 4000 ký tự hoặc `optionId` hợp lệ → `COMPLETED`. |
 
+### 13.1 Issue #35 — 4-phase learning chain & shared grading output
+
+**Canonical stage sequence (seeded templates + all 4 published lessons):**
+`CONTEXT → DISCOVERY (Khám phá 4 Dấu Vết — EXPLORE_MAP/VIEW_IMAGE/MULTIPLE_CHOICE teaser) → EVIDENCE (EVIDENCE_SELECT graded → collect 4 groups) → HYPOTHESIS (Đặt giả thuyết) → VERIFICATION (Kiểm chứng) → RECONSTRUCTION (Dựng lại sự kiện) → CONCLUSION (Kết luận CER)`. `STAGE_ALLOWED_ACTIVITIES` (TASK-0028) — `DISCOVERY`: `EXPLORE_MAP`,`VIEW_IMAGE`,`MULTIPLE_CHOICE`,`READ`; `EVIDENCE`: `EVIDENCE_SELECT`,`MULTIPLE_CHOICE`,`VIEW_IMAGE`,`READ`; `HYPOTHESIS`: `HYPOTHESIS_CHOICE`,`MULTIPLE_CHOICE`,`READ`; `VERIFICATION`: `VERIFICATION`,`MULTIPLE_CHOICE`,`READ`. No event-specific branches in generic handlers.
+
+**Shared 3-level grading output (TASK-0028):** handlers for `MATCHING`, `DRAG_ORDER`, `CER_CHOICE`, `EVIDENCE_SELECT` (graded), `REASONING_CONNECT` (graded), `MULTIPLE_CHOICE` emit a uniform output so mobile can render "Đúng k/n mục · còn x/y lượt" without per-type branches:
+
+| Output field | Meaning | Emitted by |
+|---|---|---|
+| `correctPositions` | items in correct position / matched pairs | DRAG_ORDER, MATCHING |
+| `totalItems` | canonical item count | DRAG_ORDER, MATCHING |
+| `matchedCount` | MATCHING alias for `correctPositions` | MATCHING |
+| `partsCorrect` | combo parts correct | CER_CHOICE |
+| `attemptCount` | submits so far (`attemptCounts` ledger) | all bounded handlers |
+| `exhausted` | budget spent; completed-for-progress | all bounded handlers |
+| `score` | 0..1 partial credit | graded handlers |
+
+Outcome enum remains `COMPLETED`/`PARTIAL`/`INCORRECT`/`SUPPORTED`/`CONTRADICTED`. **PARTIAL thresholds:**
+- `DRAG_ORDER`: `correctPositions·2 ≥ |canonical|` → PARTIAL; canonical = `expectedOrder` else first `acceptedSequences`.
+- `MATCHING`: `correctCount > 0 && !exhausted` → PARTIAL; full `correctCount` → COMPLETED.
+- `CER_CHOICE`: `partsCorrect ≥ 1` → PARTIAL; `score = partsCorrect/3`.
+
+`maxAttempts` (default 3 on `MATCHING`/`DRAG_ORDER`/`CER_CHOICE`; 1 on `MULTIPLE_CHOICE`/`EVIDENCE_SELECT`; `VERIFICATION` 0=unbounded): publish validators enforce `1 ≤ maxAttempts ≤ 20`; `EXHAUSTED` is a distinct feedback key.
+
+**Mobile contract:** `EvaluationDto.output` exposes the same keys; `LessonPlayerScreen.lastEvaluation` survives retry-in-place and feeds `ActivityRenderer` → `InlineGradingHint` prints `Đúng k/n · còn x/y` whenever outcome ∉ {COMPLETED, SUPPORTED}. VerificationRenderer reads `verificationVerdict` for SUPPORTED/CONTRADICTED variants.
+
 `AttemptState` (`state_json`): `{completedActivityIds[], discoveredMarkerIds[], outputs{activityId:{...}}, attemptCounts{activityId:n}, currentStageId, currentActivityId}` — learner-safe, không chứa hidden keys. `attemptCounts` là **retry-budget ledger** tồn tại độc lập với `outputs` (TASK-0020 round-3): dependent-output invalidation xóa output nhưng **không** refund lượt thử — nếu không, VERIFICATION bounded bởi `maxAttempts` sẽ bị reset budget mỗi lần upstream re-submit và lặp vô hạn. Handler đọc số lần thử qua `AttemptContext.attemptCounts` (fallback: `output.attemptCount` cho state cũ chưa có ledger).
 
 **Stage transition resolver** (thứ tự ưu tiên): **(-1) REMEDIAL STAY — activity required vừa submit mà output `exhausted:true` nhưng còn `remedialAttempts` trong budget → cursor GIỮ NGUYÊN cho lượt remedial** (TASK-0020 round-3); **(0) activity required vừa submit mà `completed=false` → REVISE hop nếu `onPartial`/`onContradicted` khớp target, ngược lại cursor GIỮ NGUYÊN để retry** (chống soft-lock khi MCQ chưa hết `maxAttempts`, VERIFICATION `PARTIAL`/`CONTRADICTED`, EVIDENCE_SELECT/EXPLORE_MAP chưa đủ ngưỡng; các bước (a)–(e) chỉ chạy sau submit completed hoặc optional); (a) required activity chưa xong kế tiếp trong cùng stage sau activity vừa submit; (b) REVISE hop (target thiếu → bỏ qua; **bị chặn khi activity vừa submit đã `exhausted:true`** — VERIFICATION cạn budget mà vẫn hop về EVIDENCE_SELECT cạn budget sẽ tái tạo đúng vòng lặp vô hạn mà remedial bound phá; budget đã tiêu thì learner phải đi tới, không quay lại làm việc không thể đổi verdict); (c) đi tới qua `nextStageIds` — target đầu tiên còn required activity chưa xong thắng; stage đã COMPLETE không lộ successors, chỉ stage "transparent" (không có required activity) mới được traverse xuyên qua; (d) fallback stage đầu tiên theo array-order còn required chưa xong; (e) `null` = hết đường đi. Cycle-safe qua visited set.
