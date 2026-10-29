@@ -38,6 +38,7 @@ Future<Map<String, dynamic>> submitFrom(
   );
   await tester.pumpAndSettle();
   if (interact != null) await interact(tester);
+  await tester.ensureVisible(find.text(buttonText));
   await tester.tap(find.text(buttonText));
   await tester.pump();
   return captured ?? const {};

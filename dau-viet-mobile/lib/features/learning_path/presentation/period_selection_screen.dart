@@ -570,6 +570,29 @@ class _PeriodCard extends StatelessWidget {
                         ),
                       ),
                     ],
+                    if (periodStatus == LearnerPathStatus.locked) ...[
+                      const SizedBox(height: 4),
+                      Row(
+                        children: [
+                          const Icon(
+                            Icons.lock_outline_rounded,
+                            size: 13,
+                            color: DauVietColors.inkMuted,
+                          ),
+                          const SizedBox(width: 4),
+                          Expanded(
+                            child: Text(
+                              'Hoàn thành các bài học bắt buộc ở thời kỳ trước để mở khóa',
+                              style: DauVietTypography.bodySmall.copyWith(
+                                fontSize: 11.5,
+                                fontStyle: FontStyle.italic,
+                                color: DauVietColors.inkMuted,
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ],
                   ],
                 ),
               ),

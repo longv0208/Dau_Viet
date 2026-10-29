@@ -362,7 +362,7 @@ class _Fallback extends StatelessWidget {
               label: const Text('Thử tải lại'),
               style: TextButton.styleFrom(
                 foregroundColor: DauVietColors.cinnabarRed,
-                visualDensity: VisualDensity.compact,
+                minimumSize: const Size(120, 44),
                 textStyle: DauVietTypography.bodySmall.copyWith(
                   fontWeight: FontWeight.w700,
                 ),

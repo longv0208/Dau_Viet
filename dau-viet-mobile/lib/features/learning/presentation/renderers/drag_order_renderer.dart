@@ -1,7 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
-import '../../../../core/theme/dau_viet_colors.dart';
 import '../../../../core/theme/dau_viet_typography.dart';
 import '../../data/attempt_dtos.dart';
 import 'renderer_base.dart';
@@ -153,95 +152,106 @@ class _OrderTile extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Container(
-      margin: const EdgeInsets.only(bottom: 10),
-      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 10),
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(14),
-        border: Border.all(color: const Color(0xFFE5DAC6), width: 1.2),
-        boxShadow: [
-          BoxShadow(
-            color: const Color(0xFF8B4513).withValues(alpha: 0.05),
-            blurRadius: 6,
-            offset: const Offset(0, 2),
-          ),
-        ],
-      ),
-      child: Row(
-        crossAxisAlignment: CrossAxisAlignment.center,
-        children: [
-          // 1. Huy hiệu số thứ tự tròn xanh lá (Screen 4 theo mockup)
-          Container(
-            width: 28,
-            height: 28,
-            decoration: const BoxDecoration(
-              shape: BoxShape.circle,
-              color: Color(0xFF2D6A4F),
-            ),
-            alignment: Alignment.center,
-            child: Text(
-              '${index + 1}',
-              style: const TextStyle(
-                color: Colors.white,
-                fontWeight: FontWeight.w900,
-                fontSize: 13,
-              ),
-            ),
-          ),
-          const SizedBox(width: 10),
-
-          // 2. Nội dung sự kiện
-          Expanded(
-            child: Text(
-              label,
-              style: DauVietTypography.bodyMedium.copyWith(
-                color: const Color(0xFF1F2421),
-                fontSize: 13.5,
-                fontWeight: FontWeight.w600,
-                height: 1.35,
-              ),
-            ),
-          ),
-
-          // 3. Phím điều hướng Accessibility (Lên / Xuống)
-          if (total > 1) ...[
-            IconButton(
-              icon: const Icon(Icons.arrow_upward_rounded, size: 18),
-              padding: EdgeInsets.zero,
-              constraints: const BoxConstraints(minWidth: 32, minHeight: 32),
-              color: index > 0 && enabled
-                  ? const Color(0xFF5E6963)
-                  : Colors.black12,
-              tooltip: 'Di chuyển lên',
-              onPressed: index > 0 && enabled ? onUp : null,
-            ),
-            IconButton(
-              icon: const Icon(Icons.arrow_downward_rounded, size: 18),
-              padding: EdgeInsets.zero,
-              constraints: const BoxConstraints(minWidth: 32, minHeight: 32),
-              color: index < total - 1 && enabled
-                  ? const Color(0xFF5E6963)
-                  : Colors.black12,
-              tooltip: 'Di chuyển xuống',
-              onPressed: index < total - 1 && enabled ? onDown : null,
+    return Semantics(
+      container: true,
+      label: 'Vị trí ${index + 1}: $label',
+      child: Container(
+        margin: const EdgeInsets.only(bottom: 10),
+        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+        decoration: BoxDecoration(
+          color: Colors.white,
+          borderRadius: BorderRadius.circular(14),
+          border: Border.all(color: const Color(0xFFE5DAC6), width: 1.2),
+          boxShadow: [
+            BoxShadow(
+              color: const Color(0xFF8B4513).withValues(alpha: 0.05),
+              blurRadius: 6,
+              offset: const Offset(0, 2),
             ),
           ],
-
-          // 4. Biểu tượng tay nắm kéo thả `⋮⋮`
-          ReorderableDragStartListener(
-            index: index,
-            enabled: enabled,
-            child: Container(
-              padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 8),
-              child: const Icon(
-                Icons.drag_indicator_rounded,
-                size: 22,
-                color: Color(0xFFB45309),
+        ),
+        child: Row(
+          crossAxisAlignment: CrossAxisAlignment.center,
+          children: [
+            // 1. Huy hiệu số thứ tự tròn xanh lá (Screen 4 theo mockup)
+            Container(
+              width: 28,
+              height: 28,
+              decoration: const BoxDecoration(
+                shape: BoxShape.circle,
+                color: Color(0xFF2D6A4F),
+              ),
+              alignment: Alignment.center,
+              child: Text(
+                '${index + 1}',
+                style: const TextStyle(
+                  color: Colors.white,
+                  fontWeight: FontWeight.w900,
+                  fontSize: 13,
+                ),
               ),
             ),
-          ),
-        ],
+            const SizedBox(width: 10),
+
+            // 2. Nội dung sự kiện
+            Expanded(
+              child: Text(
+                label,
+                style: DauVietTypography.bodyMedium.copyWith(
+                  color: const Color(0xFF1F2421),
+                  fontSize: 14,
+                  fontWeight: FontWeight.w600,
+                  height: 1.4,
+                ),
+              ),
+            ),
+
+            // 3. Phím điều hướng Accessibility (Lên / Xuống, >= 44x44dp)
+            if (total > 1) ...[
+              IconButton(
+                icon: const Icon(Icons.arrow_upward_rounded, size: 18),
+                padding: EdgeInsets.zero,
+                constraints: const BoxConstraints(minWidth: 44, minHeight: 44),
+                color: index > 0 && enabled
+                    ? const Color(0xFF5E6963)
+                    : Colors.black12,
+                tooltip: 'Di chuyển lên',
+                onPressed: index > 0 && enabled ? onUp : null,
+              ),
+              IconButton(
+                icon: const Icon(Icons.arrow_downward_rounded, size: 18),
+                padding: EdgeInsets.zero,
+                constraints: const BoxConstraints(minWidth: 44, minHeight: 44),
+                color: index < total - 1 && enabled
+                    ? const Color(0xFF5E6963)
+                    : Colors.black12,
+                tooltip: 'Di chuyển xuống',
+                onPressed: index < total - 1 && enabled ? onDown : null,
+              ),
+            ],
+
+            // 4. Biểu tượng tay nắm kéo thả `⋮⋮` (>= 44x44dp)
+            ReorderableDragStartListener(
+              index: index,
+              enabled: enabled,
+              child: Semantics(
+                label: 'Kéo để đổi vị trí $label',
+                child: Container(
+                  constraints: const BoxConstraints(
+                    minWidth: 44,
+                    minHeight: 44,
+                  ),
+                  alignment: Alignment.center,
+                  child: const Icon(
+                    Icons.drag_indicator_rounded,
+                    size: 22,
+                    color: Color(0xFFB45309),
+                  ),
+                ),
+              ),
+            ),
+          ],
+        ),
       ),
     );
   }

@@ -65,24 +65,23 @@ class EnergyController extends AsyncNotifier<EnergyStateDto> {
   /// đến (arrival).
   DateTime? _appliedServerTime;
 
-  /// Mốc "độ mới" của một DTO tại lúc nó được tạo (serverTime nếu có,
-  /// deviceNow-lúc-parse nếu không) — bất biến, dùng so stale/fresh.
-  static DateTime _stampOf(EnergyStateDto d) => d.createdAt;
-
   /// `incoming` có MỚI HƠN state hiện tại không — so theo đồng hồ tại lúc
   /// mỗi response được tạo (serverTime nếu có, device-fallback nếu không).
   /// Bằng nhau vẫn áp (thứ tự đến quyết định — tránh kẹt khi trùng mốc).
   bool _isFresher(EnergyStateDto incoming) {
     final DateTime? cur = _appliedServerTime;
-    if (cur == null) return true; // chưa có state nào — cái đầu tiên thắng
-    return !_stampOf(incoming).isBefore(cur);
+    final DateTime? inc = incoming.serverTime;
+    if (cur == null || inc == null) return true;
+    return !inc.isBefore(cur);
   }
 
   /// Áp `dto` vào state nếu nó không cũ hơn state hiện tại. Trả true khi
   /// đã ghi.
   bool _applyIfFresher(EnergyStateDto dto) {
     if (!_isFresher(dto)) return false;
-    _appliedServerTime = _stampOf(dto);
+    if (dto.serverTime != null) {
+      _appliedServerTime = dto.serverTime;
+    }
     state = AsyncData(dto);
     return true;
   }
@@ -110,7 +109,9 @@ class EnergyController extends AsyncNotifier<EnergyStateDto> {
     if (!_isFresher(dto) && state is AsyncData<EnergyStateDto>) {
       return (state as AsyncData<EnergyStateDto>).value;
     }
-    _appliedServerTime = _stampOf(dto);
+    if (dto.serverTime != null) {
+      _appliedServerTime = dto.serverTime;
+    }
     return dto;
   }
 

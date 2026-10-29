@@ -6,6 +6,7 @@ import '../../../core/api/api_config.dart';
 import '../../../core/theme/dau_viet_colors.dart';
 import '../../../core/theme/dau_viet_typography.dart';
 import '../../../core/widgets/dong_son_button.dart';
+import '../../../core/widgets/gold_confetti_overlay.dart';
 import '../../collection/presentation/unlock_celebration_dialog.dart';
 import '../../../core/widgets/kabi_mascot_widget.dart';
 import '../../streak/data/streak_dto.dart';
@@ -32,12 +33,43 @@ final _recapContentProvider = FutureProvider.autoDispose
     .family<LessonContentDto?, String>((ref, attemptId) async {
       try {
         final repo = ref.watch(attemptRepositoryProvider);
-        if (ApiConfig.useMock) {
-          return await repo.getAttemptContent(attemptId);
+        final LessonContentDto content = ApiConfig.useMock
+            ? await repo.getAttemptContent(attemptId)
+            : await ref
+                  .read(authRepositoryProvider)
+                  .withAuth(() => repo.getAttemptContent(attemptId));
+        final bool hasTitle =
+            _str(content.content, ['title', 'lessonTitle']) != null;
+        if (!hasTitle && content.lessonId.isNotEmpty) {
+          try {
+            final meta = ApiConfig.useMock
+                ? await repo.getLessonMetadata(content.lessonId)
+                : await ref
+                      .read(authRepositoryProvider)
+                      .withAuth(() => repo.getLessonMetadata(content.lessonId));
+            final merged = Map<String, dynamic>.of(content.content);
+            if (meta.title.trim().isNotEmpty && meta.title != 'T') {
+              merged['title'] = meta.title.trim();
+            }
+            if (meta.centralQuestion != null &&
+                meta.centralQuestion!.trim().isNotEmpty) {
+              merged.putIfAbsent(
+                'centralQuestion',
+                () => meta.centralQuestion!.trim(),
+              );
+            }
+            if (meta.eventId.isNotEmpty && meta.eventId != 'e') {
+              merged['eventId'] = meta.eventId;
+            }
+            return LessonContentDto(
+              lessonId: content.lessonId,
+              lessonVersionId: content.lessonVersionId,
+              versionNo: content.versionNo,
+              content: merged,
+            );
+          } catch (_) {}
         }
-        return await ref
-            .read(authRepositoryProvider)
-            .withAuth(() => repo.getAttemptContent(attemptId));
+        return content;
       } catch (_) {
         return null;
       }
@@ -73,7 +105,7 @@ class LessonResultScreen extends ConsumerWidget {
     }
     final asyncResult = ref.watch(_resultProvider(attemptId));
     return Scaffold(
-      backgroundColor: const Color(0xFFFBF8F1),
+      backgroundColor: DauVietColors.parchmentSurface,
       body: SafeArea(
         child: asyncResult.when(
           loading: () => const Center(
@@ -125,10 +157,23 @@ class _ResultBody extends StatelessWidget {
         : (completed ? '100' : '—');
     final summaryRaw = result.result['summary'] ?? result.result['message'];
     final summary = summaryRaw is String ? summaryRaw : null;
+    final num? knowledgeScore = result.result['knowledgeScore'] is num
+        ? result.result['knowledgeScore'] as num
+        : null;
+    final bool? masteredFlag = result.result['mastered'] is bool
+        ? result.result['mastered'] as bool
+        : null;
+    final bool? isMastered =
+        masteredFlag ?? (knowledgeScore != null ? knowledgeScore >= 70 : null);
+    final bool isReplayAttempt =
+        completed &&
+        result.rewards.isEmpty &&
+        result.itemsUnlocked.isEmpty &&
+        result.newlyUnlockedDossiers.isEmpty &&
+        result.newlyUnlockedLocations.isEmpty;
     final title =
         _str(recapContent?.content ?? const {}, ['title', 'lessonTitle']) ??
         (completed ? 'Hoàn thành bài học' : 'Lượt học lịch sử');
-
     int earnedExp = 0;
     int earnedPoints = 0;
     for (final r in result.rewards) {
@@ -156,275 +201,335 @@ class _ResultBody extends StatelessWidget {
         : const Color(0xFF2D6A4F);
 
     return Scaffold(
-      backgroundColor: const Color(0xFFFBF8F1),
+      backgroundColor: DauVietColors.parchmentSurface,
       body: SafeArea(
-        child: SingleChildScrollView(
-          padding: const EdgeInsets.fromLTRB(20, 16, 20, 24),
-          child: Column(
-            children: [
-              // 1. Tiêu đề chúc mừng
-              Text(
-                completed ? 'HOÀN THÀNH BÀI HỌC' : 'KẾT THÚC LƯỢT HỌC',
-                textAlign: TextAlign.center,
-                style: DauVietTypography.headlineMedium.copyWith(
-                  color: const Color(0xFF1F2421),
-                  fontWeight: FontWeight.w900,
-                  fontSize: 22,
-                  letterSpacing: 0.3,
-                ),
-              ),
-              const SizedBox(height: 4),
-              Text(
-                'Bạn thật tuyệt vời! 🎉',
-                textAlign: TextAlign.center,
-                style: DauVietTypography.bodyMedium.copyWith(
-                  color: const Color(0xFF5E6963),
-                  fontWeight: FontWeight.w700,
-                  fontSize: 14.5,
-                ),
-              ),
-              const SizedBox(height: 12),
-
-              // 2. Linh vật Rùa Kabi đội nón lá giương tay ăn mừng chiến thắng
-              Center(
-                child: SizedBox(
-                  width: 150,
-                  height: 140,
-                  child: Image.asset(
-                    'assets/images/kabi_celebration_victory.png',
-                    fit: BoxFit.contain,
-                    errorBuilder: (_, __, ___) => const KabiMascotWidget(
-                      mood: KabiMood.victory,
-                      width: 140,
-                      height: 140,
-                    ),
+        child: GoldConfettiOverlay(
+          trigger: isFreshCompletion && completed,
+          child: SingleChildScrollView(
+            padding: const EdgeInsets.fromLTRB(20, 16, 20, 24),
+            child: Column(
+              children: [
+                // 1. Tiêu đề chúc mừng
+                Text(
+                  completed ? 'HOÀN THÀNH BÀI HỌC' : 'KẾT THÚC LƯỢT HỌC',
+                  textAlign: TextAlign.center,
+                  style: DauVietTypography.headlineMedium.copyWith(
+                    color: DauVietColors.inkText,
+                    fontWeight: FontWeight.w900,
+                    fontSize: 22,
+                    letterSpacing: 0.3,
                   ),
                 ),
-              ),
-              const SizedBox(height: 14),
-
-              // 3. Khung tóm tắt bài học & 3 thẻ chỉ số (Score, XP, Energy)
-              Container(
-                padding: const EdgeInsets.all(16),
-                decoration: BoxDecoration(
-                  color: Colors.white,
-                  borderRadius: BorderRadius.circular(18),
-                  border: Border.all(
-                    color: const Color(0xFFE5DAC6),
-                    width: 1.4,
+                const SizedBox(height: 4),
+                Text(
+                  'Bạn thật tuyệt vời!',
+                  textAlign: TextAlign.center,
+                  style: DauVietTypography.bodyMedium.copyWith(
+                    color: DauVietColors.inkMuted,
+                    fontWeight: FontWeight.w700,
+                    fontSize: 14.5,
                   ),
-                  boxShadow: [
-                    BoxShadow(
-                      color: const Color(0xFF8B4513).withValues(alpha: 0.08),
-                      blurRadius: 12,
-                      offset: const Offset(0, 4),
-                    ),
-                  ],
                 ),
-                child: Column(
-                  children: [
-                    // Tên bài học
-                    Text(
-                      title,
-                      textAlign: TextAlign.center,
-                      style: DauVietTypography.headlineSmall.copyWith(
-                        fontSize: 16.5,
-                        fontWeight: FontWeight.w800,
-                        color: const Color(0xFF1F2421),
+                if (isMastered != null) ...[
+                  const SizedBox(height: 8),
+                  Container(
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 12,
+                      vertical: 5,
+                    ),
+                    decoration: BoxDecoration(
+                      color: isMastered
+                          ? const Color(0xFFE8F5E9)
+                          : const Color(0xFFFFF8E1),
+                      borderRadius: BorderRadius.circular(16),
+                      border: Border.all(
+                        color: isMastered
+                            ? const Color(0xFF4C7C44)
+                            : DauVietColors.imperialGold,
                       ),
                     ),
-                    const SizedBox(height: 14),
-
-                    // Hàng 3 chỉ số đạt được chuẩn Screen 6
-                    Row(
-                      children: [
-                        // Điểm số
-                        Expanded(
-                          child: _buildResultBadge(
-                            icon: Icons.stars_rounded,
-                            iconColor: const Color(0xFFD97706),
-                            value: scoreStr,
-                            subValue: score != null ? '/100' : null,
-                            label: 'Điểm số',
-                          ),
-                        ),
-                        const SizedBox(width: 8),
-                        // Kinh nghiệm XP
-                        Expanded(
-                          child: _buildResultBadge(
-                            icon: Icons.bolt_rounded,
-                            iconColor: const Color(0xFF2D6A4F),
-                            value: expValue,
-                            label: 'Kinh nghiệm',
-                          ),
-                        ),
-                        const SizedBox(width: 8),
-                        // Điểm Sử Ký / Vật Phẩm
-                        Expanded(
-                          child: _buildResultBadge(
-                            icon: thirdBadgeIcon,
-                            iconColor: thirdBadgeColor,
-                            value: thirdBadgeValue,
-                            label: thirdBadgeLabel,
-                          ),
+                    child: Text(
+                      isMastered
+                          ? 'THÔNG THẠO (MASTERED)${knowledgeScore != null ? ' • ${knowledgeScore.round()}%' : ''}'
+                          : 'HOÀN THÀNH LƯỢT HỌC${knowledgeScore != null ? ' • Kiến thức ${knowledgeScore.round()}%' : ''}',
+                      style: DauVietTypography.labelSmall.copyWith(
+                        color: isMastered
+                            ? const Color(0xFF1B5E20)
+                            : const Color(0xFF92400E),
+                        fontWeight: FontWeight.w800,
+                        fontSize: 11.5,
+                      ),
+                    ),
+                  ),
+                ],
+                const SizedBox(height: 12),
+                // 2. Linh vật Rùa Kabi đội nón lá giương cờ ăn mừng chiến thắng
+                // (cắt bỏ phần mép trên có dòng chữ bị cắt góc trong file ảnh gốc)
+                Center(
+                  child: Container(
+                    width: 148,
+                    height: 124,
+                    decoration: BoxDecoration(
+                      borderRadius: BorderRadius.circular(20),
+                      border: Border.all(
+                        color: DauVietColors.imperialGold,
+                        width: 1.5,
+                      ),
+                      boxShadow: [
+                        BoxShadow(
+                          color: const Color(
+                            0xFF8B4513,
+                          ).withValues(alpha: 0.10),
+                          blurRadius: 10,
+                          offset: const Offset(0, 4),
                         ),
                       ],
                     ),
-                    const SizedBox(height: 14),
-
-                    // Lời thoại khích lệ từ Linh vật Kabi
-                    Container(
-                      padding: const EdgeInsets.symmetric(
-                        horizontal: 12,
-                        vertical: 10,
+                    clipBehavior: Clip.antiAlias,
+                    child: Image.asset(
+                      'assets/images/kabi_celebration_victory.png',
+                      fit: BoxFit.cover,
+                      alignment: const Alignment(0, 0.72),
+                      errorBuilder: (_, _, _) => const KabiMascotWidget(
+                        mood: KabiMood.victory,
+                        width: 124,
+                        height: 124,
                       ),
-                      decoration: BoxDecoration(
-                        color: const Color(0xFFFBF8F1),
-                        borderRadius: BorderRadius.circular(12),
-                        border: Border.all(
-                          color: const Color(0xFFE5DAC6),
-                          width: 1,
+                    ),
+                  ),
+                ),
+                const SizedBox(height: 14),
+
+                // 3. Khung tóm tắt bài học & 3 thẻ chỉ số (Score, XP, Energy)
+                Container(
+                  padding: const EdgeInsets.all(16),
+                  decoration: BoxDecoration(
+                    color: Colors.white,
+                    borderRadius: BorderRadius.circular(18),
+                    border: Border.all(
+                      color: const Color(0xFFE5DAC6),
+                      width: 1.4,
+                    ),
+                    boxShadow: [
+                      BoxShadow(
+                        color: const Color(0xFF8B4513).withValues(alpha: 0.08),
+                        blurRadius: 12,
+                        offset: const Offset(0, 4),
+                      ),
+                    ],
+                  ),
+                  child: Column(
+                    children: [
+                      // Tên bài học
+                      Text(
+                        title,
+                        textAlign: TextAlign.center,
+                        style: DauVietTypography.headlineSmall.copyWith(
+                          fontSize: 16.5,
+                          fontWeight: FontWeight.w800,
+                          color: const Color(0xFF1F2421),
                         ),
                       ),
-                      child: Row(
+                      const SizedBox(height: 14),
+
+                      // Hàng 3 chỉ số đạt được chuẩn Screen 6
+                      Row(
                         children: [
-                          const ClipOval(
-                            child: SizedBox(
-                              width: 32,
-                              height: 32,
-                              child: KabiMascotWidget(
-                                mood: KabiMood.guiding,
-                                width: 32,
-                                height: 32,
-                                headOnly: true,
-                                enableSound: false,
-                              ),
+                          // Điểm số
+                          Expanded(
+                            child: _buildResultBadge(
+                              icon: Icons.stars_rounded,
+                              iconColor: const Color(0xFFD97706),
+                              value: scoreStr,
+                              subValue: score != null ? '/100' : null,
+                              label: 'Điểm số',
                             ),
                           ),
-                          const SizedBox(width: 10),
+                          const SizedBox(width: 8),
+                          // Kinh nghiệm XP
                           Expanded(
-                            child: Text(
-                              'Bạn đã hoàn thành bài học! Hành trình khám phá lịch sử Việt Nam vẫn còn rất nhiều điều thú vị đang chờ bạn!',
-                              style: DauVietTypography.bodySmall.copyWith(
-                                color: const Color(0xFF3D4842),
-                                fontSize: 11.5,
-                                fontWeight: FontWeight.w600,
-                                height: 1.35,
-                              ),
+                            child: _buildResultBadge(
+                              icon: Icons.bolt_rounded,
+                              iconColor: const Color(0xFF2D6A4F),
+                              value: expValue,
+                              label: 'Kinh nghiệm',
+                            ),
+                          ),
+                          const SizedBox(width: 8),
+                          // Điểm Sử Ký / Vật Phẩm
+                          Expanded(
+                            child: _buildResultBadge(
+                              icon: thirdBadgeIcon,
+                              iconColor: thirdBadgeColor,
+                              value: thirdBadgeValue,
+                              label: thirdBadgeLabel,
                             ),
                           ),
                         ],
                       ),
+                      const SizedBox(height: 14),
+
+                      // Lời thoại khích lệ từ Linh vật Kabi
+                      Container(
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 12,
+                          vertical: 10,
+                        ),
+                        decoration: BoxDecoration(
+                          color: const Color(0xFFFBF8F1),
+                          borderRadius: BorderRadius.circular(12),
+                          border: Border.all(
+                            color: const Color(0xFFE5DAC6),
+                            width: 1,
+                          ),
+                        ),
+                        child: Row(
+                          children: [
+                            const ClipOval(
+                              child: SizedBox(
+                                width: 32,
+                                height: 32,
+                                child: KabiMascotWidget(
+                                  mood: KabiMood.guiding,
+                                  width: 32,
+                                  height: 32,
+                                  headOnly: true,
+                                  enableSound: false,
+                                ),
+                              ),
+                            ),
+                            const SizedBox(width: 10),
+                            Expanded(
+                              child: Text(
+                                isMastered == false
+                                    ? 'Bạn đã hoàn thành bài học! Hãy ôn tập thêm các câu hỏi tư duy để đạt mức Thông thạo (≥ 70%) nhé!'
+                                    : isReplayAttempt
+                                    ? 'Hoàn thành lượt ôn tập! Điểm kinh nghiệm và Điểm Sử Ký đã được ghi nhận ở lần hoàn thành đầu tiên.'
+                                    : 'Bạn đã hoàn thành bài học! Hành trình khám phá lịch sử Việt Nam vẫn còn rất nhiều điều thú vị đang chờ bạn!',
+                                style: DauVietTypography.bodyMedium.copyWith(
+                                  color: DauVietColors.inkText,
+                                  fontSize: 14,
+                                  fontWeight: FontWeight.w600,
+                                  height: 1.45,
+                                ),
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+
+                // Tóm tắt từ server (nếu có)
+                if (summary != null && summary.isNotEmpty) ...[
+                  const SizedBox(height: 14),
+                  ActivityCard(
+                    child: Text(
+                      summary,
+                      textAlign: TextAlign.center,
+                      style: DauVietTypography.bodyMedium.copyWith(height: 1.5),
                     ),
-                  ],
-                ),
-              ),
+                  ),
+                ],
 
-              // Tóm tắt từ server (nếu có)
-              if (summary != null && summary.isNotEmpty) ...[
-                const SizedBox(height: 14),
-                ActivityCard(
-                  child: Text(
-                    summary,
-                    textAlign: TextAlign.center,
-                    style: DauVietTypography.bodyMedium.copyWith(height: 1.5),
+                // TASK-0023: thưởng + vật phẩm attempt này ĐÃ được server
+                // cấp trong transaction complete() — chỉ hiển thị thật,
+                // không phát thêm request "nhận thưởng" nào.
+                if (result.rewards.isNotEmpty ||
+                    result.itemsUnlocked.isNotEmpty) ...[
+                  const SizedBox(height: 14),
+                  _RewardsSection(result: result),
+                ],
+
+                // GAME-04: cue một lần — chỉ render khi player truyền
+                // `newlyUnlockedDossiers` qua extra (deep-link/reload có
+                // list rỗng → không re-show). Điều hướng tới Bộ Sưu Tập.
+                if (result.newlyUnlockedDossiers.isNotEmpty) ...[
+                  const SizedBox(height: 14),
+                  _DossierUnlockBanner(
+                    count: result.newlyUnlockedDossiers.length,
+                  ),
+                ],
+
+                // STREAK-01: animation ngọn lửa — chỉ khi server vừa công
+                // nhận một ngày học MỚI (newlyRecordedStreak từ complete
+                // response qua extra). Replay/deep-link: field null → không
+                // phát lại, không gọi thêm API.
+                if (result.newlyRecordedStreak != null) ...[
+                  const SizedBox(height: 14),
+                  _StreakFlameBanner(streak: result.newlyRecordedStreak!),
+                ],
+
+                // MAP-V2 (E5): banner địa điểm di sản vừa mở khóa — chỉ hiện khi
+                // newlyUnlockedLocations không rỗng; có nút Xem địa điểm và
+                // Tiếp tục học. Deep-link mở lại kết quả không phát lại animation.
+                if (result.newlyUnlockedLocations.isNotEmpty) ...[
+                  const SizedBox(height: 14),
+                  UnlockedLocationBanner(
+                    locations: result.newlyUnlockedLocations,
+                    animate: isFreshCompletion,
+                    onViewLocation: onViewLocation,
+                    onContinueLearning: onContinueLearning,
+                  ),
+                ],
+
+                // Ôn lại bài học & Tư liệu
+                if (recapContent != null) ...[
+                  const SizedBox(height: 14),
+                  _RecapSection(content: recapContent!),
+                ],
+                const SizedBox(height: 20),
+
+                // 4. Hai nút hành động: Tiếp tục và Ôn tập lại
+                DongSonButton(
+                  label: 'VỀ TRANG CHỦ',
+                  icon: Icons.arrow_forward_rounded,
+                  variant: DongSonButtonVariant.natureGreen,
+                  height: 52,
+                  onPressed: () => context.go('/dashboard'),
+                ),
+                const SizedBox(height: 10),
+                OutlinedButton.icon(
+                  onPressed: () {
+                    final targetLessonId =
+                        recapContent?.lessonId ??
+                        (result.rewards.isNotEmpty
+                            ? result.rewards.first.lessonId
+                            : null);
+                    if (targetLessonId != null && targetLessonId.isNotEmpty) {
+                      context.push('/learning/lesson/$targetLessonId');
+                    } else {
+                      context.go('/dashboard');
+                    }
+                  },
+                  icon: const Icon(
+                    Icons.menu_book_rounded,
+                    size: 18,
+                    color: Color(0xFF5E6963),
+                  ),
+                  label: Text(
+                    'Ôn tập lại',
+                    style: DauVietTypography.labelLarge.copyWith(
+                      color: const Color(0xFF1F2421),
+                      fontWeight: FontWeight.w700,
+                      fontSize: 14,
+                    ),
+                  ),
+                  style: OutlinedButton.styleFrom(
+                    minimumSize: const Size.fromHeight(48),
+                    side: const BorderSide(
+                      color: Color(0xFFD8C8B0),
+                      width: 1.2,
+                    ),
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(14),
+                    ),
+                    backgroundColor: Colors.white,
                   ),
                 ),
               ],
-
-              // TASK-0023: thưởng + vật phẩm attempt này ĐÃ được server
-              // cấp trong transaction complete() — chỉ hiển thị thật,
-              // không phát thêm request "nhận thưởng" nào.
-              if (result.rewards.isNotEmpty ||
-                  result.itemsUnlocked.isNotEmpty) ...[
-                const SizedBox(height: 14),
-                _RewardsSection(result: result),
-              ],
-
-              // GAME-04: cue một lần — chỉ render khi player truyền
-              // `newlyUnlockedDossiers` qua extra (deep-link/reload có
-              // list rỗng → không re-show). Điều hướng tới Bộ Sưu Tập.
-              if (result.newlyUnlockedDossiers.isNotEmpty) ...[
-                const SizedBox(height: 14),
-                _DossierUnlockBanner(
-                  count: result.newlyUnlockedDossiers.length,
-                ),
-              ],
-
-              // STREAK-01: animation ngọn lửa — chỉ khi server vừa công
-              // nhận một ngày học MỚI (newlyRecordedStreak từ complete
-              // response qua extra). Replay/deep-link: field null → không
-              // phát lại, không gọi thêm API.
-              if (result.newlyRecordedStreak != null) ...[
-                const SizedBox(height: 14),
-                _StreakFlameBanner(streak: result.newlyRecordedStreak!),
-              ],
-
-              // MAP-V2 (E5): banner địa điểm di sản vừa mở khóa — chỉ hiện khi
-              // newlyUnlockedLocations không rỗng; có nút Xem địa điểm và
-              // Tiếp tục học. Deep-link mở lại kết quả không phát lại animation.
-              if (result.newlyUnlockedLocations.isNotEmpty) ...[
-                const SizedBox(height: 14),
-                UnlockedLocationBanner(
-                  locations: result.newlyUnlockedLocations,
-                  animate: isFreshCompletion,
-                  onViewLocation: onViewLocation,
-                  onContinueLearning: onContinueLearning,
-                ),
-              ],
-
-              // Ôn lại bài học & Tư liệu
-              if (recapContent != null) ...[
-                const SizedBox(height: 14),
-                _RecapSection(content: recapContent!),
-              ],
-              const SizedBox(height: 20),
-
-              // 4. Hai nút hành động: Tiếp tục và Ôn tập lại
-              DongSonButton(
-                label: 'VỀ TRANG CHỦ',
-                icon: Icons.arrow_forward_rounded,
-                variant: DongSonButtonVariant.natureGreen,
-                height: 52,
-                onPressed: () => context.go('/dashboard'),
-              ),
-              const SizedBox(height: 10),
-              OutlinedButton.icon(
-                onPressed: () {
-                  final targetLessonId =
-                      recapContent?.lessonId ??
-                      (result.rewards.isNotEmpty
-                          ? result.rewards.first.lessonId
-                          : null);
-                  if (targetLessonId != null && targetLessonId.isNotEmpty) {
-                    context.push('/learning/lesson/$targetLessonId');
-                  } else {
-                    context.go('/dashboard');
-                  }
-                },
-                icon: const Icon(
-                  Icons.menu_book_rounded,
-                  size: 18,
-                  color: Color(0xFF5E6963),
-                ),
-                label: Text(
-                  'Ôn tập lại',
-                  style: DauVietTypography.labelLarge.copyWith(
-                    color: const Color(0xFF1F2421),
-                    fontWeight: FontWeight.w700,
-                    fontSize: 14,
-                  ),
-                ),
-                style: OutlinedButton.styleFrom(
-                  minimumSize: const Size.fromHeight(48),
-                  side: const BorderSide(color: Color(0xFFD8C8B0), width: 1.2),
-                  shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(14),
-                  ),
-                  backgroundColor: Colors.white,
-                ),
-              ),
-            ],
+            ),
           ),
         ),
       ),
@@ -449,36 +554,42 @@ class _ResultBody extends StatelessWidget {
         children: [
           Icon(icon, size: 20, color: iconColor),
           const SizedBox(height: 3),
-          Row(
-            mainAxisAlignment: MainAxisAlignment.center,
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              Text(
-                value,
-                style: DauVietTypography.labelSmall.copyWith(
-                  fontWeight: FontWeight.w900,
-                  fontSize: 13,
-                  color: const Color(0xFF1F2421),
-                ),
-              ),
-              if (subValue != null)
+          FittedBox(
+            fit: BoxFit.scaleDown,
+            child: Row(
+              mainAxisAlignment: MainAxisAlignment.center,
+              mainAxisSize: MainAxisSize.min,
+              children: [
                 Text(
-                  subValue,
+                  value,
                   style: DauVietTypography.labelSmall.copyWith(
-                    fontWeight: FontWeight.w700,
-                    fontSize: 11,
-                    color: const Color(0xFF75807A),
+                    fontWeight: FontWeight.w900,
+                    fontSize: 13,
+                    color: const Color(0xFF1F2421),
                   ),
                 ),
-            ],
+                if (subValue != null)
+                  Text(
+                    subValue,
+                    style: DauVietTypography.labelSmall.copyWith(
+                      fontWeight: FontWeight.w700,
+                      fontSize: 11,
+                      color: const Color(0xFF75807A),
+                    ),
+                  ),
+              ],
+            ),
           ),
           const SizedBox(height: 1),
-          Text(
-            label,
-            style: DauVietTypography.bodySmall.copyWith(
-              fontSize: 9.5,
-              color: const Color(0xFF75807A),
-              fontWeight: FontWeight.w600,
+          FittedBox(
+            fit: BoxFit.scaleDown,
+            child: Text(
+              label,
+              style: DauVietTypography.bodySmall.copyWith(
+                fontSize: 9.5,
+                color: const Color(0xFF75807A),
+                fontWeight: FontWeight.w600,
+              ),
             ),
           ),
         ],
@@ -1027,7 +1138,7 @@ class _ErrorView extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Center(
-      child: Padding(
+      child: SingleChildScrollView(
         padding: const EdgeInsets.all(24),
         child: Column(
           mainAxisSize: MainAxisSize.min,
@@ -1047,6 +1158,8 @@ class _ErrorView extends StatelessWidget {
             const SizedBox(height: 6),
             Text(
               message,
+              maxLines: 4,
+              overflow: TextOverflow.ellipsis,
               textAlign: TextAlign.center,
               style: DauVietTypography.bodySmall.copyWith(
                 color: DauVietColors.inkMuted,

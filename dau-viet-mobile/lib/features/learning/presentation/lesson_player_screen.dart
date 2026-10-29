@@ -22,6 +22,7 @@ import '../../collection/data/collection_providers.dart';
 import '../../collection/data/dossier_providers.dart';
 import '../../energy/data/energy_dto.dart';
 import '../../energy/data/energy_providers.dart';
+import '../../learning_path/data/learning_path_providers.dart';
 import '../../map/data/map_providers.dart';
 import '../../rewards/data/reward_providers.dart';
 import '../../streak/data/streak_dto.dart';
@@ -116,6 +117,10 @@ class _LessonPlayerScreenState extends ConsumerState<LessonPlayerScreen> {
   /// Chống re-entrant: chỉ 1 dialog thoát tồn tại cùng lúc.
   bool _exitDialogOpen = false;
 
+  /// Entry của toast trừ Thể lực đang hiển thị — lưu lại để gỡ ngay khi
+  /// người học trả lời đúng ở lượt kế tiếp hoặc rời màn hình (TC-ENG-01).
+  OverlayEntry? _energyToastEntry;
+
   /// Phase-1 gate: server đã xác nhận POST /complete → đánh dấu để không
   /// gọi lại completion POST khi learner retry fetch result. Không reset
   /// vì attempt đã COMPLETED trên backend.
@@ -141,20 +146,6 @@ class _LessonPlayerScreenState extends ConsumerState<LessonPlayerScreen> {
   /// eventProgressProvider sau complete (null = lesson không gắn event).
   String? _lessonEventId;
 
-
-  /// Entry toast trừ Thể lực đang hiển thị — hủy ngay khi submit mới hoặc thoát.
-  OverlayEntry? _energyToastEntry;
-
-  void _dismissEnergyPenaltyToast() {
-    _energyToastEntry?.remove();
-    _energyToastEntry = null;
-  }
-
-  @override
-  void dispose() {
-    _dismissEnergyPenaltyToast();
-    super.dispose();
-  }
   /// Renderer báo input thay đổi — chỉ nhận khi còn được phép sửa.
   /// setState để PopScope rebuild và cập nhật canPop; sau khi server đã
   /// ghi nhận answer, edit mới sẽ bật dirty trở lại.
@@ -169,6 +160,17 @@ class _LessonPlayerScreenState extends ConsumerState<LessonPlayerScreen> {
     super.initState();
     _submissionKey = _uuid.v4();
     _load();
+  }
+
+  @override
+  void dispose() {
+    _dismissEnergyPenaltyToast();
+    super.dispose();
+  }
+
+  void _dismissEnergyPenaltyToast() {
+    _energyToastEntry?.remove();
+    _energyToastEntry = null;
   }
 
   AttemptRepository get _repo => ref.read(attemptRepositoryProvider);
@@ -258,6 +260,8 @@ class _LessonPlayerScreenState extends ConsumerState<LessonPlayerScreen> {
       // và trước khi feedback/continue render lại.
       if (res.energyDeducted > 0) {
         _showEnergyPenaltyToast(res.energyDeducted);
+      } else {
+        _dismissEnergyPenaltyToast();
       }
       // TASK-0023: submit EVIDENCE_SELECT cập nhật collection trong cùng
       // transaction và evaluator có thể đã mở vật phẩm COLLECTION_COUNT —
@@ -332,7 +336,7 @@ class _LessonPlayerScreenState extends ConsumerState<LessonPlayerScreen> {
     // Provider chưa từng có state VÀ details thiếu/trống → không tự bịa
     // số: refresh GET /me/energy lấy trạng thái authoritative. Lỗi đã
     // nằm trong AsyncError (refresh swallow) — UI pill/screen tự hiển thị.
-    if (prev == null && !hasDetails) {
+    if (!hasDetails) {
       ref.read(energyProvider.notifier).refresh();
     }
     _dismissEnergyPenaltyToast();
@@ -541,6 +545,7 @@ class _LessonPlayerScreenState extends ConsumerState<LessonPlayerScreen> {
   Future<void> _onContinue() async {
     final st = _state;
     if (st == null || !st.awaitingContinue || st.submitting) return;
+    _dismissEnergyPenaltyToast();
     setState(() {
       _state = st.copyWith(submitting: true);
     });
@@ -569,6 +574,7 @@ class _LessonPlayerScreenState extends ConsumerState<LessonPlayerScreen> {
   /// (_completionAcknowledged) mọi retry chỉ đi qua Phase 2.
   Future<void> _complete() async {
     if (_completing || _fetchingResult) return;
+    _dismissEnergyPenaltyToast();
     if (_completionAcknowledged) {
       // Đã hoàn thành server-side — learner chỉ cần lấy kết quả.
       await _fetchResult();
@@ -585,6 +591,7 @@ class _LessonPlayerScreenState extends ConsumerState<LessonPlayerScreen> {
       _completionAcknowledged = true;
       // Attempt đã xong → progress cache cũ (IN_PROGRESS) không còn đúng.
       ref.invalidate(myProgressProvider);
+      ref.invalidate(learningPathProvider);
       // Trạng thái mở khoá bản đồ có thể đổi ngay sau completion.
       // Invalidate ở đây (không đợi remount /map) vì route Map thường đã
       // unmount sau pushReplacement/context.go.
@@ -708,7 +715,29 @@ class _LessonPlayerScreenState extends ConsumerState<LessonPlayerScreen> {
               child: ConstrainedBox(
                 constraints: const BoxConstraints(maxWidth: 600),
                 child: _loadError != null
-                    ? AsyncStateView.error(error: _loadError!, onRetry: _load)
+                    ? Column(
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        children: [
+                          Flexible(
+                            child: AsyncStateView.error(
+                              error: _loadError!,
+                              onRetry: _load,
+                            ),
+                          ),
+                          Padding(
+                            padding: const EdgeInsets.only(bottom: 20),
+                            child: TextButton.icon(
+                              onPressed: _exitNow,
+                              icon: const Icon(Icons.home_outlined, size: 18),
+                              label: const Text('VỀ TRANG CHỦ'),
+                              style: TextButton.styleFrom(
+                                foregroundColor: DauVietColors.inkText,
+                                minimumSize: const Size(160, 44),
+                              ),
+                            ),
+                          ),
+                        ],
+                      )
                     : st == null
                     ? AsyncStateView.loading()
                     : _buildPlayer(st),
@@ -720,6 +749,22 @@ class _LessonPlayerScreenState extends ConsumerState<LessonPlayerScreen> {
     );
   }
 
+  bool _isTrueFalseOptions(List<dynamic> opts) {
+    if (opts.length != 2) return false;
+    final first = opts[0] is Map ? opts[0] as Map : const {};
+    final second = opts[1] is Map ? opts[1] as Map : const {};
+    final l0 = (first['label'] ?? first['text'] ?? '')
+        .toString()
+        .toLowerCase()
+        .trim();
+    final l1 = (second['label'] ?? second['text'] ?? '')
+        .toString()
+        .toLowerCase()
+        .trim();
+    const tfTokens = {'đúng', 'sai', 'true', 'false', 'yes', 'no'};
+    return tfTokens.contains(l0) && tfTokens.contains(l1) && l0 != l1;
+  }
+
   String _resolveMascotPrompt(_PlayerState st) {
     final cur = st.current;
     final act = cur.activity;
@@ -727,31 +772,50 @@ class _LessonPlayerScreenState extends ConsumerState<LessonPlayerScreen> {
       return 'Khám phá sử liệu cùng mình nhé! Bạn sẽ làm rất tốt!';
     }
 
-    final type = act.type;
-    if (type == 'MULTIPLE_CHOICE') {
-      final opts = (act.config['options'] as List? ?? const []);
-      final isTrueFalse =
-          opts.length == 2 &&
-          opts.every((o) {
-            final label = (o is Map ? (o['label'] ?? o['text'] ?? '') : '')
-                .toString()
-                .trim()
-                .toLowerCase();
-            return label == 'đúng' ||
-                label == 'sai' ||
-                label == 'true' ||
-                label == 'false';
-          });
-      if (isTrueFalse) {
-        return 'Hãy suy nghĩ kỹ và chọn Đúng hoặc Sai nhé!';
-      }
-      return 'Cùng suy nghĩ nào! Bạn làm được mà! 💪';
-    } else if (type == 'MATCHING') {
-      return 'Ghép đúng là giỏi lắm! Hãy kết nối các thẻ với nhau nhé!';
-    } else if (type == 'DRAG_ORDER') {
-      return 'Hãy sắp xếp các sự kiện theo đúng trình tự thời gian nhé!';
+    final type = (act.type ?? '').toUpperCase();
+    switch (type) {
+      case 'READ':
+        return 'Hãy đọc kỹ đoạn tư liệu lịch sử này để nắm bối cảnh nhé!';
+      case 'VIEW_IMAGE':
+        return 'Quan sát kỹ bức tranh tư liệu để tìm chi tiết lịch sử quan trọng nhé!';
+      case 'EXPLORE_MAP':
+        return 'Chạm vào từng địa điểm trên bản đồ để khám phá dấu tích lịch sử nhé!';
+      case 'MULTIPLE_CHOICE':
+        final opts = (act.config['options'] as List? ?? const []);
+        if (_isTrueFalseOptions(opts)) {
+          return 'Bạn hãy đọc kỹ nhận định lịch sử và chọn Đúng hoặc Sai nhé!';
+        }
+        return 'Hãy phân tích sử liệu và chọn phương án chính xác nhất nhé!';
+      case 'EVIDENCE_SELECT':
+        return 'Thu thập các bằng chứng sử liệu xác thực nhất để làm rõ câu hỏi lịch sử nhé!';
+      case 'MATCHING':
+        return 'Ghép đúng là giỏi lắm! Hãy kết nối các thẻ với nhau nhé!';
+      case 'DRAG_ORDER':
+        return 'Hãy sắp xếp các sự kiện theo đúng trình tự thời gian nhé!';
+      case 'REASONING_CONNECT':
+        return 'Hãy nối các dữ kiện lịch sử theo đúng mối quan hệ nhân quả nhé!';
+      case 'HYPOTHESIS_CHOICE':
+        return 'Dựa trên bằng chứng đã có, hãy đặt giả thuyết lịch sử hợp lý nhất nhé!';
+      case 'VERIFICATION':
+        return 'Đối chiếu giả thuyết của bạn với các nguồn sử liệu để kiểm chứng nhé!';
+      case 'CER_CHOICE':
+        return 'Hãy kết hợp Luận điểm, Bằng chứng và Lập luận để hoàn chỉnh kết luận lịch sử nhé!';
+      case 'CER':
+        return 'Hãy viết Luận điểm, chọn Bằng chứng và trình bày Lập luận lịch sử của bạn nhé!';
+      case 'REFLECTION_PROMPT':
+        return 'Hãy chia sẻ suy ngẫm của bạn sau hành trình khám phá bài học này nhé!';
+      default:
+        return 'Cùng suy nghĩ và khám phá lịch sử nhé!';
     }
-    return 'Cùng suy nghĩ nào! Bạn làm được mà! 💪';
+  }
+
+  KabiMood _resolveMascotMood(_PlayerState st) {
+    final tone = st.feedback?.tone;
+    if (tone == _FeedbackTone.success) return KabiMood.cheering;
+    if (tone == _FeedbackTone.error || tone == _FeedbackTone.warning) {
+      return KabiMood.thinking;
+    }
+    return KabiMood.guiding;
   }
 
   Widget _buildPlayer(_PlayerState st) {
@@ -761,13 +825,11 @@ class _LessonPlayerScreenState extends ConsumerState<LessonPlayerScreen> {
         _buildTopBar(st),
         if (cur.activity == null)
           _buildFinished(st)
-        else if (st.awaitingContinue && st.feedback != null)
-          _buildCelebrationScreen(st)
         else ...[
-          // Bong bóng thoại Mascot Rùa Kabi đội nón lá (Screen 2, 3, 4, 5)
+          // Bong bóng thoại Mascot Rùa Kabi đội nón lá
           MascotSpeechBubble(
             message: _resolveMascotPrompt(st),
-            mood: KabiMood.guiding,
+            mood: _resolveMascotMood(st),
           ),
           Expanded(
             child: SingleChildScrollView(
@@ -775,7 +837,7 @@ class _LessonPlayerScreenState extends ConsumerState<LessonPlayerScreen> {
                 16,
                 4,
                 16,
-                10 + MediaQuery.of(context).viewInsets.bottom,
+                16 + MediaQuery.of(context).viewInsets.bottom,
               ),
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -786,7 +848,8 @@ class _LessonPlayerScreenState extends ConsumerState<LessonPlayerScreen> {
                       style: DauVietTypography.bodyMedium.copyWith(
                         fontStyle: FontStyle.italic,
                         color: DauVietColors.inkMuted,
-                        fontSize: 12.5,
+                        fontSize: 14,
+                        height: 1.45,
                       ),
                     ),
                     // GAME-03: hint chi phí Thể lực TRƯỚC khi submit — chỉ hiện
@@ -795,7 +858,7 @@ class _LessonPlayerScreenState extends ConsumerState<LessonPlayerScreen> {
                     if (cur.activity!.graded &&
                         (cur.activity!.incorrectPenalty ?? 0) > 0)
                       Padding(
-                        padding: const EdgeInsets.only(bottom: 10),
+                        padding: const EdgeInsets.only(top: 6, bottom: 10),
                         child: _EnergyCostHint(
                           penalty: cur.activity!.incorrectPenalty!,
                         ),
@@ -810,6 +873,7 @@ class _LessonPlayerScreenState extends ConsumerState<LessonPlayerScreen> {
                         st.submitting ||
                         st.awaitingContinue ||
                         st.completionReady,
+                    hasSubmitError: st.feedback?.tone == _FeedbackTone.error,
                     onSubmit: _submit,
                     onInputChanged: _onInputChanged,
                   ),
@@ -842,6 +906,7 @@ class _LessonPlayerScreenState extends ConsumerState<LessonPlayerScreen> {
             icon: const Icon(Icons.arrow_back_ios_new_rounded, size: 20),
             color: DauVietColors.inkText,
             tooltip: 'Thoát bài học',
+            constraints: const BoxConstraints(minWidth: 44, minHeight: 44),
             onPressed: _confirmExit,
           ),
           Expanded(
@@ -862,10 +927,23 @@ class _LessonPlayerScreenState extends ConsumerState<LessonPlayerScreen> {
                       ),
                     ),
                     const SizedBox(width: 6),
+                    _EnergyBadge(),
+                    const SizedBox(width: 4),
                     // STREAK-01: huy hiệu ngọn lửa chuỗi học — số thật từ
                     // streakProvider (server), không hard-code.
                     _StreakBadge(),
-                    const SizedBox(width: 6),
+                  ],
+                ),
+                const SizedBox(height: 6),
+                Row(
+                  children: [
+                    Expanded(
+                      child: ShimmerProgressBar(
+                        progress: cur.progress.fraction,
+                        height: 8,
+                      ),
+                    ),
+                    const SizedBox(width: 8),
                     Container(
                       padding: const EdgeInsets.symmetric(
                         horizontal: 8,
@@ -879,24 +957,17 @@ class _LessonPlayerScreenState extends ConsumerState<LessonPlayerScreen> {
                           width: 1,
                         ),
                       ),
-                      child: Row(
-                        mainAxisSize: MainAxisSize.min,
-                        children: [
-                          Text(
-                            '${cur.progress.completedRequired}/${cur.progress.totalRequired}',
-                            style: DauVietTypography.labelSmall.copyWith(
-                              color: const Color(0xFF5E6963),
-                              fontWeight: FontWeight.w800,
-                              fontSize: 11.5,
-                            ),
-                          ),
-                        ],
+                      child: Text(
+                        '${cur.progress.completedRequired}/${cur.progress.totalRequired}',
+                        style: DauVietTypography.labelSmall.copyWith(
+                          color: const Color(0xFF5E6963),
+                          fontWeight: FontWeight.w800,
+                          fontSize: 11,
+                        ),
                       ),
                     ),
                   ],
                 ),
-                const SizedBox(height: 6),
-                ShimmerProgressBar(progress: cur.progress.fraction, height: 8),
               ],
             ),
           ),
@@ -1005,174 +1076,78 @@ class _LessonPlayerScreenState extends ConsumerState<LessonPlayerScreen> {
     );
   }
 
-  /// Màn Ăn Mừng / Động Viên riêng biệt toàn màn hình chuẩn Duolingo.
-  /// Chỉ hiển thị duy nhất 1 Mascot Kabi to lớn (140x140) ở trung tâm.
-  Widget _buildCelebrationScreen(_PlayerState st) {
-    final isSuccess = st.feedback?.tone == _FeedbackTone.success;
-    final fb = st.feedback;
-
-    final title = isSuccess ? 'CHÍNH XÁC! XUẤT SẮC!' : 'CHƯA CHÍNH XÁC RỒI!';
-    final titleColor = isSuccess
-        ? const Color(0xFF1B5E20)
-        : DauVietColors.cinnabarRed;
-    final badgeBg = isSuccess
-        ? const Color(0xFFDDF3E4)
-        : const Color(0xFFFDE8E5);
-    final badgeBorder = isSuccess
-        ? const Color(0xFF4C7C44)
-        : DauVietColors.cinnabarRed;
-
-    return Expanded(
-      child: GoldConfettiOverlay(
-        trigger: isSuccess,
-        child: Container(
-          width: double.infinity,
-          decoration: BoxDecoration(
-            gradient: LinearGradient(
-              begin: Alignment.topCenter,
-              end: Alignment.bottomCenter,
-              colors: isSuccess
-                  ? [const Color(0xFFF2FAF4), DauVietColors.parchmentSurface]
-                  : [const Color(0xFFFDF4F2), DauVietColors.parchmentSurface],
-            ),
-          ),
-          child: Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 16),
-            child: Column(
-              mainAxisAlignment: MainAxisAlignment.center,
-              children: [
-                const Spacer(),
-                // DUY NHẤT 1 LINH VẬT KABI TO LỚN Ở TRUNG TÂM (140x140)
-                KabiMascotWidget(
-                  mood: isSuccess ? KabiMood.cheering : KabiMood.thinking,
-                  width: 140,
-                  height: 140,
-                  headOnly: false,
-                ),
-                const SizedBox(height: 18),
-                // Huy hiệu trạng thái (loại bỏ hoàn toàn icon vui / buồn gây nhiễu trước mascot)
-                Container(
-                  padding: const EdgeInsets.symmetric(
-                    horizontal: 16,
-                    vertical: 6,
-                  ),
-                  decoration: BoxDecoration(
-                    color: badgeBg,
-                    borderRadius: BorderRadius.circular(20),
-                    border: Border.all(color: badgeBorder, width: 1.4),
-                  ),
-                  child: Text(
-                    title,
-                    style: DauVietTypography.headlineMedium.copyWith(
-                      color: titleColor,
-                      fontSize: 16,
-                      fontWeight: FontWeight.w900,
-                      letterSpacing: 0.5,
-                    ),
-                  ),
-                ),
-                const SizedBox(height: 14),
-                // Thẻ giải thích sử liệu
-                if (fb != null)
-                  Container(
-                    padding: const EdgeInsets.symmetric(
-                      horizontal: 16,
-                      vertical: 12,
-                    ),
-                    decoration: BoxDecoration(
-                      color: Colors.white.withValues(alpha: 0.9),
-                      borderRadius: BorderRadius.circular(16),
-                      border: Border.all(
-                        color: DauVietColors.outlineVariant.withValues(
-                          alpha: 0.5,
-                        ),
-                      ),
-                      boxShadow: [
-                        BoxShadow(
-                          color: Colors.black.withValues(alpha: 0.04),
-                          blurRadius: 10,
-                          offset: const Offset(0, 3),
-                        ),
-                      ],
-                    ),
-                    child: Text(
-                      fb.text,
-                      textAlign: TextAlign.center,
-                      style: DauVietTypography.bodyMedium.copyWith(
-                        color: DauVietColors.inkText,
-                        fontWeight: FontWeight.w600,
-                        fontSize: 14,
-                        height: 1.4,
-                      ),
-                    ),
-                  ),
-                const Spacer(),
-                // Nút 3D Tiếp tục câu hỏi
-                DongSonButton(
-                  label: 'TIẾP TỤC ›',
-                  icon: Icons.arrow_forward_rounded,
-                  variant: isSuccess
-                      ? DongSonButtonVariant.natureGreen
-                      : DongSonButtonVariant.primaryCinnabar,
-                  isLoading: st.submitting,
-                  height: 52,
-                  onPressed: st.submitting ? null : _onContinue,
-                ),
-                const SizedBox(height: 10),
-              ],
-            ),
-          ),
-        ),
-      ),
-    );
-  }
-
-  /// Thẻ feedback theo `_FeedbackTone` — Duolingo style sheet banner kèm Mascot Kabi TO RÕ.
+  /// Thẻ feedback theo `_FeedbackTone` — hiển thị rõ 4 sắc thái từ server.
   Widget _feedbackCard(_Feedback fb) {
-    final (icon, iconColor, fgColor) = switch (fb.tone) {
+    final (icon, iconColor, fgColor, titleText) = switch (fb.tone) {
       _FeedbackTone.success => (
         Icons.check_circle_rounded,
         const Color(0xFF2E7D32),
         const Color(0xFF1E5633),
+        'CHÍNH XÁC',
       ),
       _FeedbackTone.warning => (
         Icons.info_rounded,
         DauVietColors.imperialGold,
         const Color(0xFF7A5B18),
+        'ĐÚNG MỘT PHẦN',
       ),
       _FeedbackTone.error => (
         Icons.cancel_rounded,
         DauVietColors.cinnabarRed,
         DauVietColors.cinnabarRed,
+        'CHƯA CHÍNH XÁC',
       ),
       _FeedbackTone.info => (
         Icons.lightbulb_rounded,
         DauVietColors.imperialGold,
         DauVietColors.inkText,
+        'ĐÃ GHI NHẬN',
       ),
     };
 
     return Container(
+      key: ValueKey('feedback-card-${fb.tone.name}'),
       padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
       decoration: BoxDecoration(
-        color: Colors.white.withValues(alpha: 0.9),
+        color: Colors.white.withValues(alpha: 0.92),
         borderRadius: BorderRadius.circular(14),
-        border: Border.all(color: iconColor.withValues(alpha: 0.4), width: 1.2),
+        border: Border.all(
+          color: iconColor.withValues(alpha: 0.45),
+          width: 1.2,
+        ),
       ),
       child: Row(
-        crossAxisAlignment: CrossAxisAlignment.center,
+        crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Icon(icon, color: iconColor, size: 22),
+          Padding(
+            padding: const EdgeInsets.only(top: 2),
+            child: Icon(icon, color: iconColor, size: 22),
+          ),
           const SizedBox(width: 10),
           Expanded(
-            child: Text(
-              fb.text,
-              style: DauVietTypography.bodyMedium.copyWith(
-                color: fgColor,
-                fontWeight: FontWeight.w600,
-                fontSize: 13,
-                height: 1.35,
-              ),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  titleText,
+                  style: DauVietTypography.labelSmall.copyWith(
+                    color: iconColor,
+                    fontWeight: FontWeight.w800,
+                    letterSpacing: 0.5,
+                    fontSize: 11,
+                  ),
+                ),
+                const SizedBox(height: 2),
+                Text(
+                  fb.text,
+                  style: DauVietTypography.bodyMedium.copyWith(
+                    color: fgColor,
+                    fontWeight: FontWeight.w600,
+                    fontSize: 14,
+                    height: 1.45,
+                  ),
+                ),
+              ],
             ),
           ),
         ],
@@ -1305,6 +1280,7 @@ class _LessonPlayerScreenState extends ConsumerState<LessonPlayerScreen> {
     // progress thay vì dùng cache cũ (đã invalidate sẵn ở _complete khi
     // lesson hoàn thành; đây là nhánh thoát giữa chừng).
     ref.invalidate(myProgressProvider);
+    ref.invalidate(learningPathProvider);
     if (context.canPop()) {
       context.pop();
     } else {
@@ -1312,23 +1288,23 @@ class _LessonPlayerScreenState extends ConsumerState<LessonPlayerScreen> {
     }
   }
 
-  /// GAME-03: thông báo trừ Thể lực kiểu game — toast overlay trượt lên
-  /// từ đáy (badge "-N ⚡ Thể lực") + rung nhẹ. Dùng Overlay trực tiếp thay
-  /// vì SnackBar để kiểm soát animation + không bị che bởi bottom bar.
-  /// Rung medium = cảm giác "bị phạt" chứ không phải lỗi hệ thống.
+  /// GAME-03: thông báo trừ Thể lực kiểu game — toast overlay ở phía trên
+  /// (ngay dưới TopBar) để tuyệt đối không đè lên `_feedbackCard` hay nút
+  /// `TIẾP TỤC ›` ở đáy màn hình (TC-ENG-01, TC-VIS-02).
   void _showEnergyPenaltyToast(int amount) {
     _dismissEnergyPenaltyToast();
     HapticFeedback.mediumImpact();
-    final overlay = Overlay.of(context);
+    final overlay = Overlay.maybeOf(context);
+    if (overlay == null) return;
     late final OverlayEntry entry;
     entry = OverlayEntry(
       builder: (_) => _EnergyPenaltyToast(
         amount: amount,
         onDone: () {
           if (_energyToastEntry == entry) {
+            entry.remove();
             _energyToastEntry = null;
           }
-          entry.remove();
         },
       ),
     );
@@ -1362,7 +1338,7 @@ class _EnergyPenaltyToastState extends State<_EnergyPenaltyToast>
       vsync: this,
       duration: const Duration(milliseconds: 2200),
     );
-    _slide = Tween<Offset>(begin: const Offset(0, 1.4), end: Offset.zero)
+    _slide = Tween<Offset>(begin: const Offset(0, -1.2), end: Offset.zero)
         .animate(
           CurvedAnimation(
             parent: _ctrl,
@@ -1395,9 +1371,9 @@ class _EnergyPenaltyToastState extends State<_EnergyPenaltyToast>
             ? const AlwaysStoppedAnimation(Offset.zero)
             : _slide,
         child: Align(
-          alignment: Alignment.bottomCenter,
+          alignment: Alignment.topCenter,
           child: Padding(
-            padding: const EdgeInsets.only(bottom: 168),
+            padding: const EdgeInsets.only(top: 72),
             child: Material(
               color: Colors.transparent,
               child: Container(
@@ -1446,6 +1422,67 @@ class _EnergyPenaltyToastState extends State<_EnergyPenaltyToast>
       ),
     );
     return Positioned.fill(child: IgnorePointer(child: badge));
+  }
+}
+
+/// Huy hiệu Thể lực trên thanh header của player — cập nhật trực tiếp từ
+/// `energyProvider` (TC-PLAYER-01, TC-ENG-01).
+class _EnergyBadge extends ConsumerWidget {
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final energyAsync = ref.watch(energyProvider);
+    final String value = energyAsync.when(
+      data: (e) => '${e.current}',
+      loading: () => '—',
+      error: (_, _) => '—',
+    );
+    final bool isDepleted = energyAsync.value?.isDepleted == true;
+    return Semantics(
+      label: 'Thể lực: $value',
+      button: true,
+      child: GestureDetector(
+        onTap: () => context.push('/energy'),
+        child: Container(
+          padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 2),
+          decoration: BoxDecoration(
+            color: isDepleted
+                ? const Color(0xFFFDEEEC)
+                : const Color(0xFFFFF8E1),
+            borderRadius: BorderRadius.circular(10),
+            border: Border.all(
+              color: isDepleted
+                  ? DauVietColors.cinnabarRed
+                  : DauVietColors.imperialGold,
+              width: 1,
+            ),
+          ),
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Icon(
+                Icons.bolt_rounded,
+                size: 13,
+                color: isDepleted
+                    ? DauVietColors.cinnabarRed
+                    : const Color(0xFFD97706),
+              ),
+              const SizedBox(width: 2),
+              Text(
+                value,
+                key: const ValueKey('player-header-energy'),
+                style: DauVietTypography.labelSmall.copyWith(
+                  color: isDepleted
+                      ? DauVietColors.cinnabarRed
+                      : const Color(0xFF92400E),
+                  fontWeight: FontWeight.w800,
+                  fontSize: 11,
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
   }
 }
 

@@ -1,0 +1,71 @@
+{
+  "backendUrl": "http://127.0.0.1:8080",
+  "webUrl": "http://localhost:8898",
+  "viewportsTested": [
+    "390x844",
+    "360x800"
+  ],
+  "periodCode": "NORTHERN_DOMINATION",
+  "eventId": "00000000-0000-0000-0000-000000000002",
+  "lessonId": "10000000-0000-0000-0000-000000000002",
+  "lockedLessonId": "1986bf93-3e03-45ca-89a4-b40ae1c07174",
+  "lockedLessonStatus": 403,
+  "attemptId": "edce547a-f60e-4834-9512-ece6b9987a8d",
+  "pinnedLessonVersionId": "30000000-0000-0000-0000-000000000002",
+  "activitiesCompleted": 1,
+  "firstCompletionRewards": [
+    {
+      "id": "r-exp",
+      "rewardType": "EXP",
+      "amount": 100,
+      "reason": "Hoàn thành lần đầu một bài học",
+      "lessonId": "10000000-0000-0000-0000-000000000002"
+    },
+    {
+      "id": "r-pts",
+      "rewardType": "HISTORY_POINTS",
+      "amount": 50,
+      "reason": "Hoàn thành lần đầu một bài học",
+      "lessonId": "10000000-0000-0000-0000-000000000002"
+    }
+  ],
+  "newlyUnlockedLocations": [
+    {
+      "locationId": "loc-hat-mon",
+      "slug": "cua-song-hat-hat-mon",
+      "title": "Cửa Sông Hát (Hát Môn)",
+      "kind": "MEMORIAL"
+    }
+  ],
+  "streakAfterCompletion": {
+    "dayRecorded": true,
+    "currentStreak": 1,
+    "longestStreak": 1,
+    "studyDate": "2026-10-28"
+  },
+  "consoleErrorsCount": 0,
+  "pageErrorsCount": 0,
+  "overflowErrorsCount": 0,
+  "consoleErrors": [],
+  "pageErrors": [],
+  "overflowErrors": [],
+  "screenshots": [
+    "E:\\Telegram Desktop\\Dau viet\\Dau_Viet-issue-29\\tasks\\TASK-0029\\screenshots\\stage1_dashboard_390x844.png",
+    "E:\\Telegram Desktop\\Dau viet\\Dau_Viet-issue-29\\tasks\\TASK-0029\\screenshots\\stage1_period_selection_390x844.png",
+    "E:\\Telegram Desktop\\Dau viet\\Dau_Viet-issue-29\\tasks\\TASK-0029\\screenshots\\stage1_period_journey_390x844.png",
+    "E:\\Telegram Desktop\\Dau viet\\Dau_Viet-issue-29\\tasks\\TASK-0029\\screenshots\\stage1_campaign_detail_390x844.png",
+    "E:\\Telegram Desktop\\Dau viet\\Dau_Viet-issue-29\\tasks\\TASK-0029\\screenshots\\stage2_lesson_entry_390x844.png",
+    "E:\\Telegram Desktop\\Dau viet\\Dau_Viet-issue-29\\tasks\\TASK-0029\\screenshots\\stage3_lesson_player_390x844.png",
+    "E:\\Telegram Desktop\\Dau viet\\Dau_Viet-issue-29\\tasks\\TASK-0029\\screenshots\\stage5_energy_management_390x844.png",
+    "E:\\Telegram Desktop\\Dau viet\\Dau_Viet-issue-29\\tasks\\TASK-0029\\screenshots\\stage6_reload_continuity_390x844.png",
+    "E:\\Telegram Desktop\\Dau viet\\Dau_Viet-issue-29\\tasks\\TASK-0029\\screenshots\\stage1_dashboard_360x800.png",
+    "E:\\Telegram Desktop\\Dau viet\\Dau_Viet-issue-29\\tasks\\TASK-0029\\screenshots\\stage1_period_selection_360x800.png",
+    "E:\\Telegram Desktop\\Dau viet\\Dau_Viet-issue-29\\tasks\\TASK-0029\\screenshots\\stage1_period_journey_360x800.png",
+    "E:\\Telegram Desktop\\Dau viet\\Dau_Viet-issue-29\\tasks\\TASK-0029\\screenshots\\stage1_campaign_detail_360x800.png",
+    "E:\\Telegram Desktop\\Dau viet\\Dau_Viet-issue-29\\tasks\\TASK-0029\\screenshots\\stage2_lesson_entry_360x800.png",
+    "E:\\Telegram Desktop\\Dau viet\\Dau_Viet-issue-29\\tasks\\TASK-0029\\screenshots\\stage3_lesson_player_360x800.png",
+    "E:\\Telegram Desktop\\Dau viet\\Dau_Viet-issue-29\\tasks\\TASK-0029\\screenshots\\stage5_energy_management_360x800.png",
+    "E:\\Telegram Desktop\\Dau viet\\Dau_Viet-issue-29\\tasks\\TASK-0029\\screenshots\\stage7_lesson_result_390x844.png",
+    "E:\\Telegram Desktop\\Dau viet\\Dau_Viet-issue-29\\tasks\\TASK-0029\\screenshots\\stage7_lesson_result_360x800.png"
+  ]
+}

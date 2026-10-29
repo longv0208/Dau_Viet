@@ -45,8 +45,13 @@ class ReadRenderer extends StatelessWidget {
     ]);
     final String? subtitle = configText(config, ['subtitle', 'lede']);
     final String? source = configText(config, ['source', 'attribution']);
+    final String? callout = configText(config, [
+      'callout',
+      'quote',
+      'historicalQuote',
+    ]);
 
-    // Draft schema: body/text/content/paragraphs — render tuần tự.
+    // Draft schema: body/text/content/paragraphs/sections — render tuần tự.
     final List<Widget> blocks = [];
     final String? body = configText(config, [
       'body',
@@ -66,6 +71,55 @@ class ReadRenderer extends StatelessWidget {
           blocks.add(_Paragraph(para));
         }
       }
+    }
+    final sections = configList(config, 'sections');
+    for (final s in sections) {
+      final String? secTitle = configText(s, ['title', 'heading', 'label']);
+      final String? secBody = configText(s, ['body', 'text', 'content']);
+      if (secTitle != null && secTitle.trim().isNotEmpty) {
+        blocks.add(
+          Padding(
+            padding: const EdgeInsets.only(top: 6, bottom: 6),
+            child: Text(
+              secTitle.trim(),
+              style: DauVietTypography.headlineSmall.copyWith(
+                fontSize: 16,
+                fontWeight: FontWeight.w800,
+                color: DauVietColors.inkText,
+              ),
+            ),
+          ),
+        );
+      }
+      if (secBody != null) {
+        for (final para in _splitParagraphs(secBody)) {
+          blocks.add(_Paragraph(para));
+        }
+      }
+    }
+    if (callout != null && callout.trim().isNotEmpty) {
+      blocks.add(
+        Container(
+          margin: const EdgeInsets.only(top: 4, bottom: 10),
+          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+          decoration: BoxDecoration(
+            color: DauVietColors.imperialGold.withValues(alpha: 0.10),
+            borderRadius: BorderRadius.circular(8),
+            border: const Border(
+              left: BorderSide(color: DauVietColors.imperialGold, width: 3.5),
+            ),
+          ),
+          child: Text(
+            callout.trim(),
+            style: DauVietTypography.bodyMedium.copyWith(
+              fontStyle: FontStyle.italic,
+              fontSize: 14.5,
+              height: 1.55,
+              color: DauVietColors.inkText,
+            ),
+          ),
+        ),
+      );
     }
     if (blocks.isEmpty) {
       blocks.add(const _Paragraph('(Không có nội dung đọc.)'));
@@ -166,8 +220,9 @@ class ReadRenderer extends StatelessWidget {
                   !unsupportedManifest) ...[
                 ClipRRect(
                   borderRadius: BorderRadius.circular(12),
-                  child: AspectRatio(
-                    aspectRatio: 16 / 9,
+                  child: SizedBox(
+                    height: 150,
+                    width: double.infinity,
                     child: Image.asset(
                       resolveLessonFallbackAsset(
                         title ?? '',
