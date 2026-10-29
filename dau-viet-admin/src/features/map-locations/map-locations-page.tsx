@@ -25,6 +25,7 @@ import {
   X,
 } from "lucide-react";
 import { apiFetch, toQuery } from "@/lib/api-client";
+import { qk } from "@/lib/query-keys";
 import { ApiClientError, toUserMessage } from "@/lib/api-error";
 import type { PageResponse } from "@/lib/dto/common";
 import type { AdminEventSummary } from "@/lib/dto/event";
