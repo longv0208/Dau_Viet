@@ -64,7 +64,7 @@ public abstract class AbstractPostgresIT {
             """);
         jdbc.update("UPDATE item_catalog SET asset_id = NULL WHERE asset_id IS NOT NULL");
         jdbc.update("DELETE FROM assets");
-        // Issue #34 tables — truncate when present (V51 may be absent on old
+        // Issue #34 tables — truncate when present (V53 may be absent on old
         // snapshot DBs).
         jdbc.execute("""
             DO $$

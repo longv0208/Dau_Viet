@@ -4,7 +4,7 @@ GitHub issue: https://github.com/longv0208/Dau_Viet/issues/34 (`[AUTH] Thêm ch�
 
 Ba luồng: (1) đăng ký xác thực OTP qua email, (2) quên/đặt lại mật khẩu bằng OTP + thu hồi refresh token cũ, (3) đăng nhập Google bằng idToken với account linking.
 
-Plan chi tiết: `plans/261029-issue-34-auth-otp-google/plan.md` — bao gồm schema V51 (`auth_otp_challenges`, `user_oauth_accounts`, `users.password_hash` nullable), endpoints `/api/v1/auth/*`, error codes, mobile screens (OTP/forgot-password/Google button), tests và AC mapping.
+Plan chi tiết: `plans/261029-issue-34-auth-otp-google/plan.md` — bao gồm schema V53 (`auth_otp_challenges`, `user_oauth_accounts`, `users.password_hash` nullable), endpoints `/api/v1/auth/*`, error codes, mobile screens (OTP/forgot-password/Google button), tests và AC mapping.
 
 Risk: high-risk (auth, DB migration, token revocation). Breaking change: `POST /auth/register` đổi contract sang flow 2 bước (request-otp → verify-otp). Mobile cập nhật cùng PR.
 

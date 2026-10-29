@@ -33,9 +33,9 @@ Implement the 3 flows in [Issue #34](https://github.com/longv0208/Dau_Viet/issue
 - `SecurityConfig`: `POST /api/v1/auth/**` already `permitAll` — new endpoints need no security change.
 - `ErrorCode` enum: needs `OTP_INVALID`, `OTP_EXPIRED`, `OTP_MAX_ATTEMPTS_EXCEEDED`, `OTP_RESEND_COOLDOWN`, `GOOGLE_TOKEN_INVALID`, `ACCOUNT_DISABLED` (or reuse existing where fitting).
 - Mobile: `AuthApiClient` has login/register/refresh/logout/me. `AuthRepository.register` does register+login; must be split into request-otp / verify-otp. `RegisterScreen` → new `OtpVerificationScreen`. No `google_sign_in` dep yet. Router has `/auth`, `/register` — add `/auth/otp`, `/auth/forgot`.
-- Latest migration: `V50`. Next: `V51`. No `spring-boot-starter-mail`, no Google client lib in `pom.xml`. `spring-boot-starter-oauth2-resource-server` already present (JWT for own tokens only — Google token verified via google-api-client, not Nimbus decoder, because Google's id_token is a third-party token and we want explicit aud/iss checks).
+- Latest migration: `V50`. Next: `V53`. No `spring-boot-starter-mail`, no Google client lib in `pom.xml`. `spring-boot-starter-oauth2-resource-server` already present (JWT for own tokens only — Google token verified via google-api-client, not Nimbus decoder, because Google's id_token is a third-party token and we want explicit aud/iss checks).
 
-## 3. Phase 1 — DB Migration `V51__auth_otp_and_google_oauth.sql`
+## 3. Phase 1 — DB Migration `V53__auth_otp_and_google_oauth.sql`
 
 ```sql
 ALTER TABLE users ALTER COLUMN password_hash DROP NOT NULL;
@@ -192,4 +192,4 @@ dauviet:
 - **`google_sign_in` platform config** — Android needs no extra native config for idToken if `serverClientId` = web client id passed at runtime; iOS needs `GIDClientID` in Info.plist — documented; test env uses mock so CI stays green.
 - **Email delivery in dev** — no SMTP server locally; `LoggingOtpSender` prints code when `local` profile only (issue-sanctioned fallback).
 - **Unverified-email Google linking** — conservative: refuse (403) rather than auto-link. Could revisit if PO wants auto-link on password-verified accounts.
-- **V51 naming** — issue text says `V50__auth_otp_and_google_oauth.sql` but V50 is taken (`seed_lesson_cover_assets`) → use V51.
+- **V53 naming** — issue text says `V50__auth_otp_and_google_oauth.sql` but V50 is taken (`seed_lesson_cover_assets`) → use V53.

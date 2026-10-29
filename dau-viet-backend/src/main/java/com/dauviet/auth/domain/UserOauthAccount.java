@@ -11,7 +11,7 @@ import jakarta.persistence.Id;
 import jakarta.persistence.Table;
 
 /**
- * External identity provider link (V51 user_oauth_accounts). A Google
+ * External identity provider link (V53 user_oauth_accounts). A Google
  * `sub` claim identifies the account; (provider, provider_subject) is unique.
  */
 @Entity

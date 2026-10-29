@@ -1,4 +1,4 @@
--- Dấu Việt | V51 | Issue #34: OTP challenges + Google OAuth account linking
+-- Dấu Việt | V53 | Issue #34: OTP challenges + Google OAuth account linking
 -- 1) users.password_hash -> nullable: Google-only accounts have no local
 --    password until they set one (login path treats NULL hash as
 --    INVALID_CREDENTIALS after timing equalization).

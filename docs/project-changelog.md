@@ -7,7 +7,7 @@
 **Scope:** Nâng cấp xác thực theo Issue #34 — đăng ký xác thực OTP qua email, quên/đặt lại mật khẩu bằng OTP với thu hồi phiên, đăng nhập Google (idToken) có account linking. Plan: `plans/261029-issue-34-auth-otp-google/plan.md`.
 
 **Database**
-- `V51__auth_otp_and_google_oauth.sql` — `users.password_hash` nullable (tài khoản Google-only); bảng `auth_otp_challenges` (mã OTP 6 số băm SHA-256 có salt, purpose `REGISTER_VERIFY`/`PASSWORD_RESET`, partial unique `ux_otp_active` đảm bảo một challenge active/(email,purpose)); bảng `user_oauth_accounts` (`UNIQUE (provider, provider_subject)`).
+- `V53__auth_otp_and_google_oauth.sql` — `users.password_hash` nullable (tài khoản Google-only); bảng `auth_otp_challenges` (mã OTP 6 số băm SHA-256 có salt, purpose `REGISTER_VERIFY`/`PASSWORD_RESET`, partial unique `ux_otp_active` đảm bảo một challenge active/(email,purpose)); bảng `user_oauth_accounts` (`UNIQUE (provider, provider_subject)`).
 
 **Backend**
 - `POST /api/v1/auth/register` đổi contract: tạo REGISTER_VERIFY challenge → `202 OtpChallengeResponse` (không tạo user). `POST /auth/register/verify` tạo user `email_verified_at=now()` + trả `TokenResponse`. `POST /auth/otp/resend` (cooldown 60s → `429 OTP_RESEND_COOLDOWN`). `POST /auth/password/forgot` luôn `200` (anti-enumeration); `POST /auth/password/reset` verify OTP + BCrypt mật khẩu mới + revoke toàn bộ `auth_refresh_tokens` của user. `POST /auth/google` verify idToken qua `GoogleIdTokenVerifier` (sig/iss/aud/exp/email_verified), link-or-create LEARNER, từ chối link vào email chưa verified (`403 GOOGLE_EMAIL_UNVERIFIED`).
