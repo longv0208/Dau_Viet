@@ -189,10 +189,24 @@ public class IslandService {
             throw new IslandExceptions.IslandUpgradeInsufficientLevelException(
                     nextTier, requiredLevel, currentLevel, exp, requiredExp);
         }
+
+        // V51: upgrade = chuyển sang layout lớn hơn. Xoá sạch placements để
+        // vật phẩm quay về kho (user_inventory giữ nguyên — placement chỉ là
+        // pointer). User tự bài trí lại từ đầu trên đảo mới.
+        int removed = placements.deleteAllByUserId(userId);
+
+        // Re-pin sang default published version (v2 — 56 ô) nếu user đang ở
+        // version cũ/đã archive. Version mới superset slot cũ theo stable_slot_key.
+        var defaultLayout = layoutService.requireDefaultPublishedLayout();
+        if (!defaultLayout.version().getId().equals(island.getLayoutVersionId())) {
+            island.pinLayoutVersion(defaultLayout.version().getId(),
+                    defaultLayout.definition().getLayoutKey(), now);
+        }
+
         island.upgradeTo(nextTier, now);
         islands.saveAndFlush(island); // bumps @Version (row_version)
-        log.info("island upgraded user={} tier={} level={} exp={}",
-                userId, nextTier, currentLevel, exp);
+        log.info("island upgraded user={} tier={} level={} exp={} clearedPlacements={}",
+                userId, nextTier, currentLevel, exp, removed);
         return buildFullResponse(island, userId, now);
     }
 
@@ -200,8 +214,9 @@ public class IslandService {
 
     /**
      * Đặt vật phẩm vào ô đất. Kiểm tra: slot tồn tại → layout đúng → đảo
-     * đủ tier → item tồn tại → user sở hữu → placeable → slot trống →
-     * item chưa đặt ở slot khác → insert → bump revision.
+     * đủ tier → item tồn tại → user sở hữu → placeable → category →
+     * slot trống → insert → bump revision. V51: bỏ chặn trùng itemId —
+     * một item đã sở hữu được đặt nhiều bản sao lên nhiều ô khác nhau.
      */
     @Transactional(propagation = Propagation.REQUIRED)
     public IslandResponse placeItem(UUID userId, UUID slotId,
@@ -248,17 +263,10 @@ public class IslandService {
         if (placements.findByUserIdAndSlotId(userId, slotId).isPresent()) {
             throw new IslandExceptions.SlotOccupiedException(slotId);
         }
-        if (placements.findByUserIdAndItemId(userId, req.itemId()).isPresent()) {
-            throw new IslandExceptions.ItemAlreadyOwnedException(req.itemId());
-        }
         int inserted = placements.insertIgnore(userId, slotId, req.itemId());
         if (inserted != 1) {
-            if (placements.findByUserIdAndSlotId(userId, slotId).isPresent()) {
-                throw new IslandExceptions.SlotOccupiedException(slotId);
-            }
-            if (placements.findByUserIdAndItemId(userId, req.itemId()).isPresent()) {
-                throw new IslandExceptions.ItemAlreadyOwnedException(req.itemId());
-            }
+            // Sau khi bỏ ux_user_island_item (V51), insertIgnore chỉ còn bị
+            // chặn bởi PK (user_id, slot_id) — race loser thấy slot đã chiếm.
             throw new IslandExceptions.SlotOccupiedException(slotId);
         }
         // Bump revision — chỉ khi insert thực sự thành công (inserted == 1)
@@ -318,6 +326,21 @@ public class IslandService {
                     defLayout.definition().getLayoutKey(),
                     now);
             islands.saveAndFlush(existing);
+        } else {
+            // V51: pinned version đã ARCHIVED (layout v1 sau khi v2 publish)
+            // → auto-migrate sang default published + gỡ placements vì slot_id
+            //   của layout cũ không còn trên layout mới.
+            var pinned = layoutService.findPinnedVersion(existing.getLayoutVersionId());
+            if (pinned.isPresent() && pinned.get().isArchived()) {
+                var defLayout = layoutService.requireDefaultPublishedLayout();
+                int cleared = placements.deleteAllByUserId(userId);
+                existing.pinLayoutVersion(defLayout.version().getId(),
+                        defLayout.definition().getLayoutKey(), now);
+                islands.saveAndFlush(existing);
+                log.info("island auto-migrated user={} from archived layout to "
+                        + "version={} clearedPlacements={}",
+                        userId, defLayout.version().getId(), cleared);
+            }
         }
         return existing;
     }
@@ -342,6 +365,18 @@ public class IslandService {
                     defLayout.definition().getLayoutKey(),
                     now);
             islands.saveAndFlush(existing);
+        } else {
+            var pinned = layoutService.findPinnedVersion(existing.getLayoutVersionId());
+            if (pinned.isPresent() && pinned.get().isArchived()) {
+                var defLayout = layoutService.requireDefaultPublishedLayout();
+                int cleared = placements.deleteAllByUserId(userId);
+                existing.pinLayoutVersion(defLayout.version().getId(),
+                        defLayout.definition().getLayoutKey(), now);
+                islands.saveAndFlush(existing);
+                log.info("island auto-migrated user={} from archived layout to "
+                        + "version={} clearedPlacements={}",
+                        userId, defLayout.version().getId(), cleared);
+            }
         }
         return existing;
     }
@@ -684,6 +719,29 @@ public class IslandService {
                         l.getVisibilityRuleJson()))
                 .toList();
 
+        // V51: metadata 3 cấp đảo cho tab chuyển + điều kiện mở khóa
+        List<IslandResponse.TierInfoView> tierViews = activePolicies.stream()
+                .map(p -> {
+                    Integer lvl = p.getRequiredLevel();
+                    Long reqExp = null;
+                    if (lvl != null && levelService.hasValidConfiguration()) {
+                        long minExp = levelService.minExpForLevel(lvl);
+                        if (minExp >= 0) reqExp = minExp;
+                    }
+                    return new IslandResponse.TierInfoView(
+                            p.getTier(),
+                            p.getNameKey(),
+                            p.getStageLabel(),
+                            p.getSlotCount(),
+                            p.getRequiredCompletedEvents(),
+                            lvl,
+                            reqExp,
+                            p.getTier() <= island.getTier(),
+                            layoutService.parseStringList(p.getHighlightsJson()));
+                })
+                .sorted(java.util.Comparator.comparingInt(IslandResponse.TierInfoView::tier))
+                .toList();
+
         return new IslandResponse(
                 island.getTier(), maxTier, island.getRowVersion(),
                 eventsCompleted,
@@ -696,7 +754,9 @@ public class IslandService {
                 canvasWidth, canvasHeight, themeKey,
                 regionViews, layerViews,
                 // Tile board (V48)
-                boardView, tileViews);
+                boardView, tileViews,
+                // V51: metadata 3 tier
+                tierViews);
     }
 
     private String normalizeLearnerAssetRef(String rawRef) {

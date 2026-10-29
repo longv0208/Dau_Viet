@@ -45,7 +45,9 @@ public record IslandResponse(
         // Tile board (ISLAND-09-BE) — additive; board/tiles từ island_layout_boards
         // + island_tiles, hoặc LegacyIslandBoardAdapter cho layout rect-model cũ
         BoardView board,
-        List<TileView> tiles
+        List<TileView> tiles,
+        /** V51: metadata 3 cấp đảo (12/28/56) để client render tab + điều kiện mở khóa. */
+        List<TierInfoView> tiers
 ) {
     /** Một ô đất: locked/unlocked + item đang đặt (null = trống). */
     public record SlotView(
@@ -189,6 +191,24 @@ public record IslandResponse(
             int renderOrder,
             String assetRef,
             String visibilityRuleJson
+    ) {
+    }
+
+    /**
+     * Metadata một cấp đảo (V51): hiển thị trên tab + điều kiện mở khóa.
+     * requiredExp suy từ requiredLevel qua account_level_thresholds (null nếu
+     * policy không level-based hoặc threshold thiếu).
+     */
+    public record TierInfoView(
+            int tier,
+            String nameKey,
+            String stageLabel,
+            int slotCount,
+            int requiredCompletedEvents,
+            Integer requiredLevel,
+            Long requiredExp,
+            boolean unlocked,
+            List<String> highlights
     ) {
     }
 }

@@ -16,6 +16,8 @@ void main() {
   ]) async {
     await tester.pump();
     await tester.pump(duration);
+    // Flush các Future.delayed trong MockIslandRepository (150-250ms)
+    await tester.pump(const Duration(milliseconds: 400));
   }
 
   Widget buildTestableWidget(Widget child, [MockIslandRepository? repo]) {
@@ -145,6 +147,76 @@ void main() {
       }
     });
   });
+
+    testWidgets(
+      'V51: Inventory tray shows placed counter and tier tabs',
+      (tester) async {
+        await tester.binding.setSurfaceSize(const Size(1000, 1200));
+        addTearDown(() => tester.binding.setSurfaceSize(null));
+        await tester.pumpWidget(buildTestableWidget(const IslandScreen()));
+        await pumpAsync(tester);
+
+        // Tray header hiển thị X/Y đã đặt
+        expect(find.text('Kho vật phẩm của bạn'), findsOneWidget);
+        expect(find.textContaining('đã đặt'), findsWidgets);
+        expect(find.textContaining('nhiều bản sao'), findsOneWidget);
+
+        // Tier tabs render 3 cấp
+        expect(find.text('Đảo Nhỏ'), findsWidgets);
+        expect(find.text('Đảo Vừa'), findsWidgets);
+        expect(find.text('Đảo Lớn'), findsWidgets);
+      },
+    );
+
+    testWidgets(
+      'V51: IslandDto parses tiers metadata from backend response',
+      (tester) async {
+        final island = IslandDto.fromJson({
+          'tier': 1,
+          'maxTier': 3,
+          'rowVersion': 1,
+          'slots': const [],
+          'tiers': [
+            {
+              'tier': 1,
+              'nameKey': 'tier.small',
+              'stageLabel': 'Giai đoạn Sơ Khai',
+              'slotCount': 12,
+              'requiredLevel': 1,
+              'requiredExp': 0,
+              'unlocked': true,
+              'highlights': ['Lều trại'],
+            },
+            {
+              'tier': 2,
+              'nameKey': 'tier.medium',
+              'stageLabel': 'Giai đoạn Định Cư',
+              'slotCount': 28,
+              'requiredLevel': 2,
+              'requiredExp': 500,
+              'unlocked': false,
+            },
+            {
+              'tier': 3,
+              'nameKey': 'tier.grand',
+              'stageLabel': 'Giai đoạn Toàn Bích',
+              'slotCount': 56,
+              'requiredLevel': 3,
+              'requiredExp': 1200,
+              'unlocked': false,
+            },
+          ],
+        });
+
+        expect(island.tiers, hasLength(3));
+        expect(island.tiers[0].slotCount, 12);
+        expect(island.tiers[1].slotCount, 28);
+        expect(island.tiers[2].slotCount, 56);
+        expect(island.tiers[0].unlocked, isTrue);
+        expect(island.tiers[2].unlocked, isFalse);
+        expect(island.tiers[1].requiredExp, 500);
+      },
+    );
 
   group('IslandUpgradePanel Widget Tests', () {
     testWidgets(
