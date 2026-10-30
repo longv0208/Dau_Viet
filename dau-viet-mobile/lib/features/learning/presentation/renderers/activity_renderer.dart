@@ -112,6 +112,7 @@ class ActivityRenderer extends StatelessWidget {
           content: content,
           submitting: submitting,
           onSubmit: onSubmit,
+          lastEvaluation: lastEvaluation,
         );
       case 'REASONING_CONNECT':
         return ReasoningConnectRenderer(

@@ -1,12 +1,15 @@
 "use client";
 
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import Link from "next/link";
+import { useSearchParams } from "next/navigation";
 import { useState } from "react";
 
 import { apiFetch } from "@/lib/api-client";
 import { ApiClientError, toUserMessage } from "@/lib/api-error";
 import type { Evidence } from "@/lib/dto/evidence";
 import { qk } from "@/lib/query-keys";
+import { parseReturnTo } from "@/lib/return-to";
 import { PaperCard } from "@/components/atoms/paper-card";
 import { StampSeal } from "@/components/atoms/stamp-seal";
 import { ConfirmDialog } from "@/components/confirm-dialog";
@@ -19,6 +22,8 @@ import { EvidenceForm } from "./evidence-form";
 /** Loads GET /admin/evidences/{id}, renders the form + lifecycle actions. */
 export function EvidenceEditorPage({ evidenceId }: { evidenceId: string }) {
   const qc = useQueryClient();
+  const searchParams = useSearchParams();
+  const returnTo = parseReturnTo(searchParams.get("return"));
   const [archiveOpen, setArchiveOpen] = useState(false);
   const [actionError, setActionError] = useState<string | null>(null);
 
@@ -70,10 +75,16 @@ export function EvidenceEditorPage({ evidenceId }: { evidenceId: string }) {
 
   const ev = query.data;
   const archived = ev.status === "ARCHIVED";
+  const backHref = returnTo ?? (ev.eventId ? `/events/${ev.eventId}?tab=hoc-lieu` : null);
 
   return (
     <div className="flex flex-col gap-4">
       <PaperCard className="flex flex-wrap items-center gap-3 p-3.5">
+        {backHref && (
+          <Button asChild variant="secondary" size="sm">
+            <Link href={backHref}>← Quay lại Sự kiện</Link>
+          </Button>
+        )}
         <StatusChip status={ev.status} />
         {ev.status === "APPROVED" && (
           <StampSeal variant="success" label="CHỨNG THỰC" className="scale-90" />

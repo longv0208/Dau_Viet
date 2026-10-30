@@ -401,6 +401,8 @@ export function resolveLocationMapPreset(params: {
     .join(" ")
     .toLowerCase();
 
+  const fallbackPreset = HERITAGE_PRESET_MAPS[5]!;
+
   if (
     haystack.includes("000000000001") ||
     haystack.includes("bach-dang") ||
@@ -410,7 +412,7 @@ export function resolveLocationMapPreset(params: {
     haystack.includes("yên giang") ||
     haystack.includes("938")
   ) {
-    return HERITAGE_PRESET_MAPS[2]; // map-bach-dang
+    return HERITAGE_PRESET_MAPS[2] ?? fallbackPreset; // map-bach-dang
   }
   if (
     haystack.includes("000000000002") ||
@@ -422,7 +424,7 @@ export function resolveLocationMapPreset(params: {
     haystack.includes("sông hát") ||
     haystack.includes("luy lâu")
   ) {
-    return HERITAGE_PRESET_MAPS[1]; // map-hai-ba-trung
+    return HERITAGE_PRESET_MAPS[1] ?? fallbackPreset; // map-hai-ba-trung
   }
   if (
     haystack.includes("000000000003") ||
@@ -432,7 +434,7 @@ export function resolveLocationMapPreset(params: {
     haystack.includes("đền xà") ||
     haystack.includes("1077")
   ) {
-    return HERITAGE_PRESET_MAPS[3]; // map-nhu-nguyet
+    return HERITAGE_PRESET_MAPS[3] ?? fallbackPreset; // map-nhu-nguyet
   }
   if (
     haystack.includes("000000000004") ||
@@ -443,7 +445,7 @@ export function resolveLocationMapPreset(params: {
     haystack.includes("mường thanh") ||
     haystack.includes("1954")
   ) {
-    return HERITAGE_PRESET_MAPS[4]; // map-dien-bien-phu
+    return HERITAGE_PRESET_MAPS[4] ?? fallbackPreset; // map-dien-bien-phu
   }
   if (
     haystack.includes("000000000005") ||
@@ -455,7 +457,7 @@ export function resolveLocationMapPreset(params: {
     haystack.includes("ngã ba hạc") ||
     haystack.includes("phong châu")
   ) {
-    return HERITAGE_PRESET_MAPS[0]; // map-van-lang
+    return HERITAGE_PRESET_MAPS[0] ?? fallbackPreset; // map-van-lang
   }
-  return HERITAGE_PRESET_MAPS[5]; // map-vietnam-journey
+  return fallbackPreset; // map-vietnam-journey
 }

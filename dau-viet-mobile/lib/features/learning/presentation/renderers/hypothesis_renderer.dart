@@ -334,11 +334,26 @@ class _HypothesisRendererState extends State<HypothesisRenderer> {
     final config = widget.activity.config;
     final source = config['priorEvidenceSource'] ?? config['evidenceSource'];
     final prior = config['priorOutputs'];
-    if (source is! String || prior is! Map) return const [];
-    final out = prior[source];
-    if (out is! Map) return const [];
-    final ids = out['selectedEvidenceIds'] ?? out['evidenceIds'];
-    if (ids is! List) return const [];
-    return ids.whereType<String>().toList();
+    if (prior is! Map) return const [];
+    if (source is String && source.trim().isNotEmpty) {
+      final out = prior[source];
+      if (out is Map) {
+        final ids = out['selectedEvidenceIds'] ?? out['evidenceIds'];
+        if (ids is List) {
+          final list = ids.whereType<String>().toList();
+          if (list.isNotEmpty) return list;
+        }
+      }
+    }
+    for (final out in prior.values) {
+      if (out is Map) {
+        final ids = out['selectedEvidenceIds'];
+        if (ids is List) {
+          final list = ids.whereType<String>().toList();
+          if (list.isNotEmpty) return list;
+        }
+      }
+    }
+    return const [];
   }
 }

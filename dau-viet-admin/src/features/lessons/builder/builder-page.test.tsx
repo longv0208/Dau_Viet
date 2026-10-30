@@ -2,7 +2,7 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { HttpResponse, http } from "msw";
-import { describe, expect, it, vi } from "vitest";
+import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import { server } from "@/test/msw/server";
 import { authStore } from "@/features/auth/auth-store";
@@ -26,6 +26,12 @@ function renderBuilder(id = LESSON_ID) {
 }
 
 describe("BuilderPage", () => {
+  beforeEach(() => {
+    server.use(
+      http.get("*/api/proxy/admin/map-locations", () => HttpResponse.json([])),
+    );
+  });
+
   it("renders 4 stages from the fixture draft in the navigator", async () => {
     authStore.setAccessToken("t", 900);
     renderBuilder();

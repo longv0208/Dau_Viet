@@ -681,9 +681,10 @@ void main() {
           expect(find.byType(HeritageBackground), findsOneWidget);
           expect(find.text('Thời kỳ Phong kiến Độc lập Tự chủ'), findsOneWidget);
           expect(
-            find.text('Tiến độ thời kỳ: 0/2 sự kiện bắt buộc'),
+            find.text('Tiến độ thời kỳ: 0/2 sự kiện • 1/3 bài học'),
             findsOneWidget,
           );
+          expect(find.text('33%'), findsOneWidget);
           expect(find.text('Mốc tiếp theo'), findsOneWidget);
           expect(find.text('1. Vì sao dời đô?'), findsOneWidget);
           expect(find.text('2. Dấu tích đô thành qua thời gian'), findsOneWidget);

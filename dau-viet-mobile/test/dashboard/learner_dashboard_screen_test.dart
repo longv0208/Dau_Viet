@@ -217,6 +217,85 @@ void main() {
         expect(find.text('2/5 hoạt động'), findsOneWidget);
       },
     );
+
+    testWidgets(
+      'Các CTA hành trình học tập điều hướng tới /journey hoặc /journey/:periodCode thay vì /map',
+      (tester) async {
+        final mockPathRepo = MockLearningPathRepository();
+        final visitedRoutes = <String>[];
+
+        final router = GoRouter(
+          initialLocation: '/dashboard',
+          routes: [
+            GoRoute(
+              path: '/dashboard',
+              builder: (_, _) => const LearnerDashboardScreen(),
+            ),
+            GoRoute(
+              path: '/journey',
+              builder: (_, _) {
+                visitedRoutes.add('/journey');
+                return const Scaffold(body: Text('JOURNEY_ROOT'));
+              },
+            ),
+            GoRoute(
+              path: '/journey/:periodCode',
+              builder: (_, state) {
+                final code = state.pathParameters['periodCode'] ?? '';
+                visitedRoutes.add('/journey/$code');
+                return Scaffold(body: Text('JOURNEY_PERIOD:$code'));
+              },
+            ),
+          ],
+        );
+
+        await tester.pumpWidget(
+          ProviderScope(
+            overrides: [
+              attemptRepositoryProvider.overrideWithValue(
+                FakeAttemptRepository(),
+              ),
+              learningPathRepositoryProvider.overrideWithValue(mockPathRepo),
+              learnerLearningPathProvider.overrideWith(
+                () => _StubLearningPathController(mockPathRepo),
+              ),
+            ],
+            child: MaterialApp.router(routerConfig: router),
+          ),
+        );
+        await tester.pumpAndSettle();
+
+        // 1. Bấm thẻ "Bài học hôm nay" -> /journey/EARLY_INDEPENDENCE
+        await tester.ensureVisible(find.text('Đại Chiến Bạch Đằng 938'));
+        await tester.tap(find.text('Đại Chiến Bạch Đằng 938'));
+        await tester.pumpAndSettle();
+        expect(visitedRoutes.last, '/journey/EARLY_INDEPENDENCE');
+
+        // 2. Bấm "Xem hành trình →" -> /journey
+        router.go('/dashboard');
+        await tester.pumpAndSettle();
+        await tester.ensureVisible(find.text('Xem hành trình →'));
+        await tester.tap(find.text('Xem hành trình →'));
+        await tester.pumpAndSettle();
+        expect(visitedRoutes.last, '/journey');
+
+        // 3. Bấm thẻ "Bài học" -> /journey
+        router.go('/dashboard');
+        await tester.pumpAndSettle();
+        await tester.ensureVisible(find.text('Bài học'));
+        await tester.tap(find.text('Bài học'));
+        await tester.pumpAndSettle();
+        expect(visitedRoutes.last, '/journey');
+
+        // 4. Bấm Quest 1 "Hoàn thành bài học hôm nay" -> /journey
+        router.go('/dashboard');
+        await tester.pumpAndSettle();
+        await tester.ensureVisible(find.text('Hoàn thành bài học hôm nay'));
+        await tester.tap(find.text('Hoàn thành bài học hôm nay'));
+        await tester.pumpAndSettle();
+        expect(visitedRoutes.last, '/journey');
+      },
+    );
   });
 }
 

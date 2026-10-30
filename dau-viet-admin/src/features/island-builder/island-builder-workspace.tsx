@@ -175,6 +175,7 @@ export function IslandBuilderWorkspace({ versionId }: { versionId: string }) {
     setUndoStack((stack) => {
       if (stack.length === 0) return stack;
       const last = stack[stack.length - 1];
+      if (!last) return stack;
       setSnapshot(last);
       setIsDirty(true);
       return stack.slice(0, -1);
@@ -395,9 +396,8 @@ export function IslandBuilderWorkspace({ versionId }: { versionId: string }) {
     return (
       <div className="p-8">
         <ErrorState
-          title="Không thể tải layout"
-          message={toUserMessage(versionQuery.error)}
-          onRetry={() => versionQuery.refetch()}
+          error={versionQuery.error}
+          onRetry={() => void versionQuery.refetch()}
         />
       </div>
     );

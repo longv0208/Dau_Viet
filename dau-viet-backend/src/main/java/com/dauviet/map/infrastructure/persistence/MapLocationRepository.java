@@ -17,6 +17,13 @@ public interface MapLocationRepository extends JpaRepository<MapLocation, UUID> 
 
     List<MapLocation> findByEventIdOrderByDisplayOrderAscTitleAsc(UUID eventId);
 
+
+    @Query("select distinct m from MapLocation m "
+         + "where m.eventId = :eventId "
+         + "   or exists (select 1 from MapLocationEvent mle "
+         + "              where mle.id.locationId = m.id and mle.id.eventId = :eventId) "
+         + "order by m.displayOrder asc, m.title asc")
+    List<MapLocation> findAllByEventIdIncludingLinks(@Param("eventId") UUID eventId);
     Optional<MapLocation> findByIdAndEventId(UUID id, UUID eventId);
 
     Optional<MapLocation> findBySlug(String slug);
@@ -27,22 +34,18 @@ public interface MapLocationRepository extends JpaRepository<MapLocation, UUID> 
     @Query("select m from MapLocation m left join HistoricalEvent e on m.eventId = e.id "
          + "where m.status = :status "
          + "and ((m.eventId is not null and e.status = 'PUBLISHED') "
-         + "  or (m.eventId is null and ("
-         + "        not exists (select 1 from MapLocationEvent mle where mle.id.locationId = m.id) "
-         + "     or exists (select 1 from MapLocationEvent mle, HistoricalEvent he "
-         + "                where mle.id.locationId = m.id and mle.id.eventId = he.id and he.status = 'PUBLISHED')"
-         + "  ))) "
+         + "  or exists (select 1 from MapLocationEvent mle, HistoricalEvent he "
+         + "             where mle.id.locationId = m.id and mle.id.eventId = he.id and he.status = 'PUBLISHED') "
+         + "  or (m.eventId is null and not exists (select 1 from MapLocationEvent mle where mle.id.locationId = m.id))) "
          + "order by coalesce(e.startYear, 0) asc, m.displayOrder asc, m.title asc")
     List<MapLocation> findVisibleForLearner(@Param("status") MapLocationStatus status);
 
     @Query("select m from MapLocation m left join HistoricalEvent e on m.eventId = e.id "
          + "where m.id = :id and m.status = :status "
          + "and ((m.eventId is not null and e.status = 'PUBLISHED') "
-         + "  or (m.eventId is null and ("
-         + "        not exists (select 1 from MapLocationEvent mle where mle.id.locationId = m.id) "
-         + "     or exists (select 1 from MapLocationEvent mle, HistoricalEvent he "
-         + "                where mle.id.locationId = m.id and mle.id.eventId = he.id and he.status = 'PUBLISHED')"
-         + "  )))")
+         + "  or exists (select 1 from MapLocationEvent mle, HistoricalEvent he "
+         + "             where mle.id.locationId = m.id and mle.id.eventId = he.id and he.status = 'PUBLISHED') "
+         + "  or (m.eventId is null and not exists (select 1 from MapLocationEvent mle where mle.id.locationId = m.id)))")
     Optional<MapLocation> findVisibleForLearnerById(
             @Param("id") UUID id, @Param("status") MapLocationStatus status);
 }

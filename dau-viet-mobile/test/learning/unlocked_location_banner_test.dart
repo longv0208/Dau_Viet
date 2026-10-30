@@ -108,10 +108,21 @@ void main() {
     );
 
     testWidgets(
-      'nút Xem địa điểm điều hướng tới /heritage/:locationId và Tiếp tục học điều hướng tới /journey (Issue #42)',
+      'nút Xem địa điểm ưu tiên /map?locationId=:locationId (mở LocationProfileSheet) và Tiếp tục học điều hướng tới /campaign/:eventId hoặc /journey',
       (tester) async {
-        final repo = FakeAttemptRepository();
-        String? visitedHeritageId;
+        final repo = FakeAttemptRepository()
+          ..metadata = const LessonMetadataDto(
+            id: 'l-1',
+            eventId: 'evt-bach-dang-938',
+            title: 'Trận Bạch Đằng 938',
+          )
+          ..content = const LessonContentDto(
+            lessonId: 'l-1',
+            lessonVersionId: 'v-1',
+            content: {'title': 'Trận Bạch Đằng 938'},
+          );
+        String? visitedMapLocationId;
+        String? visitedCampaignEventId;
 
         final router = GoRouter(
           initialLocation: '/learning/result/a-1',
@@ -135,10 +146,16 @@ void main() {
             ),
             GoRoute(
               path: '/heritage/:locationId',
+              builder: (context, state) => Scaffold(
+                body: Text('HERITAGE:${state.pathParameters['locationId']}'),
+              ),
+            ),
+            GoRoute(
+              path: '/campaign/:eventId',
               builder: (context, state) {
-                visitedHeritageId = state.pathParameters['locationId'];
+                visitedCampaignEventId = state.pathParameters['eventId'];
                 return Scaffold(
-                  body: Text('HERITAGE:${state.pathParameters['locationId']}'),
+                  body: Text('CAMPAIGN:$visitedCampaignEventId'),
                 );
               },
             ),
@@ -149,8 +166,12 @@ void main() {
             ),
             GoRoute(
               path: '/map',
-              builder: (context, state) =>
-                  const Scaffold(body: Text('MAP_SCREEN')),
+              builder: (context, state) {
+                visitedMapLocationId = state.uri.queryParameters['locationId'];
+                return Scaffold(
+                  body: Text('MAP_SCREEN:${visitedMapLocationId ?? ''}'),
+                );
+              },
             ),
             GoRoute(
               path: '/dashboard',
@@ -174,10 +195,10 @@ void main() {
         await tester.tap(find.text('Xem địa điểm'));
         await tester.pumpAndSettle();
 
-        expect(visitedHeritageId, 'loc-bach-dang-01');
-        expect(find.text('HERITAGE:loc-bach-dang-01'), findsOneWidget);
+        expect(visitedMapLocationId, 'loc-bach-dang-01');
+        expect(find.text('MAP_SCREEN:loc-bach-dang-01'), findsOneWidget);
 
-        // Quay lại màn kết quả rồi bấm Tiếp tục học
+        // Quay lại màn kết quả rồi bấm Tiếp tục học -> điều hướng về /campaign/evt-bach-dang-938
         router.go(
           '/learning/result/a-1',
           extra: const LessonResultDto(
@@ -195,7 +216,8 @@ void main() {
         await tester.tap(find.text('Tiếp tục học'));
         await tester.pumpAndSettle();
 
-        expect(find.text('JOURNEY_SCREEN'), findsOneWidget);
+        expect(visitedCampaignEventId, 'evt-bach-dang-938');
+        expect(find.text('CAMPAIGN:evt-bach-dang-938'), findsOneWidget);
       },
     );
 
@@ -327,6 +349,103 @@ void main() {
 
         expect(deepLinkState.hasAnimated, isFalse);
         expect(deepLinkState.animationRunCount, 0);
+      },
+    );
+
+    test(
+      'BUG-01: LessonResultDto.fromJson parse newlyUnlockedLocations & newlyUnlockedDossiers từ top-level và fallback result.unlockedLocations / result.unlockedDossiers',
+      () {
+        final topLevelDto = LessonResultDto.fromJson({
+          'attemptId': 'a-top',
+          'lessonVersionId': 'v-1',
+          'status': 'COMPLETED',
+          'score': 95,
+          'result': {'summary': 'Đạt'},
+          'newlyUnlockedDossiers': ['dossier-01', 'dossier-02'],
+          'newlyUnlockedLocations': [
+            {
+              'locationId': 'loc-bach-dang-01',
+              'slug': 'bai-coc-bach-dang',
+              'title': 'Bãi cọc Bạch Đằng (Yên Giang)',
+              'kind': 'HERITAGE_SITE',
+            },
+          ],
+        });
+        expect(
+          topLevelDto.newlyUnlockedDossiers,
+          equals(['dossier-01', 'dossier-02']),
+        );
+        expect(topLevelDto.newlyUnlockedLocations, hasLength(1));
+        expect(
+          topLevelDto.newlyUnlockedLocations.first.locationId,
+          'loc-bach-dang-01',
+        );
+
+        final fallbackDto = LessonResultDto.fromJson({
+          'attemptId': 'a-fallback',
+          'lessonVersionId': 'v-1',
+          'status': 'COMPLETED',
+          'score': 100,
+          'result': {
+            'summary': 'Thắng lợi Bạch Đằng',
+            'unlockedDossiers': ['dossier-ngo-quyen'],
+            'unlockedLocations': [
+              {
+                'locationId': 'loc-nam-trieu-02',
+                'slug': 'cua-song-nam-trieu',
+                'title': 'Cửa sông Nam Triệu',
+                'kind': 'BATTLEFIELD',
+              },
+            ],
+          },
+        });
+        expect(
+          fallbackDto.newlyUnlockedDossiers,
+          equals(['dossier-ngo-quyen']),
+        );
+        expect(fallbackDto.newlyUnlockedLocations, hasLength(1));
+        expect(
+          fallbackDto.newlyUnlockedLocations.first.title,
+          'Cửa sông Nam Triệu',
+        );
+      },
+    );
+
+    testWidgets(
+      'BUG-01: reload LessonResultScreen (initialResult == null) vẫn hiển thị UnlockedLocationBanner và _DossierUnlockBanner từ GET /attempts/{id}/result mà không phát lại animation',
+      (tester) async {
+        final parsedReloadResult = LessonResultDto.fromJson({
+          'attemptId': 'a-reload',
+          'lessonVersionId': 'v-1',
+          'status': 'COMPLETED',
+          'score': 100,
+          'result': {
+            'summary': 'Hoàn thành xuất sắc',
+            'unlockedDossiers': ['dossier-bach-dang-01'],
+            'unlockedLocations': [_locBachDang.toJson()],
+          },
+        });
+        final repo = FakeAttemptRepository()..result = parsedReloadResult;
+
+        await tester.pumpWidget(
+          ProviderScope(
+            overrides: [attemptRepositoryProvider.overrideWithValue(repo)],
+            child: const MaterialApp(
+              home: LessonResultScreen(attemptId: 'a-reload'),
+            ),
+          ),
+        );
+        await tester.pumpAndSettle();
+
+        expect(find.byType(UnlockedLocationBanner), findsOneWidget);
+        expect(find.text('Bãi cọc Bạch Đằng (Yên Giang)'), findsOneWidget);
+        expect(find.text('ĐÃ MỞ KHÓA 1 HỒ SƠ LỊCH SỬ'), findsOneWidget);
+
+        final bannerState = tester.state<UnlockedLocationBannerState>(
+          find.byType(UnlockedLocationBanner),
+        );
+        expect(bannerState.hasAnimated, isFalse);
+        expect(bannerState.animationRunCount, 0);
       },
     );
   });

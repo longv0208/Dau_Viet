@@ -107,6 +107,18 @@ export function EvidenceRefPicker({
               title={e ? `${e.title} — ${e.sourceTitle ?? "chưa có nguồn"}` : "Bằng chứng không còn tồn tại"}
             >
               {e ? e.title.slice(0, 40) : "Đã xoá"}
+              {e && (
+                <span
+                  className={
+                    "rounded px-1 py-0.5 text-[10px] font-medium " +
+                    (e.status === "APPROVED"
+                      ? "bg-success/15 text-success"
+                      : "bg-warning/20 text-ink")
+                  }
+                >
+                  {e.status === "APPROVED" ? "Đã duyệt" : "Bản nháp"}
+                </span>
+              )}
               {!readOnly && (
                 <button
                   type="button"
@@ -124,6 +136,15 @@ export function EvidenceRefPicker({
           <span className="text-xs text-ink-muted">Chưa chọn bằng chứng nào.</span>
         )}
       </div>
+      {eventId &&
+        selectedIds.some((id) => {
+          const e = byId.get(id);
+          return e && e.eventId !== eventId;
+        }) && (
+          <p className="rounded-md bg-warning/15 px-2.5 py-1.5 text-xs text-ink">
+            Cảnh báo: Có bằng chứng đã chọn không thuộc sự kiện của bài học này — có thể bị chặn khi xuất bản.
+          </p>
+        )}
 
       {!readOnly && (
         <Button
@@ -190,11 +211,21 @@ export function EvidenceRefPicker({
                     <span className="flex items-center gap-1.5 font-medium text-ink">
                       {Icon && <Icon className="size-3.5 shrink-0 text-ink-muted" aria-hidden />}
                       <span className="truncate">{e.title}</span>
+                      <span
+                        className={
+                          "ml-auto shrink-0 rounded px-1.5 py-0.5 text-[10px] font-medium " +
+                          (e.status === "APPROVED"
+                            ? "bg-success/15 text-success"
+                            : "bg-warning/20 text-ink")
+                        }
+                      >
+                        {e.status === "APPROVED" ? "Đã duyệt" : "Bản nháp"}
+                      </span>
                     </span>
                     <span className="block text-xs text-ink-muted">
                       {evidenceTypeLabel(e.evidenceType)} ·{" "}
                       {e.sourceTitle ? e.sourceTitle.slice(0, 50) : "Chưa có nguồn"}
-                      {e.status === "DRAFT" ? " · nháp" : ""}
+                      {eventId && e.eventId !== eventId ? " · Khác sự kiện bài học" : ""}
                     </span>
                   </span>
                 </label>

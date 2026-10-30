@@ -67,6 +67,14 @@ export function EvidenceBasicFields({
           {errors.evidenceType && (
             <p role="alert" className="text-xs text-error">{errors.evidenceType.message}</p>
           )}
+          <div className="rounded-md border border-border bg-surface p-2.5 text-xs text-ink-muted">
+            <p className="font-medium text-ink">
+              Ánh xạ 4 Nhóm Dấu vết Điều tra của Học viên:
+            </p>
+            <p className="mt-1">
+              1. Hiện vật: <code>HIEN_VAT</code> · 2. Địa hình/Bản đồ: <code>BAN_DO</code>, <code>HINH_ANH</code> · 3. Nhân vật/Lời kể: <code>LOI_KE</code> · 4. Cổ thư/Tư liệu: <code>VAN_BAN</code>, <code>GHI_CHEP</code>
+            </p>
+          </div>
         </div>
       </div>
 

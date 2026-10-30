@@ -62,6 +62,7 @@ export const CODE_MESSAGES: Record<string, string> = {
   UNSUPPORTED_SCHEMA_VERSION: "Phiên bản cấu trúc không được hỗ trợ",
   EMPTY_COMPLETION: "Phần điều kiện hoàn thành để trống — hãy chọn điều kiện hoặc bỏ phần này",
   UNSUPPORTED_ACTIVITY_TYPE: "Loại hoạt động không được hỗ trợ",
+  EVENT_NOT_PUBLISHED: "Sự kiện cha chưa được xuất bản — hãy xuất bản sự kiện trước khi xuất bản bài học",
 };
 
 /**

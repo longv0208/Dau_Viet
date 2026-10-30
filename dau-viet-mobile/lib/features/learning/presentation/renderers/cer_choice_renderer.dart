@@ -90,12 +90,27 @@ class _CerChoiceRendererState extends State<CerChoiceRenderer> {
     final config = widget.activity.config;
     final source = config['priorEvidenceSource'];
     final prior = config['priorOutputs'];
-    if (source is! String || prior is! Map) return const [];
-    final out = prior[source];
-    if (out is! Map) return const [];
-    final ids = out['selectedEvidenceIds'];
-    if (ids is! List) return const [];
-    return ids.whereType<String>().toList();
+    if (prior is! Map) return const [];
+    if (source is String && source.trim().isNotEmpty) {
+      final out = prior[source];
+      if (out is Map) {
+        final ids = out['selectedEvidenceIds'];
+        if (ids is List) {
+          final list = ids.whereType<String>().toList();
+          if (list.isNotEmpty) return list;
+        }
+      }
+    }
+    for (final out in prior.values) {
+      if (out is Map) {
+        final ids = out['selectedEvidenceIds'];
+        if (ids is List) {
+          final list = ids.whereType<String>().toList();
+          if (list.isNotEmpty) return list;
+        }
+      }
+    }
+    return const [];
   }
 
   bool get _canSubmit =>
@@ -143,9 +158,17 @@ class _CerChoiceRendererState extends State<CerChoiceRenderer> {
     final config = widget.activity.config;
     final claims = configList(config, 'claims');
     final reasoningOptions = configList(config, 'reasoningOptions');
-    final evidenceOptions = configList(config, 'evidenceOptions');
+    final rawEvidenceOptions = configList(config, 'evidenceOptions');
     final priorEvidenceIds = _priorEvidenceIds();
-
+    final existingOptionIds = <String>{
+      for (final e in rawEvidenceOptions)
+        if (e['id'] is String) e['id'] as String,
+    };
+    final evidenceOptions = <Map<String, dynamic>>[
+      ...rawEvidenceOptions,
+      for (final id in priorEvidenceIds)
+        if (!existingOptionIds.contains(id)) {'id': id},
+    ];
     String? pickedClaimText;
     for (final c in claims) {
       if (c['id'] == _claimId) {

@@ -266,6 +266,14 @@ class HeritageLocationV2IT extends AbstractPostgresIT {
         assertThat(newly2.get(0).path("locationId").asText()).isEqualTo(locAllId.toString());
         assertThat(newly2.get(0).path("slug").asText()).isEqualTo("bai-coc-yen-giang-all");
 
+        String attempt2Id = complete2.path("attemptId").asText();
+        mvc.perform(get("/api/v1/attempts/" + attempt2Id + "/result")
+                        .header("Authorization", learnerToken))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.newlyUnlockedLocations.length()").value(1))
+                .andExpect(jsonPath("$.newlyUnlockedLocations[0].locationId").value(locAllId.toString()))
+                .andExpect(jsonPath("$.newlyUnlockedLocations[0].slug").value("bai-coc-yen-giang-all"));
+
         mvc.perform(get("/api/v1/map/locations/" + locAllId)
                         .header("Authorization", learnerToken))
                 .andExpect(status().isOk())

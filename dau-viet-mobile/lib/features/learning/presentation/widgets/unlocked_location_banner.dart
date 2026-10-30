@@ -25,8 +25,14 @@ class UnlockedLocationBanner extends StatefulWidget {
   final void Function(UnlockedLocationCueDto location)? onViewLocation;
 
   /// Callback tùy chọn khi bấm "Tiếp tục học" (mặc định điều hướng tới
-  /// `/dashboard` hoặc `/journey`).
+  /// `/campaign/:eventId`, `/journey/:periodCode`, `/journey` hoặc `/dashboard`).
   final VoidCallback? onContinueLearning;
+
+  /// Event ID của bài học vừa hoàn thành (nếu có) để quay về đúng sự kiện.
+  final String? eventId;
+
+  /// Mã thời kỳ của bài học vừa hoàn thành (nếu có) để fallback về đúng thời kỳ.
+  final String? periodCode;
 
   const UnlockedLocationBanner({
     super.key,
@@ -34,6 +40,8 @@ class UnlockedLocationBanner extends StatefulWidget {
     this.animate = true,
     this.onViewLocation,
     this.onContinueLearning,
+    this.eventId,
+    this.periodCode,
   });
 
   @override
@@ -115,8 +123,12 @@ class UnlockedLocationBannerState extends State<UnlockedLocationBanner>
     final router = GoRouter.maybeOf(context);
     if (router != null) {
       final locId = location.locationId;
-      if (locId.isNotEmpty &&
-          _hasRoutePrefix(router.configuration.routes, '/heritage')) {
+      final routes = router.configuration.routes;
+      if (locId.isNotEmpty && _hasRoutePrefix(routes, '/map')) {
+        router.go('/map?locationId=${Uri.encodeComponent(locId)}');
+        return;
+      }
+      if (locId.isNotEmpty && _hasRoutePrefix(routes, '/heritage')) {
         router.go('/heritage/$locId');
         return;
       }
@@ -136,6 +148,19 @@ class UnlockedLocationBannerState extends State<UnlockedLocationBanner>
     final router = GoRouter.maybeOf(context);
     if (router != null) {
       final routes = router.configuration.routes;
+      final evId = widget.eventId?.trim() ?? '';
+      if (evId.isNotEmpty && _hasRoutePrefix(routes, '/campaign')) {
+        router.go('/campaign/$evId');
+        return;
+      }
+      final pCode = widget.periodCode?.trim() ?? '';
+      if (pCode.isNotEmpty &&
+          router.configuration
+              .findMatch(Uri.parse('/journey/$pCode'))
+              .isNotEmpty) {
+        router.go('/journey/$pCode');
+        return;
+      }
       // Issue #42: "Tiếp tục học" quay về Hành trình Lịch sử (luồng học
       // chính), không về Bản đồ Dấu Ấn.
       if (_hasRoutePrefix(routes, '/journey')) {

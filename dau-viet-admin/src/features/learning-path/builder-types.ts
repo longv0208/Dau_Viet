@@ -13,7 +13,7 @@ export function historicalYear(year: number | null | undefined): string {
 
 export const CONTENT_LABELS: Record<string, string> = {
   PLAYABLE: "Sẵn sàng học",
-  NO_PUBLISHED_LESSON: "Chưa có bài đã xuất bản",
+  NO_PUBLISHED_LESSON: "Chưa gắn bài học vào lộ trình",
   NO_COMPLETION_POLICY: "Chưa có chính sách hoàn thành",
   CONTENT_REVIEW_REQUIRED: "Cần kiểm tra nội dung",
 };

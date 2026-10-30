@@ -38,6 +38,30 @@ export function PathBuilder({ versionId }: { versionId: string }) {
   const canPublish = !readOnly && !disabled && editor.validation != null
     && editor.validatedRevision === detail.version.revision && !editor.validation.issues.some((issue) => issue.level === "ERROR");
   const select = (nextChapter: string, nextEvent?: string) => { setChapterId(nextChapter); setEventId(nextEvent); setPanel("events"); };
+  const selectByTargetId = (targetId: string) => {
+    const matchedChapter = detail.chapters.find(
+      (row) =>
+        row.chapter.id === targetId ||
+        row.events.some(
+          (ev) =>
+            ev.node.id === targetId ||
+            ev.node.eventId === targetId ||
+            ev.canonicalEventId === targetId ||
+            ev.lessons.some((lesson) => lesson.node.id === targetId || lesson.node.lessonId === targetId),
+        ),
+    );
+    const matchedEvent = matchedChapter?.events.find(
+      (ev) =>
+        ev.node.id === targetId ||
+        ev.node.eventId === targetId ||
+        ev.canonicalEventId === targetId ||
+        ev.lessons.some((lesson) => lesson.node.id === targetId || lesson.node.lessonId === targetId),
+    );
+    if (matchedChapter) {
+      select(matchedChapter.chapter.id, matchedEvent?.node.id);
+    }
+    setValidationOpen(false);
+  };
   const change: PathChange = async (...args) => {
     const result = await editor.change(...args);
     if (result && activeEventId) {
@@ -70,7 +94,7 @@ export function PathBuilder({ versionId }: { versionId: string }) {
     </div>
     <Dialog open={validationOpen} onOpenChange={setValidationOpen} title="Kiểm tra điều kiện xuất bản" description="Lỗi chặn xuất bản. Cảnh báo cần xem lại, nhưng không tự thay đổi thứ tự hay nội dung." size="lg"
       footer={<><Button variant="secondary" onClick={() => setValidationOpen(false)}>Đóng</Button>{!readOnly && <Button disabled={!canPublish} onClick={() => { setValidationOpen(false); setPublishOpen(true); }}>Xuất bản lộ trình</Button>}</>}>
-      {editor.validation ? <PathValidation report={editor.validation} detail={detail} onSelect={(id, node) => { select(id, node); setValidationOpen(false); }} /> : <p className="text-sm text-ink-muted">Dữ liệu đã thay đổi. Đóng hộp thoại và kiểm tra lại.</p>}
+      {editor.validation ? <PathValidation report={editor.validation} detail={detail} onSelect={(id, node) => { select(id, node); setValidationOpen(false); }} onSelectTarget={selectByTargetId} /> : <p className="text-sm text-ink-muted">Dữ liệu đã thay đổi. Đóng hộp thoại và kiểm tra lại.</p>}
     </Dialog>
     <ConfirmDialog open={publishOpen} onOpenChange={setPublishOpen} title="Xuất bản lộ trình này?" description="Bản nháp trở thành phiên bản hiện hành. Phiên bản trước được lưu trữ và giữ nguyên lịch sử học tập." confirmLabel="Xác nhận xuất bản" onConfirm={() => { if (canPublish) void editor.publish(); }} />
   </PaperCard>;

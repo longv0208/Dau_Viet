@@ -174,10 +174,17 @@ export function PolicyEditor({
         </div>
       )}
 
+      {!initial && (
+        <p className="text-xs text-ink-muted">
+          Hãy bấm Lưu nháp trước khi chạy Kiểm tra
+        </p>
+      )}
+
       <div className="flex flex-wrap items-center gap-2">
         <Button
           variant="secondary"
-          disabled={validating}
+          disabled={validating || !initial}
+          title={!initial ? "Hãy bấm Lưu nháp trước khi chạy Kiểm tra" : undefined}
           onClick={() => onValidate(payload)}
         >
           {validating ? "Đang kiểm tra…" : "Kiểm tra"}

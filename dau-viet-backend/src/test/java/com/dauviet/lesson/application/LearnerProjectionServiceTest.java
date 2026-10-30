@@ -501,4 +501,38 @@ class LearnerProjectionServiceTest {
         assertThat(projection.project(MAPPER.readTree("{\"stages\":[]}"))
                 .get("stages").isArray()).isTrue();
     }
+
+    @Test
+    void evidenceSelect_graded_emitsExpectedCountFromConfigOrValidation_andStripsAcceptedEvidenceIds() throws Exception {
+        JsonNode fromConfig = projection.projectActivity(MAPPER.readTree("""
+                {"id":"es1","type":"EVIDENCE_SELECT",
+                 "config":{"graded":true,"visibleEvidenceIds":["e1","e2","e3"],
+                           "acceptedEvidenceIds":["e1","e2"]}}
+                """));
+        assertThat(fromConfig.at("/config/expectedCount").asInt()).isEqualTo(2);
+        assertThat(fromConfig.at("/config").has("acceptedEvidenceIds")).isFalse();
+
+        JsonNode fromValidation = projection.projectActivity(MAPPER.readTree("""
+                {"id":"es2","type":"EVIDENCE_SELECT",
+                 "validation":{"acceptedEvidenceIds":["e1","e2","e3"]},
+                 "config":{"graded":true,"visibleEvidenceIds":["e1","e2","e3","e4"]}}
+                """));
+        assertThat(fromValidation.at("/config/expectedCount").asInt()).isEqualTo(3);
+        assertThat(fromValidation.has("validation")).isFalse();
+        assertThat(fromValidation.at("/config").has("acceptedEvidenceIds")).isFalse();
+
+        JsonNode preservesExplicit = projection.projectActivity(MAPPER.readTree("""
+                {"id":"es3","type":"EVIDENCE_SELECT",
+                 "config":{"graded":true,"expectedCount":5,"acceptedEvidenceIds":["e1","e2"]}}
+                """));
+        assertThat(preservesExplicit.at("/config/expectedCount").asInt()).isEqualTo(5);
+        assertThat(preservesExplicit.at("/config").has("acceptedEvidenceIds")).isFalse();
+
+        JsonNode ungraded = projection.projectActivity(MAPPER.readTree("""
+                {"id":"es4","type":"EVIDENCE_SELECT",
+                 "config":{"graded":false,"acceptedEvidenceIds":["e1","e2"]}}
+                """));
+        assertThat(ungraded.at("/config").has("expectedCount")).isFalse();
+        assertThat(ungraded.at("/config").has("acceptedEvidenceIds")).isFalse();
+    }
 }

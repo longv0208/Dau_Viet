@@ -177,27 +177,54 @@ class EvaluationDto {
   final bool completed;
   final Map<String, dynamic>? output;
   final String? feedbackCode;
+  final int? _correctPositions;
+  final int? _totalItems;
 
   const EvaluationDto({
     this.outcome,
     required this.completed,
     this.output,
     this.feedbackCode,
-  });
+    int? correctPositions,
+    int? totalItems,
+  }) :
+       // ignore: prefer_initializing_formals
+       _correctPositions = correctPositions,
+       // ignore: prefer_initializing_formals
+       _totalItems = totalItems;
 
-  factory EvaluationDto.fromJson(Map<String, dynamic>? json) => EvaluationDto(
-    outcome: json?['outcome'] as String?,
-    completed: json?['completed'] as bool? ?? false,
-    output: (json?['output'] as Map?)?.cast<String, dynamic>(),
-    feedbackCode: json?['feedbackCode'] as String?,
-  );
+  factory EvaluationDto.fromJson(Map<String, dynamic>? json) {
+    final out = (json?['output'] as Map?)?.cast<String, dynamic>();
+    final src = out ?? json ?? const <String, dynamic>{};
+    return EvaluationDto(
+      outcome: json?['outcome'] as String?,
+      completed: json?['completed'] as bool? ?? false,
+      output: out,
+      feedbackCode: json?['feedbackCode'] as String?,
+      correctPositions:
+          (json?['correctPositions'] as num?)?.toInt() ??
+          (json?['correctCount'] as num?)?.toInt() ??
+          (src['correctPositions'] as num?)?.toInt() ??
+          (src['correctCount'] as num?)?.toInt(),
+      totalItems:
+          (json?['totalItems'] as num?)?.toInt() ??
+          (json?['expectedCount'] as num?)?.toInt() ??
+          (src['totalItems'] as num?)?.toInt() ??
+          (src['expectedCount'] as num?)?.toInt(),
+    );
+  }
 
-  /// Số vị trí/cặp/phần đã đúng (DRAG_ORDER, MATCHING, CER_CHOICE…).
-  int? get correctPositions => (output?['correctPositions'] as num?)?.toInt();
+  /// Số vị trí/cặp/phần đã đúng (DRAG_ORDER, MATCHING, CER_CHOICE, EVIDENCE_SELECT…).
+  int? get correctPositions =>
+      _correctPositions ??
+      (output?['correctPositions'] as num?)?.toInt() ??
+      (output?['correctCount'] as num?)?.toInt();
 
   /// Tổng số mục cần đúng.
-  int? get totalItems => (output?['totalItems'] as num?)?.toInt();
-
+  int? get totalItems =>
+      _totalItems ??
+      (output?['totalItems'] as num?)?.toInt() ??
+      (output?['expectedCount'] as num?)?.toInt();
   /// Lượt thử đã dùng (1-based theo submit hiện tại).
   int? get attemptCount => (output?['attemptCount'] as num?)?.toInt();
 
@@ -451,8 +478,8 @@ class LessonResultDto {
   /// Vật phẩm mở khóa được ghi nhận bởi attempt này (source_attempt_id).
   final List<InventoryItemDto> itemsUnlocked;
 
-  /// GAME-04 additive: dossier ids mở MỚI trong lần complete (chỉ request
-  /// complete trả; getResult không có — rỗng khi deep-link/reload).
+  /// GAME-04 additive: dossier ids mở MỚI trong lần complete này (đọc từ
+  /// top-level `newlyUnlockedDossiers` hoặc fallback `result.unlockedDossiers`).
   final List<String> newlyUnlockedDossiers;
 
   /// STREAK-01 (client-only): ngày học MỚI được công nhận trong lần
@@ -462,8 +489,8 @@ class LessonResultDto {
   final StreakInfoDto? newlyRecordedStreak;
 
   /// MAP-V2 (E5): các địa điểm di sản vừa mở khóa MỚI trong lần complete
-  /// này — LessonPlayerScreen gắn vào enriched DTO truyền qua route extra;
-  /// GET /result khi deep-link/reload trả rỗng để không phát lại animation.
+  /// này (đọc từ top-level `newlyUnlockedLocations` hoặc fallback
+  /// `result.unlockedLocations`).
   final List<UnlockedLocationCueDto> newlyUnlockedLocations;
 
   const LessonResultDto({
@@ -481,35 +508,49 @@ class LessonResultDto {
     this.newlyUnlockedLocations = const [],
   });
 
-  factory LessonResultDto.fromJson(
-    Map<String, dynamic> json,
-  ) => LessonResultDto(
-    attemptId: json['attemptId'] as String? ?? '',
-    lessonVersionId: json['lessonVersionId'] as String? ?? '',
-    status: json['status'] as String? ?? '',
-    score: (json['score'] as num?)?.toDouble(),
-    result: (json['result'] as Map?)?.cast<String, dynamic>() ?? const {},
-    completedAt: json['completedAt'] as String?,
-    startedAt: json['startedAt'] as String?,
-    rewards: (json['rewards'] as List? ?? const [])
-        .whereType<Map>()
-        .map((e) => RewardTransactionDto.fromJson(e.cast<String, dynamic>()))
-        .toList(),
-    itemsUnlocked: (json['itemsUnlocked'] as List? ?? const [])
-        .whereType<Map>()
-        .map((e) => InventoryItemDto.fromJson(e.cast<String, dynamic>()))
-        .toList(),
-    newlyUnlockedDossiers: (json['newlyUnlockedDossiers'] as List? ?? const [])
-        .whereType<String>()
-        .toList(),
-    newlyUnlockedLocations:
-        (json['newlyUnlockedLocations'] as List? ?? const [])
-            .whereType<Map>()
-            .map(
-              (e) => UnlockedLocationCueDto.fromJson(e.cast<String, dynamic>()),
-            )
-            .toList(),
-  );
+  factory LessonResultDto.fromJson(Map<String, dynamic> json) {
+    final resultMap =
+        (json['result'] as Map?)?.cast<String, dynamic>() ?? const {};
+    final Object? rawDossiers =
+        (json['newlyUnlockedDossiers'] is List &&
+            (json['newlyUnlockedDossiers'] as List).isNotEmpty)
+        ? json['newlyUnlockedDossiers']
+        : (resultMap['unlockedDossiers'] ?? resultMap['newlyUnlockedDossiers']);
+    final Object? rawLocations =
+        (json['newlyUnlockedLocations'] is List &&
+            (json['newlyUnlockedLocations'] as List).isNotEmpty)
+        ? json['newlyUnlockedLocations']
+        : (resultMap['unlockedLocations'] ??
+              resultMap['newlyUnlockedLocations']);
+    return LessonResultDto(
+      attemptId: json['attemptId'] as String? ?? '',
+      lessonVersionId: json['lessonVersionId'] as String? ?? '',
+      status: json['status'] as String? ?? '',
+      score: (json['score'] as num?)?.toDouble(),
+      result: resultMap,
+      completedAt: json['completedAt'] as String?,
+      startedAt: json['startedAt'] as String?,
+      rewards: (json['rewards'] as List? ?? const [])
+          .whereType<Map>()
+          .map((e) => RewardTransactionDto.fromJson(e.cast<String, dynamic>()))
+          .toList(),
+      itemsUnlocked: (json['itemsUnlocked'] as List? ?? const [])
+          .whereType<Map>()
+          .map((e) => InventoryItemDto.fromJson(e.cast<String, dynamic>()))
+          .toList(),
+      newlyUnlockedDossiers: (rawDossiers is List ? rawDossiers : const [])
+          .where((e) => e != null)
+          .map((e) => e.toString().trim())
+          .where((s) => s.isNotEmpty)
+          .toList(),
+      newlyUnlockedLocations: (rawLocations is List ? rawLocations : const [])
+          .whereType<Map>()
+          .map(
+            (e) => UnlockedLocationCueDto.fromJson(e.cast<String, dynamic>()),
+          )
+          .toList(),
+    );
+  }
 }
 
 class AttemptSummaryDto {

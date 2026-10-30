@@ -256,5 +256,80 @@ void main() {
         );
       },
     );
+
+    testWidgets(
+      'BUG-04: Hồ sơ địa điểm đã mở khoá ưu tiên media UNLOCKED_ONLY lên trước và hiển thị huy hiệu "MỞ KHÓA TỪ BÀI HỌC"',
+      (tester) async {
+        const locUnlockedWithExclusiveMedia = MapLocationDto(
+          id: 'loc_hat_mon_unlocked',
+          eventId: 'evt_hai_ba_trung',
+          eventTitle: 'Khởi Nghĩa Hai Bà Trưng (Năm 40)',
+          slug: 'cua-song-hat-hat-mon',
+          title: 'Cửa Sông Hát (Hát Môn)',
+          shortSummary: 'Đền Hát Môn bên cửa sông Hát.',
+          description: 'Nơi tế cờ khởi nghĩa mùa xuân năm 40.',
+          latitude: 21.1,
+          longitude: 105.5,
+          kind: 'MEMORIAL',
+          coordinatePrecision: 'EXACT',
+          visibility: 'PUBLIC',
+          unlockMode: 'ANY',
+          unlocked: true,
+          unlockState: MapUnlockState.unlocked,
+          media: [
+            MapLocationMediaDto(
+              id: 'm_public',
+              mediaType: 'IMAGE_2D',
+              title: 'Tranh Hội thề Hát Môn (Xem trước)',
+              externalUrl: '/heritage/hat-mon.jpg',
+              visibility: 'PUBLIC_PREVIEW',
+              sortOrder: 0,
+            ),
+            MapLocationMediaDto(
+              id: 'm_exclusive',
+              mediaType: 'IMAGE_2D',
+              title: 'Bản đồ chiến lược Mê Linh (Độc quyền)',
+              externalUrl: '/heritage/me-linh-exclusive.jpg',
+              visibility: 'UNLOCKED_ONLY',
+              sortOrder: 1,
+            ),
+          ],
+        );
+
+        await tester.pumpWidget(
+          ProviderScope(
+            overrides: [
+              mapRepositoryProvider.overrideWithValue(
+                _FakeMapRepo([locUnlockedWithExclusiveMedia]),
+              ),
+            ],
+            child: const MaterialApp(
+              home: Scaffold(
+                body: LocationProfileSheet(
+                  initialLocation: locUnlockedWithExclusiveMedia,
+                ),
+              ),
+            ),
+          ),
+        );
+        await tester.pumpAndSettle();
+
+        expect(find.text('MỞ KHÓA TỪ BÀI HỌC'), findsOneWidget);
+        expect(
+          find.text('Bản đồ chiến lược Mê Linh (Độc quyền)'),
+          findsOneWidget,
+        );
+        expect(find.text('Tranh Hội thề Hát Môn (Xem trước)'), findsOneWidget);
+
+        // Media UNLOCKED_ONLY được ưu tiên hiển thị phía trên media PUBLIC_PREVIEW
+        final exclusiveDy = tester
+            .getTopLeft(find.text('Bản đồ chiến lược Mê Linh (Độc quyền)'))
+            .dy;
+        final previewDy = tester
+            .getTopLeft(find.text('Tranh Hội thề Hát Môn (Xem trước)'))
+            .dy;
+        expect(exclusiveDy, lessThan(previewDy));
+      },
+    );
   });
 }

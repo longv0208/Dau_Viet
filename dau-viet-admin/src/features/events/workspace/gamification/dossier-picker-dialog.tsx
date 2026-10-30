@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import Link from "next/link";
 import { useQuery } from "@tanstack/react-query";
 
 import { apiFetch, toQuery } from "@/lib/api-client";
@@ -55,20 +56,28 @@ export function DossierPickerDialog({
       description="Chỉ hồ sơ đã PUBLISHED mới liên kết được — learner sẽ mở khi hoàn thành sự kiện."
       size="lg"
     >
-      <div className="mb-3 flex gap-2">
-        <Input
-          placeholder="Tìm theo tên hoặc mã…"
-          value={q}
-          onChange={(e) => setQ(e.target.value)}
-        />
-        <Select value={type} onChange={(e) => setType(e.target.value)}>
-          <option value="">Mọi loại</option>
-          {Object.entries(TYPE_LABELS).map(([v, l]) => (
-            <option key={v} value={v}>
-              {l}
-            </option>
-          ))}
-        </Select>
+      <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
+        <div className="flex flex-1 gap-2">
+          <Input
+            placeholder="Tìm theo tên hoặc mã…"
+            value={q}
+            onChange={(e) => setQ(e.target.value)}
+          />
+          <Select value={type} onChange={(e) => setType(e.target.value)}>
+            <option value="">Mọi loại</option>
+            {Object.entries(TYPE_LABELS).map(([v, l]) => (
+              <option key={v} value={v}>
+                {l}
+              </option>
+            ))}
+          </Select>
+        </div>
+        <Link
+          href="/dossiers"
+          className="text-xs font-semibold text-brand hover:underline"
+        >
+          + Tạo &amp; Xuất bản Hồ sơ lịch sử mới →
+        </Link>
       </div>
       {list.isPending && <p className="text-sm text-ink-muted">Đang tải…</p>}
       {list.isError && (

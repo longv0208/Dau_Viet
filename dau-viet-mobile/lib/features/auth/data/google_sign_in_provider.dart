@@ -107,6 +107,7 @@ class _WebGateway implements GoogleSignInGateway {
       GoogleSignInPlatform.instance as GoogleSignInPlugin;
 
   final _initCompleter = Completer<void>();
+  Object? _initError;
   final _credentialsController =
       StreamController<GoogleSignInCredentials>.broadcast();
   // Kept for the lifetime of the gateway — cancel() is only reachable on
@@ -123,13 +124,23 @@ class _WebGateway implements GoogleSignInGateway {
         clientId: _effectiveClientId.isEmpty ? null : _effectiveClientId,
         scopes: const ['email', 'openid', 'profile'],
       ));
-      _userDataSub = _plugin.userDataEvents?.listen(_onUserData);
-      _initCompleter.complete();
+      _userDataSub = _plugin.userDataEvents?.listen(
+        _onUserData,
+        onError: (_) {},
+      );
+      if (!_initCompleter.isCompleted) {
+        _initCompleter.complete();
+      }
       // Silent re-auth for returning users — OneTap/FedCM prompt. Run after
       // init completes so a hanging prompt can't block the button render.
-      unawaited(_plugin.signInSilently().catchError((_) => null));
-    } catch (e, st) {
-      _initCompleter.completeError(e, st);
+      try {
+        unawaited(_plugin.signInSilently().catchError((_) => null));
+      } catch (_) {}
+    } catch (e) {
+      _initError = e;
+      if (!_initCompleter.isCompleted) {
+        _initCompleter.complete();
+      }
     }
   }
 
@@ -163,8 +174,13 @@ class _WebGateway implements GoogleSignInGateway {
     return FutureBuilder<void>(
       future: _initCompleter.future,
       builder: (context, snap) {
-        if (snap.hasError) {
-          onError?.call(snap.error ?? 'unknown');
+        if (snap.hasError || _initError != null) {
+          final err = snap.error ?? _initError ?? 'unknown';
+          if (onError != null) {
+            WidgetsBinding.instance.addPostFrameCallback((_) {
+              onError(err);
+            });
+          }
           return const SizedBox.shrink();
         }
         // Future<void> completes with null → hasData stays false even when
@@ -177,10 +193,19 @@ class _WebGateway implements GoogleSignInGateway {
         }
         // renderButton qua facade web_only — đảm bảo instance là singleton
         // do registerWith tạo, đã đăng ký 'gsi_login_button' view factory.
-        return SizedBox(
-          height: 50,
-          child: web_only.renderButton(),
-        );
+        try {
+          return SizedBox(
+            height: 50,
+            child: web_only.renderButton(),
+          );
+        } catch (e) {
+          if (onError != null) {
+            WidgetsBinding.instance.addPostFrameCallback((_) {
+              onError(e);
+            });
+          }
+          return const SizedBox.shrink();
+        }
       },
     );
   }
@@ -196,7 +221,9 @@ class _WebGateway implements GoogleSignInGateway {
 
   @override
   Future<void> signOut() async {
-    await _plugin.signOut();
+    try {
+      await _plugin.signOut();
+    } catch (_) {}
     // Subscription stays live for the next sign-in; the gateway has no
     // dispose hook because it lives for the app's lifetime.
   }

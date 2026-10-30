@@ -178,10 +178,11 @@ class _LearnerDashboardScreenState
         mainAxisAlignment: MainAxisAlignment.spaceBetween,
         children: [
           // Logo Dấu Việt + khẩu hiệu brand (theo mockup M-03 v3)
-          Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            mainAxisSize: MainAxisSize.min,
-            children: [
+          Flexible(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              mainAxisSize: MainAxisSize.min,
+              children: [
               Stack(
                 alignment: Alignment.centerLeft,
                 children: [
@@ -244,8 +245,10 @@ class _LearnerDashboardScreenState
                   ),
                 ),
               ),
-            ],
+              ],
+            ),
           ),
+          const SizedBox(width: 8),
 
           // Cụm phải: Chuông thông báo & Avatar tròn viền vàng
           Row(
@@ -485,38 +488,43 @@ class _LearnerDashboardScreenState
 
           // Layer 4: Nội dung chữ & Nút CTA (chừa 128px bên phải để không đè lên nón lá Kabi)
           Padding(
-            padding: const EdgeInsets.fromLTRB(18, 16, 128, 16),
+            padding: const EdgeInsets.fromLTRB(18, 12, 128, 12),
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [
-                Builder(
-                  builder: (context) {
-                    return Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text(
-                          'Khám phá\nlịch sử Việt Nam',
-                          style: DauVietTypography.headlineMedium.copyWith(
-                            fontSize: 19,
-                            fontWeight: FontWeight.w800,
-                            color: DauVietColors.chapterGreen,
-                            height: 1.2,
-                          ),
+                Flexible(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Text(
+                        'Khám phá\nlịch sử Việt Nam',
+                        maxLines: 2,
+                        overflow: TextOverflow.ellipsis,
+                        style: DauVietTypography.headlineMedium.copyWith(
+                          fontSize: 18,
+                          fontWeight: FontWeight.w800,
+                          color: DauVietColors.chapterGreen,
+                          height: 1.15,
                         ),
-                        const SizedBox(height: 6),
-                        Text(
+                      ),
+                      const SizedBox(height: 4),
+                      Flexible(
+                        child: Text(
                           'Những câu chuyện hào hùng\nđang chờ bạn khám phá!',
+                          maxLines: 2,
+                          overflow: TextOverflow.ellipsis,
                           style: DauVietTypography.bodyMedium.copyWith(
-                            fontSize: 12,
+                            fontSize: 11.5,
                             color: DauVietColors.inkSecondary,
-                            height: 1.35,
+                            height: 1.25,
                             fontWeight: FontWeight.w500,
                           ),
                         ),
-                      ],
-                    );
-                  },
+                      ),
+                    ],
+                  ),
                 ),
 
                 // Nút CTA: Tiếp tục attempt thật nếu có, hoặc mở sự kiện từ currentByPeriod[lastPeriodCode]
@@ -548,12 +556,17 @@ class _LearnerDashboardScreenState
                         }
                         return _buildHeroCtaButton(
                           label: 'KHÁM PHÁ NGAY ›',
-                          onTap: () => context.go('/map'),
+                          onTap: () => context.go(
+                            target.period != null &&
+                                    target.period!.code.isNotEmpty
+                                ? '/journey/${target.period!.code}'
+                                : '/journey',
+                          ),
                         );
                       },
                       orElse: () => _buildHeroCtaButton(
                         label: 'KHÁM PHÁ NGAY ›',
-                        onTap: () => context.go('/map'),
+                        onTap: () => context.go('/journey'),
                       ),
                     );
                   },
@@ -597,7 +610,7 @@ class _LearnerDashboardScreenState
             button: true,
             label: 'Xem tất cả bài học',
             child: GestureDetector(
-              onTap: () => context.go('/map'),
+              onTap: () => context.go('/journey'),
               child: Padding(
                 padding: const EdgeInsets.symmetric(vertical: 8, horizontal: 4),
                 child: Text(
@@ -667,14 +680,14 @@ class _LearnerDashboardScreenState
                 subtitle: 'Đang đồng bộ dữ liệu',
                 progressFraction: 0.0,
                 progressText: '—',
-                onTap: () => context.go('/map'),
+                onTap: () => context.go('/journey'),
               ),
               error: (_, _) => _buildTodayLessonCard(
-                title: 'Khám phá Bản đồ Dấu Ấn',
+                title: 'Khám phá Hành trình Lịch sử',
                 subtitle: 'Bắt đầu hành trình lịch sử',
                 progressFraction: 0.0,
                 progressText: 'Chưa bắt đầu',
-                onTap: () => context.go('/map'),
+                onTap: () => context.go('/journey'),
               ),
               data: (path) {
                 final target = _resolveJourneyTarget(path);
@@ -722,23 +735,25 @@ class _LearnerDashboardScreenState
                     subtitle: subtitle,
                     progressFraction: fraction,
                     progressText: progressText,
-                    // Issue #36: CTA "Bài học hôm nay" dẫn thẳng Bản Đồ Dấu
-                    // Ấn tại chặng thời kỳ đang học (resume cursor), không
-                    // qua màn danh sách/chiến dịch trung gian.
                     onTap: () => context.go(
                       target.period != null &&
                               target.period!.code.isNotEmpty
-                          ? '/map?period=${target.period!.code}'
-                          : '/map',
+                          ? '/journey/${target.period!.code}'
+                          : '/journey',
                     ),
                   );
                 }
                 return _buildTodayLessonCard(
-                  title: 'Khám phá Bản đồ Dấu Ấn',
+                  title: 'Khám phá Hành trình Lịch sử',
                   subtitle: 'Bắt đầu hành trình lịch sử',
                   progressFraction: 0.0,
                   progressText: 'Chưa bắt đầu',
-                  onTap: () => context.go('/map'),
+                  onTap: () => context.go(
+                    target.period != null &&
+                            target.period!.code.isNotEmpty
+                        ? '/journey/${target.period!.code}'
+                        : '/journey',
+                  ),
                 );
               },
             );
@@ -949,7 +964,7 @@ class _LearnerDashboardScreenState
             button: true,
             label: 'Xem hành trình',
             child: GestureDetector(
-              onTap: () => context.go('/map'),
+              onTap: () => context.go('/journey'),
               child: Padding(
                 padding: const EdgeInsets.symmetric(vertical: 8, horizontal: 4),
                 child: Text(
@@ -977,7 +992,7 @@ class _LearnerDashboardScreenState
                 bgIconColor: DauVietColors.imperialGoldLight,
                 title: 'Bài học',
                 subtitle: 'Khám phá\nlịch sử',
-                onTap: () => context.go('/map'),
+                onTap: () => context.go('/journey'),
               ),
             ),
             const SizedBox(width: 8),
@@ -1171,7 +1186,7 @@ class _LearnerDashboardScreenState
             completed: completedLessonToday,
             title: 'Hoàn thành bài học hôm nay',
             reward: '+5',
-            onTap: () => context.go('/map'),
+            onTap: () => context.go('/journey'),
           ),
           const SizedBox(height: 8),
 
@@ -1227,7 +1242,7 @@ class _LearnerDashboardScreenState
       if (featuredEventId != null && featuredEventId.isNotEmpty) {
         context.go('/campaign/$featuredEventId');
       } else {
-        context.go('/map');
+        context.go('/journey');
       }
     }
 

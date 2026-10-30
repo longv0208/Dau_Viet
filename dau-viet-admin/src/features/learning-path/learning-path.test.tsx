@@ -9,6 +9,7 @@ import type { PathDetail } from "@/lib/dto/learning-path";
 import { EventCatalog } from "./event-catalog";
 import { EventPanel } from "./event-panel";
 import { PathPreview } from "./path-preview";
+import { PathValidation } from "./path-validation";
 
 const pathDetailFixture: PathDetail = {
   version: {
@@ -27,6 +28,7 @@ const pathDetailFixture: PathDetail = {
     {
       chapter: {
         id: "ch-1",
+        pathVersionId: "v-1",
         code: "THOI-KY-1",
         title: "Buổi đầu độc lập",
         description: null,
@@ -43,6 +45,7 @@ const pathDetailFixture: PathDetail = {
           node: {
             id: "en-1",
             chapterId: "ch-1",
+            pathVersionId: "v-1",
             eventId: "e-existing",
             sortOrder: 1,
             participationType: "REQUIRED",
@@ -56,7 +59,7 @@ const pathDetailFixture: PathDetail = {
           optionalLessonIds: [],
           lessons: [],
           eventStatus: "PUBLISHED",
-          canonicalEventId: null,
+          canonicalEventId: "e-existing",
           alias: false,
         },
       ],
@@ -117,5 +120,39 @@ describe("Learning Path — Default REQUIRED (Issue #47)", () => {
     wrap(<PathPreview detail={pathDetailFixture} />);
     expect(screen.getByText("Bắt buộc")).toBeInTheDocument();
     expect(screen.queryByText("Tham khảo")).toBeNull();
+  });
+
+  it("PathValidation renders jump-to-target button and invokes onSelectTarget", async () => {
+    const onSelectTarget = vi.fn();
+    wrap(
+      <PathValidation
+        detail={pathDetailFixture}
+        onSelect={vi.fn()}
+        onSelectTarget={onSelectTarget}
+        report={{
+          pathCode: "HISTORY_MAIN",
+          pathVersion: 1,
+          status: "DRAFT",
+          totalChapters: 1,
+          totalEvents: 1,
+          totalLessons: 0,
+          contentStatusCounts: {},
+          duplicateAliases: [],
+          emptyChapters: [],
+          issues: [
+            {
+              level: "WARNING",
+              code: "NO_PUBLISHED_LESSON",
+              message: "Sự kiện chưa có bài học xuất bản",
+              targetId: "en-1",
+            },
+          ],
+        }}
+      />,
+    );
+
+    const jumpBtn = screen.getByRole("button", { name: "Đi tới mục này →" });
+    await userEvent.click(jumpBtn);
+    expect(onSelectTarget).toHaveBeenCalledWith("en-1");
   });
 });

@@ -104,7 +104,7 @@ export function UnlockedLocationsCard({
           className="flex items-center gap-1.5 text-xs font-semibold uppercase tracking-wider text-brand"
         >
           <MapPin className="size-3.5" aria-hidden />
-          Địa điểm mở khóa ({linkedLocations.length})
+          Địa điểm mở khóa ({locationsQuery.isPending ? "…" : linkedLocations.length})
         </h3>
         <Link
           href={`/map-locations?eventId=${eventId}`}
@@ -128,7 +128,27 @@ export function UnlockedLocationsCard({
         </p>
       )}
 
-      {linkedLocations.length === 0 ? (
+      {locationsQuery.isPending ? (
+        <div className="rounded border border-dashed border-border bg-surface/60 px-3 py-3 text-center text-xs text-ink-muted animate-pulse">
+          Đang tải danh sách địa điểm mở khóa…
+        </div>
+      ) : locationsQuery.isError ? (
+        <div
+          role="alert"
+          className="flex items-center justify-between gap-2 rounded border border-error/30 bg-error/5 px-3 py-2 text-xs text-error"
+        >
+          <span>{toUserMessage(locationsQuery.error)}</span>
+          <Button
+            type="button"
+            size="sm"
+            variant="secondary"
+            className="h-7 px-2 text-xs"
+            onClick={() => void locationsQuery.refetch()}
+          >
+            Thử lại
+          </Button>
+        </div>
+      ) : linkedLocations.length === 0 ? (
         <p className="rounded border border-dashed border-border px-3 py-3 text-center text-xs text-ink-muted">
           Bài học này chưa gắn địa điểm mở khóa nào — không bắt buộc: bài học
           hoạt động độc lập trên Bản đồ Dấu Ấn.

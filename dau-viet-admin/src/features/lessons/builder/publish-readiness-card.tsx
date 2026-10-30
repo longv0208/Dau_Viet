@@ -24,6 +24,8 @@ const SUMMARY_LABELS: Record<string, string> = {
 
 interface Props {
   lessonId: string;
+  /** Event ID của bài học — dùng tạo liên kết nhanh khi gặp lỗi EVENT_NOT_PUBLISHED. */
+  eventId?: string;
   /** Draft hiện tại — dùng để resolve error path → jump. Bỏ qua trên màn publish. */
   draft?: Draft | null;
   /**
@@ -43,11 +45,13 @@ function IssueList({
   items,
   tone,
   draft,
+  eventId,
   onJump,
 }: {
   items: PublishIssue[];
   tone: "error" | "warning";
   draft?: Draft | null;
+  eventId?: string;
   onJump?: Props["onJump"];
 }) {
   const clickable = Boolean(draft && onJump);
@@ -63,8 +67,19 @@ function IssueList({
               <span className="block text-[10px] font-medium text-ink-muted">{where}</span>
             )}
             <span className={tone === "error" ? "text-error" : "text-ink"}>
-              {detail ?? (e.code && CODE_MESSAGES[e.code]) ?? "Cần xem lại nội dung đã nhập"}
+              {detail ?? (e.code && CODE_MESSAGES[e.code]) ?? (e.message || "Cần xem lại nội dung đã nhập")}
             </span>
+            {e.code === "EVENT_NOT_PUBLISHED" && (
+              <span className="mt-1 block text-[11px] text-ink-muted">
+                Hãy quay lại Không gian Sự kiện và bấm <strong>&ldquo;Xuất bản sự kiện&rdquo;</strong> trước:{" "}
+                <Link
+                  href={eventId ? `/events/${eventId}` : "/events"}
+                  className="font-semibold text-brand hover:underline"
+                >
+                  Mở sự kiện để xuất bản →
+                </Link>
+              </span>
+            )}
           </>
         );
         return (
@@ -88,7 +103,7 @@ function IssueList({
 }
 
 /** Kiểm tra sẵn sàng xuất bản — POST /admin/lessons/{id}/validate (read-only). */
-export function PublishReadinessCard({ lessonId, draft, revision, dirty, saving, onJump }: Props) {
+export function PublishReadinessCard({ lessonId, eventId, draft, revision, dirty, saving, onJump }: Props) {
   const [open, setOpen] = useState(true);
   const [checkedAt, setCheckedAt] = useState<Date | null>(null);
   const mutation = useMutation({
@@ -166,7 +181,7 @@ export function PublishReadinessCard({ lessonId, draft, revision, dirty, saving,
           {data.errors.length > 0 && (
             <div>
               <p className="mb-1 font-semibold text-error">Lỗi chặn xuất bản ({data.errors.length})</p>
-              <IssueList items={data.errors} tone="error" draft={draft} onJump={onJump} />
+              <IssueList items={data.errors} tone="error" draft={draft} eventId={eventId} onJump={onJump} />
               {draft && onJump && (
                 <p className="mt-1 text-[11px] text-ink-muted">
                   Bấm vào lỗi để đi tới chỉnh sửa.
@@ -177,7 +192,7 @@ export function PublishReadinessCard({ lessonId, draft, revision, dirty, saving,
           {data.warnings.length > 0 && (
             <div>
               <p className="mb-1 font-semibold text-ink">Cảnh báo ({data.warnings.length})</p>
-              <IssueList items={data.warnings} tone="warning" draft={draft} onJump={onJump} />
+              <IssueList items={data.warnings} tone="warning" draft={draft} eventId={eventId} onJump={onJump} />
             </div>
           )}
         </div>

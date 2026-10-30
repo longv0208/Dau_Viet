@@ -1,7 +1,7 @@
 import { act, renderHook } from "@testing-library/react";
 import { describe, expect, it } from "vitest";
 
-import { makeActivity, makeStage, useBuilder } from "./use-builder";
+import { DEFAULT_ACTIVITY_FEEDBACK, makeActivity, makeStage, useBuilder } from "./use-builder";
 import { parseDraft } from "./draft-model";
 
 const ID_PATTERN = /^[a-z0-9][a-z0-9-]{1,63}$/;

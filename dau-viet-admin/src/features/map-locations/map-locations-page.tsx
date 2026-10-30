@@ -231,10 +231,25 @@ export function MapLocationsWorkspace() {
   const allEvents = useMemo(() => eventsQuery.data?.content ?? [], [eventsQuery.data]);
   const allLessons = useMemo(() => lessonsQuery.data ?? [], [lessonsQuery.data]);
 
-  const selectedLocation = useMemo(() => {
+  const selectedInPage = useMemo(() => {
     if (!selectedId || selectedId === "new") return null;
     return locations.find((l) => l.id === selectedId) ?? null;
   }, [locations, selectedId]);
+
+  const selectedDetailQuery = useQuery({
+    queryKey: qk.mapLocations.standaloneDetail(
+      selectedId && selectedId !== "new" ? selectedId : "none",
+    ),
+    queryFn:
+      selectedId && selectedId !== "new" && !selectedInPage
+        ? () => apiFetch<StandaloneLocationResponse>(`/admin/map-locations/${selectedId}`)
+        : skipToken,
+  });
+
+  const selectedLocation = useMemo(() => {
+    if (!selectedId || selectedId === "new") return null;
+    return selectedInPage ?? selectedDetailQuery.data ?? null;
+  }, [selectedId, selectedInPage, selectedDetailQuery.data]);
 
   const setStatusMutation = useMutation({
     mutationFn: (p: { loc: StandaloneLocationResponse; status: MapLocationStatus }) =>
@@ -516,14 +531,16 @@ export function MapLocationsWorkspace() {
                             {loc.events.length} sự kiện
                           </span>
                           <span className="inline-flex items-center gap-1" title="Quy tắc mở khóa">
-                            {loc.unlockRuleMode === "NONE" ? (
+                            {loc.unlockRuleMode === "NONE" || loc.unlockLessons.length === 0 ? (
                               <Unlock className="size-3.5 text-success" aria-hidden />
                             ) : (
                               <Lock className="size-3.5 text-warning" aria-hidden />
                             )}
                             {loc.unlockRuleMode === "NONE"
                               ? "Luôn mở"
-                              : `${loc.unlockRuleMode} (${loc.unlockLessons.length} bài)`}
+                              : loc.unlockLessons.length === 0
+                                ? "Mở sẵn (0 bài)"
+                                : `${loc.unlockRuleMode} (${loc.unlockLessons.length} bài)`}
                           </span>
                           <span className="inline-flex items-center gap-1" title="Số tư liệu media">
                             <Film className="size-3.5 text-ink-muted" aria-hidden />
@@ -635,6 +652,11 @@ export function MapLocationsWorkspace() {
               }
               className="border-0 shadow-none"
             />
+          ) : selectedId !== "new" && !selectedLocation && selectedDetailQuery.isPending ? (
+            <div className="space-y-3 p-5">
+              <Skeleton className="h-8 w-56" />
+              <Skeleton className="h-64 w-full" />
+            </div>
           ) : (
             <LocationDetailEditor
               key={selectedId === "new" ? "new" : `${selectedLocation?.id}:${selectedLocation?.rowVersion}`}
@@ -644,6 +666,7 @@ export function MapLocationsWorkspace() {
               activeTab={activeTab}
               onTabChange={setActiveTab}
               onCreated={(created) => {
+                qc.setQueryData(qk.mapLocations.standaloneDetail(created.id), created);
                 void qc.invalidateQueries({ queryKey: ["map-locations"] });
                 setSelectedId(created.id);
                 setBannerMessage({
@@ -652,6 +675,7 @@ export function MapLocationsWorkspace() {
                 });
               }}
               onUpdated={(updated, msg) => {
+                qc.setQueryData(qk.mapLocations.standaloneDetail(updated.id), updated);
                 void qc.invalidateQueries({ queryKey: ["map-locations"] });
                 setBannerMessage({ type: "success", text: msg });
               }}
@@ -703,7 +727,7 @@ function LocationDetailEditor({
   const [visibility, setVisibility] = useState<MapLocationVisibility>(
     location?.visibility ?? "ALWAYS_VISIBLE",
   );
-  const unlockRuleMode: UnlockRuleMode = location?.unlockRuleMode ?? "ANY";
+  const unlockRuleMode: UnlockRuleMode = location?.unlockRuleMode ?? "NONE";
   const [displayOrder, setDisplayOrder] = useState(String(location?.displayOrder ?? 0));
   const [coverAssetId, setCoverAssetId] = useState<string | null>(
     location?.coverAssetId ?? null,
@@ -730,7 +754,7 @@ function LocationDetailEditor({
 
   // Tab 3: Unlock lessons state
   const [ruleModeTab, setRuleModeTab] = useState<UnlockRuleMode>(
-    location?.unlockRuleMode ?? "ANY",
+    location?.unlockRuleMode ?? "NONE",
   );
   const [selectedLessonIds, setSelectedLessonIds] = useState<string[]>(() =>
     (location?.unlockLessons ?? []).map((l) => l.lessonId),
@@ -1712,6 +1736,14 @@ function LocationDetailEditor({
               </div>
             ) : (
               <div className="space-y-3">
+                {selectedLessonIds.length === 0 && (
+                  <div
+                    role="alert"
+                    className="rounded-lg border border-warning/40 bg-warning/15 p-3 text-xs text-ink"
+                  >
+                    Bạn đang chọn chế độ mở khóa theo bài học nhưng chưa tích chọn bài học nào. Hãy tích chọn ít nhất 1 bài học bên dưới (hoặc chuyển về Không yêu cầu bài học).
+                  </div>
+                )}
                 <div className="flex flex-wrap items-center justify-between gap-2">
                   <Label htmlFor="lesson-search-input">
                     Chọn các bài học mở khóa ({selectedLessonIds.length} bài đã chọn)

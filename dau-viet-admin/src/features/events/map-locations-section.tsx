@@ -3,6 +3,7 @@
 import { zodResolver } from "@hookform/resolvers/zod";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import dynamic from "next/dynamic";
+import Link from "next/link";
 import { useState } from "react";
 import { useForm } from "react-hook-form";
 import { z } from "zod";
@@ -317,6 +318,17 @@ export function MapLocationsSection({
             ) : undefined
           }
         />
+        <div className="flex flex-wrap items-center justify-between gap-2 rounded-md border border-brand/30 bg-brand/5 px-3.5 py-2.5 text-xs text-ink">
+          <span>
+            Để cấu hình thư viện Media (<code>PUBLIC_PREVIEW</code> / <code>UNLOCKED_ONLY</code>) và quy tắc mở khóa đa bài học (<code>NONE</code> / <code>ANY</code> / <code>ALL</code>), hãy sử dụng Không gian Địa điểm Di tích.
+          </span>
+          <Link
+            href={`/map-locations?eventId=${eventId}`}
+            className="font-semibold text-brand hover:underline"
+          >
+            Mở Không gian Địa điểm Di tích (Cấu hình Media &amp; Quy tắc mở khóa) →
+          </Link>
+        </div>
       {listQuery.isPending && (
         <div className="flex flex-col gap-2">
           <Skeleton className="h-10 w-full" />

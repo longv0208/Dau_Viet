@@ -67,9 +67,35 @@ describe("PolicyEditor", () => {
     });
   });
 
-  it("validate button forwards the current draft payload with pre-selected requiredLessonIds", async () => {
+  it("disables validate button when no draft has been saved yet (initial=null)", async () => {
     authStore.setAccessToken("t", 900);
-    const { onValidate } = renderEditor();
+    renderEditor({ initial: null });
+    await waitFor(() =>
+      expect(
+        screen.getAllByText("Vì sao Ngô Quyền thắng trận Bạch Đằng?").length,
+      ).toBeGreaterThan(0),
+    );
+    expect(screen.getByRole("button", { name: /kiểm tra/i })).toBeDisabled();
+    expect(
+      screen.getByText(/Hãy bấm Lưu nháp trước khi chạy Kiểm tra/i),
+    ).toBeInTheDocument();
+  });
+
+  it("validate button forwards the current draft payload when draft exists", async () => {
+    authStore.setAccessToken("t", 900);
+    const { onValidate } = renderEditor({
+      initial: {
+        id: "pol-1",
+        eventId: "11111111-1111-1111-1111-111111111111",
+        policyVersion: 1,
+        status: "DRAFT",
+        requiredLessonIds: [],
+        optionalLessonIds: [],
+        masteryThreshold: null,
+        publishedAt: null,
+        createdAt: "2026-01-01T00:00:00Z",
+      },
+    });
     await waitFor(() =>
       expect(
         screen.getByRole("checkbox", {
