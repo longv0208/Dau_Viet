@@ -42,9 +42,10 @@ class LearnerAttemptServiceTest {
     private LessonResultRepository lessonResults;
     private LessonRepository lessons;
     private LessonVersionRepository versions;
+    private com.dauviet.collection.application.EventMilestoneRecorder eventMilestones;
+    private com.dauviet.reward.application.RewardService rewardService;
     private LearnerAttemptService service;
     private LearnerProjectionService projection;
-
     @BeforeEach
     void setUp() {
         attempts = mock(LearnerAttemptRepository.class);
@@ -53,15 +54,17 @@ class LearnerAttemptServiceTest {
         lessons = mock(LessonRepository.class);
         versions = mock(LessonVersionRepository.class);
         projection = new LearnerProjectionService();
+        eventMilestones = mock(com.dauviet.collection.application.EventMilestoneRecorder.class);
+        rewardService = mock(com.dauviet.reward.application.RewardService.class);
         service = new LearnerAttemptService(attempts, activityAttempts, lessonResults,
                 lessons, versions, mock(com.dauviet.learning.handler.ActivityHandlerRegistry.class),
                 new StageTransitionResolver(), new LessonCompletionEvaluator(),
                 projection, mock(IdempotencyService.class),
                 mock(com.dauviet.collection.application.EvidenceCollectionRecorder.class),
-                mock(com.dauviet.collection.application.EventMilestoneRecorder.class),
+                eventMilestones,
                 mock(com.dauviet.reward.application.RewardGrantService.class),
                 mock(com.dauviet.reward.application.ItemUnlockService.class),
-                mock(com.dauviet.reward.application.RewardService.class),
+                rewardService,
                 mock(com.dauviet.energy.application.EnergyService.class),
                 mock(com.dauviet.energy.application.EnergyProperties.class),
                 mock(com.dauviet.streak.application.LearningStreakService.class),
@@ -649,5 +652,132 @@ class LearnerAttemptServiceTest {
                 a, verdict, progress,
                 new java.math.BigDecimal("100.00"), new java.math.BigDecimal("75.50"));
         assertThat(json).contains("knowledgeScore").contains("75.5");
+    }
+
+    @Test
+    void getResult_extractsUnlockedDossiersAndLocationsFromResultJson() {
+        UUID userId = UUID.randomUUID();
+        UUID versionId = UUID.randomUUID();
+        UUID dossierId = UUID.randomUUID();
+        UUID locationId = UUID.randomUUID();
+        UUID coverAssetId = UUID.randomUUID();
+
+        LearnerAttempt a = LearnerAttempt.start(userId, versionId);
+        a.markCompleted();
+
+        String resultJson = """
+                {
+                  "attemptId": "%s",
+                  "lessonVersionId": "%s",
+                  "reason": "ALL_REQUIRED_STAGES",
+                  "score": 100.0,
+                  "knowledgeScore": 100.0,
+                  "completedRequired": 1,
+                  "totalRequired": 1,
+                  "unlockedDossiers": ["%s", "not-a-valid-uuid"],
+                  "unlockedLocations": [
+                    {
+                      "locationId": "%s",
+                      "slug": "cua-song-bach-dang",
+                      "title": "Cửa sông Bạch Đằng",
+                      "kind": "BATTLEFIELD",
+                      "coverAssetId": "%s"
+                    }
+                  ]
+                }
+                """.formatted(a.getId(), versionId, dossierId, locationId, coverAssetId);
+
+        com.dauviet.learning.domain.LessonResult lr = com.dauviet.learning.domain.LessonResult.of(
+                a.getId(), new java.math.BigDecimal("100.00"), resultJson, a.getCompletedAt());
+
+        when(attempts.findById(a.getId())).thenReturn(Optional.of(a));
+        when(lessonResults.findByLearnerAttemptId(a.getId())).thenReturn(Optional.of(lr));
+        when(rewardService.rewardsOfAttempt(a.getId())).thenReturn(java.util.List.of());
+        when(rewardService.itemsUnlockedByAttempt(a.getId())).thenReturn(java.util.List.of());
+
+        var res = service.getResult(userId, a.getId());
+
+        assertThat(res.newlyUnlockedDossiers()).containsExactly(dossierId);
+        assertThat(res.newlyUnlockedLocations()).hasSize(1);
+        var cue = res.newlyUnlockedLocations().get(0);
+        assertThat(cue.locationId()).isEqualTo(locationId);
+        assertThat(cue.slug()).isEqualTo("cua-song-bach-dang");
+        assertThat(cue.title()).isEqualTo("Cửa sông Bạch Đằng");
+        assertThat(cue.kind()).isEqualTo("BATTLEFIELD");
+        assertThat(cue.coverAssetId()).isEqualTo(coverAssetId);
+    }
+
+    @Test
+    void doComplete_persistsUnlockedDossiersAndLocationsIntoLessonResult() throws Exception {
+        UUID userId = UUID.randomUUID();
+        UUID lessonId = UUID.randomUUID();
+        UUID versionId = UUID.randomUUID();
+        UUID eventId = UUID.randomUUID();
+        UUID dossierId = UUID.randomUUID();
+        UUID locationId = UUID.randomUUID();
+
+        String snapJson = """
+                {"stages":[{"id":"ev","type":"EVIDENCE","required":true,
+                  "activities":[{"id":"es","type":"EVIDENCE_SELECT","required":true}],
+                  "nextStageIds":[]}]}
+                """;
+        LessonVersion v = new LessonVersion();
+        v.setId(versionId);
+        v.setLessonId(lessonId);
+        v.setVersionNo(1);
+        v.setSchemaVersion(1);
+        v.setSnapshotJson(snapJson);
+
+        Lesson lesson = new Lesson();
+        ReflectionTestUtils.setField(lesson, "id", lessonId);
+        ReflectionTestUtils.setField(lesson, "eventId", eventId);
+
+        LearnerAttempt a = LearnerAttempt.start(userId, versionId);
+        AttemptState state = new AttemptState();
+        state.markCompleted("es");
+        a.recordProgress(state);
+
+        var savedHolder = new java.util.concurrent.atomic.AtomicReference<com.dauviet.learning.domain.LessonResult>();
+        when(versions.findById(versionId)).thenReturn(Optional.of(v));
+        when(lessons.findById(lessonId)).thenReturn(Optional.of(lesson));
+        when(lessonResults.save(any(com.dauviet.learning.domain.LessonResult.class))).thenAnswer(inv -> {
+            com.dauviet.learning.domain.LessonResult arg = inv.getArgument(0);
+            savedHolder.set(arg);
+            return arg;
+        });
+        when(lessonResults.findByLearnerAttemptId(a.getId())).thenAnswer(inv -> Optional.ofNullable(savedHolder.get()));
+        when(eventMilestones.recordIfEarned(userId, eventId, lessonId, a.getId()))
+                .thenReturn(java.util.Set.of(dossierId));
+
+        var locCue = new com.dauviet.learning.api.dto.CompleteAttemptResponse.UnlockedLocationCue(
+                locationId, "bai-coc-bach-dang", "Bãi cọc Bạch Đằng", "HERITAGE_SITE", null);
+        service.setCompletionHooks(java.util.List.of(new LessonCompletionHook() {
+            @Override
+            public java.util.List<com.dauviet.learning.api.dto.CompleteAttemptResponse.UnlockedLocationCue> onLessonCompleted(
+                    UUID u, UUID l, UUID att) {
+                return java.util.List.of(locCue);
+            }
+        }));
+
+        com.dauviet.learning.api.dto.CompleteAttemptResponse completeRes =
+                ReflectionTestUtils.invokeMethod(service, "doComplete", userId, a);
+
+        assertThat(completeRes).isNotNull();
+        assertThat(completeRes.newlyUnlockedDossiers()).containsExactly(dossierId);
+        assertThat(completeRes.newlyUnlockedLocations()).containsExactly(locCue);
+
+        com.dauviet.learning.domain.LessonResult persisted = savedHolder.get();
+        assertThat(persisted).isNotNull();
+        JsonNode persistedJson = OM.readTree(persisted.getResultJson());
+        assertThat(persistedJson.path("unlockedDossiers").get(0).asText()).isEqualTo(dossierId.toString());
+        assertThat(persistedJson.path("unlockedLocations").get(0).path("locationId").asText())
+                .isEqualTo(locationId.toString());
+        assertThat(persistedJson.path("unlockedLocations").get(0).path("slug").asText())
+                .isEqualTo("bai-coc-bach-dang");
+
+        when(attempts.findById(a.getId())).thenReturn(Optional.of(a));
+        var resultRes = service.getResult(userId, a.getId());
+        assertThat(resultRes.newlyUnlockedDossiers()).containsExactly(dossierId);
+        assertThat(resultRes.newlyUnlockedLocations()).containsExactly(locCue);
     }
 }

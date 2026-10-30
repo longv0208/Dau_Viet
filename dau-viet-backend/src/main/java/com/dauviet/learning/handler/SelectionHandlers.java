@@ -139,6 +139,7 @@ public final class SelectionHandlers {
                 out.put("attemptCount", attemptNo);
                 out.put("correctCount", correctHits.size());
                 out.put("falseCount", falseCount);
+                out.put("totalItems", accepted.size());
                 return result(ActivityResult.INCORRECT, true, out,
                         feedbackFor(ctx.activity(), "EXHAUSTED"));
             }
@@ -172,6 +173,7 @@ public final class SelectionHandlers {
             out.put("score", score);
             out.put("correctCount", correctHits.size());
             out.put("falseCount", falseCount);
+            out.put("totalItems", accepted.size());
             out.put("attemptCount", attemptNo);
             if (exhausted) out.put("exhausted", true);
             if (!selected.isEmpty()) {

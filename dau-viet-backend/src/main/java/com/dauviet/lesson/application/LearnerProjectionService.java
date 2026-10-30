@@ -158,6 +158,7 @@ public class LearnerProjectionService {
             case "MATCHING" -> transformMatching(act.path("id").asText(""), cfg);
             case "DRAG_ORDER" -> transformDragOrder(act.path("id").asText(""), cfg);
             case "MULTIPLE_CHOICE" -> transformMultipleChoice(cfg);
+            case "EVIDENCE_SELECT" -> transformEvidenceSelect(act, cfg);
             default -> { }
         }
     }
@@ -280,6 +281,24 @@ public class LearnerProjectionService {
         JsonNode legacy = config.get("multiCorrect");
         if (legacy != null && legacy.isArray() && legacy.size() > 1) {
             config.put("multiSelect", true);
+        }
+    }
+
+    /**
+     * EVIDENCE_SELECT graded mode: surface `expectedCount` in learner config
+     * from `validation.acceptedEvidenceIds` or `config.acceptedEvidenceIds`
+     * when `graded` is true and `expectedCount` is not already authored,
+     * before hidden answer keys (`acceptedEvidenceIds`) and `validation` are stripped.
+     */
+    private void transformEvidenceSelect(ObjectNode act, ObjectNode config) {
+        if (!config.path("graded").asBoolean(false)) return;
+        if (config.hasNonNull("expectedCount")) return;
+        JsonNode accepted = act.path("validation").path("acceptedEvidenceIds");
+        if (!accepted.isArray() || accepted.isEmpty()) {
+            accepted = config.path("acceptedEvidenceIds");
+        }
+        if (accepted.isArray() && !accepted.isEmpty()) {
+            config.put("expectedCount", accepted.size());
         }
     }
 

@@ -157,8 +157,19 @@ void main() {
     testWidgets('CER → {claim, evidenceIds, reasoning}', (tester) async {
       final payload = await submitFrom(
         tester,
-        {'id': 'a5', 'type': 'CER', 'config': {}},
+        {
+          'id': 'a5',
+          'type': 'CER',
+          'config': {
+            'priorOutputs': {
+              'es1': {
+                'selectedEvidenceIds': ['e1'],
+              },
+            },
+          },
+        },
         interact: (t) async {
+          expect(find.text('Đã thu thập ở bước Khám phá'), findsOneWidget);
           await t.enterText(
             find.byType(TextField).at(0),
             'Cọc ngầm là yếu tố quyết định chiến thắng',
@@ -172,7 +183,7 @@ void main() {
       );
       expect(payload['claim'], isNotEmpty);
       expect(payload['reasoning'], isNotEmpty);
-      expect(payload['evidenceIds'], isA<List>());
+      expect(payload['evidenceIds'], ['e1']);
     });
 
     testWidgets('REFLECTION_PROMPT text → {text}', (tester) async {
@@ -191,26 +202,40 @@ void main() {
       expect(payload, {'text': 'Bài học rất hay'});
     });
 
-    testWidgets('VERIFICATION → {action:"verify"} (Learning Flow 2.0)', (
-      tester,
-    ) async {
-      final payload = await submitFrom(tester, {
-        'id': 'a7',
-        'type': 'VERIFICATION',
-        'config': {'prompt': 'Kiểm chứng lại các nguồn'},
-      }, buttonText: 'KIỂM CHỨNG');
-      expect(payload, {'action': 'verify'});
-    });
+    testWidgets(
+      'VERIFICATION → yêu cầu chọn verdict trước khi gửi {action:"verify", verdict}',
+      (tester) async {
+        final payload = await submitFrom(
+          tester,
+          {
+            'id': 'a7',
+            'type': 'VERIFICATION',
+            'config': {'prompt': 'Kiểm chứng lại các nguồn'},
+          },
+          interact: (t) async {
+            expect(
+              find.text(
+                'Đối chiếu giả thuyết với các bằng chứng đã thu thập và chọn 1 kết luận kiểm chứng:',
+              ),
+              findsOneWidget,
+            );
+            await t.tap(find.text('Chứng thực'));
+            await t.pump();
+          },
+          buttonText: 'KIỂM CHỨNG',
+        );
+        expect(payload, {'action': 'verify', 'verdict': 'SUPPORTED'});
+      },
+    );
 
     testWidgets(
-      'VERIFICATION hiển thị giả thuyết + bằng chứng từ priorOutputs',
+      'VERIFICATION hiển thị giả thuyết + bằng chứng từ priorOutputs (kể cả khi thiếu evidenceSource)',
       (tester) async {
         Map<String, dynamic>? captured;
         final activity = ActivityRefDto.fromJson({
           'id': 'vf1',
           'type': 'VERIFICATION',
           'config': {
-            'evidenceSource': 'es',
             'priorOutputs': {
               'hy1': {'hypothesisId': 'h-tide'},
               'es': {
@@ -252,12 +277,18 @@ void main() {
         expect(find.text('BẰNG CHỨNG ĐÃ THU THẬP'), findsOneWidget);
         expect(find.text('Sử thần ghi triều'), findsOneWidget);
         expect(find.text('Khảo cổ cọc'), findsOneWidget);
+        // Chưa chọn verdict -> bấm KIỂM CHỨNG không gửi
         await tester.tap(find.text('KIỂM CHỨNG'));
         await tester.pump();
-        expect(captured, {'action': 'verify'});
+        expect(captured, isNull);
+        // Chọn verdict Chứng thực -> gửi thành công
+        await tester.tap(find.text('Chứng thực'));
+        await tester.pump();
+        await tester.tap(find.text('KIỂM CHỨNG'));
+        await tester.pump();
+        expect(captured, {'action': 'verify', 'verdict': 'SUPPORTED'});
       },
     );
-
     testWidgets('VIEW_IMAGE không asset → submit {}', (tester) async {
       final payload = await submitFrom(tester, {
         'id': 'a8',

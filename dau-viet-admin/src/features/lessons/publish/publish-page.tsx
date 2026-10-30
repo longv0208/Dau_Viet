@@ -157,7 +157,7 @@ export function PublishPage({ lessonId }: { lessonId: string }) {
         </div>
       </PaperCard>
 
-      <PublishReadinessCard lessonId={lesson.id} />
+      <PublishReadinessCard lessonId={lesson.id} eventId={lesson.eventId} />
 
       {conflict && (
         <div className="flex flex-wrap items-center gap-3 rounded-md bg-error/10 px-3 py-2 text-sm text-error">

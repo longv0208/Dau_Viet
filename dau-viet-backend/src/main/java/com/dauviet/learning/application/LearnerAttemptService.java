@@ -537,6 +537,25 @@ public class LearnerAttemptService {
                 }
             }
         }
+        if (!newlyUnlockedDossiers.isEmpty() || !newlyUnlockedLocations.isEmpty()) {
+            final var dossiersToPersist = newlyUnlockedDossiers;
+            lessonResults.findByLearnerAttemptId(a.getId()).ifPresent(r -> {
+                JsonNode parsed = parse(r.getResultJson());
+                ObjectNode resObj = parsed.isObject()
+                        ? (ObjectNode) parsed.deepCopy()
+                        : mapper.createObjectNode();
+                var dossiersArr = mapper.createArrayNode();
+                for (UUID dId : dossiersToPersist) {
+                    if (dId != null) {
+                        dossiersArr.add(dId.toString());
+                    }
+                }
+                resObj.set("unlockedDossiers", dossiersArr);
+                resObj.set("unlockedLocations", mapper.valueToTree(newlyUnlockedLocations));
+                r.updateResultJson(resObj.toString());
+                lessonResults.save(r);
+            });
+        }
         return CompleteAttemptResponse.withStreakAndLocations(a.getId(),
                 a.getStatus().name(), false, a.getCompletedAt(), verdict,
                 progress, List.copyOf(newlyUnlockedDossiers), streak, newlyUnlockedLocations);
@@ -570,11 +589,52 @@ public class LearnerAttemptService {
                         "no result for attempt: " + attemptId));
         // TASK-0023 additive: thưởng + vật phẩm attempt này đã kích hoạt —
         // đọc từ ledger/inventory thật, rỗng nếu attempt chưa cấp gì.
+        JsonNode resNode = parse(r.getResultJson());
+        List<UUID> unlockedDossiers = extractUnlockedDossiers(resNode);
+        List<CompleteAttemptResponse.UnlockedLocationCue> unlockedLocations =
+                extractUnlockedLocations(resNode);
         return new LessonResultResponse(a.getId(), a.getLessonVersionId(),
-                a.getStatus().name(), r.getScore(), parse(r.getResultJson()),
+                a.getStatus().name(), r.getScore(), resNode,
                 r.getCompletedAt(), a.getStartedAt(),
                 rewardService.rewardsOfAttempt(a.getId()),
-                rewardService.itemsUnlockedByAttempt(a.getId()));
+                rewardService.itemsUnlockedByAttempt(a.getId()),
+                unlockedDossiers, unlockedLocations);
+    }
+
+    private List<UUID> extractUnlockedDossiers(JsonNode resNode) {
+        JsonNode arr = resNode == null ? null : resNode.path("unlockedDossiers");
+        if (arr == null || !arr.isArray() || arr.isEmpty()) {
+            return List.of();
+        }
+        List<UUID> out = new java.util.ArrayList<>();
+        for (JsonNode item : arr) {
+            if (item != null && item.isTextual()) {
+                try {
+                    out.add(UUID.fromString(item.asText()));
+                } catch (IllegalArgumentException ignored) {
+                    // ignore malformed UUID string
+                }
+            }
+        }
+        return List.copyOf(out);
+    }
+
+    private List<CompleteAttemptResponse.UnlockedLocationCue> extractUnlockedLocations(JsonNode resNode) {
+        JsonNode arr = resNode == null ? null : resNode.path("unlockedLocations");
+        if (arr == null || !arr.isArray() || arr.isEmpty()) {
+            return List.of();
+        }
+        List<CompleteAttemptResponse.UnlockedLocationCue> out = new java.util.ArrayList<>();
+        for (JsonNode item : arr) {
+            if (item == null || !item.isObject()) continue;
+            try {
+                out.add(mapper.convertValue(item,
+                        CompleteAttemptResponse.UnlockedLocationCue.class));
+            } catch (IllegalArgumentException ignored) {
+                // ignore malformed location cue entry
+            }
+        }
+        return List.copyOf(out);
     }
 
     /**

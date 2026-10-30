@@ -50,14 +50,24 @@ class StepProgressBar extends StatelessWidget {
           // - w >= 360: dot=32 + label
           final w = constraints.maxWidth;
           final bool compact = w < 360 || !showLabels;
-          final double dotSize = w < 200 ? 24.0 : 32.0;
-          final double iconSize = w < 200 ? 12.0 : 16.0;
+          final int count = totalSteps < 1 ? 1 : totalSteps;
+          final double maxDotForWidth = count > 1 && w.isFinite
+              ? ((w - (count - 1) * 6.0) / count).clamp(16.0, 32.0)
+              : 32.0;
+          final double baseDot = w < 200 ? 24.0 : 32.0;
+          final double dotSize = maxDotForWidth < baseDot
+              ? maxDotForWidth
+              : baseDot;
+          final double iconSize = w < 200
+              ? 12.0
+              : (dotSize * 0.5).clamp(10.0, 16.0);
+          final double lineMargin = dotSize < 26.0 ? 2.0 : 4.0;
           return Row(
             children: [
               for (var i = 0; i < totalSteps; i++) ...[
                 _StepDot(
                   index: i,
-                  item: items[i],
+                  item: items[i % items.length],
                   state: i < currentStep
                       ? _StepState.done
                       : i == currentStep
@@ -71,7 +81,7 @@ class StepProgressBar extends StatelessWidget {
                   Expanded(
                     child: Container(
                       height: 2,
-                      margin: const EdgeInsets.symmetric(horizontal: 4),
+                      margin: EdgeInsets.symmetric(horizontal: lineMargin),
                       color: i < currentStep
                           ? DauVietColors.natureGreen
                           : DauVietColors.outlineVariant,

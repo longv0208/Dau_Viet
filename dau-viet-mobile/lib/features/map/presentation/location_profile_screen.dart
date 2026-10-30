@@ -498,25 +498,39 @@ class _LocationProfileContentState extends State<LocationProfileContent> {
     }
   }
 
+  List<MapLocationMediaDto> _prioritizeUnlockedMedia(
+    List<MapLocationMediaDto> items,
+  ) {
+    final unlockedOnly = items
+        .where((m) => m.visibility.trim().toUpperCase() == 'UNLOCKED_ONLY')
+        .toList();
+    final others = items
+        .where((m) => m.visibility.trim().toUpperCase() != 'UNLOCKED_ONLY')
+        .toList();
+    return [...unlockedOnly, ...others];
+  }
+
   Widget _buildImagesTab(List<MapLocationMediaDto> images) {
+    final ordered = _prioritizeUnlockedMedia(images);
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        for (int i = 0; i < images.length; i++) ...[
+        for (int i = 0; i < ordered.length; i++) ...[
           if (i > 0) const SizedBox(height: 10),
-          _MediaItemCard(media: images[i], isVideo: false),
+          _MediaItemCard(media: ordered[i], isVideo: false),
         ],
       ],
     );
   }
 
   Widget _buildVideosTab(List<MapLocationMediaDto> videos) {
+    final ordered = _prioritizeUnlockedMedia(videos);
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        for (int i = 0; i < videos.length; i++) ...[
+        for (int i = 0; i < ordered.length; i++) ...[
           if (i > 0) const SizedBox(height: 10),
-          _MediaItemCard(media: videos[i], isVideo: true),
+          _MediaItemCard(media: ordered[i], isVideo: true),
         ],
       ],
     );
@@ -663,16 +677,52 @@ class _MediaItemCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final bool isUnlockedOnly =
+        media.visibility.trim().toUpperCase() == 'UNLOCKED_ONLY';
     return Container(
       padding: const EdgeInsets.all(12),
       decoration: BoxDecoration(
         color: const Color(0xFFFBF8F1),
         borderRadius: BorderRadius.circular(10),
-        border: Border.all(color: const Color(0xFFE5DAC6)),
+        border: Border.all(
+          color: isUnlockedOnly
+              ? DauVietColors.imperialGold
+              : const Color(0xFFE5DAC6),
+        ),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
+          if (isUnlockedOnly) ...[
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+              decoration: BoxDecoration(
+                color: DauVietColors.imperialGold.withValues(alpha: 0.18),
+                borderRadius: BorderRadius.circular(6),
+                border: Border.all(color: DauVietColors.imperialGold),
+              ),
+              child: Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  const Icon(
+                    Icons.lock_open_rounded,
+                    size: 12,
+                    color: DauVietColors.woodBrown,
+                  ),
+                  const SizedBox(width: 4),
+                  Text(
+                    'MỞ KHÓA TỪ BÀI HỌC',
+                    style: DauVietTypography.labelSmall.copyWith(
+                      fontSize: 10,
+                      fontWeight: FontWeight.w800,
+                      color: DauVietColors.inkHeading,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            const SizedBox(height: 8),
+          ],
           if (!isVideo &&
               media.assetId != null &&
               media.assetId!.trim().isNotEmpty) ...[

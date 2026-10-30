@@ -1,0 +1,69 @@
+{
+  "taskId": "TASK-0037",
+  "issue": 45,
+  "timestamp": "2026-10-30T18:18:00+07:00",
+  "status": "PASSED",
+  "flowsVerified": {
+    "flow1_admin_event_and_materials": {
+      "eventId": "75c2ff93-d679-4d5a-b440-524a50870d24",
+      "eventSlug": "nhu-nguyet-1077-26c6ef",
+      "coverAssetId": "8a8e8b33-bc3a-434f-a15b-c386037167cd",
+      "mapAssetId": "d8d75933-2219-4de4-8803-b37fdb8b59fe",
+      "publicMediaAssetId": "5d9721cb-4548-4dc6-aa53-ba20d99e0925",
+      "unlockedOnlyMediaAssetId": "a43f746a-217d-4b94-81fc-3bf83021fe9f",
+      "approvedEvidenceIds": [
+        "2e7a866c-80c2-42e9-9f6e-d4f42987ee4c",
+        "55cefd1d-ae0a-4451-bd85-31dee3c05544",
+        "909ed00d-5c67-4f22-9c54-a70211f6df16",
+        "bd9b4eff-6c8a-4339-8bb9-1b888d9ba36a"
+      ],
+      "publishedDossierId": "0739be49-fb6b-4e05-9394-5b07c2dc6138",
+      "mapLocationId": "d0415b7e-f098-4b7a-b121-f1200ea32eba",
+      "eventMapLocationsSyncVerified": true
+    },
+    "flow2_admin_lessons_and_completion_policy": {
+      "lessonAWithMapId": "a2ae40ac-610f-4bb9-881d-bb84ec649260",
+      "lessonBWithoutMapId": "9eda9393-4287-40c4-8e3b-e14213b75b91",
+      "completionPolicyId": "7a05a3fa-c6a6-4093-a4b1-2a516492f696",
+      "expectedCountProjectionVerified": 3,
+      "mapLocationUnlockRuleMode": "ANY",
+      "mapLocationStatus": "PUBLISHED"
+    },
+    "flow3_admin_learning_path": {
+      "pathCode": "HISTORY_MAIN",
+      "versionId": "2860dcb2-5350-4fbd-9212-323ae195c4a4",
+      "versionNo": 6,
+      "periodCode": "EARLY_INDEPENDENCE",
+      "eventNodeId": "e017826e-1773-426f-bc25-07da20901628",
+      "validationErrors": 0,
+      "status": "PUBLISHED"
+    },
+    "flow4_learner_journey_and_unlocks": {
+      "learnerEmail": "learner_issue45_26c6ef@dauviet.local",
+      "attemptAId": "e5c661d1-e18b-4af6-ad8c-ef81cb3b4bfa",
+      "attemptBId": "136285bf-4232-4815-b613-564f6e41111e",
+      "stage1PartialAndExpectedCountVerified": true,
+      "stage2To3EvidenceContinuityFallbackVerified": true,
+      "stage3VerificationReviseLoopVerified": true,
+      "stage4IncorrectEnergyPenaltyVerified": {
+        "deducted": 10,
+        "balanceAfter": 90
+      },
+      "lessonAMapLocationUnlocked": "d0415b7e-f098-4b7a-b121-f1200ea32eba",
+      "unlockedOnlyMediaRevealedAfterLessonA": true,
+      "lessonBAutoUnlockedAfterLessonA": true,
+      "lessonBResultNoEmptyMapBanner": true,
+      "eventStatusAfterLessonB": "EVENT_MASTERED",
+      "dossierUnlockedAfterLessonB": "0739be49-fb6b-4e05-9394-5b07c2dc6138",
+      "finalRewards": {
+        "exp": 200,
+        "historyPoints": 100,
+        "lessonsCompleted": 2,
+        "itemsOwned": 0,
+        "level": 1
+      },
+      "collectedEvidencesCount": 3,
+      "renderFlexOverflows": 0
+    }
+  }
+}

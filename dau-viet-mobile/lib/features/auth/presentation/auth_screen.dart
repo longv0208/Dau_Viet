@@ -40,7 +40,7 @@ class _AuthScreenState extends ConsumerState<AuthScreen> {
     _googleCredentialsSub = ref
         .read(googleSignInGatewayProvider)
         .credentialsStream
-        .listen(_onGoogleCredentials);
+        .listen(_onGoogleCredentials, onError: (_) {});
   }
 
   @override
@@ -571,8 +571,13 @@ class _AuthScreenState extends ConsumerState<AuthScreen> {
     final webButton = ref
         .read(googleSignInGatewayProvider)
         .buildSignInButton(
-          onError: (e) => setState(
-              () => _error = 'Không khởi tạo được Google Sign-In: $e'),
+          onError: (e) {
+            if (!mounted) return;
+            final msg = 'Không khởi tạo được Google Sign-In: $e';
+            if (_error != msg) {
+              setState(() => _error = msg);
+            }
+          },
         );
     if (webButton != null) return webButton;
     return OutlinedButton.icon(

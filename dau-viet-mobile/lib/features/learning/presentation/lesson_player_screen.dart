@@ -277,6 +277,11 @@ class _LessonPlayerScreenState extends ConsumerState<LessonPlayerScreen> {
       // transaction và evaluator có thể đã mở vật phẩm COLLECTION_COUNT —
       // invalidate catalog/summary để Túi Đồ phản ánh unlock mới nhất.
       ref.invalidate(collectionListProvider);
+      ref.invalidate(collectionTypesProvider);
+      ref.invalidate(collectionDetailProvider);
+      ref.invalidate(dossierListProvider);
+      ref.invalidate(dossierDetailProvider);
+      ref.invalidate(eventProgressProvider);
       ref.invalidate(rewardSummaryProvider);
       ref.invalidate(inventoryCatalogProvider);
       ref.invalidate(inventoryItemsProvider);
@@ -640,17 +645,17 @@ class _LessonPlayerScreenState extends ConsumerState<LessonPlayerScreen> {
       // Attempt đã xong → progress cache cũ (IN_PROGRESS) không còn đúng.
       ref.invalidate(myProgressProvider);
       ref.invalidate(learningPathProvider);
-      // Trạng thái mở khoá bản đồ có thể đổi ngay sau completion.
-      // Invalidate ở đây (không đợi remount /map) vì route Map thường đã
-      // unmount sau pushReplacement/context.go.
+      ref.invalidate(learnerLearningPathProvider);
+      ref.invalidate(myLearningPathProvider);
+      // Trạng thái mở khoá bản đồ và media UNLOCKED_ONLY có thể đổi ngay sau completion.
       ref.invalidate(mapLocationsProvider);
-      // Issue #36: trục học trên Bản Đồ Dấu Ấn là learning-path — mở khóa
-      // bài kế xảy ra trong cùng transaction complete → invalidate ngay.
-      ref.invalidate(learningPathProvider);
+      ref.invalidate(mapLocationDetailProvider);
       // Bộ sưu tập có thể vừa nhận bằng chứng mới (EVIDENCE_SELECT
       // submissions vừa hoàn thành trong bài này) — invalidate mọi
       // family instance để lần mở /collection sau refetch.
       ref.invalidate(collectionListProvider);
+      ref.invalidate(collectionTypesProvider);
+      ref.invalidate(collectionDetailProvider);
       // TASK-0023: thưởng + vật phẩm có thể vừa được cấp trong cùng
       // transaction complete — invalidate để Túi Đồ/summary refetch lần
       // mở sau (không fetch lại ngay để không chậm điều hướng).
@@ -663,6 +668,7 @@ class _LessonPlayerScreenState extends ConsumerState<LessonPlayerScreen> {
       // sau refetch đúng trạng thái mới.
       ref.invalidate(dossierListProvider);
       ref.invalidate(dossierDetailProvider);
+      ref.invalidate(eventProgressProvider);
       if (_lessonEventId != null) {
         ref.invalidate(eventProgressProvider(_lessonEventId!));
       }
@@ -993,11 +999,11 @@ class _LessonPlayerScreenState extends ConsumerState<LessonPlayerScreen> {
                       children: [
                         Expanded(
                           child: StepProgressBar(
-                            currentStep: (cur.progress.fraction * 5)
-                                .clamp(0, 5)
-                                .round()
-                                .toInt(),
-                            totalSteps: 6,
+                            currentStep: cur.progress.completedRequired.clamp(
+                              0,
+                              cur.progress.totalRequired,
+                            ),
+                            totalSteps: cur.progress.totalRequired.clamp(1, 12),
                             showLabels: false,
                             height: 32,
                           ),

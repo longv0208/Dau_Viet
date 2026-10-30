@@ -172,6 +172,15 @@ function BuilderInner({
     // trong lúc PUT đang chạy, markSaved sẽ giữ dirty (không mất thay đổi mới).
     mutationFn: () => {
       const revision = state.revision;
+      const localErrors = validateDraftLocally(state.draft, {
+        evidenceTitle: (id) => evidenceTitleMap.get(id),
+      });
+      const localFields: FieldError[] = localErrors.map((e) => ({
+        path: e.path,
+        code: e.code,
+        message: e.detail ?? e.code,
+        detail: e.detail,
+      }));
       const body = serializeDraft(state.draft);
       return apiFetch<AdminLessonDetail>(`/admin/lessons/${lesson.id}/draft`, {
         method: "PUT",
@@ -179,10 +188,13 @@ function BuilderInner({
           draftJson: body,
           expectedRowVersion: state.rowVersion,
         }),
-      }).then((res) => ({ res, revision }));
+      }).then((res) => ({ res, revision, localFields }));
     },
-    onSuccess: ({ res, revision }) => {
+    onSuccess: ({ res, revision, localFields }) => {
       actions.markSaved(res.rowVersion, revision);
+      if (localFields.length > 0) {
+        actions.setErrors(localFields);
+      }
       setSaveError(null);
       qc.invalidateQueries({ queryKey: qk.lessons.detail(lesson.id) });
     },
@@ -231,36 +243,18 @@ function BuilderInner({
             className="ml-auto"
             disabled={!state.dirty || saveMutation.isPending}
             onClick={() => {
-              // Chặn submit khi client-side đã thấy lỗi — đỡ round-trip PUT
-              // và giữ nguyên vị trí lỗi để jump tới.
+              // Chạy kiểm tra local để hiển thị cảnh báo/lỗi xuất bản ở panel bên phải,
+              // nhưng KHÔNG chặn PUT /draft lưu công việc đang soạn của tác giả.
               const localErrors = validateDraftLocally(state.draft, {
                 evidenceTitle: (id) => evidenceTitleMap.get(id),
               });
-              if (localErrors.length > 0) {
-                const fields: FieldError[] = localErrors.map((e) => ({
-                  path: e.path,
-                  code: e.code,
-                  message: e.detail ?? e.code,
-                  detail: e.detail,
-                }));
-                actions.setErrors(fields);
-                const first = localErrors[0];
-                if (first) {
-                  // Jump tới stage/activity đầu tiên bị lỗi.
-                  const m = /stages\[id=([^\]]+)\].*?activities\[(\d+)\]/.exec(first.path);
-                  if (m && m[1] && m[2] != null) {
-                    actions.selectStage(m[1]);
-                    const st = state.draft.stages.find((x) => x.id === m[1]);
-                    const actIdx = Number(m[2]);
-                    const act = st?.activities[actIdx];
-                    if (act) actions.selectActivity(act.id);
-                  }
-                }
-                setSaveError(
-                  `Bản nháp còn ${localErrors.length} lỗi cấu hình — xem danh sách bên phải.`,
-                );
-                return;
-              }
+              const fields: FieldError[] = localErrors.map((e) => ({
+                path: e.path,
+                code: e.code,
+                message: e.detail ?? e.code,
+                detail: e.detail,
+              }));
+              actions.setErrors(fields);
               saveMutation.mutate();
             }}
           >
@@ -387,6 +381,7 @@ function BuilderInner({
           />
           <PublishReadinessCard
             lessonId={lesson.id}
+            eventId={lesson.eventId}
             draft={state.dirty ? null : state.draft}
             revision={state.revision}
             dirty={state.dirty}

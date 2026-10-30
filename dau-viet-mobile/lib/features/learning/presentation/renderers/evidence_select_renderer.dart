@@ -114,7 +114,9 @@ class _EvidenceSelectRendererState extends State<EvidenceSelectRenderer> {
     final Map<String, String> verdicts = graded
         ? (widget.lastEvaluation?.selectedVerdicts ?? const {})
         : const {};
-
+    final int? expectedCount = (config['expectedCount'] as num?)?.toInt();
+    final int targetCount = expectedCount ?? minRequired;
+    final bool hasExpectedTarget = graded && expectedCount != null;
     if (ids.isEmpty) {
       return const _NoEvidence();
     }
@@ -181,17 +183,40 @@ class _EvidenceSelectRendererState extends State<EvidenceSelectRenderer> {
         ],
         const SizedBox(height: 10),
         Text(
-          'Đã chọn ${_selected.length}/$minRequired',
+          'Đã chọn ${_selected.length}/$targetCount',
           textAlign: TextAlign.center,
           style: DauVietTypography.bodySmall.copyWith(
-            color: _selected.length >= minRequired
-                ? DauVietColors.natureGreen
-                : DauVietColors.inkMuted,
-            fontWeight: _selected.length >= minRequired
-                ? FontWeight.w700
-                : FontWeight.w400,
+            color: hasExpectedTarget
+                ? (_selected.length == targetCount
+                      ? DauVietColors.natureGreen
+                      : _selected.length > targetCount
+                      ? DauVietColors.cinnabarRed
+                      : DauVietColors.inkMuted)
+                : (_selected.length >= minRequired
+                      ? DauVietColors.natureGreen
+                      : DauVietColors.inkMuted),
+            fontWeight: hasExpectedTarget
+                ? (_selected.length == targetCount ||
+                          _selected.length > targetCount
+                      ? FontWeight.w700
+                      : FontWeight.w400)
+                : (_selected.length >= minRequired
+                      ? FontWeight.w700
+                      : FontWeight.w400),
           ),
         ),
+        if (hasExpectedTarget && _selected.length > targetCount) ...[
+          const SizedBox(height: 4),
+          Text(
+            'Cảnh báo: Bạn đã chọn nhiều hơn $targetCount dấu vết yêu cầu.',
+            textAlign: TextAlign.center,
+            style: DauVietTypography.bodySmall.copyWith(
+              color: DauVietColors.cinnabarRed,
+              fontSize: 11,
+              fontWeight: FontWeight.w600,
+            ),
+          ),
+        ],
         const SizedBox(height: 8),
         if (graded)
           InlineGradingHint(

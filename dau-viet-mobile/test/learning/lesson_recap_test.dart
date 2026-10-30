@@ -60,6 +60,7 @@ void main() {
     expect(find.text('TƯ LIỆU TRONG BÀI HỌC'), findsOneWidget);
     expect(find.text('BẰNG CHỨNG ĐÃ KHẢO SÁT'), findsNothing);
     expect(find.textContaining('Sử ký'), findsOneWidget);
+    expect(find.text('Xem Bộ sưu tập tư liệu →'), findsOneWidget);
   });
 
   testWidgets('READ content → trích đoạn hiển thị trong recap', (tester) async {

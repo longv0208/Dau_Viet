@@ -23,5 +23,33 @@ public record LessonResultResponse(
         java.util.List<com.dauviet.reward.api.dto
                 .RewardTransactionResponse> rewards,
         java.util.List<com.dauviet.reward.api.dto
-                .InventoryItemResponse> itemsUnlocked) {
+                .InventoryItemResponse> itemsUnlocked,
+        java.util.List<UUID> newlyUnlockedDossiers,
+        java.util.List<CompleteAttemptResponse.UnlockedLocationCue> newlyUnlockedLocations) {
+
+    public LessonResultResponse {
+        newlyUnlockedDossiers = newlyUnlockedDossiers == null
+                ? java.util.List.of()
+                : java.util.List.copyOf(newlyUnlockedDossiers);
+        newlyUnlockedLocations = newlyUnlockedLocations == null
+                ? java.util.List.of()
+                : java.util.List.copyOf(newlyUnlockedLocations);
+    }
+
+    public LessonResultResponse(
+            UUID attemptId,
+            UUID lessonVersionId,
+            String status,
+            BigDecimal score,
+            JsonNode result,
+            Instant completedAt,
+            Instant startedAt,
+            java.util.List<com.dauviet.reward.api.dto
+                    .RewardTransactionResponse> rewards,
+            java.util.List<com.dauviet.reward.api.dto
+                    .InventoryItemResponse> itemsUnlocked) {
+        this(attemptId, lessonVersionId, status, score, result, completedAt,
+                startedAt, rewards, itemsUnlocked,
+                java.util.List.of(), java.util.List.of());
+    }
 }

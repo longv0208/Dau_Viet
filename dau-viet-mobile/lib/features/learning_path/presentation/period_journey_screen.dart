@@ -313,11 +313,25 @@ class _PeriodJourneyScreenState extends ConsumerState<PeriodJourneyScreen> {
         events.where((e) => e.isRequired && e.status.isDone).length;
     final requiredEvents =
         progress?.requiredEvents ?? events.where((e) => e.isRequired).length;
-    final percent =
+    final completedLessons =
+        progress?.completedLessons ??
+        events
+            .where((e) => e.isRequired)
+            .expand((e) => e.lessons)
+            .where((l) => l.status.isDone)
+            .length;
+    final requiredLessons =
+        progress?.requiredLessons ??
+        events.where((e) => e.isRequired).expand((e) => e.lessons).length;
+    final int rawPercent =
         progress?.percent ??
         (requiredEvents > 0
             ? ((completedEvents * 100) / requiredEvents).round()
             : 0);
+    final int percent =
+        (rawPercent == 0 && requiredLessons > 0 && completedLessons > 0)
+        ? ((completedLessons * 100) / requiredLessons).round()
+        : rawPercent;
 
     return HeritageCard(
       backgroundColor: DauVietColors.paperCard,
@@ -409,7 +423,7 @@ class _PeriodJourneyScreenState extends ConsumerState<PeriodJourneyScreen> {
           const SizedBox(height: 12),
           HeritageProgressIndicator(
             label:
-                'Tiến độ thời kỳ: $completedEvents/$requiredEvents sự kiện bắt buộc',
+                'Tiến độ thời kỳ: $completedEvents/$requiredEvents sự kiện • $completedLessons/$requiredLessons bài học',
             percent: percent,
           ),
         ],

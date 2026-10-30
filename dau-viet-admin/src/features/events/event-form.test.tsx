@@ -170,7 +170,7 @@ describe("EventForm", () => {
     );
 
     renderForm();
-    await userEvent.click(screen.getByRole("button", { name: /chọn từ thư viện/i }));
+    await userEvent.click(screen.getAllByRole("button", { name: /chọn từ thư viện/i })[0]!);
     const tile = await screen.findByRole("button", { name: /bai-coc-bach-dang\.jpg/i });
     await userEvent.click(tile);
 

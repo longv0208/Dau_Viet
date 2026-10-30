@@ -490,7 +490,7 @@ export function IslandIsometricCanvas({
           className="px-2 py-0.5 rounded-full bg-amber-100 hover:bg-amber-200 font-bold text-amber-900 transition-colors"
           title="Đổi góc nhìn Isometric"
         >
-          🧭 {CAMERA_DIRECTIONS[cameraDirection].label}
+          🧭 {CAMERA_DIRECTIONS[cameraDirection]?.label ?? "Đông Bắc"}
         </button>
         <button
           type="button"
@@ -775,7 +775,7 @@ export function IslandIsometricCanvas({
         </span>
         <span className="text-slate-500">•</span>
         <span>
-          Góc nhìn: <strong>{CAMERA_DIRECTIONS[cameraDirection].label}</strong>
+          Góc nhìn: <strong>{CAMERA_DIRECTIONS[cameraDirection]?.label ?? "Đông Bắc"}</strong>
         </span>
         <span className="text-slate-500">•</span>
         <span>

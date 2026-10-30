@@ -59,7 +59,7 @@ describe("LessonWizard", () => {
     // Step 4 confirm.
     await waitFor(() => screen.getByText("Lưu bản nháp"));
     await userEvent.click(screen.getByRole("button", { name: /lưu bản nháp/i }));
-    await waitFor(() => expect(pushMock).toHaveBeenCalledWith("/lessons/lesson-new"));
+    await waitFor(() => expect(pushMock).toHaveBeenCalledWith("/lessons/lesson-new/builder"));
     expect(posted).toMatchObject({
       title: "Bí mật Bạch Đằng",
       centralQuestion: "Vì sao Ngô Quyền thắng?",

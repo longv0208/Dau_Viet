@@ -31,6 +31,7 @@ import com.dauviet.map.admin.dto.AdminStandaloneMapLocationDtos.EventLinkView;
 import com.dauviet.map.admin.dto.AdminStandaloneMapLocationDtos.MediaInput;
 import com.dauviet.map.admin.dto.AdminStandaloneMapLocationDtos.MediaView;
 import com.dauviet.map.admin.dto.AdminStandaloneMapLocationDtos.ReplaceUnlockLessonsRequest;
+import com.dauviet.map.admin.dto.AdminStandaloneMapLocationDtos.ReplaceEventsRequest;
 import com.dauviet.map.admin.dto.AdminStandaloneMapLocationDtos.StandaloneLocationRequest;
 import com.dauviet.map.admin.dto.AdminStandaloneMapLocationDtos.StandaloneLocationResponse;
 import com.dauviet.map.admin.dto.AdminStandaloneMapLocationDtos.UnlockLessonView;
@@ -102,7 +103,50 @@ public class AdminMapLocationService {
     @Transactional(readOnly = true)
     public List<AdminMapLocationResponse> list(UUID eventId) {
         requireEvent(eventId);
-        List<MapLocation> rows = locations.findByEventIdOrderByDisplayOrderAscTitleAsc(eventId);
+        Map<UUID, MapLocation> byLocId = new java.util.LinkedHashMap<>();
+        List<MapLocation> direct = locations.findByEventIdOrderByDisplayOrderAscTitleAsc(eventId);
+        if (direct != null) {
+            for (MapLocation l : direct) {
+                if (l != null && l.getId() != null) {
+                    byLocId.put(l.getId(), l);
+                }
+            }
+        }
+        List<MapLocation> linkedQuery = locations.findAllByEventIdIncludingLinks(eventId);
+        if (linkedQuery != null) {
+            for (MapLocation l : linkedQuery) {
+                if (l != null && l.getId() != null) {
+                    byLocId.putIfAbsent(l.getId(), l);
+                }
+            }
+        }
+        if (locationEvents != null) {
+            List<MapLocationEvent> links = locationEvents.findByIdEventId(eventId);
+            if (links != null && !links.isEmpty()) {
+                Set<UUID> missingIds = new java.util.LinkedHashSet<>();
+                for (MapLocationEvent link : links) {
+                    UUID locId = link != null ? link.getLocationId() : null;
+                    if (locId != null && !byLocId.containsKey(locId)) {
+                        missingIds.add(locId);
+                    }
+                }
+                if (!missingIds.isEmpty()) {
+                    List<MapLocation> fetched = locations.findAllById(missingIds);
+                    if (fetched != null) {
+                        for (MapLocation l : fetched) {
+                            if (l != null && l.getId() != null) {
+                                byLocId.putIfAbsent(l.getId(), l);
+                            }
+                        }
+                    }
+                }
+            }
+        }
+        List<MapLocation> rows = byLocId.values().stream()
+                .sorted(java.util.Comparator
+                        .comparingInt(MapLocation::getDisplayOrder)
+                        .thenComparing(l -> l.getTitle() == null ? "" : l.getTitle()))
+                .toList();
         Map<UUID, Lesson> byId = lessonTitles(rows);
         return rows.stream().map(l -> toResponse(l, byId)).toList();
     }
@@ -271,6 +315,11 @@ public class AdminMapLocationService {
     }
 
     @Transactional
+    public StandaloneLocationResponse replaceEvents(UUID locationId, ReplaceEventsRequest req) {
+        return replaceEvents(locationId, req == null ? List.of() : req.events());
+    }
+
+    @Transactional
     public StandaloneLocationResponse replaceEvents(UUID locationId, List<EventLinkInput> inputs) {
         MapLocation l = loadStandalone(locationId);
         List<EventLinkInput> safeInputs = inputs == null ? List.of() : inputs;
@@ -288,6 +337,22 @@ public class AdminMapLocationService {
                 throw new IllegalArgumentException("Invalid event role: " + in.role());
             }
         }
+
+        UUID primaryEventId = null;
+        if (!safeInputs.isEmpty()) {
+            for (EventLinkInput in : safeInputs) {
+                String role = in.role() == null ? "RELATED" : in.role().trim().toUpperCase(Locale.ROOT);
+                if ("PRIMARY".equals(role)) {
+                    primaryEventId = in.eventId();
+                    break;
+                }
+            }
+            if (primaryEventId == null) {
+                primaryEventId = safeInputs.get(0).eventId();
+            }
+        }
+        l.setEventId(primaryEventId);
+        locations.saveAndFlush(l);
 
         if (locationEvents != null) {
             locationEvents.deleteByLocationId(locationId);
@@ -589,6 +654,17 @@ public class AdminMapLocationService {
 
     private MapLocation load(UUID eventId, UUID locationId) {
         return locations.findByIdAndEventId(locationId, eventId)
+                .or(() -> {
+                    if (locationEvents != null) {
+                        List<MapLocationEvent> links = locationEvents.findByIdEventId(eventId);
+                        boolean linked = links != null && links.stream()
+                                .anyMatch(e -> e != null && locationId.equals(e.getLocationId()));
+                        if (linked) {
+                            return locations.findById(locationId);
+                        }
+                    }
+                    return java.util.Optional.empty();
+                })
                 .orElseThrow(() -> new ResourceNotFoundException(
                         "Map location not found: " + locationId));
     }

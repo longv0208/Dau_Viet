@@ -100,6 +100,14 @@ export function EventOverviewTab({ event }: { event: AdminEventDetail }) {
 
   return (
     <div className="flex flex-col gap-6">
+      {event.status === "DRAFT" && (
+        <div
+          role="status"
+          className="rounded-md border border-warning/40 bg-warning/15 px-4 py-3 text-sm text-ink"
+        >
+          <strong>Lưu ý thứ tự xuất bản:</strong> Sự kiện đang ở trạng thái <strong>Bản nháp (DRAFT)</strong>. Hãy bấm nút <strong>&ldquo;Xuất bản sự kiện&rdquo;</strong> ở góc trên bên phải trước khi xuất bản Bài học, Địa điểm bản đồ hoặc Chính sách hoàn thành sự kiện.
+        </div>
+      )}
       <PaperCard className="border-l-4 border-l-brand bg-surface-alt p-4">
         <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
           <div>
@@ -121,7 +129,7 @@ export function EventOverviewTab({ event }: { event: AdminEventDetail }) {
           <li className="rounded-md border border-border bg-surface p-3">
             <p className="text-xs font-bold text-chapter">Bước 1 · Thông tin &amp; Địa điểm</p>
             <p className="mt-1 text-xs text-ink-muted">
-              Khai báo thời kỳ, năm, câu hỏi trung tâm và ghim di tích.
+              Khai báo thời kỳ, năm, câu hỏi trung tâm, ghim di tích và bấm <strong>Xuất bản sự kiện</strong> (góc trên bên phải) trước khi xuất bản Bài học, Địa điểm hoặc Chính sách hoàn thành.
             </p>
             <Link
               href={`/events/${eventId}?tab=info`}

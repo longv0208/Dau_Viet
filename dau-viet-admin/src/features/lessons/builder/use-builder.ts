@@ -235,6 +235,15 @@ function reducer(state: BuilderState, a: Action): BuilderState {
   }
 }
 
+export const DEFAULT_ACTIVITY_FEEDBACK: Record<string, string> = {
+  COMPLETED: "Chính xác! Bạn đã hoàn thành bước điều tra này.",
+  INCORRECT: "Chưa chính xác, hãy đối chiếu lại tư liệu và bằng chứng.",
+  PARTIAL: "Bạn đã chọn đúng một phần, hãy kiểm tra lại các chi tiết còn thiếu.",
+  EXHAUSTED: "Đã hết lượt thử. Hãy xem gợi ý chuẩn để tiếp tục hành trình.",
+  SUPPORTED: "Giả thuyết hoàn toàn phù hợp với các bằng chứng đã thu thập.",
+  CONTRADICTED: "Bằng chứng cho thấy giả thuyết này chưa chính xác, cần xem xét lại.",
+};
+
 export function makeActivity(type: ActivityType, existing: string[]): Activity {
   return {
     id: genSlugId("act", existing),

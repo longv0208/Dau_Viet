@@ -48,6 +48,43 @@ class _CerRendererState extends State<CerRenderer> {
   final _reasonFocus = FocusNode();
   final Set<String> _evidenceIds = {};
 
+  Set<String> get _selectedEvidence => _evidenceIds;
+
+  List<String> _priorEvidenceIds() {
+    final config = widget.activity.config;
+    final prior = config['priorOutputs'];
+    if (prior is! Map) return const [];
+    final source = config['priorEvidenceSource'] ?? config['evidenceSource'];
+    if (source is String && source.trim().isNotEmpty) {
+      final out = prior[source];
+      if (out is Map) {
+        final ids = out['selectedEvidenceIds'] ?? out['evidenceIds'];
+        if (ids is List) {
+          final list = ids.whereType<String>().toList();
+          if (list.isNotEmpty) return list;
+        }
+      }
+    }
+    for (final out in prior.values) {
+      if (out is Map) {
+        final ids = out['selectedEvidenceIds'] ?? out['evidenceIds'];
+        if (ids is List) {
+          final list = ids.whereType<String>().toList();
+          if (list.isNotEmpty) return list;
+        }
+      }
+    }
+    return const [];
+  }
+
+  @override
+  void initState() {
+    super.initState();
+    final prior = _priorEvidenceIds();
+    if (prior.isNotEmpty) {
+      _selectedEvidence.addAll(prior);
+    }
+  }
   /// Báo player còn input chưa gửi (text/chips) để chặn thoát vô tình.
   void _reportDirty() => widget.onInputChanged?.call(
     _claimCtrl.text.trim().isNotEmpty ||
@@ -66,11 +103,21 @@ class _CerRendererState extends State<CerRenderer> {
 
   bool get _valid =>
       _claimCtrl.text.trim().length >= 20 &&
-      _reasonCtrl.text.trim().length >= 20;
+      _reasonCtrl.text.trim().length >= 20 &&
+      _selectedEvidence.isNotEmpty;
 
   @override
   Widget build(BuildContext context) {
-    final evidence = widget.content.evidence;
+    final priorIds = _priorEvidenceIds();
+    final existingIds = <String>{
+      for (final e in widget.content.evidence)
+        if (e['id'] is String) e['id'] as String,
+    };
+    final evidence = <Map<String, dynamic>>[
+      ...widget.content.evidence,
+      for (final id in priorIds)
+        if (!existingIds.contains(id)) {'id': id, 'title': id},
+    ];
     final bool locked = widget.submitting;
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -136,7 +183,14 @@ class _CerRendererState extends State<CerRenderer> {
               else
                 // Evidence chips — chọn/bỏ chọn không đụng vào text đã viết.
                 Column(
-                  children: [for (final e in evidence) _evidenceTile(e, locked)],
+                  children: [
+                    for (final e in evidence)
+                      _evidenceTile(
+                        e,
+                        locked,
+                        priorIds.contains(e['id'] as String? ?? ''),
+                      ),
+                  ],
                 ),
             ],
           ),
@@ -188,7 +242,11 @@ class _CerRendererState extends State<CerRenderer> {
     return raw is String && raw.isNotEmpty ? raw : null;
   }
 
-  Widget _evidenceTile(Map<String, dynamic> e, bool locked) {
+  Widget _evidenceTile(
+    Map<String, dynamic> e,
+    bool locked, [
+    bool isPriorCollected = false,
+  ]) {
     final String id = e['id'] as String? ?? '';
     final bool selected = _evidenceIds.contains(id);
     final String title = (e['title'] as String?) ?? id;
@@ -241,14 +299,30 @@ class _CerRendererState extends State<CerRenderer> {
                 const SizedBox(width: 8),
               ],
               Expanded(
-                child: Text(
-                  title,
-                  maxLines: 2,
-                  overflow: TextOverflow.ellipsis,
-                  style: DauVietTypography.bodySmall.copyWith(
-                    color: DauVietColors.inkText,
-                    fontWeight: selected ? FontWeight.w700 : FontWeight.w500,
-                  ),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      title,
+                      maxLines: 2,
+                      overflow: TextOverflow.ellipsis,
+                      style: DauVietTypography.bodySmall.copyWith(
+                        color: DauVietColors.inkText,
+                        fontWeight: selected
+                            ? FontWeight.w700
+                            : FontWeight.w500,
+                      ),
+                    ),
+                    if (isPriorCollected) ...[
+                      const SizedBox(height: 4),
+                      const ClueTag(
+                        'Đã thu thập ở bước Khám phá',
+                        icon: Icons.bookmark_added_outlined,
+                        color: DauVietColors.jadeDark,
+                        filled: false,
+                      ),
+                    ],
+                  ],
                 ),
               ),
               const SizedBox(width: 8),

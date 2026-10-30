@@ -83,17 +83,33 @@ class _VerificationRendererState extends State<VerificationRenderer> {
     final prior = config['priorOutputs'];
     if (prior is! Map) return const [];
     final source = config['evidenceSource'];
-    if (source is String) {
+    if (source is String && source.trim().isNotEmpty) {
       final out = prior[source];
       final ids = out is Map ? out['selectedEvidenceIds'] : null;
-      return ids is List ? ids.whereType<String>().toList() : const [];
+      if (ids is List) {
+        final list = ids.whereType<String>().toList();
+        if (list.isNotEmpty) return list;
+      }
     }
     // Snapshot cũ không khai báo evidenceSource: bằng chứng đi kèm output
     // HYPOTHESIS_CHOICE (legacy contract).
     for (final out in prior.values) {
       if (out is Map && out['hypothesisId'] is String) {
         final ids = out['evidenceIds'];
-        if (ids is List) return ids.whereType<String>().toList();
+        if (ids is List) {
+          final list = ids.whereType<String>().toList();
+          if (list.isNotEmpty) return list;
+        }
+      }
+    }
+    // Fallback: quét priorOutputs.values lấy selectedEvidenceIds từ Stage 1 (EVIDENCE_SELECT).
+    for (final out in prior.values) {
+      if (out is Map) {
+        final ids = out['selectedEvidenceIds'] ?? out['evidenceIds'];
+        if (ids is List) {
+          final list = ids.whereType<String>().toList();
+          if (list.isNotEmpty) return list;
+        }
       }
     }
     return const [];
@@ -187,13 +203,24 @@ class _VerificationRendererState extends State<VerificationRenderer> {
         ],
 
         const SizedBox(height: 8),
+        Text(
+          'Đối chiếu giả thuyết với các bằng chứng đã thu thập và chọn 1 kết luận kiểm chứng:',
+          style: DauVietTypography.bodySmall.copyWith(
+            color: DauVietColors.inkSecondary,
+            fontWeight: FontWeight.w600,
+          ),
+        ),
+        const SizedBox(height: 6),
         _buildVerdictRow(),
         const SizedBox(height: 10),
         SubmitBar(
           label: 'KIỂM CHỨNG',
-          enabled: true,
+          enabled: _selectedVerdict != null,
           submitting: widget.submitting,
-          onPressed: () => widget.onSubmit({'action': 'verify'}),
+          onPressed: () => widget.onSubmit({
+            'action': 'verify',
+            'verdict': _selectedVerdict,
+          }),
         ),
       ],
     );

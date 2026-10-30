@@ -209,6 +209,15 @@ public final class ReasoningHandlers {
             out.put("attemptCount", attemptNo);
             int maxAttempts = config == null ? 0
                     : config.path("maxAttempts").asInt(0);
+            if (!ActivityResult.SUPPORTED.equals(outcome) && maxAttempts <= 0) {
+                String reviseField = ActivityResult.PARTIAL.equals(outcome)
+                        ? "onPartial" : "onContradicted";
+                String reviseTarget = ctx.activity() == null ? null
+                        : ctx.activity().path(reviseField).asText(null);
+                if (reviseTarget == null || reviseTarget.isBlank()) {
+                    maxAttempts = 2;
+                }
+            }
             boolean completed = ActivityResult.SUPPORTED.equals(outcome)
                     || (maxAttempts > 0 && attemptNo >= maxAttempts);
             if (completed && !ActivityResult.SUPPORTED.equals(outcome)) {
@@ -246,6 +255,16 @@ public final class ReasoningHandlers {
             JsonNode ids = carrier == null ? null : carrier.get(field);
             if (ids != null && ids.isArray()) {
                 ids.forEach(n -> { if (n.isTextual()) given.add(n.asText()); });
+            }
+            if (given.isEmpty()) {
+                for (JsonNode out : ctx.priorOutputs().values()) {
+                    if (out != null && out.isObject()) {
+                        JsonNode selected = out.get("selectedEvidenceIds");
+                        if (selected != null && selected.isArray() && !selected.isEmpty()) {
+                            selected.forEach(n -> { if (n.isTextual()) given.add(n.asText()); });
+                        }
+                    }
+                }
             }
             return given;
         }

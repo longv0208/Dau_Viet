@@ -126,8 +126,8 @@ export function IslandLayoutList() {
   if (layoutsQuery.isError) {
     return (
       <ErrorState
-        message={toUserMessage(layoutsQuery.error)}
-        onRetry={() => layoutsQuery.refetch()}
+        error={layoutsQuery.error}
+        onRetry={() => void layoutsQuery.refetch()}
       />
     );
   }
@@ -432,7 +432,7 @@ export function IslandLayoutList() {
                           <Button
                             size="sm"
                             variant={
-                              ver.status === "DRAFT" ? "primary" : "secondary"
+                              ver.status === "DRAFT" ? "default" : "secondary"
                             }
                             onClick={() =>
                               router.push(`/island-builder/${ver.id}`)

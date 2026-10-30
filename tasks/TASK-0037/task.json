@@ -1,0 +1,68 @@
+{
+  "schemaVersion": 1,
+  "id": "TASK-0037",
+  "type": "feature",
+  "risk": "high-risk",
+  "status": "done",
+  "goal": "[E2E][UX-AUDIT] Issue #45 — Kiểm thử End-to-End toàn diện từ Admin đến Học viên (Bài học có/không gắn Bản đồ) & Đánh giá độ thân thiện, tính liền mạch và ý nghĩa học tập (kèm Phase 4 khắc phục triệt để các bug phát sinh).",
+  "owner": "claude",
+  "modules": ["backend", "admin", "mobile", "docs"],
+  "scope": [
+    "dau-viet-backend/src/",
+    "dau-viet-admin/src/",
+    "dau-viet-mobile/lib/",
+    "dau-viet-mobile/test/",
+    "tasks/TASK-0037/",
+    "plans/261030-issue-45-e2e-flows-ux-audit/",
+    "docs/PROGRESS.md",
+    "docs/PROJECT_OVERVIEW.md"
+  ],
+  "acceptanceCriteria": [
+    {
+      "id": "AC-1",
+      "text": "Admin Authoring E2E: Thực hiện thành công từ đầu đến cuối trên Admin Web việc tạo Sự kiện, Bằng chứng, Hồ sơ, Địa điểm Bản đồ, 2 Bài học (1 bài gắn Map, 1 bài không gắn Map), Chính sách hoàn thành và xuất bản lên Lộ trình học tập mà không gặp lỗi API/UI."
+    },
+    {
+      "id": "AC-2",
+      "text": "Learner Journey E2E (Bài có gắn Map & Bài không gắn Map): Học viên trải nghiệm trọn vẹn cả 2 bài học trên giao diện Mobile/Web; kiểm chứng đúng cơ chế mở khóa tuần tự, cộng thưởng (EXP/Điểm Sử Ký), thu thập bằng chứng, mở khóa Hồ sơ sự kiện và mở khóa Địa điểm trên /map (đối với bài có gắn Map)."
+    },
+    {
+      "id": "AC-3",
+      "text": "Độ thân thiện, Dễ hiểu & Chỉ dẫn rõ ràng: Mọi màn hình hoặc bước thao tác gây bối rối cho Admin/Học viên phát hiện trong quá trình chạy E2E đều được bổ sung chỉ dẫn, nhãn trạng thái hoặc tinh chỉnh UX trực quan để người dùng vào biết ngay cần làm gì."
+    },
+    {
+      "id": "AC-4",
+      "text": "Tính liền mạch & Ý nghĩa học tập: Luồng chuyển tiếp giữa các bước học và giữa các hoạt động trong Lesson Player hoạt động liền mạch, phản hồi đúng/sai rõ ràng, đảm bảo giá trị tư duy lịch sử dựa trên bằng chứng."
+    },
+    {
+      "id": "AC-5",
+      "text": "Automated & Smoke Verification: Các kịch bản và bản sửa lỗi phát sinh trong quá trình E2E đều được kiểm chứng thực tế trên Backend + Admin + Mobile và pass bộ test liên quan."
+    }
+  ],
+  "acceptanceStatus": {
+    "AC-1": "done — Thực thi trọn vẹn Luồng 1–3 trên Backend + Admin Web (Sự kiện Như Nguyệt 1077, 4 Assets, 4 Bằng chứng APPROVED thuộc 4 nhóm dấu vết, Hồ sơ Lý Thường Kiệt PUBLISHED, Địa điểm Phòng tuyến Như Nguyệt kèm media PUBLIC_PREVIEW + UNLOCKED_ONLY, Bài học A gắn Map, Bài học B không gắn Map, Chính sách hoàn thành v1 PUBLISHED, Lộ trình HISTORY_MAIN v6 PUBLISHED); đồng bộ AdminMapLocationService giữa map_location_events và /admin/events/{id}/map-locations, sửa lỗi chọn địa điểm phân trang trên /map-locations, bổ sung loading/error state cho UnlockedLocationsCard và nút nhảy nhanh tới mục cảnh báo trong PathValidation.",
+    "AC-2": "done — Thực thi trọn vẹn Luồng 4 cho học viên mới: học Bài học A (có gắn Bản đồ) -> nhận 100 EXP + 50 Điểm Sử Ký, thu thập 3 bằng chứng vào /me/collection, mở khóa Địa điểm Phòng tuyến Như Nguyệt và tư liệu UNLOCKED_ONLY trên /map (kèm huy hiệu 'MỞ KHÓA TỪ BÀI HỌC'); Bài học B (không gắn Bản đồ) tự động chuyển sang AVAILABLE -> hoàn thành Bài học B mượt mà không hiện banner địa điểm rỗng, hoàn thành Sự kiện (EVENT_MASTERED 2/2) và mở khóa Hồ sơ lịch sử Lý Thường Kiệt; lưu bền vững newlyUnlockedLocations & newlyUnlockedDossiers vào lesson_results.result_json để reload trang Kết quả vẫn hiển thị đầy đủ cả 2 banner.",
+    "AC-3": "done — Bổ sung hướng dẫn thứ tự xuất bản (Event -> Lesson/Location/Policy) trên EventOverviewTab & PublishReadinessCard; hiển thị lỗi kiểm tra và khóa nút xác nhận khi không hợp lệ trong PolicyPublishDialog; giữ nguyên ?return= khi tạo bằng chứng và thêm nút Quay lại Sự kiện + bảng ánh xạ 4 Nhóm Dấu vết Điều tra; LessonWizard tự nhảy sang Bước 2 khi có ?event= và mở thẳng Lesson Builder sau khi tạo; chiếu expectedCount & totalItems cho EVIDENCE_SELECT có chấm điểm.",
+    "AC-4": "done — Tự động liên thông bằng chứng đã thu thập ở Chặng 1 (selectedEvidenceIds trong priorOutputs) sang HypothesisRenderer, VerificationRenderer, CerChoiceRenderer, CerRenderer và VerificationHandler kể cả khi không cấu hình thủ công priorEvidenceSource/evidenceSource; yêu cầu chọn kết luận kiểm chứng (SUPPORTED/PARTIAL/CONTRADICTED) trên VerificationRenderer và chống kẹt vô hạn khi thiếu nhánh revise; chuẩn hóa điều hướng /dashboard -> /journey, UnlockedLocationBanner -> /map?locationId=, LessonResultScreen -> /campaign/:eventId & /collection; invalidate toàn diện các Riverpod providers khi hoàn thành bài học.",
+    "AC-5": "done — Hợp nhất sạch main (63befe1 — Issues #43, #46, #47); Backend: mvnw test pass 100% (kèm LearnerAttemptServiceTest mới cho BUG-01); Admin Web: npx tsc --noEmit đạt 0 lỗi trên toàn dự án (sửa toàn bộ 15 lỗi TS), npx vitest run pass 54/54 test files (314/314 tests, 0 lỗi MSW); Mobile: flutter analyze --no-pub đạt 0 issues trên toàn dự án, flutter test pass 100%; Independent Code Review (Phase4CodeReviewer) đạt 9.8/10 (0 P0/P1/P2)."
+  },
+  "dependencies": ["TASK-0036"],
+  "planPath": "plans/261030-issue-45-e2e-flows-ux-audit/plan.md",
+  "evidenceRefs": [
+    "plans/261030-issue-45-e2e-flows-ux-audit/plan.md",
+    "plans/261030-issue-45-e2e-flows-ux-audit/phase-04-remaining-bugs-remediation-plan.md",
+    "tasks/TASK-0037/e2e_audit_report.json",
+    "tasks/TASK-0037/handoff.md",
+    "npx tsc --noEmit -> 0 errors across entire dau-viet-admin",
+    "npx vitest run -> 54/54 test files passed (314/314 tests passed, 0 MSW errors)",
+    "flutter analyze --no-pub -> No issues found! across entire dau-viet-mobile",
+    "mvnw test -> BUILD SUCCESS (including LearnerAttemptServiceTest, ReasoningHandlersTest, SelectionHandlersTest, LearnerProjectionServiceTest, AdminMapLocationServiceTest)",
+    "Independent code review (Phase4CodeReviewer) -> 9.8/10, 0 P0/P1/P2 findings"
+  ],
+  "notes": [
+    "Branch feat/issue-45-e2e-flows-ux-audit merged with main @ 63befe1 (Issues #43, #46, #47).",
+    "GitNexus MCP tool was unavailable in this session; used targeted grep/read and full unit/integration/E2E verification across backend, admin, and mobile."
+  ],
+  "nextAction": "Chờ người dùng review và ủy quyền commit/push trên nhánh feat/issue-45-e2e-flows-ux-audit.",
+  "handoff": "tasks/TASK-0037/handoff.md"
+}

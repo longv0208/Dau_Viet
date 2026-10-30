@@ -38,28 +38,27 @@ function evidenceLabel(cat: ValidationCatalog | undefined, id: string): string {
   return `'${id.slice(0, 8)}…'`;
 }
 
-const REQUIRED_FEEDBACK_TYPES = new Set([
-  "MULTIPLE_CHOICE",
-  "EVIDENCE_SELECT",
-  "MATCHING",
-  "REASONING_CONNECT",
-  "HYPOTHESIS_CHOICE",
-  "DRAG_ORDER",
-  "VERIFICATION",
-  "CER",
-  "CER_CHOICE",
-]);
+const REQUIRED_FEEDBACK_TYPES: Record<string, true> = {
+  MULTIPLE_CHOICE: true,
+  EVIDENCE_SELECT: true,
+  MATCHING: true,
+  REASONING_CONNECT: true,
+  DRAG_ORDER: true,
+  VERIFICATION: true,
+  CER: true,
+  CER_CHOICE: true,
+};
 
 /** Issue #35: loại chấm tự động trả PARTIAL/EXHAUSTED ngoài COMPLETED/INCORRECT. */
-const GRADED_3_LEVEL_TYPES = new Set([
-  "EVIDENCE_SELECT",
-  "MATCHING",
-  "REASONING_CONNECT",
-  "DRAG_ORDER",
-  "CER_CHOICE",
-]);
+const GRADED_3_LEVEL_TYPES: Record<string, true> = {
+  EVIDENCE_SELECT: true,
+  MATCHING: true,
+  REASONING_CONNECT: true,
+  DRAG_ORDER: true,
+  CER_CHOICE: true,
+};
 /** MULTIPLE_CHOICE emits COMPLETED/INCORRECT + EXHAUSTED only — no PARTIAL. */
-const MCQ_TYPES = new Set(["MULTIPLE_CHOICE"]);
+const MCQ_TYPES: Record<string, true> = { MULTIPLE_CHOICE: true };
 function apath(c: Ctx, field?: string): string {
   const base = `stages[id=${c.stage.id}].activities[${c.actIdx}]`;
   return field ? `${base}.config.${field}` : `${base}.config`;
@@ -249,16 +248,16 @@ function validateCerChoice(c: Ctx) {
   const reasoningOpts = getArray(cfg.reasoningOptions) ?? [];
   const combos = getArray(cfg.acceptedCombos) ?? [];
 
-  if (claims.length === 0) {
-    push(c, "claims", "INVALID_CONFIG", "Cần ít nhất 1 nhận định để học viên chọn.");
+  if (claims.length < 2) {
+    push(c, "claims", "INVALID_CONFIG", "Cần ít nhất 2 nhận định để học viên chọn.");
   }
   if (evidOpts.length === 0) {
     push(c, "evidenceOptions", "INVALID_CONFIG",
       "Cần ít nhất 1 bằng chứng trong tuỳ chọn.");
   }
-  if (reasoningOpts.length === 0) {
+  if (reasoningOpts.length < 2) {
     push(c, "reasoningOptions", "INVALID_CONFIG",
-      "Cần ít nhất 1 lập luận trong tuỳ chọn.");
+      "Cần ít nhất 2 lập luận trong tuỳ chọn.");
   }
   if (combos.length === 0) {
     push(c, "acceptedCombos", "MISSING_FIELD",
@@ -289,6 +288,10 @@ function validateCerChoice(c: Ctx) {
         `Tổ hợp ${i + 1}: claim không khớp nhận định nào.`);
     }
     const evIds = getArray(cb.evidenceIds) ?? [];
+    if (evIds.length === 0) {
+      push(c, `acceptedCombos[${i}].evidenceIds`, "MISSING_FIELD",
+        `Tổ hợp ${i + 1}: cần chọn ít nhất 1 bằng chứng đúng.`);
+    }
     for (const e of evIds) {
       const s = getStr(e);
       if (s != null && !evidIds.has(s)) {
@@ -306,7 +309,7 @@ function validateCerChoice(c: Ctx) {
 }
 
 function validateFeedback(c: Ctx) {
-  if (!REQUIRED_FEEDBACK_TYPES.has(c.act.type)) return;
+  if (!REQUIRED_FEEDBACK_TYPES[c.act.type]) return;
   const fb = c.act.feedback ?? {};
   const missing: string[] = [];
   if (typeof fb.COMPLETED !== "string" || !fb.COMPLETED.trim()) missing.push("COMPLETED");
@@ -316,11 +319,11 @@ function validateFeedback(c: Ctx) {
     if (typeof fb.INCORRECT !== "string" || !fb.INCORRECT.trim()) missing.push("INCORRECT");
   }
   // Issue #35: chuỗi auto-graded báo 3 mức + hết lượt thử (EVIDENCE_SELECT chỉ khi graded:true).
-  if (GRADED_3_LEVEL_TYPES.has(c.act.type) && !isUngradedEvidenceSelect) {
+  if (GRADED_3_LEVEL_TYPES[c.act.type] && !isUngradedEvidenceSelect) {
     if (typeof fb.PARTIAL !== "string" || !fb.PARTIAL.trim()) missing.push("PARTIAL");
     if (typeof fb.EXHAUSTED !== "string" || !fb.EXHAUSTED.trim()) missing.push("EXHAUSTED");
   }
-  if (MCQ_TYPES.has(c.act.type)) {
+  if (MCQ_TYPES[c.act.type]) {
     if (typeof fb.EXHAUSTED !== "string" || !fb.EXHAUSTED.trim()) missing.push("EXHAUSTED");
   }
   if (c.act.type === "VERIFICATION") {

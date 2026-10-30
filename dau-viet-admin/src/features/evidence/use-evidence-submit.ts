@@ -1,7 +1,7 @@
 "use client";
 
 import { useQueryClient } from "@tanstack/react-query";
-import { useRouter } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import type { UseFormReset, UseFormSetError } from "react-hook-form";
 
 import { apiFetch } from "@/lib/api-client";
@@ -9,6 +9,7 @@ import { ApiClientError, toUserMessage } from "@/lib/api-error";
 import type { AdminAsset, Evidence } from "@/lib/dto/evidence";
 import { applyServerFieldErrors } from "@/lib/form-utils";
 import { qk } from "@/lib/query-keys";
+import { parseReturnTo, withReturnTo } from "@/lib/return-to";
 
 import type { EvidenceFormValues } from "./evidence-form-schema";
 
@@ -69,6 +70,8 @@ interface SubmitDeps {
 /** Submit handler for both POST create and PATCH edit branches. */
 export function useEvidenceSubmit() {
   const router = useRouter();
+  const searchParams = useSearchParams();
+  const returnTo = parseReturnTo(searchParams.get("return"));
   const qc = useQueryClient();
 
   return async function submit(v: EvidenceFormValues, deps: SubmitDeps) {
@@ -106,7 +109,7 @@ export function useEvidenceSubmit() {
           body: JSON.stringify({ ...payload, eventId: v.eventId, assetId: asset?.id }),
         });
         qc.invalidateQueries({ queryKey: ["evidences"] });
-        router.push(`/evidence/${res.id}`);
+        router.push(withReturnTo(`/evidence/${res.id}`, returnTo));
       }
     } catch (err) {
       const mapped = applyServerFieldErrors(err, setError, SERVER_FIELDS);

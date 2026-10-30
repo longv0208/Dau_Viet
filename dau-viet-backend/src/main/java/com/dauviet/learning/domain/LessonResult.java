@@ -39,7 +39,7 @@ public class LessonResult {
     private BigDecimal score;
 
     @JdbcTypeCode(SqlTypes.JSON)
-    @Column(name = "result_json", nullable = false, updatable = false,
+    @Column(name = "result_json", nullable = false,
             columnDefinition = "jsonb")
     private String resultJson;
 
@@ -65,4 +65,8 @@ public class LessonResult {
     public BigDecimal getScore() { return score; }
     public String getResultJson() { return resultJson; }
     public Instant getCompletedAt() { return completedAt; }
+
+    public void updateResultJson(String resultJson) {
+        this.resultJson = resultJson;
+    }
 }

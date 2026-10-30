@@ -417,6 +417,72 @@ class ReasoningHandlersTest {
     }
 
     @Test
+    void verification_withoutEvidenceSource_fallsBackToPriorSelectedEvidenceIds() {
+        Map<String, JsonNode> prior = new LinkedHashMap<>();
+        prior.put("hc", HandlerTestSupport.json("{\"hypothesisId\":\"h1\"}"));
+        prior.put("es", HandlerTestSupport.json("{\"selectedEvidenceIds\":[\"e1\",\"e2\"]}"));
+        ActivityResult r = verification.evaluate(
+                HandlerTestSupport.ctx(verificationActivity(""), snapshot(), prior),
+                HandlerTestSupport.sub("vf", "{\"action\":\"verify\"}"));
+        assertThat(r.outcome()).isEqualTo(ActivityResult.SUPPORTED);
+        assertThat(r.completed()).isTrue();
+    }
+
+    @Test
+    void verification_partialWithoutReviseTargetAndNoMaxAttempts_capsAtTwoAttempts() {
+        JsonNode act = verificationActivity("");
+        Map<String, JsonNode> prior1 = priorHypothesis("h1", "\"e1\"");
+        ActivityResult r1 = verification.evaluate(
+                HandlerTestSupport.ctx(act, snapshot(), prior1),
+                HandlerTestSupport.sub("vf", "{\"action\":\"verify\"}"));
+        assertThat(r1.outcome()).isEqualTo(ActivityResult.PARTIAL);
+        assertThat(r1.completed()).isFalse();
+
+        Map<String, JsonNode> prior2 = priorHypothesis("h1", "\"e1\"");
+        prior2.put("vf", HandlerTestSupport.json("{\"attemptCount\":1}"));
+        ActivityResult r2 = verification.evaluate(
+                HandlerTestSupport.ctx(act, snapshot(), prior2),
+                HandlerTestSupport.sub("vf", "{\"action\":\"verify\"}"));
+        assertThat(r2.outcome()).isEqualTo(ActivityResult.PARTIAL);
+        assertThat(r2.completed()).isTrue();
+        assertThat(r2.output().get("exhausted").asBoolean()).isTrue();
+    }
+
+    @Test
+    void verification_contradictedWithoutReviseTargetAndNoMaxAttempts_capsAtTwoAttempts() {
+        JsonNode act = verificationActivity(",\"expectedHypothesis\":\"h2\"");
+        Map<String, JsonNode> prior1 = priorHypothesis("h1", "\"e1\",\"e2\"");
+        ActivityResult r1 = verification.evaluate(
+                HandlerTestSupport.ctx(act, snapshot(), prior1),
+                HandlerTestSupport.sub("vf", "{\"action\":\"verify\"}"));
+        assertThat(r1.outcome()).isEqualTo(ActivityResult.CONTRADICTED);
+        assertThat(r1.completed()).isFalse();
+
+        Map<String, JsonNode> prior2 = priorHypothesis("h1", "\"e1\",\"e2\"");
+        prior2.put("vf", HandlerTestSupport.json("{\"attemptCount\":1}"));
+        ActivityResult r2 = verification.evaluate(
+                HandlerTestSupport.ctx(act, snapshot(), prior2),
+                HandlerTestSupport.sub("vf", "{\"action\":\"verify\"}"));
+        assertThat(r2.outcome()).isEqualTo(ActivityResult.CONTRADICTED);
+        assertThat(r2.completed()).isTrue();
+        assertThat(r2.output().get("exhausted").asBoolean()).isTrue();
+    }
+
+    @Test
+    void verification_partialWithOnPartialAndNoMaxAttempts_remainsUnbounded() {
+        JsonNode act = HandlerTestSupport.json(
+                "{\"id\":\"vf\",\"type\":\"VERIFICATION\",\"onPartial\":\"ev\","
+              + "\"config\":{\"requiredEvidenceIds\":[\"e1\",\"e2\"]}}");
+        Map<String, JsonNode> prior2 = priorHypothesis("h1", "\"e1\"");
+        prior2.put("vf", HandlerTestSupport.json("{\"attemptCount\":1}"));
+        ActivityResult r2 = verification.evaluate(
+                HandlerTestSupport.ctx(act, snapshot(), prior2),
+                HandlerTestSupport.sub("vf", "{\"action\":\"verify\"}"));
+        assertThat(r2.outcome()).isEqualTo(ActivityResult.PARTIAL);
+        assertThat(r2.completed()).isFalse();
+    }
+
+    @Test
     void cer_validClaimReasoning_completes() {
         JsonNode act = HandlerTestSupport.json(
                 "{\"id\":\"cer\",\"type\":\"CER\",\"config\":{"

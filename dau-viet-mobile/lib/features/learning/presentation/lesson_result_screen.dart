@@ -9,6 +9,8 @@ import '../../../core/widgets/dong_son_button.dart';
 import '../../../core/widgets/gold_confetti_overlay.dart';
 import '../../collection/presentation/unlock_celebration_dialog.dart';
 import '../../../core/widgets/kabi_mascot_widget.dart';
+import '../../learning_path/data/learning_path_dto.dart';
+import '../../learning_path/data/learning_path_providers.dart';
 import '../../streak/data/streak_dto.dart';
 import '../data/attempt_dtos.dart';
 import '../data/learning_dtos.dart';
@@ -40,7 +42,9 @@ final _recapContentProvider = FutureProvider.autoDispose
                   .withAuth(() => repo.getAttemptContent(attemptId));
         final bool hasTitle =
             _str(content.content, ['title', 'lessonTitle']) != null;
-        if (!hasTitle && content.lessonId.isNotEmpty) {
+        final bool hasEventId =
+            _str(content.content, ['eventId', 'event_id']) != null;
+        if ((!hasTitle || !hasEventId) && content.lessonId.isNotEmpty) {
           try {
             final meta = ApiConfig.useMock
                 ? await repo.getLessonMetadata(content.lessonId)
@@ -132,7 +136,7 @@ class LessonResultScreen extends ConsumerWidget {
 
 /// Body thực tế của _ResultView — tách riêng để StatefulWidget cha chịu
 /// trách nhiệm một-việc: bắn unlock popup đúng 1 lần khi mount.
-class _ResultBody extends StatelessWidget {
+class _ResultBody extends ConsumerWidget {
   final LessonResultDto result;
   final LessonContentDto? recapContent;
   final bool isFreshCompletion;
@@ -146,9 +150,127 @@ class _ResultBody extends StatelessWidget {
     this.onViewLocation,
     this.onContinueLearning,
   });
+
+  ({String? eventId, String? periodCode}) _resolveContinueTarget(
+    WidgetRef ref,
+  ) {
+    final String? lessonId =
+        recapContent?.lessonId ??
+        (result.rewards.isNotEmpty ? result.rewards.first.lessonId : null);
+    String? eventId =
+        _str(recapContent?.content ?? const {}, ['eventId', 'event_id']) ??
+        _str(result.result, ['eventId', 'event_id']);
+    String? periodCode = _str(
+      recapContent?.content ?? const {},
+      ['periodCode', 'period_code'],
+    );
+
+    if (ref.exists(learningPathProvider)) {
+      final LearningPathDto? path = ref.read(learningPathProvider).asData?.value;
+      if (path != null) {
+        if (lessonId != null && lessonId.isNotEmpty) {
+          for (final ch in path.chapters) {
+            for (final ev in ch.events) {
+              if (ev.lessons.any((l) => l.lessonId == lessonId)) {
+                if (eventId == null || eventId.isEmpty) {
+                  eventId = ev.eventId;
+                }
+                final period = ch.isPhase && ch.parentId != null
+                    ? (path.chapterById(ch.parentId) ?? ch)
+                    : ch;
+                if ((periodCode == null || periodCode.isEmpty) &&
+                    period.code.isNotEmpty) {
+                  periodCode = period.code;
+                }
+                break;
+              }
+            }
+          }
+        }
+        if ((periodCode == null || periodCode.isEmpty) &&
+            eventId != null &&
+            eventId.isNotEmpty) {
+          for (final ch in path.chapters) {
+            if (ch.events.any((ev) => ev.eventId == eventId)) {
+              final period = ch.isPhase && ch.parentId != null
+                  ? (path.chapterById(ch.parentId) ?? ch)
+                  : ch;
+              if (period.code.isNotEmpty) {
+                periodCode = period.code;
+              }
+              break;
+            }
+          }
+        }
+        if ((periodCode == null || periodCode.isEmpty) &&
+            path.lastPeriodCode != null &&
+            path.lastPeriodCode!.isNotEmpty) {
+          periodCode = path.lastPeriodCode;
+        }
+      }
+    }
+    return (eventId: eventId, periodCode: periodCode);
+  }
+
+  bool _hasRoutePrefix(List<RouteBase> routes, String prefix) {
+    for (final r in routes) {
+      if (r is GoRoute && (r.path == prefix || r.path.startsWith('$prefix/'))) {
+        return true;
+      }
+      if (r.routes.isNotEmpty && _hasRoutePrefix(r.routes, prefix)) {
+        return true;
+      }
+    }
+    return false;
+  }
+
+  void _handleContinue(
+    BuildContext context, {
+    required String? eventId,
+    required String? periodCode,
+  }) {
+    if (onContinueLearning != null) {
+      onContinueLearning!();
+      return;
+    }
+    final router = GoRouter.maybeOf(context);
+    if (router != null) {
+      final routes = router.configuration.routes;
+      final evId = eventId?.trim() ?? '';
+      if (evId.isNotEmpty && _hasRoutePrefix(routes, '/campaign')) {
+        router.go('/campaign/$evId');
+        return;
+      }
+      final pCode = periodCode?.trim() ?? '';
+      if (pCode.isNotEmpty &&
+          router.configuration
+              .findMatch(Uri.parse('/journey/$pCode'))
+              .isNotEmpty) {
+        router.go('/journey/$pCode');
+        return;
+      }
+      if (_hasRoutePrefix(routes, '/journey')) {
+        router.go('/journey');
+        return;
+      }
+      if (_hasRoutePrefix(routes, '/dashboard')) {
+        router.go('/dashboard');
+        return;
+      }
+    }
+    context.go('/journey');
+  }
+
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
     final bool completed = result.status.toUpperCase() == 'COMPLETED';
+    final continueTarget = _resolveContinueTarget(ref);
+    final validUnlockedLocations = result.newlyUnlockedLocations
+        .where(
+          (loc) =>
+              loc.locationId.trim().isNotEmpty || loc.title.trim().isNotEmpty,
+        )
+        .toList();
     final score = result.score;
     final scoreStr = score != null
         ? (score == score.roundToDouble()
@@ -442,9 +564,8 @@ class _ResultBody extends StatelessWidget {
                   _RewardsSection(result: result),
                 ],
 
-                // GAME-04: cue một lần — chỉ render khi player truyền
-                // `newlyUnlockedDossiers` qua extra (deep-link/reload có
-                // list rỗng → không re-show). Điều hướng tới Bộ Sưu Tập.
+                // GAME-04 + BUG-01: hiển thị thẻ Hồ sơ lịch sử được mở khóa bởi
+                // attempt này (kể cả khi reload/deep-link từ GET /attempts/{id}/result).
                 if (result.newlyUnlockedDossiers.isNotEmpty) ...[
                   const SizedBox(height: 14),
                   _DossierUnlockBanner(
@@ -468,13 +589,15 @@ class _ResultBody extends StatelessWidget {
                 // MAP-V2 (E5): banner địa điểm di sản vừa mở khóa — chỉ hiện khi
                 // newlyUnlockedLocations không rỗng; có nút Xem địa điểm và
                 // Tiếp tục học. Deep-link mở lại kết quả không phát lại animation.
-                if (result.newlyUnlockedLocations.isNotEmpty) ...[
+                if (validUnlockedLocations.isNotEmpty) ...[
                   const SizedBox(height: 14),
                   UnlockedLocationBanner(
-                    locations: result.newlyUnlockedLocations,
+                    locations: validUnlockedLocations,
                     animate: isFreshCompletion,
                     onViewLocation: onViewLocation,
                     onContinueLearning: onContinueLearning,
+                    eventId: continueTarget.eventId,
+                    periodCode: continueTarget.periodCode,
                   ),
                 ],
 
@@ -486,14 +609,17 @@ class _ResultBody extends StatelessWidget {
                 const SizedBox(height: 20),
 
                 // 4. Hai nút hành động: Tiếp tục học và Ôn tập lại.
-                // Issue #42: "Tiếp tục học" quay về Hành trình Lịch sử
-                // (`/journey` — luồng học chính) để chọn bài/sự kiện tiếp theo.
+                // Quay về Sự kiện / Hành trình Lịch sử để học bài tiếp theo.
                 DongSonButton(
                   label: 'TIẾP TỤC HỌC',
                   icon: Icons.arrow_forward_rounded,
                   variant: DongSonButtonVariant.natureGreen,
                   height: 52,
-                  onPressed: () => context.go('/journey'),
+                  onPressed: () => _handleContinue(
+                    context,
+                    eventId: continueTarget.eventId,
+                    periodCode: continueTarget.periodCode,
+                  ),
                 ),
                 const SizedBox(height: 10),
                 OutlinedButton.icon(
@@ -605,9 +731,9 @@ class _ResultBody extends StatelessWidget {
 }
 
 /// Chuyển _ResultView thành StatefulWidget để bắn unlock-popup ĐÚNG MỘT LẦN
-/// khi màn được mở từ player (extra non-null). Deep-link/reload (initialResult
-/// null → fetch lại) không trigger popup vì newlyUnlockedDossiers rỗng và
-/// itemsUnlocked trên replay đã được hiển thị bình thường bên dưới.
+/// khi màn được mở từ player (`isFreshCompletion == true`, `initialResult != null`).
+/// Deep-link/reload (`isFreshCompletion == false`) không trigger popup ăn mừng
+/// nhưng vẫn hiển thị đầy đủ các thẻ phần thưởng/địa điểm/hồ sơ tĩnh bên dưới.
 class _ResultView extends StatefulWidget {
   final LessonResultDto result;
 
@@ -1160,6 +1286,40 @@ class _RecapSection extends StatelessWidget {
                   style: DauVietTypography.bodySmall.copyWith(height: 1.45),
                 ),
               ),
+            const SizedBox(height: 8),
+            Align(
+              alignment: Alignment.centerLeft,
+              child: TextButton.icon(
+                onPressed: () => context.go('/collection'),
+                icon: const Icon(
+                  Icons.collections_bookmark_outlined,
+                  size: 16,
+                  color: DauVietColors.heritageGreen,
+                ),
+                label: Text(
+                  'Xem Bộ sưu tập tư liệu →',
+                  style: DauVietTypography.labelSmall.copyWith(
+                    color: DauVietColors.heritageGreen,
+                    fontWeight: FontWeight.w800,
+                    fontSize: 12,
+                  ),
+                ),
+                style: TextButton.styleFrom(
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 10,
+                    vertical: 6,
+                  ),
+                  minimumSize: const Size(0, 34),
+                  tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                  backgroundColor: DauVietColors.heritageGreen.withValues(
+                    alpha: 0.08,
+                  ),
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(8),
+                  ),
+                ),
+              ),
+            ),
           ],
         ],
       ),

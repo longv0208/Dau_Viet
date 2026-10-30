@@ -10,7 +10,7 @@ import { z } from "zod";
 
 import { apiFetch } from "@/lib/api-client";
 import { toUserMessage } from "@/lib/api-error";
-import { parseReturnTo } from "@/lib/return-to";
+import { parseReturnTo, withReturnTo } from "@/lib/return-to";
 import type { PageResponse } from "@/lib/dto/common";
 import type { AdminEventSummary } from "@/lib/dto/event";
 import type { AdminLessonDetail, LessonTemplate } from "@/lib/dto/lesson";
@@ -54,7 +54,7 @@ export function LessonWizard() {
   const presetTemplate = searchParams.get("template") ?? undefined;
   const returnTo = parseReturnTo(searchParams.get("return"));
 
-  const [step, setStep] = useState(1);
+  const [step, setStep] = useState(presetEvent ? 2 : 1);
   const [eventId, setEventId] = useState<string | undefined>(presetEvent);
   const [templateId, setTemplateId] = useState<string | undefined>(presetTemplate);
   const [serverError, setServerError] = useState<string | null>(null);
@@ -86,7 +86,7 @@ export function LessonWizard() {
   const objectives = useFieldArray({ control, name: "objectives" });
 
   // Warn before leaving once the admin has picked anything or typed anything.
-  useUnsavedChangesGuard(isDirty || step > 1);
+  useUnsavedChangesGuard(isDirty || step > (presetEvent ? 2 : 1));
 
   async function saveDraft(v: BasicValues) {
     if (!eventId || !templateId) return;
@@ -107,9 +107,8 @@ export function LessonWizard() {
         }),
       });
       qc.invalidateQueries({ queryKey: ["lessons"] });
-      // Back to the workspace tab that launched the wizard when one was
-      // provided; otherwise open the new lesson as before.
-      router.push(returnTo ?? `/lessons/${res.id}`);
+      // Open the new lesson directly in the builder, preserving returnTo.
+      router.push(withReturnTo(`/lessons/${res.id}/builder`, returnTo));
     } catch (err) {
       setServerError(toUserMessage(err));
       setSubmitting(false);

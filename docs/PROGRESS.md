@@ -1,6 +1,6 @@
 ﻿# Progress
 
-generated: 2026-10-24T15:54:18.6920990+07:00 by scripts/harness/harness.ps1 progress
+generated: 2026-10-30T19:00:24.1586096+07:00 by scripts/harness/harness.ps1 progress
 
 View-only - derived from `tasks/*/task.json`. Do not edit task status here.
 
@@ -25,4 +25,20 @@ View-only - derived from `tasks/*/task.json`. Do not edit task status here.
 | TASK-0017 | feature | high-risk | completed | TASK-0018 â€” Flutter learner screens: consume GET /api/v1/lessons/{id}/content + learner asset content; attempt/submission flow theo LEARNING_ENGINE_DESIGN (idempotent, pinned version); scoring engine backend-side. Smoke test publish journey vs real Spring Boot khi Docker/Postgres sáºµn sĂ ng. |
 | TASK-0018 | feature | high-risk | done | Cho user chay backend that de verify e2e (backend IT CI-only, Docker thieu); manual checklist trong verification report. Khong push/merge. |
 | TASK-0019 | feature | high-risk | in_progress | Báº­t Docker â†’ mvnw verify cho FlywayMigrationIT (V17 clean-DB + checksum), AnimationScenePublishIT, EventSeedServiceIT (linker trĂªn DB tháº­t), asset content endpoint. Admin pin scene bach-dang-938-prod vĂ o lesson + gĂ¡n event náº¿u event_id NULL. Verify visual trĂªn thiáº¿t bá»‹/emulator. |
+| TASK-0020 | feature | high-risk | in_progress | Round-4 final retry budget & admin remediation complete and verified (420/420 backend incl. 12 IT on real Postgres, admin tsc clean + 223/223 vitest, flutter 376/376). FIX 1: over-budget lock â€” EVIDENCE_SELECT submit past maxAttempts+remedialAttempts accepted but cannot upgrade verdict/score/evidence (budgetExhausted:true, no 409 soft-lock, no SUPPORTED leak). FIX 2: bounded-int publish validation + admin remedialAttempts/maxAttempts inputs + EXHAUSTED feedback field. FIX 3: reviewed-terminal feedback â€” exhausted PARTIAL/CONTRADICTED completes attempt with honest knowledgeScore + Flutter 'chua kiem chung thanh cong' warning (authored EXHAUSTED wins). FIX 4: unit+IT+admin+flutter coverage added, all green. Docs synced (LEARNING_ENGINE_DESIGN section 13, API_SPEC TASK-0020 notes). No commit/push â€” awaiting user authorization. |
+| TASK-0021 | feature | high-risk | in_progress | Báº­t Docker â†’ mvnw verify cho AuthControllerIT/AuthRefreshIT/FlywayMigrationIT (V53 + OTP E2E); táº¡o Google OAuth client ids (GOOGLE_CLIENT_IDS backend + GOOGLE_SERVER_CLIENT_ID dart-define) vĂ  test Google sign-in trĂªn emulator; cáº¥u hĂ¬nh MAIL_* SMTP cho staging. |
+| TASK-0022 | feature | normal | done | Done â€” 17/17 learning_path unit + widget tests pass, flutter analyze clean, independent code review APPROVE. Await user authorization to commit/push. |
+| TASK-0024 | feature | normal | done | Done â€” 31/31 map + timeline unit/widget tests pass, flutter analyze clean, independent code review APPROVE. Await user authorization to commit/push. |
+| TASK-0026 | feature | normal | done | Done â€” all backend (12/12 ITs on real PostgreSQL) and mobile (35/35 unit/widget/E2E tests) verification gates green, docs and ADR-009 updated. |
+| TASK-0027 | test | normal | done | Done â€” All 6 phases (5/5 Playwright E2E scenarios across 390x844 and 360x800 viewports + 18/18 unit/widget tests) pass with 0 runtime/overflow errors and 9 visual evidence screenshots. Await user authorization to commit/push. |
+| TASK-0028 | feature | high-risk | implementing | Independent code-reviewer pass (high-risk gate) â†’ commit + push under user authorization. |
+| TASK-0029 | test | normal | done | Ready for user review and commit on branch feat/issue-29-learning-flow-ui-ux. |
+| TASK-0030 | feature | high | done | HoĂ n táº¥t â€” Issue #36 Ä‘Ă£ merge vĂ o main (56d5e2f). Smoke-run visual `flutter run` cĂ³ thá»ƒ thá»±c hiá»‡n khi cáº§n kiá»ƒm tra UI tháº­t. |
+| TASK-0031 | feature | high | implemented | Chá» user review + á»§y quyá»n commit/merge. Repo-rules Ä‘Ă²i GitNexus detect_changes trÆ°á»›c commit â€” GitNexus index chÆ°a xĂ¡c nháº­n availability trong session nĂ y (gap, khĂ´ng cháº·n viá»‡c code). |
+| TASK-0032 | bugfix | normal | implemented | Chá» user review + á»§y quyá»n commit. ChÆ°a commit â€” theo repo-rules khĂ´ng auto commit/push. |
+| TASK-0033 | feature | normal | done | Chá» ngÆ°á»i dĂ¹ng review vĂ  á»§y quyá»n commit/push trĂªn nhĂ¡nh feat/issue-44-admin-web-ux-overhaul. |
+| TASK-0034 | feature | normal | done | Chá» ngÆ°á»i dĂ¹ng review vĂ  á»§y quyá»n commit/push. |
+| TASK-0035 | feature | high-risk | done | Chá» ngÆ°á»i dĂ¹ng review vĂ  á»§y quyá»n commit/push trĂªn nhĂ¡nh feat/issue-46-island-redesign. |
+| TASK-0036 | feature | normal | done | Chá» ngÆ°á»i dĂ¹ng review vĂ  á»§y quyá»n commit/push trĂªn nhĂ¡nh feat/issue-47-default-required-and-feedback. |
+| TASK-0037 | feature | high-risk | done | Chá» ngÆ°á»i dĂ¹ng review vĂ  á»§y quyá»n commit/push trĂªn nhĂ¡nh feat/issue-45-e2e-flows-ux-audit. |
 
