@@ -5,7 +5,6 @@ import 'package:go_router/go_router.dart';
 import '../../../core/theme/dau_viet_colors.dart';
 import '../../../core/theme/dau_viet_typography.dart';
 import '../../../core/widgets/dong_son_button.dart';
-import '../../../core/widgets/section_eyebrow.dart';
 import '../../../core/widgets/tactile_card.dart';
 import '../../learning/data/learning_providers.dart';
 import '../data/streak_dto.dart';
@@ -59,70 +58,64 @@ class _LearningStreakScreenState extends ConsumerState<LearningStreakScreen> {
         backgroundColor: Colors.transparent,
         elevation: 0,
         centerTitle: true,
-        leading: IconButton(
-          icon: const Icon(Icons.arrow_back_ios_new_rounded, size: 20),
-          color: DauVietColors.inkText,
-          tooltip: 'Quay lại',
-          onPressed: () {
-            if (context.canPop()) {
-              context.pop();
-            } else {
-              context.go('/profile');
-            }
-          },
+        leadingWidth: 56,
+        leading: Padding(
+          padding: const EdgeInsets.only(left: 16),
+          child: Center(
+            child: InkWell(
+              borderRadius: BorderRadius.circular(20),
+              onTap: () {
+                if (context.canPop()) {
+                  context.pop();
+                } else {
+                  context.go('/profile');
+                }
+              },
+              child: Container(
+                width: 36,
+                height: 36,
+                decoration: BoxDecoration(
+                  color: const Color(0xFFF4E4C6),
+                  shape: BoxShape.circle,
+                  border: Border.all(
+                    color: const Color(0xFFD8BF96),
+                    width: 1.2,
+                  ),
+                ),
+                child: const Icon(
+                  Icons.arrow_back_ios_new_rounded,
+                  size: 16,
+                  color: Color(0xFF3A2A1D),
+                ),
+              ),
+            ),
+          ),
         ),
         title: Text(
           'NGỌN LỬA HÀO KHÍ',
-          style: DauVietTypography.labelMedium.copyWith(
-            color: DauVietColors.cinnabarRed,
+          style: DauVietTypography.labelLarge.copyWith(
+            fontSize: 15.5,
+            color: const Color(0xFF183D2C),
             fontWeight: FontWeight.w800,
-            letterSpacing: 1.0,
+            letterSpacing: 0.8,
           ),
         ),
         iconTheme: const IconThemeData(color: DauVietColors.inkText),
       ),
       body: Stack(
         children: [
-          // Nền chìm tranh non nước phía trên — đồng bộ dashboard.
-          Positioned(
-            top: 0,
-            left: 0,
-            right: 0,
-            height: 460,
-            child: IgnorePointer(
-              child: Image.asset(
-                'assets/images/landscape_hero_bg.jpg',
-                fit: BoxFit.cover,
-                alignment: Alignment.topCenter,
-                errorBuilder: (_, _, _) => const SizedBox.shrink(),
-              ),
-            ),
-          ),
-          // Veil giấy mờ — phai tranh vào parchment.
-          Positioned(
-            top: 0,
-            left: 0,
-            right: 0,
-            height: 520,
-            child: IgnorePointer(
-              child: DecoratedBox(
-                decoration: BoxDecoration(
-                  gradient: LinearGradient(
-                    begin: Alignment.topCenter,
-                    end: Alignment.bottomCenter,
-                    colors: [
-                      DauVietColors.paperCard.withValues(alpha: 0.52),
-                      DauVietColors.paperCard.withValues(alpha: 0.62),
-                      DauVietColors.paperBackground.withValues(alpha: 0.90),
-                      DauVietColors.paperBackground,
-                    ],
-                    stops: const [0.0, 0.40, 0.80, 1.0],
-                  ),
+          // Nền giấy dó ấm đồng nhất chuẩn ảnh mẫu #4
+          Positioned.fill(
+            child: DecoratedBox(
+              decoration: const BoxDecoration(
+                gradient: LinearGradient(
+                  begin: Alignment.topCenter,
+                  end: Alignment.bottomCenter,
+                  colors: [Color(0xFFFAF2E1), Color(0xFFF5EBD8)],
                 ),
               ),
             ),
           ),
-
           SafeArea(
             child: streakAsync.when(
               loading: () => const Center(
@@ -322,39 +315,82 @@ class _FlameHero extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final bool lit = streak.completedToday || streak.streakAlive;
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
-        // Banner card: badge + title + subtitle + mascot (mockup)
-        TactileCard(
-          padding: const EdgeInsets.all(16),
-          backgroundColor: const Color(0xFFF3E5CE),
-          borderColor: DauVietColors.outlineVariant,
-          child: Row(
+        // Card 1: Banner CHUỖI NGÀY HỌC + Ngọn Lửa Hào Khí + Trâu Đỏ cầm đuốc (ảnh mẫu #4)
+        Container(
+          height: 118,
+          decoration: BoxDecoration(
+            gradient: const LinearGradient(
+              begin: Alignment.centerLeft,
+              end: Alignment.centerRight,
+              colors: [Color(0xFFFAF1DC), Color(0xFFF6E4BE)],
+            ),
+            borderRadius: BorderRadius.circular(18),
+            border: Border.all(color: const Color(0xFFDEC69A), width: 1.4),
+            boxShadow: const [
+              BoxShadow(
+                color: Color(0x1C5D4024),
+                blurRadius: 10,
+                offset: Offset(0, 4),
+              ),
+            ],
+          ),
+          clipBehavior: Clip.antiAlias,
+          child: Stack(
             children: [
-              Expanded(
+              Positioned(
+                right: 0,
+                top: 0,
+                bottom: 0,
+                child: Image.asset(
+                  'assets/images/streak_torch_buffalo_right.png',
+                  height: 118,
+                  fit: BoxFit.contain,
+                  alignment: Alignment.centerRight,
+                  errorBuilder: (_, _, _) => const SizedBox.shrink(),
+                ),
+              ),
+              Padding(
+                padding: const EdgeInsets.fromLTRB(16, 14, 130, 12),
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
+                  mainAxisAlignment: MainAxisAlignment.center,
                   children: [
-                    const SectionEyebrow(
-                      'CHUỖI NGÀY HỌC',
-                      color: DauVietColors.imperialGoldDark,
-                      showShadow: false,
-                      padding: EdgeInsets.symmetric(
-                        horizontal: 8,
+                    Container(
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 10,
                         vertical: 3,
                       ),
+                      decoration: BoxDecoration(
+                        color: const Color(0xFFFCE5D4),
+                        borderRadius: BorderRadius.circular(6),
+                        border: Border.all(
+                          color: const Color(0xFFD96A42),
+                          width: 1.1,
+                        ),
+                      ),
+                      child: Text(
+                        'CHUỖI NGÀY HỌC',
+                        style: DauVietTypography.labelSmall.copyWith(
+                          fontSize: 9.5,
+                          fontWeight: FontWeight.w800,
+                          letterSpacing: 0.6,
+                          color: const Color(0xFFB3281D),
+                        ),
+                      ),
                     ),
-                    const SizedBox(height: 8),
+                    const SizedBox(height: 6),
                     Text(
                       'Ngọn Lửa Hào Khí',
                       maxLines: 1,
                       overflow: TextOverflow.ellipsis,
                       style: DauVietTypography.headlineSmall.copyWith(
-                        fontSize: 19,
+                        fontSize: 20.5,
                         fontWeight: FontWeight.w800,
-                        color: DauVietColors.chapterGreen,
+                        color: const Color(0xFF163C2B),
+                        height: 1.15,
                       ),
                     ),
                     const SizedBox(height: 4),
@@ -362,24 +398,13 @@ class _FlameHero extends StatelessWidget {
                       'Thắp sáng hành trình khám phá\nsử Việt mỗi ngày',
                       maxLines: 2,
                       style: DauVietTypography.bodySmall.copyWith(
-                        fontSize: 11.5,
-                        height: 1.35,
-                        color: DauVietColors.inkSecondary,
+                        fontSize: 12,
+                        height: 1.3,
+                        fontWeight: FontWeight.w500,
+                        color: const Color(0xFF4A3B2C),
                       ),
                     ),
                   ],
-                ),
-              ),
-              const SizedBox(width: 10),
-              Image.asset(
-                'assets/images/turtle_map.png',
-                width: 84,
-                height: 84,
-                fit: BoxFit.contain,
-                errorBuilder: (_, _, _) => const Icon(
-                  Icons.local_fire_department_rounded,
-                  size: 60,
-                  color: DauVietColors.cinnabarRed,
                 ),
               ),
             ],
@@ -387,66 +412,59 @@ class _FlameHero extends StatelessWidget {
         ),
         const SizedBox(height: 12),
 
-        // Flame card: vầng sáng vàng + lửa nhiều lớp + số chuỗi (mockup)
-        TactileCard(
-          padding: const EdgeInsets.symmetric(vertical: 22, horizontal: 16),
-          child: Column(
-            children: [
-              Stack(
-                alignment: Alignment.center,
-                children: [
-                  // Vầng sáng vàng sau lửa (mockup golden glow)
-                  Container(
-                    width: 96,
-                    height: 96,
-                    decoration: BoxDecoration(
-                      shape: BoxShape.circle,
-                      gradient: RadialGradient(
-                        colors: [
-                          DauVietColors.imperialGold.withValues(alpha: 0.55),
-                          DauVietColors.imperialGold.withValues(alpha: 0.18),
-                          DauVietColors.imperialGold.withValues(alpha: 0.0),
-                        ],
-                        stops: const [0.0, 0.55, 1.0],
-                      ),
-                    ),
-                  ),
-                  // Lửa lớp ngoài (đỏ) + lõi trong (vàng cam)
-                  Icon(
-                    Icons.local_fire_department_rounded,
-                    size: 64,
-                    color: lit
-                        ? DauVietColors.cinnabarRed
-                        : DauVietColors.cinnabarRed.withValues(alpha: 0.3),
-                  ),
-                  Positioned(
-                    bottom: 20,
-                    child: Icon(
-                      Icons.local_fire_department_rounded,
-                      size: 28,
-                      color: lit
-                          ? DauVietColors.imperialGold
-                          : DauVietColors.imperialGold.withValues(alpha: 0.3),
-                    ),
-                  ),
-                ],
+        // Card 2: Tranh cổ lầu + kỳ đài cờ đỏ + Ngọn lửa 3 lớp + số ngày học liên tiếp (ảnh mẫu #4)
+        Container(
+          height: 152,
+          decoration: BoxDecoration(
+            color: const Color(0xFFFAF0DA),
+            borderRadius: BorderRadius.circular(18),
+            border: Border.all(color: const Color(0xFFDEC69A), width: 1.4),
+            boxShadow: const [
+              BoxShadow(
+                color: Color(0x185D4024),
+                blurRadius: 10,
+                offset: Offset(0, 4),
               ),
-              const SizedBox(height: 8),
-              Text(
-                '${streak.currentStreak}',
-                style: DauVietTypography.headlineLarge.copyWith(
-                  fontSize: 56,
-                  fontWeight: FontWeight.w800,
-                  color: DauVietColors.cinnabarRed,
-                  height: 1.0,
+            ],
+          ),
+          clipBehavior: Clip.antiAlias,
+          child: Stack(
+            alignment: Alignment.center,
+            children: [
+              Positioned.fill(
+                child: Image.asset(
+                  'assets/images/streak_flame_landscape_bg.png',
+                  fit: BoxFit.cover,
+                  alignment: Alignment.topCenter,
+                  errorBuilder: (_, _, _) => const SizedBox.shrink(),
                 ),
               ),
-              const SizedBox(height: 6),
-              Text(
-                'ngày học liên tiếp',
-                style: DauVietTypography.bodyMedium.copyWith(
-                  color: DauVietColors.chapterGreen,
-                  fontWeight: FontWeight.w700,
+              Positioned(
+                bottom: 8,
+                left: 0,
+                right: 0,
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Text(
+                      '${streak.currentStreak}',
+                      style: DauVietTypography.headlineLarge.copyWith(
+                        fontSize: 34,
+                        fontWeight: FontWeight.w900,
+                        color: const Color(0xFFA91D15),
+                        height: 0.95,
+                      ),
+                    ),
+                    const SizedBox(height: 2),
+                    Text(
+                      'ngày học liên tiếp',
+                      style: DauVietTypography.bodyMedium.copyWith(
+                        fontSize: 12.5,
+                        color: const Color(0xFF233829),
+                        fontWeight: FontWeight.w800,
+                      ),
+                    ),
+                  ],
                 ),
               ),
             ],
@@ -492,8 +510,20 @@ class _WeeklyStrip extends StatelessWidget {
         ),
     };
 
-    return TactileCard(
+    return Container(
       padding: const EdgeInsets.symmetric(vertical: 14, horizontal: 8),
+      decoration: BoxDecoration(
+        color: const Color(0xFFFAF3E4),
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: const Color(0xFFE0CCA9), width: 1.2),
+        boxShadow: const [
+          BoxShadow(
+            color: Color(0x105D4024),
+            blurRadius: 6,
+            offset: Offset(0, 2),
+          ),
+        ],
+      ),
       child: Row(
         mainAxisAlignment: MainAxisAlignment.spaceBetween,
         children: List.generate(7, (i) {
@@ -611,71 +641,71 @@ class _TodayMessage extends StatelessWidget {
     } else {
       text = 'Chuỗi đã dừng — bắt đầu lại hôm nay để thắp lửa mới!';
     }
-    // Status box xanh (mockup): icon check tròn trái + text đậm xanh
-    // + mây trang trí mờ góc phải
+    // Status box xanh lá (ảnh mẫu #4): nút tròn xanh đậm có viền sáng + chữ đậm xanh
     return Container(
       width: double.infinity,
       decoration: BoxDecoration(
-        color: DauVietColors.heritageGreenSurface,
+        gradient: const LinearGradient(
+          begin: Alignment.centerLeft,
+          end: Alignment.centerRight,
+          colors: [Color(0xFFE0F1E5), Color(0xFFCDE7D6)],
+        ),
         borderRadius: BorderRadius.circular(14),
         border: Border.all(
-          color: DauVietColors.heritageGreenLight.withValues(alpha: 0.5),
-          width: 1.2,
+          color: const Color(0xFF5A9372),
+          width: 1.3,
         ),
       ),
       child: ClipRRect(
         borderRadius: BorderRadius.circular(13),
         child: Stack(
           children: [
-            // Mây mờ góc phải (mockup)
             Positioned(
-              right: -8,
-              top: -8,
-              child: Icon(
-                Icons.cloud_rounded,
-                size: 46,
-                color: DauVietColors.heritageGreen.withValues(alpha: 0.07),
-              ),
-            ),
-            Positioned(
-              right: 16,
+              right: -6,
               bottom: -10,
               child: Icon(
                 Icons.cloud_rounded,
-                size: 34,
-                color: DauVietColors.heritageGreen.withValues(alpha: 0.05),
+                size: 56,
+                color: const Color(0xFF1E4D3B).withValues(alpha: 0.10),
               ),
             ),
-            // Nội dung chính
             Padding(
               padding: const EdgeInsets.symmetric(
                 horizontal: 14,
-                vertical: 13,
+                vertical: 11,
               ),
               child: Row(
                 children: [
                   Container(
-                    width: 24,
-                    height: 24,
-                    decoration: const BoxDecoration(
-                      color: DauVietColors.heritageGreenLight,
+                    width: 32,
+                    height: 32,
+                    decoration: BoxDecoration(
+                      gradient: const LinearGradient(
+                        begin: Alignment.topLeft,
+                        end: Alignment.bottomRight,
+                        colors: [Color(0xFF2F7553), Color(0xFF16462F)],
+                      ),
                       shape: BoxShape.circle,
+                      border: Border.all(
+                        color: const Color(0xFF78B393),
+                        width: 1.2,
+                      ),
                     ),
                     child: const Icon(
                       Icons.check_rounded,
-                      size: 14,
+                      size: 18,
                       color: Colors.white,
                     ),
                   ),
-                  const SizedBox(width: 11),
+                  const SizedBox(width: 12),
                   Expanded(
                     child: Text(
                       text,
                       style: DauVietTypography.bodyMedium.copyWith(
-                        fontSize: 12.5,
-                        color: DauVietColors.chapterGreen,
-                        fontWeight: FontWeight.w700,
-                        height: 1.4,
+                        fontSize: 13,
+                        color: const Color(0xFF163C2B),
+                        fontWeight: FontWeight.w800,
+                        height: 1.35,
                       ),
                     ),
                   ),
@@ -704,38 +734,62 @@ class _StatCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return TactileCard(
-      padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 6),
-      child: Column(
+    return Container(
+      padding: const EdgeInsets.symmetric(vertical: 11, horizontal: 6),
+      decoration: BoxDecoration(
+        color: const Color(0xFFFAF3E4),
+        borderRadius: BorderRadius.circular(14),
+        border: Border.all(color: const Color(0xFFE0CCA9), width: 1.2),
+        boxShadow: const [
+          BoxShadow(
+            color: Color(0x105D4024),
+            blurRadius: 6,
+            offset: Offset(0, 2),
+          ),
+        ],
+      ),
+      child: Row(
         children: [
-          // Icon trong vòng tròn nhẹ (mockup)
           Container(
-            padding: const EdgeInsets.all(7),
+            padding: const EdgeInsets.all(6),
             decoration: BoxDecoration(
-              color: iconColor.withValues(alpha: 0.13),
+              color: iconColor.withValues(alpha: 0.14),
               shape: BoxShape.circle,
             ),
-            child: Icon(icon, size: 20, color: iconColor),
+            child: Icon(icon, size: 17, color: iconColor),
           ),
-          const SizedBox(height: 7),
-          Text(
-            value,
-            style: DauVietTypography.headlineSmall.copyWith(
-              fontSize: 18,
-              fontWeight: FontWeight.w800,
-              color: DauVietColors.inkHeading,
-            ),
-          ),
-          const SizedBox(height: 3),
-          Text(
-            label,
-            textAlign: TextAlign.center,
-            maxLines: 1,
-            overflow: TextOverflow.ellipsis,
-            style: DauVietTypography.bodySmall.copyWith(
-              fontSize: 10,
-              color: DauVietColors.inkMuted,
-              fontWeight: FontWeight.w600,
+          const SizedBox(width: 6),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Text(
+                  value,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: DauVietTypography.headlineSmall.copyWith(
+                    fontSize: 16.5,
+                    fontWeight: FontWeight.w800,
+                    color: DauVietColors.inkHeading,
+                    height: 1.05,
+                  ),
+                ),
+                const SizedBox(height: 2),
+                FittedBox(
+                  fit: BoxFit.scaleDown,
+                  alignment: Alignment.centerLeft,
+                  child: Text(
+                    label,
+                    maxLines: 1,
+                    style: DauVietTypography.bodySmall.copyWith(
+                      fontSize: 9.5,
+                      color: DauVietColors.inkMuted,
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
+                ),
+              ],
             ),
           ),
         ],
