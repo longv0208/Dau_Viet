@@ -1,0 +1,58 @@
+{
+  "schemaVersion": 1,
+  "id": "TASK-0038",
+  "type": "bugfix",
+  "risk": "normal",
+  "status": "done",
+  "goal": "[MOBILE][UI/UX] Issue #49 — Đồng bộ thiết kế Button/Card trên Dashboard theo phong cách phẳng tinh tế của trang Profile & sửa lỗi lặp dòng chữ khẩu hiệu dưới Logo.",
+  "owner": "claude",
+  "modules": ["mobile", "docs"],
+  "scope": [
+    "dau-viet-mobile/lib/core/theme/dau_viet_colors.dart",
+    "dau-viet-mobile/lib/core/widgets/tactile_card.dart",
+    "dau-viet-mobile/lib/core/widgets/hero_paper_banner.dart",
+    "dau-viet-mobile/lib/features/dashboard/presentation/learner_dashboard_screen.dart",
+    "dau-viet-mobile/test/dashboard/learner_dashboard_screen_test.dart",
+    "dau-viet-mobile/test/theme/design_tokens_test.dart",
+    "tasks/TASK-0038/",
+    "plans/261030-issue-49-dashboard-buttons-and-logo/",
+    "docs/PROGRESS.md",
+    "docs/PROJECT_OVERVIEW.md"
+  ],
+  "acceptanceCriteria": [
+    {
+      "id": "AC-1",
+      "text": "Không còn lặp chữ dưới Logo: Khu vực Logo trên TopBar của Dashboard hiển thị sắc nét, chỉ có duy nhất 1 dòng khẩu hiệu (không còn hiện tượng lặp 2 dòng '— HỌC SỬ VIỆT - GÌN GIỮ HỒN VIỆT —')."
+    },
+    {
+      "id": "AC-2",
+      "text": "Đồng bộ Button/Card với trang Profile: Toàn bộ các nút và thẻ trên Dashboard (TopBar buttons, Energy/Streak pills, Hero CTA, Bài học hôm nay, 4 nút Hành trình của bạn, Sự kiện nổi bật) không còn bị lồi cứng bởi pixelShadowSm hay đế 3D dày; sử dụng viền mảnh, bo góc và đổ bóng mềm đồng bộ 100% với trang Cá nhân (ProfileScreen)."
+    },
+    {
+      "id": "AC-3",
+      "text": "Visual & Widget Tests: Kiểm chứng giao diện thực tế và pass toàn bộ flutter test liên quan đến LearnerDashboardScreen."
+    }
+  ],
+  "acceptanceStatus": {
+    "AC-1": "done — gỡ bỏ widget Text('— HỌC SỬ VIỆT · GÌN GIỮ HỒN VIỆT —') bị lặp bên dưới Image.asset('assets/images/app_logo.png') trên TopBar của LearnerDashboardScreen; nâng chiều cao logo lên 38px kèm FilterQuality.high để hiển thị sắc nét 1 dòng khẩu hiệu duy nhất nằm trong ảnh app_logo.png.",
+    "AC-2": "done — bổ sung DauVietColors.softCardShadow (Offset(0, 2), blurRadius: 6), cập nhật TactileCard & HeroPaperBanner hỗ trợ đổ bóng mềm và viền mảnh; chuyển toàn bộ nút Chuông thông báo & Avatar trên TopBar, 2 pill _EnergyMiniPill & _StreakMiniPill, Hero Banner & _buildHeroCtaButton, thẻ Bài học hôm nay, 4 nút Hành trình của bạn, thẻ Nhiệm vụ hôm nay và thẻ Sự kiện nổi bật (kèm CTA 'Khám phá ngay →') sang phong cách phẳng tinh tế Soft Heritage Card đồng bộ 100% với ProfileScreen (0 pixelShadowSm / pixelShadow / DongSonButton trên Dashboard).",
+    "AC-3": "done — flutter analyze --no-pub đạt 0 issues; learner_dashboard_screen_test.dart pass 6/6 (bao gồm kiểm chứng 0 lỗi tràn layout trên cả 360x800 & 390x844, kiểm chứng AC-1 & AC-2); design_tokens_test.dart pass 8/8; toàn bộ 10 thư mục test mobile pass 458/458 tests; Independent Code Review (Issue49CodeReviewer) đạt 9.8/10 (0 P0/P1/P2)."
+  },
+  "dependencies": ["TASK-0037"],
+  "planPath": "plans/261030-issue-49-dashboard-buttons-and-logo/plan.md",
+  "evidenceRefs": [
+    "plans/261030-issue-49-dashboard-buttons-and-logo/plan.md",
+    "tasks/TASK-0038/handoff.md",
+    "flutter analyze --no-pub -> No issues found!",
+    "flutter test --no-pub test/dashboard/learner_dashboard_screen_test.dart -> 6/6 tests passed",
+    "flutter test --no-pub test/dashboard test/theme test/learning_path test/learning test/map test/island test/energy test/streak test/collection test/campaign -> 458/458 tests passed",
+    "git diff --check -> clean (0 whitespace/formatting errors)",
+    "Independent code review (Issue49CodeReviewer) -> 9.8/10, 0 P0/P1/P2 findings"
+  ],
+  "notes": [
+    "Branch fix/issue-49-dashboard-buttons-and-logo is active.",
+    "GitNexus MCP tool was unavailable in this session; used targeted grep/read and full unit/widget test suite across dau-viet-mobile."
+  ],
+  "nextAction": "Chờ người dùng review và ủy quyền commit/push trên nhánh fix/issue-49-dashboard-buttons-and-logo.",
+  "handoff": "tasks/TASK-0038/handoff.md"
+}
