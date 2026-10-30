@@ -10,6 +10,8 @@ import '../../../core/widgets/parchment_card.dart';
 import '../../learning/presentation/renderers/learning_asset_image.dart';
 import '../data/map_location_dto.dart';
 import '../data/map_providers.dart';
+import 'widgets/historical_storybook_reader.dart';
+import 'widgets/location_media_gallery_carousel.dart';
 
 /// Các tab nội dung trên Màn Hồ Sơ Địa Điểm Di Sản (Issue #24).
 /// Tab nào không có dữ liệu sẽ tự động bị ẩn khỏi giao diện.
@@ -184,6 +186,10 @@ MapLocationDto _mergeWithInitial(
         ? detail.unlockLessons
         : initial.unlockLessons,
     media: detail.media.isNotEmpty ? detail.media : initial.media,
+    keyFigures: detail.keyFigures ?? initial.keyFigures,
+    storyNarrative: detail.storyNarrative ?? initial.storyNarrative,
+    historicalSignificance:
+        detail.historicalSignificance ?? initial.historicalSignificance,
   );
 }
 
@@ -204,7 +210,7 @@ class LocationProfileContent extends StatefulWidget {
   /// Tính danh sách các tab không rỗng của [location].
   static List<LocationProfileTab> availableTabsFor(MapLocationDto location) {
     final tabs = <LocationProfileTab>[];
-    if (location.imageMedia.isNotEmpty) {
+    if (location.galleryImages.isNotEmpty) {
       tabs.add(LocationProfileTab.images);
     }
     if (location.videoMedia.isNotEmpty) {
@@ -490,7 +496,7 @@ class _LocationProfileContentState extends State<LocationProfileContent> {
   ) {
     switch (activeTab) {
       case LocationProfileTab.images:
-        return _buildImagesTab(location.imageMedia);
+        return _buildImagesTab(location.galleryImages);
       case LocationProfileTab.videos:
         return _buildVideosTab(location.videoMedia);
       case LocationProfileTab.documents:
@@ -510,14 +516,35 @@ class _LocationProfileContentState extends State<LocationProfileContent> {
     return [...unlockedOnly, ...others];
   }
 
+  int _galleryIndex = 0;
+
   Widget _buildImagesTab(List<MapLocationMediaDto> images) {
     final ordered = _prioritizeUnlockedMedia(images);
+    final currentMedia = ordered.isNotEmpty
+        ? ordered[_galleryIndex.clamp(0, ordered.length - 1)]
+        : null;
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
+        // Thư viện Đa ảnh — Carousel + thumbnail strip + fullscreen zoom.
+        LocationMediaGalleryCarousel(
+          items: images,
+          unlocked: widget.location.unlocked,
+          onIndexChanged: (i) => setState(() => _galleryIndex = i),
+        ),
+        // Compact card list giữ tương thích các test `find.text(media.title)`
+        // và BUG-04 (`exclusiveDy < previewDy`). Ảnh đang hiển thị trên
+        // carousel đã render title trong caption box nên card tương ứng
+        // ẩn title để `findsOneWidget` không bị trùng.
+        const SizedBox(height: 10),
         for (int i = 0; i < ordered.length; i++) ...[
           if (i > 0) const SizedBox(height: 10),
-          _MediaItemCard(media: ordered[i], isVideo: false),
+          _MediaItemCard(
+            media: ordered[i],
+            isVideo: false,
+            hideTitle: ordered[i].id == currentMedia?.id,
+            hideUnlockBadge: ordered[i].id == currentMedia?.id,
+          ),
         ],
       ],
     );
@@ -537,107 +564,28 @@ class _LocationProfileContentState extends State<LocationProfileContent> {
   }
 
   Widget _buildDocumentsTab(MapLocationDto location) {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        if (location.description != null &&
-            location.description!.trim().isNotEmpty) ...[
-          Text(
-            location.description!,
-            style: DauVietTypography.bodySmall.copyWith(height: 1.5),
-          ),
-        ] else if (location.shortSummary == null ||
-            location.shortSummary!.trim().isEmpty) ...[
-          Text(
-            'Địa điểm lịch sử.',
-            style: DauVietTypography.bodySmall.copyWith(height: 1.5),
-          ),
-        ],
-        if (location.events.isNotEmpty) ...[
-          const SizedBox(height: 12),
-          Text(
-            'Sự kiện lịch sử liên quan',
-            style: DauVietTypography.labelMedium.copyWith(
-              fontWeight: FontWeight.w700,
-              color: DauVietColors.inkText,
-            ),
-          ),
-          const SizedBox(height: 6),
-          for (final ev in location.events)
-            Padding(
-              padding: const EdgeInsets.only(bottom: 6),
-              child: Container(
-                padding: const EdgeInsets.symmetric(
-                  horizontal: 10,
-                  vertical: 8,
-                ),
-                decoration: BoxDecoration(
-                  color: const Color(0xFFFBF8F1),
-                  borderRadius: BorderRadius.circular(8),
-                  border: Border.all(color: const Color(0xFFE5DAC6)),
-                ),
-                child: Row(
-                  children: [
-                    const Icon(
-                      Icons.history_edu_rounded,
-                      size: 16,
-                      color: DauVietColors.cinnabarRed,
-                    ),
-                    const SizedBox(width: 8),
-                    Expanded(
-                      child: Text(
-                        ev.yearLabel != null && ev.yearLabel!.trim().isNotEmpty
-                            ? '${ev.title} (${ev.yearLabel})'
-                            : ev.title,
-                        style: DauVietTypography.bodySmall.copyWith(
-                          fontWeight: FontWeight.w600,
-                          color: DauVietColors.inkText,
-                        ),
-                      ),
-                    ),
-                  ],
-                ),
+    return HistoricalStorybookReader(
+      location: location,
+      onOpenEvent: widget.onOpenEvent ?? () => _defaultOpenEvent(context),
+      onOpenEventById: widget.onOpenEvent != null
+          ? (_) => widget.onOpenEvent!()
+          : (eventId) => _defaultOpenEventById(context, eventId),
+      onOpenPeriodByCode: (periodCode) =>
+          _defaultOpenPeriodByCode(context, periodCode),
+      onOpenLesson: widget.onOpenLesson ??
+          (location.actionableLesson != null
+              ? () => _defaultOpenLesson(context, location.actionableLesson!)
+              : null),
+      onOpenLessonItem: widget.onOpenLesson != null
+          ? (_) => widget.onOpenLesson!()
+          : (ul) => _defaultOpenLesson(
+              context,
+              RequiredLessonRef(
+                lessonId: ul.lessonId,
+                title: ul.title,
+                accessible: ul.accessible,
               ),
             ),
-        ],
-        if (location.unlockLessons.isNotEmpty) ...[
-          const SizedBox(height: 12),
-          Text(
-            'Bài học mở khoá (${location.unlockModeLabelVi})',
-            style: DauVietTypography.labelMedium.copyWith(
-              fontWeight: FontWeight.w700,
-              color: DauVietColors.inkText,
-            ),
-          ),
-          const SizedBox(height: 6),
-          for (final ul in location.unlockLessons)
-            Padding(
-              padding: const EdgeInsets.only(bottom: 6),
-              child: Row(
-                children: [
-                  Icon(
-                    ul.completed
-                        ? Icons.check_circle_rounded
-                        : Icons.radio_button_unchecked_rounded,
-                    size: 16,
-                    color: ul.completed
-                        ? DauVietColors.natureGreen
-                        : DauVietColors.inkMuted,
-                  ),
-                  const SizedBox(width: 8),
-                  Expanded(
-                    child: Text(
-                      ul.title,
-                      style: DauVietTypography.bodySmall.copyWith(
-                        color: DauVietColors.inkText,
-                      ),
-                    ),
-                  ),
-                ],
-              ),
-            ),
-        ],
-      ],
     );
   }
 
@@ -652,9 +600,22 @@ class _LocationProfileContentState extends State<LocationProfileContent> {
   void _defaultOpenEvent(BuildContext context) {
     final eventId = widget.location.primaryEventId;
     if (eventId == null || eventId.isEmpty) return;
+    _defaultOpenEventById(context, eventId);
+  }
+
+  void _defaultOpenEventById(BuildContext context, String eventId) {
+    if (eventId.trim().isEmpty) return;
     final router = GoRouter.maybeOf(context);
     if (router != null) {
-      context.push('/campaign/$eventId');
+      context.push('/campaign/${eventId.trim()}');
+    }
+  }
+
+  void _defaultOpenPeriodByCode(BuildContext context, String periodCode) {
+    if (periodCode.trim().isEmpty) return;
+    final router = GoRouter.maybeOf(context);
+    if (router != null) {
+      context.push('/journey/${periodCode.trim()}');
     }
   }
 
@@ -672,8 +633,18 @@ class _LocationProfileContentState extends State<LocationProfileContent> {
 class _MediaItemCard extends StatelessWidget {
   final MapLocationMediaDto media;
   final bool isVideo;
+  final bool hideTitle;
 
-  const _MediaItemCard({required this.media, required this.isVideo});
+  /// Ẩn cả badge `MỞ KHÓA TỪ BÀI HỌC` — dùng khi media đang hiển thị trên
+  /// carousel (badge loại tư liệu trên ảnh đã hiển thị nhãn này).
+  final bool hideUnlockBadge;
+
+  const _MediaItemCard({
+    required this.media,
+    required this.isVideo,
+    this.hideTitle = false,
+    this.hideUnlockBadge = false,
+  });
 
   @override
   Widget build(BuildContext context) {
@@ -693,7 +664,7 @@ class _MediaItemCard extends StatelessWidget {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          if (isUnlockedOnly) ...[
+          if (isUnlockedOnly && !hideUnlockBadge) ...[
             Container(
               padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
               decoration: BoxDecoration(
@@ -752,12 +723,14 @@ class _MediaItemCard extends StatelessWidget {
               ),
               const SizedBox(width: 8),
               Expanded(
-                child: Text(
-                  media.title,
-                  style: DauVietTypography.labelLarge.copyWith(
-                    color: DauVietColors.inkText,
-                  ),
-                ),
+                child: hideTitle
+                    ? const SizedBox.shrink()
+                    : Text(
+                        media.title,
+                        style: DauVietTypography.labelLarge.copyWith(
+                          color: DauVietColors.inkText,
+                        ),
+                      ),
               ),
               Container(
                 padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),

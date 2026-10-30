@@ -2,6 +2,7 @@ import 'package:dau_viet_mobile/features/map/data/map_location_dto.dart';
 import 'package:dau_viet_mobile/features/map/data/map_providers.dart';
 import 'package:dau_viet_mobile/features/map/data/map_repository.dart';
 import 'package:dau_viet_mobile/features/map/presentation/location_profile_screen.dart';
+import 'package:dau_viet_mobile/features/map/presentation/widgets/location_media_gallery_carousel.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -56,9 +57,21 @@ void main() {
         id: 'm1',
         mediaType: 'IMAGE_2D',
         title: 'Toàn cảnh Đền Hùng',
+        caption: 'Đền Hùng trên núi Nghĩa Lĩnh, Phong Châu.',
         externalUrl: '/heritage/den-hung.jpg',
+        sourceCitation: 'Ban quản lý Khu di tích Đền Hùng',
         visibility: 'PUBLIC_PREVIEW',
         sortOrder: 0,
+      ),
+      MapLocationMediaDto(
+        id: 'm1b',
+        mediaType: 'IMAGE_2D',
+        title: 'Bản đồ nước Văn Lang',
+        caption: 'Phạm vi 15 bộ Lạc Việt.',
+        externalUrl: '/heritage/den-hung.jpg',
+        sourceCitation: 'Viện Sử học Việt Nam',
+        visibility: 'PUBLIC_PREVIEW',
+        sortOrder: 1,
       ),
       MapLocationMediaDto(
         id: 'm2',
@@ -66,7 +79,7 @@ void main() {
         title: 'Phim tư liệu Văn Lang',
         externalUrl: 'https://example.com/van-lang.mp4',
         visibility: 'PUBLIC_PREVIEW',
-        sortOrder: 1,
+        sortOrder: 2,
       ),
     ],
   );
@@ -329,6 +342,208 @@ void main() {
             .getTopLeft(find.text('Tranh Hội thề Hát Môn (Xem trước)'))
             .dy;
         expect(exclusiveDy, lessThan(previewDy));
+      },
+    );
+
+    testWidgets(
+      'Thư viện Đa ảnh: Carousel hiển thị bộ đếm 1/N, thumbnail strip và chuyển ảnh khi chạm thumbnail',
+      (tester) async {
+        await tester.pumpWidget(
+          ProviderScope(
+            overrides: [
+              mapRepositoryProvider.overrideWithValue(
+                _FakeMapRepo([locVanLangUnlocked]),
+              ),
+            ],
+            child: const MaterialApp(
+              home: Scaffold(
+                body: LocationProfileSheet(
+                  initialLocation: locVanLangUnlocked,
+                ),
+              ),
+            ),
+          ),
+        );
+        await tester.pumpAndSettle();
+
+        // Badge đếm hiển thị 1/2 và dải thumbnail có đủ 2 mục.
+        expect(
+          find.byKey(const Key('gallery-counter-badge')),
+          findsOneWidget,
+        );
+        expect(find.text('1/2'), findsOneWidget);
+        expect(
+          find.byKey(const Key('gallery-thumbnail-strip')),
+          findsOneWidget,
+        );
+        expect(find.byKey(const Key('gallery-thumb-0')), findsOneWidget);
+        expect(find.byKey(const Key('gallery-thumb-1')), findsOneWidget);
+
+        // Caption box hiển thị tiêu đề + nguồn sử liệu ảnh đầu tiên.
+        expect(find.text('Toàn cảnh Đền Hùng'), findsWidgets);
+        expect(
+          find.textContaining('Nguồn: Ban quản lý Khu di tích Đền Hùng'),
+          findsOneWidget,
+        );
+
+        // Chạm thumbnail thứ 2 → bộ đếm chuyển sang 2/2.
+        await tester.ensureVisible(find.byKey(const Key('gallery-thumb-1')));
+        await tester.pumpAndSettle();
+        await tester.tap(find.byKey(const Key('gallery-thumb-1')));
+        await tester.pumpAndSettle();
+        expect(find.text('2/2'), findsOneWidget);
+        expect(find.text('Bản đồ nước Văn Lang'), findsWidgets);
+      },
+    );
+
+    testWidgets(
+      'Fullscreen Lightbox: mở qua nút phóng to, hiển thị InteractiveViewer + bộ đếm và đóng qua nút close',
+      (tester) async {
+        await tester.pumpWidget(
+          ProviderScope(
+            overrides: [
+              mapRepositoryProvider.overrideWithValue(
+                _FakeMapRepo([locVanLangUnlocked]),
+              ),
+            ],
+            child: const MaterialApp(
+              home: Scaffold(
+                body: LocationProfileSheet(
+                  initialLocation: locVanLangUnlocked,
+                ),
+              ),
+            ),
+          ),
+        );
+        await tester.pumpAndSettle();
+
+        await tester.tap(find.byKey(const Key('gallery-fullscreen-btn')));
+        await tester.pumpAndSettle();
+
+        // Lightbox hiển thị với pinch-zoom và bộ đếm 1/2.
+        expect(find.byType(InteractiveViewer), findsWidgets);
+        expect(
+          find.descendant(
+            of: find.byType(LocationFullscreenLightbox),
+            matching: find.text('1/2'),
+          ),
+          findsOneWidget,
+        );
+        expect(
+          find.byKey(const Key('lightbox-close-btn')),
+          findsOneWidget,
+        );
+
+        await tester.tap(find.byKey(const Key('lightbox-close-btn')));
+        await tester.pumpAndSettle();
+        expect(
+          find.byKey(const Key('lightbox-close-btn')),
+          findsNothing,
+        );
+      },
+    );
+
+    testWidgets(
+      'Cuốn Sách Lịch Sử: tab Tư liệu hiển thị đủ 3 phần Tóm tắt / Câu chuyện / Tư liệu & Dấu tích',
+      (tester) async {
+        const locStorybook = MapLocationDto(
+          id: 'loc_bach_dang_story',
+          eventId: 'evt_bach_dang',
+          eventTitle: 'Đại Chiến Bạch Đằng 938',
+          title: 'Bến Bạch Đằng - Trận Địa Cọc',
+          shortSummary: 'Cửa sông Bạch Đằng lịch sử.',
+          description: 'Nơi Ngô Quyền cắm cọc bọc sắt năm 938.',
+          latitude: 20.8,
+          longitude: 106.6,
+          kind: 'BATTLEFIELD',
+          visibility: 'ALWAYS_VISIBLE',
+          unlocked: true,
+          unlockState: MapUnlockState.unlocked,
+          keyFigures: 'Ngô Quyền; Lưu Hoằng Thao',
+          historicalSignificance:
+              'Chấm dứt 1000 năm Bắc thuộc, mở ra kỷ nguyên độc lập.',
+          storyNarrative:
+              'Mùa đông năm 938, quân Nam Hán kéo vào sông Bạch Đằng.\n\n'
+              'Ngô Quyền cắm cọc gỗ bọc sắt dưới lòng sông rồi lợi dụng '
+              'thủy triều tiêu diệt hạm đội giặc.',
+          events: [
+            MapLocationLinkedEventDto(
+              eventId: 'evt_bach_dang',
+              title: 'Đại Chiến Bạch Đằng 938',
+              yearLabel: 'Năm 938',
+              role: 'PRIMARY',
+              periodCode: 'DOC_LAP_DAU',
+              periodTitle: 'Buổi đầu độc lập',
+            ),
+          ],
+          unlockLessons: [
+            MapLocationUnlockLessonDto(
+              lessonId: 'lesson_bach_dang_01',
+              title: 'Trận Bạch Đằng 938',
+              completed: true,
+              accessible: true,
+            ),
+          ],
+        );
+
+        await tester.pumpWidget(
+          ProviderScope(
+            overrides: [
+              mapRepositoryProvider.overrideWithValue(
+                _FakeMapRepo([locStorybook]),
+              ),
+            ],
+            child: const MaterialApp(
+              home: Scaffold(
+                body: LocationProfileSheet(
+                  initialLocation: locStorybook,
+                ),
+              ),
+            ),
+          ),
+        );
+        await tester.pumpAndSettle();
+
+        // Tab Tư liệu tự chọn khi không có Ảnh/Video; storybook render đủ 3 phần.
+        expect(
+          find.byKey(const Key('storybook-part-summary')),
+          findsOneWidget,
+        );
+        expect(
+          find.byKey(const Key('storybook-part-narrative')),
+          findsOneWidget,
+        );
+        expect(
+          find.byKey(const Key('storybook-part-artifacts')),
+          findsOneWidget,
+        );
+
+        // Phần 1: nhân vật lịch sử và ý nghĩa cốt lõi.
+        expect(
+          find.textContaining('Ngô Quyền; Lưu Hoằng Thao'),
+          findsOneWidget,
+        );
+        expect(
+          find.textContaining('Chấm dứt 1000 năm Bắc thuộc'),
+          findsOneWidget,
+        );
+
+        // Phần 2: description nguyên văn + đoạn narrative.
+        expect(
+          find.text('Nơi Ngô Quyền cắm cọc bọc sắt năm 938.'),
+          findsOneWidget,
+        );
+        expect(
+          find.textContaining('quân Nam Hán kéo vào sông Bạch Đằng'),
+          findsWidgets,
+        );
+
+        // Phần 3: sự kiện liên quan và bài học mở khóa.
+        expect(
+          find.text('Đại Chiến Bạch Đằng 938 (Năm 938)'),
+          findsOneWidget,
+        );
+        expect(find.text('Trận Bạch Đằng 938'), findsOneWidget);
       },
     );
   });

@@ -8,7 +8,9 @@ import 'learning_path_repository.dart';
 /// - Có 6 Thời kỳ (`PERIOD`) phân bổ dưới 3 `ERA`.
 /// - Đầy đủ 6 trạng thái `LearnerPathStatus`:
 ///   `COMPLETED`, `MASTERED`, `IN_PROGRESS`, `AVAILABLE`, `LOCKED`, `NOT_READY`.
-/// - Hỗ trợ `touchPeriod(periodCode)` cập nhật `lastPeriodCode` và con trỏ `current`.
+/// - AC-2 (Issue #48): mọi `PERIOD` có sự kiện học được đều mở đầu bằng một sự
+///   kiện `available`/`completed`/`mastered` — thời kỳ nào cũng tự do chọn,
+///   chỉ các sự kiện tiếp theo trong cùng thời kỳ mới `LOCKED` tuần tự.
 class MockLearningPathRepository extends LearningPathRepository {
   String _lastPeriodCode = 'EARLY_INDEPENDENCE';
 

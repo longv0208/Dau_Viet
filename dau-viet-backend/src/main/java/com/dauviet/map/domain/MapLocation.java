@@ -58,6 +58,15 @@ public class MapLocation {
     @Column(name = "cover_asset_id")
     private UUID coverAssetId;
 
+    @Column(name = "key_figures", length = 500)
+    private String keyFigures;
+
+    @Column(name = "story_narrative", columnDefinition = "text")
+    private String storyNarrative;
+
+    @Column(name = "historical_significance", columnDefinition = "text")
+    private String historicalSignificance;
+
 
     @Column(name = "map_asset_id")
     private UUID mapAssetId;
@@ -139,6 +148,15 @@ public class MapLocation {
 
     public UUID getCoverAssetId() { return coverAssetId; }
     public void setCoverAssetId(UUID coverAssetId) { this.coverAssetId = coverAssetId; }
+
+    public String getKeyFigures() { return keyFigures; }
+    public void setKeyFigures(String keyFigures) { this.keyFigures = keyFigures; }
+
+    public String getStoryNarrative() { return storyNarrative; }
+    public void setStoryNarrative(String storyNarrative) { this.storyNarrative = storyNarrative; }
+
+    public String getHistoricalSignificance() { return historicalSignificance; }
+    public void setHistoricalSignificance(String historicalSignificance) { this.historicalSignificance = historicalSignificance; }
 
 
     public UUID getMapAssetId() { return mapAssetId; }

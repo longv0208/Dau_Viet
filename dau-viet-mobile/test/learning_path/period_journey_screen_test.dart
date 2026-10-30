@@ -716,4 +716,163 @@ void main() {
       );
     },
   );
+  group(
+    'Issue #48 — Đường đi Phong cảnh 2.5D, tự do chọn thời kỳ & Thẻ tổng quan nổi',
+    () {
+      testWidgets(
+        'AC-1/AC-2: /journey hiển thị WindingLandscapeJourneyCanvas, tab ERA, '
+        'không có thời kỳ nào bị khóa và BottomFloatingSummaryCard đúng X/Y + %',
+        (tester) async {
+          tester.view.physicalSize = const Size(390, 844);
+          tester.view.devicePixelRatio = 1.0;
+          addTearDown(tester.view.resetPhysicalSize);
+          addTearDown(tester.view.resetDevicePixelRatio);
+
+          final mockRepo = MockLearningPathRepository();
+          final snapshot = await mockRepo.getMyLearningPath();
+          final repo = _RecordingLearningPathRepository(snapshot);
+
+          await tester.pumpWidget(
+            ProviderScope(
+              overrides: [
+                learningPathRepositoryProvider.overrideWithValue(repo),
+              ],
+              child: const MaterialApp(
+                home: PeriodSelectionScreen(showBottomNav: false),
+              ),
+            ),
+          );
+          await tester.pumpAndSettle();
+
+          // Canvas đường đi phong cảnh + thẻ tổng quan nổi ở chân màn hình.
+          expect(
+            find.byType(WindingLandscapeJourneyCanvas),
+            findsOneWidget,
+          );
+          expect(
+            find.byType(BottomFloatingSummaryCard),
+            findsOneWidget,
+          );
+          // Header theo mockup.
+          expect(find.text('Hành trình'), findsOneWidget);
+          expect(
+            find.text('Khám phá dòng chảy lịch sử Việt Nam'),
+            findsOneWidget,
+          );
+          // Tab Đại thời kỳ (3 ERA + tab "Tất cả").
+          expect(find.text('Tất cả'), findsOneWidget);
+          expect(
+            find.byKey(const Key('era-tab-ERA_ANCIENT_MEDIEVAL')),
+            findsOneWidget,
+          );
+          expect(
+            find.byKey(const Key('era-tab-ERA_EARLY_MODERN')),
+            findsOneWidget,
+          );
+          expect(find.byKey(const Key('era-tab-ERA_MODERN')), findsOneWidget);
+
+          // AC-2: Không có nút mốc PERIOD nào hiển thị icon khóa.
+          for (final code in [
+            'FOUNDING_ERA',
+            'NORTHERN_DOMINATION',
+            'EARLY_INDEPENDENCE',
+            'LY_DYNASTY',
+            'PATRIOTIC_MOVEMENTS',
+            'ANTI_FRENCH_RESISTANCE',
+          ]) {
+            final card = find.byKey(Key('period-card-$code'));
+            await tester.ensureVisible(card);
+            await tester.pumpAndSettle();
+            expect(
+              find.descendant(
+                of: card,
+                matching: find.byIcon(Icons.lock_rounded),
+              ),
+              findsNothing,
+            );
+            expect(
+              find.descendant(
+                of: card,
+                matching: find.byIcon(Icons.lock_outline_rounded),
+              ),
+              findsNothing,
+            );
+          }
+        },
+      );
+
+      testWidgets(
+        'AC-2: bấm tự do thời kỳ chưa học (ANTI_FRENCH_RESISTANCE) điều hướng '
+        'vào PeriodJourneyScreen mà không bị chặn',
+        (tester) async {
+          final mockRepo = MockLearningPathRepository();
+          final snapshot = await mockRepo.getMyLearningPath();
+          final repo = _RecordingLearningPathRepository(snapshot);
+
+          await tester.pumpWidget(
+            ProviderScope(
+              overrides: [
+                learningPathRepositoryProvider.overrideWithValue(repo),
+              ],
+              child: const MaterialApp(
+                home: PeriodSelectionScreen(showBottomNav: false),
+              ),
+            ),
+          );
+          await tester.pumpAndSettle();
+
+          final periodCard = find.byKey(
+            const Key('period-card-ANTI_FRENCH_RESISTANCE'),
+          );
+          await tester.ensureVisible(periodCard);
+          await tester.pumpAndSettle();
+          await tester.tap(periodCard);
+          await tester.pumpAndSettle();
+
+          expect(repo.touchedPeriods, contains('ANTI_FRENCH_RESISTANCE'));
+          expect(find.byType(PeriodJourneyScreen), findsOneWidget);
+          expect(find.text('Chiến Dịch Điện Biên Phủ 1954'), findsOneWidget);
+          // Thanh chuyển nhanh thời kỳ + thẻ tổng quan nổi trên màn thời kỳ.
+          expect(find.byType(WindingLandscapeJourneyCanvas), findsOneWidget);
+          expect(find.byType(BottomFloatingSummaryCard), findsOneWidget);
+        },
+      );
+
+      testWidgets(
+        'AC-1: /journey/:periodCode hiển thị tiến độ X/Y sự kiện, % và thanh '
+        'chuyển nhanh thời kỳ tự do',
+        (tester) async {
+          final mockRepo = MockLearningPathRepository();
+          final snapshot = await mockRepo.getMyLearningPath();
+          final repo = _RecordingLearningPathRepository(snapshot);
+
+          await tester.pumpWidget(
+            ProviderScope(
+              overrides: [
+                learningPathRepositoryProvider.overrideWithValue(repo),
+              ],
+              child: const MaterialApp(
+                home: PeriodJourneyScreen(periodCode: 'LY_DYNASTY'),
+              ),
+            ),
+          );
+          await tester.pumpAndSettle();
+
+          expect(find.byType(WindingLandscapeJourneyCanvas), findsOneWidget);
+          expect(find.byType(BottomFloatingSummaryCard), findsOneWidget);
+          // Tiến độ LY_DYNASTY trong mock: 0/2 sự kiện • 0/3 bài học • 0%.
+          expect(
+            find.text('Tiến độ thời kỳ: 0/2 sự kiện • 0/3 bài học'),
+            findsOneWidget,
+          );
+          // Nút mốc sự kiện khóa tuần tự (Như Nguyệt 1077) vẫn hiển thị
+          // ổ khóa xám như mockup — khóa chỉ áp dụng nội bộ thời kỳ.
+          expect(find.byIcon(Icons.lock_rounded), findsWidgets);
+          // Chuyển nhanh sang thời kỳ khác từ thanh tab (tự do chọn).
+          final antiFrenchTab = find.text('Kháng chiến chống thực dân Pháp');
+          expect(antiFrenchTab, findsOneWidget);
+        },
+      );
+    },
+  );
 }

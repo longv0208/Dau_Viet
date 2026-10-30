@@ -32,7 +32,10 @@ public final class AdminStandaloneMapLocationDtos {
             String unlockRuleMode,
             UUID coverAssetId,
             UUID mapAssetId,
-            Integer displayOrder
+            Integer displayOrder,
+            @Size(max = 500) String keyFigures,
+            String storyNarrative,
+            String historicalSignificance
     ) {
         public StandaloneLocationRequest(
                 String slug,
@@ -48,7 +51,8 @@ public final class AdminStandaloneMapLocationDtos {
                 UUID coverAssetId,
                 Integer displayOrder) {
             this(slug, title, shortSummary, description, kind, latitude, longitude,
-                    coordinatePrecision, visibility, unlockRuleMode, coverAssetId, null, displayOrder);
+                    coordinatePrecision, visibility, unlockRuleMode, coverAssetId, null, displayOrder,
+                    null, null, null);
         }
     }
 
@@ -72,8 +76,14 @@ public final class AdminStandaloneMapLocationDtos {
             UUID assetId,
             @Size(max = 1000) String externalUrl,
             String visibility,
-            Integer sortOrder
+            Integer sortOrder,
+            @Size(max = 500) String sourceCitation
     ) {
+        public MediaInput(String mediaType, String title, String caption,
+                          UUID assetId, String externalUrl, String visibility,
+                          Integer sortOrder) {
+            this(mediaType, title, caption, assetId, externalUrl, visibility, sortOrder, null);
+        }
     }
 
     public record EventLinkView(
@@ -102,8 +112,15 @@ public final class AdminStandaloneMapLocationDtos {
             String assetUrl,
             String externalUrl,
             String visibility,
-            int sortOrder
+            int sortOrder,
+            String sourceCitation
     ) {
+        public MediaView(UUID id, String mediaType, String title, String caption,
+                         UUID assetId, String assetUrl, String externalUrl,
+                         String visibility, int sortOrder) {
+            this(id, mediaType, title, caption, assetId, assetUrl, externalUrl,
+                    visibility, sortOrder, null);
+        }
     }
 
     public record StandaloneLocationResponse(
@@ -129,8 +146,40 @@ public final class AdminStandaloneMapLocationDtos {
             Instant updatedAt,
             List<EventLinkView> events,
             List<UnlockLessonView> unlockLessons,
-            List<MediaView> media
+            List<MediaView> media,
+            String keyFigures,
+            String storyNarrative,
+            String historicalSignificance
     ) {
+        public StandaloneLocationResponse(
+                UUID id,
+                String slug,
+                UUID eventId,
+                String title,
+                String shortSummary,
+                String description,
+                String kind,
+                double latitude,
+                double longitude,
+                String coordinatePrecision,
+                String visibility,
+                String unlockRuleMode,
+                UUID coverAssetId,
+                UUID mapAssetId,
+                int displayOrder,
+                String status,
+                boolean everPublished,
+                long rowVersion,
+                Instant createdAt,
+                Instant updatedAt,
+                List<EventLinkView> events,
+                List<UnlockLessonView> unlockLessons,
+                List<MediaView> media) {
+            this(id, slug, eventId, title, shortSummary, description, kind, latitude, longitude,
+                    coordinatePrecision, visibility, unlockRuleMode, coverAssetId, mapAssetId,
+                    displayOrder, status, everPublished, rowVersion, createdAt, updatedAt,
+                    events, unlockLessons, media, null, null, null);
+        }
     }
 
     public record ReplaceEventsRequest(

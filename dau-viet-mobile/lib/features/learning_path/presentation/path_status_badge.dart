@@ -222,10 +222,7 @@ LearnerPathStatus derivePeriodStatus({
   if (hasInProgressOrDone) {
     return LearnerPathStatus.inProgress;
   }
-
-  if (events.any((e) => e.status.isAvailable)) {
-    return LearnerPathStatus.available;
-  }
-
-  return LearnerPathStatus.locked;
+  // AC-2 (Issue #48): thời kỳ có nội dung học luôn tự do được chọn — tuyệt đối
+  // không trả về `locked`/`Đang khóa`. Chưa bắt đầu (0%) → "Sẵn sàng khám phá".
+  return LearnerPathStatus.available;
 }

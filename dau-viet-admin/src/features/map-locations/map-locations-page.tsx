@@ -17,6 +17,9 @@ import {
   MapPin,
   Pencil,
   Plus,
+  ArrowUp,
+  ArrowDown,
+  Star,
   Search,
   Sparkles,
   Trash2,
@@ -135,6 +138,29 @@ function LocationCardThumbnail({ loc }: { loc: StandaloneLocationResponse }) {
       src={resolvedSrc}
       alt={loc.title}
       className="size-full object-cover"
+      loading="lazy"
+    />
+  );
+}
+
+function MediaItemThumbnail({ item }: { item: MediaInput }) {
+  const directSrc = item.externalUrl?.trim() || null;
+  const contentUrl = item.assetId ? `/api/v1/admin/assets/${item.assetId}/content` : null;
+  const { src: objectUrl } = useAssetObjectUrl(contentUrl);
+  const src = objectUrl ?? directSrc;
+  if (!src) {
+    return (
+      <div className="flex size-16 shrink-0 items-center justify-center rounded-lg border border-dashed border-border bg-surface-alt text-ink-muted">
+        <ImageIcon className="size-5" aria-hidden />
+      </div>
+    );
+  }
+  return (
+    // eslint-disable-next-line @next/next/no-img-element
+    <img
+      src={src}
+      alt={item.title || "Tư liệu địa điểm"}
+      className="size-16 shrink-0 rounded-lg border border-border object-cover"
       loading="lazy"
     />
   );
@@ -718,6 +744,11 @@ function LocationDetailEditor({
   const [slug, setSlug] = useState(location?.slug ?? "");
   const [shortSummary, setShortSummary] = useState(location?.shortSummary ?? "");
   const [description, setDescription] = useState(location?.description ?? "");
+  const [keyFigures, setKeyFigures] = useState(location?.keyFigures ?? "");
+  const [storyNarrative, setStoryNarrative] = useState(location?.storyNarrative ?? "");
+  const [historicalSignificance, setHistoricalSignificance] = useState(
+    location?.historicalSignificance ?? "",
+  );
   const [kind, setKind] = useState<MapLocationKind>(location?.kind ?? "HERITAGE_SITE");
   const [latitude, setLatitude] = useState(String(location?.latitude ?? 50));
   const [longitude, setLongitude] = useState(String(location?.longitude ?? 50));
@@ -768,13 +799,16 @@ function LocationDetailEditor({
       title: m.title ?? "",
       caption: m.caption ?? "",
       assetId: m.assetId,
+      assetUrl: m.assetUrl ?? "",
       externalUrl: m.externalUrl ?? "",
       visibility: m.visibility,
       sortOrder: m.sortOrder ?? idx,
+      sourceCitation: m.sourceCitation ?? "",
     })),
   );
   const [mediaAssetPickerIdx, setMediaAssetPickerIdx] = useState<number | null>(null);
 
+  const [mediaUploadingIdx, setMediaUploadingIdx] = useState<number | null>(null);
   useEffect(() => {
     setError(null);
   }, [activeTab]);
@@ -804,6 +838,9 @@ function LocationDetailEditor({
         coverAssetId,
         mapAssetId,
         displayOrder: Number.isFinite(Number(displayOrder)) ? Number(displayOrder) : 0,
+        keyFigures: keyFigures.trim() || null,
+        storyNarrative: storyNarrative.trim() || null,
+        historicalSignificance: historicalSignificance.trim() || null,
       };
       if (isNew) {
         return apiFetch<StandaloneLocationResponse>(`/admin/map-locations`, {
@@ -893,6 +930,7 @@ function LocationDetailEditor({
               externalUrl: m.externalUrl?.trim() || null,
               visibility: m.visibility,
               sortOrder: idx,
+              sourceCitation: m.sourceCitation?.trim() || null,
             })),
           ),
         },
@@ -1028,6 +1066,53 @@ function LocationDetailEditor({
       setUploadingMap(false);
     }
   }
+
+  function moveMediaItem(from: number, to: number) {
+    if (to < 0 || to >= mediaItems.length || from === to) return;
+    setMediaItems((prev) => {
+      const next = [...prev];
+      const [moved] = next.splice(from, 1);
+      if (moved) next.splice(to, 0, moved);
+      return next.map((m, i) => ({ ...m, sortOrder: i }));
+    });
+  }
+
+  async function handleMediaFileUpload(
+    idx: number,
+    e: React.ChangeEvent<HTMLInputElement>,
+  ) {
+    const file = e.target.files?.[0];
+    e.target.value = "";
+    if (!file) return;
+    const invalid = validateAssetFile(file);
+    if (invalid) {
+      setError(invalid);
+      return;
+    }
+    setMediaUploadingIdx(idx);
+    setError(null);
+    try {
+      const uploaded = await uploadAsset(file);
+      await qc.invalidateQueries({ queryKey: ["assets"] });
+      setMediaItems((prev) =>
+        prev.map((m, i) =>
+          i === idx
+            ? {
+                ...m,
+                assetId: uploaded.id,
+                assetUrl: `/api/v1/assets/${uploaded.id}/content`,
+                title: m.title || uploaded.originalFilename || "Tư liệu hình ảnh",
+              }
+            : m,
+        ),
+      );
+    } catch (err) {
+      setError(toUserMessage(err));
+    } finally {
+      setMediaUploadingIdx(null);
+    }
+  }
+
   const filteredLessons = useMemo(() => {
     const keyword = lessonSearch.trim().toLowerCase();
     if (!keyword) return allLessons;
@@ -1245,6 +1330,57 @@ function LocationDetailEditor({
                 onChange={(e) => setDescription(e.target.value)}
                 placeholder="Nội dung thuyết minh chi tiết khi học viên mở khóa địa điểm di tích..."
               />
+            </div>
+            {/* Khối: Nội dung Cuốn Sách Lịch Sử — Bản đồ Di sản */}
+            <div className="space-y-3 rounded-xl border border-border bg-surface p-4">
+              <div>
+                <Label className="flex items-center gap-1.5 text-sm font-semibold text-ink">
+                  <BookOpen className="size-4 text-brand" aria-hidden />
+                  Nội dung Cuốn Sách Lịch Sử (Hiển thị trên Bản đồ Di sản)
+                </Label>
+                <p className="mt-0.5 text-xs text-ink-muted">
+                  Nội dung này hiển thị trong Sách đọc Lịch sử khi học viên mở hồ sơ địa điểm trên Bản đồ Di sản.
+                </p>
+              </div>
+
+              <div>
+                <Label htmlFor="loc-key-figures" className="font-medium text-ink-secondary">
+                  Nhân vật lịch sử tiêu biểu
+                </Label>
+                <Input
+                  id="loc-key-figures"
+                  maxLength={500}
+                  value={keyFigures}
+                  onChange={(e) => setKeyFigures(e.target.value)}
+                  placeholder="Ngô Quyền, Dương Tam Kha — Thủy quân Nam Hán"
+                />
+              </div>
+
+              <div>
+                <Label htmlFor="loc-story-narrative" className="font-medium text-ink-secondary">
+                  Câu chuyện &amp; Diễn biến lịch sử (Chương II — Sách đọc lịch sử)
+                </Label>
+                <Textarea
+                  id="loc-story-narrative"
+                  rows={5}
+                  value={storyNarrative}
+                  onChange={(e) => setStoryNarrative(e.target.value)}
+                  placeholder="Thuật lại diễn biến trận chiến, bối cảnh lịch sử và các tình tiết then chốt..."
+                />
+              </div>
+
+              <div>
+                <Label htmlFor="loc-historical-significance" className="font-medium text-ink-secondary">
+                  Ý nghĩa lịch sử &amp; Giá trị di sản
+                </Label>
+                <Textarea
+                  id="loc-historical-significance"
+                  rows={3}
+                  value={historicalSignificance}
+                  onChange={(e) => setHistoricalSignificance(e.target.value)}
+                  placeholder="Trận Bạch Đằng 938 chấm dứt một nghìn năm Bắc thuộc, mở ra kỷ nguyên độc lập tự chủ lâu dài..."
+                />
+              </div>
             </div>
 
             {/* Khối 1: Hình bản đồ & Chọn vị trí trên Bản đồ */}
@@ -1898,21 +2034,72 @@ function LocationDetailEditor({
                     className="space-y-3 rounded-lg border border-border bg-surface p-3"
                   >
                     <div className="flex items-center justify-between gap-2">
-                      <span className="text-xs font-semibold text-brand">
-                        Media #{idx + 1}
-                      </span>
-                      <Button
-                        type="button"
-                        variant="ghost"
-                        size="sm"
-                        className="h-7 px-2 text-xs text-error"
-                        onClick={() =>
-                          setMediaItems((prev) => prev.filter((_, i) => i !== idx))
-                        }
-                      >
-                        <Trash2 className="size-3.5" aria-hidden />
-                        Xóa
-                      </Button>
+                      <div className="flex min-w-0 items-center gap-3">
+                        <MediaItemThumbnail item={item} />
+                        <div className="min-w-0">
+                          <span className="text-xs font-semibold text-brand">
+                            Media #{idx + 1}
+                          </span>
+                          {idx === 0 && (
+                            <p className="text-[11px] font-medium text-success">
+                              ★ Ảnh đầu — hiển thị đầu Carousel
+                            </p>
+                          )}
+                          <p className="truncate text-[11px] text-ink-muted">
+                            {item.title?.trim() || "Chưa đặt tiêu đề"}
+                          </p>
+                        </div>
+                      </div>
+                      <div className="flex shrink-0 items-center gap-1">
+                        <Button
+                          type="button"
+                          variant="secondary"
+                          size="icon"
+                          className="size-7"
+                          disabled={idx === 0}
+                          onClick={() => moveMediaItem(idx, idx - 1)}
+                          title="Đưa lên trên"
+                          aria-label="Đưa lên trên"
+                        >
+                          <ArrowUp className="size-3.5" aria-hidden />
+                        </Button>
+                        <Button
+                          type="button"
+                          variant="secondary"
+                          size="icon"
+                          className="size-7"
+                          disabled={idx === mediaItems.length - 1}
+                          onClick={() => moveMediaItem(idx, idx + 1)}
+                          title="Đưa xuống dưới"
+                          aria-label="Đưa xuống dưới"
+                        >
+                          <ArrowDown className="size-3.5" aria-hidden />
+                        </Button>
+                        <Button
+                          type="button"
+                          variant="secondary"
+                          size="sm"
+                          className="h-7 px-2 text-xs"
+                          disabled={idx === 0}
+                          onClick={() => moveMediaItem(idx, 0)}
+                          title="Đặt làm ảnh đầu của Carousel"
+                        >
+                          <Star className="size-3.5" aria-hidden />
+                          Ảnh đầu
+                        </Button>
+                        <Button
+                          type="button"
+                          variant="ghost"
+                          size="sm"
+                          className="h-7 px-2 text-xs text-error"
+                          onClick={() =>
+                            setMediaItems((prev) => prev.filter((_, i) => i !== idx))
+                          }
+                        >
+                          <Trash2 className="size-3.5" aria-hidden />
+                          Xóa
+                        </Button>
+                      </div>
                     </div>
 
                     <div className="grid gap-3 sm:grid-cols-2">
@@ -2007,6 +2194,27 @@ function LocationDetailEditor({
                           >
                             <ImageIcon className="size-3.5" aria-hidden />
                           </Button>
+                          <input
+                            id={`media-file-${idx}`}
+                            type="file"
+                            accept="image/*"
+                            className="hidden"
+                            onChange={(e) => handleMediaFileUpload(idx, e)}
+                            aria-label="Tải ảnh từ máy"
+                          />
+                          <Button
+                            type="button"
+                            variant="secondary"
+                            size="sm"
+                            disabled={mediaUploadingIdx === idx}
+                            onClick={() =>
+                              document.getElementById(`media-file-${idx}`)?.click()
+                            }
+                            title="Tải ảnh từ máy tính lên Asset Service"
+                          >
+                            <Upload className="size-3.5" aria-hidden />
+                            {mediaUploadingIdx === idx ? "Đang tải..." : "Tải ảnh từ máy"}
+                          </Button>
                         </div>
                         {item.assetId && (
                           <p className="mt-1 text-[11px] text-ink-muted">
@@ -2028,6 +2236,23 @@ function LocationDetailEditor({
                           );
                         }}
                         placeholder="Thuyết minh ngắn hiển thị bên dưới ảnh/video..."
+                      />
+                    </div>
+
+                    <div>
+                      <Label>Nguồn tư liệu / Trích dẫn sử liệu</Label>
+                      <Input
+                        className="mt-1"
+                        value={item.sourceCitation ?? ""}
+                        onChange={(e) => {
+                          const val = e.target.value;
+                          setMediaItems((prev) =>
+                            prev.map((m, i) =>
+                              i === idx ? { ...m, sourceCitation: val } : m,
+                            ),
+                          );
+                        }}
+                        placeholder="VD: Đại Việt sử ký toàn thư, Bảo tàng Lịch sử Quốc gia..."
                       />
                     </div>
                   </div>
