@@ -347,7 +347,7 @@ class _IslandScreenState extends ConsumerState<IslandScreen>
                 ),
                 if (island != null)
                   Text(
-                    '${island.tierScaleLabel} · ${island.legacyTierScaleLabel} (LV${island.currentLevel})',
+                    '${IslandDto.tierHeritageName(_previewTier)} · ${island.legacyTierScaleLabel} (LV${island.currentLevel})',
                     maxLines: 1,
                     overflow: TextOverflow.ellipsis,
                     style: DauVietTypography.bodySmall.copyWith(
@@ -1695,7 +1695,11 @@ class _IslandScreenState extends ConsumerState<IslandScreen>
   ///   (giữ kèm vành đai Cấp 2 liền kề để hiển thị trạng thái khóa trực quan).
   IslandDto _islandForTier(IslandDto island, int viewTier) {
     if (island.board == null) return island;
-    final maxVisibleTier = viewTier == 1 && island.tier == 1 ? 2 : viewTier;
+    final bool isLegacyFixtureWithFewSlots = island.slots.length <= 20;
+    final maxVisibleTier =
+        (viewTier == 1 && island.tier == 1 && isLegacyFixtureWithFewSlots)
+            ? 2
+            : viewTier;
     final filteredSlots = island.slots
         .where((s) => s.unlockTier <= maxVisibleTier)
         .toList();
@@ -1704,6 +1708,7 @@ class _IslandScreenState extends ConsumerState<IslandScreen>
           (t) =>
               t.unlockTier <= viewTier ||
               (viewTier == 1 &&
+                  isLegacyFixtureWithFewSlots &&
                   t.unlockTier == 2 &&
                   island.slots.any(
                     (s) =>

@@ -400,12 +400,144 @@ class _IslandPanoramicBackdrop extends StatelessWidget {
     return Stack(
       fit: StackFit.expand,
       children: [
-        // 1. Nền biển trời chuyển sắc kèm núi đá vôi và mây mờ
-        CustomPaint(
-          painter: _HaLongBayHorizonPainter(),
+        // 1. Nền bầu trời mây trắng bồng bềnh, đại dương ngọc bích, rạn san hô & hòn non bộ xanh mát (Issue #50 AC-1)
+        Positioned.fill(
+          child: CustomPaint(
+            painter: _HaLongBayHorizonPainter(),
+          ),
         ),
 
-        // 2. Hai đảo phụ lơ lửng phía xa trên biển mây khi ở Chế độ Tham quan
+        // 2. Các đảo đá nhỏ phủ cây xanh, hoa lá & bèo sen ngoài khơi giống hệt mẫu thiết kế (Image #2)
+        Positioned(
+          top: 118,
+          left: -8,
+          width: 112,
+          height: 92,
+          child: IgnorePointer(
+            child: Opacity(
+              opacity: 0.90,
+              child: Stack(
+                clipBehavior: Clip.none,
+                children: [
+                  Positioned(
+                    left: 8,
+                    bottom: 6,
+                    width: 82,
+                    height: 76,
+                    child: Image.asset(
+                      IslandVisualAssetManager.mossyRockCluster,
+                      fit: BoxFit.contain,
+                    ),
+                  ),
+                  Positioned(
+                    left: 26,
+                    bottom: 24,
+                    width: 68,
+                    height: 68,
+                    child: Image.asset(
+                      IslandVisualAssetManager.banyanSapling,
+                      fit: BoxFit.contain,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
+        ),
+        Positioned(
+          top: 112,
+          right: -10,
+          width: 118,
+          height: 96,
+          child: IgnorePointer(
+            child: Opacity(
+              opacity: 0.90,
+              child: Stack(
+                clipBehavior: Clip.none,
+                children: [
+                  Positioned(
+                    right: 8,
+                    bottom: 6,
+                    width: 84,
+                    height: 78,
+                    child: Image.asset(
+                      IslandVisualAssetManager.mossyRockCluster,
+                      fit: BoxFit.contain,
+                    ),
+                  ),
+                  Positioned(
+                    right: 28,
+                    bottom: 24,
+                    width: 70,
+                    height: 70,
+                    child: Image.asset(
+                      IslandVisualAssetManager.banyanSapling,
+                      fit: BoxFit.contain,
+                    ),
+                  ),
+                  Positioned(
+                    right: 6,
+                    bottom: 8,
+                    width: 48,
+                    height: 46,
+                    child: Image.asset(
+                      IslandVisualAssetManager.floweringShrub,
+                      fit: BoxFit.contain,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
+        ),
+        Positioned(
+          bottom: 132,
+          left: -6,
+          width: 108,
+          height: 88,
+          child: IgnorePointer(
+            child: Opacity(
+              opacity: 0.92,
+              child: Stack(
+                clipBehavior: Clip.none,
+                children: [
+                  Positioned(
+                    left: 6,
+                    bottom: 4,
+                    width: 78,
+                    height: 72,
+                    child: Image.asset(
+                      IslandVisualAssetManager.mossyRockCluster,
+                      fit: BoxFit.contain,
+                    ),
+                  ),
+                  Positioned(
+                    left: 18,
+                    bottom: 22,
+                    width: 64,
+                    height: 64,
+                    child: Image.asset(
+                      IslandVisualAssetManager.banyanSapling,
+                      fit: BoxFit.contain,
+                    ),
+                  ),
+                  Positioned(
+                    left: 44,
+                    bottom: 6,
+                    width: 44,
+                    height: 42,
+                    child: Image.asset(
+                      IslandVisualAssetManager.floweringShrub,
+                      fit: BoxFit.contain,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
+        ),
+
+        // 3. Hai đảo phụ lơ lửng phía xa trên biển mây khi ở Chế độ Tham quan
         if (!isEditMode) ...[
           Positioned(
             top: 175,
@@ -440,7 +572,11 @@ class _IslandPanoramicBackdrop extends StatelessWidget {
 class _HaLongBayHorizonPainter extends CustomPainter {
   @override
   void paint(Canvas canvas, Size size) {
+    final w = size.width;
+    final h = size.height;
     final rect = Offset.zero & size;
+
+    // 1. Bầu trời nắng ấm chuyển sắc mượt xuống mặt biển ngọc bích & đại dương sâu (giống hệt mẫu Image #2)
     canvas.drawRect(
       rect,
       Paint()
@@ -448,68 +584,269 @@ class _HaLongBayHorizonPainter extends CustomPainter {
           begin: Alignment.topCenter,
           end: Alignment.bottomCenter,
           colors: [
-            Color(0xFF9AD8E4),
-            Color(0xFF66B8CE),
-            Color(0xFF3E94AE),
-            Color(0xFF28738A),
+            Color(0xFFF3EBD6),
+            Color(0xFFB5E3EE),
+            Color(0xFF5DC0D6),
+            Color(0xFF2889A6),
+            Color(0xFF176580),
+            Color(0xFF0F4C64),
           ],
-          stops: [0.0, 0.32, 0.72, 1.0],
+          stops: [0.0, 0.14, 0.30, 0.56, 0.80, 1.0],
         ).createShader(rect),
     );
 
-    // Dãy núi đá vôi vịnh Hạ Long bên trái & bên phải chân trời
-    final leftKarst = Path()
-      ..moveTo(0, size.height * 0.34)
-      ..lineTo(size.width * 0.06, size.height * 0.21)
-      ..lineTo(size.width * 0.13, size.height * 0.26)
-      ..lineTo(size.width * 0.19, size.height * 0.19)
-      ..lineTo(size.width * 0.28, size.height * 0.34)
-      ..close();
-    canvas.drawPath(
-      leftKarst,
-      Paint()..color = const Color(0xFF4B8E9B).withValues(alpha: 0.55),
+    // 2. Ánh nắng vàng dịu tỏa từ góc trên bên trái
+    final sunGlowRect = Rect.fromCircle(
+      center: Offset(w * 0.18, h * 0.10),
+      radius: w * 0.65,
+    );
+    canvas.drawRect(
+      rect,
+      Paint()
+        ..shader = RadialGradient(
+          colors: [
+            const Color(0xFFFFF8DF).withValues(alpha: 0.46),
+            const Color(0xFFFFF3C8).withValues(alpha: 0.14),
+            Colors.transparent,
+          ],
+          stops: const [0.0, 0.52, 1.0],
+        ).createShader(sunGlowRect),
     );
 
-    final rightKarst = Path()
-      ..moveTo(size.width * 0.72, size.height * 0.35)
-      ..lineTo(size.width * 0.80, size.height * 0.20)
-      ..lineTo(size.width * 0.87, size.height * 0.25)
-      ..lineTo(size.width * 0.94, size.height * 0.17)
-      ..lineTo(size.width, size.height * 0.35)
-      ..close();
-    canvas.drawPath(
-      rightKarst,
-      Paint()..color = const Color(0xFF448390).withValues(alpha: 0.52),
+    // 3. Các tầng mây cumulus trắng kem bồng bềnh phía chân trời trên & hai bên sườn đảo
+    _drawFluffyCloudCluster(
+      canvas,
+      center: Offset(w * 0.16, h * 0.15),
+      width: w * 0.52,
+      height: 68,
+      alpha: 0.92,
+    );
+    _drawFluffyCloudCluster(
+      canvas,
+      center: Offset(w * 0.84, h * 0.14),
+      width: w * 0.50,
+      height: 64,
+      alpha: 0.90,
+    );
+    _drawFluffyCloudCluster(
+      canvas,
+      center: Offset(w * 0.50, h * 0.11),
+      width: w * 0.62,
+      height: 56,
+      alpha: 0.78,
+    );
+    _drawFluffyCloudCluster(
+      canvas,
+      center: Offset(w * 0.08, h * 0.27),
+      width: w * 0.38,
+      height: 48,
+      alpha: 0.72,
+    );
+    _drawFluffyCloudCluster(
+      canvas,
+      center: Offset(w * 0.92, h * 0.26),
+      width: w * 0.38,
+      height: 48,
+      alpha: 0.72,
     );
 
-    // Lớp mây bồng bềnh quanh đảo
-    final cloudPaint = Paint()
-      ..color = const Color(0xFFFFFBF2).withValues(alpha: 0.32)
+    // 4. Quần đảo đá vôi tròn trịa xanh ngọc phía xa kèm tán cây & sương mù chân đảo
+    _drawLushDistantIslet(
+      canvas,
+      baseCenter: Offset(w * 0.11, h * 0.25),
+      width: 92,
+      height: 44,
+    );
+    _drawLushDistantIslet(
+      canvas,
+      baseCenter: Offset(w * 0.89, h * 0.24),
+      width: 96,
+      height: 46,
+    );
+
+    // 5. Các mảng nước nông ngọc lam (lagoon), rạn đá ngầm & gợn sóng lăn tăn trên mặt biển
+    final reefPaint = Paint()
+      ..color = const Color(0xFF56CEDB).withValues(alpha: 0.26)
       ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 18);
     canvas.drawOval(
       Rect.fromCenter(
-        center: Offset(size.width * 0.20, size.height * 0.36),
-        width: size.width * 0.42,
-        height: 44,
+        center: Offset(w * 0.14, h * 0.36),
+        width: 118,
+        height: 48,
       ),
-      cloudPaint,
+      reefPaint,
     );
     canvas.drawOval(
       Rect.fromCenter(
-        center: Offset(size.width * 0.82, size.height * 0.34),
-        width: size.width * 0.40,
-        height: 42,
+        center: Offset(w * 0.86, h * 0.35),
+        width: 124,
+        height: 50,
       ),
-      cloudPaint,
+      reefPaint,
     );
     canvas.drawOval(
       Rect.fromCenter(
-        center: Offset(size.width * 0.50, size.height * 0.86),
-        width: size.width * 0.85,
-        height: 64,
+        center: Offset(w * 0.16, h * 0.74),
+        width: 132,
+        height: 54,
       ),
-      cloudPaint,
+      reefPaint,
     );
+    canvas.drawOval(
+      Rect.fromCenter(
+        center: Offset(w * 0.84, h * 0.70),
+        width: 120,
+        height: 48,
+      ),
+      reefPaint,
+    );
+
+    // Gợn sóng bạc & lá súng/bèo xanh trôi nhẹ trên biển quanh đảo
+    final waveLinePaint = Paint()
+      ..color = const Color(0xFFB7F3F7).withValues(alpha: 0.32)
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = 1.6
+      ..strokeCap = StrokeCap.round;
+    for (final (wx, wy, ww) in const [
+      (0.18, 0.39, 34.0),
+      (0.80, 0.38, 38.0),
+      (0.12, 0.54, 28.0),
+      (0.88, 0.52, 32.0),
+      (0.24, 0.76, 40.0),
+      (0.76, 0.74, 36.0),
+      (0.50, 0.81, 44.0),
+    ]) {
+      final cx = w * wx;
+      final cy = h * wy;
+      final path = Path()
+        ..moveTo(cx - ww * 0.5, cy)
+        ..quadraticBezierTo(cx - ww * 0.2, cy - 3.5, cx, cy)
+        ..quadraticBezierTo(cx + ww * 0.2, cy + 3.5, cx + ww * 0.5, cy);
+      canvas.drawPath(path, waveLinePaint);
+    }
+
+    // Những cụm lá sen / hoa súng nhỏ điểm xuyết trên mặt biển ngọc bích
+    final padPaint = Paint()..color = const Color(0xFF4CA858).withValues(alpha: 0.78);
+    final blossomPaint = Paint()..color = const Color(0xFFFF8A9B).withValues(alpha: 0.90);
+    for (final (lx, ly) in const [
+      (0.22, 0.37),
+      (0.77, 0.36),
+      (0.20, 0.72),
+      (0.79, 0.69),
+    ]) {
+      final c = Offset(w * lx, h * ly);
+      canvas.drawOval(Rect.fromCenter(center: c, width: 13, height: 7), padPaint);
+      canvas.drawOval(
+        Rect.fromCenter(center: c.translate(9, 4), width: 10, height: 5.5),
+        padPaint,
+      );
+      canvas.drawCircle(c.translate(1, -1.5), 2.4, blossomPaint);
+    }
+  }
+
+  void _drawFluffyCloudCluster(
+    Canvas canvas, {
+    required Offset center,
+    required double width,
+    required double height,
+    required double alpha,
+  }) {
+    final baseShadePaint = Paint()
+      ..color = const Color(0xFFCDE7F2).withValues(alpha: alpha * 0.78);
+    final mainCreamPaint = Paint()
+      ..color = const Color(0xFFFFFDF6).withValues(alpha: alpha);
+    final rimWarmPaint = Paint()
+      ..color = const Color(0xFFFFF4D9).withValues(alpha: alpha * 0.85);
+
+    // Đế mây xanh nhạt phía dưới
+    canvas.drawRRect(
+      RRect.fromRectAndRadius(
+        Rect.fromCenter(
+          center: center.translate(0, height * 0.16),
+          width: width * 0.92,
+          height: height * 0.46,
+        ),
+        Radius.circular(height * 0.25),
+      ),
+      baseShadePaint,
+    );
+
+    // Các vòm mây tròn bồng bềnh chồng lớp
+    final puffs = [
+      (-0.30, 0.06, 0.34, 0.58),
+      (-0.14, -0.08, 0.42, 0.76),
+      (0.06, -0.14, 0.46, 0.84),
+      (0.24, -0.04, 0.36, 0.64),
+      (0.36, 0.08, 0.26, 0.46),
+    ];
+    for (final (dx, dy, rw, rh) in puffs) {
+      final puffRect = Rect.fromCenter(
+        center: Offset(center.dx + width * dx, center.dy + height * dy),
+        width: width * rw,
+        height: height * rh,
+      );
+      canvas.drawOval(puffRect, mainCreamPaint);
+      canvas.drawOval(
+        puffRect.deflate(width * 0.02).translate(-2, -3),
+        rimWarmPaint,
+      );
+    }
+  }
+
+  void _drawLushDistantIslet(
+    Canvas canvas, {
+    required Offset baseCenter,
+    required double width,
+    required double height,
+  }) {
+    // Bọt sóng trắng dưới chân đảo xa
+    canvas.drawOval(
+      Rect.fromCenter(
+        center: baseCenter.translate(0, 3),
+        width: width * 1.12,
+        height: 11,
+      ),
+      Paint()..color = const Color(0xFFDDF9FC).withValues(alpha: 0.58),
+    );
+
+    // Vách đá nâu vàng ấm áp
+    final rockPath = Path()
+      ..moveTo(baseCenter.dx - width * 0.46, baseCenter.dy)
+      ..quadraticBezierTo(
+        baseCenter.dx - width * 0.28,
+        baseCenter.dy - height * 0.85,
+        baseCenter.dx - width * 0.04,
+        baseCenter.dy - height * 0.68,
+      )
+      ..quadraticBezierTo(
+        baseCenter.dx + width * 0.18,
+        baseCenter.dy - height * 1.05,
+        baseCenter.dx + width * 0.46,
+        baseCenter.dy,
+      )
+      ..close();
+    canvas.drawPath(
+      rockPath,
+      Paint()..color = const Color(0xFF7B684A).withValues(alpha: 0.72),
+    );
+
+    // Vòm cây xanh ngọc phủ đỉnh đảo xa
+    for (final (ox, oy, r) in [
+      (-width * 0.18, -height * 0.56, height * 0.36),
+      (width * 0.08, -height * 0.68, height * 0.42),
+      (width * 0.26, -height * 0.44, height * 0.30),
+    ]) {
+      canvas.drawCircle(
+        baseCenter.translate(ox, oy),
+        r,
+        Paint()..color = const Color(0xFF4F9350).withValues(alpha: 0.78),
+      );
+      canvas.drawCircle(
+        baseCenter.translate(ox - 2, oy - 3),
+        r * 0.72,
+        Paint()..color = const Color(0xFF7BB856).withValues(alpha: 0.72),
+      );
+    }
   }
 
   @override

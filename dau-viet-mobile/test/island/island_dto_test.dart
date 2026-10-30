@@ -266,6 +266,34 @@ void main() {
           shortIslandItemDisplayName('Tượng Lý Thái Tổ', 'DECOR_TUONG_LY_THAI_TO', null),
           'Bức tượng',
         );
+        expect(
+          resolveIslandAsset(
+            'replica.choi_canh_bach_dang',
+            'MO_HINH_CHOI_CANH_BACH_DANG',
+          ),
+          'assets/island/buildings/choi_canh_bach_dang.png',
+        );
+        expect(
+          resolveIslandAsset(
+            'replica.thanh_nha_ho',
+            'MO_HINH_THANH_NHA_HO',
+          ),
+          'assets/island/buildings/thanh_nha_ho.png',
+        );
+        expect(
+          resolveIslandAsset(
+            'replica.coc_bach_dang',
+            'PHIEN_BAN_SO_COC_BACH_DANG',
+          ),
+          'assets/island/buildings/coc_bach_dang.png',
+        );
+        expect(
+          resolveIslandAsset(
+            'replica.trong_dong_dong_son',
+            'MO_HINH_TRONG_DONG_DONG_SON',
+          ),
+          'assets/island/buildings/trong_dong_dong_son.png',
+        );
       },
     );
   });

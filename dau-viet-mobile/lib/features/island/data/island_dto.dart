@@ -172,7 +172,9 @@ String? resolveIslandAsset(String? renderKey, String? code, [String? assetId]) {
         token == 'decor_thap_cham' ||
         token == 'thap_cham' ||
         token == 'decor.chua_my_son' ||
-        token == 'chua_my_son') {
+        token == 'chua_my_son' ||
+        token == 'mo_hinh_chua_my_son' ||
+        token == 'replica.chua_my_son') {
       return 'assets/island/buildings/thap_cham.png';
     }
     if (token == 'decor.cot_co' ||
@@ -194,7 +196,7 @@ String? resolveIslandAsset(String? renderKey, String? code, [String? assetId]) {
         token == 'decor.bui_tre' ||
         token == 'decor_bui_tre' ||
         token == 'bui_tre') {
-      return 'assets/island/scenery/tre_truc.png';
+      return 'assets/island/scenery/bamboo_grove_large.png';
     }
     if (token == 'decor.cong_lang' ||
         token == 'decor_cong_lang' ||
@@ -204,6 +206,7 @@ String? resolveIslandAsset(String? renderKey, String? code, [String? assetId]) {
     if (token == 'decor.khue_van' ||
         token == 'decor_khue_van' ||
         token == 'khue_van' ||
+        token == 'decor_khue_van_cac' ||
         token == 'khue_van_cac') {
       return 'assets/island/buildings/khue_van_cac.png';
     }
@@ -224,6 +227,68 @@ String? resolveIslandAsset(String? renderKey, String? code, [String? assetId]) {
         token == 'den_long' ||
         token == 'den_da') {
       return 'assets/island/scenery/stone_lantern.png';
+    }
+    if (token == 'decor.cay_dao' ||
+        token == 'decor_cay_dao' ||
+        token == 'cay_dao') {
+      return 'assets/island/scenery/flowering_shrub.png';
+    }
+    if (token == 'choi_canh' ||
+        token == 'mo_hinh_choi_canh_bach_dang' ||
+        token == 'replica.choi_canh_bach_dang' ||
+        token.contains('choi_canh')) {
+      return 'assets/island/buildings/choi_canh_bach_dang.png';
+    }
+    if (token == 'coc_bach_dang' ||
+        token == 'phien_ban_so_coc_bach_dang' ||
+        token == 'replica.coc_bach_dang' ||
+        token.contains('coc_bach_dang')) {
+      return 'assets/island/buildings/coc_bach_dang.png';
+    }
+    if (token == 'trong_dong' ||
+        token == 'mo_hinh_trong_dong_dong_son' ||
+        token == 'replica.trong_dong_dong_son' ||
+        token.contains('trong_dong')) {
+      return 'assets/island/buildings/trong_dong_dong_son.png';
+    }
+    if (token == 'thanh_nha_ho' ||
+        token == 'mo_hinh_thanh_nha_ho' ||
+        token == 'replica.thanh_nha_ho' ||
+        token.contains('thanh_nha_ho')) {
+      return 'assets/island/buildings/thanh_nha_ho.png';
+    }
+    if (token == 'co_loa' ||
+        token == 'phien_ban_so_co_loa' ||
+        token == 'replica.co_loa' ||
+        token.contains('co_loa')) {
+      return 'assets/island/buildings/co_loa.png';
+    }
+    if (token == 'pho_hoi_an' ||
+        token == 'phien_ban_so_pho_hoi_an' ||
+        token == 'replica.pho_hoi_an' ||
+        token.contains('pho_hoi_an')) {
+      return 'assets/island/buildings/pho_hoi_an.png';
+    }
+    if (token == 'no_lien_chau' ||
+        token == 'mo_hinh_no_lien_chau' ||
+        token == 'replica.no_lien_chau' ||
+        token.contains('no_lien_chau')) {
+      return 'assets/island/buildings/no_lien_chau.png';
+    }
+    if (token == 'thuyen_chien' ||
+        token == 'mo_hinh_thuyen_chien_ngo_quyen' ||
+        token == 'replica.thuyen_chien_ngo_quyen' ||
+        token == 'decor.thuyen_rong' ||
+        token == 'decor_thuyen_rong' ||
+        token == 'thuyen_rong' ||
+        token.contains('thuyen_chien')) {
+      return 'assets/island/buildings/thuyen_chien_ngo_quyen.png';
+    }
+    if (token == 'chieu_doi_do' ||
+        token == 'mo_hinh_chieu_doi_do' ||
+        token == 'replica.chieu_doi_do' ||
+        token.contains('chieu_doi_do')) {
+      return 'assets/island/buildings/chieu_doi_do.png';
     }
   }
   return null;
@@ -431,7 +496,8 @@ double resolveIslandItemVisualScale(String? code, String? renderKey) {
       token.contains('thanh_nha_ho') ||
       token.contains('chua_my_son') ||
       token.contains('co_loa') ||
-      token.contains('pho_hoi_an')) {
+      token.contains('pho_hoi_an') ||
+      token.contains('choi_canh')) {
     return 1.72;
   }
   if (token.contains('cay_dao') ||
@@ -439,8 +505,10 @@ double resolveIslandItemVisualScale(String? code, String? renderKey) {
       token.contains('tre_truc') ||
       token.contains('ho_sen') ||
       token.contains('cau_kieu') ||
-      token.contains('thuyen')) {
-    return 1.24;
+      token.contains('thuyen') ||
+      token.contains('no_lien_chau') ||
+      token.contains('chieu_doi_do')) {
+    return 1.34;
   }
   if (token.contains('gieng_co') ||
       token.contains('cot_co') ||
@@ -450,9 +518,9 @@ double resolveIslandItemVisualScale(String? code, String? renderKey) {
       token.contains('buc_tuong') ||
       token.contains('trong_dong') ||
       token.contains('coc_bach_dang')) {
-    return 1.08;
+    return 1.22;
   }
-  return 1.20;
+  return 1.32;
 }
 
 /// Tên rút gọn hiển thị trên thẻ vuông 4 cột của Khay Vật Phẩm & Modal `KHO VẬT PHẨM` (Issue #50).
@@ -492,6 +560,10 @@ String shortIslandItemDisplayName(
   if (token.contains('cong_lang')) return 'Cổng làng';
   if (token.contains('khue_van')) return 'Khuê Văn Các';
   if (token.contains('thap_but')) return 'Tháp Bút';
+  if (token.contains('choi_canh')) return 'Chòi canh';
+  if (token.contains('no_lien_chau')) return 'Nỏ Liên Châu';
+  if (token.contains('chieu_doi_do')) return 'Thiên Đô Chiếu';
+  if (token.contains('thuyen_chien')) return 'Chiến thuyền';
   if (token.contains('trong_dong')) return 'Trống đồng';
   if (token.contains('coc_bach_dang')) return 'Cọc Bạch Đằng';
   if (token.contains('thanh_nha_ho')) return 'Thành nhà Hồ';

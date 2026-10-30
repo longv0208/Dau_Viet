@@ -16,6 +16,7 @@ import '../../../core/widgets/tactile_card.dart';
 import '../../rewards/data/reward_providers.dart';
 import '../data/island_dto.dart';
 import '../data/island_providers.dart';
+import 'widgets/island_heritage_building.dart';
 
 /// Màn hình Cửa Hàng Vật Phẩm Trang Trí Đảo Di Sản (`/island/shop`).
 class IslandShopScreen extends ConsumerStatefulWidget {
@@ -347,25 +348,24 @@ class _IslandShopScreenState extends ConsumerState<IslandShopScreen> {
                       assetPath,
                       fit: BoxFit.contain,
                       errorBuilder: (context, error, stackTrace) =>
-                          item.remoteAssetUrl != null
-                          ? Image.network(
-                              item.remoteAssetUrl!,
-                              headers: islandAuthHeaders(item.remoteAssetUrl),
-                              fit: BoxFit.contain,
-                              errorBuilder: (context, error, stackTrace) =>
-                                  _buildNeutralItemArtwork(item),
-                            )
-                          : _buildNeutralItemArtwork(item),
-                    )
-                  : item.remoteAssetUrl != null
-                  ? Image.network(
-                      item.remoteAssetUrl!,
-                      headers: islandAuthHeaders(item.remoteAssetUrl),
-                      fit: BoxFit.contain,
-                      errorBuilder: (context, error, stackTrace) =>
                           _buildNeutralItemArtwork(item),
                     )
-                  : _buildNeutralItemArtwork(item),
+                  : Center(
+                      child: IgnorePointer(
+                        child: IslandHeritageBuilding(
+                          placement: IslandPlacementDto(
+                            itemId: item.itemId,
+                            code: item.code,
+                            name: item.name,
+                            renderKey: item.renderKey,
+                            assetId: item.assetId,
+                          ),
+                          tileWidth: 56,
+                          tileHeight: 28,
+                          useProportionalScale: false,
+                        ),
+                      ),
+                    ),
             ),
             const SizedBox(width: 14),
 

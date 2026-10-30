@@ -53,7 +53,7 @@ class IslandInventoryTray extends ConsumerStatefulWidget {
       }
     }
     for (final s in shopItems) {
-      if (s.placeable && (s.owned || catalogItems.isEmpty)) {
+      if (s.placeable) {
         addPlaceable(
           CatalogItemDto(
             itemId: s.itemId,
@@ -66,9 +66,14 @@ class IslandInventoryTray extends ConsumerStatefulWidget {
             renderKey: s.renderKey,
             assetId: s.assetId,
             placeable: true,
-            owned: true,
+            owned: s.owned,
           ),
         );
+      }
+    }
+    for (final it in catalogItems) {
+      if (it.placeable) {
+        addPlaceable(it);
       }
     }
     for (final slot in island.slots) {

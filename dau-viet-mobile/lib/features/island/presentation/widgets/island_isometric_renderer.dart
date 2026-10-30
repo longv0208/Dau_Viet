@@ -324,19 +324,19 @@ class IslandIsometricRenderer extends StatelessWidget {
     final center = Offset(rawCenter.dx, rawCenter.dy - elevOffset);
 
     // Mặt phẳng đảo liền mạch theo phong cách 2.5D Illustrated Diorama (Issue #50 AC-1):
-    // kết hợp nền thảo nguyên ấm áp với độ mờ nhẹ để không tạo đốm tối rời rạc giữa các ô
+    // đồng bộ toàn bộ mặt đảo bằng thảm cỏ thảo nguyên xanh mướt, không cắt ngang bằng vệt đường nâu
     final spriteW = tileW * 1.06;
     final spriteH = tileH * 1.06;
-    final spritePath = IslandVisualAssetManager.resolveAutotiledTerrainSprite(
-      tile: tile,
-      tileMap: tileMap,
-      cameraDirection: cameraDirection,
-    );
+    final grassVariant = ((tile.row * 7 + tile.col * 13).abs() % 3 == 1)
+        ? IslandVisualAssetManager.grassTile02
+        : (((tile.row * 7 + tile.col * 13).abs() % 3 == 2)
+              ? IslandVisualAssetManager.grassTile03
+              : IslandVisualAssetManager.grassTile01);
 
     Widget tileImage = Opacity(
-      opacity: tile.terrainType == IslandTerrainType.grass ? 0.42 : 0.78,
+      opacity: 0.34,
       child: Image.asset(
-        spritePath,
+        grassVariant,
         width: spriteW,
         height: spriteH,
         fit: BoxFit.fill,
@@ -596,27 +596,29 @@ class IslandIsometricRenderer extends StatelessWidget {
         button: true,
         label: tooltip,
         child: Container(
-          width: 30,
-          height: 30,
+          width: 34,
+          height: 34,
           decoration: BoxDecoration(
             color: bgColor,
             shape: BoxShape.circle,
-            border: Border.all(color: const Color(0xFFFBF3E4), width: 2.0),
+            border: Border.all(color: const Color(0xFFFFFBF2), width: 2.4),
             boxShadow: [
               BoxShadow(
-                color: Colors.black.withValues(alpha: 0.25),
-                blurRadius: 6,
-                offset: const Offset(0, 2),
+                color: Colors.black.withValues(alpha: 0.32),
+                blurRadius: 8,
+                offset: const Offset(0, 3),
               ),
             ],
           ),
-          child: Icon(icon, size: 17, color: iconColor),
+          child: Icon(icon, size: 19, color: iconColor),
         ),
       ),
     );
   }
 
   /// Quần thể cây đa cổ thụ ở đỉnh Bắc của đảo & rặng cây xanh hai bên rìa như ảnh mẫu (Issue #50 AC-1).
+  /// Quần thể cổ thụ, rặng tre, đá rêu phong, bụi hoa dâm bụt & hoa dại bao quanh vành đai đảo
+  /// giống hệt thiết kế mẫu 2.5D Illustrated Isometric Diorama (Issue #50 AC-1 & Image #2).
   List<Widget> _buildDioramaPerimeterLandmarks({
     required List<IslandTileDto> sortedTiles,
     required double originX,
@@ -625,51 +627,70 @@ class IslandIsometricRenderer extends StatelessWidget {
     required double tileH,
   }) {
     if (sortedTiles.isEmpty) return const [];
-    final topTile = sortedTiles.first;
-    final topCenter = _tileToScreenOffset(
-      topTile.row,
-      topTile.col,
+
+    // Tìm chính xác 4 đỉnh màn hình (North: min dy, South: max dy, West: min dx, East: max dx)
+    Offset northCenter = _tileToScreenOffset(
+      sortedTiles.first.row,
+      sortedTiles.first.col,
       originX: originX,
       originY: originY,
     );
+    Offset southCenter = northCenter;
+    Offset westCenter = northCenter;
+    Offset eastCenter = northCenter;
 
-    int minCol = 999, maxCol = -999;
-    IslandTileDto? westTile;
-    IslandTileDto? eastTile;
     for (final t in sortedTiles) {
-      if (t.col < minCol) {
-        minCol = t.col;
-        westTile = t;
-      }
-      if (t.col > maxCol) {
-        maxCol = t.col;
-        eastTile = t;
-      }
+      final c = _tileToScreenOffset(
+        t.row,
+        t.col,
+        originX: originX,
+        originY: originY,
+      );
+      if (c.dy < northCenter.dy) northCenter = c;
+      if (c.dy > southCenter.dy) southCenter = c;
+      if (c.dx < westCenter.dx) westCenter = c;
+      if (c.dx > eastCenter.dx) eastCenter = c;
     }
-    final westCenter = westTile != null
-        ? _tileToScreenOffset(
-            westTile.row,
-            westTile.col,
-            originX: originX,
-            originY: originY,
-          )
-        : topCenter;
-    final eastCenter = eastTile != null
-        ? _tileToScreenOffset(
-            eastTile.row,
-            eastTile.col,
-            originX: originX,
-            originY: originY,
-          )
-        : topCenter;
+
+    final nwMid = Offset.lerp(northCenter, westCenter, 0.48)!;
+    final neMid = Offset.lerp(northCenter, eastCenter, 0.48)!;
+    final swMid = Offset.lerp(westCenter, southCenter, 0.38)!;
+    final seMid = Offset.lerp(eastCenter, southCenter, 0.42)!;
 
     return [
-      // Đại cổ thụ tỏa bóng ở đỉnh Bắc của đảo
+      // 1. Đỉnh Bắc (North Peak): Hòn non bộ đá rêu phong + Đại cổ thụ tỏa bóng + Thảm hoa dại
       Positioned(
-        left: topCenter.dx - tileW * 0.95,
-        top: topCenter.dy - tileH * 2.55,
-        width: tileW * 1.90,
-        height: tileH * 2.40,
+        left: northCenter.dx - tileW * 1.18,
+        top: northCenter.dy - tileH * 1.95,
+        width: tileW * 1.15,
+        height: tileH * 1.75,
+        child: IgnorePointer(
+          child: Image.asset(
+            IslandVisualAssetManager.mossyRockCluster,
+            fit: BoxFit.contain,
+          ),
+        ),
+      ),
+      Positioned(
+        left: northCenter.dx + tileW * 0.08,
+        top: northCenter.dy - tileH * 1.88,
+        width: tileW * 1.10,
+        height: tileH * 1.68,
+        child: IgnorePointer(
+          child: Transform.flip(
+            flipX: true,
+            child: Image.asset(
+              IslandVisualAssetManager.mossyRockCluster,
+              fit: BoxFit.contain,
+            ),
+          ),
+        ),
+      ),
+      Positioned(
+        left: northCenter.dx - tileW * 1.10,
+        top: northCenter.dy - tileH * 2.75,
+        width: tileW * 2.20,
+        height: tileH * 2.65,
         child: IgnorePointer(
           child: Image.asset(
             'assets/island/scenery/cay_da_co_thu.png',
@@ -677,12 +698,13 @@ class IslandIsometricRenderer extends StatelessWidget {
           ),
         ),
       ),
-      // Rặng tre / đá rêu phong bên cánh Tây
+
+      // 2. Sườn Tây Bắc (Back-Left Rim): Rặng tre xanh + Cây cổ thụ con + Bụi hoa dâm bụt đỏ cam
       Positioned(
-        left: westCenter.dx - tileW * 0.90,
-        top: westCenter.dy - tileH * 1.40,
-        width: tileW * 1.05,
-        height: tileH * 1.65,
+        left: nwMid.dx - tileW * 0.92,
+        top: nwMid.dy - tileH * 2.05,
+        width: tileW * 1.25,
+        height: tileH * 2.05,
         child: IgnorePointer(
           child: Image.asset(
             IslandVisualAssetManager.bambooGroveLarge,
@@ -690,12 +712,11 @@ class IslandIsometricRenderer extends StatelessWidget {
           ),
         ),
       ),
-      // Khóm tre / cây xanh bên cánh Đông
       Positioned(
-        left: eastCenter.dx - tileW * 0.15,
-        top: eastCenter.dy - tileH * 1.35,
-        width: tileW * 1.00,
-        height: tileH * 1.55,
+        left: nwMid.dx - tileW * 0.28,
+        top: nwMid.dy - tileH * 1.55,
+        width: tileW * 1.18,
+        height: tileH * 1.85,
         child: IgnorePointer(
           child: Image.asset(
             IslandVisualAssetManager.banyanSapling,
@@ -703,10 +724,137 @@ class IslandIsometricRenderer extends StatelessWidget {
           ),
         ),
       ),
+      Positioned(
+        left: nwMid.dx - tileW * 0.62,
+        top: nwMid.dy - tileH * 0.72,
+        width: tileW * 0.82,
+        height: tileH * 1.12,
+        child: IgnorePointer(
+          child: Image.asset(
+            IslandVisualAssetManager.floweringShrub,
+            fit: BoxFit.contain,
+          ),
+        ),
+      ),
+
+      // 3. Sườn Đông Bắc (Back-Right Rim): Cây xanh nhiệt đới + Đá tảng rêu phong + Khóm tre & Hoa đỏ
+      Positioned(
+        left: neMid.dx - tileW * 0.25,
+        top: neMid.dy - tileH * 1.98,
+        width: tileW * 1.28,
+        height: tileH * 2.02,
+        child: IgnorePointer(
+          child: Image.asset(
+            IslandVisualAssetManager.banyanSapling,
+            fit: BoxFit.contain,
+          ),
+        ),
+      ),
+      Positioned(
+        left: neMid.dx + tileW * 0.22,
+        top: neMid.dy - tileH * 1.45,
+        width: tileW * 1.05,
+        height: tileH * 1.65,
+        child: IgnorePointer(
+          child: Image.asset(
+            IslandVisualAssetManager.bambooGroveSmall,
+            fit: BoxFit.contain,
+          ),
+        ),
+      ),
+      Positioned(
+        left: neMid.dx - tileW * 0.12,
+        top: neMid.dy - tileH * 0.78,
+        width: tileW * 0.84,
+        height: tileH * 1.15,
+        child: IgnorePointer(
+          child: Image.asset(
+            IslandVisualAssetManager.floweringShrub,
+            fit: BoxFit.contain,
+          ),
+        ),
+      ),
+
+      // 4. Góc Tây (Left Corner) & Góc Đông (Right Corner): Cụm đá cổ, bụi hoa & thảm cỏ hoa dại
+      Positioned(
+        left: westCenter.dx - tileW * 0.72,
+        top: westCenter.dy - tileH * 1.25,
+        width: tileW * 0.96,
+        height: tileH * 1.38,
+        child: IgnorePointer(
+          child: Image.asset(
+            IslandVisualAssetManager.mossyRockCluster,
+            fit: BoxFit.contain,
+          ),
+        ),
+      ),
+      Positioned(
+        left: westCenter.dx - tileW * 0.36,
+        top: westCenter.dy - tileH * 0.72,
+        width: tileW * 0.80,
+        height: tileH * 1.08,
+        child: IgnorePointer(
+          child: Image.asset(
+            IslandVisualAssetManager.floweringShrub,
+            fit: BoxFit.contain,
+          ),
+        ),
+      ),
+      Positioned(
+        left: eastCenter.dx - tileW * 0.24,
+        top: eastCenter.dy - tileH * 1.22,
+        width: tileW * 0.96,
+        height: tileH * 1.36,
+        child: IgnorePointer(
+          child: Image.asset(
+            IslandVisualAssetManager.mossyRockCluster,
+            fit: BoxFit.contain,
+          ),
+        ),
+      ),
+      Positioned(
+        left: eastCenter.dx - tileW * 0.42,
+        top: eastCenter.dy - tileH * 0.70,
+        width: tileW * 0.80,
+        height: tileH * 1.08,
+        child: IgnorePointer(
+          child: Image.asset(
+            IslandVisualAssetManager.floweringShrub,
+            fit: BoxFit.contain,
+          ),
+        ),
+      ),
+
+      // 5. Viền cỏ hoa dại dọc rìa Tây Nam & Đông Nam (SW / SE Shore Accents)
+      Positioned(
+        left: swMid.dx - tileW * 0.55,
+        top: swMid.dy - tileH * 0.52,
+        width: tileW * 0.86,
+        height: tileH * 0.88,
+        child: IgnorePointer(
+          child: Image.asset(
+            IslandVisualAssetManager.wildflowersPatch,
+            fit: BoxFit.contain,
+          ),
+        ),
+      ),
+      Positioned(
+        left: seMid.dx - tileW * 0.30,
+        top: seMid.dy - tileH * 0.52,
+        width: tileW * 0.86,
+        height: tileH * 0.88,
+        child: IgnorePointer(
+          child: Image.asset(
+            IslandVisualAssetManager.wildflowersPatch,
+            fit: BoxFit.contain,
+          ),
+        ),
+      ),
     ];
   }
 
-  /// Nền móng xây dựng bằng đá xanh & gỗ lim vẽ tay hòa vào mặt cỏ.
+  /// Ô đất xây dựng trống trên mặt cỏ: giữ nguyên mặt cỏ xanh mướt & lưới ô kem sáng như mẫu (Image #2),
+  /// tuyệt đối KHÔNG vẽ 36/64 hộp bệ nâu (`buildable_parcel_plinth.png`) đè kín mặt đảo.
   Widget _buildSubtleBuildableSlotPlinth({
     required IslandSlotDto slot,
     required IslandTileDto tile,
@@ -714,77 +862,60 @@ class IslandIsometricRenderer extends StatelessWidget {
     required double tileW,
     required double tileH,
   }) {
-    final plinthW = tileW * 0.88;
-    final plinthH = tileH * 0.96;
-
     return GestureDetector(
       onTap: () => onSlotTap(slot),
       behavior: HitTestBehavior.translucent,
       child: SizedBox(
         width: tileW,
         height: tileH * 1.35,
-        child: (!isEditMode && !isSelected)
+        child: !isSelected
             ? const SizedBox.expand()
             : Stack(
                 alignment: Alignment.bottomCenter,
                 clipBehavior: Clip.none,
                 children: [
-                  if (isSelected)
-                    Positioned(
-                      bottom: tileH * 0.04,
-                      child: Container(
-                        width: tileW * 0.86,
-                        height: tileH * 0.68,
-                        decoration: BoxDecoration(
-                          borderRadius: BorderRadius.all(
-                            Radius.elliptical(tileW * 0.86, tileH * 0.68),
-                          ),
-                          boxShadow: [
-                            BoxShadow(
-                              color: DauVietColors.imperialGold.withValues(
-                                alpha: 0.65,
-                              ),
-                              blurRadius: 14,
-                              spreadRadius: 2,
-                            ),
-                          ],
-                        ),
-                      ),
-                    ),
                   Positioned(
-                    bottom: tileH * 0.03,
-                    child: Opacity(
-                      opacity: isSelected ? 1.0 : 0.72,
-                      child: Image.asset(
-                        IslandVisualAssetManager.buildableParcelPlinth,
-                        width: plinthW,
-                        height: plinthH,
-                        fit: BoxFit.contain,
-                        filterQuality: FilterQuality.medium,
+                    bottom: tileH * 0.08,
+                    child: Container(
+                      width: tileW * 0.78,
+                      height: tileH * 0.56,
+                      decoration: BoxDecoration(
+                        borderRadius: BorderRadius.all(
+                          Radius.elliptical(tileW * 0.78, tileH * 0.56),
+                        ),
+                        color: const Color(0x558BC34A),
+                        boxShadow: [
+                          BoxShadow(
+                            color: DauVietColors.imperialGold.withValues(
+                              alpha: 0.55,
+                            ),
+                            blurRadius: 12,
+                            spreadRadius: 1,
+                          ),
+                        ],
                       ),
                     ),
                   ),
-                  if (isSelected)
-                    Positioned(
-                      bottom: tileH * 0.36,
-                      child: Container(
-                        width: 20,
-                        height: 20,
-                        decoration: BoxDecoration(
-                          color: DauVietColors.imperialGold,
-                          shape: BoxShape.circle,
-                          border: Border.all(
-                            color: const Color(0xFF5D3A1A),
-                            width: 1.1,
-                          ),
-                        ),
-                        child: const Icon(
-                          Icons.add_rounded,
-                          size: 13,
-                          color: Color(0xFF4E3622),
+                  Positioned(
+                    bottom: tileH * 0.28,
+                    child: Container(
+                      width: 22,
+                      height: 22,
+                      decoration: BoxDecoration(
+                        color: const Color(0xFF1A5642),
+                        shape: BoxShape.circle,
+                        border: Border.all(
+                          color: const Color(0xFFFFFBF2),
+                          width: 1.5,
                         ),
                       ),
+                      child: const Icon(
+                        Icons.add_rounded,
+                        size: 14,
+                        color: Colors.white,
+                      ),
                     ),
+                  ),
                 ],
               ),
       ),
@@ -1121,7 +1252,7 @@ class _HeritageIslandCliffAndUnderlayPainter extends CustomPainter {
     final tileH = board.tileHeight;
     final halfW = tileW * 0.5;
     final halfH = tileH * 0.5;
-    final baseCliffDepth = tileH * 1.18;
+    final baseCliffDepth = tileH * 1.58;
     int swEdgeCounter = 0;
     int seEdgeCounter = 0;
 
@@ -1163,7 +1294,7 @@ class _HeritageIslandCliffAndUnderlayPainter extends CustomPainter {
           isSunlit: true,
           isLocked: isLocked,
         );
-        if (!isLocked && swEdgeCounter == 2) {
+        if (!isLocked && swEdgeCounter == 2 && currentTier >= 2) {
           _drawWaterfallCascade(
             canvas: canvas,
             pStart: leftPt,
@@ -1184,7 +1315,7 @@ class _HeritageIslandCliffAndUnderlayPainter extends CustomPainter {
           isSunlit: false,
           isLocked: isLocked,
         );
-        if (!isLocked && seEdgeCounter == 2) {
+        if (!isLocked && (seEdgeCounter == 2 || (currentTier >= 2 && seEdgeCounter == 5))) {
           _drawWaterfallCascade(
             canvas: canvas,
             pStart: bottomPt,
@@ -1202,7 +1333,7 @@ class _HeritageIslandCliffAndUnderlayPainter extends CustomPainter {
           cliffDepth: cliffH,
           isLeftShore: true,
         );
-      } else if (!isLocked && seEdgeCounter == 4 && !hasSE) {
+      } else if (!isLocked && currentTier >= 2 && seEdgeCounter == 4 && !hasSE) {
         _drawWoodenDockAndSteps(
           canvas: canvas,
           pStart: bottomPt,
@@ -1212,38 +1343,52 @@ class _HeritageIslandCliffAndUnderlayPainter extends CustomPainter {
         );
       }
 
-      final underlayColor = isLocked
-          ? const Color(0xFF6B857E)
-          : ((tile.row + tile.col).isEven
-                ? const Color(0xFF9AC54F)
-                : const Color(0xFF8EBA47));
+      // Nền thảo nguyên xanh nắng ấm chuyển sắc tự nhiên từ đỉnh Bắc (sáng vàng) xuống Nam (xanh ngọc)
+      final normDepth = ((vRow + vCol) / math.max(1, board.rows + board.cols - 2)).clamp(0.0, 1.0);
+      final Color underlayColor;
+      if (isLocked) {
+        underlayColor = const Color(0xFF6B857E);
+      } else {
+        final sunlitGrass = Color.lerp(
+          const Color(0xFFC4E25E),
+          const Color(0xFF7CB63E),
+          normDepth,
+        )!;
+        underlayColor = (tile.row + tile.col).isEven
+            ? sunlitGrass
+            : Color.lerp(sunlitGrass, const Color(0xFF6BA334), 0.14)!;
+      }
       final underlayDiamond = Path()
-        ..moveTo(topPt.dx, topPt.dy - 1.2)
-        ..lineTo(rightPt.dx + 1.6, rightPt.dy)
-        ..lineTo(bottomPt.dx, bottomPt.dy + 1.2)
-        ..lineTo(leftPt.dx - 1.6, leftPt.dy)
+        ..moveTo(topPt.dx, topPt.dy - 1.5)
+        ..lineTo(rightPt.dx + 1.8, rightPt.dy)
+        ..lineTo(bottomPt.dx, bottomPt.dy + 1.5)
+        ..lineTo(leftPt.dx - 1.8, leftPt.dy)
         ..close();
       canvas.drawPath(underlayDiamond, Paint()..color = underlayColor);
     }
   }
 
-  /// Vẽ dòng thác nước trắng xóa đổ từ mép vách đá 2.5D xuống mặt biển ngọc bích.
+  /// Vẽ dòng thác nước nhiều tầng đổ từ vách đá 2.5D xuống mặt biển ngọc bích kèm bọt sóng.
   void _drawWaterfallCascade({
     required Canvas canvas,
     required Offset pStart,
     required Offset pEnd,
     required double cliffDepth,
   }) {
-    final topLeft = Offset.lerp(pStart, pEnd, 0.28)!;
-    final topRight = Offset.lerp(pStart, pEnd, 0.72)!;
-    final botLeft = Offset(topLeft.dx, topLeft.dy + cliffDepth * 0.98);
-    final botRight = Offset(topRight.dx, topRight.dy + cliffDepth * 0.98);
+    final topLeft = Offset.lerp(pStart, pEnd, 0.22)!;
+    final topRight = Offset.lerp(pStart, pEnd, 0.78)!;
+    final midLeft = Offset(topLeft.dx - 2, topLeft.dy + cliffDepth * 0.48);
+    final midRight = Offset(topRight.dx + 2, topRight.dy + cliffDepth * 0.48);
+    final botLeft = Offset(topLeft.dx - 4, topLeft.dy + cliffDepth * 1.02);
+    final botRight = Offset(topRight.dx + 4, topRight.dy + cliffDepth * 1.02);
 
     final cascadePath = Path()
       ..moveTo(topLeft.dx, topLeft.dy)
       ..lineTo(topRight.dx, topRight.dy)
+      ..lineTo(midRight.dx, midRight.dy)
       ..lineTo(botRight.dx, botRight.dy)
       ..lineTo(botLeft.dx, botLeft.dy)
+      ..lineTo(midLeft.dx, midLeft.dy)
       ..close();
 
     final cascadeRect = cascadePath.getBounds();
@@ -1254,25 +1399,42 @@ class _HeritageIslandCliffAndUnderlayPainter extends CustomPainter {
           begin: Alignment.topCenter,
           end: Alignment.bottomCenter,
           colors: [
-            Color(0xFFE0F7FA),
-            Color(0xFF80DEEA),
+            Color(0xFFE8FDFE),
+            Color(0xFF6FE3F0),
+            Color(0xFFB4F6FC),
             Color(0xFFFFFFFF),
           ],
+          stops: [0.0, 0.38, 0.75, 1.0],
         ).createShader(cascadeRect),
     );
 
-    // Bọt nước tung trắng xóa ở chân thác
+    // Các tia bọt nước trắng chảy dọc thân thác
+    final streamPaint = Paint()
+      ..color = Colors.white.withValues(alpha: 0.78)
+      ..strokeWidth = 2.0
+      ..strokeCap = StrokeCap.round;
+    for (final t in const [0.35, 0.52, 0.68]) {
+      final sTop = Offset.lerp(topLeft, topRight, t)!;
+      final sBot = Offset.lerp(botLeft, botRight, t)!;
+      canvas.drawLine(sTop, sBot, streamPaint);
+    }
+
+    // Bọt nước tung trắng xóa & vòng sóng lan ở chân thác
     final splashCenter = Offset(
       (botLeft.dx + botRight.dx) * 0.5,
-      (botLeft.dy + botRight.dy) * 0.5 + 2.0,
+      (botLeft.dy + botRight.dy) * 0.5 + 3.0,
     );
     canvas.drawOval(
-      Rect.fromCenter(center: splashCenter, width: 26, height: 10),
-      Paint()..color = Colors.white.withValues(alpha: 0.85),
+      Rect.fromCenter(center: splashCenter, width: 42, height: 16),
+      Paint()..color = const Color(0xFF9BF2F8).withValues(alpha: 0.55),
+    );
+    canvas.drawOval(
+      Rect.fromCenter(center: splashCenter, width: 32, height: 12),
+      Paint()..color = Colors.white.withValues(alpha: 0.92),
     );
   }
 
-  /// Vẽ bậc thang đá dẫn xuống cầu tàu gỗ kèm thuyền gỗ truyền thống neo đậu (Issue #50 AC-1).
+  /// Vẽ bậc thang đá dẫn xuống cầu tàu gỗ kèm thuyền gỗ truyền thống neo đậu (Issue #50 AC-1 & Image #2).
   void _drawWoodenDockAndSteps({
     required Canvas canvas,
     required Offset pStart,
@@ -1281,91 +1443,120 @@ class _HeritageIslandCliffAndUnderlayPainter extends CustomPainter {
     bool isLeftShore = true,
   }) {
     final mid = Offset.lerp(pStart, pEnd, 0.50)!;
-    final dirX = isLeftShore ? -32.0 : 34.0;
-    final dockStart = Offset(mid.dx, mid.dy + cliffDepth * 0.32);
-    final dockEnd = Offset(mid.dx + dirX, mid.dy + cliffDepth * 0.96 + 18);
+    final dirX = isLeftShore ? -42.0 : 44.0;
+    final dockStart = Offset(mid.dx, mid.dy + cliffDepth * 0.28);
+    final dockEnd = Offset(mid.dx + dirX, mid.dy + cliffDepth * 0.98 + 22);
 
     // Bậc thang đá nối từ mặt đảo xuống cầu tàu
-    for (int i = 0; i < 4; i++) {
-      final t = i / 4.0;
+    for (int i = 0; i < 5; i++) {
+      final t = i / 5.0;
       final stepCenter = Offset.lerp(mid, dockStart, t)!;
       canvas.drawRRect(
         RRect.fromRectAndRadius(
-          Rect.fromCenter(center: stepCenter, width: 17, height: 5.5),
-          const Radius.circular(2),
+          Rect.fromCenter(center: stepCenter, width: 20, height: 6.5),
+          const Radius.circular(2.5),
         ),
-        Paint()..color = const Color(0xFFC5B8A5),
+        Paint()..color = const Color(0xFFD5C6B0),
+      );
+      canvas.drawRRect(
+        RRect.fromRectAndRadius(
+          Rect.fromCenter(center: stepCenter, width: 20, height: 6.5),
+          const Radius.circular(2.5),
+        ),
+        Paint()
+          ..color = const Color(0xFF5A4028)
+          ..style = PaintingStyle.stroke
+          ..strokeWidth = 1.0,
       );
     }
 
-    // Mặt cầu tàu gỗ lim
+    // Mặt cầu tàu gỗ lim có ván ngang và lan can cọc gỗ
     final pierPath = Path()
-      ..moveTo(dockStart.dx - 10, dockStart.dy)
-      ..lineTo(dockStart.dx + 10, dockStart.dy - 5)
-      ..lineTo(dockEnd.dx + 10, dockEnd.dy - 5)
-      ..lineTo(dockEnd.dx - 10, dockEnd.dy)
+      ..moveTo(dockStart.dx - 13, dockStart.dy)
+      ..lineTo(dockStart.dx + 13, dockStart.dy - 6)
+      ..lineTo(dockEnd.dx + 13, dockEnd.dy - 6)
+      ..lineTo(dockEnd.dx - 13, dockEnd.dy)
       ..close();
-    canvas.drawPath(pierPath, Paint()..color = const Color(0xFF9C6639));
+    canvas.drawPath(pierPath, Paint()..color = const Color(0xFFA86F3E));
     canvas.drawPath(
       pierPath,
       Paint()
-        ..color = const Color(0xFF5D3A1A)
+        ..color = const Color(0xFF4A2B13)
         ..style = PaintingStyle.stroke
-        ..strokeWidth = 1.4,
+        ..strokeWidth = 1.6,
     );
 
     // Cọc gỗ đỡ cầu tàu dưới mặt nước
     for (final pt in [
-      Offset(dockStart.dx - 6, dockStart.dy + 4),
-      Offset(dockEnd.dx - 6, dockEnd.dy + 2),
-      Offset(dockEnd.dx + 8, dockEnd.dy - 2),
+      Offset(dockStart.dx - 8, dockStart.dy + 3),
+      Offset(dockEnd.dx - 8, dockEnd.dy + 2),
+      Offset(dockEnd.dx + 10, dockEnd.dy - 3),
     ]) {
       canvas.drawLine(
-        pt,
-        Offset(pt.dx, pt.dy + 13),
+         Offset(pt.dx, pt.dy - 7),
+        Offset(pt.dx, pt.dy + 16),
         Paint()
-          ..color = const Color(0xFF4E342E)
-          ..strokeWidth = 3.2
+          ..color = const Color(0xFF4A2C18)
+          ..strokeWidth = 3.8
           ..strokeCap = StrokeCap.round,
       );
     }
 
-    // Thuyền gỗ truyền thống neo đậu cạnh cầu tàu
+    // Thuyền gỗ truyền thống (sampan) neo đậu cạnh cầu tàu kèm gợn sóng trắng
     final boatCenter = Offset(
-      dockEnd.dx + (isLeftShore ? -12 : 14),
-      dockEnd.dy + 12,
+      dockEnd.dx + (isLeftShore ? -16 : 18),
+      dockEnd.dy + 14,
+    );
+    canvas.drawOval(
+      Rect.fromCenter(
+        center: boatCenter.translate(0, 4),
+        width: 64,
+        height: 22,
+      ),
+      Paint()..color = const Color(0xFFD9FAFC).withValues(alpha: 0.62),
     );
     final hullPath = Path()
-      ..moveTo(boatCenter.dx - 24, boatCenter.dy - 4)
+      ..moveTo(boatCenter.dx - 30, boatCenter.dy - 5)
       ..quadraticBezierTo(
         boatCenter.dx,
-        boatCenter.dy + 12,
-        boatCenter.dx + 24,
-        boatCenter.dy - 4,
+        boatCenter.dy + 15,
+        boatCenter.dx + 30,
+        boatCenter.dy - 5,
       )
       ..quadraticBezierTo(
         boatCenter.dx,
-        boatCenter.dy + 2,
-        boatCenter.dx - 24,
-        boatCenter.dy - 4,
+        boatCenter.dy + 3,
+        boatCenter.dx - 30,
+        boatCenter.dy - 5,
       )
       ..close();
-    canvas.drawPath(hullPath, Paint()..color = const Color(0xFF7D4825));
+    canvas.drawPath(hullPath, Paint()..color = const Color(0xFF8C5228));
     canvas.drawPath(
       hullPath,
       Paint()
-        ..color = const Color(0xFF4A2811)
+        ..color = const Color(0xFF3E200C)
         ..style = PaintingStyle.stroke
-        ..strokeWidth = 1.2,
+        ..strokeWidth = 1.5,
     );
     // Mui thuyền đan tre ấm áp
     canvas.drawOval(
       Rect.fromCenter(
-        center: Offset(boatCenter.dx, boatCenter.dy - 2),
-        width: 20,
-        height: 9,
+        center: Offset(boatCenter.dx, boatCenter.dy - 3),
+        width: 24,
+        height: 11,
       ),
-      Paint()..color = const Color(0xFFC89654),
+      Paint()..color = const Color(0xFFD9A55B),
+    );
+    canvas.drawOval(
+      Rect.fromCenter(
+        center: Offset(boatCenter.dx, boatCenter.dy - 3),
+        width: 24,
+        height: 11,
+      ),
+      Paint()
+        ..color = const Color(0xFF4A2B13)
+        ..style = PaintingStyle.stroke
+        ..strokeWidth = 1.2,
     );
   }
 
@@ -1378,35 +1569,37 @@ class _HeritageIslandCliffAndUnderlayPainter extends CustomPainter {
     required bool isSunlit,
     required bool isLocked,
   }) {
-    final s1 = math.sin(seed * 1.3) * 3.2;
-    final s2 = math.cos(seed * 2.1) * 3.8;
-    final s3 = math.sin(seed * 3.7) * 2.8;
+    final s1 = math.sin(seed * 1.3) * 4.2;
+    final s2 = math.cos(seed * 2.1) * 5.0;
+    final s3 = math.sin(seed * 3.7) * 3.8;
 
     final p25 = Offset.lerp(pStart, pEnd, 0.25)!;
     final p50 = Offset.lerp(pStart, pEnd, 0.50)!;
     final p75 = Offset.lerp(pStart, pEnd, 0.75)!;
 
     final bStart = Offset(pStart.dx, pStart.dy + cliffDepth * 0.92);
-    final b25 = Offset(p25.dx + (isSunlit ? -2.0 : 2.0), p25.dy + cliffDepth + s1);
-    final b50 = Offset(p50.dx, p50.dy + cliffDepth * 1.06 + s2);
-    final b75 = Offset(p75.dx + (isSunlit ? -1.5 : 1.5), p75.dy + cliffDepth + s3);
-    final bEnd = Offset(pEnd.dx, pEnd.dy + cliffDepth * 0.96);
+    final b25 = Offset(p25.dx + (isSunlit ? -2.5 : 2.5), p25.dy + cliffDepth + s1);
+    final b50 = Offset(p50.dx, p50.dy + cliffDepth * 1.08 + s2);
+    final b75 = Offset(p75.dx + (isSunlit ? -2.0 : 2.0), p75.dy + cliffDepth + s3);
+    final bEnd = Offset(pEnd.dx, pEnd.dy + cliffDepth * 0.95);
 
+    // Bãi cát vàng & sỏi ven chân vách đá
     final sandPath = Path()
       ..moveTo(bStart.dx, bStart.dy - 3)
-      ..lineTo(b25.dx, b25.dy + 3.5)
-      ..lineTo(b50.dx, b50.dy + 4.5)
-      ..lineTo(b75.dx, b75.dy + 3.5)
-      ..lineTo(bEnd.dx, bEnd.dy + 2.0)
+      ..lineTo(b25.dx, b25.dy + 4.5)
+      ..lineTo(b50.dx, b50.dy + 6.0)
+      ..lineTo(b75.dx, b75.dy + 4.5)
+      ..lineTo(bEnd.dx, bEnd.dy + 2.5)
       ..lineTo(bEnd.dx, bEnd.dy - 4)
       ..lineTo(bStart.dx, bStart.dy - 4)
       ..close();
 
     final sandColor = isLocked
         ? (isSunlit ? const Color(0xFF637574) : const Color(0xFF4F605F))
-        : (isSunlit ? const Color(0xFFD9C082) : const Color(0xFFB59B62));
+        : (isSunlit ? const Color(0xFFE6CC8C) : const Color(0xFFC2A466));
     canvas.drawPath(sandPath, Paint()..color = sandColor);
 
+    // Khối vách đá 2.5D nhiều tầng địa chất ấm áp
     final wallPath = Path()
       ..moveTo(pStart.dx, pStart.dy)
       ..lineTo(pEnd.dx, pEnd.dy)
@@ -1419,13 +1612,13 @@ class _HeritageIslandCliffAndUnderlayPainter extends CustomPainter {
 
     final topEarth = isLocked
         ? (isSunlit ? const Color(0xFF5D706E) : const Color(0xFF4B5C5A))
-        : (isSunlit ? const Color(0xFF9C6C43) : const Color(0xFF754E2E));
+        : (isSunlit ? const Color(0xFFB8834E) : const Color(0xFF8A5D36));
     final midEarth = isLocked
         ? (isSunlit ? const Color(0xFF4E605E) : const Color(0xFF3E4D4B))
-        : (isSunlit ? const Color(0xFF815633) : const Color(0xFF5C3C22));
+        : (isSunlit ? const Color(0xFF946438) : const Color(0xFF6C4626));
     final deepRock = isLocked
         ? const Color(0xFF344241)
-        : (isSunlit ? const Color(0xFF5D3E25) : const Color(0xFF422B18));
+        : (isSunlit ? const Color(0xFF6B4628) : const Color(0xFF4A2F1A));
 
     final wallRect = wallPath.getBounds();
     final wallPaint = Paint()
@@ -1433,39 +1626,44 @@ class _HeritageIslandCliffAndUnderlayPainter extends CustomPainter {
         begin: Alignment.topCenter,
         end: Alignment.bottomCenter,
         colors: [topEarth, midEarth, deepRock],
-        stops: const [0.0, 0.58, 1.0],
+        stops: const [0.0, 0.54, 1.0],
       ).createShader(wallRect);
     canvas.drawPath(wallPath, wallPaint);
 
+    // Khe đá dọc tạo khối lập thể 2.5D như tranh vẽ
     final creasePaint = Paint()
-      ..color = const Color(0xFF3A2414).withValues(alpha: 0.35)
+      ..color = const Color(0xFF382212).withValues(alpha: 0.42)
       ..style = PaintingStyle.stroke
-      ..strokeWidth = 1.2;
+      ..strokeWidth = 1.5;
     canvas.drawLine(
-      Offset.lerp(p25, b25, 0.18)!,
-      Offset.lerp(p50, b50, 0.72)!,
+      Offset.lerp(p25, b25, 0.14)!,
+      Offset.lerp(p50, b50, 0.78)!,
+      creasePaint,
+    );
+    canvas.drawLine(
+      Offset.lerp(p75, b75, 0.20)!,
+      Offset.lerp(p75, b75, 0.86)!,
       creasePaint,
     );
 
-    if (seed % 2 == 0) {
-      final rockCenter = Offset.lerp(b50, b75, 0.45)!;
-      final rockW = 10.0 + (seed % 4) * 2.0;
-      final rockH = 5.5 + (seed % 3) * 1.2;
-      canvas.drawOval(
-        Rect.fromCenter(center: rockCenter, width: rockW, height: rockH),
-        Paint()
-          ..color = isLocked
-              ? const Color(0xFF546664)
-              : (isSunlit ? const Color(0xFF7B857D) : const Color(0xFF5C665E)),
-      );
-    }
+    // Tảng đá & rêu xanh bám ở chân vách đá
+    final rockCenter = Offset.lerp(b50, b75, 0.45)!;
+    final rockW = 14.0 + (seed % 4) * 2.5;
+    final rockH = 7.5 + (seed % 3) * 1.5;
+    canvas.drawOval(
+      Rect.fromCenter(center: rockCenter, width: rockW, height: rockH),
+      Paint()
+        ..color = isLocked
+            ? const Color(0xFF546664)
+            : (isSunlit ? const Color(0xFF8C7A62) : const Color(0xFF685A48)),
+    );
 
     canvas.drawPath(
       wallPath,
       Paint()
-        ..color = const Color(0xFF3B2818).withValues(alpha: 0.45)
+        ..color = const Color(0xFF3B2414).withValues(alpha: 0.52)
         ..style = PaintingStyle.stroke
-        ..strokeWidth = 1.0,
+        ..strokeWidth = 1.2,
     );
   }
 
@@ -1603,16 +1801,16 @@ class _OrganicShoreOverhangAndSelectionPainter extends CustomPainter {
           diamond,
           Paint()
             ..color = isEven
-                ? const Color(0x28F6F4C8)
-                : const Color(0x16DCE775)
+                ? const Color(0x2CFDFBE0)
+                : const Color(0x18E4EE88)
             ..style = PaintingStyle.fill,
         );
         canvas.drawPath(
           diamond,
           Paint()
-            ..color = const Color(0xB8F9F6D0)
+            ..color = const Color(0xD8FFFDE6)
             ..style = PaintingStyle.stroke
-            ..strokeWidth = 1.25,
+            ..strokeWidth = 1.45,
         );
       }
 
@@ -1621,15 +1819,15 @@ class _OrganicShoreOverhangAndSelectionPainter extends CustomPainter {
         canvas.drawPath(
           diamond,
           Paint()
-            ..color = const Color(0x88388E3C)
+            ..color = const Color(0x962E7D32)
             ..style = PaintingStyle.fill,
         );
         canvas.drawPath(
           diamond,
           Paint()
-            ..color = const Color(0xFFB9F6CA)
+            ..color = const Color(0xFFC8E6C9)
             ..style = PaintingStyle.stroke
-            ..strokeWidth = 2.2,
+            ..strokeWidth = 2.4,
         );
       } else if (isSelected) {
         canvas.drawPath(
@@ -1658,26 +1856,26 @@ class _OrganicShoreOverhangAndSelectionPainter extends CustomPainter {
     Color fillColor,
     Color strokeColor,
   ) {
-    final path = Path()..moveTo(start.dx, start.dy - 1.0);
-    const segments = 6;
+    final path = Path()..moveTo(start.dx, start.dy - 1.5);
+    const segments = 7;
     for (int i = 1; i <= segments; i++) {
       final tMid = (i - 0.5) / segments;
       final tEnd = i / segments;
       final mid = Offset.lerp(start, end, tMid)!;
       final pt = Offset.lerp(start, end, tEnd)!;
-      final droop = 4.2 + (i % 2) * 2.2;
-      path.quadraticBezierTo(mid.dx, mid.dy + droop, pt.dx, pt.dy + 1.0);
+      final droop = 6.5 + (i % 3) * 2.8;
+      path.quadraticBezierTo(mid.dx, mid.dy + droop, pt.dx, pt.dy + 1.5);
     }
-    path.lineTo(start.dx, start.dy - 1.0);
+    path.lineTo(start.dx, start.dy - 1.5);
     path.close();
 
     canvas.drawPath(path, Paint()..color = fillColor);
     canvas.drawPath(
       path,
       Paint()
-        ..color = strokeColor.withValues(alpha: 0.55)
+        ..color = const Color(0xFF3E5E1E).withValues(alpha: 0.65)
         ..style = PaintingStyle.stroke
-        ..strokeWidth = 0.9,
+        ..strokeWidth = 1.1,
     );
   }
 

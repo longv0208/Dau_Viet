@@ -30,10 +30,8 @@ class IslandHeritageBuilding extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final assetPath = placement.assetPath;
-    final remoteUrl = placement.remoteAssetUrl;
     final code = placement.code.toLowerCase();
     final renderKey = (placement.renderKey ?? '').toLowerCase();
-
     // Phân biệt tỷ lệ hiển thị giữa công trình lớn và vật phẩm nhỏ trên đảo (Issue #46 AC-2)
     final visualScale = useProportionalScale
         ? resolveIslandItemVisualScale(code, renderKey)
@@ -72,7 +70,6 @@ class IslandHeritageBuilding extends StatelessWidget {
                 child: _buildBuildingArt(
                   context: context,
                   assetPath: assetPath,
-                  remoteUrl: remoteUrl,
                   code: code,
                   renderKey: renderKey,
                   width: modelW,
@@ -130,34 +127,23 @@ class IslandHeritageBuilding extends StatelessWidget {
   Widget _buildBuildingArt({
     required BuildContext context,
     required String? assetPath,
-    required String? remoteUrl,
     required String code,
     required String renderKey,
     required double width,
     required double height,
   }) {
+    // Tuyệt đối KHÔNG vẽ remoteUrl (ảnh phẳng 16:9 của bài học/hồ sơ) đè lên mặt đảo isometric.
+    // Luôn ưu tiên sprite 2.5D isometric trong suốt hoặc mô hình kiến trúc 2.5D.
     if (assetPath != null && assetPath.isNotEmpty) {
       return Image.asset(
         assetPath,
         width: width,
-        height: height * 0.92,
+        height: height * 0.94,
         fit: BoxFit.contain,
         filterQuality: FilterQuality.medium,
         alignment: Alignment.bottomCenter,
-        errorBuilder: (_, _, _) => _buildProceduralBuilding(code, renderKey, width, height),
-      );
-    }
-
-    if (remoteUrl != null && remoteUrl.isNotEmpty) {
-      final headers = islandAuthHeaders(remoteUrl);
-      return Image.network(
-        remoteUrl,
-        headers: headers,
-        width: width,
-        height: height * 0.90,
-        fit: BoxFit.contain,
-        alignment: Alignment.bottomCenter,
-        errorBuilder: (_, _, _) => _buildProceduralBuilding(code, renderKey, width, height),
+        errorBuilder: (_, _, _) =>
+            _buildProceduralBuilding(code, renderKey, width, height),
       );
     }
 
