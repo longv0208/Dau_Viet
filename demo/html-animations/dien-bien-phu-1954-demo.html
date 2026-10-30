@@ -560,42 +560,60 @@ html, body {
   z-index: 100;
 }
 
+
 /* ==========================================================================
    MOBILE PORTRAIT & SMALL SCREEN OPTIMIZATION (<= 768px)
-   Đảm bảo 100% khung cảnh 12:7 hiển thị trọn vẹn, không bị chữ che khuất!
+   Đảm bảo 100% khung cảnh 12:7 hiển thị trọn vẹn, không bị hộp chữ đè lên nhau!
    ========================================================================== */
 @media (max-width: 768px) {
   #dv-root {
-    padding: 8px 10px;
-    gap: 8px;
+    padding: 8px 10px 14px;
+    gap: 7px;
   }
 
   .tide-header {
-    gap: 8px;
+    gap: 6px;
+  }
+
+  #dv-scene {
+    font-size: 9.5px;
+    padding: 2px 8px;
+  }
+
+  .tide-brand-tag {
+    font-size: 9.5px;
   }
 
   #dv-title {
-    font-size: 16.5px;
+    font-size: 16px;
+    line-height: 1.22;
   }
 
   #dv-sub {
     font-size: 11px;
+    line-height: 1.32;
   }
 
   .tide-header__actions {
     width: 100%;
-    justify-content: space-between;
+    flex-direction: column;
+    align-items: stretch;
+    gap: 6px;
   }
 
   .tide-quick-group {
-    flex: 1 1 auto;
-    overflow-x: auto;
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    width: 100%;
+    gap: 3px;
   }
 
   .tide-quick-btn {
-    padding: 6px 8px;
+    padding: 6px 4px;
     font-size: 10.5px;
-    flex: 1 1 0;
+    line-height: 1.2;
+    white-space: normal;
+    text-align: center;
     justify-content: center;
   }
 
@@ -603,7 +621,23 @@ html, body {
     display: none;
   }
 
-  /* Trên mobile: giữ tỷ lệ 12:7 chuẩn cho phần canvas, đưa Caption & Legend xuống dưới canvas để không che thuyền & trận địa! */
+  .dv-ctl {
+    width: 100%;
+    display: flex;
+    gap: 6px;
+  }
+
+  #dv-play {
+    flex: 1 1 auto;
+    min-height: 34px;
+    font-size: 11.5px;
+  }
+
+  #dv-replay {
+    min-height: 34px;
+  }
+
+  /* Trên mobile: giữ tỷ lệ 12:7 chuẩn cho phần canvas, ẩn status box trùng lặp, đặt nút kích nổ gọn ở góc dưới phải canvas */
   .tide-battle-scene {
     flex: 0 0 auto;
     min-height: 0;
@@ -611,31 +645,22 @@ html, body {
 
   .tide-canvas-wrap {
     aspect-ratio: 12 / 7;
+    width: 100%;
+    height: auto;
     min-height: 195px;
-    max-height: 46vh;
   }
 
   .tide-scene-status {
-    left: 8px;
-    top: 8px;
-    padding: 4px 8px;
-    max-width: 62%;
-  }
-
-  .tide-scene-status__eyebrow {
-    font-size: 7.5px;
-    margin-bottom: 1px;
-  }
-
-  .tide-scene-status__text {
-    font-size: 9.8px;
+    display: none;
   }
 
   .tide-trap-cta {
+    top: auto;
+    bottom: 8px;
     right: 8px;
-    top: 8px;
-    padding: 5px 8px;
-    font-size: 9.8px;
+    padding: 5px 10px;
+    font-size: 10px;
+    border-radius: 999px;
   }
 
   .dv-cap-wrap {
@@ -650,6 +675,7 @@ html, body {
 
   #dv-caption {
     font-size: 11px;
+    line-height: 1.38;
   }
 
   #dv-note {
@@ -671,13 +697,16 @@ html, body {
 
   .tide-bottom-deck {
     grid-template-columns: 1fr;
-    gap: 8px;
+    gap: 7px;
   }
 
-  /* Đưa thanh kéo Thủy triều / Thế trận lên ngay dưới sa bàn để ngón cái kéo cực tiện trên mobile */
   .tide-control-panel {
     order: -1;
     padding: 8px 11px;
+  }
+
+  .tide-control-panel__label {
+    font-size: 12px;
   }
 
   .tide-story {
@@ -782,10 +811,11 @@ html, body {
 </head>
 <body>
 <div id="dv-root">
+
   <header class="tide-header">
     <div class="tide-header__left">
       <div class="tide-eyebrow-row">
-        <span id="dv-scene">Thế trận 01/03 · Đánh chắc tiến chắc (85%)</span>
+        <span id="dv-scene">Thế trận 01/03 · &#272;ánh chắc tiến chắc (85%)</span>
         <span class="tide-brand-tag">Điện Biên Phủ · Năm 1954</span>
       </div>
       <h1 id="dv-title">Quyết định lịch sử — Bao vây lòng chảo Mường Thanh</h1>
@@ -795,7 +825,7 @@ html, body {
     <div class="tide-header__actions">
       <div class="tide-quick-group" role="group" aria-label="Chọn nhanh giai đoạn chiến dịch">
         <button type="button" class="tide-quick-btn" data-set-tide="85" data-phase-btn="high" aria-pressed="true">
-          Đánh chắc tiến chắc
+          &#272;ánh chắc tiến chắc
         </button>
         <button type="button" class="tide-quick-btn" data-set-tide="50" data-phase-btn="ebb" aria-pressed="false">
           Đào hào &amp; Hầm ngầm
@@ -830,7 +860,7 @@ html, body {
     </div>
 
     <div class="dv-cap-wrap">
-      <div id="dv-caption">Tháng 1/1954, nhận thấy tập đoàn cứ điểm Điện Biên Phủ và cứ điểm Đồi A1 đã được quân Pháp gia cố cực kỳ kiên cố, Đại tướng Võ Nguyên Giáp quyết định hoãn nổ súng, chuyển từ «Đánh nhanh, thắng nhanh» sang «Đánh chắc, tiến chắc», kéo pháo vào công sự vững chắc trên các sườn núi bao quanh Mường Thanh.</div>
+      <div id="dv-caption">Tháng 1/1954, nhận thấy tập đoàn cứ điểm Điện Biên Phủ và cứ điểm Đồi A1 đã được quân Pháp gia cố cực kỳ kiên cố, Đại tướng Võ Nguyên Giáp quyết định hoãn nổ súng, chuyển từ «&#272;ánh nhanh, thắng nhanh» sang «&#272;ánh chắc, tiến chắc», kéo pháo vào công sự vững chắc trên các sườn núi bao quanh Mường Thanh.</div>
       <div id="dv-note">Mẹo tương tác: Kéo thanh chiến dịch sang trái hoặc bấm «02 / Đào hào vây lấn» và «03 / Bộc phá Đồi A1»!</div>
       <div id="dv-track"><div id="dv-bar"></div></div>
     </div>
@@ -846,7 +876,7 @@ html, body {
     <div class="tide-story" role="group" aria-label="Ba giai đoạn Chiến dịch Điện Biên Phủ">
       <button type="button" class="tide-story-card" data-phase-card="high" data-level="85" aria-pressed="true">
         <span class="tide-story-card__number">01 / Thế trận · Chuyển phương châm</span>
-        <strong class="tide-story-card__title">Đánh chắc, tiến chắc</strong>
+        <strong class="tide-story-card__title">&#272;ánh chắc, tiến chắc</strong>
         <p class="tide-story-card__desc">Hoãn nổ súng, kéo pháo ra chuẩn bị công sự kiên cố và mở màn đào hệ thống giao thông hào bao vây.</p>
       </button>
 
@@ -890,7 +920,6 @@ html, body {
 
   <div id="dv-error" role="alert"></div>
 </div>
-
 <script>
 /*!
  * GSAP 3.15.0
@@ -907,7 +936,7 @@ html, body {
 /* ==========================================================================
    Điện Biên Phủ 1954 — Đào Hào Vây Lấn, Bộc Phá Ngàn Cân Đồi A1 & Toàn Thắng
    Làm nổi bật:
-     1) Quyết định lịch sử chuyển sang «Đánh chắc, tiến chắc» & Pháo binh bao vây lòng chảo Mường Thanh
+     1) Quyết định lịch sử chuyển sang «\u0110ánh chắc, tiến chắc» & Pháo binh bao vây lòng chảo Mường Thanh
      2) Hệ thống chiến hào vây lấn hình chữ Z bò sát lên Đồi A1 & Đào đường hầm đặt khối thuốc nổ 960kg
      3) Nổ bộc phá ngàn cân làm sập toác lô cốt cố thủ Pháp, bộ đội xung phong cắm cờ Quyết Chiến Quyết Thắng!
    ========================================================================== */
@@ -939,11 +968,11 @@ html, body {
     {
       id: "high",
       level: 85,
-      sceneLabel: "Thế trận 01/03 · Đánh chắc tiến chắc (85%)",
+      sceneLabel: "Thế trận 01/03 · \u0110ánh chắc tiến chắc (85%)",
       title: "Quyết định lịch sử — Bao vây lòng chảo Mường Thanh",
-      sub: "Đại tướng Võ Nguyên Giáp chuyển phương châm sang «Đánh chắc, tiến chắc» — Đưa pháo vào hầm trên sườn núi",
+      sub: "Đại tướng Võ Nguyên Giáp chuyển phương châm sang «\u0110ánh chắc, tiến chắc» — Đưa pháo vào hầm trên sườn núi",
       statusText: "Chuẩn bị thế trận · Pháo binh khép vòng vây quanh Đồi A1",
-      cap: "Tháng 1/1954, nhận thấy tập đoàn cứ điểm Điện Biên Phủ và cứ điểm Đồi A1 đã được quân Pháp gia cố cực kỳ kiên cố, Đại tướng Võ Nguyên Giáp quyết định hoãn nổ súng, chuyển từ «Đánh nhanh, thắng nhanh» sang «Đánh chắc, tiến chắc», kéo pháo vào công sự vững chắc trên các sườn núi bao quanh Mường Thanh.",
+      cap: "Tháng 1/1954, nhận thấy tập đoàn cứ điểm Điện Biên Phủ và cứ điểm Đồi A1 đã được quân Pháp gia cố cực kỳ kiên cố, Đại tướng Võ Nguyên Giáp quyết định hoãn nổ súng, chuyển từ «\u0110ánh nhanh, thắng nhanh» sang «\u0110ánh chắc, tiến chắc», kéo pháo vào công sự vững chắc trên các sườn núi bao quanh Mường Thanh.",
       note: "Mẹo tương tác: Kéo thanh chiến dịch sang trái hoặc bấm «02 / Đào hào vây lấn» và «03 / Bộc phá Đồi A1»!"
     },
     {
@@ -1727,7 +1756,6 @@ html, body {
     IMG[key] = img;
   });
 })();
-
 </script>
 </body>
 </html>

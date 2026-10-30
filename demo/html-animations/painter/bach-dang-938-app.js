@@ -316,10 +316,8 @@
 
   function getViewportTransform() {
     var dw = 1200, dh = 700;
-    var scale = Math.max(W / dw, H / dh);
-    var ox = (W - dw * scale) * 0.5;
-    var oy = (H - dh * scale) * 0.5;
-    return { s: scale, ox: ox, oy: oy };
+    var scale = W < 768 ? Math.min(W / dw, H / dh) : Math.max(W / dw, H / dh);
+    return { s: scale, ox: (W - dw * scale) * 0.5, oy: (H - dh * scale) * 0.5 };
   }
 
   /* ---------- 8. Các hàm Vẽ Chi Tiết Chiến Trường (1200x700 space) ---------- */
