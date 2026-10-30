@@ -3,11 +3,12 @@ import 'package:flutter/material.dart';
 import '../../../../core/theme/dau_viet_typography.dart';
 import '../../data/island_dto.dart';
 
-/// Thanh chuyển 3 cấp đảo theo thiết kế Isometric 2.5D mới (Issue #46 AC-1):
-/// 1. Đảo An Lạc (Cấp 1)
-/// 2. Đảo Phồn Thịnh (Cấp 2)
-/// 3. Đảo Trường Tồn (Cấp 3)
-/// Hiển thị hình thu nhỏ (thumbnail isometric) của từng đảo kèm trạng thái khóa/mở.
+/// Thanh Segmented Pill Tab 3 cấp đảo theo thiết kế 9 màn hình (Issue #50 AC-1):
+/// - `Đảo Nhỏ` (Cấp 1 — 6×6)
+/// - `Đảo Vừa` (Cấp 2 — 8×8)
+/// - `Đảo Lớn` (Cấp 3 — 10×10)
+/// Tab đang chọn có nền xanh cổ đậm (`#1A5642`), chữ trắng và icon ngôi nhà/đình;
+/// các tab chưa mở khóa hiển thị icon ổ khóa `🔒`.
 class IslandTierTabs extends StatelessWidget {
   final IslandDto island;
   final int previewTier;
@@ -27,23 +28,23 @@ class IslandTierTabs extends StatelessWidget {
         : <IslandTierInfoDto>[
             const IslandTierInfoDto(
               tier: 1,
-              nameKey: 'tier.an_lac',
-              stageLabel: 'Đảo An Lạc',
-              slotCount: 16,
+              nameKey: 'tier.small',
+              stageLabel: 'Đảo Nhỏ',
+              slotCount: 36,
               unlocked: true,
             ),
             IslandTierInfoDto(
               tier: 2,
-              nameKey: 'tier.phon_thinh',
-              stageLabel: 'Đảo Phồn Thịnh',
-              slotCount: 36,
+              nameKey: 'tier.medium',
+              stageLabel: 'Đảo Vừa',
+              slotCount: 64,
               unlocked: island.tier >= 2,
             ),
             IslandTierInfoDto(
               tier: 3,
-              nameKey: 'tier.truong_ton',
-              stageLabel: 'Đảo Trường Tồn',
-              slotCount: 64,
+              nameKey: 'tier.grand',
+              stageLabel: 'Đảo Lớn',
+              slotCount: 100,
               unlocked: island.tier >= 3,
             ),
           ];
@@ -51,14 +52,14 @@ class IslandTierTabs extends StatelessWidget {
     return Container(
       padding: const EdgeInsets.all(4),
       decoration: BoxDecoration(
-        color: const Color(0xFFF6ECD9),
+        color: const Color(0xFFF3E6CE).withValues(alpha: 0.96),
         borderRadius: BorderRadius.circular(18),
-        border: Border.all(color: const Color(0xFFDEC9A8), width: 1.5),
+        border: Border.all(color: const Color(0xFFDEC8A4), width: 1.4),
         boxShadow: [
           BoxShadow(
             color: Colors.black.withValues(alpha: 0.10),
             blurRadius: 8,
-            offset: const Offset(0, 3),
+            offset: const Offset(0, 2),
           ),
         ],
       ),
@@ -76,72 +77,57 @@ class IslandTierTabs extends StatelessWidget {
   Widget _buildTierTab(IslandTierInfoDto info) {
     final isActive = previewTier == info.tier;
     final isUnlocked = info.unlocked || island.tier >= info.tier;
-    final label = info.displayName;
+    final label = IslandDto.tierHeritageName(info.tier);
 
     return GestureDetector(
       onTap: () => onSelectTier(info.tier),
       behavior: HitTestBehavior.opaque,
       child: AnimatedContainer(
         duration: const Duration(milliseconds: 160),
-        padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 6),
+        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 8),
         decoration: BoxDecoration(
           color: isActive
-              ? const Color(0xFF1E4D3B)
-              : const Color(0xFFF3E7D0).withValues(alpha: 0.65),
+              ? const Color(0xFF1A5642)
+              : const Color(0xFFF8EFE0).withValues(alpha: 0.55),
           borderRadius: BorderRadius.circular(14),
           border: Border.all(
             color: isActive
-                ? const Color(0xFF14382A)
-                : const Color(0xFFE2CFAF),
+                ? const Color(0xFF123F30)
+                : const Color(0xFFE5D4B7),
             width: 1.0,
           ),
         ),
-        child: Column(
+        child: Row(
+          mainAxisAlignment: MainAxisAlignment.center,
           mainAxisSize: MainAxisSize.min,
           children: [
-            SizedBox(
-              width: 44,
-              height: 26,
-              child: CustomPaint(
-                painter: _TierIslandThumbnailPainter(
-                  tier: info.tier,
-                  isUnlocked: isUnlocked,
-                  isActive: isActive,
+            Icon(
+              isUnlocked
+                  ? Icons.holiday_village_rounded
+                  : Icons.lock_outline_rounded,
+              size: 14,
+              color: isActive
+                  ? Colors.white
+                  : isUnlocked
+                      ? const Color(0xFF3E2D20)
+                      : const Color(0xFF8C7A68),
+            ),
+            const SizedBox(width: 5),
+            Flexible(
+              child: Text(
+                label,
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: DauVietTypography.bodySmall.copyWith(
+                  fontSize: 12,
+                  fontWeight: FontWeight.w800,
+                  color: isActive
+                      ? Colors.white
+                      : isUnlocked
+                          ? const Color(0xFF3A2A1E)
+                          : const Color(0xFF7D6B59),
                 ),
               ),
-            ),
-            const SizedBox(height: 3),
-            Row(
-              mainAxisAlignment: MainAxisAlignment.center,
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                Icon(
-                  isUnlocked ? Icons.lock_open_rounded : Icons.lock_rounded,
-                  size: 11,
-                  color: isActive
-                      ? const Color(0xFFA7E8BD)
-                      : isUnlocked
-                          ? const Color(0xFF247D78)
-                          : const Color(0xFF8C7A68),
-                ),
-                const SizedBox(width: 3),
-                Flexible(
-                  child: Text(
-                    label,
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                    style: DauVietTypography.bodySmall.copyWith(
-                      fontSize: 11,
-                      fontWeight: FontWeight.w700,
-                      color: isActive
-                          ? Colors.white
-                          : isUnlocked
-                              ? const Color(0xFF3A2A1E)
-                              : const Color(0xFF7D6B59),
-                    ),
-                  ),
-                ),
-              ],
             ),
           ],
         ),
@@ -165,16 +151,35 @@ class IslandTierThumbnail extends StatelessWidget {
     this.height = 42,
   });
 
+  static String _tierAssetPath(int tier) {
+    switch (tier) {
+      case 1:
+        return 'assets/island/effects/island_tier_1.png';
+      case 2:
+        return 'assets/island/effects/island_tier_2.png';
+      case 3:
+      default:
+        return 'assets/island/effects/island_tier_3.png';
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     return SizedBox(
       width: width,
       height: height,
-      child: CustomPaint(
-        painter: _TierIslandThumbnailPainter(
-          tier: tier,
-          isUnlocked: isUnlocked,
-          isActive: false,
+      child: Image.asset(
+        _tierAssetPath(tier),
+        width: width,
+        height: height,
+        fit: BoxFit.contain,
+        filterQuality: FilterQuality.medium,
+        errorBuilder: (_, _, _) => CustomPaint(
+          painter: _TierIslandThumbnailPainter(
+            tier: tier,
+            isUnlocked: isUnlocked,
+            isActive: false,
+          ),
         ),
       ),
     );

@@ -149,70 +149,98 @@ void main() {
   });
 
     testWidgets(
-      'Issue #46: View Mode renders 3 tier tabs (Đảo An Lạc / Phồn Thịnh / Trường Tồn), Summary Card, and Kabi guide; Edit Mode renders Lưu đảo / Xoay / Xóa & 5-tab Inventory Tray',
+      'Issue #50: Renders all 9 screens — Screen 1 (Đảo Nhỏ, Turtle top bubble, Bản đồ button, Kho vật phẩm tray), Screen 2 (Placement Preview 2x2 + ✕/↻/✓ + Đặt), Screen 3 (Lưu / Thu hồi / Xoay), Screen 4 (Panoramic 3-Island Map), and Modals 1-4 (KHO VẬT PHẨM, CHI TIẾT VẬT PHẨM, NÂNG CẤP ĐẢO, Chuyển đến Đảo Vừa?)',
       (tester) async {
         await tester.binding.setSurfaceSize(const Size(390, 844));
         addTearDown(() => tester.binding.setSurfaceSize(null));
         await tester.pumpWidget(buildTestableWidget(const IslandScreen()));
         await pumpAsync(tester);
 
-        // AC-1: 3 cấp đảo hiển thị trên thanh tab + Summary Card + lời thoại Rùa Kabi
-        expect(find.text('Đảo An Lạc'), findsWidgets);
-        expect(find.text('Đảo Phồn Thịnh'), findsWidgets);
-        expect(find.text('Đảo Trường Tồn'), findsWidgets);
-        expect(find.textContaining('Diện tích:'), findsOneWidget);
-        expect(find.text('Đang sử dụng'), findsOneWidget);
+        // Screen 1: 3-tier pill tabs (Đảo Nhỏ / Đảo Vừa / Đảo Lớn), Top Turtle Guide, Bản đồ button, Compact Kho vật phẩm tray
+        expect(find.text('Đảo Nhỏ'), findsWidgets);
+        expect(find.text('Đảo Vừa'), findsWidgets);
+        expect(find.text('Đảo Lớn'), findsWidgets);
         expect(
-          find.textContaining('Đây là Đảo An Lạc!'),
+          find.bySemanticsLabel(RegExp(r'Đây là Đảo Nhỏ của bạn!')),
           findsOneWidget,
         );
+        expect(find.text('Bản đồ'), findsOneWidget);
+        expect(find.text('Kho vật phẩm'), findsOneWidget);
+        expect(find.text('Cây đa'), findsOneWidget);
+        expect(find.text('Nhà rông'), findsOneWidget);
 
-        // Chuyển sang Đảo Phồn Thịnh bằng tab
-        await tester.tap(find.text('Đảo Phồn Thịnh').first);
+        // Modal 1 (KHO VẬT PHẨM) -> Modal 2 (CHI TIẾT VẬT PHẨM: Cây đa cổ thụ, Kích thước: 2x2, ⭐ 50, Đặt lên đảo)
+        await tester.tap(find.text('Kho vật phẩm'));
         await pumpAsync(tester);
-        expect(
-          find.textContaining('Đảo Phồn Thịnh rộng hơn nhiều!'),
-          findsOneWidget,
-        );
-
-        // Quay lại Đảo An Lạc và bật Chế độ Bài trí (AC-3 & AC-4)
-        await tester.tap(find.text('Đảo An Lạc').first);
-        await pumpAsync(tester);
-        await tester.tap(find.text('Bài trí'));
-        await pumpAsync(tester);
-
-        // AC-3: Cụm 3 nút công cụ nổi bên phải
-        expect(find.text('Lưu đảo'), findsOneWidget);
-        expect(find.text('Xoay'), findsOneWidget);
-        expect(find.text('Xóa'), findsOneWidget);
-
-        // AC-4: Khay vật phẩm phân loại 5 tab (Tất cả, Công trình, Cây cối, Trang trí, Khác) & lưới thẻ 4 cột
+        expect(find.text('KHO VẬT PHẨM'), findsOneWidget);
         expect(find.text('Tất cả'), findsOneWidget);
         expect(find.text('Công trình'), findsOneWidget);
         expect(find.text('Cây cối'), findsOneWidget);
         expect(find.text('Trang trí'), findsOneWidget);
-        expect(find.text('Khác'), findsOneWidget);
-        expect(find.text('Nhà đình'), findsOneWidget);
-        expect(find.text('Giếng cổ'), findsOneWidget);
-        expect(find.text('Cột cờ'), findsOneWidget);
-        expect(find.textContaining('đã đặt'), findsWidgets);
 
-        // Lọc theo tab "Trang trí" -> chỉ hiện Giếng cổ, Cột cờ (ẩn Nhà đình)
-        await tester.tap(find.text('Trang trí'));
+        // Tap Cây đa in KHO VẬT PHẨM -> opens Modal 2 CHI TIẾT VẬT PHẨM
+        await tester.tap(find.text('Cây đa').last);
         await pumpAsync(tester);
-        expect(find.text('Giếng cổ'), findsOneWidget);
-        expect(find.text('Cột cờ'), findsOneWidget);
-        expect(find.text('Nhà đình'), findsNothing);
+        expect(find.text('CHI TIẾT VẬT PHẨM'), findsOneWidget);
+        expect(find.text('Cây đa cổ thụ'), findsOneWidget);
+        expect(find.text('Kích thước: 2x2'), findsOneWidget);
+        expect(find.text('Đặt lên đảo'), findsOneWidget);
 
-        // Bấm Lưu đảo -> thoát về Chế độ Tham quan
-        await tester.tap(find.text('Lưu đảo'));
+        // Tap Đặt lên đảo -> enters Screen 2 (Placement Preview with inline ✕ / ↻ / ✓ and bottom Đặt card)
+        await tester.tap(find.text('Đặt lên đảo'));
+        await pumpAsync(tester);
+        expect(find.text('2x2'), findsOneWidget);
+        expect(find.text('Đặt'), findsOneWidget);
+        expect(find.bySemanticsLabel('Hủy đặt'), findsOneWidget);
+        expect(find.bySemanticsLabel('Xoay hướng'), findsOneWidget);
+        expect(find.bySemanticsLabel('Xác nhận đặt'), findsOneWidget);
+
+        // Tap Đặt -> places item and enters Screen 3 (floating Lưu / Thu hồi / Xoay toolbar)
+        await tester.tap(find.text('Đặt'));
+        await pumpAsync(tester);
+        expect(find.text('Lưu'), findsOneWidget);
+        expect(find.text('Thu hồi'), findsOneWidget);
+        expect(find.text('Xoay'), findsOneWidget);
+
+        // Tap Lưu -> returns to Screen 1 view
+        await tester.tap(find.text('Lưu'));
+        await pumpAsync(tester);
+        expect(find.text('Bản đồ'), findsOneWidget);
+
+        // Tap Bản đồ -> opens Screen 4 (Panoramic 3-Island Map)
+        await tester.tap(find.text('Bản đồ'));
         await pumpAsync(tester);
         expect(find.text('Đang sử dụng'), findsOneWidget);
+        expect(find.textContaining('Hoàn thành 15 bài học'), findsOneWidget);
+        expect(find.textContaining('Hoàn thành 30 bài học'), findsOneWidget);
+
+        // Tap locked Đảo Vừa on Panoramic Map -> opens Modal 3 (NÂNG CẤP ĐẢO)
+        await tester.tap(find.textContaining('Hoàn thành 15 bài học'));
+        await pumpAsync(tester);
+        expect(find.text('NÂNG CẤP ĐẢO'), findsOneWidget);
+        expect(find.text('Hoàn thành 15 bài học'), findsOneWidget);
+        expect(find.text('Sở hữu ít nhất 8 vật phẩm'), findsOneWidget);
+        expect(find.text('Đạt cấp độ 5'), findsOneWidget);
+        expect(find.text('Mở khóa Đảo Vừa'), findsOneWidget);
+
+        // Tap Mở khóa Đảo Vừa -> opens Modal 4 (Chuyển đến Đảo Vừa?)
+        await tester.tap(find.text('Mở khóa Đảo Vừa'));
+        await pumpAsync(tester);
+        expect(find.text('Chuyển đến Đảo Vừa?'), findsOneWidget);
+        expect(find.text('Để sau'), findsOneWidget);
+        expect(find.text('Chuyển ngay'), findsOneWidget);
+
+        // Tap Chuyển ngay -> upgrades and switches to Screen 5 (Đảo Vừa)
+        await tester.tap(find.text('Chuyển ngay'));
+        await pumpAsync(tester);
+        expect(find.text('Lưu'), findsOneWidget);
+        expect(find.text('Thu hồi'), findsOneWidget);
+        expect(find.text('Xoay'), findsOneWidget);
       },
     );
 
     testWidgets(
-      'Issue #46 AC-5: Responsive layout has zero overflow on compact 360x800 mobile screen',
+      'Issue #50 AC-6: Responsive layout has zero overflow on compact 360x800 mobile screen',
       (tester) async {
         await tester.binding.setSurfaceSize(const Size(360, 800));
         addTearDown(() => tester.binding.setSurfaceSize(null));
@@ -220,7 +248,10 @@ void main() {
         await pumpAsync(tester);
 
         expect(tester.takeException(), isNull);
-        await tester.tap(find.text('Bài trí'));
+        await tester.tap(find.text('Nhà rông'));
+        await pumpAsync(tester);
+        expect(tester.takeException(), isNull);
+        await tester.tap(find.text('Đặt'));
         await pumpAsync(tester);
         expect(tester.takeException(), isNull);
       },
@@ -305,7 +336,7 @@ void main() {
         );
         await pumpAsync(tester);
 
-        expect(find.text('MỞ RỘNG ĐẢO DI SẢN'), findsOneWidget);
+        expect(find.text('NÂNG CẤP ĐẢO'), findsOneWidget);
         expect(find.text('TIẾP TỤC HỌC ĐỂ TÍCH LŨY EXP'), findsOneWidget);
       },
     );
@@ -342,8 +373,8 @@ void main() {
       );
       await pumpAsync(tester);
 
-      expect(find.text('MỞ RỘNG LÊN ĐẢO VỪA'), findsOneWidget);
-      await tester.tap(find.text('MỞ RỘNG LÊN ĐẢO VỪA'));
+      expect(find.text('Mở khóa Đảo Vừa'), findsOneWidget);
+      await tester.tap(find.text('Mở khóa Đảo Vừa'));
       expect(upgraded, true);
     });
   });

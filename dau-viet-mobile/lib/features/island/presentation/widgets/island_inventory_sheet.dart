@@ -1,27 +1,28 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:go_router/go_router.dart';
 
 import '../../../../core/theme/dau_viet_colors.dart';
 import '../../../../core/theme/dau_viet_typography.dart';
-import '../../../../core/widgets/tactile_3d_button.dart';
 import '../../../rewards/data/reward_dtos.dart';
 import '../../../rewards/data/reward_providers.dart';
 import '../../data/island_dto.dart';
 import '../../data/island_providers.dart';
+import 'island_heritage_building.dart';
+import 'island_inventory_tray.dart';
 
-enum _InventoryFilter { placeable, unplaced, placed, owned, all }
-
-enum _TypeFilter { all, decor, replica }
-
-/// Bottom sheet chọn vật phẩm từ Túi Đồ để đặt lên một ô trên Đảo Di Sản.
+/// Modal 1 — `KHO VẬT PHẨM` (Expanded Inventory Sheet) theo thiết kế 9 màn hình (Issue #50 AC-5):
+/// - Tiêu đề `KHO VẬT PHẨM` + nút đóng `✕`.
+/// - 4 tab lọc dạng pill: `Tất cả` (active nền xanh `#1A5642`), `Công trình`, `Cây cối`, `Trang trí`.
+/// - Lưới 4 cột hiển thị các thẻ vật phẩm: `Nhà rông`, `Đình làng`, `Chùa cổ`, `Tháp Chăm`,
+///   `Cây đa`, `Tre trúc`, `Cột cờ`, `Bức tượng`...
+/// - Chạm vào thẻ vật phẩm mở Modal 2 — `CHI TIẾT VẬT PHẨM` (`IslandItemDetailSheet`).
 class IslandInventorySheet extends ConsumerStatefulWidget {
-  final IslandSlotDto targetSlot;
+  final IslandSlotDto? targetSlot;
   final ValueChanged<String> onSelectItem;
 
   const IslandInventorySheet({
     super.key,
-    required this.targetSlot,
+    this.targetSlot,
     required this.onSelectItem,
   });
 
@@ -31,568 +32,456 @@ class IslandInventorySheet extends ConsumerStatefulWidget {
 }
 
 class _IslandInventorySheetState extends ConsumerState<IslandInventorySheet> {
-  _InventoryFilter _selectedFilter = _InventoryFilter.placeable;
-  _TypeFilter _selectedTypeFilter = _TypeFilter.all;
+  IslandInventoryCategory _selectedCategory = IslandInventoryCategory.all;
 
   @override
   Widget build(BuildContext context) {
     final catalogAsync = ref.watch(inventoryCatalogProvider);
+    final shopAsync = ref.watch(islandShopItemsProvider);
     final islandState = ref.watch(islandControllerProvider).asData?.value;
 
-    // Tập hợp các item_id đang được đặt trên đảo
-    final placedItemIds =
-        islandState?.slots
-            .map((s) => s.placement?.itemId)
-            .whereType<String>()
-            .toSet() ??
-        {};
+    final catalogList = catalogAsync.asData?.value ?? const <CatalogItemDto>[];
+    final shopList = shopAsync.asData?.value ?? const <ShopItemDto>[];
+    final allPlaceable = islandState != null
+        ? IslandInventoryTray.mergePlaceableItems(
+            catalogList,
+            shopList,
+            islandState,
+          )
+        : catalogList.where((it) => it.placeable).toList();
+
+    final filteredItems = _selectedCategory == IslandInventoryCategory.all
+        ? allPlaceable
+        : allPlaceable.where((it) {
+            final cat = resolveIslandItemCategory(
+              code: it.code,
+              renderKey: it.renderKey,
+              category: it.category,
+              itemType: it.itemType,
+            );
+            if (_selectedCategory == IslandInventoryCategory.decoration &&
+                cat == IslandInventoryCategory.other) {
+              return true;
+            }
+            return cat == _selectedCategory;
+          }).toList();
 
     return Container(
       constraints: BoxConstraints(
-        maxHeight: MediaQuery.of(context).size.height * 0.78,
+        maxHeight: MediaQuery.of(context).size.height * 0.72,
       ),
-      decoration: const BoxDecoration(
-        color: DauVietColors.parchmentSurface,
-        borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+      decoration: BoxDecoration(
+        color: const Color(0xFFFBF3E4),
+        borderRadius: const BorderRadius.vertical(top: Radius.circular(24)),
+        border: Border.all(color: const Color(0xFFDEC8A4), width: 1.5),
       ),
-      child: Column(
-        mainAxisSize: MainAxisSize.min,
-        crossAxisAlignment: CrossAxisAlignment.stretch,
-        children: [
-          // 1. Header Drag Handle & Title
-          Center(
-            child: Container(
-              margin: const EdgeInsets.only(top: 12, bottom: 8),
-              width: 48,
-              height: 4,
-              decoration: BoxDecoration(
-                color: DauVietColors.outlineVariant,
-                borderRadius: BorderRadius.circular(2),
+      child: SafeArea(
+        top: false,
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            // 1. Header: KHO VẬT PHẨM + nút đóng ✕
+            Padding(
+              padding: const EdgeInsets.fromLTRB(18, 14, 12, 8),
+              child: Row(
+                children: [
+                  Expanded(
+                    child: Text(
+                      'KHO VẬT PHẨM',
+                      style: DauVietTypography.titleSmall.copyWith(
+                        color: const Color(0xFF3A2618),
+                        fontWeight: FontWeight.w800,
+                        fontSize: 16,
+                        letterSpacing: 0.4,
+                      ),
+                    ),
+                  ),
+                  IconButton(
+                    visualDensity: VisualDensity.compact,
+                    icon: const Icon(
+                      Icons.close_rounded,
+                      color: Color(0xFF5A4635),
+                      size: 22,
+                    ),
+                    onPressed: () => Navigator.of(context).pop(),
+                  ),
+                ],
               ),
             ),
+
+            // 2. 4 Tab lọc dạng Pill: Tất cả, Công trình, Cây cối, Trang trí
+            Padding(
+              padding: const EdgeInsets.fromLTRB(14, 2, 14, 10),
+              child: Row(
+                children: [
+                  for (int i = 0;
+                      i < IslandInventoryCategory.modalTabs.length;
+                      i++) ...[
+                    if (i > 0) const SizedBox(width: 6),
+                    Expanded(
+                      child: _buildCategoryPill(
+                        IslandInventoryCategory.modalTabs[i],
+                      ),
+                    ),
+                  ],
+                ],
+              ),
+            ),
+
+            // 3. Lưới 4 cột hiển thị các thẻ vật phẩm
+            Flexible(
+              child: (catalogAsync.isLoading && allPlaceable.isEmpty)
+                  ? const SizedBox(
+                      height: 160,
+                      child: Center(
+                        child: CircularProgressIndicator(
+                          color: DauVietColors.cinnabarRed,
+                        ),
+                      ),
+                    )
+                  : filteredItems.isEmpty
+                      ? SizedBox(
+                          height: 140,
+                          child: Center(
+                            child: Text(
+                              'Chưa có vật phẩm trong nhóm "${_selectedCategory.labelVi}".',
+                              style: DauVietTypography.bodySmall.copyWith(
+                                color: const Color(0xFF6E5A49),
+                              ),
+                            ),
+                          ),
+                        )
+                      : GridView.builder(
+                          padding: const EdgeInsets.fromLTRB(14, 4, 14, 18),
+                          shrinkWrap: true,
+                          gridDelegate:
+                              const SliverGridDelegateWithFixedCrossAxisCount(
+                            crossAxisCount: 4,
+                            crossAxisSpacing: 10,
+                            mainAxisSpacing: 10,
+                            childAspectRatio: 0.84,
+                          ),
+                          itemCount: filteredItems.length,
+                          itemBuilder: (context, index) => _buildGridCard(
+                            context,
+                            filteredItems[index],
+                            shopList,
+                          ),
+                        ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildCategoryPill(IslandInventoryCategory category) {
+    final isSelected = _selectedCategory == category;
+    return GestureDetector(
+      onTap: () => setState(() => _selectedCategory = category),
+      behavior: HitTestBehavior.opaque,
+      child: AnimatedContainer(
+        duration: const Duration(milliseconds: 140),
+        padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 7),
+        alignment: Alignment.center,
+        decoration: BoxDecoration(
+          color: isSelected
+              ? const Color(0xFF1A5642)
+              : const Color(0xFFF3E6CE),
+          borderRadius: BorderRadius.circular(18),
+          border: Border.all(
+            color: isSelected
+                ? const Color(0xFF123F30)
+                : const Color(0xFFE0CDA9),
           ),
-          Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 6),
-            child: Row(
+        ),
+        child: Text(
+          category.labelVi,
+          maxLines: 1,
+          overflow: TextOverflow.ellipsis,
+          style: DauVietTypography.bodySmall.copyWith(
+            fontSize: 11.5,
+            fontWeight: FontWeight.w700,
+            color: isSelected ? Colors.white : const Color(0xFF4E3B2B),
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildGridCard(
+    BuildContext context,
+    CatalogItemDto item,
+    List<ShopItemDto> shopItems,
+  ) {
+    final shortName = shortIslandItemDisplayName(
+      item.name,
+      item.code,
+      item.renderKey,
+    );
+    final matchedShop = shopItems.cast<ShopItemDto?>().firstWhere(
+      (s) =>
+          s?.itemId == item.itemId ||
+          s?.code.toLowerCase() == item.code.toLowerCase(),
+      orElse: () => null,
+    );
+
+    return GestureDetector(
+      onTap: () async {
+        final confirmed = await showModalBottomSheet<bool>(
+          context: context,
+          isScrollControlled: true,
+          backgroundColor: Colors.transparent,
+          builder: (ctx) => IslandItemDetailSheet(
+            item: item,
+            pricePoints: matchedShop?.pricePoints,
+            onPlaceOnIsland: () => Navigator.of(ctx).pop(true),
+          ),
+        );
+        if (confirmed == true && context.mounted) {
+          Navigator.of(context).pop();
+          widget.onSelectItem(item.itemId);
+        }
+      },
+      behavior: HitTestBehavior.opaque,
+      child: Container(
+        padding: const EdgeInsets.fromLTRB(4, 6, 4, 6),
+        decoration: BoxDecoration(
+          color: const Color(0xFFF4E6CE),
+          borderRadius: BorderRadius.circular(14),
+          border: Border.all(color: const Color(0xFFDFC8A2), width: 1.2),
+        ),
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Expanded(
+              child: Center(
+                child: IgnorePointer(
+                  child: IslandHeritageBuilding(
+                    placement: IslandPlacementDto(
+                      itemId: item.itemId,
+                      code: item.code,
+                      name: item.name,
+                      renderKey: item.renderKey,
+                      assetId: item.assetId,
+                    ),
+                    tileWidth: 48,
+                    tileHeight: 25,
+                    useProportionalScale: false,
+                  ),
+                ),
+              ),
+            ),
+            const SizedBox(height: 4),
+            Text(
+              shortName,
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              textAlign: TextAlign.center,
+              style: DauVietTypography.bodySmall.copyWith(
+                fontSize: 11,
+                fontWeight: FontWeight.w700,
+                color: const Color(0xFF3A2618),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+/// Modal 2 — `CHI TIẾT VẬT PHẨM` (Item Detail Sheet) theo thiết kế 9 màn hình (Issue #50 AC-5):
+/// - Tiêu đề `CHI TIẾT VẬT PHẨM` + nút đóng `✕`.
+/// - Bên trái: Hình minh họa lớn sắc nét (ví dụ `Cây đa cổ thụ`).
+/// - Bên phải: Tên vật phẩm, mô tả văn hóa lịch sử, `Kích thước: 2x2`, giá/điểm `⭐ 50`.
+/// - Nút CTA lớn full-width ở đáy: `Đặt lên đảo`.
+class IslandItemDetailSheet extends StatelessWidget {
+  final CatalogItemDto item;
+  final int? pricePoints;
+  final VoidCallback onPlaceOnIsland;
+
+  const IslandItemDetailSheet({
+    super.key,
+    required this.item,
+    this.pricePoints,
+    required this.onPlaceOnIsland,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final token = '${item.code} ${item.renderKey ?? ''} ${item.name}'
+        .toLowerCase();
+    final displayTitle = token.contains('cay_da')
+        ? 'Cây đa cổ thụ'
+        : shortIslandItemDisplayName(item.name, item.code, item.renderKey);
+    final description = resolveIslandItemDescription(
+      item.code,
+      item.renderKey,
+      item.description,
+    );
+    final footprintLabel = resolveIslandItemFootprintLabel(
+      item.code,
+      item.renderKey,
+    );
+    final points = resolveIslandItemPricePoints(
+      item.code,
+      item.renderKey,
+      pricePoints,
+    );
+
+    return Container(
+      padding: const EdgeInsets.fromLTRB(18, 14, 18, 20),
+      decoration: BoxDecoration(
+        color: const Color(0xFFFBF3E4),
+        borderRadius: const BorderRadius.vertical(top: Radius.circular(24)),
+        border: Border.all(color: const Color(0xFFDEC8A4), width: 1.5),
+      ),
+      child: SafeArea(
+        top: false,
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            Row(
               children: [
+                Expanded(
+                  child: Text(
+                    'CHI TIẾT VẬT PHẨM',
+                    style: DauVietTypography.titleSmall.copyWith(
+                      color: const Color(0xFF3A2618),
+                      fontWeight: FontWeight.w800,
+                      fontSize: 16,
+                      letterSpacing: 0.4,
+                    ),
+                  ),
+                ),
+                IconButton(
+                  visualDensity: VisualDensity.compact,
+                  icon: const Icon(
+                    Icons.close_rounded,
+                    color: Color(0xFF5A4635),
+                    size: 22,
+                  ),
+                  onPressed: () => Navigator.of(context).pop(false),
+                ),
+              ],
+            ),
+            const Divider(color: Color(0xFFE5D3B3), height: 14),
+            const SizedBox(height: 6),
+            Row(
+              crossAxisAlignment: CrossAxisAlignment.center,
+              children: [
+                Container(
+                  width: 112,
+                  height: 112,
+                  padding: const EdgeInsets.all(8),
+                  decoration: BoxDecoration(
+                    color: const Color(0xFFF4E6CE),
+                    borderRadius: BorderRadius.circular(18),
+                    border: Border.all(
+                      color: const Color(0xFFDFC8A2),
+                      width: 1.2,
+                    ),
+                  ),
+                  child: Center(
+                    child: IgnorePointer(
+                      child: IslandHeritageBuilding(
+                        placement: IslandPlacementDto(
+                          itemId: item.itemId,
+                          code: item.code,
+                          name: item.name,
+                          renderKey: item.renderKey,
+                          assetId: item.assetId,
+                        ),
+                        tileWidth: 74,
+                        tileHeight: 38,
+                        useProportionalScale: false,
+                      ),
+                    ),
+                  ),
+                ),
+                const SizedBox(width: 14),
                 Expanded(
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
                       Text(
-                        'KHO VẬT PHẨM TRANG TRÍ',
-                        style: DauVietTypography.headlineSmall.copyWith(
-                          color: DauVietColors.cinnabarRed,
-                          fontWeight: FontWeight.bold,
+                        displayTitle,
+                        style: DauVietTypography.titleSmall.copyWith(
+                          fontSize: 16.5,
+                          fontWeight: FontWeight.w800,
+                          color: const Color(0xFF2E1E12),
                         ),
                       ),
-                      const SizedBox(height: 2),
+                      const SizedBox(height: 4),
                       Text(
-                        'Chọn vật phẩm đặt vào Ô #${widget.targetSlot.zIndex > 0 ? widget.targetSlot.zIndex : widget.targetSlot.slotId.substring(0, widget.targetSlot.slotId.length.clamp(0, 8))}',
+                        description,
                         style: DauVietTypography.bodySmall.copyWith(
-                          color: DauVietColors.inkMuted,
+                          fontSize: 12,
+                          height: 1.35,
+                          color: const Color(0xFF5D4A3A),
                         ),
                       ),
-                    ],
-                  ),
-                ),
-                IconButton(
-                  icon: const Icon(
-                    Icons.close_rounded,
-                    color: DauVietColors.inkMuted,
-                  ),
-                  onPressed: () => Navigator.of(context).pop(),
-                ),
-              ],
-            ),
-          ),
-
-          // 2. Filter Chips (Trạng thái)
-          SingleChildScrollView(
-            scrollDirection: Axis.horizontal,
-            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 2),
-            child: Row(
-              children: [
-                _buildFilterChip('Có thể đặt', _InventoryFilter.placeable),
-                const SizedBox(width: 8),
-                _buildFilterChip('Chưa đặt', _InventoryFilter.unplaced),
-                const SizedBox(width: 8),
-                _buildFilterChip('Đang đặt', _InventoryFilter.placed),
-                const SizedBox(width: 8),
-                _buildFilterChip('Đã sở hữu', _InventoryFilter.owned),
-                const SizedBox(width: 8),
-                _buildFilterChip('Tất cả', _InventoryFilter.all),
-              ],
-            ),
-          ),
-
-          // 2b. Filter Chips (Loại vật phẩm)
-          SingleChildScrollView(
-            scrollDirection: Axis.horizontal,
-            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 2),
-            child: Row(
-              children: [
-                _buildTypeChip('Tất cả loại', _TypeFilter.all),
-                const SizedBox(width: 8),
-                _buildTypeChip('Trang trí (DECOR)', _TypeFilter.decor),
-                const SizedBox(width: 8),
-                _buildTypeChip('Mô hình (REPLICA)', _TypeFilter.replica),
-              ],
-            ),
-          ),
-          const Divider(height: 12, color: DauVietColors.outlineVariant),
-
-          // 3. Grid danh sách vật phẩm
-          Expanded(
-            child: catalogAsync.when(
-              loading: () => const Center(
-                child: CircularProgressIndicator(
-                  color: DauVietColors.cinnabarRed,
-                ),
-              ),
-              error: (err, stack) => Center(
-                child: Padding(
-                  padding: const EdgeInsets.all(24),
-                  child: Column(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      const Icon(
-                        Icons.cloud_off_rounded,
-                        size: 48,
-                        color: DauVietColors.inkMuted,
-                      ),
-                      const SizedBox(height: 12),
+                      const SizedBox(height: 8),
                       Text(
-                        'Không thể tải dữ liệu Túi đồ',
-                        style: DauVietTypography.bodyMedium.copyWith(
-                          fontWeight: FontWeight.bold,
+                        'Kích thước: $footprintLabel',
+                        style: DauVietTypography.bodySmall.copyWith(
+                          fontSize: 12,
+                          fontWeight: FontWeight.w700,
+                          color: const Color(0xFF3E2D20),
                         ),
                       ),
-                      const SizedBox(height: 16),
-                      Tactile3DButton(
-                        label: 'THỬ LẠI',
-                        variant: Tactile3DVariant.secondaryParchment,
-                        onPressed: () {
-                          ref.invalidate(inventoryCatalogProvider);
-                          ref.invalidate(inventoryItemsProvider);
-                        },
-                      ),
-                    ],
-                  ),
-                ),
-              ),
-              data: (catalog) {
-                final filteredItems = _filterItems(catalog, placedItemIds);
-
-                if (filteredItems.isEmpty) {
-                  final hasAnyOwnedPlaceable = catalog.any(
-                    (it) => it.owned && it.placeable,
-                  );
-                  return Center(
-                    child: SingleChildScrollView(
-                      padding: const EdgeInsets.all(24),
-                      child: Column(
-                        mainAxisSize: MainAxisSize.min,
+                      const SizedBox(height: 6),
+                      Row(
                         children: [
                           const Icon(
-                            Icons.inventory_2_outlined,
-                            size: 48,
-                            color: DauVietColors.inkMuted,
+                            Icons.stars_rounded,
+                            color: Color(0xFFE6A117),
+                            size: 19,
                           ),
-                          const SizedBox(height: 10),
+                          const SizedBox(width: 4),
                           Text(
-                            hasAnyOwnedPlaceable
-                                ? _emptyMessage()
-                                : 'Kho của bạn hiện chưa có vật phẩm trang trí nào.',
-                            textAlign: TextAlign.center,
+                            '$points',
                             style: DauVietTypography.bodyMedium.copyWith(
-                              color: DauVietColors.inkText,
-                              fontWeight: FontWeight.bold,
+                              fontSize: 13.5,
+                              fontWeight: FontWeight.w800,
+                              color: const Color(0xFF3E2D20),
                             ),
-                          ),
-                          const SizedBox(height: 6),
-                          Text(
-                            hasAnyOwnedPlaceable
-                                ? 'Bạn có thể đổi bộ lọc hoặc ghé Cửa Hàng Di Sản để sưu tầm thêm.'
-                                : 'Hãy dùng Điểm Sử Ký mua vật phẩm tại Cửa Hàng Di Sản hoặc hoàn thành bài học lịch sử để nhận phần thưởng.',
-                            textAlign: TextAlign.center,
-                            style: DauVietTypography.bodySmall.copyWith(
-                              color: DauVietColors.inkMuted,
-                              height: 1.35,
-                            ),
-                          ),
-                          const SizedBox(height: 16),
-                          Wrap(
-                            spacing: 10,
-                            runSpacing: 10,
-                            alignment: WrapAlignment.center,
-                            children: [
-                              SizedBox(
-                                width: 170,
-                                child: Tactile3DButton(
-                                  label: 'ĐẾN CỬA HÀNG',
-                                  height: 38,
-                                  icon: Icons.storefront_rounded,
-                                  variant: Tactile3DVariant.primaryCinnabar,
-                                  onPressed: () {
-                                    Navigator.of(context).pop();
-                                    context.push('/island/shop');
-                                  },
-                                ),
-                              ),
-                              SizedBox(
-                                width: 170,
-                                child: Tactile3DButton(
-                                  label: 'HÀNH TRÌNH HỌC',
-                                  height: 38,
-                                  icon: Icons.school_rounded,
-                                  variant: Tactile3DVariant.secondaryParchment,
-                                  onPressed: () {
-                                    Navigator.of(context).pop();
-                                    context.go('/dashboard');
-                                  },
-                                ),
-                              ),
-                            ],
                           ),
                         ],
                       ),
-                    ),
-                  );
-                }
-
-                return GridView.builder(
-                  padding: const EdgeInsets.fromLTRB(16, 8, 16, 24),
-                  gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-                    crossAxisCount: 2,
-                    crossAxisSpacing: 12,
-                    mainAxisSpacing: 12,
-                    childAspectRatio: 0.76,
+                    ],
                   ),
-                  itemCount: filteredItems.length,
-                  itemBuilder: (context, index) {
-                    final item = filteredItems[index];
-                    final isPlaced =
-                        placedItemIds.contains(item.itemId) ||
-                        item.placedSlotId != null;
-                    final isCurrentSlotItem =
-                        widget.targetSlot.placement?.itemId == item.itemId;
-
-                    return _buildItemCard(
-                      item: item,
-                      isPlaced: isPlaced,
-                      isCurrentSlotItem: isCurrentSlotItem,
-                    );
-                  },
-                );
-              },
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildFilterChip(String label, _InventoryFilter filter) {
-    final isSelected = _selectedFilter == filter;
-    return ChoiceChip(
-      label: Text(label),
-      selected: isSelected,
-      onSelected: (selected) {
-        if (selected) setState(() => _selectedFilter = filter);
-      },
-      selectedColor: DauVietColors.heritageGreen,
-      backgroundColor: DauVietColors.parchmentContainer,
-      labelStyle: DauVietTypography.bodySmall.copyWith(
-        fontWeight: FontWeight.bold,
-        color: isSelected ? Colors.white : DauVietColors.inkText,
-      ),
-      side: BorderSide(
-        color: isSelected
-            ? DauVietColors.heritageGreen
-            : DauVietColors.outlineVariant,
-      ),
-    );
-  }
-
-  Widget _buildTypeChip(String label, _TypeFilter typeFilter) {
-    final isSelected = _selectedTypeFilter == typeFilter;
-    return ChoiceChip(
-      label: Text(label),
-      selected: isSelected,
-      onSelected: (selected) {
-        if (selected) setState(() => _selectedTypeFilter = typeFilter);
-      },
-      selectedColor: DauVietColors.woodBrown,
-      backgroundColor: DauVietColors.parchmentContainer,
-      labelStyle: DauVietTypography.bodySmall.copyWith(
-        fontSize: 11,
-        fontWeight: FontWeight.bold,
-        color: isSelected ? Colors.white : DauVietColors.inkText,
-      ),
-      side: BorderSide(
-        color: isSelected
-            ? DauVietColors.woodBrown
-            : DauVietColors.outlineVariant,
-      ),
-    );
-  }
-
-  bool _isAllowedInTargetSlot(CatalogItemDto item) {
-    final allowed = widget.targetSlot.allowedCategories
-        .map((c) => c.trim().toUpperCase())
-        .where((c) => c.isNotEmpty)
-        .toSet();
-    if (allowed.isEmpty) return true;
-    final cat = item.category.trim().toUpperCase();
-    final type = item.itemType.trim().toUpperCase();
-    return allowed.contains(cat) || allowed.contains(type);
-  }
-
-  List<CatalogItemDto> _filterItems(
-    List<CatalogItemDto> catalog,
-    Set<String> placedItemIds,
-  ) {
-    final byType = catalog.where((item) {
-      switch (_selectedTypeFilter) {
-        case _TypeFilter.all:
-          return item.placeable ||
-              item.category.toUpperCase() == 'DECOR' ||
-              item.itemType.toUpperCase() == 'DECOR' ||
-              item.itemType.toUpperCase() == 'HISTORICAL_REPLICA';
-        case _TypeFilter.decor:
-          return item.category.toUpperCase() == 'DECOR' ||
-              item.itemType.toUpperCase() == 'DECOR';
-        case _TypeFilter.replica:
-          return item.itemType.toUpperCase() == 'HISTORICAL_REPLICA';
-      }
-    }).toList();
-
-    return byType.where((item) {
-      final isPlaced =
-          placedItemIds.contains(item.itemId) || item.placedSlotId != null;
-
-      switch (_selectedFilter) {
-        case _InventoryFilter.placeable:
-          return item.owned && item.placeable && !isPlaced;
-        case _InventoryFilter.unplaced:
-          return item.owned && !isPlaced;
-        case _InventoryFilter.placed:
-          return item.owned && isPlaced;
-        case _InventoryFilter.owned:
-          return item.owned;
-        case _InventoryFilter.all:
-          return true;
-      }
-    }).toList();
-  }
-
-  String _emptyMessage() {
-    switch (_selectedFilter) {
-      case _InventoryFilter.placed:
-        return 'Chưa có vật phẩm nào đang đặt trên đảo.';
-      case _InventoryFilter.placeable:
-      case _InventoryFilter.unplaced:
-        return 'Không còn vật phẩm trang trí rảnh rỗi trong kho. Bạn có thể ghé Cửa Hàng Di Sản để mua thêm!';
-      case _InventoryFilter.owned:
-      case _InventoryFilter.all:
-        return 'Bạn chưa sở hữu vật phẩm trang trí nào phù hợp. Hãy ghé Cửa Hàng Di Sản nhé!';
-    }
-  }
-
-  Widget _buildNeutralArtwork(CatalogItemDto item) {
-    final key = (item.renderKey ?? item.code).toLowerCase();
-    IconData icon = Icons.temple_buddhist_rounded;
-    if (key.contains('tre') || key.contains('cay')) {
-      icon = Icons.park_rounded;
-    } else if (key.contains('gieng') || key.contains('sen')) {
-      icon = Icons.water_drop_rounded;
-    } else if (key.contains('den_long')) {
-      icon = Icons.light_rounded;
-    } else if (key.contains('thuyen') || key.contains('cau')) {
-      icon = Icons.sailing_rounded;
-    } else if (key.contains('thap') || key.contains('khue_van')) {
-      icon = Icons.account_balance_rounded;
-    }
-
-    return Container(
-      width: 64,
-      height: 64,
-      decoration: BoxDecoration(
-        color: DauVietColors.parchmentSurface,
-        borderRadius: BorderRadius.circular(14),
-        border: Border.all(color: DauVietColors.outlineVariant),
-      ),
-      child: Icon(icon, size: 36, color: DauVietColors.woodBrown),
-    );
-  }
-
-  Widget _buildItemCard({
-    required CatalogItemDto item,
-    required bool isPlaced,
-    required bool isCurrentSlotItem,
-  }) {
-    final assetPath = resolveIslandAsset(item.renderKey, item.code, item.assetId);
-    final remoteUrl =
-        resolveIslandRemoteAssetUrl(item.assetId) ??
-        resolveIslandRemoteAssetUrl(item.renderKey);
-    final bool isAllowedCategory = _isAllowedInTargetSlot(item);
-    final bool slotIsEmpty = widget.targetSlot.isEmpty;
-    final bool canPlaceHere =
-        slotIsEmpty &&
-        item.owned &&
-        item.placeable &&
-        !isPlaced &&
-        isAllowedCategory;
-
-    String buttonLabel = 'ĐẶT';
-    if (isCurrentSlotItem) {
-      buttonLabel = 'ĐANG Ở Ô NÀY';
-    } else if (!slotIsEmpty) {
-      buttonLabel = 'Ô ĐANG CÓ ĐỒ';
-    } else if (isPlaced) {
-      buttonLabel = 'ĐÃ ĐẶT Ô KHÁC';
-    } else if (!item.placeable) {
-      buttonLabel = 'KHÔNG ĐẶT ĐƯỢC';
-    } else if (!isAllowedCategory) {
-      buttonLabel = 'KHÁC NHÓM Ô';
-    }
-
-    return Container(
-      padding: const EdgeInsets.all(12),
-      decoration: BoxDecoration(
-        color: DauVietColors.parchmentContainer,
-        borderRadius: BorderRadius.circular(16),
-        border: Border.all(
-          color: isCurrentSlotItem
-              ? DauVietColors.cinnabarRed
-              : DauVietColors.outlineVariant,
-          width: isCurrentSlotItem ? 2 : 1,
-        ),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.stretch,
-        children: [
-          // Ảnh vật phẩm hoặc biểu tượng di sản trung tính
-          Expanded(
-            child: Stack(
-              alignment: Alignment.center,
-              children: [
-                if (assetPath != null)
-                  Image.asset(
-                    assetPath,
-                    fit: BoxFit.contain,
-                    errorBuilder: (context, error, stackTrace) =>
-                        remoteUrl != null
-                        ? Image.network(
-                            remoteUrl,
-                            headers: islandAuthHeaders(remoteUrl),
-                            fit: BoxFit.contain,
-                            errorBuilder: (context, error, stackTrace) =>
-                                _buildNeutralArtwork(item),
-                          )
-                        : _buildNeutralArtwork(item),
-                  )
-                else if (remoteUrl != null)
-                  Image.network(
-                    remoteUrl,
-                    headers: islandAuthHeaders(remoteUrl),
-                    fit: BoxFit.contain,
-                    errorBuilder: (context, error, stackTrace) =>
-                        _buildNeutralArtwork(item),
-                  )
-                else
-                  _buildNeutralArtwork(item),
-                if (!item.owned)
-                  Container(
-                    decoration: BoxDecoration(
-                      color: Colors.black45,
-                      borderRadius: BorderRadius.circular(12),
-                    ),
-                    child: const Center(
-                      child: Icon(
-                        Icons.lock_rounded,
-                        color: Colors.white,
-                        size: 28,
-                      ),
-                    ),
-                  ),
-                if (isPlaced)
-                  Positioned(
-                    top: 0,
-                    right: 0,
-                    child: Container(
-                      padding: const EdgeInsets.symmetric(
-                        horizontal: 6,
-                        vertical: 2,
-                      ),
-                      decoration: BoxDecoration(
-                        color: isCurrentSlotItem
-                            ? DauVietColors.cinnabarRed
-                            : DauVietColors.woodBrown,
-                        borderRadius: BorderRadius.circular(8),
-                      ),
-                      child: Text(
-                        isCurrentSlotItem ? 'Ô hiện tại' : 'Đang đặt',
-                        style: DauVietTypography.bodySmall.copyWith(
-                          fontSize: 9,
-                          color: Colors.white,
-                          fontWeight: FontWeight.bold,
-                        ),
-                      ),
-                    ),
-                  ),
+                ),
               ],
             ),
-          ),
-          const SizedBox(height: 6),
-
-          // Tên vật phẩm
-          Text(
-            item.name,
-            maxLines: 1,
-            overflow: TextOverflow.ellipsis,
-            style: DauVietTypography.bodyMedium.copyWith(
-              fontSize: 12,
-              fontWeight: FontWeight.bold,
-              color: DauVietColors.inkText,
+            const SizedBox(height: 18),
+            SizedBox(
+              height: 46,
+              child: ElevatedButton(
+                onPressed: onPlaceOnIsland,
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: const Color(0xFF1A5642),
+                  foregroundColor: Colors.white,
+                  elevation: 0,
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(23),
+                  ),
+                ),
+                child: Text(
+                  'Đặt lên đảo',
+                  style: DauVietTypography.bodyMedium.copyWith(
+                    color: Colors.white,
+                    fontWeight: FontWeight.w800,
+                    fontSize: 14,
+                  ),
+                ),
+              ),
             ),
-          ),
-          const SizedBox(height: 2),
-          Text(
-            item.owned
-                ? (item.placeable ? 'Có thể trang trí' : 'Vật phẩm sưu tầm')
-                : 'Chưa sở hữu',
-            style: DauVietTypography.bodySmall.copyWith(
-              fontSize: 10,
-              color: item.owned
-                  ? DauVietColors.natureGreen
-                  : DauVietColors.inkMuted,
-            ),
-          ),
-          const SizedBox(height: 8),
-
-          // Nút đặt (chỉ kích hoạt khi owned && placeable && !isPlaced && isAllowedCategory)
-          SizedBox(
-            height: 34,
-            child: item.owned
-                ? Tactile3DButton(
-                    label: buttonLabel,
-                    height: 34,
-                    depth: 2,
-                    variant: canPlaceHere
-                        ? Tactile3DVariant.heritageGreen
-                        : Tactile3DVariant.secondaryParchment,
-                    onPressed: canPlaceHere
-                        ? () {
-                            Navigator.of(context).pop();
-                            widget.onSelectItem(item.itemId);
-                          }
-                        : null,
-                  )
-                : const SizedBox.shrink(),
-          ),
-        ],
+          ],
+        ),
       ),
     );
   }
