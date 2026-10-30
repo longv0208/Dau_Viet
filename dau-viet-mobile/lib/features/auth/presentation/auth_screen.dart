@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
@@ -29,9 +31,21 @@ class _AuthScreenState extends ConsumerState<AuthScreen> {
   bool _obscure = true;
   bool _loading = false;
   String? _error;
+  StreamSubscription<GoogleSignInCredentials>? _googleCredentialsSub;
+
+  @override
+  void initState() {
+    super.initState();
+    // Web: GIS renderButton pushes credentials through the gateway stream.
+    _googleCredentialsSub = ref
+        .read(googleSignInGatewayProvider)
+        .credentialsStream
+        .listen(_onGoogleCredentials);
+  }
 
   @override
   void dispose() {
+    _googleCredentialsSub?.cancel();
     _emailCtrl.dispose();
     _passwordCtrl.dispose();
     super.dispose();
@@ -62,20 +76,12 @@ class _AuthScreenState extends ConsumerState<AuthScreen> {
       if (mounted) setState(() => _loading = false);
     }
   }
-
-  Future<void> _loginWithGoogle() async {
+  Future<void> _onGoogleCredentials(GoogleSignInCredentials credentials) async {
     setState(() {
       _loading = true;
       _error = null;
     });
     try {
-      final credentials =
-          await ref.read(googleSignInGatewayProvider).signIn();
-      if (credentials == null) {
-        // Người dùng huỷ chọn tài khoản — không phải lỗi.
-        return;
-      }
-      // Flutter Web: plugin trả accessToken (idToken null); mobile: idToken.
       await ref
           .read(authSessionProvider.notifier)
           .loginWithGoogle(
@@ -89,6 +95,47 @@ class _AuthScreenState extends ConsumerState<AuthScreen> {
       } else {
         setState(() => _error = 'Đăng nhập Google chưa thành công, thử lại.');
       }
+    } on ApiException catch (e) {
+      await ref.read(googleSignInGatewayProvider).signOut();
+      if (!mounted) return;
+      setState(() => _error = _mapGoogleError(e));
+    } catch (_) {
+      if (!mounted) return;
+      setState(() => _error = 'Không kết nối được Google, thử lại sau.');
+    } finally {
+      if (mounted) setState(() => _loading = false);
+    }
+  }
+
+  Future<void> _loginWithGoogle() async {
+    setState(() {
+      _loading = true;
+      _error = null;
+    });
+    try {
+      final credentials =
+          await ref.read(googleSignInGatewayProvider).signIn();
+      if (credentials == null) {
+        // Người dùng huỷ chọn tài khoản — không phải lỗi.
+        return;
+      }
+      await ref
+          .read(authSessionProvider.notifier)
+          .loginWithGoogle(
+            idToken: credentials.idToken,
+            accessToken: credentials.accessToken,
+          );
+      if (!mounted) return;
+      final session = ref.read(authSessionProvider);
+      if (session.isAuthenticated) {
+        context.go('/dashboard');
+      } else {
+        setState(() => _error = 'Đăng nhập Google chưa thành công, thử lại.');
+      }
+    } on UnsupportedError {
+      // Web path — button is rendered by buildSignInButton, nothing to do.
+      if (!mounted) return;
+      setState(() => _error = 'Dùng nút Google bên dưới để đăng nhập.');
     } on GoogleSignInNotConfiguredException catch (e) {
       if (!mounted) return;
       setState(() => _error = e.message);
@@ -458,22 +505,7 @@ class _AuthScreenState extends ConsumerState<AuthScreen> {
               ],
             ),
             const SizedBox(height: 14),
-            OutlinedButton.icon(
-              onPressed: _loading ? null : _loginWithGoogle,
-              icon: const Icon(Icons.g_mobiledata_rounded, size: 28),
-              label: const Text('Tiếp tục với Google'),
-              style: OutlinedButton.styleFrom(
-                minimumSize: const Size.fromHeight(50),
-                side: const BorderSide(color: Color(0xFFD9D2C2)),
-                foregroundColor: DauVietColors.inkText,
-                textStyle: DauVietTypography.labelLarge.copyWith(
-                  fontWeight: FontWeight.w700,
-                ),
-                shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(14),
-                ),
-              ),
-            ),
+            _buildGoogleSignInButton(),
             // Chế độ Khách (demo) nếu được phép
             if (allowGuest) ...[
               const SizedBox(height: 14),
@@ -527,6 +559,35 @@ class _AuthScreenState extends ConsumerState<AuthScreen> {
               ),
             ),
           ],
+        ),
+      ),
+    );
+  }
+
+  /// Nút Google: web render bằng GIS `renderButton` (trả idToken qua
+  /// credentialsStream, không cần People API); mobile giữ OutlinedButton
+  /// custom gọi `_loginWithGoogle`.
+  Widget _buildGoogleSignInButton() {
+    final webButton = ref
+        .read(googleSignInGatewayProvider)
+        .buildSignInButton(
+          onError: (e) => setState(
+              () => _error = 'Không khởi tạo được Google Sign-In: $e'),
+        );
+    if (webButton != null) return webButton;
+    return OutlinedButton.icon(
+      onPressed: _loading ? null : _loginWithGoogle,
+      icon: const Icon(Icons.g_mobiledata_rounded, size: 28),
+      label: const Text('Tiếp tục với Google'),
+      style: OutlinedButton.styleFrom(
+        minimumSize: const Size.fromHeight(50),
+        side: const BorderSide(color: Color(0xFFD9D2C2)),
+        foregroundColor: DauVietColors.inkText,
+        textStyle: DauVietTypography.labelLarge.copyWith(
+          fontWeight: FontWeight.w700,
+        ),
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(14),
         ),
       ),
     );

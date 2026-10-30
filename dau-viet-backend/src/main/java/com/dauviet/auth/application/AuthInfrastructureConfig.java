@@ -27,4 +27,17 @@ public class AuthInfrastructureConfig {
                 .setAudience(props.getClientIds())
                 .build();
     }
+
+    /**
+     * Google credential checker (Issue #41). Moved here from a @Component
+     * because @ConditionalOnBean on a component class can't see beans from
+     * @Configuration classes (registered later) — the component always
+     * registered without its dependency and failed instantiation.
+     */
+    @Bean
+    @Conditional(GoogleClientIdsConfiguredCondition.class)
+    public GoogleTokenVerifier googleTokenVerifier(GoogleIdTokenVerifier verifier,
+                                                   GoogleAuthProperties props) {
+        return new GoogleTokenVerifierImpl(verifier, props);
+    }
 }

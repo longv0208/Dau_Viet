@@ -46,6 +46,8 @@ dependencies:
   crypto: ^3.0.5
   rive: ^0.14.11
   google_sign_in: ^6.2.2
+  google_sign_in_platform_interface: ^2.5.0
+  google_sign_in_web: ^0.12.4
 
 dev_dependencies:
   flutter_test:

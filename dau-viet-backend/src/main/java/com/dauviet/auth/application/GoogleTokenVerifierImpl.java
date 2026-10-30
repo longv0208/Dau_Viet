@@ -14,8 +14,6 @@ import java.util.Map;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-import org.springframework.boot.autoconfigure.condition.ConditionalOnBean;
-import org.springframework.stereotype.Component;
 
 import com.dauviet.auth.domain.GoogleTokenInvalidException;
 import com.google.api.client.googleapis.auth.oauth2.GoogleIdToken;
@@ -32,9 +30,11 @@ import com.google.api.client.json.gson.GsonFactory;
  *    token client doesn't mint an idToken.
  * We always require a present, verified email — an unverified Google email
  * must not link or create a local account.
+ *
+ * Instantiated via {@link AuthInfrastructureConfig#googleTokenVerifier} —
+ * not a scanned component — so creation is gated on the client-ids
+ * whitelist being non-empty, matching GoogleIdTokenVerifier.
  */
-@Component
-@ConditionalOnBean(GoogleIdTokenVerifier.class)
 public class GoogleTokenVerifierImpl implements GoogleTokenVerifier {
 
     private static final Logger log = LoggerFactory.getLogger(GoogleTokenVerifierImpl.class);
