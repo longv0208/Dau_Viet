@@ -1,629 +1,214 @@
-/* ==========================================================================
-   Bạch Đằng 938 — Sa bàn Tương tác & Hoạt họa Thủy chiến Lịch sử
-   Đồng bộ phong cách Di sản Dấu Việt (historydauviet.id.vn)
-   ========================================================================== */
-:root {
-  --river-ink: #3c2f22;
-  --river-ink-muted: #6e5c47;
-  --river-red: #983b28;
-  --river-red-bright: #c9462c;
-  --river-gold: #d8a23b;
-  --river-gold-light: #f6e3b4;
-  --river-jade: #285952;
-  --river-jade-light: #5c8b83;
-  --river-border: #cbb78d;
-  --river-surface: #fdf8ee;
-  --river-card: #f7f0df;
-}
-
-*, *::before, *::after {
-  box-sizing: border-box;
-}
-
+/* Bạch Đằng 938 — overlay UI trên canvas */
 html, body {
   margin: 0;
   padding: 0;
-  width: 100%;
   height: 100%;
   overflow: hidden;
   user-select: none;
   -webkit-user-select: none;
-  background: var(--river-surface);
-  color: var(--river-ink);
-  font-family: "Segoe UI", -apple-system, BlinkMacSystemFont, Roboto, "Helvetica Neue", Arial, sans-serif;
 }
-
+body {
+  background: #060a0e;
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+  color: #f7ecd5;
+}
 #dv-root {
   position: fixed;
   inset: 0;
+  overflow: hidden;
+  background: #060a0e;
+}
+#dv-stage {
+  position: absolute;
+  inset: 0;
+  display: block;
+  cursor: pointer;
+}
+
+/* ---------- Chữ & Khung tiêu đề (HUD trên) ---------- */
+.dv-hud {
+  position: absolute;
+  left: 0;
+  right: 0;
+  top: 0;
+  padding: 18px 26px 0;
+  pointer-events: none;
   display: flex;
   flex-direction: column;
-  background: radial-gradient(circle at 50% 0%, #fffdf7 0%, #f6edda 100%);
-  padding: 12px 18px;
-  gap: 10px;
-  overflow-y: auto;
-  overflow-x: hidden;
+  gap: 4px;
+  text-shadow: 0 2px 14px rgba(0, 0, 0, 0.95);
+  z-index: 10;
 }
-
-/* ---------- 1. Header Bar (Tương tự historydauviet.id.vn) ---------- */
-.tide-header {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 14px;
-  flex-wrap: wrap;
-  flex-shrink: 0;
-}
-
-.tide-header__left {
-  display: flex;
-  flex-direction: column;
-  gap: 2px;
-}
-
-.tide-eyebrow-row {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-}
-
 #dv-scene {
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+  font-size: 11px;
+  letter-spacing: 0.24em;
+  text-transform: uppercase;
+  color: #f0be52;
+  font-weight: 700;
   display: inline-flex;
   align-items: center;
   gap: 6px;
-  font-size: 10.5px;
-  font-weight: 800;
-  letter-spacing: 0.14em;
-  text-transform: uppercase;
-  color: var(--river-red);
-  background: #f3e3c6;
-  border: 1px solid #d7bc8e;
-  padding: 3px 9px;
-  border-radius: 999px;
 }
-
 #dv-scene::before {
   content: "";
+  display: inline-block;
   width: 6px;
   height: 6px;
   border-radius: 50%;
-  background: var(--river-red);
-  box-shadow: 0 0 6px var(--river-red);
+  background: #f0be52;
+  box-shadow: 0 0 8px #f0be52;
 }
-
-.tide-brand-tag {
-  font-size: 10.5px;
-  font-weight: 700;
-  letter-spacing: 0.14em;
-  color: var(--river-jade);
-  text-transform: uppercase;
-}
-
 #dv-title {
-  font-family: "Segoe UI", -apple-system, BlinkMacSystemFont, Roboto, sans-serif;
-  font-size: clamp(18px, 2vw, 23px);
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+  font-size: 28px;
+  line-height: 1.25;
   font-weight: 800;
-  color: #4f2d1e;
-  line-height: 1.22;
-  margin: 0;
+  letter-spacing: 0.01em;
+  color: #fff6e2;
+  text-shadow: 0 2px 14px rgba(0, 0, 0, 0.95), 0 0 25px rgba(240, 190, 82, 0.3);
 }
-
 #dv-sub {
-  font-size: 12.5px;
-  color: var(--river-ink-muted);
-  font-weight: 500;
-  line-height: 1.35;
-}
-
-/* ---------- Quick Toggle & Playback Controls ---------- */
-.tide-header__actions {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  flex-wrap: wrap;
-}
-
-.tide-quick-group {
-  display: inline-flex;
-  background: #efe4ce;
-  padding: 3px;
-  border-radius: 9px;
-  border: 1px solid var(--river-border);
-  gap: 4px;
-}
-
-.tide-quick-btn {
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
-  padding: 7px 11px;
-  border: 1px solid transparent;
-  border-radius: 6px;
-  background: transparent;
-  color: #5e4833;
-  font-size: 11.5px;
-  font-weight: 700;
-  cursor: pointer;
-  transition: all 0.18s ease;
-  white-space: nowrap;
-}
-
-.tide-quick-btn svg {
-  width: 14px;
-  height: 14px;
-  flex-shrink: 0;
-}
-
-.tide-quick-btn:hover {
-  background: #f9f1e1;
-  color: var(--river-red);
-}
-
-.tide-quick-btn[aria-pressed="true"] {
-  background: var(--river-red);
-  color: #fff8ec;
-  border-color: #7a2919;
-  box-shadow: 0 2px 6px rgba(152, 59, 40, 0.3);
-}
-
-.dv-ctl {
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
-}
-
-.dv-ctl button {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  gap: 6px;
-  height: 36px;
-  padding: 0 13px;
-  border: 1.5px solid #204943;
-  border-radius: 8px;
-  background: var(--river-jade);
-  color: #fff9ec;
-  font-size: 12px;
-  font-weight: 700;
-  cursor: pointer;
-  transition: all 0.18s ease;
-  box-shadow: 0 3px 8px rgba(40, 89, 82, 0.25);
-}
-
-.dv-ctl button:hover {
-  background: #1d443e;
-  transform: translateY(-1px);
-}
-
-.dv-ctl button:active {
-  transform: translateY(0);
-}
-
-#dv-replay {
-  padding: 0 10px;
-  background: #f7eedb;
-  color: #4f3926;
-  border-color: var(--river-border);
-  box-shadow: none;
-}
-
-#dv-replay:hover {
-  background: #efe0c2;
-  border-color: var(--river-red);
-  color: var(--river-red);
-}
-
-/* ---------- 2. Main Battle Stage Figure ---------- */
-.tide-battle-scene {
-  position: relative;
-  flex: 1 1 auto;
-  min-height: 290px;
-  margin: 0;
-  border: 1.5px solid #a88f61;
-  border-radius: 12px;
-  overflow: hidden;
-  background: #1d4449;
-  box-shadow: 0 10px 26px rgba(55, 42, 24, 0.18);
-  display: flex;
-  align-items: center;
-  justify-content: center;
-}
-
-#dv-stage {
-  display: block;
-  width: 100%;
-  height: 100%;
-  cursor: pointer;
-}
-
-/* Status Pill Top-Left inside Stage */
-.tide-scene-status {
-  position: absolute;
-  left: 14px;
-  top: 14px;
-  padding: 8px 13px;
-  max-width: calc(100% - 260px);
-  border: 1px solid rgba(229, 201, 139, 0.6);
-  border-radius: 8px;
-  background: rgba(34, 43, 36, 0.88);
-  backdrop-filter: blur(6px);
-  -webkit-backdrop-filter: blur(6px);
-  box-shadow: 0 4px 14px rgba(0, 0, 0, 0.3);
-  pointer-events: none;
-  z-index: 5;
-  transition: border-color 0.25s ease, background-color 0.25s ease;
-}
-
-.tide-scene-status[data-phase="ambush"] {
-  background: rgba(88, 22, 16, 0.92);
-  border-color: #f7be56;
-  box-shadow: 0 6px 20px rgba(180, 35, 20, 0.45);
-}
-
-.tide-scene-status__eyebrow {
-  display: block;
-  font-size: 9.5px;
-  letter-spacing: 0.15em;
-  color: #ebd094;
-  font-weight: 800;
-  margin-bottom: 2px;
-  text-transform: uppercase;
-}
-
-.tide-scene-status__text {
-  display: flex;
-  align-items: center;
-  gap: 7px;
-  color: #fff8ea;
-  font-size: 12px;
-  font-weight: 700;
-  line-height: 1.35;
-}
-
-.tide-status-dot {
-  width: 8px;
-  height: 8px;
-  border-radius: 50%;
-  background: #6ee7b7;
-  box-shadow: 0 0 8px #6ee7b7;
-  flex-shrink: 0;
-}
-
-.tide-scene-status[data-phase="ebb"] .tide-status-dot {
-  background: #fbbf24;
-  box-shadow: 0 0 8px #fbbf24;
-}
-
-.tide-scene-status[data-phase="ambush"] .tide-status-dot {
-  background: #ff4d4d;
-  box-shadow: 0 0 10px #ff4d4d;
-}
-
-/* Action Trigger Button on Stage */
-.tide-trap-cta {
-  position: absolute;
-  right: 14px;
-  top: 14px;
-  z-index: 6;
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
-  padding: 8px 13px;
-  border-radius: 8px;
-  border: 1.5px solid #ffd276;
-  background: linear-gradient(135deg, #b32b1d, #821910);
-  color: #fff9eb;
-  font-size: 11.5px;
-  font-weight: 800;
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+  font-size: 13px;
+  color: rgba(247, 236, 213, 0.92);
   letter-spacing: 0.02em;
-  cursor: pointer;
-  box-shadow: 0 4px 14px rgba(0, 0, 0, 0.4);
-  transition: transform 0.18s ease, box-shadow 0.18s ease;
+  font-weight: 500;
+  text-shadow: 0 1px 8px rgba(0, 0, 0, 0.9);
 }
 
-.tide-trap-cta:hover {
-  transform: translateY(-1px) scale(1.02);
-  box-shadow: 0 6px 18px rgba(179, 43, 29, 0.55);
-}
-
-/* Legend Bottom-Right on Stage */
-.tide-scene-legend {
-  position: absolute;
-  right: 14px;
-  bottom: 14px;
-  display: flex;
-  flex-wrap: wrap;
-  gap: 7px;
-  pointer-events: none;
-  z-index: 5;
-}
-
-.tide-legend-pill {
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
-  font-size: 10.5px;
-  font-weight: 700;
-  color: #fdf6e4;
-  padding: 5px 10px;
-  border-radius: 999px;
-  border: 1px solid rgba(243, 225, 180, 0.5);
-  backdrop-filter: blur(4px);
-}
-
-.tide-legend-pill--viet {
-  background: rgba(34, 83, 71, 0.88);
-}
-
-.tide-legend-pill--viet::before {
-  content: "";
-  width: 7px;
-  height: 7px;
-  border-radius: 50%;
-  background: #6ee7b7;
-}
-
-.tide-legend-pill--han {
-  background: rgba(108, 49, 31, 0.88);
-}
-
-.tide-legend-pill--han::before {
-  content: "";
-  width: 7px;
-  height: 7px;
-  border-radius: 50%;
-  background: #fca5a5;
-}
-
-.tide-legend-pill--stake {
-  background: rgba(74, 55, 35, 0.88);
-}
-
-.tide-legend-pill--stake::before {
-  content: "";
-  width: 7px;
-  height: 7px;
-  border-radius: 50%;
-  background: #fcd34d;
-}
-
-/* Caption Overlay Bottom-Left on Stage */
+/* ---------- Khung Caption dưới ---------- */
 .dv-cap-wrap {
   position: absolute;
-  left: 14px;
-  bottom: 14px;
-  max-width: min(540px, calc(100% - 430px));
-  background: rgba(20, 28, 25, 0.88);
-  border-left: 3.5px solid var(--river-gold);
-  border-radius: 0 8px 8px 0;
-  padding: 8px 13px;
-  backdrop-filter: blur(6px);
-  -webkit-backdrop-filter: blur(6px);
+  left: 0;
+  right: 0;
+  bottom: 0;
+  padding: 0 24px calc(18px + env(safe-area-inset-bottom, 0px));
   pointer-events: none;
-  z-index: 5;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  z-index: 10;
 }
-
 #dv-caption {
-  font-size: 11.8px;
-  line-height: 1.42;
-  color: #fff9ed;
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+  font-size: 15px;
+  line-height: 1.5;
+  color: #ffffff;
+  max-width: 740px;
   font-weight: 500;
+  text-shadow: 0 2px 12px rgba(0, 0, 0, 0.95);
+  background: linear-gradient(90deg, rgba(8, 14, 18, 0.82) 0%, rgba(8, 14, 18, 0.55) 85%, transparent 100%);
+  padding: 8px 16px;
+  border-left: 3.5px solid #f0be52;
+  border-radius: 0 8px 8px 0;
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
 }
-
 #dv-note {
-  margin-top: 3px;
-  font-size: 10.8px;
-  color: #f5d27b;
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+  font-size: 12px;
+  color: #f3d489;
   font-style: italic;
+  min-height: 18px;
+  letter-spacing: 0.01em;
+  text-shadow: 0 1px 8px rgba(0, 0, 0, 0.9);
+  padding-left: 4px;
 }
-
 #dv-track {
-  margin-top: 5px;
-  height: 3.5px;
-  background: rgba(255, 255, 255, 0.2);
+  height: 4px;
+  background: rgba(246, 236, 218, 0.22);
   border-radius: 3px;
   overflow: hidden;
+  backdrop-filter: blur(4px);
 }
-
 #dv-bar {
   height: 100%;
   width: 0%;
-  background: linear-gradient(90deg, #d88924, #f7c95c);
-  transition: width 0.1s linear;
+  background: linear-gradient(90deg, #d48b1c, #f0be52, #ffe7aa);
+  box-shadow: 0 0 10px rgba(240, 190, 82, 0.8);
+  border-radius: 3px;
+  transition: width 0.12s linear;
 }
 
-/* ---------- 3. Bottom Interactive Panel (3 Story Cards + Tide Slider) ---------- */
-.tide-bottom-deck {
-  display: grid;
-  grid-template-columns: 1.35fr 1fr;
-  gap: 10px;
-  flex-shrink: 0;
-}
-
-.tide-story {
-  display: grid;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
-  gap: 8px;
-}
-
-.tide-story-card {
+/* ---------- Nút Điều khiển ---------- */
+.dv-ctl {
+  position: absolute;
+  right: 22px;
+  bottom: calc(18px + env(safe-area-inset-bottom, 0px));
   display: flex;
-  flex-direction: column;
-  gap: 4px;
-  text-align: left;
-  padding: 10px 12px;
-  border: 1px solid #d7c39c;
-  background: #f8f2e4;
-  border-radius: 9px;
-  color: #5c422f;
+  gap: 12px;
+  pointer-events: auto;
+  z-index: 20;
+}
+.dv-ctl button {
+  min-width: 46px;
+  min-height: 46px;
+  border: 1.5px solid rgba(240, 190, 82, 0.45);
+  background: rgba(10, 18, 24, 0.7);
+  color: #fff2d8;
+  font-size: 19px;
+  border-radius: 12px;
   cursor: pointer;
-  transition: all 0.18s ease;
-}
-
-.tide-story-card:hover {
-  background: #f2e5ca;
-  border-color: #b06a49;
-}
-
-.tide-story-card[aria-pressed="true"] {
-  border-color: var(--river-red);
-  background: #f1dfbc;
-  box-shadow: inset 3.5px 0 0 var(--river-red), 0 3px 10px rgba(152, 59, 40, 0.12);
-}
-
-.tide-story-card__number {
-  color: var(--river-red);
-  font-size: 10.5px;
-  font-weight: 800;
-  letter-spacing: 0.06em;
-  text-transform: uppercase;
-}
-
-.tide-story-card__title {
-  font-size: 12px;
-  font-weight: 800;
-  color: #462a1b;
-  line-height: 1.3;
-}
-
-.tide-story-card__desc {
-  margin: 0;
-  color: #6e5a44;
-  font-size: 10.8px;
-  line-height: 1.42;
-}
-
-/* Tide Slider Control Box */
-.tide-control-panel {
-  border: 1px solid var(--river-border);
-  border-radius: 9px;
-  background: linear-gradient(135deg, #faf4e8, #f4ebda);
-  padding: 10px 14px;
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
   display: flex;
-  flex-direction: column;
+  align-items: center;
   justify-content: center;
-  gap: 6px;
+  transition: all 0.2s cubic-bezier(0.2, 0.8, 0.2, 1);
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.5), inset 0 1px 0 rgba(255, 255, 255, 0.15);
+}
+.dv-ctl button:hover {
+  background: rgba(20, 32, 42, 0.9);
+  border-color: #f0be52;
+  color: #ffffff;
+  transform: translateY(-2px);
+  box-shadow: 0 6px 20px rgba(240, 190, 82, 0.35);
+}
+.dv-ctl button:active {
+  transform: translateY(1px) scale(0.95);
+}
+.dv-ctl button:focus-visible {
+  outline: 2px solid #f0be52;
+  outline-offset: 3px;
 }
 
-.tide-control-panel__heading {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 8px;
-}
-
-.tide-control-panel__label {
-  display: inline-flex;
-  align-items: center;
-  gap: 7px;
-  font-family: "Segoe UI", -apple-system, BlinkMacSystemFont, Roboto, sans-serif;
-  font-size: 13.5px;
-  font-weight: 800;
-  color: #4b3121;
-}
-
-.tide-control-panel__label svg {
-  width: 18px;
-  height: 18px;
-  color: var(--river-jade);
-  flex-shrink: 0;
-}
-
-.tide-control-panel__output {
-  padding: 3px 9px;
-  background: #4b3828;
-  border-radius: 6px;
-  color: #fff3d8;
-  font-size: 12px;
-  font-weight: 800;
-  font-variant-numeric: tabular-nums;
-}
-
-.tide-controls__slider {
-  -webkit-appearance: none;
-  appearance: none;
-  width: 100%;
-  height: 20px;
-  margin: 0;
-  border: 1px solid #b9a077;
-  border-radius: 999px;
-  background: linear-gradient(
-    to right,
-    #a24930 0%,
-    #a24930 var(--tide-level, 85%),
-    #5f8c86 var(--tide-level, 85%),
-    #5f8c86 100%
-  );
-  cursor: ew-resize;
-}
-
-.tide-controls__slider::-webkit-slider-thumb {
-  -webkit-appearance: none;
-  appearance: none;
-  width: 22px;
-  height: 22px;
-  background: #753824;
-  border: 3.5px solid #fff5df;
-  outline: 1px solid #6e442c;
-  border-radius: 50%;
-  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.35);
-}
-
-.tide-control-limits {
-  display: flex;
-  justify-content: space-between;
-  font-size: 10px;
-  font-weight: 700;
-}
-
-.tide-control-limits span:first-child {
-  color: var(--river-red);
-}
-
-.tide-control-limits span:last-child {
-  color: var(--river-jade);
-}
-
-/* Error overlay */
+/* ---------- Báo Lỗi ---------- */
 #dv-error {
   position: absolute;
   inset: 0;
   display: none;
   align-items: center;
   justify-content: center;
-  background: rgba(20, 14, 12, 0.94);
-  color: #ffb4a2;
-  font-size: 15px;
-  padding: 24px;
+  background: rgba(8, 14, 18, 0.94);
+  color: #ff9b85;
+  font-size: 16px;
+  padding: 30px;
   text-align: center;
   z-index: 100;
 }
 
-@media (max-width: 960px) {
-  .tide-bottom-deck {
-    grid-template-columns: 1fr;
-  }
-  .dv-cap-wrap {
-    max-width: calc(100% - 28px);
-    bottom: 46px;
-  }
+/* ---------- Chế độ màn hình dọc (Portrait) ---------- */
+.dv-portrait #dv-title {
+  font-size: 23px;
 }
-
-@media (max-height: 560px) {
-  #dv-root {
-    padding: 6px 10px;
-    gap: 6px;
-  }
-  .tide-header__left #dv-sub {
-    display: none;
-  }
-  .tide-story-card__desc {
-    display: none;
-  }
-  .tide-story-card {
-    padding: 6px 8px;
-  }
-  .tide-control-panel {
-    padding: 6px 10px;
-  }
+.dv-portrait #dv-caption {
+  font-size: 13.5px;
+  line-height: 1.45;
+  padding: 6px 12px;
+}
+.dv-portrait .dv-hud {
+  padding: 14px 16px 0;
+}
+.dv-portrait .dv-cap-wrap {
+  padding: 0 16px calc(14px + env(safe-area-inset-bottom, 0px));
+}
+.dv-portrait .dv-ctl {
+  right: 16px;
+  bottom: calc(14px + env(safe-area-inset-bottom, 0px));
+}
+.dv-portrait .dv-ctl button {
+  min-width: 42px;
+  min-height: 42px;
+  font-size: 17px;
 }
