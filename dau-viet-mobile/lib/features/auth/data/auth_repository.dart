@@ -89,9 +89,16 @@ class AuthRepository {
     );
   }
 
-  /// Google Sign-In: idToken đã lấy từ google_sign_in SDK.
-  Future<AuthState> loginWithGoogle({required String idToken}) async {
-    final AuthTokenDto dto = await _api.loginWithGoogle(idToken: idToken);
+  /// Google Sign-In: credentials lấy từ google_sign_in SDK — idToken trên
+  /// Android/iOS, accessToken trên Flutter Web (Issue #41).
+  Future<AuthState> loginWithGoogle({
+    String? idToken,
+    String? accessToken,
+  }) async {
+    final AuthTokenDto dto = await _api.loginWithGoogle(
+      idToken: idToken,
+      accessToken: accessToken,
+    );
     await _storeTokens(dto);
     return _loadProfileAfterLogin();
   }

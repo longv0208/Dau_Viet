@@ -44,20 +44,35 @@ String _rewardSessionKey(AuthState auth) {
 final rewardSummaryProvider = FutureProvider.autoDispose<RewardSummaryDto>(
   retry: _noRetry,
   (ref) {
-    final sessionKey = _rewardSessionKey(ref.watch(authSessionProvider));
+    final auth = ref.watch(authSessionProvider);
+    final sessionKey = _rewardSessionKey(auth);
     assert(sessionKey.isNotEmpty);
+    // Chưa đăng nhập (real mode) → không bắn /me/rewards/* không có Bearer
+    // token — nguồn của 401 spam trên Console ở màn /auth (Issue #41).
+    if (!ApiConfig.useMock &&
+        (auth.status == AuthStatus.unauthenticated ||
+         auth.status == AuthStatus.guest)) {
+      return RewardSummaryDto.empty;
+    }
     final repo = ref.watch(rewardRepositoryProvider);
     if (ApiConfig.useMock) return repo.summary();
     return ref.read(authRepositoryProvider).withAuth(repo.summary);
   },
 );
 
+
 /// Catalog vật phẩm đầy đủ: metadata + owned + requirement + progress —
 /// nguồn duy nhất cho màn Túi Đồ (InventoryScreen). Session-aware.
 final inventoryCatalogProvider =
     FutureProvider.autoDispose<List<CatalogItemDto>>(retry: _noRetry, (ref) {
-      final sessionKey = _rewardSessionKey(ref.watch(authSessionProvider));
+      final auth = ref.watch(authSessionProvider);
+      final sessionKey = _rewardSessionKey(auth);
       assert(sessionKey.isNotEmpty);
+      if (!ApiConfig.useMock &&
+          (auth.status == AuthStatus.unauthenticated ||
+           auth.status == AuthStatus.guest)) {
+        return const <CatalogItemDto>[];
+      }
       final repo = ref.watch(rewardRepositoryProvider);
       if (ApiConfig.useMock) return repo.catalog();
       return ref.read(authRepositoryProvider).withAuth(repo.catalog);
@@ -67,8 +82,14 @@ final inventoryCatalogProvider =
 /// cần requirement/progress). Session-aware.
 final inventoryItemsProvider =
     FutureProvider.autoDispose<List<InventoryItemDto>>(retry: _noRetry, (ref) {
-      final sessionKey = _rewardSessionKey(ref.watch(authSessionProvider));
+      final auth = ref.watch(authSessionProvider);
+      final sessionKey = _rewardSessionKey(auth);
       assert(sessionKey.isNotEmpty);
+      if (!ApiConfig.useMock &&
+          (auth.status == AuthStatus.unauthenticated ||
+           auth.status == AuthStatus.guest)) {
+        return const <InventoryItemDto>[];
+      }
       final repo = ref.watch(rewardRepositoryProvider);
       if (ApiConfig.useMock) return repo.inventory();
       return ref.read(authRepositoryProvider).withAuth(repo.inventory);
@@ -80,8 +101,15 @@ final rewardTransactionsProvider =
     FutureProvider.autoDispose<RewardTransactionPageDto>(retry: _noRetry, (
       ref,
     ) {
-      final sessionKey = _rewardSessionKey(ref.watch(authSessionProvider));
+      final auth = ref.watch(authSessionProvider);
+      final sessionKey = _rewardSessionKey(auth);
       assert(sessionKey.isNotEmpty);
+      if (!ApiConfig.useMock &&
+          (auth.status == AuthStatus.unauthenticated ||
+           auth.status == AuthStatus.guest)) {
+        return const RewardTransactionPageDto(
+            content: [], page: 0, size: 20, totalElements: 0, totalPages: 1);
+      }
       final repo = ref.watch(rewardRepositoryProvider);
       if (ApiConfig.useMock) return repo.transactions();
       return ref

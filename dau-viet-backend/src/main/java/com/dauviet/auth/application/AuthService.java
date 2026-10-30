@@ -209,7 +209,8 @@ public class AuthService {
         if (googleTokenVerifier == null) {
             throw new FeatureDisabledException("google sign-in not configured");
         }
-        GoogleTokenVerifier.VerifiedGoogleUser g = googleTokenVerifier.verify(req.idToken());
+        GoogleTokenVerifier.VerifiedGoogleUser g =
+                googleTokenVerifier.verify(req.idToken(), req.accessToken());
 
         User user = oauthAccounts.findByProviderAndProviderSubject("GOOGLE", g.subject())
                 .map(link -> users.findById(link.getUserId()).orElse(null))

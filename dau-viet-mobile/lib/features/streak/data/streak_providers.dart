@@ -117,9 +117,23 @@ class StreakController extends AsyncNotifier<LearningStreakDto> {
     );
   }
 
+  /// State mặc định khi chưa đăng nhập — real-mode không bắn GET /me/streak
+  /// trước khi có Bearer token (401 spam ở màn /auth, Issue #41).
+  static LearningStreakDto _anonymous() => const LearningStreakDto(
+      currentStreak: 0, longestStreak: 0, completedToday: false,
+      streakAlive: false);
+
   @override
   Future<LearningStreakDto> build() async {
-    _sessionKey = _streakSessionKey(ref.watch(authSessionProvider));
+    final auth = ref.watch(authSessionProvider);
+    _sessionKey = _streakSessionKey(auth);
+    // Đã biết chắc chưa đăng nhập (unauthenticated/guest) → placeholder rỗng,
+    // KHÔNG bắn GET /me/streak không có Bearer token (401 spam, Issue #41).
+    if (!ApiConfig.useMock &&
+        (auth.status == AuthStatus.unauthenticated ||
+         auth.status == AuthStatus.guest)) {
+      return _anonymous();
+    }
     final repo = ref.watch(streakRepositoryProvider);
     final String sess = _sessionKey;
     final LearningStreakDto dto;

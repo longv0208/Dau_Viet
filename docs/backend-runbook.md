@@ -109,12 +109,16 @@ REGISTER_VERIFY challenge (202, no user yet) and emails a 6-digit code;
   `MAIL_PASSWORD` (and optionally `MAIL_SMTP_AUTH`, `MAIL_SMTP_STARTTLS`,
   `MAIL_SENDER`); with mail enabled the code is never logged anywhere.
 - **Google sign-in** — set `GOOGLE_CLIENT_IDS` to a comma-separated whitelist
-  of OAuth client ids (Android/iOS/Web). Server verifies the idToken's
-  signature, `iss`, `exp`, `aud` and `email_verified` via Google's rotating
-  certs. Empty → `/auth/google` returns `503 FEATURE_DISABLED`. Mobile passes
-  the web client id via `--dart-define=GOOGLE_SERVER_CLIENT_ID=<web-client-id>`
-  at run time (only needed when the backend whitelist is the web client id;
-  Android also accepts its own OAuth client id).
+  of OAuth client ids (Android/iOS/Web — the Web client id must be included
+  for Flutter Web sign-in). `/auth/google` accepts either `idToken`
+  (Android/iOS — signature/`iss`/`exp`/`aud`/`email_verified` verified via
+  Google's certs) **or** `accessToken` (Flutter Web — verified against
+  Google's `oauth2/v3/tokeninfo`; aud must match the whitelist and
+  `email_verified` must be true). Empty whitelist → `503 FEATURE_DISABLED`.
+  Mobile passes the web client id via `--dart-define=GOOGLE_SERVER_CLIENT_ID=<web-client-id>`
+  at run time; Flutter Web uses `--dart-define=GOOGLE_WEB_CLIENT_ID=<web-client-id>`
+  or the `google-signin-client_id` meta tag in `web/index.html`
+  (google_sign_in_web rejects `serverClientId`).
 
 Quick check:
 `curl -X POST localhost:8080/api/v1/auth/register -H "Content-Type: application/json" -d '{"email":"a@b.vn","password":"password123"}'`

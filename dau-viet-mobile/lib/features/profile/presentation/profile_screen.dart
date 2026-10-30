@@ -51,12 +51,7 @@ class ProfileScreen extends ConsumerWidget {
                 children: [
                   Padding(
                     padding: const EdgeInsets.fromLTRB(20, 12, 20, 0),
-                    child: _ProfileHeader(
-                      session: session,
-                      frameAsset: session.isAuthenticated
-                          ? 'assets/images/dv_avatar_scholar.png'
-                          : null,
-                    ),
+                    child: _ProfileHeader(session: session),
                   ),
                   Expanded(
                     child: SingleChildScrollView(
@@ -162,8 +157,7 @@ class ProfileScreen extends ConsumerWidget {
 
 class _ProfileHeader extends StatelessWidget {
   final AuthState session;
-  final String? frameAsset;
-  const _ProfileHeader({required this.session, this.frameAsset});
+  const _ProfileHeader({required this.session});
 
   String get _name {
     final UserProfileDto? p = session.profile;
@@ -192,34 +186,16 @@ class _ProfileHeader extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final Widget avatarWidget = frameAsset != null
-        ? RareFrameBadge(
-            rarity: ItemRarity.rare,
-            borderRadius: 28,
-            padding: const EdgeInsets.all(2),
-            child: ClipOval(
-              child: Image.asset(
-                frameAsset!,
-                width: 48,
-                height: 48,
-                fit: BoxFit.cover,
-                errorBuilder: (_, _, _) => StampSealBadge(
-                  _initial,
-                  size: 48,
-                  color: DauVietColors.cinnabarRed,
-                  filled: false,
-                  rotationDeg: -6,
-                ),
-              ),
-            ),
-          )
-        : StampSealBadge(
-            _initial,
-            size: 52,
-            color: DauVietColors.cinnabarRed,
-            filled: false,
-            rotationDeg: -6,
-          );
+    // Issue #41: dv_avatar_scholar.png bị 404 — dùng con dấu chữ cái đầu
+    // làm avatar cho tới khi có asset thật.
+    final Widget avatarWidget = StampSealBadge(
+      _initial,
+      size: 52,
+      color: DauVietColors.cinnabarRed,
+      filled: false,
+      rotationDeg: -6,
+    );
+
 
     return HeroPaperBanner(
       height: 140,

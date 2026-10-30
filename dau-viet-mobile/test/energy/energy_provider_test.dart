@@ -1,9 +1,17 @@
-﻿import 'package:dau_viet_mobile/features/energy/data/energy_dto.dart';
+import 'package:dau_viet_mobile/features/auth/data/auth_state.dart';
+import 'package:dau_viet_mobile/features/energy/data/energy_dto.dart';
 import 'package:dau_viet_mobile/features/energy/data/energy_providers.dart';
+import 'package:dau_viet_mobile/features/learning/data/learning_providers.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 import '../fakes/fake_energy_repository.dart';
+
+/// Notifier trả thẳng unauthenticated — bỏ qua restore/storage.
+class _UnauthSession extends AuthSessionController {
+  @override
+  AuthState build() => const AuthState.unauthenticated();
+}
 
 void main() {
   group('energyProvider', () {
@@ -192,6 +200,26 @@ void main() {
           expect(c.read(energyProvider).value?.current, 55);
         },
       );
+    });
+
+    // Issue #41 — chưa đăng nhập (unauthenticated, real mode) → provider
+    // KHÔNG gọi repository (không bắn GET /me/energy không có Bearer token).
+    test('unauthenticated session → không fetch repository (401 spam guard)',
+        () async {
+      final repo = FakeEnergyRepository();
+      final container = ProviderContainer(
+        overrides: [
+          energyRepositoryProvider.overrideWithValue(repo),
+          authSessionProvider.overrideWith(_UnauthSession.new),
+        ],
+      );
+      addTearDown(container.dispose);
+      final sub = container.listen(energyProvider, (_, _) {});
+      addTearDown(sub.close);
+
+      final dto = await container.read(energyProvider.future);
+      expect(dto.current, 0); // placeholder rỗng, KHÔNG phải repo data
+      expect(repo.calls, 0);
     });
   });
 }
