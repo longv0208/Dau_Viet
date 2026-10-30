@@ -26,7 +26,7 @@ export function StampSeal({
   return (
     <span
       className={cn(
-        "inline-flex -rotate-[8deg] items-center justify-center rounded-full border-2 p-0.5 font-pixel text-[9px] uppercase tracking-wider shadow-pixel-sm",
+        "inline-flex -rotate-[8deg] items-center justify-center rounded-full border-2 p-0.5 font-display text-[10px] font-bold uppercase tracking-widest shadow-pixel-sm",
         VARIANT_MAP[variant],
         className,
       )}

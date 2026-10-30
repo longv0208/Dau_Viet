@@ -35,7 +35,7 @@ export function AdminPingCard() {
         ) : query.isError ? (
           <div className="flex items-center justify-between gap-3">
             <div className="flex flex-col gap-1">
-              <p className="font-pixel text-2xl text-chapter">OFFLINE</p>
+              <p className="font-display text-2xl font-bold text-chapter">OFFLINE</p>
               <p className="flex items-center gap-2 text-sm font-medium text-error">
                 <XCircle className="size-4 text-brand" aria-hidden /> Máy chủ: Lỗi
               </p>
@@ -46,7 +46,7 @@ export function AdminPingCard() {
         ) : (
           <div className="flex items-center justify-between gap-3">
             <div className="flex flex-col gap-1">
-              <p className="font-pixel text-2xl text-chapter">{ok ? "ONLINE" : "WARN"}</p>
+              <p className="font-display text-2xl font-bold text-chapter">{ok ? "ONLINE" : "WARN"}</p>
               <p
                 className={
                   ok

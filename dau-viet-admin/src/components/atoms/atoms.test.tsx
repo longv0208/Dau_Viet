@@ -19,17 +19,17 @@ describe("Design System v3 Atoms & Core Components", () => {
   it("renders SectionEyebrow with color variants", () => {
     render(<SectionEyebrow color="jade">DI SẢN</SectionEyebrow>);
     const el = screen.getByText("DI SẢN");
-    expect(el).toHaveClass("border-jade", "shadow-pixel-sm");
+    expect(el).toHaveClass("border-jade", "font-sans", "shadow-pixel-sm");
   });
 
-  it("renders ChapterBadge and StampSeal", () => {
+  it("renders ChapterBadge and StampSeal with Vietnamese-capable display font", () => {
     render(
       <>
         <ChapterBadge label="01" />
         <StampSeal label="ĐÃ DUYỆT" variant="success" />
       </>,
     );
-    expect(screen.getByText("01")).toHaveClass("font-pixel", "text-chapter");
+    expect(screen.getByText("01")).toHaveClass("font-display", "text-chapter");
     expect(screen.getByText("ĐÃ DUYỆT")).toBeInTheDocument();
   });
 

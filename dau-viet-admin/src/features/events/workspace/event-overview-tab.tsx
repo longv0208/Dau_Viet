@@ -46,7 +46,7 @@ function StatCard({
       <PaperCard interactive className="flex items-center justify-between p-4">
         <div>
           <p className="text-sm text-ink-muted">{label}</p>
-          <p className="mt-1 font-pixel text-2xl text-chapter">{value === null ? "—" : value}</p>
+          <p className="mt-1 font-display text-2xl font-bold tabular-nums text-chapter">{value === null ? "—" : value}</p>
         </div>
         <Icon className={`size-7 shrink-0 ${iconColor}`} aria-hidden />
       </PaperCard>
@@ -100,11 +100,74 @@ export function EventOverviewTab({ event }: { event: AdminEventDetail }) {
 
   return (
     <div className="flex flex-col gap-6">
-      <p className="text-sm text-ink-muted">
-        Chuẩn bị tư liệu và hoạt họa cho sự kiện, sau đó tạo một hoặc nhiều bài học
-        và xuất bản từng bài khi sẵn sàng.
-      </p>
-
+      <PaperCard className="border-l-4 border-l-brand bg-surface-alt p-4">
+        <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
+          <div>
+            <p className="font-sans text-xs font-bold uppercase tracking-wider text-brand">
+              Quy trình biên tập trong Không gian Sự kiện
+            </p>
+            <p className="mt-0.5 text-sm text-ink-muted">
+              Thực hiện lần lượt 4 bước ngay trên các tab bên trên để hoàn thiện trọn vẹn sự kiện lịch sử này:
+            </p>
+          </div>
+          <Link
+            href="/learning-path"
+            className="text-xs font-semibold text-jade-dark hover:underline"
+          >
+            Đưa sự kiện lên Bản đồ Dấu Ấn →
+          </Link>
+        </div>
+        <ol className="grid gap-2.5 sm:grid-cols-2 lg:grid-cols-4">
+          <li className="rounded-md border border-border bg-surface p-3">
+            <p className="text-xs font-bold text-chapter">Bước 1 · Thông tin &amp; Địa điểm</p>
+            <p className="mt-1 text-xs text-ink-muted">
+              Khai báo thời kỳ, năm, câu hỏi trung tâm và ghim di tích.
+            </p>
+            <Link
+              href={`/events/${eventId}?tab=info`}
+              className="mt-2 inline-block text-xs font-semibold text-brand hover:underline"
+            >
+              Mở tab Thông tin &amp; địa điểm →
+            </Link>
+          </li>
+          <li className="rounded-md border border-border bg-surface p-3">
+            <p className="text-xs font-bold text-chapter">Bước 2 · Học liệu &amp; Bằng chứng</p>
+            <p className="mt-1 text-xs text-ink-muted">
+              Thêm tư liệu bằng chứng ({evidences.total ?? 0}) và cảnh hoạt họa HTML ({animations.total ?? 0}).
+            </p>
+            <Link
+              href={`/events/${eventId}?tab=hoc-lieu`}
+              className="mt-2 inline-block text-xs font-semibold text-brand hover:underline"
+            >
+              Mở tab Học liệu →
+            </Link>
+          </li>
+          <li className="rounded-md border border-border bg-surface p-3">
+            <p className="text-xs font-bold text-chapter">Bước 3 · Bài học điều tra</p>
+            <p className="mt-1 text-xs text-ink-muted">
+              Soạn hoạt động học tập ({lessons.total ?? 0} bài học), xem trước và xuất bản.
+            </p>
+            <Link
+              href={`/events/${eventId}?tab=lessons`}
+              className="mt-2 inline-block text-xs font-semibold text-brand hover:underline"
+            >
+              Mở tab Bài học →
+            </Link>
+          </li>
+          <li className="rounded-md border border-border bg-surface p-3">
+            <p className="text-xs font-bold text-chapter">Bước 4 · Gamification &amp; Hồ sơ</p>
+            <p className="mt-1 text-xs text-ink-muted">
+              Liên kết Hồ sơ lịch sử và chính sách hoàn thành sự kiện.
+            </p>
+            <Link
+              href={`/events/${eventId}?tab=gamification`}
+              className="mt-2 inline-block text-xs font-semibold text-brand hover:underline"
+            >
+              Mở tab Gamification →
+            </Link>
+          </li>
+        </ol>
+      </PaperCard>
       <div className="grid gap-3 sm:grid-cols-3">
         <StatCard
           label="Bài học"

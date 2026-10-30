@@ -25,7 +25,7 @@ export function SectionEyebrow({
   return (
     <span
       className={cn(
-        "inline-flex items-center border-2 px-2 py-0.5 font-mono text-[11px] font-bold uppercase tracking-wider shadow-pixel-sm",
+        "inline-flex items-center rounded-sm border-2 px-2.5 py-0.5 font-sans text-[11px] font-bold uppercase tracking-[0.08em] shadow-pixel-sm",
         COLOR_MAP[color],
         className,
       )}

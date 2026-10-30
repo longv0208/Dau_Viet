@@ -1,23 +1,22 @@
-# TASK-0033: Sửa Google Sign-In Flutter Web/Mobile + dọn 401/404 màn Đăng nhập
+# TASK-0033: Issue #44 — Cải tổ Giao diện & Luồng Quản trị Web Admin (`dau-viet-admin`)
 
-## Goal
+## Mục tiêu
+Giải quyết triệt để 3 vấn đề UX/UI trên `dau-viet-admin` theo [Issue #44](https://github.com/longv0208/Dau_Viet/issues/44):
+1. **Sửa lỗi font chữ tiếng Việt:** Thay thế `Press_Start_2P` (`subsets: ["latin"]`, gây lỗi nhảy font/lệch dấu tiếng Việt ở tiêu đề bảng, `StampSeal`, `ChapterBadge`) và chuẩn hóa `SectionEyebrow` sang `Be Vietnam Pro` / `Noto Serif`, bổ sung `JetBrains Mono` (`vietnamese`) cho mã kỹ thuật.
+2. **Thu gọn Sidebar theo cấu trúc Cây Cha – Con rõ ràng:** Giữ `Sự kiện` (`/events`) làm mục cha trung tâm và gom toàn bộ thành phần thuộc về Sự kiện (*Bài học, Mẫu bài học, Bằng chứng, Hoạt họa lịch sử, Hồ sơ lịch sử, Địa điểm di tích, Phiên bản*) thành **nhánh con thụt lề** ngay dưới `Sự kiện` (có đóng/mở); đưa *Cửa hàng Đảo Di Sản* làm nhánh con của *Đảo Di Sản*; kết hợp `<WorkspaceHubTabs />` và checklist tiến độ trong Event Workspace.
+3. **Bổ sung Hướng dẫn từng bước (Onboarding) & Chú thích ngữ cảnh:**
+   - Thêm **Sơ đồ Quy trình Biên tập 4 Bước (`OnboardingWorkflowCard`)** trên `/dashboard`.
+   - Thêm khung chỉ dẫn `<PageGuideBanner />` ở đầu các trang quản trị chính.
+   - Bổ sung `headerTooltip` cho `DataTable` và các liên kết hành động trực tiếp (`+ Gắn vào bài học / sự kiện →` tới `/items/[id]#unlock-rule`, `Cấu hình trên Shop →` tới `/island-shop`).
 
-Issue #41: nút "Tiếp tục với Google" báo lỗi chung trên Flutter Web (và có thể mobile) vì `serverClientId` không được hỗ trợ trên Web và Web chỉ trả `accessToken`; console spam `401` từ `/me/*` khi chưa đăng nhập; `404` asset `dv_avatar_scholar.png`.
+## Kế hoạch chi tiết
+Xem [`plans/261030-issue-44-admin-web-ux-overhaul/plan.md`](../../plans/261030-issue-44-admin-web-ux-overhaul/plan.md).
 
-## Acceptance criteria
-
-- AC-1: không truyền `serverClientId` trên `kIsWeb`; gateway trả `idToken`+`accessToken`; meta `google-signin-client_id` trong `web/index.html`.
-- AC-2: `POST /api/v1/auth/google` chấp nhận `idToken` hoặc `accessToken` (verify qua Google tokeninfo, kiểm aud + email_verified), auto create/link LEARNER, trả TokenResponse.
-- AC-3: providers `/me/*` short-circuit khi `!auth.isAuthenticated` (real mode); avatar dùng fallback thay vì asset thiếu.
-- AC-4: backend test accessToken path + mobile unit test gateway/providers.
-
-## Scope
-
-Theo `task.json`. Modules: mobile, backend. Risk: high (auth).
-
-## Plan
-
-1. Mobile: `GoogleSignInGateway` trả `({String? idToken, String? accessToken})`; `GoogleSignInGatewayImpl` dùng `clientId` trên web (`GOOGLE_WEB_CLIENT_ID`, fallback `GOOGLE_CLIENT_ID`), `serverClientId` trên mobile; thêm meta tag; `AuthApiClient`/`AuthRepository`/`AuthSessionController`/`AuthScreen` truyền cả hai field.
-2. Backend: `GoogleLoginRequest` nhận `idToken?`/`accessToken?` (ít nhất một, `@AssertTrue`); `GoogleTokenVerifier.verify(idToken, accessToken)` — idToken qua `GoogleIdTokenVerifier`, accessToken qua `GoogleAccessTokenVerifier` gọi `oauth2/v3/tokeninfo` kiểm `aud` whitelist + `email_verified`; `application-local.yml` thêm `dauviet.auth.google.client-ids` comment; `docs/backend-runbook.md` ghi GOOGLE_CLIENT_IDS.
-3. Dọn console: `energyProvider`/`streakProvider`/`rewardSummaryProvider` trả mặc định khi real-mode + `!isAuthenticated`; `refresh()` no-op khi anon; profile avatar bỏ asset thiếu → `StampSealBadge` fallback.
-4. Tests: `GoogleAuthServiceTest` + `GoogleAccessTokenVerifierTest` (tokeninfo mocked), `AuthControllerIT` nếu có pattern; mobile `google_sign_in` gateway test + provider short-circuit test.
+## Ánh xạ Kiểm chứng (AC → Check)
+| AC | Kiểm tra | Kỳ vọng |
+|---|---|---|
+| AC-1 | Kiểm tra `layout.tsx`, `data-table.tsx`, `atoms/*` + `atoms.test.tsx` + trình duyệt | Không còn `Press_Start_2P` trên văn bản tiếng Việt; chữ có dấu hiển thị đồng nhất, sắc nét |
+| AC-2 | `admin-shell.test.tsx` + kiểm tra điều hướng Tree Sidebar & `WorkspaceHubTabs` | Sidebar hiển thị rõ nhánh cha `Sự kiện` + 7 nhánh con và `Đảo Di Sản` + nhánh con `Cửa hàng`; đóng/mở mượt, không gãy route |
+| AC-3 | `dashboard-page.test.tsx` + kiểm tra `/dashboard` | Hiển thị Sơ đồ Quy trình Biên tập 4 Bước kèm nút CTA tới từng màn hình |
+| AC-4 | `items-table.test.tsx` + kiểm tra các trang chính | Có `PageGuideBanner`, tooltip giải thích cột bảng và link trực tiếp tới nơi cấu hình mở khóa |
+| AC-5 | `npx tsc --noEmit` + `npx vitest run` + smoke trình duyệt | 0 lỗi TypeScript mới, 100% test suite pass, giao diện không vỡ bố cục |
