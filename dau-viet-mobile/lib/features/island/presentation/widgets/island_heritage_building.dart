@@ -1,4 +1,3 @@
-import 'dart:math' as math;
 import 'package:flutter/material.dart';
 
 import '../../../../core/theme/dau_viet_colors.dart';
@@ -13,6 +12,7 @@ class IslandHeritageBuilding extends StatelessWidget {
   final double tileWidth;
   final double tileHeight;
   final bool flipHorizontally;
+  final bool useProportionalScale;
   final VoidCallback? onTap;
 
   const IslandHeritageBuilding({
@@ -22,6 +22,7 @@ class IslandHeritageBuilding extends StatelessWidget {
     this.tileWidth = 72.0,
     this.tileHeight = 36.0,
     this.flipHorizontally = false,
+    this.useProportionalScale = true,
     this.onTap,
   });
 
@@ -32,9 +33,12 @@ class IslandHeritageBuilding extends StatelessWidget {
     final code = placement.code.toLowerCase();
     final renderKey = (placement.renderKey ?? '').toLowerCase();
 
-    // Chiều rộng và chiều cao mô hình công trình (vươn cao theo trục Z thẳng đứng)
-    final modelW = tileWidth * 1.15;
-    final modelH = tileHeight * 2.4;
+    // Phân biệt tỷ lệ hiển thị giữa công trình lớn và vật phẩm nhỏ trên đảo (Issue #46 AC-2)
+    final visualScale = useProportionalScale
+        ? resolveIslandItemVisualScale(code, renderKey)
+        : 1.15;
+    final modelW = tileWidth * visualScale;
+    final modelH = tileHeight * (visualScale * 1.95).clamp(1.85, 2.85);
 
     return GestureDetector(
       onTap: onTap,
@@ -139,7 +143,7 @@ class IslandHeritageBuilding extends StatelessWidget {
         fit: BoxFit.contain,
         filterQuality: FilterQuality.medium,
         alignment: Alignment.bottomCenter,
-        errorBuilder: (_, __, ___) => _buildProceduralBuilding(code, renderKey, width, height),
+        errorBuilder: (_, _, _) => _buildProceduralBuilding(code, renderKey, width, height),
       );
     }
 
@@ -152,7 +156,7 @@ class IslandHeritageBuilding extends StatelessWidget {
         height: height * 0.90,
         fit: BoxFit.contain,
         alignment: Alignment.bottomCenter,
-        errorBuilder: (_, __, ___) => _buildProceduralBuilding(code, renderKey, width, height),
+        errorBuilder: (_, _, _) => _buildProceduralBuilding(code, renderKey, width, height),
       );
     }
 
@@ -183,6 +187,16 @@ class IslandHeritageBuilding extends StatelessWidget {
       return _VietnameseAncientWell(width: width, height: height * 0.75);
     } else if (token.contains('bui_tre')) {
       return _VietnameseBambooGrove(width: width, height: height * 0.85);
+    } else if (token.contains('cot_co')) {
+      return _VietnameseFlagpole(width: width, height: height * 0.92);
+    } else if (token.contains('tuong_ly_thai_to') || token.contains('tuong')) {
+      return _VietnameseLyThaiToStatue(width: width, height: height * 0.92);
+    } else if (token.contains('cay_dao')) {
+      return _VietnamesePeachBlossomTree(width: width, height: height * 0.92);
+    } else if (token.contains('thuyen')) {
+      return _VietnameseTraditionalBoat(width: width, height: height * 0.78);
+    } else if (token.contains('den_long') || token.contains('den_da')) {
+      return _VietnameseRedLanternPost(width: width, height: height * 0.86);
     }
 
     // Default: Nhà Tranh Mái Lá truyền thống
@@ -760,6 +774,333 @@ class _BambooGrovePainter extends CustomPainter {
       canvas.drawOval(Rect.fromCenter(center: Offset(w * 0.40, y), width: 12, height: 4), leafPaint);
       canvas.drawOval(Rect.fromCenter(center: Offset(w * 0.60, y), width: 12, height: 4), leafPaint);
     }
+  }
+
+  @override
+  bool shouldRepaint(covariant CustomPainter oldDelegate) => false;
+}
+
+/// Cột Cờ Truyền Thống: Bệ đá xanh bậc tam cấp, cột gỗ sơn son và đại kỳ thêu hoa văn
+class _VietnameseFlagpole extends StatelessWidget {
+  final double width;
+  final double height;
+
+  const _VietnameseFlagpole({required this.width, required this.height});
+
+  @override
+  Widget build(BuildContext context) {
+    return CustomPaint(
+      size: Size(width, height),
+      painter: _FlagpolePainter(),
+    );
+  }
+}
+
+class _FlagpolePainter extends CustomPainter {
+  @override
+  void paint(Canvas canvas, Size size) {
+    final w = size.width;
+    final h = size.height;
+
+    // Bệ đá xanh hình thoi
+    final basePath = Path()
+      ..moveTo(w * 0.28, h * 0.86)
+      ..lineTo(w * 0.50, h * 0.95)
+      ..lineTo(w * 0.72, h * 0.86)
+      ..lineTo(w * 0.50, h * 0.77)
+      ..close();
+    canvas.drawPath(basePath, Paint()..color = const Color(0xFF78909C));
+
+    // Cột cờ gỗ sơn đỏ nâu
+    canvas.drawLine(
+      Offset(w * 0.48, h * 0.84),
+      Offset(w * 0.48, h * 0.16),
+      Paint()
+        ..color = const Color(0xFF6D3B24)
+        ..strokeWidth = 3.6
+        ..strokeCap = StrokeCap.round,
+    );
+
+    // Đỉnh hồ lô vàng
+    canvas.drawCircle(
+      Offset(w * 0.48, h * 0.14),
+      3.8,
+      Paint()..color = const Color(0xFFFFCA28),
+    );
+
+    // Lá cờ hội ngũ sắc (viền vàng kim, nền đỏ chu sa, tâm xanh ngọc)
+    final flagRect = RRect.fromRectAndRadius(
+      Rect.fromLTWH(w * 0.50, h * 0.18, w * 0.34, h * 0.26),
+      const Radius.circular(3),
+    );
+    canvas.drawRRect(flagRect, Paint()..color = const Color(0xFFE0AE45));
+    final innerRed = RRect.fromRectAndRadius(
+      Rect.fromLTWH(w * 0.53, h * 0.21, w * 0.28, h * 0.20),
+      const Radius.circular(2),
+    );
+    canvas.drawRRect(innerRed, Paint()..color = const Color(0xFFC62828));
+    canvas.drawRect(
+      Rect.fromLTWH(w * 0.61, h * 0.26, w * 0.12, h * 0.10),
+      Paint()..color = const Color(0xFF247D78),
+    );
+  }
+
+  @override
+  bool shouldRepaint(covariant CustomPainter oldDelegate) => false;
+}
+
+/// Tượng Lý Thái Tổ: Đài đá chạm khắc và tượng đồng uy nghi cầm Chiếu dời đô
+class _VietnameseLyThaiToStatue extends StatelessWidget {
+  final double width;
+  final double height;
+
+  const _VietnameseLyThaiToStatue({required this.width, required this.height});
+
+  @override
+  Widget build(BuildContext context) {
+    return CustomPaint(
+      size: Size(width, height),
+      painter: _LyThaiToStatuePainter(),
+    );
+  }
+}
+
+class _LyThaiToStatuePainter extends CustomPainter {
+  @override
+  void paint(Canvas canvas, Size size) {
+    final w = size.width;
+    final h = size.height;
+
+    // Bệ đá bậc cấp
+    final plinth = Path()
+      ..moveTo(w * 0.24, h * 0.85)
+      ..lineTo(w * 0.50, h * 0.95)
+      ..lineTo(w * 0.76, h * 0.85)
+      ..lineTo(w * 0.50, h * 0.75)
+      ..close();
+    canvas.drawPath(plinth, Paint()..color = const Color(0xFF8D8273));
+
+    // Trụ đá đứng
+    canvas.drawRRect(
+      RRect.fromRectAndRadius(
+        Rect.fromLTWH(w * 0.36, h * 0.62, w * 0.28, h * 0.24),
+        const Radius.circular(4),
+      ),
+      Paint()..color = const Color(0xFFA69B8C),
+    );
+
+    // Thân tượng đồng cổ
+    final robePath = Path()
+      ..moveTo(w * 0.38, h * 0.63)
+      ..lineTo(w * 0.43, h * 0.32)
+      ..lineTo(w * 0.57, h * 0.32)
+      ..lineTo(w * 0.62, h * 0.63)
+      ..close();
+    canvas.drawPath(robePath, Paint()..color = const Color(0xFF8C6239));
+
+    // Đầu và mũ bình thiên
+    canvas.drawCircle(
+      Offset(w * 0.50, h * 0.25),
+      w * 0.065,
+      Paint()..color = const Color(0xFF9E7042),
+    );
+    canvas.drawRect(
+      Rect.fromCenter(
+        center: Offset(w * 0.50, h * 0.19),
+        width: w * 0.18,
+        height: h * 0.035,
+      ),
+      Paint()..color = const Color(0xFFD4A34A),
+    );
+
+    // Cuộn Chiếu dời đô bên tay phải
+    canvas.drawRRect(
+      RRect.fromRectAndRadius(
+        Rect.fromLTWH(w * 0.56, h * 0.38, w * 0.10, h * 0.06),
+        const Radius.circular(2),
+      ),
+      Paint()..color = const Color(0xFFFFE082),
+    );
+  }
+
+  @override
+  bool shouldRepaint(covariant CustomPainter oldDelegate) => false;
+}
+
+/// Cây Đào Cổ Thụ: Gốc gỗ nâu trầm, tán hoa đào hồng thắm mùa xuân
+class _VietnamesePeachBlossomTree extends StatelessWidget {
+  final double width;
+  final double height;
+
+  const _VietnamesePeachBlossomTree({
+    required this.width,
+    required this.height,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return CustomPaint(
+      size: Size(width, height),
+      painter: _PeachBlossomTreePainter(),
+    );
+  }
+}
+
+class _PeachBlossomTreePainter extends CustomPainter {
+  @override
+  void paint(Canvas canvas, Size size) {
+    final w = size.width;
+    final h = size.height;
+
+    final trunkPaint = Paint()
+      ..color = const Color(0xFF5D4037)
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = 5.0
+      ..strokeCap = StrokeCap.round;
+
+    final trunk = Path()
+      ..moveTo(w * 0.50, h * 0.90)
+      ..quadraticBezierTo(w * 0.46, h * 0.68, w * 0.50, h * 0.48);
+    canvas.drawPath(trunk, trunkPaint);
+
+    // Tán hoa đào hồng nhiều lớp
+    canvas.drawCircle(
+      Offset(w * 0.36, h * 0.46),
+      w * 0.19,
+      Paint()..color = const Color(0xFFF48FB1),
+    );
+    canvas.drawCircle(
+      Offset(w * 0.64, h * 0.46),
+      w * 0.19,
+      Paint()..color = const Color(0xFFF06292),
+    );
+    canvas.drawCircle(
+      Offset(w * 0.50, h * 0.32),
+      w * 0.23,
+      Paint()..color = const Color(0xFFF8BBD0),
+    );
+    canvas.drawCircle(
+      Offset(w * 0.48, h * 0.28),
+      w * 0.15,
+      Paint()..color = const Color(0xFFFCE4EC),
+    );
+  }
+
+  @override
+  bool shouldRepaint(covariant CustomPainter oldDelegate) => false;
+}
+
+/// Thuyền Gỗ Truyền Thống: Thân thuyền gỗ mũi cong mộc mạc
+class _VietnameseTraditionalBoat extends StatelessWidget {
+  final double width;
+  final double height;
+
+  const _VietnameseTraditionalBoat({
+    required this.width,
+    required this.height,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return CustomPaint(
+      size: Size(width, height),
+      painter: _TraditionalBoatPainter(),
+    );
+  }
+}
+
+class _TraditionalBoatPainter extends CustomPainter {
+  @override
+  void paint(Canvas canvas, Size size) {
+    final w = size.width;
+    final h = size.height;
+
+    final hullPath = Path()
+      ..moveTo(w * 0.14, h * 0.62)
+      ..quadraticBezierTo(w * 0.50, h * 0.92, w * 0.86, h * 0.56)
+      ..quadraticBezierTo(w * 0.52, h * 0.72, w * 0.14, h * 0.62)
+      ..close();
+    canvas.drawPath(hullPath, Paint()..color = const Color(0xFF795548));
+
+    final deckPath = Path()
+      ..moveTo(w * 0.18, h * 0.60)
+      ..quadraticBezierTo(w * 0.50, h * 0.46, w * 0.82, h * 0.54)
+      ..quadraticBezierTo(w * 0.50, h * 0.72, w * 0.18, h * 0.60)
+      ..close();
+    canvas.drawPath(deckPath, Paint()..color = const Color(0xFFA1887F));
+  }
+
+  @override
+  bool shouldRepaint(covariant CustomPainter oldDelegate) => false;
+}
+
+/// Đèn Lồng Phố Cổ: Trụ gỗ treo đèn lồng lụa đỏ rực rỡ
+class _VietnameseRedLanternPost extends StatelessWidget {
+  final double width;
+  final double height;
+
+  const _VietnameseRedLanternPost({
+    required this.width,
+    required this.height,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return CustomPaint(
+      size: Size(width, height),
+      painter: _RedLanternPostPainter(),
+    );
+  }
+}
+
+class _RedLanternPostPainter extends CustomPainter {
+  @override
+  void paint(Canvas canvas, Size size) {
+    final w = size.width;
+    final h = size.height;
+
+    // Chân trụ gỗ
+    canvas.drawLine(
+      Offset(w * 0.50, h * 0.90),
+      Offset(w * 0.50, h * 0.24),
+      Paint()
+        ..color = const Color(0xFF5D4037)
+        ..strokeWidth = 3.2
+        ..strokeCap = StrokeCap.round,
+    );
+
+    // Bầu đèn lồng lụa đỏ
+    final lanternRect = Rect.fromCenter(
+      center: Offset(w * 0.50, h * 0.44),
+      width: w * 0.38,
+      height: h * 0.30,
+    );
+    canvas.drawOval(lanternRect, Paint()..color = const Color(0xFFD32F2F));
+    canvas.drawOval(
+      Rect.fromCenter(
+        center: Offset(w * 0.50, h * 0.44),
+        width: w * 0.20,
+        height: h * 0.26,
+      ),
+      Paint()..color = const Color(0xFFFFB300).withValues(alpha: 0.65),
+    );
+
+    // Nắp và tua rua vàng
+    canvas.drawRect(
+      Rect.fromCenter(
+        center: Offset(w * 0.50, h * 0.29),
+        width: w * 0.20,
+        height: h * 0.035,
+      ),
+      Paint()..color = const Color(0xFFFFCA28),
+    );
+    canvas.drawLine(
+      Offset(w * 0.50, h * 0.59),
+      Offset(w * 0.50, h * 0.70),
+      Paint()
+        ..color = const Color(0xFFE53935)
+        ..strokeWidth = 2.2,
+    );
   }
 
   @override

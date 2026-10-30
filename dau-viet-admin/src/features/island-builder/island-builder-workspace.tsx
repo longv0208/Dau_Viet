@@ -126,10 +126,9 @@ export function IslandBuilderWorkspace({ versionId }: { versionId: string }) {
   const [pan, setPan] = useState({ x: 0, y: 0 });
   const [previewTier, setPreviewTier] = useState<number | null>(initialPreview ? 1 : null);
 
-  // Grid Dimensions
-  const [gridRowsInput, setGridRowsInput] = useState<number>(12);
-  const [gridColsInput, setGridColsInput] = useState<number>(12);
-
+  // Grid Dimensions (Issue #46: mặc định 8x8 đồng tâm 4x4 / 6x6 / 8x8)
+  const [gridRowsInput, setGridRowsInput] = useState<number>(8);
+  const [gridColsInput, setGridColsInput] = useState<number>(8);
   // Validation & Modals
   const [validationErrors, setValidationErrors] = useState<ValidationErrorDto[]>([]);
   const [validationPassed, setValidationPassed] = useState<boolean | null>(null);
@@ -147,8 +146,7 @@ export function IslandBuilderWorkspace({ versionId }: { versionId: string }) {
   useEffect(() => {
     if (versionQuery.data && !snapshot) {
       const d = versionQuery.data;
-      const board = d.board || createDefaultIsometricBoard(12, 12, 72, 36);
-
+      const board = d.board || createDefaultIsometricBoard(8, 8, 84, 42);
       setSnapshot({
         canvasWidth: d.canvasWidth || 960,
         canvasHeight: d.canvasHeight || 720,
@@ -616,18 +614,22 @@ export function IslandBuilderWorkspace({ versionId }: { versionId: string }) {
               <div>
                 <Label className="text-slate-400 block mb-2 font-semibold">Khu vực Gán (Region)</Label>
                 <div className="grid grid-cols-3 gap-1">
-                  {["TIER_1", "TIER_2", "TIER_3"].map((rc, idx) => (
+                  {[
+                    { code: "TIER_1", label: "An Lạc (T1)" },
+                    { code: "TIER_2", label: "Phồn Thịnh (T2)" },
+                    { code: "TIER_3", label: "Trường Tồn (T3)" },
+                  ].map((item) => (
                     <Button
-                      key={rc}
-                      variant={activeRegionCode === rc ? "default" : "outline"}
+                      key={item.code}
+                      variant={activeRegionCode === item.code ? "default" : "outline"}
                       size="sm"
-                      onClick={() => setActiveRegionCode(rc)}
+                      onClick={() => setActiveRegionCode(item.code)}
                       className={cn(
-                        "text-xs p-1 h-8",
-                        activeRegionCode === rc && "bg-emerald-600 hover:bg-emerald-500",
+                        "text-[11px] p-1 h-8",
+                        activeRegionCode === item.code && "bg-emerald-600 hover:bg-emerald-500",
                       )}
                     >
-                      Tier {idx + 1}
+                      {item.label}
                     </Button>
                   ))}
                 </div>
@@ -681,15 +683,19 @@ export function IslandBuilderWorkspace({ versionId }: { versionId: string }) {
             >
               Tất cả
             </Button>
-            {[1, 2, 3].map((t) => (
+            {[
+              { tier: 1, label: "Đảo An Lạc" },
+              { tier: 2, label: "Đảo Phồn Thịnh" },
+              { tier: 3, label: "Đảo Trường Tồn" },
+            ].map((item) => (
               <Button
-                key={t}
+                key={item.tier}
                 size="sm"
-                variant={previewTier === t ? "default" : "ghost"}
-                onClick={() => setPreviewTier(t)}
+                variant={previewTier === item.tier ? "default" : "ghost"}
+                onClick={() => setPreviewTier(item.tier)}
                 className="h-7 text-xs px-2.5"
               >
-                Cấp {t}
+                {item.label}
               </Button>
             ))}
           </div>

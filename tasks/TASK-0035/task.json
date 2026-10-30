@@ -1,0 +1,63 @@
+{
+  "schemaVersion": 1,
+  "id": "TASK-0035",
+  "type": "feature",
+  "risk": "high-risk",
+  "status": "done",
+  "goal": "[ISLAND][UI/UX] Issue #46 — Thiết kế lại Đảo Di Sản theo phong cách Isometric 2.5D mới (Đảo An Lạc / Phồn Thịnh / Trường Tồn, Chế độ Tham quan & Bài trí, Khay vật phẩm phân loại 5 tab & Quy hoạch lại diện tích đảo hợp lý).",
+  "owner": "claude",
+  "modules": ["backend", "mobile", "admin"],
+  "scope": [
+    "dau-viet-backend/src/main/resources/db/migration/V59__redesign_heritage_island_3_tiers.sql",
+    "dau-viet-backend/src/test/java/com/dauviet/island/IslandV51IT.java",
+    "dau-viet-mobile/lib/features/island/",
+    "dau-viet-mobile/lib/features/rewards/data/mock_reward_repository.dart",
+    "dau-viet-mobile/test/island/",
+    "dau-viet-admin/src/features/island-builder/",
+    "docs/PROJECT_OVERVIEW.md",
+    "tasks/TASK-0035/",
+    "plans/261030-issue-46-island-redesign/"
+  ],
+  "acceptanceCriteria": [
+    {
+      "id": "AC-1",
+      "text": "Giao diện 3 Cấp Đảo & Bối cảnh Isometric 2.5D: Hiển thị đúng hệ thống 3 đảo (Đảo An Lạc, Đảo Phồn Thịnh, Đảo Trường Tồn) với thanh tab có thumbnail, thẻ thông tin diện tích/trạng thái (Đang sử dụng / Mở rộng đảo), nền biển mây vịnh núi, đảo phụ phía xa, nút chuyển < > và khung thoại hướng dẫn của Rùa Kabi."
+    },
+    {
+      "id": "AC-2",
+      "text": "Quy hoạch Diện tích & Lưới Ô Hợp lý: Kích thước lưới ô của từng cấp đảo được tinh chỉnh hợp lý (4x4 / 6x6 / 8x8 đồng tâm), cân đối với kích thước màn hình điện thoại; phân biệt rõ tỷ lệ hiển thị giữa công trình lớn và vật phẩm trang trí nhỏ, đảm bảo chạm chọn chính xác và không bị rối mắt."
+    },
+    {
+      "id": "AC-3",
+      "text": "Chế độ Bài trí & Cụm Công cụ Lưu / Xoay / Xóa: Khi bài trí, hiển thị rõ lưới ô trên mặt đảo cùng 3 nút công cụ nổi bên phải (Lưu đảo, Xoay, Xóa) hoạt động mượt mà, đồng bộ với Backend."
+    },
+    {
+      "id": "AC-4",
+      "text": "Khay Vật phẩm Phân loại 5 Tab: Khay vật phẩm phía dưới có bộ lọc Tất cả, Công trình, Cây cối, Trang trí, Khác, hiển thị lưới thẻ vật phẩm 4 cột kèm hình minh họa, tên và badge số lượng đúng như thiết kế."
+    },
+    {
+      "id": "AC-5",
+      "text": "Responsive & Tests: Giao diện chạy mượt trên nhiều kích thước màn hình mobile, không bị lỗi overflow và pass bộ test liên quan."
+    }
+  ],
+  "dependencies": ["TASK-0033"],
+  "planPath": "plans/261030-issue-46-island-redesign/plan.md",
+  "evidenceRefs": [
+    "plans/261030-issue-46-island-redesign/plan.md",
+    "tasks/TASK-0035/handoff.md"
+  ],
+  "reviewRefs": [
+    "tasks/TASK-0035/handoff.md"
+  ],
+  "handoffRef": "tasks/TASK-0035/handoff.md",
+  "acEvidence": {
+    "AC-1": ["tasks/TASK-0035/handoff.md"],
+    "AC-2": ["tasks/TASK-0035/handoff.md"],
+    "AC-3": ["tasks/TASK-0035/handoff.md"],
+    "AC-4": ["tasks/TASK-0035/handoff.md"],
+    "AC-5": ["tasks/TASK-0035/handoff.md"]
+  },
+  "nextAction": "Chờ người dùng review và ủy quyền commit/push trên nhánh feat/issue-46-island-redesign.",
+  "createdAt": "2026-10-30T17:35:00+07:00",
+  "updatedAt": "2026-10-30T18:16:00+07:00"
+}

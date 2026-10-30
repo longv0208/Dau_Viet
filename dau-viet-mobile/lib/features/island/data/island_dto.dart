@@ -208,9 +208,140 @@ String _friendlyItemNameFromCode(String? code, String? renderKey) {
   if (raw.contains('thuyen_rong')) return 'Thuyền Rồng Bến Nước';
   if (raw.contains('thap_but')) return 'Tháp Bút Truyền Thống';
   if (raw.contains('khue_van')) return 'Khuê Văn Các Thu Nhỏ';
+  if (raw.contains('cot_co')) return 'Cột cờ truyền thống';
+  if (raw.contains('tuong_ly_thai_to')) return 'Tượng Lý Thái Tổ';
+  if (raw.contains('cay_dao')) return 'Cây đào cổ thụ';
   return code ?? 'Vật phẩm di sản';
 }
 
+/// 5 danh mục phân loại trong Khay Vật Phẩm Đảo Di Sản (Issue #46 AC-4).
+enum IslandInventoryCategory {
+  all('Tất cả'),
+  building('Công trình'),
+  tree('Cây cối'),
+  decoration('Trang trí'),
+  other('Khác');
+
+  final String labelVi;
+  const IslandInventoryCategory(this.labelVi);
+}
+
+/// Phân loại vật phẩm vào 1 trong 4 nhóm (Công trình, Cây cối, Trang trí, Khác).
+IslandInventoryCategory resolveIslandItemCategory({
+  String? code,
+  String? renderKey,
+  String? category,
+  String? itemType,
+}) {
+  final token =
+      '${code ?? ''} ${renderKey ?? ''} ${category ?? ''} ${itemType ?? ''}'
+          .toLowerCase();
+  if (token.contains('dinh_lang') ||
+      token.contains('nha_dinh') ||
+      token.contains('nha_tranh') ||
+      token.contains('cau_kieu') ||
+      token.contains('cong_lang') ||
+      token.contains('khue_van') ||
+      token.contains('thap_but') ||
+      token.contains('thanh_nha_ho') ||
+      token.contains('chua_my_son') ||
+      token.contains('co_loa') ||
+      token.contains('pho_hoi_an') ||
+      token.contains('building')) {
+    return IslandInventoryCategory.building;
+  }
+  if (token.contains('cay_da') ||
+      token.contains('cay_dao') ||
+      token.contains('bui_tre') ||
+      token.contains('ho_sen') ||
+      token.contains('tree') ||
+      token.contains('plant')) {
+    return IslandInventoryCategory.tree;
+  }
+  if (token.contains('gieng_co') ||
+      token.contains('cot_co') ||
+      token.contains('den_long') ||
+      token.contains('den_da') ||
+      token.contains('tuong_ly_thai_to') ||
+      token.contains('tuong') ||
+      token.contains('decoration')) {
+    return IslandInventoryCategory.decoration;
+  }
+  return IslandInventoryCategory.other;
+}
+
+/// Tỷ lệ kích thước hiển thị (footprint scale) trên mặt đảo:
+/// Công trình lớn > Cây cối / tiểu cảnh vừa > Vật phẩm trang trí nhỏ (Issue #46 AC-2).
+double resolveIslandItemVisualScale(String? code, String? renderKey) {
+  final token = '${code ?? ''} ${renderKey ?? ''}'.toLowerCase();
+  if (token.contains('dinh_lang') ||
+      token.contains('nha_dinh') ||
+      token.contains('khue_van') ||
+      token.contains('thap_but') ||
+      token.contains('cong_lang') ||
+      token.contains('nha_tranh') ||
+      token.contains('thanh_nha_ho') ||
+      token.contains('chua_my_son') ||
+      token.contains('co_loa') ||
+      token.contains('pho_hoi_an')) {
+    return 1.46;
+  }
+  if (token.contains('cay_da') ||
+      token.contains('cay_dao') ||
+      token.contains('bui_tre') ||
+      token.contains('ho_sen') ||
+      token.contains('cau_kieu') ||
+      token.contains('thuyen')) {
+    return 1.22;
+  }
+  if (token.contains('gieng_co') ||
+      token.contains('cot_co') ||
+      token.contains('den_long') ||
+      token.contains('den_da') ||
+      token.contains('tuong_ly_thai_to') ||
+      token.contains('trong_dong') ||
+      token.contains('coc_bach_dang')) {
+    return 0.96;
+  }
+  return 1.15;
+}
+
+/// Tên rút gọn hiển thị trên thẻ vuông 4 cột của Khay Vật Phẩm (Issue #46 AC-4).
+String shortIslandItemDisplayName(
+  String rawName,
+  String? code,
+  String? renderKey,
+) {
+  final token = '${code ?? ''} ${renderKey ?? ''} $rawName'.toLowerCase();
+  if (token.contains('dinh_lang') || token.contains('nha_dinh')) {
+    return 'Nhà đình';
+  }
+  if (token.contains('cay_da')) return 'Cây đa';
+  if (token.contains('gieng_co')) return 'Giếng cổ';
+  if (token.contains('cot_co')) return 'Cột cờ';
+  if (token.contains('thuyen_rong') || token.contains('thuyen')) {
+    return 'Thuyền';
+  }
+  if (token.contains('tuong_ly_thai_to')) return 'Tượng Lý Thái Tổ';
+  if (token.contains('cay_dao')) return 'Cây đào';
+  if (token.contains('den_long') || token.contains('den_da')) {
+    return 'Đèn lồng';
+  }
+  if (token.contains('nha_tranh')) return 'Nhà tranh';
+  if (token.contains('cau_kieu')) return 'Cầu kiều';
+  if (token.contains('ho_sen')) return 'Hồ sen';
+  if (token.contains('bui_tre')) return 'Bụi tre';
+  if (token.contains('cong_lang')) return 'Cổng làng';
+  if (token.contains('khue_van')) return 'Khuê Văn Các';
+  if (token.contains('thap_but')) return 'Tháp Bút';
+  if (token.contains('trong_dong')) return 'Trống đồng';
+  if (token.contains('coc_bach_dang')) return 'Cọc Bạch Đằng';
+  if (token.contains('thanh_nha_ho')) return 'Thành nhà Hồ';
+  if (token.contains('chua_my_son')) return 'Tháp Mỹ Sơn';
+  if (token.contains('co_loa')) return 'Thành Cổ Loa';
+  if (token.contains('pho_hoi_an')) return 'Phố Hội An';
+  return rawName;
+}
 /// Thông tin vật phẩm đặt trên một slot của đảo.
 @immutable
 class IslandPlacementDto {
@@ -566,28 +697,28 @@ class IslandBoardDto {
   }
 
   /// Tổng hợp bản đồ isometric tự nhiên liên kết chặt chẽ với danh sách slots và regions
+  /// Tổng hợp bản đồ isometric đồng tâm 8x8 liên kết chặt chẽ với danh sách slots và regions (Issue #46)
   static IslandBoardDto buildDefaultBoard({
     required List<IslandSlotDto> slots,
     required List<IslandLayoutRegionDto> regions,
-    int rows = 12,
-    int cols = 12,
-    double tileWidth = 72.0,
-    double tileHeight = 36.0,
+    int rows = 8,
+    int cols = 8,
+    double tileWidth = 84.0,
+    double tileHeight = 42.0,
   }) {
     final List<IslandTileDto> generatedTiles = [];
-    final centerR = (rows - 1) / 2.0;
-    final centerC = (cols - 1) / 2.0;
 
-    // Bản đồ vị trí slot: gán slot vào vị trí lưới
     final Map<String, (int row, int col)> slotToCoord = {};
     for (int i = 0; i < slots.length; i++) {
       final s = slots[i];
       if (s.tileRow != null && s.tileCol != null) {
-        slotToCoord[s.slotId] = (s.tileRow!, s.tileCol!);
+        slotToCoord[s.slotId] = (
+          s.tileRow!.clamp(0, rows - 1),
+          s.tileCol!.clamp(0, cols - 1),
+        );
       } else {
-        // Ánh xạ x, y chuẩn hóa sang row, col
-        final r = (s.y * (rows - 1)).round().clamp(1, rows - 2);
-        final c = (s.x * (cols - 1)).round().clamp(1, cols - 2);
+        final r = (s.y * (rows - 1)).round().clamp(0, rows - 1);
+        final c = (s.x * (cols - 1)).round().clamp(0, cols - 1);
         slotToCoord[s.slotId] = (r, c);
       }
     }
@@ -600,59 +731,55 @@ class IslandBoardDto {
       }
     }
 
-    // Xác định bán kính tự nhiên của đảo
+    // Lưới đồng tâm 8x8: T1 = 4x4 giữa (2..5), T2 = 6x6 (1..6), T3 = 8x8 (0..7)
     for (int r = 0; r < rows; r++) {
       for (int c = 0; c < cols; c++) {
-        final dr = (r - centerR);
-        final dc = (c - centerC);
-        // Hình dáng hữu cơ hình elip/tròn mềm mại
-        final dist = (dr * dr * 1.05 + dc * dc * 0.95);
-        final maxDist = (centerR * 0.88) * (centerR * 0.88);
-
-        if (dist <= maxDist || coordToSlot.containsKey((r, c))) {
-          final slotOnTile = coordToSlot[(r, c)];
-          final normalizedDist = dist / maxDist;
-
-          int unlockTier = 1;
-          String regionCode = 'TIER_1';
-          if (slotOnTile != null) {
-            unlockTier = slotOnTile.unlockTier;
-            regionCode = slotOnTile.regionCode ?? 'TIER_$unlockTier';
-          } else if (normalizedDist > 0.65) {
-            unlockTier = 3;
-            regionCode = 'TIER_3';
-          } else if (normalizedDist > 0.35) {
-            unlockTier = 2;
-            regionCode = 'TIER_2';
-          }
-
-          IslandTerrainType terrain = IslandTerrainType.grass;
-          String? decorKey;
-
-          if (slotOnTile != null) {
-            terrain = IslandTerrainType.dirt; // Thềm đất ấm đặt công trình
-          } else if ((r == 5 && c >= 4 && c <= 7) || (c == 6 && r >= 4 && r <= 7)) {
-            terrain = IslandTerrainType.path; // Đường làng lát gạch qua trung tâm
-          } else if ((r + c) % 5 == 0 && normalizedDist < 0.6) {
-            terrain = IslandTerrainType.decorative;
-            decorKey = (r % 2 == 0) ? 'bamboo' : 'lotus';
-          } else if ((r * 3 + c * 7) % 7 == 0 && normalizedDist >= 0.6) {
-            terrain = IslandTerrainType.stone;
-          }
-
-          generatedTiles.add(
-            IslandTileDto(
-              key: 'tile_${r}_$c',
-              row: r,
-              col: c,
-              terrainType: terrain,
-              regionCode: regionCode,
-              unlockTier: unlockTier,
-              decorKey: decorKey,
-              slotId: slotOnTile?.slotId,
-            ),
-          );
+        final slotOnTile = coordToSlot[(r, c)];
+        int unlockTier;
+        String regionCode;
+        if (slotOnTile != null) {
+          unlockTier = slotOnTile.unlockTier;
+          regionCode = slotOnTile.regionCode ?? 'TIER_$unlockTier';
+        } else if (r >= 2 && r <= 5 && c >= 2 && c <= 5) {
+          unlockTier = 1;
+          regionCode = 'TIER_1';
+        } else if (r >= 1 && r <= 6 && c >= 1 && c <= 6) {
+          unlockTier = 2;
+          regionCode = 'TIER_2';
+        } else {
+          unlockTier = 3;
+          regionCode = 'TIER_3';
         }
+
+        IslandTerrainType terrain = IslandTerrainType.grass;
+        double elevation = 0.0;
+        String? decorKey;
+
+        if (r >= 2 && r <= 3 && c >= 2 && c <= 3) {
+          terrain = IslandTerrainType.dirt;
+          elevation = 1.0;
+        } else if (slotOnTile != null) {
+          terrain = IslandTerrainType.dirt;
+        } else if ((r == 4 && c >= 1 && c <= 6) ||
+            (c == 4 && r >= 1 && r <= 6)) {
+          terrain = IslandTerrainType.path;
+        } else if ((r == 0 || r == rows - 1) && (c == 0 || c == cols - 1)) {
+          terrain = IslandTerrainType.stone;
+        }
+
+        generatedTiles.add(
+          IslandTileDto(
+            key: 'tile_${r}_$c',
+            row: r,
+            col: c,
+            terrainType: terrain,
+            regionCode: regionCode,
+            unlockTier: unlockTier,
+            elevation: elevation,
+            decorKey: decorKey,
+            slotId: slotOnTile?.slotId,
+          ),
+        );
       }
     }
 
@@ -1041,8 +1168,34 @@ class IslandDto {
 
   bool get isMaxTier => tier >= maxTier;
 
-  /// Tên quy mô đảo theo Tier (Đảo nhỏ / Đảo vừa / Đảo lớn).
-  String get tierScaleLabel {
+  /// Tên di sản của từng cấp đảo (Đảo An Lạc / Đảo Phồn Thịnh / Đảo Trường Tồn).
+  static String tierHeritageName(
+    int tier, [
+    String? nameKey,
+    String? stageLabel,
+  ]) {
+    final nk = (nameKey ?? '').toLowerCase().trim();
+    final sl = (stageLabel ?? '').trim();
+    if (sl == 'Đảo An Lạc' || sl == 'Đảo Phồn Thịnh' || sl == 'Đảo Trường Tồn') {
+      return sl;
+    }
+    if (nk == 'tier.an_lac' || nk == 'tier.small' || tier == 1) {
+      return 'Đảo An Lạc';
+    }
+    if (nk == 'tier.phon_thinh' || nk == 'tier.medium' || tier == 2) {
+      return 'Đảo Phồn Thịnh';
+    }
+    if (nk == 'tier.truong_ton' || nk == 'tier.grand' || tier == 3) {
+      return 'Đảo Trường Tồn';
+    }
+    return 'Đảo cấp $tier';
+  }
+
+  /// Tên quy mô đảo theo Tier (Đảo An Lạc / Đảo Phồn Thịnh / Đảo Trường Tồn).
+  String get tierScaleLabel => tierHeritageName(tier);
+
+  /// Tên quy mô ngắn (Đảo nhỏ / Đảo vừa / Đảo lớn) cho tương thích.
+  String get legacyTierScaleLabel {
     switch (tier) {
       case 1:
         return 'Đảo nhỏ';
@@ -1052,6 +1205,49 @@ class IslandDto {
         return 'Đảo lớn';
       default:
         return 'Đảo cấp $tier';
+    }
+  }
+
+  /// Nhãn diện tích lưới ô của một cấp đảo (ví dụ: '4×4 ô', '6×6 ô', '8×8 ô').
+  String tierAreaDimensionLabel(int targetTier) {
+    if (board != null && board!.tiles.isNotEmpty) {
+      final tierTiles =
+          board!.tiles.where((t) => t.unlockTier <= targetTier).toList();
+      if (tierTiles.isNotEmpty) {
+        int minR = 999, maxR = -999, minC = 999, maxC = -999;
+        for (final t in tierTiles) {
+          if (t.row < minR) minR = t.row;
+          if (t.row > maxR) maxR = t.row;
+          if (t.col < minC) minC = t.col;
+          if (t.col > maxC) maxC = t.col;
+        }
+        final rSpan = (maxR - minR + 1).clamp(1, 32);
+        final cSpan = (maxC - minC + 1).clamp(1, 32);
+        return '$rSpan×$cSpan ô';
+      }
+    }
+    switch (targetTier) {
+      case 1:
+        return '4×4 ô';
+      case 2:
+        return '6×6 ô';
+      case 3:
+        return '8×8 ô';
+      default:
+        return '6×6 ô';
+    }
+  }
+
+  /// Lời thoại hướng dẫn ngữ cảnh của trợ lý Rùa Kabi đội nón lá theo cấp đảo.
+  static String kabiGuideTextForTier(int targetTier) {
+    switch (targetTier) {
+      case 1:
+        return 'Đây là Đảo An Lạc! Hãy trang trí đảo bằng những vật phẩm di sản mà bạn sưu tầm nhé!';
+      case 2:
+        return 'Đảo Phồn Thịnh rộng hơn nhiều! Bạn có thể sắp xếp lại tất cả vật phẩm và trang trí theo ý thích nhé!';
+      case 3:
+      default:
+        return 'Đảo Trường Tồn uy nghi tráng lệ! Hãy kiến tạo quần thể di sản rực rỡ nhất của bạn nhé!';
     }
   }
 
@@ -1282,6 +1478,8 @@ class IslandTierInfoDto {
     this.highlights = const [],
   });
 
+  String get displayName =>
+      IslandDto.tierHeritageName(tier, nameKey, stageLabel);
   factory IslandTierInfoDto.fromJson(Map<String, dynamic> json) {
     final rawHighlights = json['highlights'];
     return IslandTierInfoDto(
