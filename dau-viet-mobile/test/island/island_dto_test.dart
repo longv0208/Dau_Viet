@@ -185,5 +185,69 @@ void main() {
         );
       },
     );
+
+    test(
+      'Issue #46: tierHeritageName, kabiGuideTextForTier, and 5-category classification',
+      () {
+        expect(IslandDto.tierHeritageName(1, 'tier.an_lac'), 'Đảo An Lạc');
+        expect(IslandDto.tierHeritageName(2, 'tier.phon_thinh'), 'Đảo Phồn Thịnh');
+        expect(IslandDto.tierHeritageName(3, 'tier.truong_ton'), 'Đảo Trường Tồn');
+
+        expect(
+          IslandDto.kabiGuideTextForTier(1),
+          contains('Đây là Đảo An Lạc!'),
+        );
+        expect(
+          IslandDto.kabiGuideTextForTier(2),
+          contains('Đảo Phồn Thịnh rộng hơn nhiều!'),
+        );
+
+        // 5-category classification
+        expect(
+          resolveIslandItemCategory(code: 'DECOR_DINH_LANG'),
+          IslandInventoryCategory.building,
+        );
+        expect(
+          resolveIslandItemCategory(code: 'DECOR_CAY_DA'),
+          IslandInventoryCategory.tree,
+        );
+        expect(
+          resolveIslandItemCategory(code: 'DECOR_GIENG_CO'),
+          IslandInventoryCategory.decoration,
+        );
+        expect(
+          resolveIslandItemCategory(code: 'DECOR_COT_CO'),
+          IslandInventoryCategory.decoration,
+        );
+        expect(
+          resolveIslandItemCategory(code: 'DECOR_THUYEN_RONG'),
+          IslandInventoryCategory.other,
+        );
+
+        // Visual footprint scale: large building > tree > small decor
+        final buildingScale =
+            resolveIslandItemVisualScale('DECOR_DINH_LANG', 'decor.dinh_lang');
+        final treeScale =
+            resolveIslandItemVisualScale('DECOR_CAY_DA', 'decor.cay_da');
+        final decorScale =
+            resolveIslandItemVisualScale('DECOR_DEN_LONG', 'decor.den_long');
+        expect(buildingScale, greaterThan(treeScale));
+        expect(treeScale, greaterThan(decorScale));
+
+        // Short card labels for 4-column inventory grid
+        expect(
+          shortIslandItemDisplayName('Đình Làng Mái Đao', 'DECOR_DINH_LANG', null),
+          'Nhà đình',
+        );
+        expect(
+          shortIslandItemDisplayName('Cây Đa Cổ Thụ', 'DECOR_CAY_DA', null),
+          'Cây đa',
+        );
+        expect(
+          shortIslandItemDisplayName('Tượng Lý Thái Tổ', 'DECOR_TUONG_LY_THAI_TO', null),
+          'Tượng Lý Thái Tổ',
+        );
+      },
+    );
   });
 }

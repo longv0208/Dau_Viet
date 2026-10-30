@@ -149,22 +149,80 @@ void main() {
   });
 
     testWidgets(
-      'V51: Inventory tray shows placed counter and tier tabs',
+      'Issue #46: View Mode renders 3 tier tabs (Đảo An Lạc / Phồn Thịnh / Trường Tồn), Summary Card, and Kabi guide; Edit Mode renders Lưu đảo / Xoay / Xóa & 5-tab Inventory Tray',
       (tester) async {
-        await tester.binding.setSurfaceSize(const Size(1000, 1200));
+        await tester.binding.setSurfaceSize(const Size(390, 844));
         addTearDown(() => tester.binding.setSurfaceSize(null));
         await tester.pumpWidget(buildTestableWidget(const IslandScreen()));
         await pumpAsync(tester);
 
-        // Tray header hiển thị X/Y đã đặt
-        expect(find.text('Kho vật phẩm của bạn'), findsOneWidget);
-        expect(find.textContaining('đã đặt'), findsWidgets);
-        expect(find.textContaining('nhiều bản sao'), findsOneWidget);
+        // AC-1: 3 cấp đảo hiển thị trên thanh tab + Summary Card + lời thoại Rùa Kabi
+        expect(find.text('Đảo An Lạc'), findsWidgets);
+        expect(find.text('Đảo Phồn Thịnh'), findsWidgets);
+        expect(find.text('Đảo Trường Tồn'), findsWidgets);
+        expect(find.textContaining('Diện tích:'), findsOneWidget);
+        expect(find.text('Đang sử dụng'), findsOneWidget);
+        expect(
+          find.textContaining('Đây là Đảo An Lạc!'),
+          findsOneWidget,
+        );
 
-        // Tier tabs render 3 cấp
-        expect(find.text('Đảo Nhỏ'), findsWidgets);
-        expect(find.text('Đảo Vừa'), findsWidgets);
-        expect(find.text('Đảo Lớn'), findsWidgets);
+        // Chuyển sang Đảo Phồn Thịnh bằng tab
+        await tester.tap(find.text('Đảo Phồn Thịnh').first);
+        await pumpAsync(tester);
+        expect(
+          find.textContaining('Đảo Phồn Thịnh rộng hơn nhiều!'),
+          findsOneWidget,
+        );
+
+        // Quay lại Đảo An Lạc và bật Chế độ Bài trí (AC-3 & AC-4)
+        await tester.tap(find.text('Đảo An Lạc').first);
+        await pumpAsync(tester);
+        await tester.tap(find.text('Bài trí'));
+        await pumpAsync(tester);
+
+        // AC-3: Cụm 3 nút công cụ nổi bên phải
+        expect(find.text('Lưu đảo'), findsOneWidget);
+        expect(find.text('Xoay'), findsOneWidget);
+        expect(find.text('Xóa'), findsOneWidget);
+
+        // AC-4: Khay vật phẩm phân loại 5 tab (Tất cả, Công trình, Cây cối, Trang trí, Khác) & lưới thẻ 4 cột
+        expect(find.text('Tất cả'), findsOneWidget);
+        expect(find.text('Công trình'), findsOneWidget);
+        expect(find.text('Cây cối'), findsOneWidget);
+        expect(find.text('Trang trí'), findsOneWidget);
+        expect(find.text('Khác'), findsOneWidget);
+        expect(find.text('Nhà đình'), findsOneWidget);
+        expect(find.text('Giếng cổ'), findsOneWidget);
+        expect(find.text('Cột cờ'), findsOneWidget);
+        expect(find.textContaining('đã đặt'), findsWidgets);
+
+        // Lọc theo tab "Trang trí" -> chỉ hiện Giếng cổ, Cột cờ (ẩn Nhà đình)
+        await tester.tap(find.text('Trang trí'));
+        await pumpAsync(tester);
+        expect(find.text('Giếng cổ'), findsOneWidget);
+        expect(find.text('Cột cờ'), findsOneWidget);
+        expect(find.text('Nhà đình'), findsNothing);
+
+        // Bấm Lưu đảo -> thoát về Chế độ Tham quan
+        await tester.tap(find.text('Lưu đảo'));
+        await pumpAsync(tester);
+        expect(find.text('Đang sử dụng'), findsOneWidget);
+      },
+    );
+
+    testWidgets(
+      'Issue #46 AC-5: Responsive layout has zero overflow on compact 360x800 mobile screen',
+      (tester) async {
+        await tester.binding.setSurfaceSize(const Size(360, 800));
+        addTearDown(() => tester.binding.setSurfaceSize(null));
+        await tester.pumpWidget(buildTestableWidget(const IslandScreen()));
+        await pumpAsync(tester);
+
+        expect(tester.takeException(), isNull);
+        await tester.tap(find.text('Bài trí'));
+        await pumpAsync(tester);
+        expect(tester.takeException(), isNull);
       },
     );
 

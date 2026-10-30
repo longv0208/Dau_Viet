@@ -25,6 +25,8 @@ class IslandIsometricRenderer extends StatelessWidget {
   final double expansionRevealProgress;
   final int? expandingFromTier;
   final int? expandingToTier;
+  final bool isEditMode;
+  final Set<String> flippedSlotIds;
 
   const IslandIsometricRenderer({
     super.key,
@@ -40,6 +42,8 @@ class IslandIsometricRenderer extends StatelessWidget {
     this.expansionRevealProgress = 1.0,
     this.expandingFromTier,
     this.expandingToTier,
+    this.isEditMode = false,
+    this.flippedSlotIds = const {},
   });
 
   /// Chuyển tọa độ logic (row, col) của tile sang tọa độ màn hình theo góc nhìn `cameraDirection`.
@@ -239,6 +243,7 @@ class IslandIsometricRenderer extends StatelessWidget {
                         selectedSlotId: selectedSlotId,
                         slotById: slotById,
                         slotByTileKey: slotByTileKey,
+                        isEditMode: isEditMode,
                       ),
                     ),
                   ),
@@ -386,9 +391,11 @@ class IslandIsometricRenderer extends StatelessWidget {
             isSelected: isSelected,
             tileWidth: tileW,
             tileHeight: tileH,
-            flipHorizontally:
-                cameraDirection == IslandCameraDirection.southEast ||
-                cameraDirection == IslandCameraDirection.southWest,
+            flipHorizontally: flippedSlotIds.contains(slot.slotId)
+                ? !(cameraDirection == IslandCameraDirection.southEast ||
+                    cameraDirection == IslandCameraDirection.southWest)
+                : (cameraDirection == IslandCameraDirection.southEast ||
+                    cameraDirection == IslandCameraDirection.southWest),
             onTap: () => onSlotTap(slot),
           )
 
@@ -495,79 +502,70 @@ class IslandIsometricRenderer extends StatelessWidget {
       child: SizedBox(
         width: tileW,
         height: tileH * 1.35,
-        child: Stack(
-          alignment: Alignment.bottomCenter,
-          clipBehavior: Clip.none,
-          children: [
-            if (isSelected)
-              Positioned(
-                bottom: tileH * 0.04,
-                child: Container(
-                  width: tileW * 0.86,
-                  height: tileH * 0.68,
-                  decoration: BoxDecoration(
-                    borderRadius: BorderRadius.all(
-                      Radius.elliptical(tileW * 0.86, tileH * 0.68),
-                    ),
-                    boxShadow: [
-                      BoxShadow(
-                        color: DauVietColors.imperialGold.withValues(alpha: 0.65),
-                        blurRadius: 14,
-                        spreadRadius: 2,
+        child: (!isEditMode && !isSelected)
+            ? const SizedBox.expand()
+            : Stack(
+                alignment: Alignment.bottomCenter,
+                clipBehavior: Clip.none,
+                children: [
+                  if (isSelected)
+                    Positioned(
+                      bottom: tileH * 0.04,
+                      child: Container(
+                        width: tileW * 0.86,
+                        height: tileH * 0.68,
+                        decoration: BoxDecoration(
+                          borderRadius: BorderRadius.all(
+                            Radius.elliptical(tileW * 0.86, tileH * 0.68),
+                          ),
+                          boxShadow: [
+                            BoxShadow(
+                              color: DauVietColors.imperialGold.withValues(
+                                alpha: 0.65,
+                              ),
+                              blurRadius: 14,
+                              spreadRadius: 2,
+                            ),
+                          ],
+                        ),
                       ),
-                    ],
-                  ),
-                ),
-              ),
-
-            Positioned(
-              bottom: tileH * 0.03,
-              child: Opacity(
-                opacity: isSelected ? 1.0 : 0.92,
-                child: Image.asset(
-                  IslandVisualAssetManager.buildableParcelPlinth,
-                  width: plinthW,
-                  height: plinthH,
-                  fit: BoxFit.contain,
-                  filterQuality: FilterQuality.medium,
-                ),
-              ),
-            ),
-
-            Positioned(
-              bottom: tileH * 0.36,
-              child: AnimatedContainer(
-                duration: const Duration(milliseconds: 200),
-                width: isSelected ? 20 : 15,
-                height: isSelected ? 20 : 15,
-                decoration: BoxDecoration(
-                  color: isSelected
-                      ? DauVietColors.imperialGold
-                      : const Color(0xCCFFF8EC),
-                  shape: BoxShape.circle,
-                  border: Border.all(
-                    color: isSelected
-                        ? const Color(0xFF5D3A1A)
-                        : const Color(0xAA8D6E4C),
-                    width: 1.1,
-                  ),
-                  boxShadow: [
-                    BoxShadow(
-                      color: Colors.black.withValues(alpha: 0.18),
-                      blurRadius: 3,
-                      offset: const Offset(0, 1.5),
                     ),
-                  ],
-                ),
-                child: Icon(
-                  Icons.add_rounded,
-                  size: isSelected ? 13 : 10,
-                  color: const Color(0xFF4E3622),
-                ),
+                  Positioned(
+                    bottom: tileH * 0.03,
+                    child: Opacity(
+                      opacity: isSelected ? 1.0 : 0.72,
+                      child: Image.asset(
+                        IslandVisualAssetManager.buildableParcelPlinth,
+                        width: plinthW,
+                        height: plinthH,
+                        fit: BoxFit.contain,
+                        filterQuality: FilterQuality.medium,
+                      ),
+                    ),
+                  ),
+                  if (isSelected)
+                    Positioned(
+                      bottom: tileH * 0.36,
+                      child: Container(
+                        width: 20,
+                        height: 20,
+                        decoration: BoxDecoration(
+                          color: DauVietColors.imperialGold,
+                          shape: BoxShape.circle,
+                          border: Border.all(
+                            color: const Color(0xFF5D3A1A),
+                            width: 1.1,
+                          ),
+                        ),
+                        child: const Icon(
+                          Icons.add_rounded,
+                          size: 13,
+                          color: Color(0xFF4E3622),
+                        ),
+                      ),
+                    ),
+                ],
               ),
-            ),
-          ],
-        ),
       ),
     );
   }
@@ -902,7 +900,9 @@ class _HeritageIslandCliffAndUnderlayPainter extends CustomPainter {
     final tileH = board.tileHeight;
     final halfW = tileW * 0.5;
     final halfH = tileH * 0.5;
-    final baseCliffDepth = tileH * 0.44;
+    final baseCliffDepth = tileH * 1.18;
+    int swEdgeCounter = 0;
+    int seEdgeCounter = 0;
 
     for (final tile in sortedTiles) {
       final bool isLocked = tile.unlockTier > currentTier;
@@ -913,7 +913,12 @@ class _HeritageIslandCliffAndUnderlayPainter extends CustomPainter {
         rows: board.rows,
         cols: board.cols,
       );
-      final rawCenter = board.toScreenOffset(vRow, vCol, originX: originX, originY: originY);
+      final rawCenter = board.toScreenOffset(
+        vRow,
+        vCol,
+        originX: originX,
+        originY: originY,
+      );
       final center = Offset(rawCenter.dx, rawCenter.dy - elevOffset);
 
       final topPt = Offset(center.dx, center.dy - halfH);
@@ -927,6 +932,7 @@ class _HeritageIslandCliffAndUnderlayPainter extends CustomPainter {
       final cliffH = baseCliffDepth + elevOffset;
 
       if (!hasSW) {
+        swEdgeCounter++;
         _drawOrganicCliffEdge(
           canvas: canvas,
           pStart: leftPt,
@@ -936,9 +942,18 @@ class _HeritageIslandCliffAndUnderlayPainter extends CustomPainter {
           isSunlit: true,
           isLocked: isLocked,
         );
+        if (!isLocked && swEdgeCounter == 2) {
+          _drawWaterfallCascade(
+            canvas: canvas,
+            pStart: leftPt,
+            pEnd: bottomPt,
+            cliffDepth: cliffH,
+          );
+        }
       }
 
       if (!hasSE) {
+        seEdgeCounter++;
         _drawOrganicCliffEdge(
           canvas: canvas,
           pStart: bottomPt,
@@ -948,6 +963,21 @@ class _HeritageIslandCliffAndUnderlayPainter extends CustomPainter {
           isSunlit: false,
           isLocked: isLocked,
         );
+        if (!isLocked && seEdgeCounter == 1) {
+          _drawWaterfallCascade(
+            canvas: canvas,
+            pStart: bottomPt,
+            pEnd: rightPt,
+            cliffDepth: cliffH,
+          );
+        } else if (!isLocked && seEdgeCounter == 3) {
+          _drawWoodenDockAndSteps(
+            canvas: canvas,
+            pStart: bottomPt,
+            pEnd: rightPt,
+            cliffDepth: cliffH,
+          );
+        }
       }
 
       final palette = IslandVisualAssetManager.getTerrainPalette(
@@ -963,6 +993,108 @@ class _HeritageIslandCliffAndUnderlayPainter extends CustomPainter {
         ..lineTo(leftPt.dx - 1.5, leftPt.dy)
         ..close();
       canvas.drawPath(underlayDiamond, Paint()..color = palette.base);
+    }
+  }
+
+  /// Vẽ dòng thác nước trắng xóa đổ từ mép vách đá 2.5D xuống mặt biển ngọc bích.
+  void _drawWaterfallCascade({
+    required Canvas canvas,
+    required Offset pStart,
+    required Offset pEnd,
+    required double cliffDepth,
+  }) {
+    final topLeft = Offset.lerp(pStart, pEnd, 0.28)!;
+    final topRight = Offset.lerp(pStart, pEnd, 0.72)!;
+    final botLeft = Offset(topLeft.dx, topLeft.dy + cliffDepth * 0.98);
+    final botRight = Offset(topRight.dx, topRight.dy + cliffDepth * 0.98);
+
+    final cascadePath = Path()
+      ..moveTo(topLeft.dx, topLeft.dy)
+      ..lineTo(topRight.dx, topRight.dy)
+      ..lineTo(botRight.dx, botRight.dy)
+      ..lineTo(botLeft.dx, botLeft.dy)
+      ..close();
+
+    final cascadeRect = cascadePath.getBounds();
+    canvas.drawPath(
+      cascadePath,
+      Paint()
+        ..shader = const LinearGradient(
+          begin: Alignment.topCenter,
+          end: Alignment.bottomCenter,
+          colors: [
+            Color(0xFFE0F7FA),
+            Color(0xFF80DEEA),
+            Color(0xFFFFFFFF),
+          ],
+        ).createShader(cascadeRect),
+    );
+
+    // Bọt nước tung trắng xóa ở chân thác
+    final splashCenter = Offset(
+      (botLeft.dx + botRight.dx) * 0.5,
+      (botLeft.dy + botRight.dy) * 0.5 + 2.0,
+    );
+    canvas.drawOval(
+      Rect.fromCenter(center: splashCenter, width: 26, height: 10),
+      Paint()..color = Colors.white.withValues(alpha: 0.85),
+    );
+  }
+
+  /// Vẽ bậc thang đá dẫn xuống cầu tàu gỗ vươn ra mặt biển (Issue #46 AC-1 & AC-2).
+  void _drawWoodenDockAndSteps({
+    required Canvas canvas,
+    required Offset pStart,
+    required Offset pEnd,
+    required double cliffDepth,
+  }) {
+    final mid = Offset.lerp(pStart, pEnd, 0.50)!;
+    final dockStart = Offset(mid.dx, mid.dy + cliffDepth * 0.35);
+    final dockEnd = Offset(mid.dx + 34, mid.dy + cliffDepth * 0.95 + 16);
+
+    // Bậc thang đá nối từ mặt đảo xuống cầu tàu
+    for (int i = 0; i < 4; i++) {
+      final t = i / 4.0;
+      final stepCenter = Offset.lerp(mid, dockStart, t)!;
+      canvas.drawRRect(
+        RRect.fromRectAndRadius(
+          Rect.fromCenter(center: stepCenter, width: 16, height: 5),
+          const Radius.circular(2),
+        ),
+        Paint()..color = const Color(0xFFB0BEC5),
+      );
+    }
+
+    // Mặt cầu tàu gỗ lim
+    final pierPath = Path()
+      ..moveTo(dockStart.dx - 10, dockStart.dy)
+      ..lineTo(dockStart.dx + 10, dockStart.dy - 5)
+      ..lineTo(dockEnd.dx + 10, dockEnd.dy - 5)
+      ..lineTo(dockEnd.dx - 10, dockEnd.dy)
+      ..close();
+    canvas.drawPath(pierPath, Paint()..color = const Color(0xFF8D5B36));
+    canvas.drawPath(
+      pierPath,
+      Paint()
+        ..color = const Color(0xFF5D3A1A)
+        ..style = PaintingStyle.stroke
+        ..strokeWidth = 1.4,
+    );
+
+    // Cọc gỗ đỡ cầu tàu dưới mặt nước
+    for (final pt in [
+      Offset(dockStart.dx - 6, dockStart.dy + 4),
+      Offset(dockEnd.dx - 6, dockEnd.dy + 2),
+      Offset(dockEnd.dx + 8, dockEnd.dy - 2),
+    ]) {
+      canvas.drawLine(
+        pt,
+        Offset(pt.dx, pt.dy + 12),
+        Paint()
+          ..color = const Color(0xFF4E342E)
+          ..strokeWidth = 3.2
+          ..strokeCap = StrokeCap.round,
+      );
     }
   }
 
@@ -1090,6 +1222,7 @@ class _OrganicShoreOverhangAndSelectionPainter extends CustomPainter {
   final String? selectedSlotId;
   final Map<String, IslandSlotDto> slotById;
   final Map<String, IslandSlotDto> slotByTileKey;
+  final bool isEditMode;
 
   _OrganicShoreOverhangAndSelectionPainter({
     required this.board,
@@ -1103,8 +1236,8 @@ class _OrganicShoreOverhangAndSelectionPainter extends CustomPainter {
     this.selectedSlotId,
     required this.slotById,
     required this.slotByTileKey,
+    this.isEditMode = false,
   });
-
   @override
   void paint(Canvas canvas, Size size) {
     final tileW = board.tileWidth;
@@ -1149,15 +1282,34 @@ class _OrganicShoreOverhangAndSelectionPainter extends CustomPainter {
               selectedCoord!.$2 == tile.col) ||
           (selectedSlotId != null &&
               (tile.slotId == selectedSlotId || linkedSlot?.slotId == selectedSlotId));
+      final diamond = Path()
+        ..moveTo(topPt.dx, topPt.dy)
+        ..lineTo(rightPt.dx, rightPt.dy)
+        ..lineTo(bottomPt.dx, bottomPt.dy)
+        ..lineTo(leftPt.dx, leftPt.dy)
+        ..close();
+
+      // Chế độ Bài trí: hiển thị rõ lưới ô cỏ/đá sáng trên mặt đảo để căn chỉnh (Issue #46 AC-2 & AC-3)
+      if (isEditMode && !isLocked && tile.buildable) {
+        final isEven = (tile.row + tile.col) % 2 == 0;
+        canvas.drawPath(
+          diamond,
+          Paint()
+            ..color = isEven
+                ? const Color(0x24E8F5E9)
+                : const Color(0x14FFFDE7)
+            ..style = PaintingStyle.fill,
+        );
+        canvas.drawPath(
+          diamond,
+          Paint()
+            ..color = const Color(0xCCDCEDC8)
+            ..style = PaintingStyle.stroke
+            ..strokeWidth = 1.35,
+        );
+      }
 
       if (isSelected) {
-        final diamond = Path()
-          ..moveTo(topPt.dx, topPt.dy)
-          ..lineTo(rightPt.dx, rightPt.dy)
-          ..lineTo(bottomPt.dx, bottomPt.dy)
-          ..lineTo(leftPt.dx, leftPt.dy)
-          ..close();
-
         canvas.drawPath(
           diamond,
           Paint()
@@ -1171,7 +1323,7 @@ class _OrganicShoreOverhangAndSelectionPainter extends CustomPainter {
           Paint()
             ..color = const Color(0xFFFFF3C4)
             ..style = PaintingStyle.stroke
-            ..strokeWidth = 2.0,
+            ..strokeWidth = 2.2,
         );
       }
     }
@@ -1212,6 +1364,7 @@ class _OrganicShoreOverhangAndSelectionPainter extends CustomPainter {
     return oldDelegate.cameraDirection != cameraDirection ||
         oldDelegate.selectedCoord != selectedCoord ||
         oldDelegate.selectedSlotId != selectedSlotId ||
-        oldDelegate.currentTier != currentTier;
+        oldDelegate.currentTier != currentTier ||
+        oldDelegate.isEditMode != isEditMode;
   }
 }
