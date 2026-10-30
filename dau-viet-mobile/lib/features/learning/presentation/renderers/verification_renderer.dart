@@ -5,6 +5,7 @@ import '../../../../core/theme/dau_viet_colors.dart';
 import '../../../../core/theme/dau_viet_typography.dart';
 import '../../../../core/widgets/chapter_number_badge.dart';
 import '../../../../core/widgets/clue_tag.dart';
+import '../../../../core/widgets/heritage_design_components.dart';
 import '../../../../core/widgets/section_eyebrow.dart';
 import '../../../../core/widgets/stamp_seal_badge.dart';
 import '../../../../core/widgets/tactile_card.dart';
@@ -132,87 +133,87 @@ class _VerificationRendererState extends State<VerificationRenderer> {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
-        const Align(
-          alignment: Alignment.centerLeft,
-          child: SectionEyebrow('KIỂM CHỨNG · ĐỐI CHIẾU NGUỒN'),
-        ),
-        if (evaluation != null) ...[
-          const SizedBox(height: 8),
-          _VerificationFeedbackCard(evaluation: evaluation),
-        ],
-        if (prompt != null) ...[
-          const SizedBox(height: 8),
-          TactileCard(
-            backgroundColor: DauVietColors.paperCardHi,
-            borderColor: DauVietColors.imperialGold,
-            padding: const EdgeInsets.all(12),
-            child: Text(
-              prompt,
-              style: DauVietTypography.ancientCitation.copyWith(
-                color: DauVietColors.inkText,
+        ImperialScrollFrame(
+          plaqueTitle: 'KIỂM CHỨNG • ĐỐI CHIẾU NGUỒN',
+          hiddenPlaqueTestText: 'KIỂM CHỨNG · ĐỐI CHIẾU NGUỒN',
+          padding: const EdgeInsets.fromLTRB(14, 16, 14, 16),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              if (evaluation != null) ...[
+                _VerificationFeedbackCard(evaluation: evaluation),
+                const SizedBox(height: 8),
+              ],
+              if (prompt != null) ...[
+                TactileCard(
+                  usePixelShadow: false,
+                  backgroundColor: const Color(0xFFFFFDF8),
+                  borderColor: const Color(0xFFDECBA8),
+                  padding: const EdgeInsets.all(12),
+                  child: Text(
+                    prompt,
+                    style: DauVietTypography.ancientCitation.copyWith(
+                      color: DauVietColors.inkText,
+                    ),
+                  ),
+                ),
+                const SizedBox(height: 8),
+              ],
+              if (hypothesisId != null) ...[
+                const Align(
+                  alignment: Alignment.centerLeft,
+                  child: SectionEyebrow('GIẢ THUYẾT ĐÃ CHỌN'),
+                ),
+                const SizedBox(height: 6),
+                _PickedTile(
+                  label: _resolveHypothesisLabel(hypothesisId),
+                  icon: Icons.lightbulb_outline,
+                  isCitation: true,
+                ),
+                const SizedBox(height: 8),
+              ],
+              if (givenIds.isNotEmpty) ...[
+                const Align(
+                  alignment: Alignment.centerLeft,
+                  child: SectionEyebrow(
+                    'BẰNG CHỨNG ĐÃ THU THẬP',
+                    color: DauVietColors.jadeDark,
+                  ),
+                ),
+                const SizedBox(height: 6),
+                for (final id in givenIds)
+                  _PickedTile(
+                    label: _evidenceTitle(id),
+                    icon: Icons.bookmark_added_outlined,
+                  ),
+                const SizedBox(height: 8),
+              ],
+              if (sourceIds.isNotEmpty) ...[
+                const Align(
+                  alignment: Alignment.centerLeft,
+                  child: SectionEyebrow(
+                    'ĐỐI CHIẾU CÁC NGUỒN SAU',
+                    color: DauVietColors.chapterGreen,
+                  ),
+                ),
+                const SizedBox(height: 6),
+                for (final id in sourceIds)
+                  _SourceTile(id: id, content: widget.content),
+                const SizedBox(height: 8),
+              ],
+              Text(
+                'Đối chiếu giả thuyết với các bằng chứng đã thu thập và chọn 1 kết luận kiểm chứng:',
+                style: DauVietTypography.bodySmall.copyWith(
+                  color: DauVietColors.inkSecondary,
+                  fontWeight: FontWeight.w600,
+                ),
               ),
-            ),
-          ),
-        ],
-
-        // Giả thuyết đã chọn ở bước HYPOTHESIS — ngữ cảnh kiểm chứng.
-        if (hypothesisId != null) ...[
-          const SizedBox(height: 8),
-          const Align(
-            alignment: Alignment.centerLeft,
-            child: SectionEyebrow('GIẢ THUYẾT ĐÃ CHỌN'),
-          ),
-          const SizedBox(height: 6),
-          _PickedTile(
-            label: _resolveHypothesisLabel(hypothesisId),
-            icon: Icons.lightbulb_outline,
-            isCitation: true,
-          ),
-        ],
-
-        // Bằng chứng đã thu thập trước đó — server dùng chính tập này để chấm.
-        if (givenIds.isNotEmpty) ...[
-          const SizedBox(height: 8),
-          const Align(
-            alignment: Alignment.centerLeft,
-            child: SectionEyebrow(
-              'BẰNG CHỨNG ĐÃ THU THẬP',
-              color: DauVietColors.jadeDark,
-            ),
-          ),
-          const SizedBox(height: 6),
-          for (final id in givenIds)
-            _PickedTile(
-              label: _evidenceTitle(id),
-              icon: Icons.bookmark_added_outlined,
-            ),
-        ],
-
-        if (sourceIds.isNotEmpty) ...[
-          const SizedBox(height: 8),
-          const Align(
-            alignment: Alignment.centerLeft,
-            child: SectionEyebrow(
-              'ĐỐI CHIẾU CÁC NGUỒN SAU',
-              color: DauVietColors.chapterGreen,
-            ),
-          ),
-          const SizedBox(height: 6),
-          for (final id in sourceIds)
-            _SourceTile(id: id, content: widget.content),
-        ],
-
-        const SizedBox(height: 8),
-        Text(
-          'Đối chiếu giả thuyết với các bằng chứng đã thu thập và chọn 1 kết luận kiểm chứng:',
-          style: DauVietTypography.bodySmall.copyWith(
-            color: DauVietColors.inkSecondary,
-            fontWeight: FontWeight.w600,
+              const SizedBox(height: 8),
+              _buildVerdictRow(),
+            ],
           ),
         ),
-        const SizedBox(height: 6),
-        _buildVerdictRow(),
-        const SizedBox(height: 10),
+        const SizedBox(height: 12),
         SubmitBar(
           label: 'KIỂM CHỨNG',
           enabled: _selectedVerdict != null,

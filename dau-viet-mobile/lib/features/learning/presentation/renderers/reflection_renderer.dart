@@ -2,9 +2,7 @@ import 'package:flutter/material.dart';
 
 import '../../../../core/theme/dau_viet_colors.dart';
 import '../../../../core/theme/dau_viet_typography.dart';
-import '../../../../core/widgets/section_eyebrow.dart';
-import '../../../../core/widgets/stamp_seal_badge.dart';
-import '../../../../core/widgets/tactile_card.dart';
+import '../../../../core/widgets/heritage_design_components.dart';
 import '../../data/attempt_dtos.dart';
 import 'renderer_base.dart';
 
@@ -54,26 +52,22 @@ class _ReflectionRendererState extends State<ReflectionRenderer> {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
-        TactileCard(
-          usePixelShadow: false,
+        ImperialScrollFrame(
+          plaqueTitle: 'SUY NGẪM',
+          padding: const EdgeInsets.fromLTRB(14, 16, 14, 16),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
-              const Row(
-                mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                children: [
-                  SectionEyebrow('SUY NGẪM'),
-                  StampSealBadge.outline('✎', size: 32),
-                ],
-              ),
               if (prompt != null) ...[
-                const SizedBox(height: 10),
                 Text(
                   prompt,
-                  style: DauVietTypography.bodyMedium.copyWith(height: 1.5),
+                  style: DauVietTypography.bodyMedium.copyWith(
+                    fontWeight: FontWeight.w600,
+                    height: 1.5,
+                  ),
                 ),
+                const SizedBox(height: 12),
               ],
-              const SizedBox(height: 12),
               if (options.isNotEmpty)
                 RadioGroup<String>(
                   groupValue: _optionId,
@@ -115,18 +109,14 @@ class _ReflectionRendererState extends State<ReflectionRenderer> {
                       color: DauVietColors.inkMuted,
                     ),
                     filled: true,
-                    fillColor: DauVietColors.paperCardHi,
+                    fillColor: const Color(0xFFFFFDF8),
                     border: OutlineInputBorder(
                       borderRadius: BorderRadius.circular(10),
-                      borderSide: const BorderSide(
-                        color: DauVietColors.outlineVariant,
-                      ),
+                      borderSide: const BorderSide(color: Color(0xFFDECBA8)),
                     ),
                     enabledBorder: OutlineInputBorder(
                       borderRadius: BorderRadius.circular(10),
-                      borderSide: const BorderSide(
-                        color: DauVietColors.outlineVariant,
-                      ),
+                      borderSide: const BorderSide(color: Color(0xFFDECBA8)),
                     ),
                     focusedBorder: OutlineInputBorder(
                       borderRadius: BorderRadius.circular(10),

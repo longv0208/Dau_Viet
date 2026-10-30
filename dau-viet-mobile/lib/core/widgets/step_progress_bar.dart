@@ -1,6 +1,5 @@
 import 'package:flutter/material.dart';
 
-import '../theme/dau_viet_colors.dart';
 import '../theme/dau_viet_typography.dart';
 
 /// Thanh tiến trình 6 chặng — theo dõi hành trình thám tử lịch sử:
@@ -29,12 +28,12 @@ class StepProgressBar extends StatelessWidget {
        );
 
   static const List<StepProgressItem> defaultSteps = [
-    StepProgressItem(icon: Icons.menu_book_outlined, label: 'Bối cảnh'),
-    StepProgressItem(icon: Icons.search_outlined, label: 'Dấu vết'),
-    StepProgressItem(icon: Icons.lightbulb_outline, label: 'Giả thuyết'),
-    StepProgressItem(icon: Icons.fact_check_outlined, label: 'Kiểm chứng'),
-    StepProgressItem(icon: Icons.timeline_outlined, label: 'Dựng lại'),
-    StepProgressItem(icon: Icons.workspace_premium_outlined, label: 'Kết luận'),
+    StepProgressItem(icon: Icons.menu_book_outlined, label: 'Đọc tư liệu'),
+    StepProgressItem(icon: Icons.search_rounded, label: 'Điều tra'),
+    StepProgressItem(icon: Icons.lightbulb_outline_rounded, label: 'Tái dựng'),
+    StepProgressItem(icon: Icons.fact_check_outlined, label: 'Lập luận'),
+    StepProgressItem(icon: Icons.trending_up_rounded, label: 'Kết luận'),
+    StepProgressItem(icon: Icons.workspace_premium_outlined, label: 'Đúc kết'),
   ];
 
   @override
@@ -44,47 +43,50 @@ class StepProgressBar extends StatelessWidget {
       height: height,
       child: LayoutBuilder(
         builder: (ctx, constraints) {
-          // Tính toán scale theo không gian:
-          // - w < 200: dot=24, không label (compact tối đa)
-          // - w < 360: dot=32, không label
-          // - w >= 360: dot=32 + label
           final w = constraints.maxWidth;
-          final bool compact = w < 360 || !showLabels;
           final int count = totalSteps < 1 ? 1 : totalSteps;
-          final double maxDotForWidth = count > 1 && w.isFinite
-              ? ((w - (count - 1) * 6.0) / count).clamp(16.0, 32.0)
-              : 32.0;
-          final double baseDot = w < 200 ? 24.0 : 32.0;
-          final double dotSize = maxDotForWidth < baseDot
-              ? maxDotForWidth
+          final double maxCellWidth = count > 1 && w.isFinite
+              ? ((w - (count - 1) * 4.0) / count).clamp(16.0, 56.0)
+              : 44.0;
+          final bool compact = w < 190 || maxCellWidth < 34 || !showLabels;
+          final double baseDot = w < 220 ? 24.0 : 28.0;
+          final double dotSize = (maxCellWidth - 2.0) < baseDot
+              ? (maxCellWidth - 2.0).clamp(16.0, 28.0)
               : baseDot;
-          final double iconSize = w < 200
-              ? 12.0
-              : (dotSize * 0.5).clamp(10.0, 16.0);
-          final double lineMargin = dotSize < 26.0 ? 2.0 : 4.0;
+          final double iconSize = (dotSize * 0.50).clamp(10.0, 15.0);
+          final double cellWidth = compact
+              ? dotSize
+              : maxCellWidth.clamp(dotSize, 48.0);
           return Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               for (var i = 0; i < totalSteps; i++) ...[
-                _StepDot(
-                  index: i,
-                  item: items[i % items.length],
-                  state: i < currentStep
-                      ? _StepState.done
-                      : i == currentStep
-                      ? _StepState.current
-                      : _StepState.upcoming,
-                  showLabel: !compact,
-                  size: dotSize,
-                  iconSize: iconSize,
+                SizedBox(
+                  width: cellWidth,
+                  child: _StepDot(
+                    index: i,
+                    item: items[i % items.length],
+                    state: i < currentStep
+                        ? _StepState.done
+                        : i == currentStep
+                        ? _StepState.current
+                        : _StepState.upcoming,
+                    showLabel: !compact,
+                    size: dotSize,
+                    maxLabelWidth: cellWidth,
+                    iconSize: iconSize,
+                  ),
                 ),
                 if (i < totalSteps - 1)
                   Expanded(
-                    child: Container(
-                      height: 2,
-                      margin: EdgeInsets.symmetric(horizontal: lineMargin),
-                      color: i < currentStep
-                          ? DauVietColors.natureGreen
-                          : DauVietColors.outlineVariant,
+                    child: Padding(
+                      padding: EdgeInsets.only(top: dotSize / 2 - 1),
+                      child: Container(
+                        height: 2,
+                        color: i < currentStep
+                            ? const Color(0xFF4A7C4B)
+                            : const Color(0xFFD5C3A3),
+                      ),
                     ),
                   ),
               ],
@@ -110,6 +112,7 @@ class _StepDot extends StatelessWidget {
   final _StepState state;
   final bool showLabel;
   final double size;
+  final double maxLabelWidth;
   final double iconSize;
 
   const _StepDot({
@@ -117,27 +120,28 @@ class _StepDot extends StatelessWidget {
     required this.item,
     required this.state,
     required this.showLabel,
-    this.size = 32,
-    this.iconSize = 16,
+    this.size = 28,
+    this.maxLabelWidth = 44,
+    this.iconSize = 14,
   });
 
   @override
   Widget build(BuildContext context) {
     final (bg, border, iconColor) = switch (state) {
       _StepState.done => (
-        DauVietColors.natureGreen,
-        DauVietColors.natureGreen,
-        DauVietColors.paperBackground,
+        const Color(0xFF4A7C4B),
+        const Color(0xFF3A633B),
+        const Color(0xFFFFFBF2),
       ),
       _StepState.current => (
-        DauVietColors.cinnabarRed,
-        DauVietColors.cinnabarRedDark,
-        DauVietColors.paperBackground,
+        const Color(0xFFA8221B),
+        const Color(0xFFE5B869),
+        const Color(0xFFFFFBF2),
       ),
       _StepState.upcoming => (
-        DauVietColors.paperCard,
-        DauVietColors.outlineVariant,
-        DauVietColors.inkMuted,
+        const Color(0xFFFAF3E4),
+        const Color(0xFFCBB694),
+        const Color(0xFF6B5B4B),
       ),
     };
 
@@ -150,32 +154,48 @@ class _StepDot extends StatelessWidget {
           decoration: BoxDecoration(
             shape: BoxShape.circle,
             color: bg,
-            border: Border.all(color: border, width: 2),
+            border: Border.all(
+              color: border,
+              width: state == _StepState.current ? 2.0 : 1.5,
+            ),
             boxShadow: state == _StepState.current
-                ? DauVietColors.pixelShadowSm
+                ? const [
+                    BoxShadow(
+                      color: Color(0x38A8221B),
+                      blurRadius: 6,
+                      spreadRadius: 1.5,
+                    ),
+                  ]
                 : null,
           ),
           child: Icon(
-            state == _StepState.done ? Icons.check : item.icon,
+            state == _StepState.done ? Icons.check_rounded : item.icon,
             size: iconSize,
             color: iconColor,
           ),
         ),
         if (showLabel) ...[
-          const SizedBox(height: 4),
-          Text(
-            item.label,
-            style: DauVietTypography.labelSmall.copyWith(
-              fontSize: 9,
-              color: state == _StepState.current
-                  ? DauVietColors.cinnabarRed
-                  : DauVietColors.inkMuted,
-              fontWeight: state == _StepState.current
-                  ? FontWeight.w700
-                  : FontWeight.w500,
+          const SizedBox(height: 2),
+          ConstrainedBox(
+            constraints: BoxConstraints(maxWidth: maxLabelWidth),
+            child: FittedBox(
+              fit: BoxFit.scaleDown,
+              child: Text(
+                item.label,
+                style: DauVietTypography.labelSmall.copyWith(
+                  fontSize: 9.0,
+                  color: state == _StepState.current
+                      ? const Color(0xFFA8221B)
+                      : const Color(0xFF5C4E42),
+                  fontWeight: state == _StepState.current
+                      ? FontWeight.w800
+                      : FontWeight.w600,
+                  height: 1.05,
+                ),
+                overflow: TextOverflow.ellipsis,
+                maxLines: 1,
+              ),
             ),
-            overflow: TextOverflow.ellipsis,
-            maxLines: 1,
           ),
         ],
       ],
