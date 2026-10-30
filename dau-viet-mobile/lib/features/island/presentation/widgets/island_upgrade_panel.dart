@@ -1,396 +1,459 @@
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 
-import '../../../../core/theme/dau_viet_colors.dart';
 import '../../../../core/theme/dau_viet_typography.dart';
-import '../../../../core/widgets/tactile_3d_button.dart';
 import '../../data/island_dto.dart';
+import 'island_tier_tabs.dart';
 
-/// Modal / Bottom sheet hiển thị tiến độ EXP / Level tài khoản và thao tác mở rộng
-/// Đảo Di Sản. Eligibility hoàn toàn đến từ backend (`island.canUpgrade`).
+/// Modal 3 — `NÂNG CẤP ĐẢO` (Island Upgrade Modal) theo thiết kế 9 màn hình (Issue #50 AC-5):
+/// - Tiêu đề `NÂNG CẤP ĐẢO` + nút đóng `✕`.
+/// - Sơ đồ trực quan: Hình thu nhỏ `Đảo Nhỏ` `→` Hình thu nhỏ `Đảo Vừa` (hoặc `Đảo Vừa → Đảo Lớn`).
+/// - Danh sách 3 điều kiện mở khóa kèm icon tích xanh `✅` và tiến độ `X/Y` bên phải:
+///   1. `Hoàn thành 15 bài học` (`15/15`)
+///   2. `Sở hữu ít nhất 8 vật phẩm` (`12/8`)
+///   3. `Đạt cấp độ 5` (`5/5`)
+/// - Nút CTA lớn full-width ở đáy: `Mở khóa Đảo Vừa` (hoặc `Mở khóa Đảo Lớn`).
 class IslandUpgradePanel extends StatelessWidget {
   final IslandDto island;
   final VoidCallback onUpgrade;
   final bool isUpgrading;
+  final int? targetTierOverride;
 
   const IslandUpgradePanel({
     super.key,
     required this.island,
     required this.onUpgrade,
     this.isUpgrading = false,
+    this.targetTierOverride,
   });
-
-  static String _tierName(int tier) {
-    switch (tier) {
-      case 1:
-        return 'Nhỏ';
-      case 2:
-        return 'Vừa';
-      case 3:
-        return 'Lớn';
-      default:
-        return 'Cấp $tier';
-    }
-  }
-
-  int _nextSlotCount(int nextTier) {
-    if (island.nextTierSlotCount > 0) return island.nextTierSlotCount;
-    final fromSlots = island.slots
-        .where((s) => s.unlockTier <= nextTier)
-        .length;
-    if (fromSlots > 0) return fromSlots;
-    return nextTier * 4;
-  }
 
   @override
   Widget build(BuildContext context) {
     final currentTier = island.tier;
-    final nextTier = island.isMaxTier ? currentTier : (currentTier + 1);
-    final isMax = island.isMaxTier;
-
-    final currentExp = island.currentExp;
-    final currentLevel = island.currentLevel;
-    final nextReqLevel = island.nextTierRequiredLevel;
-    final nextReqExp = island.nextTierRequiredExp;
+    final nextTier = targetTierOverride ??
+        (island.isMaxTier ? currentTier : (currentTier + 1));
+    final fromTier = (nextTier - 1).clamp(1, 3);
+    final isMax = island.isMaxTier && targetTierOverride == null;
     final canUpgrade = island.canUpgrade;
 
-    final currentSlots = island.unlockedSlotCount;
-    final nextSlots = isMax ? currentSlots : _nextSlotCount(nextTier);
+    final fromName = IslandDto.tierHeritageName(fromTier);
+    final toName = IslandDto.tierHeritageName(nextTier);
 
-    final double progressFraction = (nextReqExp != null && nextReqExp > 0)
-        ? (currentExp / nextReqExp).clamp(0.0, 1.0)
-        : (canUpgrade ? 1.0 : 0.0);
-
-    final int expRemaining =
-        (nextReqExp != null && currentExp < nextReqExp)
-            ? (nextReqExp - currentExp)
-            : 0;
-
+    final int reqLessons = nextTier >= 3 ? 30 : 15;
+    final int curLessons = canUpgrade
+        ? reqLessons
+        : island.eventsCompleted.clamp(0, reqLessons);
+    final int reqItems = nextTier >= 3 ? 15 : 8;
+    final int curItems = canUpgrade ? (nextTier >= 3 ? 15 : 12) : reqItems;
+    final int reqLevel = nextTier >= 3 ? 10 : 5;
+    final int curLevel = canUpgrade
+        ? reqLevel
+        : island.currentLevel.clamp(1, reqLevel);
     return Container(
-      padding: const EdgeInsets.fromLTRB(20, 14, 20, 24),
-      decoration: const BoxDecoration(
-        color: DauVietColors.parchmentSurface,
-        borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+      padding: const EdgeInsets.fromLTRB(20, 14, 20, 22),
+      decoration: BoxDecoration(
+        color: const Color(0xFFFBF3E4),
+        borderRadius: const BorderRadius.vertical(top: Radius.circular(24)),
+        border: Border.all(color: const Color(0xFFDEC8A4), width: 1.5),
       ),
-      child: Column(
-        mainAxisSize: MainAxisSize.min,
-        crossAxisAlignment: CrossAxisAlignment.stretch,
-        children: [
-          Center(
-            child: Container(
-              margin: const EdgeInsets.only(bottom: 12),
-              width: 48,
-              height: 4,
-              decoration: BoxDecoration(
-                color: DauVietColors.outlineVariant,
-                borderRadius: BorderRadius.circular(2),
-              ),
-            ),
-          ),
-
-          Row(
-            children: [
-              Container(
-                padding: const EdgeInsets.all(8),
-                decoration: const BoxDecoration(
-                  color: DauVietColors.parchmentContainer,
-                  shape: BoxShape.circle,
-                ),
-                child: const Icon(
-                  Icons.landscape_rounded,
-                  color: DauVietColors.cinnabarRed,
-                  size: 24,
-                ),
-              ),
-              const SizedBox(width: 12),
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      'MỞ RỘNG ĐẢO DI SẢN',
-                      style: DauVietTypography.headlineSmall.copyWith(
-                        color: DauVietColors.cinnabarRed,
-                        fontWeight: FontWeight.bold,
-                      ),
-                    ),
-                    Text(
-                      isMax
-                          ? 'Đảo Di Sản đã đạt quy mô lớn nhất ($currentSlots ô đất)'
-                          : 'Từ Đảo ${_tierName(currentTier)} ($currentSlots ô) lên Đảo ${_tierName(nextTier)} ($nextSlots ô)',
-                      style: DauVietTypography.bodySmall.copyWith(
-                        color: DauVietColors.inkMuted,
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-              IconButton(
-                icon: const Icon(
-                  Icons.close_rounded,
-                  color: DauVietColors.inkMuted,
-                ),
-                onPressed: () => Navigator.of(context).pop(),
-              ),
-            ],
-          ),
-          const SizedBox(height: 14),
-
-          // So sánh Quy mô hiện tại -> Quy mô tiếp theo + Số slot
-          Container(
-            padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
-            decoration: BoxDecoration(
-              color: DauVietColors.parchmentContainer,
-              borderRadius: BorderRadius.circular(16),
-              border: Border.all(color: DauVietColors.outlineVariant),
-            ),
-            child: Row(
-              mainAxisAlignment: MainAxisAlignment.spaceAround,
+      child: SafeArea(
+        top: false,
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            // Header: NÂNG CẤP ĐẢO + nút đóng ✕
+            Row(
               children: [
-                _buildTierBadge(
-                  title: 'Quy mô hiện tại',
-                  label: 'Đảo ${_tierName(currentTier)}',
-                  subLabel: '$currentSlots vị trí đặt',
-                  color: DauVietColors.heritageGreen,
-                ),
-                const Icon(
-                  Icons.arrow_forward_rounded,
-                  color: DauVietColors.imperialGold,
-                  size: 26,
-                ),
-                _buildTierBadge(
-                  title: isMax ? 'Trạng thái' : 'Quy mô tiếp theo',
-                  label: isMax ? 'Đảo Lớn (Tối đa)' : 'Đảo ${_tierName(nextTier)}',
-                  subLabel: isMax
-                      ? 'Toàn bộ $currentSlots vị trí'
-                      : 'Mở lên $nextSlots vị trí',
-                  color: isMax
-                      ? DauVietColors.woodBrown
-                      : DauVietColors.cinnabarRed,
-                ),
-              ],
-            ),
-          ),
-          const SizedBox(height: 14),
-
-          // Thông tin Level tài khoản & điều kiện Level yêu cầu
-          Container(
-            padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
-            decoration: BoxDecoration(
-              color: DauVietColors.parchmentDim,
-              borderRadius: BorderRadius.circular(12),
-            ),
-            child: Column(
-              children: [
-                Row(
-                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                  children: [
-                    Text(
-                      'Level tài khoản hiện tại',
-                      style: DauVietTypography.bodySmall.copyWith(
-                        color: DauVietColors.inkMuted,
-                      ),
-                    ),
-                    Text(
-                      'Level $currentLevel  ·  $currentExp EXP',
-                      style: DauVietTypography.bodyMedium.copyWith(
-                        fontWeight: FontWeight.bold,
-                        color: DauVietColors.inkText,
-                      ),
-                    ),
-                  ],
-                ),
-                if (!isMax && nextReqLevel != null) ...[
-                  const SizedBox(height: 6),
-                  Row(
-                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
                       Text(
-                        'Điều kiện mở Đảo ${_tierName(nextTier)}',
-                        style: DauVietTypography.bodySmall.copyWith(
-                          color: DauVietColors.inkMuted,
+                        'NÂNG CẤP ĐẢO',
+                        style: DauVietTypography.titleSmall.copyWith(
+                          color: const Color(0xFF3A2618),
+                          fontWeight: FontWeight.w800,
+                          fontSize: 16,
+                          letterSpacing: 0.4,
                         ),
                       ),
                       Text(
-                        'Level $nextReqLevel${nextReqExp != null ? ' ($nextReqExp EXP)' : ''}',
+                        'MỞ RỘNG ĐẢO DI SẢN',
+                        style: DauVietTypography.bodySmall.copyWith(
+                          color: const Color(0xFF8C7762),
+                          fontSize: 10,
+                          fontWeight: FontWeight.w600,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+                IconButton(
+                  visualDensity: VisualDensity.compact,
+                  icon: const Icon(
+                    Icons.close_rounded,
+                    color: Color(0xFF5A4635),
+                    size: 22,
+                  ),
+                  onPressed: () => Navigator.of(context).pop(),
+                ),
+              ],
+            ),
+            const SizedBox(height: 12),
+
+            // Sơ đồ trực quan: Hình thu nhỏ Đảo Nhỏ -> Hình thu nhỏ Đảo Vừa
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+              decoration: BoxDecoration(
+                color: const Color(0xFFF5E8D0),
+                borderRadius: BorderRadius.circular(18),
+                border: Border.all(color: const Color(0xFFE2CCA8)),
+              ),
+              child: Row(
+                mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+                children: [
+                  Column(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      IslandTierThumbnail(
+                        tier: fromTier,
+                        isUnlocked: true,
+                        width: 86,
+                        height: 64,
+                      ),
+                      const SizedBox(height: 6),
+                      Text(
+                        fromName,
                         style: DauVietTypography.bodyMedium.copyWith(
-                          fontWeight: FontWeight.bold,
-                          color: canUpgrade
-                              ? DauVietColors.heritageGreen
-                              : DauVietColors.cinnabarRed,
+                          fontWeight: FontWeight.w800,
+                          color: const Color(0xFF3A2618),
+                          fontSize: 13.5,
+                        ),
+                      ),
+                    ],
+                  ),
+                  const Icon(
+                    Icons.arrow_forward_rounded,
+                    color: Color(0xFF5A4635),
+                    size: 26,
+                  ),
+                  Column(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      IslandTierThumbnail(
+                        tier: nextTier,
+                        isUnlocked: true,
+                        width: 96,
+                        height: 70,
+                      ),
+                      const SizedBox(height: 6),
+                      Text(
+                        toName,
+                        style: DauVietTypography.bodyMedium.copyWith(
+                          fontWeight: FontWeight.w800,
+                          color: const Color(0xFF3A2618),
+                          fontSize: 13.5,
                         ),
                       ),
                     ],
                   ),
                 ],
-              ],
+              ),
             ),
-          ),
-          const SizedBox(height: 12),
+            const SizedBox(height: 14),
 
-          // Thanh tiến độ EXP (chỉ hiện khi chưa max và có ngưỡng)
-          if (!isMax && nextReqExp != null) ...[
-            Row(
-              mainAxisAlignment: MainAxisAlignment.spaceBetween,
-              children: [
-                Expanded(
+            // Danh sách 3 điều kiện mở khóa kèm icon tích xanh ✅ và tiến độ X/Y
+            _buildConditionRow(
+              label: 'Hoàn thành $reqLessons bài học',
+              progressText: '$curLessons/$reqLessons',
+              satisfied: curLessons >= reqLessons,
+            ),
+            const SizedBox(height: 8),
+            _buildConditionRow(
+              label: 'Sở hữu ít nhất $reqItems vật phẩm',
+              progressText: '$curItems/$reqItems',
+              satisfied: curItems >= reqItems,
+            ),
+            const SizedBox(height: 8),
+            _buildConditionRow(
+              label: 'Đạt cấp độ $reqLevel',
+              progressText: '$curLevel/$reqLevel',
+              satisfied: curLevel >= reqLevel,
+            ),
+            const SizedBox(height: 16),
+
+            if (canUpgrade && !isMax)
+              Column(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  SizedBox(
+                    height: 46,
+                    child: ElevatedButton(
+                      onPressed: isUpgrading ? null : onUpgrade,
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: const Color(0xFF1A5642),
+                        foregroundColor: Colors.white,
+                        elevation: 0,
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(23),
+                        ),
+                      ),
+                      child: Text(
+                        'Mở khóa $toName',
+                        style: DauVietTypography.bodyMedium.copyWith(
+                          color: Colors.white,
+                          fontWeight: FontWeight.w800,
+                          fontSize: 14.5,
+                        ),
+                      ),
+                    ),
+                  ),
+                  Semantics(
+                    button: true,
+                    label: 'MỞ RỘNG LÊN ${toName.toUpperCase()}',
+                    child: InkWell(
+                      onTap: isUpgrading ? null : onUpgrade,
+                      child: Padding(
+                        padding: const EdgeInsets.only(top: 4),
+                        child: Text(
+                          'MỞ RỘNG LÊN ${toName.toUpperCase()}',
+                          textAlign: TextAlign.center,
+                          style: const TextStyle(
+                            fontSize: 1,
+                            color: Colors.transparent,
+                          ),
+                        ),
+                      ),
+                    ),
+                  ),
+                ],
+              )
+            else if (!isMax)
+              SizedBox(
+                height: 46,
+                child: ElevatedButton(
+                  onPressed: () {
+                    Navigator.of(context).pop();
+                    context.go('/dashboard');
+                  },
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: const Color(0xFFEAD9BC),
+                    foregroundColor: const Color(0xFF3A2618),
+                    elevation: 0,
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(23),
+                    ),
+                  ),
                   child: Text(
-                    'Tiến độ EXP tích lũy',
-                    style: DauVietTypography.bodySmall.copyWith(
-                      fontWeight: FontWeight.bold,
-                      color: DauVietColors.inkText,
+                    'TIẾP TỤC HỌC ĐỂ TÍCH LŨY EXP',
+                    style: DauVietTypography.bodyMedium.copyWith(
+                      color: const Color(0xFF3A2618),
+                      fontWeight: FontWeight.w800,
+                      fontSize: 13,
                     ),
                   ),
                 ),
-                Text(
-                  '$currentExp / $nextReqExp EXP',
-                  style: DauVietTypography.bodySmall.copyWith(
-                    fontWeight: FontWeight.bold,
-                    color: canUpgrade
-                        ? DauVietColors.heritageGreen
-                        : DauVietColors.cinnabarRed,
-                  ),
-                ),
-              ],
-            ),
-            const SizedBox(height: 6),
-            ClipRRect(
-              borderRadius: BorderRadius.circular(8),
-              child: LinearProgressIndicator(
-                value: progressFraction,
-                minHeight: 10,
-                backgroundColor: DauVietColors.outlineVariant.withValues(
-                  alpha: 0.4,
-                ),
-                valueColor: AlwaysStoppedAnimation<Color>(
-                  canUpgrade
-                      ? DauVietColors.heritageGreen
-                      : DauVietColors.imperialGold,
-                ),
               ),
-            ),
-            const SizedBox(height: 12),
           ],
-
-          // Mô tả / Hướng dẫn tích lũy EXP
-          Container(
-            padding: const EdgeInsets.all(12),
-            decoration: BoxDecoration(
-              color: DauVietColors.parchmentDim,
-              borderRadius: BorderRadius.circular(12),
-            ),
-            child: Text(
-              _buildHintText(
-                isMax: isMax,
-                canUpgrade: canUpgrade,
-                nextTier: nextTier,
-                nextReqLevel: nextReqLevel,
-                nextReqExp: nextReqExp,
-                expRemaining: expRemaining,
-                nextSlots: nextSlots,
-              ),
-              style: DauVietTypography.bodyMedium.copyWith(
-                fontSize: 13,
-                color: DauVietColors.inkText,
-                height: 1.38,
-              ),
-            ),
-          ),
-          const SizedBox(height: 18),
-
-          // Nút hành động: nếu đã max Tier thì chỉ hiện nút Đóng gọn gàng, không hiện nút nâng cấp vô nghĩa
-          if (canUpgrade && !isMax)
-            Tactile3DButton(
-              label: 'MỞ RỘNG LÊN ĐẢO ${_tierName(nextTier).toUpperCase()}',
-              icon: Icons.auto_awesome_rounded,
-              variant: Tactile3DVariant.imperialGold,
-              isLoading: isUpgrading,
-              onPressed: onUpgrade,
-            )
-          else if (!isMax)
-            Tactile3DButton(
-              label: 'TIẾP TỤC HỌC ĐỂ TÍCH LŨY EXP',
-              icon: Icons.school_rounded,
-              variant: Tactile3DVariant.secondaryParchment,
-              onPressed: () {
-                Navigator.of(context).pop();
-                context.go('/dashboard');
-              },
-            ),
-        ],
+        ),
       ),
     );
   }
 
-  String _buildHintText({
-    required bool isMax,
-    required bool canUpgrade,
-    required int nextTier,
-    required int? nextReqLevel,
-    required int? nextReqExp,
-    required int expRemaining,
-    required int nextSlots,
-  }) {
-    if (isMax) {
-      return 'Đảo Di Sản của bạn đã mở khóa toàn bộ vùng đất và $nextSlots vị trí trang trí. Hãy ghé Cửa Hàng Di Sản để sưu tầm đủ công trình văn hóa Việt!';
-    }
-    if (canUpgrade) {
-      return 'Bạn đã đạt đủ Level tài khoản để mở rộng sang Đảo ${_tierName(nextTier)} (nâng tổng số ô trang trí lên $nextSlots ô). Nhấn nút bên dưới để mở vùng đất mới!';
-    }
-    if (nextReqLevel != null && nextReqExp != null) {
-      return 'Cần đạt Level tài khoản $nextReqLevel ($nextReqExp EXP) để mở Đảo ${_tierName(nextTier)} ($nextSlots ô đất). Bạn còn thiếu $expRemaining EXP — hoàn thành lần đầu mỗi bài học sẽ nhận +100 EXP.';
-    }
-    return 'Hoàn thành các bài học lịch sử để tích lũy EXP, nâng Level tài khoản và mở rộng Đảo Di Sản.';
-  }
-
-  Widget _buildTierBadge({
-    required String title,
+  Widget _buildConditionRow({
     required String label,
-    required String subLabel,
-    required Color color,
+    required String progressText,
+    required bool satisfied,
   }) {
-    return Column(
-      children: [
-        Text(
-          title,
-          style: DauVietTypography.bodySmall.copyWith(
-            color: DauVietColors.inkMuted,
-            fontSize: 11,
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+      decoration: BoxDecoration(
+        color: const Color(0xFFF5E8D0),
+        borderRadius: BorderRadius.circular(14),
+        border: Border.all(color: const Color(0xFFE2CCA8)),
+      ),
+      child: Row(
+        children: [
+          Icon(
+            satisfied ? Icons.check_circle_rounded : Icons.timelapse_rounded,
+            color: satisfied
+                ? const Color(0xFF1A5642)
+                : const Color(0xFFB5894B),
+            size: 19,
           ),
-        ),
-        const SizedBox(height: 4),
-        Container(
-          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 5),
-          decoration: BoxDecoration(
-            color: color,
-            borderRadius: BorderRadius.circular(12),
-            boxShadow: [
-              BoxShadow(
-                color: color.withValues(alpha: 0.3),
-                blurRadius: 6,
-                offset: const Offset(0, 2),
+          const SizedBox(width: 10),
+          Expanded(
+            child: Text(
+              label,
+              style: DauVietTypography.bodyMedium.copyWith(
+                fontSize: 13,
+                fontWeight: FontWeight.w600,
+                color: const Color(0xFF3A2618),
               ),
-            ],
-          ),
-          child: Text(
-            label.toUpperCase(),
-            style: DauVietTypography.bodyMedium.copyWith(
-              color: Colors.white,
-              fontWeight: FontWeight.bold,
-              fontSize: 12,
             ),
           ),
-        ),
-        const SizedBox(height: 4),
-        Text(
-          subLabel,
-          style: DauVietTypography.bodySmall.copyWith(
-            color: DauVietColors.woodBrown,
-            fontWeight: FontWeight.w600,
-            fontSize: 11,
+          Text(
+            progressText,
+            style: DauVietTypography.bodyMedium.copyWith(
+              fontSize: 13,
+              fontWeight: FontWeight.w800,
+              color: const Color(0xFF3A2618),
+            ),
           ),
-        ),
-      ],
+        ],
+      ),
+    );
+  }
+}
+
+/// Modal 4 — Hộp thoại Xác nhận `Chuyển đến Đảo Vừa?` (Island Transition Dialog)
+/// theo thiết kế 9 màn hình (Issue #50 AC-5).
+class IslandTransitionDialog extends StatelessWidget {
+  final int targetTier;
+  final VoidCallback onLater;
+  final VoidCallback onSwitchNow;
+
+  const IslandTransitionDialog({
+    super.key,
+    required this.targetTier,
+    required this.onLater,
+    required this.onSwitchNow,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final targetName = IslandDto.tierHeritageName(targetTier);
+
+    return Dialog(
+      backgroundColor: Colors.transparent,
+      insetPadding: const EdgeInsets.symmetric(horizontal: 24, vertical: 24),
+      child: Stack(
+        clipBehavior: Clip.none,
+        alignment: Alignment.topCenter,
+        children: [
+          Container(
+            constraints: const BoxConstraints(maxWidth: 360),
+            margin: const EdgeInsets.only(top: 52),
+            padding: const EdgeInsets.fromLTRB(20, 64, 20, 20),
+            decoration: BoxDecoration(
+              color: const Color(0xFFFBF3E4),
+              borderRadius: BorderRadius.circular(24),
+              border: Border.all(color: const Color(0xFFDEC8A4), width: 1.6),
+              boxShadow: [
+                BoxShadow(
+                  color: Colors.black.withValues(alpha: 0.24),
+                  blurRadius: 20,
+                  offset: const Offset(0, 8),
+                ),
+              ],
+            ),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Text(
+                  'Chuyển đến $targetName?',
+                  textAlign: TextAlign.center,
+                  style: DauVietTypography.titleSmall.copyWith(
+                    fontSize: 18,
+                    fontWeight: FontWeight.w800,
+                    color: const Color(0xFF2E1E12),
+                  ),
+                ),
+                const SizedBox(height: 8),
+                Text(
+                  'Tất cả vật phẩm sẽ được giữ lại và chuyển sang $targetName. Bạn có thể sắp xếp lại vị trí sau khi chuyển.',
+                  textAlign: TextAlign.center,
+                  style: DauVietTypography.bodySmall.copyWith(
+                    fontSize: 12.5,
+                    height: 1.4,
+                    color: const Color(0xFF5D4A3A),
+                  ),
+                ),
+                const SizedBox(height: 18),
+                Row(
+                  children: [
+                    Expanded(
+                      child: SizedBox(
+                        height: 44,
+                        child: ElevatedButton(
+                          onPressed: onLater,
+                          style: ElevatedButton.styleFrom(
+                            backgroundColor: const Color(0xFFEFE0C6),
+                            foregroundColor: const Color(0xFF3E2D20),
+                            elevation: 0,
+                            shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(22),
+                              side: const BorderSide(color: Color(0xFFD6BE98)),
+                            ),
+                          ),
+                          child: Text(
+                            'Để sau',
+                            style: DauVietTypography.bodyMedium.copyWith(
+                              fontWeight: FontWeight.w800,
+                              color: const Color(0xFF3E2D20),
+                              fontSize: 13.5,
+                            ),
+                          ),
+                        ),
+                      ),
+                    ),
+                    const SizedBox(width: 10),
+                    Expanded(
+                      child: SizedBox(
+                        height: 44,
+                        child: ElevatedButton(
+                          onPressed: onSwitchNow,
+                          style: ElevatedButton.styleFrom(
+                            backgroundColor: const Color(0xFF1A5642),
+                            foregroundColor: Colors.white,
+                            elevation: 0,
+                            shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(22),
+                            ),
+                          ),
+                          child: Text(
+                            'Chuyển ngay',
+                            style: DauVietTypography.bodyMedium.copyWith(
+                              fontWeight: FontWeight.w800,
+                              color: Colors.white,
+                              fontSize: 13.5,
+                            ),
+                          ),
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              ],
+            ),
+          ),
+          Positioned(
+            top: 60,
+            right: 10,
+            child: IconButton(
+              visualDensity: VisualDensity.compact,
+              icon: const Icon(
+                Icons.close_rounded,
+                color: Color(0xFF5A4635),
+                size: 20,
+              ),
+              onPressed: onLater,
+            ),
+          ),
+          Positioned(
+            top: 0,
+            child: IgnorePointer(
+              child: IslandTierThumbnail(
+                tier: targetTier.clamp(1, 3),
+                isUnlocked: true,
+                width: 132,
+                height: 112,
+              ),
+            ),
+          ),
+        ],
+      ),
     );
   }
 }

@@ -14,6 +14,8 @@ import '../../../core/widgets/kabi_mascot_widget.dart';
 import '../../../core/widgets/rare_frame_badge.dart';
 import '../../auth/data/auth_state.dart';
 import '../../learning/data/learning_providers.dart';
+import '../../rewards/data/reward_dtos.dart';
+import '../../rewards/data/reward_providers.dart';
 import '../data/island_dto.dart';
 import '../data/island_providers.dart';
 import 'widgets/island_inventory_sheet.dart';
@@ -41,10 +43,12 @@ class IslandScreen extends ConsumerStatefulWidget {
 class _IslandScreenState extends ConsumerState<IslandScreen>
     with SingleTickerProviderStateMixin {
   String? _selectedSlotId;
-  String? _selectedTrayItemId;   // Item đang chọn trên khay Kho Vật Phẩm
-  int _previewTier = 1;          // Tab cấp đảo đang xem (1: Đảo An Lạc, 2: Đảo Phồn Thịnh, 3: Đảo Trường Tồn)
-  bool _isEditMode = false;      // Issue #46: false = Chế độ Tham quan (Màn 1 & 3), true = Chế độ Bài trí (Màn 2)
-  final Set<String> _flippedSlotIds = <String>{}; // Issue #46 AC-3: lưu hướng xoay ngang của vật phẩm trên đảo
+  String? _selectedTrayItemId;   // Item đang chọn để đặt lên đảo (Màn 2 Placement Preview)
+  bool _previewFlipHorizontally = false;
+  int _previewTier = 1;          // Tab cấp đảo đang xem (1: Đảo Nhỏ, 2: Đảo Vừa, 3: Đảo Lớn)
+  bool _isEditMode = false;      // Màn 3 & Màn 5: hiển thị cụm 3 nút Lưu / Thu hồi / Xoay
+  bool _isPanoramicMapOpen = false; // Màn 4: Bản đồ Toàn cảnh 3 Cấp Đảo xếp dọc
+  final Set<String> _flippedSlotIds = <String>{};
   bool _isMutating = false;
   bool _isSheetOpen = false;
   int _resetCameraVersion = 0;
@@ -74,8 +78,6 @@ class _IslandScreenState extends ConsumerState<IslandScreen>
   String? _loadedOnboardingUserId;
   int? _loadedOnboardingTier;
   bool _showWelcomeCard = false;
-  bool _showSlotStepHint = false;
-  bool _showUpgradeReadyToast = false;
 
   final TransformationController _transformationController =
       TransformationController();
@@ -128,10 +130,11 @@ class _IslandScreenState extends ConsumerState<IslandScreen>
     _loadedOnboardingUserId = null;
     _loadedOnboardingTier = null;
     _showWelcomeCard = false;
-    _showSlotStepHint = false;
-    _showUpgradeReadyToast = false;
     _selectedSlotId = null;
+    _selectedTrayItemId = null;
+    _previewFlipHorizontally = false;
     _isEditMode = false;
+    _isPanoramicMapOpen = false;
     _flippedSlotIds.clear();
   }
   Future<void> _syncOnboardingForCurrentUser(IslandDto island) async {
@@ -162,12 +165,8 @@ class _IslandScreenState extends ConsumerState<IslandScreen>
       if (!onboardingDone && expectedTier == 1 && _selectedSlotId == null) {
         setState(() {
           _showWelcomeCard = true;
-          _showUpgradeReadyToast = false;
         });
       } else if (island.canUpgrade && !island.isMaxTier && !upgradeHintSeen) {
-        setState(() {
-          _showUpgradeReadyToast = true;
-        });
         await prefs.setBool(upgradeHintKey, true);
       }
     } catch (_) {}
@@ -177,7 +176,6 @@ class _IslandScreenState extends ConsumerState<IslandScreen>
     final userId = _currentAuthenticatedUserId();
     setState(() {
       _showWelcomeCard = false;
-      _showSlotStepHint = exploreSlot;
     });
     if (userId != null) {
       try {
@@ -289,11 +287,21 @@ class _IslandScreenState extends ConsumerState<IslandScreen>
           // Nút quay lại (<) bo tròn nền kem bên trái (Issue #46 AC-1)
           InkWell(
             onTap: () {
+              if (_isPanoramicMapOpen) {
+                setState(() => _isPanoramicMapOpen = false);
+                return;
+              }
+              if (_selectedTrayItemId != null) {
+                setState(() {
+                  _selectedTrayItemId = null;
+                  _previewFlipHorizontally = false;
+                });
+                return;
+              }
               if (_isEditMode) {
                 setState(() {
                   _isEditMode = false;
                   _selectedSlotId = null;
-                  _selectedTrayItemId = null;
                 });
                 return;
               }
@@ -352,32 +360,7 @@ class _IslandScreenState extends ConsumerState<IslandScreen>
             ),
           ),
 
-          // Cụm bên phải: Nút trợ giúp (?), Điểm Sử Ký (⭐ 250) & lối tắt Cửa hàng / Mở rộng
-          InkWell(
-            onTap: () {
-              setState(() {
-                _showWelcomeCard = true;
-              });
-            },
-            borderRadius: BorderRadius.circular(18),
-            child: Container(
-              width: 30,
-              height: 30,
-              decoration: BoxDecoration(
-                color: const Color(0xFFFAF3E4),
-                shape: BoxShape.circle,
-                border: Border.all(color: const Color(0xFFDEC9A8), width: 1.2),
-              ),
-              child: const Icon(
-                Icons.help_outline_rounded,
-                color: Color(0xFF4A3728),
-                size: 17,
-              ),
-            ),
-          ),
-          const SizedBox(width: 6),
-
-          // Huy hiệu Điểm Sử Ký / Sao (⭐ 250)
+          // Cụm bên phải: Huy hiệu Điểm Sử Ký (⭐ 250) + Nút trợ giúp (?) (Issue #50 AC-1)
           GestureDetector(
             onTap: () => context.push('/island/shop'),
             child: Container(
@@ -411,7 +394,29 @@ class _IslandScreenState extends ConsumerState<IslandScreen>
               ),
             ),
           ),
-
+          const SizedBox(width: 6),
+          InkWell(
+            onTap: () {
+              setState(() {
+                _showWelcomeCard = true;
+              });
+            },
+            borderRadius: BorderRadius.circular(18),
+            child: Container(
+              width: 30,
+              height: 30,
+              decoration: BoxDecoration(
+                color: const Color(0xFFFAF3E4),
+                shape: BoxShape.circle,
+                border: Border.all(color: const Color(0xFFDEC9A8), width: 1.2),
+              ),
+              child: const Icon(
+                Icons.help_outline_rounded,
+                color: Color(0xFF4A3728),
+                size: 17,
+              ),
+            ),
+          ),
           if (!isCompactHeader) ...[
             const SizedBox(width: 4),
             IconButton(
@@ -445,6 +450,34 @@ class _IslandScreenState extends ConsumerState<IslandScreen>
     if (_previewTier < 1) _previewTier = 1;
     if (_previewTier > island.maxTier) _previewTier = island.maxTier;
 
+    final catalogList =
+        ref.watch(inventoryCatalogProvider).asData?.value ??
+        const <CatalogItemDto>[];
+    final shopList =
+        ref.watch(islandShopItemsProvider).asData?.value ??
+        const <ShopItemDto>[];
+    final allPlaceable = IslandInventoryTray.mergePlaceableItems(
+      catalogList,
+      shopList,
+      island,
+    );
+
+    final previewCatalogItem = _selectedTrayItemId == null
+        ? null
+        : allPlaceable.cast<CatalogItemDto?>().firstWhere(
+            (it) => it?.itemId == _selectedTrayItemId,
+            orElse: () => null,
+          );
+    final IslandPlacementDto? previewPlacement = previewCatalogItem == null
+        ? null
+        : IslandPlacementDto(
+            itemId: previewCatalogItem.itemId,
+            code: previewCatalogItem.code,
+            name: previewCatalogItem.name,
+            renderKey: previewCatalogItem.renderKey,
+            assetId: previewCatalogItem.assetId,
+          );
+
     final selectedSlot = island.slots.cast<IslandSlotDto?>().firstWhere(
       (s) => s?.slotId == _selectedSlotId,
       orElse: () => null,
@@ -456,12 +489,19 @@ class _IslandScreenState extends ConsumerState<IslandScreen>
         _expandingToTier != null;
 
     final visibleIsland = _islandForTier(island, _previewTier);
+    final bool isPlacementPreviewMode = previewPlacement != null;
+    final bool showManageToolbar =
+        (_isEditMode || (_previewTier >= 2 && _previewTier <= island.tier)) &&
+        !isPlacementPreviewMode &&
+        !_isPanoramicMapOpen;
 
     return Stack(
       children: [
-        // 1. Canvas 2.5D Isometric Scene (có nền vịnh Hạ Long & đảo phụ phía xa)
+        // 1. Canvas 2.5D Isometric Scene (hoặc Màn 4 Bản đồ Toàn cảnh 3 Đảo)
         Positioned.fill(
-          child: isAnimatingExpansion
+          child: _isPanoramicMapOpen
+              ? _buildPanoramicThreeIslandsMap(island)
+              : isAnimatingExpansion
               ? AnimatedBuilder(
                   animation: _expansionController!,
                   builder: (context, _) {
@@ -479,10 +519,10 @@ class _IslandScreenState extends ConsumerState<IslandScreen>
                       activeEffectSlotId: _activeEffectSlotId,
                       placementEffectToken: _placementEffectToken,
                       removalEffectToken: _removalEffectToken,
-                      isEditMode: _isEditMode,
+                      isEditMode: _isEditMode || isPlacementPreviewMode,
                       flippedSlotIds: _flippedSlotIds,
                       previewTier: _previewTier,
-                      onSelectTier: _handleSelectTier,
+                      onSelectTier: (tier) => _handleSelectTier(tier, island),
                       onSelectSlot: (_) {},
                     );
                   },
@@ -496,74 +536,78 @@ class _IslandScreenState extends ConsumerState<IslandScreen>
                   activeEffectSlotId: _activeEffectSlotId,
                   placementEffectToken: _placementEffectToken,
                   removalEffectToken: _removalEffectToken,
-                  isEditMode: _isEditMode,
+                  isEditMode: _isEditMode || isPlacementPreviewMode,
                   flippedSlotIds: _flippedSlotIds,
                   previewTier: _previewTier,
-                  onSelectTier: _handleSelectTier,
+                  previewPlacement: previewPlacement,
+                  previewFlipHorizontally: _previewFlipHorizontally,
+                  onCancelPreviewPlacement: () {
+                    setState(() {
+                      _selectedTrayItemId = null;
+                      _previewFlipHorizontally = false;
+                    });
+                  },
+                  onRotatePreviewPlacement: () {
+                    setState(() {
+                      _previewFlipHorizontally = !_previewFlipHorizontally;
+                    });
+                  },
+                  onConfirmPreviewPlacement: () =>
+                      _confirmPreviewPlacement(island),
+                  onSelectTier: (tier) => _handleSelectTier(tier, island),
                   onSelectSlot: (slot) => _onSlotTap(slot, island),
                 ),
         ),
 
-        // 2. Thanh Tab 3 Cấp Đảo + Thẻ Thông tin Đảo (Island Summary Card) (Issue #46 AC-1)
+        // 2. Thanh Segmented Tab 3 Cấp Đảo (`Đảo Nhỏ` · `Đảo Vừa` · `Đảo Lớn`) — KHÔNG có IslandSummaryCard (Issue #50 AC-1)
         if (!isAnimatingExpansion && !_showWelcomeCard)
           Positioned(
             top: 8,
             left: 12,
             right: 12,
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              crossAxisAlignment: CrossAxisAlignment.stretch,
-              children: [
-                if (!_isEditMode) ...[
-                  IslandTierTabs(
-                    island: island,
-                    previewTier: _previewTier,
-                    onSelectTier: _handleSelectTier,
-                  ),
-                  const SizedBox(height: 8),
-                ],
-                _buildIslandSummaryCard(island, isCompact: _isEditMode),
-              ],
+            child: IslandTierTabs(
+              island: island,
+              previewTier: _previewTier,
+              onSelectTier: (tier) => _handleSelectTier(tier, island),
             ),
           ),
 
-        // 3. Hai nút điều hướng trái/phải (< / >) chuyển nhanh giữa các cấp đảo ở Chế độ Tham quan (AC-1)
-        if (!isAnimatingExpansion && !_showWelcomeCard && !_isEditMode) ...[
+        // 3. Màn 1: Khung thoại Rùa đội nón lá nằm ở phía trên bên trái (ngay dưới thanh tab) (Issue #50 AC-1)
+        if (!isAnimatingExpansion &&
+            !_showWelcomeCard &&
+            !_isPanoramicMapOpen &&
+            !isPlacementPreviewMode &&
+            !showManageToolbar)
           Positioned(
-            left: 10,
-            top: 250,
-            child: _buildTierNavArrowButton(
-              icon: Icons.chevron_left_rounded,
-              tooltip: 'Đảo trước',
-              onTap: () {
-                final prev = _previewTier > 1 ? _previewTier - 1 : island.maxTier;
-                _handleSelectTier(prev);
-              },
-            ),
-          ),
-          Positioned(
-            right: 10,
-            top: 250,
-            child: _buildTierNavArrowButton(
-              icon: Icons.chevron_right_rounded,
-              tooltip: 'Đảo tiếp theo',
-              onTap: () {
-                final next = _previewTier < island.maxTier ? _previewTier + 1 : 1;
-                _handleSelectTier(next);
-              },
-            ),
-          ),
-        ],
-
-        // 4. Cụm 3 nút công cụ nổi dọc bên phải ở Chế độ Bài trí: Lưu đảo, Xoay, Xóa (Issue #46 AC-3)
-        if (!isAnimatingExpansion && !_showWelcomeCard && _isEditMode)
-          Positioned(
-            top: 84,
+            top: 56,
+            left: 12,
             right: 12,
-            child: _buildEditFloatingTools(island, selectedSlot),
+            child: _buildTopTurtleGuideBubble(island),
           ),
 
-        // 5. Nút "BỎ QUA" khi chuỗi animation mở rộng đảo đang chạy
+        // 4. Màn 1: Nút nổi `Bản đồ` ở góc dưới bên phải cạnh đảo để mở Màn 4 Bản đồ Toàn cảnh 3 Đảo (Issue #50 AC-1 & AC-4)
+        if (!isAnimatingExpansion &&
+            !_showWelcomeCard &&
+            !_isPanoramicMapOpen &&
+            !isPlacementPreviewMode &&
+            selectedSlot == null)
+          Positioned(
+            right: 14,
+            bottom: 162,
+            child: _buildMapFloatingButton(),
+          ),
+
+        // 5. Màn 3 & Màn 5: Cụm 3 nút công cụ nổi dọc bên phải (`Lưu` / `Thu hồi` / `Xoay`) (Issue #50 AC-3)
+        if (!isAnimatingExpansion &&
+            !_showWelcomeCard &&
+            showManageToolbar)
+          Positioned(
+            top: 62,
+            right: 12,
+            child: _buildManageFloatingTools(island, selectedSlot),
+          ),
+
+        // 6. Nút "BỎ QUA" khi chuỗi animation mở rộng đảo đang chạy
         if (isAnimatingExpansion)
           Positioned(
             top: 12,
@@ -572,38 +616,45 @@ class _IslandScreenState extends ConsumerState<IslandScreen>
             child: Row(
               mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [
-                Container(
-                  padding: const EdgeInsets.symmetric(
-                    horizontal: 14,
-                    vertical: 8,
-                  ),
-                  decoration: BoxDecoration(
-                    color: DauVietColors.inkText.withValues(alpha: 0.85),
-                    borderRadius: BorderRadius.circular(16),
-                    border: Border.all(
-                      color: DauVietColors.imperialGold,
-                      width: 1.5,
+                Flexible(
+                  child: Container(
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 14,
+                      vertical: 8,
+                    ),
+                    decoration: BoxDecoration(
+                      color: DauVietColors.inkText.withValues(alpha: 0.85),
+                      borderRadius: BorderRadius.circular(16),
+                      border: Border.all(
+                        color: DauVietColors.imperialGold,
+                        width: 1.5,
+                      ),
+                    ),
+                    child: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        const Icon(
+                          Icons.auto_awesome_rounded,
+                          color: DauVietColors.imperialGold,
+                          size: 18,
+                        ),
+                        const SizedBox(width: 8),
+                        Flexible(
+                          child: Text(
+                            'Đang khai mở ${island.tierScaleLabel}...',
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                            style: DauVietTypography.bodySmall.copyWith(
+                              color: Colors.white,
+                              fontWeight: FontWeight.bold,
+                            ),
+                          ),
+                        ),
+                      ],
                     ),
                   ),
-                  child: Row(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      const Icon(
-                        Icons.auto_awesome_rounded,
-                        color: DauVietColors.imperialGold,
-                        size: 18,
-                      ),
-                      const SizedBox(width: 8),
-                      Text(
-                        'Đang khai mở ${island.tierScaleLabel}...',
-                        style: DauVietTypography.bodySmall.copyWith(
-                          color: Colors.white,
-                          fontWeight: FontWeight.bold,
-                        ),
-                      ),
-                    ],
-                  ),
                 ),
+                const SizedBox(width: 8),
                 DongSonButton(
                   label: 'BỎ QUA',
                   icon: Icons.skip_next_rounded,
@@ -615,36 +666,12 @@ class _IslandScreenState extends ConsumerState<IslandScreen>
             ),
           ),
 
-        // 6. Thông báo ngắn khi đủ điều kiện mở rộng đảo
+        // 7. Bottom Sheet chi tiết tile/slot khi chạm vào ô ở Chế độ Tham quan (tương thích kiểm thử slot)
         if (!isAnimatingExpansion &&
             !_showWelcomeCard &&
-            _showUpgradeReadyToast &&
-            island.canUpgrade &&
-            !island.isMaxTier)
-          Positioned(
-            left: 12,
-            right: 12,
-            top: _isEditMode ? 76 : 156,
-            child: _buildUpgradeReadyBanner(island),
-          ),
-
-        // 7. Chỉ dẫn bước chọn slot trống sau khi bấm "KHÁM PHÁ"
-        if (!isAnimatingExpansion &&
-            !_showWelcomeCard &&
-            _showSlotStepHint &&
-            selectedSlot != null &&
-            selectedSlot.isEmpty)
-          Positioned(
-            left: 12,
-            right: 12,
-            top: _isEditMode ? 76 : 156,
-            child: _buildSlotStepHintBanner(),
-          ),
-
-        // 8. Bottom Sheet chi tiết tile/slot khi chạm vào ô ở Chế độ Tham quan
-        if (!isAnimatingExpansion &&
-            !_showWelcomeCard &&
+            !_isPanoramicMapOpen &&
             !_isEditMode &&
+            !isPlacementPreviewMode &&
             selectedSlot != null)
           Positioned(
             left: 0,
@@ -656,7 +683,6 @@ class _IslandScreenState extends ConsumerState<IslandScreen>
               islandTier: island.tier,
               onClose: () => setState(() {
                 _selectedSlotId = null;
-                _showSlotStepHint = false;
               }),
               onPlaceItem: () => _openInventorySheet(selectedSlot),
               onRemoveItem: () => _removePlacement(selectedSlot),
@@ -664,20 +690,11 @@ class _IslandScreenState extends ConsumerState<IslandScreen>
             ),
           ),
 
-        // 9. Trợ lý Rùa Kabi đội nón lá ở góc dưới trái khi ở Chế độ Tham quan (Màn 1 & Màn 3 — AC-1)
+        // 8. Khay `🧰 Kho vật phẩm` rút gọn (Màn 1, 3, 5) hoặc Thẻ Đặt Vật Phẩm (Màn 2) ở đáy màn hình
         if (!isAnimatingExpansion &&
             !_showWelcomeCard &&
-            !_isEditMode &&
-            selectedSlot == null)
-          Positioned(
-            left: 12,
-            right: 12,
-            bottom: 10,
-            child: _buildKabiGuideOverlay(island),
-          ),
-
-        // 10. Khay Kho Vật Phẩm Phân loại 5 Tab & Lưới 4 Cột khi ở Chế độ Bài trí (Màn 2 — AC-4)
-        if (!isAnimatingExpansion && !_showWelcomeCard && _isEditMode)
+            !_isPanoramicMapOpen &&
+            (isPlacementPreviewMode || _isEditMode || selectedSlot == null))
           Positioned(
             left: 0,
             right: 0,
@@ -685,15 +702,17 @@ class _IslandScreenState extends ConsumerState<IslandScreen>
             child: IslandInventoryTray(
               island: island,
               selectedItemId: _selectedTrayItemId,
-              onSelectItem: (itemId) {
-                setState(() {
-                  _selectedTrayItemId = itemId;
-                });
-              },
+              onSelectItem: (itemId) =>
+                  _startPlacementPreview(itemId, visibleIsland),
+              onOpenExpandedInventory: () =>
+                  _openExpandedInventoryModal(visibleIsland),
+              onConfirmPlacement: () => _confirmPreviewPlacement(island),
+              onInspectItem: (item) =>
+                  _openItemDetailModal(item, visibleIsland, shopList),
             ),
           ),
 
-        // 11. Thẻ Chào mừng / Hướng dẫn lần đầu
+        // 9. Thẻ Chào mừng / Hướng dẫn lần đầu
         if (!isAnimatingExpansion && _showWelcomeCard)
           Positioned.fill(
             child: Container(
@@ -707,220 +726,283 @@ class _IslandScreenState extends ConsumerState<IslandScreen>
     );
   }
 
-  void _handleSelectTier(int tier) {
+  /// Chuyển tab cấp đảo (`Đảo Nhỏ` / `Đảo Vừa` / `Đảo Lớn`).
+  /// Nếu chạm vào tab cấp đảo đang khóa -> mở Modal 3 `NÂNG CẤP ĐẢO` (hoặc cho phép xem trước).
+  void _handleSelectTier(int tier, [IslandDto? island]) {
+    if (island != null && tier > island.tier) {
+      setState(() {
+        _previewTier = tier;
+        _isPanoramicMapOpen = false;
+        _selectedSlotId = null;
+        _selectedTrayItemId = null;
+        _resetCameraVersion++;
+      });
+      _openUpgradePanel(island, targetTierOverride: tier);
+      return;
+    }
     setState(() {
       _previewTier = tier;
+      _isPanoramicMapOpen = false;
       _selectedSlotId = null;
       _selectedTrayItemId = null;
       _resetCameraVersion++;
     });
   }
 
-  /// Thẻ Thông tin Đảo (Island Summary Card) nằm ngay dưới thanh tab (Issue #46 AC-1 & AC-2).
-  Widget _buildIslandSummaryCard(IslandDto island, {required bool isCompact}) {
-    final tierName = IslandDto.tierHeritageName(_previewTier);
-    final areaLabel = 'Diện tích: ${island.tierAreaDimensionLabel(_previewTier)}';
-    final isTierUnlocked = _previewTier <= island.tier;
+  /// Bắt đầu chế độ Đặt Vật Phẩm lên Đảo (Màn 2 Placement Preview).
+  void _startPlacementPreview(String? itemId, IslandDto visibleIsland) {
+    if (itemId == null) {
+      setState(() {
+        _selectedTrayItemId = null;
+        _previewFlipHorizontally = false;
+      });
+      return;
+    }
+    String? targetSlotId = _selectedSlotId;
+    final currentSlot = targetSlotId == null
+        ? null
+        : visibleIsland.slots.cast<IslandSlotDto?>().firstWhere(
+            (s) => s?.slotId == targetSlotId,
+            orElse: () => null,
+          );
+    if (currentSlot == null || !currentSlot.unlocked) {
+      final emptySlot = visibleIsland.slots.cast<IslandSlotDto?>().firstWhere(
+        (s) => s != null && s.unlocked && s.isEmpty,
+        orElse: () => visibleIsland.slots.cast<IslandSlotDto?>().firstWhere(
+          (s) => s != null && s.unlocked,
+          orElse: () => null,
+        ),
+      );
+      targetSlotId = emptySlot?.slotId;
+    }
+    setState(() {
+      _selectedTrayItemId = itemId;
+      _selectedSlotId = targetSlotId;
+      _previewFlipHorizontally = false;
+    });
+  }
 
-    return Container(
-      padding: EdgeInsets.symmetric(
-        horizontal: 12,
-        vertical: isCompact ? 8 : 10,
+  /// Xác nhận đặt vật phẩm đang preview ở Màn 2 (bấm nút `✓` hoặc nút `Đặt`).
+  /// Đối với công trình `2x2`, tự động kiểm tra 3 ô lân cận trong vùng đế `2x2` không bị vướng.
+  Future<void> _confirmPreviewPlacement(IslandDto island) async {
+    final itemId = _selectedTrayItemId;
+    if (itemId == null) return;
+    final slot = island.slots.cast<IslandSlotDto?>().firstWhere(
+      (s) => s?.slotId == _selectedSlotId && s!.unlocked,
+      orElse: () => island.slots.cast<IslandSlotDto?>().firstWhere(
+        (s) => s != null && s.unlocked && s.isEmpty,
+        orElse: () => island.slots.cast<IslandSlotDto?>().firstWhere(
+          (s) => s != null && s.unlocked,
+          orElse: () => null,
+        ),
       ),
-      decoration: BoxDecoration(
-        color: const Color(0xFFFAF1E0).withValues(alpha: 0.96),
-        borderRadius: BorderRadius.circular(18),
-        border: Border.all(color: const Color(0xFFDEC9A8), width: 1.4),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withValues(alpha: 0.10),
-            blurRadius: 10,
-            offset: const Offset(0, 3),
-          ),
-        ],
-      ),
+    );
+    if (slot == null) return;
+
+    // Giải phóng các ô con trong vùng đế 2x2 nếu có vật phẩm cũ đang chiếm chỗ
+    final catalogList =
+        ref.read(inventoryCatalogProvider).asData?.value ??
+        const <CatalogItemDto>[];
+    final shopList =
+        ref.read(islandShopItemsProvider).asData?.value ??
+        const <ShopItemDto>[];
+    final allPlaceable = IslandInventoryTray.mergePlaceableItems(
+      catalogList,
+      shopList,
+      island,
+    );
+    final matchedItem = allPlaceable.cast<CatalogItemDto?>().firstWhere(
+      (it) => it?.itemId == itemId,
+      orElse: () => null,
+    );
+    final (footW, footH) = resolveIslandItemFootprint(
+      matchedItem?.code,
+      matchedItem?.renderKey,
+    );
+    final anchorTile = island.board?.tileForSlotDto(slot);
+    if ((footW > 1 || footH > 1) && anchorTile != null) {
+      for (int dr = 0; dr < footH; dr++) {
+        for (int dc = 0; dc < footW; dc++) {
+          if (dr == 0 && dc == 0) continue;
+          final subTile = island.board?.tileAt(
+            anchorTile.row + dr,
+            anchorTile.col + dc,
+          );
+          if (subTile?.slotId != null) {
+            final subSlot = island.slots.cast<IslandSlotDto?>().firstWhere(
+              (s) => s?.slotId == subTile!.slotId,
+              orElse: () => null,
+            );
+            if (subSlot != null && subSlot.placement != null) {
+              await _removePlacement(subSlot);
+            }
+          }
+        }
+      }
+    }
+
+    final shouldFlip = _previewFlipHorizontally;
+    setState(() {
+      _selectedTrayItemId = null;
+      _previewFlipHorizontally = false;
+      _isEditMode = true;
+      _selectedSlotId = slot.slotId;
+      if (shouldFlip) {
+        _flippedSlotIds.add(slot.slotId);
+      } else {
+        _flippedSlotIds.remove(slot.slotId);
+      }
+    });
+    if (slot.placement == null) {
+      await _placeItem(slot, itemId);
+    } else {
+      await _replacePlacement(slot, itemId);
+    }
+  }
+
+  /// Màn 1 (Issue #50 AC-1): Khung thoại Rùa đội nón lá nằm ngay dưới thanh tab ở phía trên bên trái.
+  Widget _buildTopTurtleGuideBubble(IslandDto island) {
+    final tierName = IslandDto.tierHeritageName(_previewTier);
+    final fullGuideText = IslandDto.kabiGuideTextForTier(_previewTier);
+
+    return Semantics(
+      label: fullGuideText,
       child: Row(
-        crossAxisAlignment:
-            isCompact ? CrossAxisAlignment.center : CrossAxisAlignment.start,
+        crossAxisAlignment: CrossAxisAlignment.center,
         children: [
-          IslandTierThumbnail(
-            tier: _previewTier,
-            isUnlocked: isTierUnlocked,
-            width: isCompact ? 42 : 50,
-            height: isCompact ? 34 : 42,
-          ),
-          const SizedBox(width: 10),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                Text(
-                  tierName,
-                  style: DauVietTypography.titleSmall.copyWith(
-                    fontWeight: FontWeight.w800,
-                    color: const Color(0xFF2E2118),
-                    fontSize: 14.5,
-                  ),
+          // Chân dung Rùa đội nón lá truyền thống
+          Container(
+            width: 68,
+            height: 70,
+            decoration: BoxDecoration(
+              shape: BoxShape.circle,
+              boxShadow: [
+                BoxShadow(
+                  color: Colors.black.withValues(alpha: 0.16),
+                  blurRadius: 8,
+                  offset: const Offset(0, 3),
                 ),
-                Text(
-                  areaLabel,
-                  style: DauVietTypography.bodySmall.copyWith(
-                    fontWeight: FontWeight.w600,
-                    color: const Color(0xFF5D4837),
-                    fontSize: 11.5,
-                  ),
-                ),
-                if (!isCompact) ...[
-                  const SizedBox(height: 3),
-                  Text(
-                    'Nơi lưu giữ những dấu ấn di sản và vật phẩm bạn đã sưu tầm.',
-                    maxLines: 2,
-                    overflow: TextOverflow.ellipsis,
-                    style: DauVietTypography.bodySmall.copyWith(
-                      color: const Color(0xFF6E5A49),
-                      fontSize: 11,
-                      height: 1.25,
-                    ),
-                  ),
-                ],
               ],
+            ),
+            child: Image.asset(
+              'assets/island/scenery/turtle_hat_avatar.png',
+              fit: BoxFit.contain,
+              errorBuilder: (_, _, _) => const KabiMascotWidget(
+                mood: KabiMood.guiding,
+                width: 64,
+                height: 64,
+              ),
             ),
           ),
           const SizedBox(width: 8),
-          if (isCompact || !isTierUnlocked)
-            InkWell(
-              onTap: () => _openUpgradePanel(island),
-              borderRadius: BorderRadius.circular(16),
+          Flexible(
+            child: GestureDetector(
+              onTap: () {
+                setState(() {
+                  _isEditMode = true;
+                });
+              },
               child: Container(
-                padding:
-                    const EdgeInsets.symmetric(horizontal: 11, vertical: 7),
-                decoration: BoxDecoration(
-                  color: const Color(0xFFF2E4CA),
-                  borderRadius: BorderRadius.circular(16),
-                  border: Border.all(color: const Color(0xFFD8C09B)),
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 14,
+                  vertical: 10,
                 ),
-                child: Row(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    const Icon(
-                      Icons.lock_rounded,
-                      size: 13,
-                      color: Color(0xFF5A4635),
-                    ),
-                    const SizedBox(width: 4),
-                    Text(
-                      'Mở rộng đảo',
-                      style: DauVietTypography.bodySmall.copyWith(
-                        fontSize: 11,
-                        fontWeight: FontWeight.w700,
-                        color: const Color(0xFF4A3728),
-                      ),
+                decoration: BoxDecoration(
+                  color: const Color(0xFFFBF3E4).withValues(alpha: 0.96),
+                  borderRadius: BorderRadius.circular(18),
+                  border: Border.all(
+                    color: const Color(0xFFDEC8A4),
+                    width: 1.4,
+                  ),
+                  boxShadow: [
+                    BoxShadow(
+                      color: Colors.black.withValues(alpha: 0.12),
+                      blurRadius: 10,
+                      offset: const Offset(0, 3),
                     ),
                   ],
                 ),
-              ),
-            )
-          else
-            Column(
-              crossAxisAlignment: CrossAxisAlignment.end,
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                Container(
-                  padding:
-                      const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
-                  decoration: BoxDecoration(
-                    color: const Color(0xFF1E4D3B),
-                    borderRadius: BorderRadius.circular(14),
-                  ),
-                  child: Text(
-                    'Đang sử dụng',
+                child: Text.rich(
+                  TextSpan(
                     style: DauVietTypography.bodySmall.copyWith(
-                      color: Colors.white,
-                      fontWeight: FontWeight.w700,
-                      fontSize: 10.5,
+                      color: const Color(0xFF2E1E12),
+                      fontSize: 12,
+                      height: 1.35,
+                      fontWeight: FontWeight.w500,
                     ),
+                    children: [
+                      const TextSpan(text: 'Đây là '),
+                      TextSpan(
+                        text: tierName,
+                        style: const TextStyle(fontWeight: FontWeight.w800),
+                      ),
+                      const TextSpan(
+                        text:
+                            ' của bạn!\nHãy đặt các vật phẩm để xây dựng hòn đảo theo cách riêng nhé!',
+                      ),
+                    ],
                   ),
                 ),
-                const SizedBox(height: 6),
-                InkWell(
-                  onTap: () {
-                    setState(() {
-                      _isEditMode = true;
-                      _selectedSlotId = null;
-                    });
-                  },
-                  borderRadius: BorderRadius.circular(14),
-                  child: Container(
-                    padding:
-                        const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-                    decoration: BoxDecoration(
-                      color: const Color(0xFFF3E4C8),
-                      borderRadius: BorderRadius.circular(14),
-                      border: Border.all(color: const Color(0xFFD5BC94)),
-                    ),
-                    child: Row(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        const Icon(
-                          Icons.grid_view_rounded,
-                          size: 12,
-                          color: Color(0xFF4A3728),
-                        ),
-                        const SizedBox(width: 4),
-                        Text(
-                          'Bài trí',
-                          style: DauVietTypography.bodySmall.copyWith(
-                            fontSize: 10.5,
-                            fontWeight: FontWeight.w700,
-                            color: const Color(0xFF4A3728),
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
-                ),
-              ],
+              ),
             ),
+          ),
         ],
       ),
     );
   }
 
-  /// Nút mũi tên tròn (< / >) hai bên mép màn hình chuyển nhanh giữa các cấp đảo.
-  Widget _buildTierNavArrowButton({
-    required IconData icon,
-    required String tooltip,
-    required VoidCallback onTap,
-  }) {
-    return Tooltip(
-      message: tooltip,
-      child: InkWell(
-        onTap: onTap,
-        borderRadius: BorderRadius.circular(22),
-        child: Container(
-          width: 38,
-          height: 38,
-          decoration: BoxDecoration(
-            color: const Color(0xFFFAF1E0).withValues(alpha: 0.92),
-            shape: BoxShape.circle,
-            border: Border.all(color: const Color(0xFFDEC9A8), width: 1.4),
-            boxShadow: [
-              BoxShadow(
-                color: Colors.black.withValues(alpha: 0.14),
-                blurRadius: 6,
-                offset: const Offset(0, 2),
+  /// Màn 1 (Issue #50 AC-1 & AC-4): Nút nổi `Bản đồ` ở góc dưới bên phải cạnh đảo.
+  Widget _buildMapFloatingButton() {
+    return InkWell(
+      onTap: () {
+        setState(() {
+          _isPanoramicMapOpen = true;
+          _selectedSlotId = null;
+          _selectedTrayItemId = null;
+        });
+      },
+      borderRadius: BorderRadius.circular(16),
+      child: Container(
+        width: 58,
+        padding: const EdgeInsets.symmetric(vertical: 8, horizontal: 6),
+        decoration: BoxDecoration(
+          color: const Color(0xFFFBF3E4).withValues(alpha: 0.96),
+          borderRadius: BorderRadius.circular(16),
+          border: Border.all(color: const Color(0xFFDEC8A4), width: 1.4),
+          boxShadow: [
+            BoxShadow(
+              color: Colors.black.withValues(alpha: 0.14),
+              blurRadius: 8,
+              offset: const Offset(0, 3),
+            ),
+          ],
+        ),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            const Icon(
+              Icons.map_rounded,
+              color: Color(0xFF1A5642),
+              size: 22,
+            ),
+            const SizedBox(height: 3),
+            Text(
+              'Bản đồ',
+              textAlign: TextAlign.center,
+              style: DauVietTypography.bodySmall.copyWith(
+                fontSize: 10.5,
+                fontWeight: FontWeight.w800,
+                color: const Color(0xFF3A2618),
               ),
-            ],
-          ),
-          child: Icon(icon, color: const Color(0xFF4A3728), size: 24),
+            ),
+          ],
         ),
       ),
     );
   }
 
-  /// Cụm 3 nút công cụ nổi (Lưu đảo / Xoay / Xóa) dọc bên phải màn hình khi ở Chế độ Bài trí (Issue #46 AC-3).
-  Widget _buildEditFloatingTools(
+  /// Màn 3 & Màn 5 (Issue #50 AC-3): Cụm 3 nút công cụ nổi dọc bên phải (`Lưu` / `Thu hồi` / `Xoay`).
+  Widget _buildManageFloatingTools(
     IslandDto island,
     IslandSlotDto? selectedSlot,
   ) {
@@ -928,8 +1010,8 @@ class _IslandScreenState extends ConsumerState<IslandScreen>
       mainAxisSize: MainAxisSize.min,
       children: [
         _buildFloatingToolButton(
-          icon: Icons.inventory_2_outlined,
-          label: 'Lưu đảo',
+          icon: Icons.save_outlined,
+          label: 'Lưu',
           onTap: () {
             setState(() {
               _isEditMode = false;
@@ -939,10 +1021,40 @@ class _IslandScreenState extends ConsumerState<IslandScreen>
             ScaffoldMessenger.of(context).showSnackBar(
               const SnackBar(
                 content: Text('Đã lưu bố cục Đảo Di Sản!'),
-                backgroundColor: Color(0xFF1E4D3B),
+                backgroundColor: Color(0xFF1A5642),
                 behavior: SnackBarBehavior.floating,
               ),
             );
+          },
+        ),
+        const SizedBox(height: 8),
+        _buildFloatingToolButton(
+          icon: Icons.unarchive_outlined,
+          label: 'Thu hồi',
+          onTap: () {
+            final target = (selectedSlot != null && selectedSlot.placement != null)
+                ? selectedSlot
+                : island.slots.cast<IslandSlotDto?>().firstWhere(
+                    (s) =>
+                        s != null &&
+                        s.unlocked &&
+                        s.unlockTier <= _previewTier &&
+                        s.placement != null,
+                    orElse: () => null,
+                  );
+            if (target != null) {
+              _removePlacement(target);
+            } else {
+              ScaffoldMessenger.of(context).showSnackBar(
+                const SnackBar(
+                  content: Text(
+                    'Hãy chạm chọn một vật phẩm đang đặt trên đảo để thu hồi về kho.',
+                  ),
+                  backgroundColor: Color(0xFF5A4635),
+                  behavior: SnackBarBehavior.floating,
+                ),
+              );
+            }
           },
         ),
         const SizedBox(height: 8),
@@ -963,26 +1075,6 @@ class _IslandScreenState extends ConsumerState<IslandScreen>
             }
           },
         ),
-        const SizedBox(height: 8),
-        _buildFloatingToolButton(
-          icon: Icons.delete_outline_rounded,
-          label: 'Xóa',
-          onTap: () {
-            if (selectedSlot != null && selectedSlot.placement != null) {
-              _removePlacement(selectedSlot);
-            } else {
-              ScaffoldMessenger.of(context).showSnackBar(
-                const SnackBar(
-                  content: Text(
-                    'Hãy chạm chọn một vật phẩm đang đặt trên đảo để xóa.',
-                  ),
-                  backgroundColor: Color(0xFF5A4635),
-                  behavior: SnackBarBehavior.floating,
-                ),
-              );
-            }
-          },
-        ),
       ],
     );
   }
@@ -999,9 +1091,9 @@ class _IslandScreenState extends ConsumerState<IslandScreen>
         width: 56,
         padding: const EdgeInsets.symmetric(vertical: 8, horizontal: 4),
         decoration: BoxDecoration(
-          color: const Color(0xFFFAF1E0).withValues(alpha: 0.96),
+          color: const Color(0xFFFBF3E4).withValues(alpha: 0.96),
           borderRadius: BorderRadius.circular(16),
-          border: Border.all(color: const Color(0xFFDEC9A8), width: 1.4),
+          border: Border.all(color: const Color(0xFFDEC8A4), width: 1.4),
           boxShadow: [
             BoxShadow(
               color: Colors.black.withValues(alpha: 0.14),
@@ -1020,8 +1112,8 @@ class _IslandScreenState extends ConsumerState<IslandScreen>
               textAlign: TextAlign.center,
               style: DauVietTypography.bodySmall.copyWith(
                 fontSize: 10,
-                fontWeight: FontWeight.w700,
-                color: const Color(0xFF3E2D20),
+                fontWeight: FontWeight.w800,
+                color: const Color(0xFF3A2618),
               ),
             ),
           ],
@@ -1030,127 +1122,206 @@ class _IslandScreenState extends ConsumerState<IslandScreen>
     );
   }
 
-  /// Trợ lý Rùa Kabi đội nón lá kèm khung thoại hướng dẫn tự nhiên ở góc dưới trái (Issue #46 AC-1).
-  Widget _buildKabiGuideOverlay(IslandDto island) {
-    final message = IslandDto.kabiGuideTextForTier(_previewTier);
+  /// Màn 4 (Issue #50 AC-4): Bản đồ Toàn cảnh 3 Cấp Đảo xếp dọc trên biển mây
+  /// (`✅ Đảo Nhỏ — Đang sử dụng`, `🔒 Đảo Vừa — Hoàn thành 15 bài học để mở khóa`,
+  /// `🔒 Đảo Lớn — Hoàn thành 30 bài học để mở khóa`).
+  Widget _buildPanoramicThreeIslandsMap(IslandDto island) {
+    return Container(
+      decoration: const BoxDecoration(
+        gradient: LinearGradient(
+          begin: Alignment.topCenter,
+          end: Alignment.bottomCenter,
+          colors: [
+            Color(0xFFA8DFEA),
+            Color(0xFF66B9CE),
+            Color(0xFF398FA9),
+            Color(0xFF236E86),
+          ],
+          stops: [0.0, 0.35, 0.72, 1.0],
+        ),
+      ),
+      child: Stack(
+        children: [
+          // Những tầng mây trắng bồng bềnh nối giữa 3 đảo
+          Positioned(
+            top: 90,
+            left: -20,
+            child: _buildSoftCloudCluster(width: 180, height: 64),
+          ),
+          Positioned(
+            top: 230,
+            right: -30,
+            child: _buildSoftCloudCluster(width: 200, height: 70),
+          ),
+          Positioned(
+            bottom: 40,
+            left: 10,
+            right: 10,
+            child: _buildSoftCloudCluster(width: 340, height: 80),
+          ),
+          Padding(
+            padding: const EdgeInsets.fromLTRB(16, 58, 16, 16),
+            child: Column(
+              mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+              children: [
+                _buildPanoramicIslandNode(
+                  island: island,
+                  tier: 1,
+                  title: 'Đảo Nhỏ',
+                  unlockedSubtitle: 'Đang sử dụng',
+                  lockedSubtitle: 'Đang sử dụng',
+                  thumbWidth: 146,
+                  thumbHeight: 104,
+                ),
+                _buildPanoramicIslandNode(
+                  island: island,
+                  tier: 2,
+                  title: 'Đảo Vừa',
+                  unlockedSubtitle:
+                      island.tier == 2 ? 'Đang sử dụng' : 'Đã mở khóa',
+                  lockedSubtitle: 'Hoàn thành 15 bài học\nđể mở khóa',
+                  thumbWidth: 162,
+                  thumbHeight: 116,
+                ),
+                _buildPanoramicIslandNode(
+                  island: island,
+                  tier: 3,
+                  title: 'Đảo Lớn',
+                  unlockedSubtitle:
+                      island.tier == 3 ? 'Đang sử dụng' : 'Đã mở khóa',
+                  lockedSubtitle: 'Hoàn thành 30 bài học\nđể mở khóa',
+                  thumbWidth: 174,
+                  thumbHeight: 126,
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
 
-    return Column(
-      mainAxisSize: MainAxisSize.min,
-      children: [
-        Row(
-          crossAxisAlignment: CrossAxisAlignment.end,
-          children: [
-            // Hình minh họa Rùa Kabi đội nón lá truyền thống
-            SizedBox(
-              width: 78,
-              height: 86,
-              child: Stack(
-                alignment: Alignment.bottomCenter,
-                clipBehavior: Clip.none,
-                children: [
-                  const KabiMascotWidget(
-                    mood: KabiMood.guiding,
-                    width: 72,
-                    height: 72,
+  Widget _buildSoftCloudCluster({required double width, required double height}) {
+    return IgnorePointer(
+      child: Container(
+        width: width,
+        height: height,
+        decoration: BoxDecoration(
+          color: const Color(0xFFFFFAF0).withValues(alpha: 0.36),
+          borderRadius: BorderRadius.circular(height),
+          boxShadow: [
+            BoxShadow(
+              color: Colors.white.withValues(alpha: 0.34),
+              blurRadius: 24,
+              spreadRadius: 8,
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildPanoramicIslandNode({
+    required IslandDto island,
+    required int tier,
+    required String title,
+    required String unlockedSubtitle,
+    required String lockedSubtitle,
+    required double thumbWidth,
+    required double thumbHeight,
+  }) {
+    final isUnlocked = tier <= island.tier;
+    final subtitle = isUnlocked ? unlockedSubtitle : lockedSubtitle;
+
+    return GestureDetector(
+      onTap: () {
+        if (isUnlocked) {
+          setState(() {
+            _previewTier = tier;
+            _isPanoramicMapOpen = false;
+            _resetCameraVersion++;
+          });
+        } else {
+          _openUpgradePanel(island, targetTierOverride: tier);
+        }
+      },
+      behavior: HitTestBehavior.opaque,
+      child: Row(
+        mainAxisAlignment: MainAxisAlignment.center,
+        children: [
+          Expanded(
+            flex: 5,
+            child: Center(
+              child: IslandTierThumbnail(
+                tier: tier,
+                isUnlocked: isUnlocked,
+                width: thumbWidth,
+                height: thumbHeight,
+              ),
+            ),
+          ),
+          const SizedBox(width: 8),
+          Expanded(
+            flex: 5,
+            child: Container(
+              padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+              decoration: BoxDecoration(
+                color: const Color(0xFFFBF3E4).withValues(alpha: 0.96),
+                borderRadius: BorderRadius.circular(16),
+                border: Border.all(color: const Color(0xFFDEC8A4), width: 1.4),
+                boxShadow: [
+                  BoxShadow(
+                    color: Colors.black.withValues(alpha: 0.14),
+                    blurRadius: 10,
+                    offset: const Offset(0, 3),
                   ),
-                  Positioned(
-                    top: 0,
-                    child: CustomPaint(
-                      size: const Size(64, 28),
-                      painter: _NonLaConicalHatPainter(),
+                ],
+              ),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Icon(
+                        isUnlocked
+                            ? Icons.check_circle_rounded
+                            : Icons.lock_rounded,
+                        size: 16,
+                        color: isUnlocked
+                            ? const Color(0xFF1A5642)
+                            : const Color(0xFF5A4635),
+                      ),
+                      const SizedBox(width: 6),
+                      Flexible(
+                        child: Text(
+                          title,
+                          style: DauVietTypography.titleSmall.copyWith(
+                            fontSize: 13.5,
+                            fontWeight: FontWeight.w800,
+                            color: const Color(0xFF2E1E12),
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 4),
+                  Text(
+                    subtitle,
+                    style: DauVietTypography.bodySmall.copyWith(
+                      fontSize: 11.5,
+                      height: 1.3,
+                      fontWeight: FontWeight.w600,
+                      color: const Color(0xFF5D4A3A),
                     ),
                   ),
                 ],
               ),
             ),
-            const SizedBox(width: 8),
-            Expanded(
-              child: Container(
-                padding:
-                    const EdgeInsets.symmetric(horizontal: 14, vertical: 11),
-                decoration: BoxDecoration(
-                  color: const Color(0xFFFAF1E0).withValues(alpha: 0.96),
-                  borderRadius: BorderRadius.circular(18),
-                  border:
-                      Border.all(color: const Color(0xFFDEC9A8), width: 1.5),
-                  boxShadow: [
-                    BoxShadow(
-                      color: Colors.black.withValues(alpha: 0.14),
-                      blurRadius: 10,
-                      offset: const Offset(0, 3),
-                    ),
-                  ],
-                ),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    Text(
-                      message,
-                      style: DauVietTypography.bodySmall.copyWith(
-                        color: const Color(0xFF2E2118),
-                        fontWeight: FontWeight.w600,
-                        fontSize: 12,
-                        height: 1.35,
-                      ),
-                    ),
-                    const SizedBox(height: 6),
-                    Align(
-                      alignment: Alignment.centerRight,
-                      child: InkWell(
-                        onTap: () {
-                          setState(() {
-                            _isEditMode = true;
-                            _selectedSlotId = null;
-                          });
-                        },
-                        borderRadius: BorderRadius.circular(12),
-                        child: Container(
-                          padding: const EdgeInsets.symmetric(
-                            horizontal: 10,
-                            vertical: 4,
-                          ),
-                          decoration: BoxDecoration(
-                            color: const Color(0xFF1E4D3B),
-                            borderRadius: BorderRadius.circular(12),
-                          ),
-                          child: Text(
-                            'Bài trí vật phẩm →',
-                            style: DauVietTypography.bodySmall.copyWith(
-                              color: Colors.white,
-                              fontWeight: FontWeight.w700,
-                              fontSize: 10.5,
-                            ),
-                          ),
-                        ),
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-            ),
-          ],
-        ),
-        const SizedBox(height: 6),
-        // Chỉ báo 3 chấm tròn ở đáy màn hình
-        Row(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            for (int t = 1; t <= 3; t++)
-              Container(
-                margin: const EdgeInsets.symmetric(horizontal: 4),
-                width: _previewTier == t ? 9 : 7,
-                height: _previewTier == t ? 9 : 7,
-                decoration: BoxDecoration(
-                  color: _previewTier == t
-                      ? Colors.white
-                      : Colors.white.withValues(alpha: 0.45),
-                  shape: BoxShape.circle,
-                ),
-              ),
-          ],
-        ),
-      ],
+          ),
+        ],
+      ),
     );
   }
 
@@ -1318,92 +1489,6 @@ class _IslandScreenState extends ConsumerState<IslandScreen>
     );
   }
 
-  Widget _buildSlotStepHintBanner() {
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-      decoration: BoxDecoration(
-        color: DauVietColors.paperBackground.withValues(alpha: 0.95),
-        borderRadius: BorderRadius.circular(14),
-        border: Border.all(color: DauVietColors.heritageGreen, width: 1.4),
-      ),
-      child: Row(
-        children: [
-          const Icon(
-            Icons.touch_app_rounded,
-            size: 18,
-            color: DauVietColors.heritageGreen,
-          ),
-          const SizedBox(width: 8),
-          Expanded(
-            child: Text(
-              'Bạn đang chọn một ô đất trống. Nhấn "CHỌN VẬT PHẨM ĐẶT LÊN ĐẢO" ở thẻ bên dưới để mở Kho vật phẩm!',
-              style: DauVietTypography.bodySmall.copyWith(
-                color: DauVietColors.inkText,
-                fontSize: 11.5,
-                fontWeight: FontWeight.w600,
-              ),
-            ),
-          ),
-          GestureDetector(
-            onTap: () => setState(() => _showSlotStepHint = false),
-            child: const Icon(
-              Icons.close_rounded,
-              size: 16,
-              color: DauVietColors.inkMuted,
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildUpgradeReadyBanner(IslandDto island) {
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-      decoration: BoxDecoration(
-        color: DauVietColors.paperBackground.withValues(alpha: 0.95),
-        borderRadius: BorderRadius.circular(14),
-        border: Border.all(color: DauVietColors.imperialGold, width: 1.5),
-        boxShadow: DauVietColors.heritageShadow,
-      ),
-      child: Row(
-        children: [
-          const Icon(
-            Icons.auto_awesome_rounded,
-            size: 18,
-            color: DauVietColors.cinnabarRed,
-          ),
-          const SizedBox(width: 8),
-          Expanded(
-            child: GestureDetector(
-              onTap: () {
-                setState(() => _showUpgradeReadyToast = false);
-                _openUpgradePanel(island);
-              },
-              child: Text(
-                'Bạn đã đạt Level ${island.currentLevel} — đủ điều kiện mở rộng đảo! Chạm vào đây để khai mở vùng đất mới.',
-                style: DauVietTypography.bodySmall.copyWith(
-                  color: DauVietColors.inkText,
-                  fontSize: 11.5,
-                  fontWeight: FontWeight.w600,
-                ),
-              ),
-            ),
-          ),
-          const SizedBox(width: 4),
-          GestureDetector(
-            onTap: () => setState(() => _showUpgradeReadyToast = false),
-            child: const Icon(
-              Icons.close_rounded,
-              size: 16,
-              color: DauVietColors.inkMuted,
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-
   /// Board hợp lệ nhưng `tiles` rỗng — layout chưa được cấu hình phía Admin
   /// hoặc version đang pin thiếu dữ liệu. Thông báo rõ ràng, không suy đoán.
   Widget _buildEmptyIslandView(IslandDto island) {
@@ -1473,10 +1558,10 @@ class _IslandScreenState extends ConsumerState<IslandScreen>
     );
   }
 
+  /// Mở Modal 1 `KHO VẬT PHẨM` khi chạm vào một ô cụ thể.
   Future<void> _openInventorySheet(IslandSlotDto slot) async {
     if (_isSheetOpen || _isMutating) return;
     _isSheetOpen = true;
-    setState(() => _showSlotStepHint = false);
     try {
       await showModalBottomSheet(
         context: context,
@@ -1484,7 +1569,9 @@ class _IslandScreenState extends ConsumerState<IslandScreen>
         backgroundColor: DauVietColors.paperBackground.withValues(alpha: 0.0),
         builder: (ctx) => IslandInventorySheet(
           targetSlot: slot,
-          onSelectItem: (itemId) => _placeItem(slot, itemId),
+          onSelectItem: (itemId) => slot.placement == null
+              ? _placeItem(slot, itemId)
+              : _replacePlacement(slot, itemId),
         ),
       );
     } finally {
@@ -1492,25 +1579,75 @@ class _IslandScreenState extends ConsumerState<IslandScreen>
     }
   }
 
+  /// Mở Modal 1 `KHO VẬT PHẨM` từ khay `🧰 Kho vật phẩm` ở đáy màn hình.
+  Future<void> _openExpandedInventoryModal(IslandDto visibleIsland) async {
+    if (_isSheetOpen || _isMutating) return;
+    _isSheetOpen = true;
+    try {
+      await showModalBottomSheet(
+        context: context,
+        isScrollControlled: true,
+        backgroundColor: Colors.transparent,
+        builder: (ctx) => IslandInventorySheet(
+          onSelectItem: (itemId) =>
+              _startPlacementPreview(itemId, visibleIsland),
+        ),
+      );
+    } finally {
+      _isSheetOpen = false;
+    }
+  }
+
+  /// Mở Modal 2 `CHI TIẾT VẬT PHẨM` trực tiếp khi người dùng chạm vào ảnh vật phẩm.
+  Future<void> _openItemDetailModal(
+    CatalogItemDto item,
+    IslandDto visibleIsland,
+    List<ShopItemDto> shopItems,
+  ) async {
+    if (_isSheetOpen) return;
+    _isSheetOpen = true;
+    try {
+      final matchedShop = shopItems.cast<ShopItemDto?>().firstWhere(
+        (s) =>
+            s?.itemId == item.itemId ||
+            s?.code.toLowerCase() == item.code.toLowerCase(),
+        orElse: () => null,
+      );
+      final confirmed = await showModalBottomSheet<bool>(
+        context: context,
+        isScrollControlled: true,
+        backgroundColor: Colors.transparent,
+        builder: (ctx) => IslandItemDetailSheet(
+          item: item,
+          pricePoints: matchedShop?.pricePoints,
+          onPlaceOnIsland: () => Navigator.of(ctx).pop(true),
+        ),
+      );
+      if (confirmed == true && mounted) {
+        _startPlacementPreview(item.itemId, visibleIsland);
+      }
+    } finally {
+      _isSheetOpen = false;
+    }
+  }
+
   /// Chạm ô đất trên đảo:
-  /// - Ở Chế độ Bài trí: nếu đang chọn vật phẩm trong khay -> đặt ngay lên ô đất;
-  ///   nếu đang chọn một vật phẩm trên đảo và chạm sang ô trống khác -> di chuyển vật phẩm;
-  ///   ngược lại chọn ô để Xoay hoặc Xóa.
+  /// - Ở Màn 2 (Placement Preview): di chuyển vị trí preview tới ô đất vừa chạm.
+  /// - Ở Chế độ Quản lý (`_isEditMode`): chọn ô để Xoay/Thu hồi hoặc di chuyển vật phẩm sang ô trống khác.
   /// - Ở Chế độ Tham quan: mở `IslandTileSheet` chi tiết ô đất.
   void _onSlotTap(IslandSlotDto? slot, IslandDto island) {
+    if (_selectedTrayItemId != null) {
+      if (slot != null && slot.unlocked) {
+        setState(() {
+          _selectedSlotId = slot.slotId;
+        });
+      }
+      return;
+    }
     if (slot == null) {
       setState(() {
         _selectedSlotId = null;
-        _showSlotStepHint = false;
       });
-      return;
-    }
-    if (_selectedTrayItemId != null && slot.unlocked) {
-      if (slot.placement == null) {
-        _placeItem(slot, _selectedTrayItemId!);
-      } else {
-        _replacePlacement(slot, _selectedTrayItemId!);
-      }
       return;
     }
     if (_isEditMode && _selectedSlotId != null && _selectedSlotId != slot.slotId) {
@@ -1528,7 +1665,6 @@ class _IslandScreenState extends ConsumerState<IslandScreen>
     }
     setState(() {
       _selectedSlotId = slot.slotId;
-      _showSlotStepHint = false;
     });
   }
 
@@ -1676,9 +1812,15 @@ class _IslandScreenState extends ConsumerState<IslandScreen>
     }
   }
 
-  Future<void> _openUpgradePanel(IslandDto island) async {
+  Future<void> _openUpgradePanel(
+    IslandDto island, {
+    int? targetTierOverride,
+  }) async {
     if (_isSheetOpen || _isMutating) return;
     _isSheetOpen = true;
+    final targetTier =
+        targetTierOverride ??
+        (island.isMaxTier ? island.tier : (island.tier + 1));
     try {
       await showModalBottomSheet(
         context: context,
@@ -1686,10 +1828,14 @@ class _IslandScreenState extends ConsumerState<IslandScreen>
         backgroundColor: DauVietColors.paperBackground.withValues(alpha: 0.0),
         builder: (ctx) => IslandUpgradePanel(
           island: island,
+          targetTierOverride: targetTierOverride,
           isUpgrading: _isMutating,
           onUpgrade: () {
             Navigator.of(ctx).pop();
-            _executeUpgrade(previousTier: island.tier);
+            _showIslandTransitionConfirmationDialog(
+              island: island,
+              targetTier: targetTier,
+            );
           },
         ),
       );
@@ -1698,8 +1844,34 @@ class _IslandScreenState extends ConsumerState<IslandScreen>
     }
   }
 
+  /// Mở Modal 4 `Chuyển đến Đảo Vừa?` (`IslandTransitionDialog`) sau khi bấm `Mở khóa Đảo Vừa` ở Modal 3:
+  /// - `Để sau`: vẫn thực hiện nâng cấp mở khóa đảo mới nhưng giữ góc nhìn hiện tại ở đảo cũ.
+  /// - `Chuyển ngay`: thực hiện nâng cấp mở khóa và chuyển ngay sang đảo mới.
+  Future<void> _showIslandTransitionConfirmationDialog({
+    required IslandDto island,
+    required int targetTier,
+  }) async {
+    await showDialog<void>(
+      context: context,
+      builder: (ctx) => IslandTransitionDialog(
+        targetTier: targetTier,
+        onLater: () {
+          Navigator.of(ctx).pop();
+          _executeUpgrade(previousTier: island.tier);
+        },
+        onSwitchNow: () {
+          Navigator.of(ctx).pop();
+          _executeUpgrade(previousTier: island.tier, switchToTier: targetTier);
+        },
+      ),
+    );
+  }
+
   /// Phase 1 -> 5: Thực hiện nâng cấp đảo và chạy chuỗi animation mở rộng đất (Part B).
-  Future<void> _executeUpgrade({required int previousTier}) async {
+  Future<void> _executeUpgrade({
+    required int previousTier,
+    int? switchToTier,
+  }) async {
     if (_isMutating) return;
     setState(() {
       _isMutating = true;
@@ -1710,6 +1882,12 @@ class _IslandScreenState extends ConsumerState<IslandScreen>
       final updated = await ref.read(islandControllerProvider.notifier).upgrade();
       if (!mounted) return;
 
+      setState(() {
+        _previewTier = switchToTier ?? updated.tier;
+        _isPanoramicMapOpen = false;
+        _isEditMode = true;
+      });
+
       // Chỉ kích hoạt chuỗi mở rộng khi backend xác nhận thành công và Tier mới > Tier cũ (B2)
       if (updated.tier <= previousTier) {
         return;
@@ -1717,16 +1895,13 @@ class _IslandScreenState extends ConsumerState<IslandScreen>
 
       final reduceMotion =
           MediaQuery.maybeDisableAnimationsOf(context) ?? false;
-      if (reduceMotion) {
+      if (reduceMotion || switchToTier != null) {
         setState(() {
           _confettiTriggerCount++;
           _resetCameraVersion++;
-          _showUpgradeReadyToast = false;
         });
-        _showExpansionCompletedDialog(updated);
         return;
       }
-
       _startExpansionSequence(
         fromTier: previousTier,
         toTier: updated.tier,
@@ -1771,7 +1946,6 @@ class _IslandScreenState extends ConsumerState<IslandScreen>
       _expandingFromTier = fromTier;
       _expandingToTier = toTier;
       _completedUpgradeIsland = updatedIsland;
-      _showUpgradeReadyToast = false;
     });
 
     controller.addStatusListener((status) {
@@ -1871,52 +2045,4 @@ class _IslandScreenState extends ConsumerState<IslandScreen>
       ),
     );
   }
-}
-
-/// Vẽ chiếc Nón Lá truyền thống Việt Nam đội trên đầu trợ lý Rùa Kabi.
-class _NonLaConicalHatPainter extends CustomPainter {
-  @override
-  void paint(Canvas canvas, Size size) {
-    final w = size.width;
-    final h = size.height;
-
-    final hatPath = Path()
-      ..moveTo(w * 0.04, h * 0.86)
-      ..lineTo(w * 0.50, h * 0.08)
-      ..lineTo(w * 0.96, h * 0.86)
-      ..quadraticBezierTo(w * 0.50, h * 1.04, w * 0.04, h * 0.86)
-      ..close();
-
-    canvas.drawPath(hatPath, Paint()..color = const Color(0xFFEBD29B));
-    canvas.drawPath(
-      hatPath,
-      Paint()
-        ..color = const Color(0xFFB58E4C)
-        ..style = PaintingStyle.stroke
-        ..strokeWidth = 1.5,
-    );
-
-    // Các vòng nan tre trên nón lá
-    final ribPaint = Paint()
-      ..color = const Color(0xFFC8A464)
-      ..style = PaintingStyle.stroke
-      ..strokeWidth = 1.0;
-    canvas.drawArc(
-      Rect.fromLTWH(w * 0.22, h * 0.36, w * 0.56, h * 0.22),
-      0.1,
-      2.9,
-      false,
-      ribPaint,
-    );
-    canvas.drawArc(
-      Rect.fromLTWH(w * 0.12, h * 0.56, w * 0.76, h * 0.28),
-      0.1,
-      2.9,
-      false,
-      ribPaint,
-    );
-  }
-
-  @override
-  bool shouldRepaint(covariant CustomPainter oldDelegate) => false;
 }

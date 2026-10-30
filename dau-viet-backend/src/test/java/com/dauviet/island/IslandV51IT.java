@@ -130,8 +130,8 @@ class IslandV51IT extends AbstractPostgresIT {
 
         JsonNode island = getIsland();
         assertThat(island.get("tier").asInt()).isEqualTo(1);
-        // V59: 64 slot buildable (lưới 8x8 đồng tâm: T1=16, T2=36, T3=64)
-        assertThat(island.get("slots").size()).isEqualTo(64);
+        // V60: 100 slot buildable (lưới 10x10 đồng tâm: T1=36, T2=64, T3=100)
+        assertThat(island.get("slots").size()).isEqualTo(100);
         // Lấy 2 slot trống
         List<String> emptyIds = island.get("slots").findValues("slotId").stream()
                 .map(JsonNode::asText)
@@ -161,19 +161,19 @@ class IslandV51IT extends AbstractPostgresIT {
         assertThat(placed).isEqualTo(2);
     }
 
-    /** AC-1: tiers[] metadata trả về 3 cấp đảo Đảo An Lạc (16) / Đảo Phồn Thịnh (36) / Đảo Trường Tồn (64). */
+    /** AC-1: tiers[] metadata trả về 3 cấp đảo Đảo Nhỏ (36) / Đảo Vừa (64) / Đảo Lớn (100). */
     @Test
     void island_response_has_three_tier_metadata() throws Exception {
         JsonNode island = getIsland();
         JsonNode tiers = island.get("tiers");
         assertThat(tiers).isNotNull();
         assertThat(tiers.size()).isEqualTo(3);
-        assertThat(tiers.get(0).get("slotCount").asInt()).isEqualTo(16);
-        assertThat(tiers.get(1).get("slotCount").asInt()).isEqualTo(36);
-        assertThat(tiers.get(2).get("slotCount").asInt()).isEqualTo(64);
-        assertThat(tiers.get(0).get("stageLabel").asText()).isEqualTo("Đảo An Lạc");
-        assertThat(tiers.get(1).get("stageLabel").asText()).isEqualTo("Đảo Phồn Thịnh");
-        assertThat(tiers.get(2).get("stageLabel").asText()).isEqualTo("Đảo Trường Tồn");
+        assertThat(tiers.get(0).get("slotCount").asInt()).isEqualTo(36);
+        assertThat(tiers.get(1).get("slotCount").asInt()).isEqualTo(64);
+        assertThat(tiers.get(2).get("slotCount").asInt()).isEqualTo(100);
+        assertThat(tiers.get(0).get("stageLabel").asText()).isEqualTo("Đảo Nhỏ");
+        assertThat(tiers.get(1).get("stageLabel").asText()).isEqualTo("Đảo Vừa");
+        assertThat(tiers.get(2).get("stageLabel").asText()).isEqualTo("Đảo Lớn");
         assertThat(tiers.get(0).get("unlocked").asBoolean()).isTrue();
         assertThat(tiers.get(1).get("unlocked").asBoolean()).isFalse();
         assertThat(tiers.get(2).get("unlocked").asBoolean()).isFalse();
@@ -225,11 +225,11 @@ class IslandV51IT extends AbstractPostgresIT {
                 Integer.class, learnerId, itemId);
         assertThat(owned).isEqualTo(1);
 
-        // Island mới: tier=2, 36 slot unlock (6x6), layout_version mới
+        // Island mới: tier=2, 64 slot unlock (8x8), layout_version mới
         JsonNode upgraded = getIsland();
         assertThat(upgraded.get("tier").asInt()).isEqualTo(2);
         long unlockedCount = upgraded.get("slots").findParents("unlocked").stream()
                 .filter(s -> s.get("unlocked").asBoolean()).count();
-        assertThat(unlockedCount).isEqualTo(36);
+        assertThat(unlockedCount).isEqualTo(64);
     }
 }

@@ -1,6 +1,6 @@
 ﻿# Progress
 
-generated: 2026-10-30T19:00:24.1586096+07:00 by scripts/harness/harness.ps1 progress
+generated: 2026-10-30T20:54:20.9824808+07:00 by scripts/harness/harness.ps1 progress
 
 View-only - derived from `tasks/*/task.json`. Do not edit task status here.
 
@@ -41,4 +41,5 @@ View-only - derived from `tasks/*/task.json`. Do not edit task status here.
 | TASK-0035 | feature | high-risk | done | Chá» ngÆ°á»i dĂ¹ng review vĂ  á»§y quyá»n commit/push trĂªn nhĂ¡nh feat/issue-46-island-redesign. |
 | TASK-0036 | feature | normal | done | Chá» ngÆ°á»i dĂ¹ng review vĂ  á»§y quyá»n commit/push trĂªn nhĂ¡nh feat/issue-47-default-required-and-feedback. |
 | TASK-0037 | feature | high-risk | done | Chá» ngÆ°á»i dĂ¹ng review vĂ  á»§y quyá»n commit/push trĂªn nhĂ¡nh feat/issue-45-e2e-flows-ux-audit. |
+| TASK-0040 | feature | high-risk | done | Chá» ngÆ°á»i dĂ¹ng review vĂ  á»§y quyá»n commit/push trĂªn nhĂ¡nh feat/issue-50-heritage-island-overhaul. |
 
