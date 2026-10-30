@@ -4,6 +4,7 @@ import 'package:go_router/go_router.dart';
 import '../../../core/theme/dau_viet_colors.dart';
 import '../../../core/theme/dau_viet_typography.dart';
 import '../../../core/widgets/tactile_card.dart';
+import '../../../core/widgets/heritage_artifact_model_view.dart';
 import '../../learning/presentation/renderers/learning_asset_image.dart';
 import '../data/dossier_dto.dart';
 
@@ -86,6 +87,16 @@ class DossierCard extends StatelessWidget {
                       height: 72,
                       fit: BoxFit.cover,
                       tappable: false,
+                    )
+                  : (!locked && dossier.dossierType == 'ARTIFACT')
+                  ? Center(
+                      child: HeritageArtifactModelView(
+                        code: dossier.canonicalCode,
+                        title: dossier.title,
+                        category: dossier.dossierType,
+                        size: 62,
+                        showPedestal: true,
+                      ),
                     )
                   : Center(
                       child: Container(

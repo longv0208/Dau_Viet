@@ -6,6 +6,7 @@ import '../../../core/theme/dau_viet_colors.dart';
 import '../../../core/theme/dau_viet_typography.dart';
 import '../../../core/widgets/async_state_view.dart';
 import '../../../core/widgets/tactile_card.dart';
+import '../../../core/widgets/heritage_artifact_model_view.dart';
 import '../../learning/presentation/renderers/learning_asset_image.dart';
 import '../data/collection_dto.dart';
 import '../data/collection_providers.dart';
@@ -113,6 +114,27 @@ class CollectionDetailScreen extends ConsumerWidget {
                 altText: item.title,
                 height: 240,
                 fit: BoxFit.cover,
+              ),
+            )
+          else
+            Container(
+              height: 200,
+              width: double.infinity,
+              decoration: BoxDecoration(
+                gradient: const RadialGradient(
+                  colors: [Color(0xFFFFF8E8), DauVietColors.paperCardHi],
+                ),
+                borderRadius: BorderRadius.circular(16),
+                border: Border.all(color: DauVietColors.imperialGold),
+              ),
+              alignment: Alignment.center,
+              child: HeritageArtifactModelView(
+                title: item.title,
+                category: item.evidenceType,
+                size: 148,
+                showPedestal: true,
+                interactiveInspector: true,
+                description: evidence?.description,
               ),
             ),
           const SizedBox(height: 16),

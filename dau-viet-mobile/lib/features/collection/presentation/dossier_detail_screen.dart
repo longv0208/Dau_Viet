@@ -6,6 +6,8 @@ import '../../../core/theme/dau_viet_colors.dart';
 import '../../../core/theme/dau_viet_typography.dart';
 import '../../../core/widgets/async_state_view.dart';
 import '../../../core/widgets/tactile_card.dart';
+import '../../../core/widgets/parchment_card.dart';
+import '../../../core/widgets/heritage_artifact_model_view.dart';
 import '../../learning/presentation/renderers/learning_asset_image.dart';
 import '../data/dossier_dto.dart';
 import '../data/dossier_providers.dart';
@@ -109,7 +111,83 @@ class DossierDetailScreen extends ConsumerWidget {
                 height: 240,
                 fit: BoxFit.cover,
               ),
+            )
+          else
+            Container(
+              height: 200,
+              width: double.infinity,
+              decoration: BoxDecoration(
+                gradient: const RadialGradient(
+                  colors: [Color(0xFFFFF8E8), DauVietColors.paperCardHi],
+                ),
+                borderRadius: BorderRadius.circular(16),
+                border: Border.all(color: DauVietColors.imperialGold),
+              ),
+              alignment: Alignment.center,
+              child: HeritageArtifactModelView(
+                code: d.canonicalCode,
+                title: d.title,
+                category: d.dossierType,
+                size: 148,
+                showPedestal: true,
+                interactiveInspector: !locked,
+                description: d.description ?? d.summary,
+              ),
             ),
+          if (!locked && d.dossierType == 'ARTIFACT') ...[
+            const SizedBox(height: 12),
+            ParchmentCard(
+              padding: const EdgeInsets.all(12),
+              borderColor: DauVietColors.imperialGold,
+              onTap: () => showHeritageModelInspectorDialog(
+                context,
+                kind: resolveHeritageModelKind(
+                  code: d.canonicalCode,
+                  title: d.title,
+                  category: d.dossierType,
+                ),
+                title: d.title,
+                description: d.description ?? d.summary,
+              ),
+              child: Row(
+                children: [
+                  HeritageArtifactModelView(
+                    code: d.canonicalCode,
+                    title: d.title,
+                    category: d.dossierType,
+                    size: 56,
+                    showPedestal: true,
+                  ),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          'MÔ HÌNH HIỆN VẬT 2.5D',
+                          style: DauVietTypography.labelSmall.copyWith(
+                            color: DauVietColors.cinnabarRed,
+                            fontWeight: FontWeight.w800,
+                          ),
+                        ),
+                        const SizedBox(height: 2),
+                        Text(
+                          'Chạm để phóng to và khám phá cấu tạo chi tiết của hiện vật',
+                          style: DauVietTypography.bodySmall.copyWith(
+                            color: DauVietColors.inkSecondary,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                  const Icon(
+                    Icons.view_in_ar_rounded,
+                    color: DauVietColors.cinnabarRed,
+                  ),
+                ],
+              ),
+            ),
+          ],
           const SizedBox(height: 16),
           _typeBadge(d.dossierType),
           const SizedBox(height: 10),

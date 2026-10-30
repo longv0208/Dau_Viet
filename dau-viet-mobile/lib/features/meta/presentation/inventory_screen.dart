@@ -12,6 +12,7 @@ import '../../../core/widgets/rare_frame_badge.dart';
 import '../../../core/widgets/section_eyebrow.dart';
 import '../../../core/widgets/stamp_seal_badge.dart';
 import '../../../core/widgets/tactile_card.dart';
+import '../../../core/widgets/heritage_artifact_model_view.dart';
 import '../../rewards/data/reward_dtos.dart';
 import '../../rewards/data/reward_providers.dart';
 
@@ -49,12 +50,6 @@ class _InventoryScreenState extends ConsumerState<InventoryScreen> {
     'UNCOMMON': DauVietColors.riverBlue,
     'RARE': DauVietColors.imperialGold,
     'EPIC': DauVietColors.cinnabarRed,
-  };
-
-  static const _typeIcons = {
-    'HISTORICAL_REPLICA': Icons.account_balance_rounded,
-    'DIGITAL_EDITION': Icons.photo_library_rounded,
-    'COMMEMORATIVE_BADGE': Icons.workspace_premium_rounded,
   };
 
   static const _typeLabels = {
@@ -374,25 +369,29 @@ class _InventoryScreenState extends ConsumerState<InventoryScreen> {
                   const Spacer(),
                   Center(
                     child: Container(
-                      width: 52,
-                      height: 52,
+                      width: 68,
+                      height: 68,
                       padding: const EdgeInsets.all(4),
                       decoration: BoxDecoration(
-                        color: DauVietColors.paperBackground,
-                        shape: BoxShape.circle,
+                        gradient: const RadialGradient(
+                          colors: [
+                            Color(0xFFFFFBF2),
+                            DauVietColors.paperCardHi,
+                          ],
+                        ),
+                        borderRadius: BorderRadius.circular(14),
                         border: Border.all(
-                          color: rarityColor.withValues(alpha: 0.4),
+                          color: rarityColor.withValues(alpha: 0.45),
                           width: 1.2,
                         ),
-                        boxShadow: DauVietColors.pixelShadowSm,
                       ),
-                      child: Icon(
-                        _typeIcons[item.itemType] ??
-                            Icons.workspace_premium_rounded,
-                        color: item.owned
-                            ? rarityColor
-                            : DauVietColors.inkLight,
-                        size: 26,
+                      child: HeritageArtifactModelView(
+                        code: item.code,
+                        renderKey: item.renderKey,
+                        title: item.name,
+                        category: item.category,
+                        size: 58,
+                        showPedestal: true,
                       ),
                     ),
                   ),
@@ -441,22 +440,38 @@ class _InventoryScreenState extends ConsumerState<InventoryScreen> {
             child: Row(
               crossAxisAlignment: CrossAxisAlignment.center,
               children: [
-                RareFrameBadge(
-                  rarity: parsedRarity,
-                  borderRadius: 12,
-                  child: Container(
-                    width: 54,
-                    height: 54,
-                    padding: const EdgeInsets.all(6),
-                    decoration: BoxDecoration(
-                      color: DauVietColors.paperCard,
-                      borderRadius: BorderRadius.circular(10),
+                GestureDetector(
+                  onTap: () => showHeritageModelInspectorDialog(
+                    context,
+                    kind: resolveHeritageModelKind(
+                      code: item.code,
+                      renderKey: item.renderKey,
+                      title: item.name,
+                      category: item.category,
                     ),
-                    child: Icon(
-                      _typeIcons[item.itemType] ??
-                          Icons.workspace_premium_rounded,
-                      color: item.owned ? rarityColor : DauVietColors.inkLight,
-                      size: 28,
+                    title: item.name,
+                    description: item.description,
+                    sourceNote: item.sourceNote,
+                  ),
+                  child: RareFrameBadge(
+                    rarity: parsedRarity,
+                    borderRadius: 12,
+                    child: Container(
+                      width: 72,
+                      height: 72,
+                      padding: const EdgeInsets.all(4),
+                      decoration: BoxDecoration(
+                        color: DauVietColors.paperCard,
+                        borderRadius: BorderRadius.circular(10),
+                      ),
+                      child: HeritageArtifactModelView(
+                        code: item.code,
+                        renderKey: item.renderKey,
+                        title: item.name,
+                        category: item.category,
+                        size: 64,
+                        showPedestal: true,
+                      ),
                     ),
                   ),
                 ),

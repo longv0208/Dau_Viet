@@ -13,6 +13,7 @@ import '../../learning/presentation/renderers/learning_asset_image.dart';
 import '../data/collection_dto.dart';
 import '../data/collection_providers.dart';
 import 'dossier_tab_view.dart';
+import 'models_collection_tab_view.dart';
 
 /// FR-40 — Màn "Bộ Sưu Tập Dấu Việt": danh sách bằng chứng lịch sử đã
 /// thu thập qua học tập thật (EVIDENCE_SELECT hoàn thành). Nguồn duy nhất
@@ -52,7 +53,7 @@ class _CollectionScreenState extends ConsumerState<CollectionScreen> {
   Widget build(BuildContext context) {
     final async = ref.watch(collectionListProvider(_typeFilter));
     return DefaultTabController(
-      length: 4,
+      length: 5,
       child: Scaffold(
         backgroundColor: DauVietColors.paperBackground,
         appBar: AppBar(
@@ -171,10 +172,12 @@ class _CollectionScreenState extends ConsumerState<CollectionScreen> {
                     Tab(text: 'Nhân vật'),
                     Tab(text: 'Địa điểm'),
                     Tab(text: 'Hiện vật'),
+                    Tab(text: 'Mô hình'),
                   ],
                 ),
               ),
             ),
+
           ),
         ),
         body: DecoratedBox(
@@ -197,6 +200,7 @@ class _CollectionScreenState extends ConsumerState<CollectionScreen> {
               const DossierTabView(dossierType: 'PERSON'),
               const DossierTabView(dossierType: 'LOCATION'),
               const DossierTabView(dossierType: 'ARTIFACT'),
+              const ModelsCollectionTabView(),
             ],
           ),
         ),

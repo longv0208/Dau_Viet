@@ -185,7 +185,9 @@ String? resolveIslandAsset(String? renderKey, String? code, [String? assetId]) {
       return 'assets/island/scenery/ancient_stone_well.png';
     }
     if (token == 'decor.den_long' ||
+        token == 'decor.den_long_hoi_an' ||
         token == 'decor_den_long' ||
+        token == 'decor_den_long_hoi_an' ||
         token == 'den_long' ||
         token == 'den_da') {
       return 'assets/island/scenery/stone_lantern.png';

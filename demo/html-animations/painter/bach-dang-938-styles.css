@@ -170,6 +170,7 @@ html, body {
   display: inline-flex;
   align-items: center;
   gap: 6px;
+
 }
 
 .dv-ctl button {

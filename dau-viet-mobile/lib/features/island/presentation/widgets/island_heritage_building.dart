@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 
 import '../../../../core/theme/dau_viet_colors.dart';
 import '../../data/island_dto.dart';
+import '../../../../core/widgets/heritage_artifact_model_view.dart';
 
 /// Renderer mô hình công trình kiến trúc di sản Việt Nam 3D Isometric.
 /// Căn chỉnh chân vật thể chuẩn xác trên mặt đất hình thoi của tile,
@@ -165,7 +166,27 @@ class IslandHeritageBuilding extends StatelessWidget {
 
   /// Vẽ mô hình kiến trúc di sản thu nhỏ đặc trưng phong cách Việt Nam
   Widget _buildProceduralBuilding(String code, String renderKey, double width, double height) {
-    final token = '$code $renderKey';
+    final token = '$code $renderKey'.toLowerCase();
+
+    if (token.contains('trong_dong') ||
+        token.contains('coc_bach_dang') ||
+        token.contains('no_lien_chau') ||
+        token.contains('co_loa') ||
+        token.contains('thanh_nha_ho') ||
+        token.contains('chua_my_son') ||
+        token.contains('pho_hoi_an') ||
+        token.contains('chieu_doi_do') ||
+        token.contains('choi_canh') ||
+        token.contains('thuyen_chien') ||
+        token.contains('replica.') ||
+        token.contains('badge.')) {
+      return HeritageArtifactModelView(
+        code: code,
+        renderKey: renderKey,
+        size: width < height ? width : height * 0.90,
+        showPedestal: true,
+      );
+    }
 
     if (token.contains('nha_tranh')) {
       return _VietnameseThatchedHouse(width: width, height: height * 0.88);

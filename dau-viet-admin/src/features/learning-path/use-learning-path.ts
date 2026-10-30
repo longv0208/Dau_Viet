@@ -6,11 +6,48 @@ import { ApiClientError } from "@/lib/api-error";
 import type { PathAudit, PathDetail } from "@/lib/dto/learning-path";
 import { DEFAULT_PATH_CODE, pathApi, pathKeys, type PathMethod } from "./path-api";
 
+function translateServerPathError(raw: string): string {
+  const t = raw.trim();
+  if (t.includes("Chapter code already exists")) {
+    return "Mã định danh (Code) của thời kỳ/chương này đã tồn tại trong lộ trình. Vui lòng chọn mã khác.";
+  }
+  if (t.includes("startYear must be less than or equal to endYear")) {
+    return "Năm bắt đầu phải nhỏ hơn hoặc bằng năm kết thúc.";
+  }
+  if (t.includes("Move or remove all event nodes before deleting a chapter")) {
+    return "Không thể xóa thời kỳ/chương đang chứa sự kiện. Hãy chuyển hoặc gỡ hết các sự kiện trước khi xóa.";
+  }
+  if (t.includes("Cannot delete chapter node because it still has child nodes")) {
+    return "Không thể xóa đơn vị đang có các thời kỳ/giai đoạn con bên trong. Hãy xóa hoặc chuyển các nhánh con trước.";
+  }
+  if (t.includes("Archived events cannot be added to a path")) {
+    return "Không thể gắn sự kiện đã lưu trữ (ARCHIVED) vào lộ trình.";
+  }
+  if (t.includes("Canonical historical event already appears in this version")) {
+    return "Sự kiện lịch sử này (hoặc bản alias tương đương) đã tồn tại trong lộ trình.";
+  }
+  if (t.includes("Lesson is already attached to this event node")) {
+    return "Bài học này đã được gắn vào sự kiện rồi.";
+  }
+  if (t.includes("Lesson belongs to a different event")) {
+    return "Bài học không thuộc về sự kiện lịch sử này.";
+  }
+  if (t.includes("Only DRAFT learning paths can be changed")) {
+    return "Chỉ có thể chỉnh sửa lộ trình ở trạng thái Bản nháp (DRAFT). Hãy nhân bản phiên bản hiện hành sang bản nháp để sửa.";
+  }
+  if (t.includes("Clone source must be the current PUBLISHED version")) {
+    return "Chỉ có thể nhân bản từ phiên bản đang xuất bản (PUBLISHED).";
+  }
+  return t;
+}
+
 export function pathError(error: unknown, fallback = "Không thể kết nối máy chủ. Dữ liệu đã lưu vẫn được giữ nguyên."): string {
   if (error instanceof ApiClientError) {
     if (error.isConflict) {
       const reason = typeof error.details.reason === "string" ? error.details.reason : undefined;
-      return reason || "Lộ trình đã được chỉnh ở nơi khác. Tải lại dữ liệu trước khi tiếp tục.";
+      return reason
+        ? translateServerPathError(reason)
+        : "Lộ trình đã được chỉnh ở nơi khác. Tải lại dữ liệu trước khi tiếp tục.";
     }
     if (error.isForbidden) return "Bạn không có quyền quản trị lộ trình.";
     const reason = typeof error.details.reason === "string" ? error.details.reason : undefined;
@@ -19,27 +56,28 @@ export function pathError(error: unknown, fallback = "Không thể kết nối m
       ? error.details.errors
           .map((item) =>
             typeof item === "string"
-              ? item
+              ? translateServerPathError(item)
               : typeof item === "object" && item && "message" in item
-                ? String((item as { message: unknown }).message)
+                ? translateServerPathError(String(item.message))
                 : "",
           )
           .filter(Boolean)
           .join("; ")
       : "";
     const rawMsg =
-      reason ||
+      (reason ? translateServerPathError(reason) : undefined) ||
       details ||
-      (error.message && error.message !== "An unexpected error occurred" ? error.message : undefined) ||
-      cause;
+      (error.message && error.message !== "An unexpected error occurred"
+        ? translateServerPathError(error.message)
+        : undefined) ||
+      (cause ? translateServerPathError(cause) : undefined);
     if (rawMsg) {
-      const trace = error.traceId ? ` (Mã lỗi: ${error.code} · Trace: ${error.traceId.slice(0, 8)})` : ` (Mã lỗi: ${error.code})`;
-      return `${rawMsg}${trace}`;
+      return rawMsg;
     }
-    return `Lỗi máy chủ (${error.status} ${error.code})${error.traceId ? ` · Trace: ${error.traceId.slice(0, 8)}` : ""}. Vui lòng kiểm tra dữ liệu và thử lại.`;
+    return `Lỗi máy chủ (${error.status} ${error.code}). Vui lòng kiểm tra dữ liệu và thử lại.`;
   }
   if (error instanceof Error && error.message) {
-    return error.message;
+    return translateServerPathError(error.message);
   }
   return fallback;
 }
