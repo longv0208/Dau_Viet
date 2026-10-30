@@ -1,0 +1,80 @@
+{
+  "schemaVersion": 1,
+  "id": "TASK-0034",
+  "type": "feature",
+  "risk": "normal",
+  "status": "done",
+  "goal": "[MOBILE][ADMIN][BACKEND] Issue #43 — Làm rõ UX và cơ chế hoạt động bước Thu thập bằng chứng (EVIDENCE_SELECT): phân tách 2 chế độ COLLECT/ASSESS có hướng dẫn chi tiết cho Admin, copy chuẩn theo chế độ, tách vùng chạm xem chi tiết / chọn, và bổ sung phản hồi đúng/sai từng thẻ đã chọn (selectedVerdicts) sau khi nộp.",
+  "owner": "claude",
+  "modules": ["mobile", "admin", "backend"],
+  "scope": [
+    "dau-viet-backend/src/main/java/com/dauviet/learning/handler/SelectionHandlers.java",
+    "dau-viet-backend/src/test/java/com/dauviet/learning/handler/SelectionHandlersTest.java",
+    "dau-viet-admin/src/features/lessons/builder/activity-editors/evidence-select-editor.tsx",
+    "dau-viet-admin/src/features/lessons/builder/activity-editors/evidence-select-editor.test.tsx",
+    "dau-viet-admin/src/features/lessons/builder/draft-local-validator.ts",
+    "dau-viet-mobile/lib/features/learning/data/attempt_dtos.dart",
+    "dau-viet-mobile/lib/features/learning/presentation/renderers/evidence_select_renderer.dart",
+    "dau-viet-mobile/lib/features/learning/presentation/renderers/renderer_base.dart",
+    "dau-viet-mobile/lib/features/learning/presentation/lesson_player_screen.dart",
+    "dau-viet-mobile/test/learning/evidence_select_renderer_test.dart",
+    "dau-viet-mobile/test/learning/learning_flow_issue_29_test.dart",
+    "dau-viet-mobile/test/learning/lesson_player_test.dart",
+    "dau-viet-mobile/test/learning/resume_test.dart",
+    "docs/LEARNING_ENGINE_DESIGN.md",
+    "tasks/TASK-0034/",
+    "plans/261030-issue-43-evidence-select-ux/"
+  ],
+  "acceptanceCriteria": [
+    {
+      "id": "AC-1",
+      "text": "Mobile copy header/subtitle khớp với minRequired và chế độ graded thật (COLLECT: chọn ít nhất minRequired, không đe Thể lực; ASSESS: chọn đúng dấu vết liên quan, nêu rõ chi phí/lượt thử) — không còn 2 con số mâu thuẫn."
+    },
+    {
+      "id": "AC-2",
+      "text": "Tách vùng chạm trên thẻ bằng chứng: chạm thân thẻ mở bottom sheet xem chi tiết (không tự chọn), chạm nút Chọn/Bỏ chọn riêng mới toggle chọn; báo nhắc khi đạt giới hạn maxSelect."
+    },
+    {
+      "id": "AC-3",
+      "text": "Chế độ chấm điểm (graded:true) phát selectedVerdicts (chỉ trên các thẻ học viên đã nộp, tuyệt đối không lộ acceptedEvidenceIds bị bỏ sót) và hiển thị viền/nhãn Đúng-Sai trên từng thẻ đã chọn cùng InlineGradingHint (hỗ trợ cả score-only và exhausted/budgetExhausted)."
+    },
+    {
+      "id": "AC-4",
+      "text": "Progress chip trên LessonPlayerScreen hiển thị rõ nhãn 'Bước x/y'."
+    },
+    {
+      "id": "AC-5",
+      "text": "Admin EvidenceSelectEditor cho phép chọn giữa 2 chế độ Thu thập (COLLECT, graded:false) và Đánh giá (ASSESS, graded:true) kèm chú thích/hướng dẫn chi tiết cho người tạo bài học, hộp xem trước trải nghiệm học viên (Learner Preview), và cảnh báo/kiểm tra hợp lệ phía client."
+    },
+    {
+      "id": "AC-6",
+      "text": "Toàn bộ test suite (Backend SelectionHandlersTest, Admin vitest + tsc, Mobile flutter analyze + flutter test bao gồm evidence_select_renderer_test.dart) pass và docs/LEARNING_ENGINE_DESIGN.md được cập nhật."
+    }
+  ],
+  "acceptanceStatus": {
+    "AC-1": "done — EvidenceSelectRenderer hiển thị eyebrow/subtitle theo chế độ COLLECT (graded:false: 'THU THẬP DẤU VẾT · CHỌN ÍT NHẤT {minRequired}', không đe Thể lực) và ASSESS (graded:true: 'THU THẬP DẤU VẾT · CHỌN ĐÚNG CÁC DẤU VẾT LIÊN QUAN' + chi phí Thể lực & số lượt thử/sửa còn lại).",
+    "AC-2": "done — _EvidenceCard gắn onTap thân thẻ vào onDetail (_showDetail bottom sheet), tách nút Chọn/Đã chọn riêng ở cạnh phải (min 56x54, key evidence-select-btn-{id}, excludeSemantics), và hiển thị cảnh báo khi chạm vượt maxSelect.",
+    "AC-3": "done — SelectionHandlers.EvidenceSelectHandler phát output.selectedVerdicts chỉ trên các id học viên đã nộp (và giữ nguyên selectedVerdicts đã khóa khi overBudget, không lộ acceptedEvidenceIds); Mobile hiển thị nhãn '✓ Đúng dấu vết liên quan' / '✗ Chưa liên quan câu hỏi' và mở rộng InlineGradingHint.",
+    "AC-4": "done — LessonPlayerScreen hiển thị chip 'Bước {completedRequired}/{totalRequired}' kèm FittedBox scaleDown để giữ nguyên độ rộng StepProgressBar trên màn 360px.",
+    "AC-5": "done — Admin EvidenceSelectEditor mở chọn 2 chế độ Thu thập (COLLECT) / Đánh giá (ASSESS), bổ sung hộp Hướng dẫn cơ chế, chú thích từng trường, hộp Xem trước trải nghiệm học viên, cảnh báo thiếu distractor / lỗi tập con, và cập nhật draft-local-validator.ts.",
+    "AC-6": "done — Backend SelectionHandlersTest + HandlerSafetyTest + LearnerAttemptServiceTest (50/50 pass); Admin lessons/templates vitest (17/17 files, 96/96 tests pass); Mobile flutter analyze (0 lỗi mới) + test/learning/ (309/309 pass, gồm 6 test mới trong evidence_select_renderer_test.dart); docs/LEARNING_ENGINE_DESIGN.md cập nhật §13.1 & §14."
+  },
+  "dependencies": ["TASK-0031", "TASK-0032", "TASK-0033"],
+  "planPath": "plans/261030-issue-43-evidence-select-ux/plan.md",
+  "evidenceRefs": [
+    "plans/261030-issue-43-evidence-select-ux/plan.md",
+    "cd dau-viet-backend && mvn test -Dtest=SelectionHandlersTest,HandlerSafetyTest,LearnerAttemptServiceTest -> 50/50 pass",
+    "Independent code review (Issue43Reviewer) -> 0 blockers, all 6 ACs and security invariants verified",
+    "cd dau-viet-admin && npx vitest run --testTimeout=20000 src/features/lessons/ src/features/templates/ -> 17/17 files, 96/96 tests pass (gồm evidence-select-editor.test.tsx 4/4 pass)",
+    "cd dau-viet-mobile && flutter analyze -> 0 lỗi mới (9 pre-existing warnings trong features/island/)",
+    "cd dau-viet-mobile && flutter test test/learning/ -> 309/309 tests pass (gồm evidence_select_renderer_test.dart 6/6 pass)",
+    "git diff --check -> clean"
+  ],
+  "notes": [
+    "Issue: https://github.com/longv0208/Dau_Viet/issues/43",
+    "Tài liệu BA đã đối chiếu: Dau_Viet_BA_MVP_Learning_Framework.docx (§3.3, §8.3, Phụ lục A).",
+    "selectedVerdicts chỉ chứa các id học viên đã gửi trong lượt nộp và giữ nguyên bản đã khóa khi overBudget -> tuyệt đối không lộ acceptedEvidenceIds."
+  ],
+  "nextAction": "Chờ người dùng review và ủy quyền commit/push.",
+  "handoff": "tasks/TASK-0034/handoff.md"
+}

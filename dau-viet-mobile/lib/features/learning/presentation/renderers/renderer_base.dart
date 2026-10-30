@@ -134,14 +134,35 @@ class InlineGradingHint extends StatelessWidget {
     final cp = e.correctPositions;
     final ti = e.totalItems;
     final pc = e.partsCorrect;
+    final cc = e.correctCount;
+    final fc = e.falseCount;
+    final sc = e.score;
     final used = e.attemptCount;
+    final isExhausted = e.exhausted || e.budgetExhausted;
     final parts = <String>[];
     if (cp != null && ti != null && ti > 0) {
       parts.add('Đúng $cp/$ti mục');
     } else if (pc != null && pc > 0) {
       parts.add('Đúng $pc/3 phần');
+    } else if (cc != null) {
+      if (fc != null && fc > 0) {
+        parts.add('Đúng $cc · sai $fc dấu vết đã chọn');
+      } else if (cc > 0) {
+        parts.add('Đúng $cc dấu vết (còn thiếu)');
+      } else {
+        parts.add('Chưa chọn đúng dấu vết liên quan');
+      }
+    } else if (sc != null) {
+      if (sc > 0) {
+        final pct = (sc * 100).round();
+        parts.add('Kết quả một phần (điểm $pct%)');
+      } else {
+        parts.add('Kết quả chưa chính xác');
+      }
     }
-    if (maxAttempts != null && used != null && !e.exhausted) {
+    if (isExhausted) {
+      parts.add('Đã hết lượt — bước này được tính hoàn thành');
+    } else if (maxAttempts != null && used != null) {
       final left = maxAttempts! - used;
       if (left >= 0) parts.add('còn $left/$maxAttempts lượt');
     }

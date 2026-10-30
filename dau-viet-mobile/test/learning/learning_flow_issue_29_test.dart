@@ -246,7 +246,7 @@ void main() {
 
         // Header elements & Energy badge
         expect(find.text('Suy luận chiến thuật'), findsOneWidget);
-        expect(find.text('1/4'), findsOneWidget);
+        expect(find.text('Bước 1/4'), findsOneWidget);
         expect(
           find.byKey(const ValueKey('player-header-energy')),
           findsOneWidget,
@@ -1351,7 +1351,7 @@ void main() {
           await tester.pumpAndSettle();
           final Size barSize = tester.getSize(find.byType(StepProgressBar));
           expect(barSize.width, greaterThan(150));
-          expect(find.text('0/3'), findsOneWidget);
+          expect(find.text('Bước 0/3'), findsOneWidget);
 
           // 2. P1-05: BattleSabanScreen on 360x800 renders without RenderFlex overflow
           await tester.pumpWidget(

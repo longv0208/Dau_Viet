@@ -113,10 +113,6 @@ function validateEvidenceSelect(c: Ctx) {
           `Bằng chứng đúng ${extra.map((x) => evidenceLabel(c.cat, String(x))).join(", ")} chưa nằm trong danh sách hiển thị.`);
       }
     }
-  } else {
-    // Issue #35: chuỗi auto-graded — bắt buộc khai báo đáp án để server chấm.
-    push(c, "graded", "INVALID_CONFIG",
-      "Bắt buộc bật chấm điểm (graded) và khai báo bằng chứng đúng — luồng chuẩn chấm tự động 100%.");
   }
   checkMaxAttempts(c);
 }
@@ -314,9 +310,13 @@ function validateFeedback(c: Ctx) {
   const fb = c.act.feedback ?? {};
   const missing: string[] = [];
   if (typeof fb.COMPLETED !== "string" || !fb.COMPLETED.trim()) missing.push("COMPLETED");
-  if (typeof fb.INCORRECT !== "string" || !fb.INCORRECT.trim()) missing.push("INCORRECT");
-  // Issue #35: chuỗi auto-graded báo 3 mức + hết lượt thử.
-  if (GRADED_3_LEVEL_TYPES.has(c.act.type)) {
+  const isUngradedEvidenceSelect =
+    c.act.type === "EVIDENCE_SELECT" && c.act.config?.graded !== true;
+  if (!isUngradedEvidenceSelect) {
+    if (typeof fb.INCORRECT !== "string" || !fb.INCORRECT.trim()) missing.push("INCORRECT");
+  }
+  // Issue #35: chuỗi auto-graded báo 3 mức + hết lượt thử (EVIDENCE_SELECT chỉ khi graded:true).
+  if (GRADED_3_LEVEL_TYPES.has(c.act.type) && !isUngradedEvidenceSelect) {
     if (typeof fb.PARTIAL !== "string" || !fb.PARTIAL.trim()) missing.push("PARTIAL");
     if (typeof fb.EXHAUSTED !== "string" || !fb.EXHAUSTED.trim()) missing.push("EXHAUSTED");
   }

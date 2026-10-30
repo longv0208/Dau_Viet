@@ -1002,10 +1002,10 @@ class _LessonPlayerScreenState extends ConsumerState<LessonPlayerScreen> {
                             height: 32,
                           ),
                         ),
-                        const SizedBox(width: 8),
+                        const SizedBox(width: 4),
                         Container(
                           padding: const EdgeInsets.symmetric(
-                            horizontal: 8,
+                            horizontal: 6,
                             vertical: 2,
                           ),
                           decoration: BoxDecoration(
@@ -1016,12 +1016,18 @@ class _LessonPlayerScreenState extends ConsumerState<LessonPlayerScreen> {
                               width: 1,
                             ),
                           ),
-                          child: Text(
-                            '${cur.progress.completedRequired}/${cur.progress.totalRequired}',
-                            style: DauVietTypography.labelSmall.copyWith(
-                              color: DauVietColors.inkSecondary,
-                              fontWeight: FontWeight.w800,
-                              fontSize: 11,
+                          child: ConstrainedBox(
+                            constraints: const BoxConstraints(maxWidth: 64),
+                            child: FittedBox(
+                              fit: BoxFit.scaleDown,
+                              child: Text(
+                                'Bước ${cur.progress.completedRequired}/${cur.progress.totalRequired}',
+                                style: DauVietTypography.labelSmall.copyWith(
+                                  color: DauVietColors.inkSecondary,
+                                  fontWeight: FontWeight.w800,
+                                  fontSize: 10.5,
+                                ),
+                              ),
                             ),
                           ),
                         ),
