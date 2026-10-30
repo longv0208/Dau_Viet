@@ -685,18 +685,20 @@ void main() {
             findsOneWidget,
           );
           expect(find.text('33%'), findsOneWidget);
-          expect(find.text('Mốc tiếp theo'), findsOneWidget);
-          expect(find.text('1. Vì sao dời đô?'), findsOneWidget);
-          expect(find.text('2. Dấu tích đô thành qua thời gian'), findsOneWidget);
-          expect(find.text('3. Quy hoạch kinh thành Thăng Long'), findsOneWidget);
+          // Mốc sự kiện render dạng nhãn pill gọn (mockup đường đi): chỉ có
+          // tên + niên đại, không bung thẻ đầy đủ che tranh nền.
+          expect(find.text('Dời đô ra Thăng Long năm 1010'), findsOneWidget);
+          expect(find.text('Năm 1010'), findsOneWidget);
+          expect(find.text('Chiến thắng Như Nguyệt 1077'), findsOneWidget);
 
-          // Nhấn bài đang khóa -> hiện SnackBar và không mở sự kiện
+          // Nhấn nhãn sự kiện đang khóa -> vẫn gọi onEventSelected (màn chiến
+          // dịch quyết định chặn/gợi ý), khớp hành vi thẻ đầy đủ trước đây.
           await tester.ensureVisible(
-            find.text('3. Quy hoạch kinh thành Thăng Long'),
+            find.byKey(const Key('event-card-evt-1077')),
           );
-          await tester.tap(find.text('3. Quy hoạch kinh thành Thăng Long'));
+          await tester.tap(find.byKey(const Key('event-card-evt-1077')));
           await tester.pump();
-          expect(selectedEvent, isNull);
+          expect(selectedEvent?.eventId, 'evt-1077');
 
           // 2) Thời kỳ mới không có ảnh nền riêng -> vẫn render nền giấy cổ bình thường
           await tester.pumpWidget(

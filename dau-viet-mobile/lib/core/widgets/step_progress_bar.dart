@@ -48,7 +48,12 @@ class StepProgressBar extends StatelessWidget {
           final double maxCellWidth = count > 1 && w.isFinite
               ? ((w - (count - 1) * 4.0) / count).clamp(16.0, 56.0)
               : 44.0;
-          final bool compact = w < 190 || maxCellWidth < 34 || !showLabels;
+          // Nhãn 9px (~12px dòng) + gap 2px đặt dưới chấm: nếu `height` còn lại
+          // không đủ cho nhãn → ép compact, tránh overflow 1-4px chiều dọc.
+          final bool compact = !showLabels ||
+              w < 190 ||
+              maxCellWidth < 34 ||
+              height < 42;
           final double baseDot = w < 220 ? 24.0 : 28.0;
           final double dotSize = (maxCellWidth - 2.0) < baseDot
               ? (maxCellWidth - 2.0).clamp(16.0, 28.0)

@@ -36,6 +36,7 @@ class EventModelAdapter {
   static HistoricalEventModel toHistoricalEvent(
     HistoricalEventDetailDto dto, {
     String? heroAssetPath,
+    String? coverAssetId,
   }) {
     return HistoricalEventModel(
       id: dto.id,
@@ -45,6 +46,7 @@ class EventModelAdapter {
       heroBannerUrl: heroAssetPath ?? '',
       summary: dto.summary,
       lessonIds: const [],
+      coverAssetId: coverAssetId,
       coverAssetKey: dto.coverAssetKey,
       backgroundConfig: dto.backgroundConfig,
     );

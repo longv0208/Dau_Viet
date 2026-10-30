@@ -1,4 +1,5 @@
 import '../../../core/assets/asset_resolver.dart';
+import '../../../core/models/heritage_background_config.dart';
 import '../../../mock/models/lesson_models.dart';
 import 'event_model_adapter.dart';
 import 'events_api_client.dart';
@@ -44,12 +45,18 @@ class ApiEventsRepository implements EventsRepository {
   @override
   Future<HistoricalEventModel> getEventById(String id) async {
     final HistoricalEventDetailDto dto = await _apiClient.getEventById(id);
+    // `coverAssetKey` có thể là UUID asset (tải bytes từ backend), URL
+    // `/api/v1/assets/{id}/content`, hoặc key logic `events/<slug>/<file>`
+    // map sang asset bundle — ưu tiên đúng thứ tự đó.
+    final String? remoteAssetId = HeritageBackgroundConfigDto.extractAssetId(
+      dto.coverAssetKey,
+    );
     return EventModelAdapter.toHistoricalEvent(
       dto,
-      heroAssetPath: _assetResolver.resolveEventCover(
-        dto.coverAssetKey,
-        dto.slug,
-      ),
+      coverAssetId: remoteAssetId,
+      heroAssetPath: remoteAssetId == null
+          ? _assetResolver.resolveEventCover(dto.coverAssetKey, dto.slug)
+          : null,
     );
   }
 }

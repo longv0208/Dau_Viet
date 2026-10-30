@@ -261,6 +261,7 @@ class CampaignDetailScreen extends ConsumerWidget {
           children: [
             // Ảnh Hero Banner chiến dịch — từ asset path đã resolve
             EventCoverImage(
+              assetId: event.coverAssetId,
               assetPath: event.heroBannerUrl,
               width: double.infinity,
               height: double.infinity,

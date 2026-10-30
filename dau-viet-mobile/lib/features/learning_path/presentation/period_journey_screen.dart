@@ -399,6 +399,7 @@ class _PeriodJourneyScreenState extends ConsumerState<PeriodJourneyScreen> {
               event: event,
               stepNumber: stepNumber,
               isCurrentTarget: isCurrentTarget,
+              compactCallout: true,
               onTap: () => _openEventCampaign(context, event),
             ),
           ),
@@ -413,9 +414,21 @@ class _PeriodJourneyScreenState extends ConsumerState<PeriodJourneyScreen> {
         Expanded(
           child: Stack(
             children: [
-              SingleChildScrollView(
-                padding: const EdgeInsets.only(bottom: 156),
-                child: WindingLandscapeJourneyCanvas(entries: entries),
+              LayoutBuilder(
+                builder: (context, viewport) {
+                  return SingleChildScrollView(
+                    padding: const EdgeInsets.only(bottom: 156),
+                    child: ConstrainedBox(
+                      // Canvas luôn cao tối thiểu bằng vùng nhìn thấy (trừ phần
+                      // padding chừa cho thẻ nổi) → tranh nền & con đường phủ
+                      // kín màn hình thay vì để trống một khúc phía dưới.
+                      constraints: BoxConstraints(
+                        minHeight: viewport.maxHeight - 156,
+                      ),
+                      child: WindingLandscapeJourneyCanvas(entries: entries),
+                    ),
+                  );
+                },
               ),
               Positioned(
                 left: 14,

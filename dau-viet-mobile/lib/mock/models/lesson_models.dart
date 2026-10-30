@@ -18,6 +18,9 @@ class HistoricalEventModel {
   final String era;
   final int year;
   final String heroBannerUrl;
+  /// UUID asset ảnh bìa trên backend (resolve từ `coverAssetKey`) — khi có, hero
+  /// banner tải bytes qua `/api/v1/assets/{id}/content` thay vì bundled asset.
+  final String? coverAssetId;
   final String summary;
   final List<String> lessonIds;
   final String? coverAssetKey;
@@ -31,6 +34,7 @@ class HistoricalEventModel {
     required this.heroBannerUrl,
     required this.summary,
     required this.lessonIds,
+    this.coverAssetId,
     this.coverAssetKey,
     this.backgroundConfig = HeritageBackgroundConfigDto.paperDefault,
   });

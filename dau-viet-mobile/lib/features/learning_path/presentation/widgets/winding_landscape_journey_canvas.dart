@@ -203,6 +203,9 @@ class _WindingLandscapeJourneyCanvasState
           _MilestoneRow(
             badge: KeyedSubtree(key: badgeKey, child: entry.badge!),
             cardOnLeft: entry.cardOnLeft,
+            // Giãn khoảng dọc giữa các mốc để con đường trải dài suốt canvas
+            // (mockup đường đi): hàng mốc cao tối thiểu, chip canh giữa.
+            minHeight: 150,
             child: entry.child,
           ),
         );
@@ -273,10 +276,16 @@ class _MilestoneRow extends StatelessWidget {
   final Widget child;
   final bool cardOnLeft;
 
+  /// Chiều cao tối thiểu của hàng mốc — giãn khoảng cách giữa các nút trên
+  /// con đường cho khớp mockup đường đi (không dùng Expanded vì canvas nằm
+  /// trong scroll view không giới hạn chiều cao).
+  final double minHeight;
+
   const _MilestoneRow({
     required this.badge,
     required this.child,
     required this.cardOnLeft,
+    this.minHeight = 0,
   });
 
   @override
@@ -286,15 +295,20 @@ class _MilestoneRow extends StatelessWidget {
       child: Center(child: badge),
     );
     final card = Expanded(
-      child: Padding(
-        padding: const EdgeInsets.symmetric(vertical: 7),
-        child: child,
+      child: Center(
+        child: Padding(
+          padding: const EdgeInsets.symmetric(vertical: 7),
+          child: child,
+        ),
       ),
     );
-    return IntrinsicHeight(
-      child: Row(
-        crossAxisAlignment: CrossAxisAlignment.stretch,
-        children: cardOnLeft ? [card, rail] : [rail, card],
+    return ConstrainedBox(
+      constraints: BoxConstraints(minHeight: minHeight),
+      child: IntrinsicHeight(
+        child: Row(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: cardOnLeft ? [card, rail] : [rail, card],
+        ),
       ),
     );
   }

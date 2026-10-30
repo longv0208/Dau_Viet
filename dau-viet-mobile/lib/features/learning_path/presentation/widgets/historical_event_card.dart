@@ -1,5 +1,3 @@
-import 'dart:typed_data';
-
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
@@ -7,7 +5,7 @@ import '../../../../core/assets/asset_resolver.dart';
 import '../../../../core/theme/dau_viet_colors.dart';
 import '../../../../core/theme/dau_viet_typography.dart';
 import '../../../../core/widgets/heritage_design_components.dart';
-import '../../../learning/presentation/renderers/learning_asset_image.dart';
+import '../../../learning/presentation/renderers/asset_cover_image.dart';
 import '../../data/learning_path_dto.dart';
 import '../path_status_badge.dart';
 
@@ -25,6 +23,10 @@ class HistoricalEventCard extends StatelessWidget {
   final VoidCallback onTap;
   final ValueChanged<LearningPathLessonNodeDto>? onLessonTap;
 
+  /// `true` → chỉ render nhãn pill gọn (icon trạng thái + tên sự kiện + năm),
+  /// đúng mockup bản đồ hành trình: mốc không che khuất tranh nền.
+  final bool compactCallout;
+
   const HistoricalEventCard({
     super.key,
     required this.event,
@@ -32,10 +34,13 @@ class HistoricalEventCard extends StatelessWidget {
     required this.isCurrentTarget,
     required this.onTap,
     this.onLessonTap,
+    this.compactCallout = false,
   });
 
   @override
   Widget build(BuildContext context) {
+    if (compactCallout) return _buildCompactCallout(context);
+
     final visual = PathStatusVisual.of(event.status);
     final bool isLocked = event.status == LearnerPathStatus.locked;
     // Quy tắc "ẩn tầng chỉ có 1 mục": chỉ hiển thị danh sách bài học con khi có >= 2 bài.
@@ -214,6 +219,102 @@ class HistoricalEventCard extends StatelessWidget {
       ),
     );
   }
+
+  /// Nhãn mốc gọn theo mockup bản đồ hành trình (ảnh #4): pill bo tròn
+  /// nổi cạnh huy hiệu — icon trạng thái + tên sự kiện (tối đa 2 dòng) +
+  /// niên đại + chevron/khóa. Không render thẻ thông tin đầy đủ để không
+  /// che khuất tranh nền 2.5D.
+  Widget _buildCompactCallout(BuildContext context) {
+    final visual = PathStatusVisual.of(event.status);
+    final bool isLocked = event.status == LearnerPathStatus.locked ||
+        event.status == LearnerPathStatus.notReady;
+    final Color textColor = isLocked
+        ? DauVietColors.inkMuted
+        : (isCurrentTarget || event.status.isInProgress
+              ? DauVietColors.cinnabarRed
+              : DauVietColors.inkText);
+
+    return Material(
+      key: Key('event-card-${event.eventId}'),
+      color: Colors.white.withValues(alpha: isLocked ? 0.72 : 0.92),
+      borderRadius: BorderRadius.circular(14),
+      elevation: 0,
+      child: InkWell(
+        borderRadius: BorderRadius.circular(14),
+        onTap: onTap,
+        child: Container(
+          constraints: const BoxConstraints(maxWidth: 188),
+          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+          decoration: BoxDecoration(
+            borderRadius: BorderRadius.circular(14),
+            border: Border.all(
+              color: isCurrentTarget
+                  ? DauVietColors.cinnabarRed
+                  : visual.borderColor.withValues(alpha: 0.6),
+              width: isCurrentTarget ? 1.4 : 1.0,
+            ),
+            boxShadow: const [
+              BoxShadow(
+                color: Color(0x1A261E19),
+                offset: Offset(0, 2),
+                blurRadius: 8,
+              ),
+            ],
+          ),
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Icon(
+                visual.icon,
+                size: 15,
+                color: isLocked ? DauVietColors.inkMuted : visual.borderColor,
+              ),
+              const SizedBox(width: 6),
+              Flexible(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Text(
+                      event.title,
+                      maxLines: 2,
+                      overflow: TextOverflow.ellipsis,
+                      style: DauVietTypography.labelMedium.copyWith(
+                        fontSize: 12.5,
+                        fontWeight: FontWeight.w800,
+                        color: textColor,
+                        height: 1.15,
+                      ),
+                    ),
+                    if (event.yearLabel.trim().isNotEmpty)
+                      Text(
+                        event.yearLabel,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: DauVietTypography.labelSmall.copyWith(
+                          fontSize: 10.5,
+                          color: DauVietColors.inkMuted,
+                        ),
+                      ),
+                  ],
+                ),
+              ),
+              const SizedBox(width: 4),
+              Icon(
+                isLocked
+                    ? Icons.lock_outline_rounded
+                    : Icons.chevron_right_rounded,
+                size: 16,
+                color: isLocked
+                    ? DauVietColors.inkLight
+                    : DauVietColors.woodBrown,
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
 }
 
 /// Dòng bài học bên trong thẻ sự kiện (Phần D5).
@@ -296,57 +397,27 @@ class _OptionalEventThumbnail extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
+    // `coverAssetKey` có thể là UUID asset (tải từ backend), URL
+    // `/api/v1/assets/{id}/content`, hoặc key `events/<slug>/<file>` → bundled.
     final String? assetId =
         HeritageBackgroundConfigDto.extractAssetId(event.coverAssetKey) ??
         event.backgroundConfig.resolvedAssetId;
 
-    if (assetId != null && assetId.isNotEmpty) {
-      return FutureBuilder<List<int>>(
-        future: fetchLearningAssetBytes(ref, assetId),
-        builder: (context, snapshot) {
-          final bytes = snapshot.data;
-          if (snapshot.connectionState == ConnectionState.done &&
-              !snapshot.hasError &&
-              bytes != null &&
-              bytes.isNotEmpty) {
-            return _wrapThumb(
-              Image.memory(
-                Uint8List.fromList(bytes),
-                width: 48,
-                height: 48,
-                fit: BoxFit.cover,
-                errorBuilder: (_, _, _) => const SizedBox.shrink(),
-              ),
-            );
-          }
-          return const SizedBox.shrink();
-        },
-      );
+    final String? bundledPath =
+        (assetId == null &&
+                event.coverAssetKey != null &&
+                event.coverAssetKey!.trim().isNotEmpty)
+            ? const AssetResolver().resolveEventCover(
+                event.coverAssetKey,
+                event.slug,
+              )
+            : null;
+
+    if ((assetId == null || assetId.isEmpty) &&
+        (bundledPath == null || bundledPath.isEmpty)) {
+      return const SizedBox.shrink();
     }
 
-    // Chỉ hiển thị bundled cover nếu sự kiện có coverAssetKey đã được cấu hình
-    if (event.coverAssetKey != null && event.coverAssetKey!.trim().isNotEmpty) {
-      final bundledPath = const AssetResolver().resolveEventCover(
-        event.coverAssetKey,
-        event.slug,
-      );
-      if (bundledPath != null && bundledPath.isNotEmpty) {
-        return _wrapThumb(
-          Image.asset(
-            bundledPath,
-            width: 48,
-            height: 48,
-            fit: BoxFit.cover,
-            errorBuilder: (_, _, _) => const SizedBox.shrink(),
-          ),
-        );
-      }
-    }
-
-    return const SizedBox.shrink();
-  }
-
-  Widget _wrapThumb(Widget child) {
     return ClipRRect(
       borderRadius: BorderRadius.circular(10),
       child: DecoratedBox(
@@ -357,7 +428,17 @@ class _OptionalEventThumbnail extends ConsumerWidget {
           ),
           borderRadius: BorderRadius.circular(10),
         ),
-        child: SizedBox(width: 48, height: 48, child: child),
+        child: SizedBox(
+          width: 48,
+          height: 48,
+          child: AssetCoverImage(
+            assetId: assetId,
+            bundledPath: bundledPath,
+            width: 48,
+            height: 48,
+            placeholder: const SizedBox.shrink(),
+          ),
+        ),
       ),
     );
   }

@@ -1009,7 +1009,7 @@ class _LessonPlayerScreenState extends ConsumerState<LessonPlayerScreen> {
                     ),
                     totalSteps: cur.progress.totalRequired.clamp(1, 12),
                     showLabels: true,
-                    height: 38,
+                    height: 48,
                   ),
                 ),
                 const SizedBox(width: 10),
