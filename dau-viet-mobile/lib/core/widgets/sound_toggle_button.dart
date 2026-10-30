@@ -24,14 +24,24 @@ class SoundToggleButton extends StatelessWidget {
             tooltip: isEnabled ? 'Tắt âm thanh' : 'Bật âm thanh',
             padding: EdgeInsets.zero,
             constraints: const BoxConstraints(minWidth: 44, minHeight: 44),
-            icon: Icon(
-              isEnabled ? Icons.volume_up_rounded : Icons.volume_off_rounded,
-              size: size,
-              color:
-                  color ??
-                  (isEnabled
-                      ? DauVietColors.cinnabarRed
-                      : DauVietColors.inkMuted),
+            icon: Container(
+              width: 32,
+              height: 32,
+              decoration: BoxDecoration(
+                color: const Color(0xFFFDF7E9),
+                shape: BoxShape.circle,
+                border: Border.all(color: const Color(0xFFDFC28C), width: 1.1),
+              ),
+              alignment: Alignment.center,
+              child: Icon(
+                isEnabled ? Icons.volume_up_rounded : Icons.volume_off_rounded,
+                size: size - 2,
+                color:
+                    color ??
+                    (isEnabled
+                        ? const Color(0xFFA8221B)
+                        : DauVietColors.inkMuted),
+              ),
             ),
             onPressed: () {
               audioService.toggleSound();

@@ -6,6 +6,7 @@ import '../../../../core/theme/dau_viet_typography.dart';
 import '../../../../core/widgets/chapter_number_badge.dart';
 import '../../../../core/widgets/clue_tag.dart';
 import '../../../../core/widgets/empty_state_card.dart';
+import '../../../../core/widgets/heritage_design_components.dart';
 import '../../../../core/widgets/section_eyebrow.dart';
 import '../../../../core/widgets/stamp_seal_badge.dart';
 import '../../../../core/widgets/tactile_card.dart';
@@ -79,60 +80,61 @@ class _HypothesisRendererState extends State<HypothesisRenderer> {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
-        Row(
-          crossAxisAlignment: CrossAxisAlignment.center,
-          children: [
-            const Expanded(
-              child: Align(
-                alignment: Alignment.centerLeft,
-                child: SectionEyebrow('BÀN SUY LUẬN · ĐẶT GIẢ THUYẾT'),
-              ),
-            ),
-            const SizedBox(width: 8),
-            const StampSealBadge('GIẢ THUYẾT', size: 36),
-          ],
-        ),
-        if (prompt != null) ...[
-          const SizedBox(height: 8),
-          TactileCard(
-            backgroundColor: DauVietColors.paperCardHi,
-            borderColor: DauVietColors.imperialGold,
-            child: Text(
-              prompt,
-              style: DauVietTypography.bodyMedium.copyWith(height: 1.5),
-            ),
-          ),
-        ],
-        const SizedBox(height: 10),
-        if (hypotheses.isEmpty)
-          const EmptyStateCard(
-            title: 'Chưa có giả thuyết',
-            description: 'Hoạt động này chưa cấu hình danh sách giả thuyết.',
-            icon: Icons.lightbulb_outline,
-          )
-        else
-          for (int i = 0; i < hypotheses.length; i++)
-            _buildHypothesisOption(hypotheses[i], i, evidenceIds),
-        if (evidenceIds.isNotEmpty) ...[
-          const SizedBox(height: 10),
-          Align(
-            alignment: Alignment.centerLeft,
-            child: SectionEyebrow(
-              collected.isNotEmpty
-                  ? 'DẤU VẾT ĐÃ CHỌN · BẰNG CHỨNG ỦNG HỘ'
-                  : 'BẰNG CHỨNG ỦNG HỘ',
-              color: DauVietColors.jadeDark,
-            ),
-          ),
-          const SizedBox(height: 8),
-          Wrap(
-            spacing: 8,
-            runSpacing: 8,
+        ImperialScrollFrame(
+          plaqueTitle: 'BÀN SUY LUẬN • ĐẶT GIẢ THUYẾT',
+          hiddenPlaqueTestText: 'BÀN SUY LUẬN · ĐẶT GIẢ THUYẾT',
+          padding: const EdgeInsets.fromLTRB(14, 16, 14, 16),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
-              for (final id in evidenceIds) _buildEvidenceClueChip(id),
+              if (prompt != null) ...[
+                TactileCard(
+                  usePixelShadow: false,
+                  backgroundColor: const Color(0xFFFFFDF8),
+                  borderColor: const Color(0xFFDECBA8),
+                  child: Text(
+                    prompt,
+                    style: DauVietTypography.bodyMedium.copyWith(
+                      fontWeight: FontWeight.w600,
+                      height: 1.5,
+                    ),
+                  ),
+                ),
+                const SizedBox(height: 10),
+              ],
+              if (hypotheses.isEmpty)
+                const EmptyStateCard(
+                  title: 'Chưa có giả thuyết',
+                  description:
+                      'Hoạt động này chưa cấu hình danh sách giả thuyết.',
+                  icon: Icons.lightbulb_outline,
+                )
+              else
+                for (int i = 0; i < hypotheses.length; i++)
+                  _buildHypothesisOption(hypotheses[i], i, evidenceIds),
+              if (evidenceIds.isNotEmpty) ...[
+                const SizedBox(height: 10),
+                Align(
+                  alignment: Alignment.centerLeft,
+                  child: SectionEyebrow(
+                    collected.isNotEmpty
+                        ? 'DẤU VẾT ĐÃ CHỌN · BẰNG CHỨNG ỦNG HỘ'
+                        : 'BẰNG CHỨNG ỦNG HỘ',
+                    color: DauVietColors.jadeDark,
+                  ),
+                ),
+                const SizedBox(height: 8),
+                Wrap(
+                  spacing: 8,
+                  runSpacing: 8,
+                  children: [
+                    for (final id in evidenceIds) _buildEvidenceClueChip(id),
+                  ],
+                ),
+              ],
             ],
           ),
-        ],
+        ),
         const SizedBox(height: 10),
         InlineGradingHint(
           evaluation: widget.lastEvaluation,

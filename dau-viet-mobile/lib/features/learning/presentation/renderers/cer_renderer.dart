@@ -3,9 +3,8 @@ import 'package:flutter/services.dart';
 
 import '../../../../core/theme/dau_viet_colors.dart';
 import '../../../../core/theme/dau_viet_typography.dart';
-import '../../../../core/widgets/chapter_number_badge.dart';
 import '../../../../core/widgets/clue_tag.dart';
-import '../../../../core/widgets/section_eyebrow.dart';
+import '../../../../core/widgets/heritage_design_components.dart';
 import '../../../../core/widgets/stamp_seal_badge.dart';
 import '../../../../core/widgets/tactile_card.dart';
 import '../../data/attempt_dtos.dart';
@@ -122,104 +121,113 @@ class _CerRendererState extends State<CerRenderer> {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
-        const Align(
-          alignment: Alignment.centerLeft,
-          child: SectionEyebrow('ĐÚC KẾT · LẬP LUẬN CER'),
-        ),
-        const SizedBox(height: 12),
-
-        // Slot 1 — Claim (Khẳng định)
-        TactileCard(
-          padding: const EdgeInsets.all(14),
-          backgroundColor: DauVietColors.paperCard,
-          borderColor: _claimCtrl.text.trim().length >= 20
-              ? DauVietColors.jade
-              : DauVietColors.outlineVariant,
-          borderWidth: _claimCtrl.text.trim().length >= 20 ? 1.8 : 1.4,
-          child: _field(
-            code: 'C',
-            tagLabel: 'Khẳng định',
-            accentColor: DauVietColors.jade,
-            label: 'LUẬN ĐIỂM (CLAIM)',
-            hint: 'Bạn kết luận điều gì? (tối thiểu 20 ký tự)',
-            controller: _claimCtrl,
-            focusNode: _claimFocus,
-            nextFocus: _reasonFocus,
-            locked: locked,
-          ),
-        ),
-
-        const _CERConnector(),
-
-        // Slot 2 — Evidence (Bằng chứng)
-        TactileCard(
-          padding: const EdgeInsets.all(14),
-          backgroundColor: DauVietColors.paperCard,
-          borderColor: _evidenceIds.isNotEmpty
-              ? DauVietColors.cinnabarRed
-              : DauVietColors.outlineVariant,
-          borderWidth: _evidenceIds.isNotEmpty ? 1.8 : 1.4,
+        ImperialScrollFrame(
+          plaqueTitle: 'ĐÚC KẾT • LẬP LUẬN CER',
+          hiddenPlaqueTestText: 'ĐÚC KẾT · LẬP LUẬN CER',
+          padding: const EdgeInsets.fromLTRB(14, 16, 14, 16),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
-              const _SlotHeader(
-                code: 'E',
-                tagLabel: 'Bằng chứng',
-                color: DauVietColors.cinnabarRed,
-                title: 'BẰNG CHỨNG (EVIDENCE) — CHỌN CÁC NGUỒN HỖ TRỢ',
+              // Slot 1 — Claim (Khẳng định)
+              TactileCard(
+                usePixelShadow: false,
+                padding: const EdgeInsets.all(13),
+                backgroundColor: const Color(0xFFFAF5E8),
+                borderColor: _claimCtrl.text.trim().length >= 20
+                    ? const Color(0xFF1A6B64)
+                    : const Color(0xFFDECBA8),
+                borderWidth: _claimCtrl.text.trim().length >= 20 ? 1.6 : 1.2,
+                borderRadius: 14,
+                child: _field(
+                  code: 'C',
+                  tagLabel: 'Khẳng định',
+                  accentColor: const Color(0xFF1A6B64),
+                  label: 'LUẬN ĐIỂM (CLAIM)',
+                  hint: 'Bạn kết luận điều gì? (tối thiểu 20 ký tự)',
+                  controller: _claimCtrl,
+                  focusNode: _claimFocus,
+                  nextFocus: _reasonFocus,
+                  locked: locked,
+                ),
               ),
-              const SizedBox(height: 10),
-              if (evidence.isEmpty)
-                Padding(
-                  padding: const EdgeInsets.symmetric(vertical: 6),
-                  child: Text(
-                    '(Không có bằng chứng nhúng sẵn)',
-                    style: DauVietTypography.bodySmall.copyWith(
-                      color: DauVietColors.inkMuted,
-                      fontStyle: FontStyle.italic,
-                    ),
-                  ),
-                )
-              else
-                // Evidence chips — chọn/bỏ chọn không đụng vào text đã viết.
-                Column(
+
+              const _CERConnector(),
+
+              // Slot 2 — Evidence (Bằng chứng)
+              TactileCard(
+                usePixelShadow: false,
+                padding: const EdgeInsets.all(13),
+                backgroundColor: const Color(0xFFFAF5E8),
+                borderColor: _evidenceIds.isNotEmpty
+                    ? const Color(0xFFA8221B)
+                    : const Color(0xFFDECBA8),
+                borderWidth: _evidenceIds.isNotEmpty ? 1.6 : 1.2,
+                borderRadius: 14,
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
                   children: [
-                    for (final e in evidence)
-                      _evidenceTile(
-                        e,
-                        locked,
-                        priorIds.contains(e['id'] as String? ?? ''),
+                    const _SlotHeader(
+                      code: 'E',
+                      tagLabel: 'Bằng chứng',
+                      color: Color(0xFFA8221B),
+                      title: 'BẰNG CHỨNG (EVIDENCE) — CHỌN CÁC NGUỒN HỖ TRỢ',
+                    ),
+                    const SizedBox(height: 10),
+                    if (evidence.isEmpty)
+                      Padding(
+                        padding: const EdgeInsets.symmetric(vertical: 6),
+                        child: Text(
+                          '(Không có bằng chứng nhúng sẵn)',
+                          style: DauVietTypography.bodySmall.copyWith(
+                            color: DauVietColors.inkMuted,
+                            fontStyle: FontStyle.italic,
+                          ),
+                        ),
+                      )
+                    else
+                      Column(
+                        children: [
+                          for (final e in evidence)
+                            _evidenceTile(
+                              e,
+                              locked,
+                              priorIds.contains(e['id'] as String? ?? ''),
+                            ),
+                        ],
                       ),
                   ],
                 ),
+              ),
+
+              const _CERConnector(),
+
+              // Slot 3 — Reasoning (Lập luận)
+              TactileCard(
+                usePixelShadow: false,
+                padding: const EdgeInsets.all(13),
+                backgroundColor: const Color(0xFFFAF5E8),
+                borderColor: _reasonCtrl.text.trim().length >= 20
+                    ? const Color(0xFFB8781C)
+                    : const Color(0xFFDECBA8),
+                borderWidth: _reasonCtrl.text.trim().length >= 20 ? 1.6 : 1.2,
+                borderRadius: 14,
+                child: _field(
+                  code: 'R',
+                  tagLabel: 'Lập luận',
+                  accentColor: const Color(0xFFB8781C),
+                  label: 'LẬP LUẬN (REASONING)',
+                  hint:
+                      'Vì sao bằng chứng đó ủng hộ luận điểm? (tối thiểu 20 ký tự)',
+                  controller: _reasonCtrl,
+                  focusNode: _reasonFocus,
+                  maxLines: 5,
+                  locked: locked,
+                ),
+              ),
             ],
           ),
         ),
-
-        const _CERConnector(),
-
-        // Slot 3 — Reasoning (Lập luận)
-        TactileCard(
-          padding: const EdgeInsets.all(14),
-          backgroundColor: DauVietColors.paperCard,
-          borderColor: _reasonCtrl.text.trim().length >= 20
-              ? DauVietColors.imperialGoldDark
-              : DauVietColors.outlineVariant,
-          borderWidth: _reasonCtrl.text.trim().length >= 20 ? 1.8 : 1.4,
-          child: _field(
-            code: 'R',
-            tagLabel: 'Lập luận',
-            accentColor: DauVietColors.imperialGoldDark,
-            label: 'LẬP LUẬN (REASONING)',
-            hint: 'Vì sao bằng chứng đó ủng hộ luận điểm? (tối thiểu 20 ký tự)',
-            controller: _reasonCtrl,
-            focusNode: _reasonFocus,
-            maxLines: 5,
-            locked: locked,
-          ),
-        ),
-
-        const SizedBox(height: 14),
+        const SizedBox(height: 12),
         InlineGradingHint(
           evaluation: widget.lastEvaluation,
           maxAttempts: widget.activity.maxAttempts,
@@ -440,11 +448,23 @@ class _SlotHeader extends StatelessWidget {
   Widget build(BuildContext context) {
     return Row(
       children: [
-        ChapterNumberBadge(code, size: 32, color: color),
-        const SizedBox(width: 8),
-        Flexible(
-          flex: 0,
-          child: ClueTag(tagLabel, color: color),
+        ImperialDoubleCircleBadge(code, size: 36, color: color, filled: true),
+        const SizedBox(width: 6),
+        Container(
+          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+          decoration: BoxDecoration(
+            color: color,
+            borderRadius: BorderRadius.circular(999),
+            border: Border.all(color: const Color(0xFFE6BE74), width: 1.2),
+          ),
+          child: Text(
+            tagLabel,
+            style: DauVietTypography.labelSmall.copyWith(
+              color: const Color(0xFFFFF8EB),
+              fontWeight: FontWeight.w800,
+              fontSize: 10.5,
+            ),
+          ),
         ),
         const SizedBox(width: 8),
         Expanded(child: SectionLabel(title)),

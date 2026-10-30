@@ -3,7 +3,7 @@ import 'package:flutter/services.dart';
 
 import '../../../../core/theme/dau_viet_colors.dart';
 import '../../../../core/theme/dau_viet_typography.dart';
-import '../../../../core/widgets/section_eyebrow.dart';
+import '../../../../core/widgets/heritage_design_components.dart';
 import '../../../../core/widgets/stamp_seal_badge.dart';
 import '../../../../core/widgets/tactile_card.dart';
 import '../../data/attempt_dtos.dart';
@@ -140,48 +140,51 @@ class _MatchingRendererState extends State<MatchingRenderer> {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
-        const Align(
-          alignment: Alignment.centerLeft,
-          child: SectionEyebrow('GHÉP NỐI · KẾT NỐI DẤU VẾT'),
-        ),
-        const SizedBox(height: 8),
-        Padding(
-          padding: const EdgeInsets.symmetric(vertical: 4, horizontal: 2),
-          child: Text(
-            'Ghép mỗi nhân vật, hiện vật với thông tin phù hợp',
-            style: DauVietTypography.headlineSmall.copyWith(
-              color: DauVietColors.inkHeading,
-            ),
+        ImperialScrollFrame(
+          plaqueTitle: 'GHÉP NỐI • KẾT NỐI DẤU VẾT',
+          hiddenPlaqueTestText: 'GHÉP NỐI · KẾT NỐI DẤU VẾT',
+          padding: const EdgeInsets.fromLTRB(14, 16, 14, 16),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              Padding(
+                padding: const EdgeInsets.only(bottom: 10),
+                child: Text(
+                  'Ghép mỗi nhân vật, hiện vật với thông tin phù hợp',
+                  style: DauVietTypography.headlineSmall.copyWith(
+                    fontSize: 15,
+                    fontWeight: FontWeight.w800,
+                    color: const Color(0xFF2B1F17),
+                  ),
+                ),
+              ),
+              for (var i = 0; i < rowCount; i++) ...[
+                _buildMatchRow(
+                  index: i,
+                  leftItem: i < left.length ? left[i] : null,
+                  rightItem: orderedRight[i],
+                  locked: locked,
+                  reduceMotion: reduceMotion,
+                  usedRight: usedRight,
+                ),
+                const SizedBox(height: 10),
+              ],
+              const SizedBox(height: 4),
+              Text(
+                'Đã ghép ${_pairs.length}/${left.length}',
+                textAlign: TextAlign.center,
+                style: DauVietTypography.bodySmall.copyWith(
+                  color: _pairs.length == left.length
+                      ? const Color(0xFF2B1F17)
+                      : const Color(0xFF4A3C2E),
+                  fontWeight: FontWeight.w800,
+                  fontSize: 13,
+                ),
+              ),
+            ],
           ),
         ),
-        const SizedBox(height: 8),
-        // Danh sách các hàng ghép đôi: 2 thẻ nối chạy lên ngang hàng nhau, tự co giãn theo độ dài văn bản
-        for (var i = 0; i < rowCount; i++) ...[
-          _buildMatchRow(
-            index: i,
-            leftItem: i < left.length ? left[i] : null,
-            rightItem: orderedRight[i],
-            locked: locked,
-            reduceMotion: reduceMotion,
-            usedRight: usedRight,
-          ),
-          const SizedBox(height: 10),
-        ],
-        const SizedBox(height: 6),
-        Text(
-          'Đã ghép ${_pairs.length}/${left.length}',
-          textAlign: TextAlign.center,
-          style: DauVietTypography.bodySmall.copyWith(
-            color: _pairs.length == left.length
-                ? DauVietColors.natureGreen
-                : DauVietColors.inkMuted,
-            fontWeight: _pairs.length == left.length
-                ? FontWeight.w800
-                : FontWeight.w600,
-            fontSize: 12,
-          ),
-        ),
-        const SizedBox(height: 14),
+        const SizedBox(height: 12),
         InlineGradingHint(
           evaluation: widget.lastEvaluation,
           maxAttempts: widget.activity.maxAttempts,
