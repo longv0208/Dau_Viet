@@ -28,6 +28,9 @@ public class MapLocationMedia {
     @Column(name = "caption", columnDefinition = "text")
     private String caption;
 
+    @Column(name = "source_citation", length = 500)
+    private String sourceCitation;
+
     @Column(name = "asset_id")
     private UUID assetId;
 
@@ -48,11 +51,19 @@ public class MapLocationMedia {
     public MapLocationMedia(UUID id, UUID locationId, String mediaType, String title,
                             String caption, UUID assetId, String externalUrl,
                             String visibility, int sortOrder) {
+        this(id, locationId, mediaType, title, caption, null, assetId, externalUrl,
+                visibility, sortOrder);
+    }
+
+    public MapLocationMedia(UUID id, UUID locationId, String mediaType, String title,
+                            String caption, String sourceCitation, UUID assetId, String externalUrl,
+                            String visibility, int sortOrder) {
         this.id = id != null ? id : UUID.randomUUID();
         this.locationId = locationId;
         this.mediaType = mediaType.trim().toUpperCase();
         this.title = title;
         this.caption = caption;
+        this.sourceCitation = sourceCitation;
         this.assetId = assetId;
         this.externalUrl = externalUrl;
         this.visibility = (visibility == null || visibility.isBlank())
@@ -66,6 +77,7 @@ public class MapLocationMedia {
     public String getMediaType() { return mediaType; }
     public String getTitle() { return title; }
     public String getCaption() { return caption; }
+    public String getSourceCitation() { return sourceCitation; }
     public UUID getAssetId() { return assetId; }
     public String getExternalUrl() { return externalUrl; }
     public String getVisibility() { return visibility; }

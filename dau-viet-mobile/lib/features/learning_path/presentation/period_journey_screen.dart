@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
+import '../../../core/assets/asset_resolver.dart';
 import '../../../core/theme/dau_viet_colors.dart';
 import '../../../core/theme/dau_viet_typography.dart';
 import '../../../core/widgets/async_state_view.dart';
@@ -10,21 +11,24 @@ import '../../../core/widgets/heritage_design_components.dart';
 import '../../campaign/presentation/campaign_detail_screen.dart';
 import '../data/learning_path_dto.dart';
 import '../data/learning_path_providers.dart';
-import 'path_status_badge.dart';
+import 'widgets/bottom_floating_summary_card.dart';
 import 'widgets/historical_event_card.dart';
+import 'widgets/winding_landscape_journey_canvas.dart';
 
-/// Màn Hành trình thời kỳ (`PeriodJourneyScreen` — Vietnamese Heritage Modern).
+/// Màn Hành trình thời kỳ (`PeriodJourneyScreen` — Issue #48,
+/// `/journey/:periodCode`).
 ///
-/// Đặc tả:
-/// - Tự động gọi `touchPeriod(periodCode)` khi vào thời kỳ.
-/// - Sử dụng `HeritageBackground` render ảnh nền động do Admin cấu hình
-///   (hoặc nền giấy cổ + vân mây & hoa văn Đông Sơn nhẹ khi không có ảnh).
-/// - Thẻ tổng quan thời kỳ (`HeritageCard` + `HeritageProgressIndicator`).
-/// - Timeline dọc liền mạch (`HeritageTimelineNode` + `HistoricalEventCard`).
-/// - Ẩn tầng chỉ có 1 mục:
-///   - Nếu thời kỳ có `<= 1` nhóm giai đoạn (`PHASE`), ẩn tiêu đề tầng `PHASE`.
-///   - Nếu sự kiện chỉ có `<= 1` bài học, ẩn danh sách bài học con nhiều dòng.
-/// - Bấm vào sự kiện mở [CampaignDetailScreen] (`campaign_detail_screen.dart`).
+/// Đặc tả (theo `journey-mockup.png`):
+/// - Header kem: nút `<` quay lại, overline `HÀNH TRÌNH THỜI KỲ`, tiêu đề
+///   `"Hành trình"` + tên thời kỳ/niên đại, nút tròn mở Bản đồ `/map`.
+/// - Thanh tab ngang chuyển nhanh sang bất kỳ `PERIOD` nào khác — tự do chọn,
+///   không khóa tuần tự giữa các thời kỳ (AC-2).
+/// - Canvas Đường đi Phong cảnh 2.5D (`WindingLandscapeJourneyCanvas`): các mốc
+///   `EVENT` nằm dọc con đường đá uốn lượn — mốc đang học đỏ chu sa, mốc hoàn
+///   thành xanh lá `✓`, mốc khóa tuần tự nội bộ xám với ổ khóa.
+/// - `BottomFloatingSummaryCard` nổi ở chân hiển thị `X/Y sự kiện`, `A/B bài
+///   học`, `Z%` và nút `>` tiếp tục học.
+/// - Giữ `HeritageBackground` đồng bộ ảnh nền do Admin cấu hình (Phần E).
 class PeriodJourneyScreen extends ConsumerStatefulWidget {
   final String periodCode;
   final bool touchOnInit;
@@ -85,14 +89,14 @@ class _PeriodJourneyScreenState extends ConsumerState<PeriodJourneyScreen> {
         period?.backgroundConfig ?? HeritageBackgroundConfigDto.paperDefault;
 
     return Scaffold(
-      backgroundColor: DauVietColors.paperBackground,
+      backgroundColor: const Color(0xFFFBF7EF),
       body: HeritageBackground(
         config: bgConfig,
         heroHeight: 210,
         child: SafeArea(
           child: Column(
             children: [
-              _buildTopBar(context, asyncPath.asData?.value),
+              _buildHeader(context, asyncPath.asData?.value),
               Expanded(
                 child: asyncPath.when(
                   loading: () => AsyncStateView.loading(
@@ -113,25 +117,20 @@ class _PeriodJourneyScreenState extends ConsumerState<PeriodJourneyScreen> {
     );
   }
 
-  /// Header D1 — Phong cách Vietnamese Heritage Modern:
-  /// Nút quay lại, nhãn Hành trình thời kỳ, tiêu đề thời kỳ đặt trên nền
-  /// `HeritageBackground` có lớp phủ bảo vệ độ tương phản.
-  Widget _buildTopBar(BuildContext context, LearningPathDto? path) {
+  /// Header theo mockup màn 2: nút `<` tròn, overline `HÀNH TRÌNH THỜI KỲ`,
+  /// tiêu đề `"Hành trình"` + tên thời kỳ & niên đại, nút tròn bản đồ.
+  Widget _buildHeader(BuildContext context, LearningPathDto? path) {
     final period = path?.periodByCode(widget.periodCode);
+    final era = period?.parentId != null
+        ? path?.chapterById(period!.parentId)
+        : null;
     return Container(
-      padding: const EdgeInsets.fromLTRB(12, 10, 16, 12),
+      padding: const EdgeInsets.fromLTRB(12, 10, 14, 10),
       decoration: BoxDecoration(
-        gradient: LinearGradient(
-          begin: Alignment.topCenter,
-          end: Alignment.bottomCenter,
-          colors: [
-            DauVietColors.paperBackground.withValues(alpha: 0.78),
-            DauVietColors.paperBackground.withValues(alpha: 0.35),
-          ],
-        ),
+        color: const Color(0xFFFBF7EF).withValues(alpha: 0.92),
         border: Border(
           bottom: BorderSide(
-            color: DauVietColors.imperialGold.withValues(alpha: 0.35),
+            color: DauVietColors.imperialGold.withValues(alpha: 0.30),
             width: 0.8,
           ),
         ),
@@ -139,68 +138,198 @@ class _PeriodJourneyScreenState extends ConsumerState<PeriodJourneyScreen> {
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.center,
         children: [
-          DecoratedBox(
+          Container(
+            width: 44,
+            height: 44,
             decoration: BoxDecoration(
-              color: DauVietColors.paperCard.withValues(alpha: 0.92),
+              color: Colors.white,
               shape: BoxShape.circle,
-              border: Border.all(
-                color: DauVietColors.outlineVariant,
-                width: 1,
-              ),
+              border: Border.all(color: const Color(0xFFE8DFD1), width: 1),
+              boxShadow: const [
+                BoxShadow(
+                  color: Color(0x1A261E19),
+                  offset: Offset(0, 2),
+                  blurRadius: 8,
+                ),
+              ],
             ),
             child: IconButton(
               icon: const Icon(
                 Icons.arrow_back_rounded,
-                color: DauVietColors.inkText,
+                color: Color(0xFF4A3F37),
                 size: 20,
               ),
               tooltip: 'Chọn thời kỳ khác',
               onPressed: () => Navigator.of(context).maybePop(),
             ),
           ),
-          const SizedBox(width: 10),
+          const SizedBox(width: 11),
           Expanded(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Container(
-                  padding: const EdgeInsets.symmetric(
-                    horizontal: 8,
-                    vertical: 2,
-                  ),
-                  decoration: BoxDecoration(
-                    color: DauVietColors.paperCard.withValues(alpha: 0.88),
-                    borderRadius: BorderRadius.circular(999),
-                    border: Border.all(
-                      color: DauVietColors.imperialGold.withValues(alpha: 0.55),
-                      width: 0.8,
-                    ),
-                  ),
-                  child: Text(
-                    'HÀNH TRÌNH THỜI KỲ',
-                    style: DauVietTypography.labelSmall.copyWith(
-                      fontSize: 10.5,
-                      color: DauVietColors.cinnabarRed,
-                      fontWeight: FontWeight.w800,
-                      letterSpacing: 0.8,
-                    ),
+                Text(
+                  'HÀNH TRÌNH THỜI KỲ',
+                  style: DauVietTypography.labelSmall.copyWith(
+                    fontSize: 10.5,
+                    color: DauVietColors.cinnabarRed,
+                    fontWeight: FontWeight.w800,
+                    letterSpacing: 1.2,
                   ),
                 ),
-                const SizedBox(height: 4),
+                const SizedBox(height: 1),
+                Text(
+                  'Hành trình',
+                  style: DauVietTypography.headlineLarge.copyWith(
+                    fontSize: 22,
+                    fontWeight: FontWeight.w800,
+                    color: const Color(0xFF1F1814),
+                    height: 1.15,
+                  ),
+                ),
                 Text(
                   period?.title ?? widget.periodCode,
-                  maxLines: 2,
+                  maxLines: 1,
                   overflow: TextOverflow.ellipsis,
-                  style: DauVietTypography.headlineSmall.copyWith(
-                    fontSize: 17,
-                    color: DauVietColors.inkHeading,
-                    height: 1.2,
+                  style: DauVietTypography.labelMedium.copyWith(
+                    fontSize: 13,
+                    fontWeight: FontWeight.w700,
+                    color: const Color(0xFFB92B27),
                   ),
                 ),
+                if (era != null)
+                  Text(
+                    era.title,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: DauVietTypography.bodySmall.copyWith(
+                      fontSize: 11.5,
+                      color: const Color(0xFF6E6257),
+                    ),
+                  ),
               ],
             ),
           ),
+          const SizedBox(width: 8),
+          Container(
+            width: 44,
+            height: 44,
+            decoration: BoxDecoration(
+              color: Colors.white,
+              shape: BoxShape.circle,
+              border: Border.all(color: const Color(0xFFE8DFD1), width: 1),
+              boxShadow: const [
+                BoxShadow(
+                  color: Color(0x1A261E19),
+                  offset: Offset(0, 2),
+                  blurRadius: 8,
+                ),
+              ],
+            ),
+            child: IconButton(
+              icon: const Icon(
+                Icons.map_outlined,
+                color: Color(0xFF4A3F37),
+                size: 20,
+              ),
+              tooltip: 'Mở bản đồ di sản',
+              onPressed: () => _openHeritageMap(context),
+            ),
+          ),
         ],
+      ),
+    );
+  }
+
+  void _openHeritageMap(BuildContext context) {
+    final router = GoRouter.maybeOf(context);
+    if (router != null &&
+        router.configuration.findMatch(Uri.parse('/map')).isNotEmpty) {
+      context.push('/map');
+    }
+    // Không có router/route /map (widget test độc lập) → bỏ qua êm.
+  }
+
+  /// Thanh chip ngang chuyển nhanh sang bất kỳ `PERIOD` nào khác — AC-2: mọi
+  /// thời kỳ đều tự do chọn, không có khóa tuần tự giữa các thời kỳ.
+  Widget _buildPeriodSwitcher(BuildContext context, LearningPathDto path) {
+    final periods = path.periods;
+    if (periods.length <= 1) return const SizedBox.shrink();
+    return Container(
+      color: const Color(0xFFFBF7EF).withValues(alpha: 0.92),
+      padding: const EdgeInsets.fromLTRB(12, 4, 12, 10),
+      child: SingleChildScrollView(
+        scrollDirection: Axis.horizontal,
+        child: Row(
+          children: [
+            for (final p in periods)
+              Padding(
+                padding: const EdgeInsets.only(right: 8),
+                child: Material(
+                  color: p.code == widget.periodCode
+                      ? const Color(0xFFB92B27)
+                      : const Color(0xFFF3EDE0),
+                  borderRadius: BorderRadius.circular(14),
+                  child: InkWell(
+                    borderRadius: BorderRadius.circular(14),
+                    onTap: p.code == widget.periodCode
+                        ? null
+                        : () => _switchPeriod(context, p.code),
+                    child: Container(
+                      constraints: const BoxConstraints(
+                        minHeight: 36,
+                        maxWidth: 190,
+                      ),
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 14,
+                        vertical: 7,
+                      ),
+                      alignment: Alignment.center,
+                      child: Text(
+                        p.title,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: DauVietTypography.labelMedium.copyWith(
+                          fontSize: 12.5,
+                          fontWeight: p.code == widget.periodCode
+                              ? FontWeight.w800
+                              : FontWeight.w600,
+                          color: p.code == widget.periodCode
+                              ? Colors.white
+                              : const Color(0xFF4A3F37),
+                        ),
+                      ),
+                    ),
+                  ),
+                ),
+              ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  /// Chuyển trực tiếp sang thời kỳ khác (1 chạm — không khóa): gọi touch rồi
+  /// điều hướng `/journey/<code>` (fallback push thay thế khi không có router).
+  Future<void> _switchPeriod(BuildContext context, String periodCode) async {
+    try {
+      await ref.read(learningPathProvider.notifier).touchPeriod(periodCode);
+    } catch (_) {
+      // Không chặn chuyển thời kỳ nếu mạng lỗi.
+    }
+    if (!context.mounted) return;
+
+    final router = GoRouter.maybeOf(context);
+    final targetLocation = '/journey/$periodCode';
+    if (router != null &&
+        router.configuration.findMatch(Uri.parse(targetLocation)).isNotEmpty) {
+      router.go(targetLocation);
+      return;
+    }
+
+    await Navigator.of(context).pushReplacement(
+      MaterialPageRoute<void>(
+        builder: (_) => PeriodJourneyScreen(periodCode: periodCode),
       ),
     );
   }
@@ -215,57 +344,175 @@ class _PeriodJourneyScreenState extends ConsumerState<PeriodJourneyScreen> {
       );
     }
 
-    final era = period.parentId != null
-        ? path.chapterById(period.parentId)
-        : null;
     final progress = path.progressForPeriod(period.code);
     final currentPointer = path.currentForPeriod(period.code);
     final allEvents = path.eventsOfPeriod(period.chapterId);
 
     if (allEvents.isEmpty) {
-      return AsyncStateView.empty(
-        message: 'Thời kỳ này hiện đang được biên tập nội dung sự kiện.',
+      return Column(
+        children: [
+          _buildPeriodSwitcher(context, path),
+          Expanded(
+            child: AsyncStateView.empty(
+              message: 'Thời kỳ này hiện đang được biên tập nội dung sự kiện.',
+            ),
+          ),
+        ],
       );
     }
 
     final sections = _buildPhaseSections(path, period);
-    // Quy tắc "ẩn tầng chỉ có 1 mục":
-    // Nếu thời kỳ chỉ có 0 hoặc 1 nhóm giai đoạn (PHASE), ẩn tiêu đề tầng PHASE.
+    // Quy tắc "ẩn tầng chỉ có 1 mục": nếu thời kỳ chỉ có 0 hoặc 1 nhóm giai
+    // đoạn (PHASE) → ẩn tiêu đề tầng PHASE.
     final bool showPhaseHeaders = sections.length > 1;
 
-    return SingleChildScrollView(
-      padding: const EdgeInsets.fromLTRB(16, 12, 16, 28),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.stretch,
-        children: [
-          _buildPeriodHeaderCard(
-            period: period,
-            era: era,
-            events: allEvents,
-            progress: progress,
+    // Dựng các hàng trên con đường: tiêu đề PHASE (nếu có) + mốc từng EVENT.
+    final entries = <JourneyCanvasEntry>[];
+    bool milestoneOnLeft = true;
+    for (int s = 0; s < sections.length; s++) {
+      if (showPhaseHeaders && sections[s].phase != null) {
+        final phase = sections[s].phase!;
+        entries.add(
+          JourneyCanvasEntry.fullWidth(
+            child: HeritageSectionHeader(
+              key: Key('phase-header-${phase.code}'),
+              title: phase.title,
+              periodLabel: phase.periodLabel,
+              accentColor: const Color(0xFFB92B27),
+            ),
           ),
-          const SizedBox(height: 18),
-          for (int s = 0; s < sections.length; s++) ...[
-            if (s > 0) const SizedBox(height: 16),
-            if (showPhaseHeaders && sections[s].phase != null) ...[
-              _buildPhaseHeader(sections[s].phase!),
-              const SizedBox(height: 12),
-            ],
-            for (int i = 0; i < sections[s].events.length; i++)
-              _EventTimelineItem(
-                event: sections[s].events[i],
-                stepNumber: _globalEventNumber(sections, s, i),
-                isFirstInSection: i == 0,
-                isLastInSection: i == sections[s].events.length - 1,
-                isCurrentTarget:
-                    currentPointer?.eventNodeId ==
-                    sections[s].events[i].eventNodeId,
-                onTap: () => _openEventCampaign(context, sections[s].events[i]),
+        );
+      }
+      for (int i = 0; i < sections[s].events.length; i++) {
+        final event = sections[s].events[i];
+        final isCurrentTarget =
+            currentPointer?.eventNodeId == event.eventNodeId;
+        final stepNumber = _globalEventNumber(sections, s, i);
+        entries.add(
+          JourneyCanvasEntry.milestone(
+            cardOnLeft: milestoneOnLeft,
+            badge: JourneyNodeBadge(
+              status: event.status,
+              isSelected: isCurrentTarget,
+            ),
+            child: HistoricalEventCard(
+              event: event,
+              stepNumber: stepNumber,
+              isCurrentTarget: isCurrentTarget,
+              onTap: () => _openEventCampaign(context, event),
+            ),
+          ),
+        );
+        milestoneOnLeft = !milestoneOnLeft;
+      }
+    }
+
+    return Column(
+      children: [
+        _buildPeriodSwitcher(context, path),
+        Expanded(
+          child: Stack(
+            children: [
+              SingleChildScrollView(
+                padding: const EdgeInsets.only(bottom: 156),
+                child: WindingLandscapeJourneyCanvas(entries: entries),
               ),
-          ],
-        ],
-      ),
+              Positioned(
+                left: 14,
+                right: 14,
+                bottom: 12,
+                child: _buildPeriodSummaryCard(
+                  context,
+                  path: path,
+                  period: period,
+                  events: allEvents,
+                  progress: progress,
+                  currentPointer: currentPointer,
+                ),
+              ),
+            ],
+          ),
+        ),
+      ],
     );
+  }
+
+  /// Thẻ tổng quan nổi ở chân: ảnh tròn thời kỳ, tên + niên đại, thanh tiến
+  /// độ xanh, chỉ số `X/Y sự kiện • A/B bài học` và `Z%`, nút `>` tiếp tục
+  /// học (mở sự kiện mốc tiếp theo hoặc sự kiện đầu tiên mở được).
+  Widget _buildPeriodSummaryCard(
+    BuildContext context, {
+    required LearningPathDto path,
+    required LearningPathChapterDto period,
+    required List<LearningPathEventNodeDto> events,
+    required PeriodProgressDto? progress,
+    required LearningPathCurrentDto? currentPointer,
+  }) {
+    final completedEvents = progress?.completedEvents ??
+        events.where((e) => e.isRequired && e.status.isDone).length;
+    final requiredEvents =
+        progress?.requiredEvents ?? events.where((e) => e.isRequired).length;
+    final completedLessons = progress?.completedLessons ??
+        events
+            .where((e) => e.isRequired)
+            .expand((e) => e.lessons)
+            .where((l) => l.status.isDone)
+            .length;
+    final requiredLessons = progress?.requiredLessons ??
+        events.where((e) => e.isRequired).expand((e) => e.lessons).length;
+    final int rawPercent = progress?.percent ??
+        (requiredEvents > 0
+            ? ((completedEvents * 100) / requiredEvents).round()
+            : 0);
+    final int percent =
+        (rawPercent == 0 && requiredLessons > 0 && completedLessons > 0)
+            ? ((completedLessons * 100) / requiredLessons).round()
+            : rawPercent;
+
+    final cover = const AssetResolver().resolvePeriodCover(
+      period.coverImageKey,
+      period.code,
+    );
+    final String? yearLabel = (period.startYear != null &&
+            period.endYear != null &&
+            period.startYear! > 0 &&
+            period.endYear! > 0)
+        ? '(${period.startYear} – ${period.endYear})'
+        : period.periodLabel;
+    return BottomFloatingSummaryCard(
+      title: period.title,
+      yearLabel: yearLabel,
+      statsText:
+          'Tiến độ thời kỳ: $completedEvents/$requiredEvents sự kiện • '
+          '$completedLessons/$requiredLessons bài học',
+      percent: percent,
+      imageAsset: cover,
+      ctaLabel: 'Học tiếp',
+      onTap: () => _continueLearning(context, events, currentPointer),
+    );
+  }
+
+  /// Mở sự kiện "mốc tiếp theo" (con trỏ hiện tại) hoặc sự kiện đầu tiên còn
+  /// học được trong thời kỳ — CTA trên `BottomFloatingSummaryCard`.
+  void _continueLearning(
+    BuildContext context,
+    List<LearningPathEventNodeDto> events,
+    LearningPathCurrentDto? currentPointer,
+  ) {
+    LearningPathEventNodeDto? target;
+    if (currentPointer != null) {
+      for (final e in events) {
+        if (e.eventNodeId == currentPointer.eventNodeId) {
+          target = e;
+          break;
+        }
+      }
+    }
+    target ??= events.where((e) => e.isPlayable && e.isUnlocked).firstOrNull;
+    target ??= events.where((e) => e.isPlayable).firstOrNull;
+    if (target != null) {
+      _openEventCampaign(context, target);
+    }
   }
 
   List<_PhaseSection> _buildPhaseSections(
@@ -296,147 +543,6 @@ class _PeriodJourneyScreenState extends ConsumerState<PeriodJourneyScreen> {
       count += sections[s].events.length;
     }
     return count + itemIdx + 1;
-  }
-
-  /// Thẻ tổng quan thời kỳ (D2):
-  /// Card nền giấy bo tròn mềm, viền vàng nhạt, đổ bóng nhẹ, chứa trạng thái,
-  /// thời kỳ cha, tên thời kỳ, tiến độ bắt buộc, progress bar và phần trăm hoàn thành.
-  Widget _buildPeriodHeaderCard({
-    required LearningPathChapterDto period,
-    required LearningPathChapterDto? era,
-    required List<LearningPathEventNodeDto> events,
-    required PeriodProgressDto? progress,
-  }) {
-    final periodStatus = derivePeriodStatus(events: events, progress: progress);
-    final completedEvents =
-        progress?.completedEvents ??
-        events.where((e) => e.isRequired && e.status.isDone).length;
-    final requiredEvents =
-        progress?.requiredEvents ?? events.where((e) => e.isRequired).length;
-    final completedLessons =
-        progress?.completedLessons ??
-        events
-            .where((e) => e.isRequired)
-            .expand((e) => e.lessons)
-            .where((l) => l.status.isDone)
-            .length;
-    final requiredLessons =
-        progress?.requiredLessons ??
-        events.where((e) => e.isRequired).expand((e) => e.lessons).length;
-    final int rawPercent =
-        progress?.percent ??
-        (requiredEvents > 0
-            ? ((completedEvents * 100) / requiredEvents).round()
-            : 0);
-    final int percent =
-        (rawPercent == 0 && requiredLessons > 0 && completedLessons > 0)
-        ? ((completedLessons * 100) / requiredLessons).round()
-        : rawPercent;
-
-    return HeritageCard(
-      backgroundColor: DauVietColors.paperCard,
-      borderColor: const Color(0xFFD8BA73),
-      borderWidth: 1.1,
-      borderRadius: 16,
-      showCornerMotif: true,
-      showTopAccentLine: true,
-      topAccentColor: DauVietColors.imperialGold,
-      padding: const EdgeInsets.all(15),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Wrap(
-            spacing: 8,
-            runSpacing: 6,
-            crossAxisAlignment: WrapCrossAlignment.center,
-            children: [
-              PathStatusBadge(status: periodStatus),
-              if (era != null)
-                Container(
-                  padding: const EdgeInsets.symmetric(
-                    horizontal: 9,
-                    vertical: 3.5,
-                  ),
-                  decoration: BoxDecoration(
-                    color: DauVietColors.paperCardHi,
-                    borderRadius: BorderRadius.circular(999),
-                    border: Border.all(
-                      color: DauVietColors.outlineVariant.withValues(alpha: 0.7),
-                      width: 0.8,
-                    ),
-                  ),
-                  child: Row(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      const Icon(
-                        Icons.account_balance_rounded,
-                        size: 12,
-                        color: DauVietColors.woodBrown,
-                      ),
-                      const SizedBox(width: 4),
-                      Flexible(
-                        child: Text(
-                          era.title,
-                          maxLines: 1,
-                          overflow: TextOverflow.ellipsis,
-                          style: DauVietTypography.labelSmall.copyWith(
-                            color: DauVietColors.woodBrown,
-                            fontWeight: FontWeight.w600,
-                          ),
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-            ],
-          ),
-          const SizedBox(height: 10),
-          Text(
-            period.title,
-            style: DauVietTypography.headlineMedium.copyWith(
-              fontSize: 18,
-              color: DauVietColors.inkHeading,
-            ),
-          ),
-          if (period.periodLabel != null &&
-              period.periodLabel!.trim().isNotEmpty) ...[
-            const SizedBox(height: 3),
-            Text(
-              period.periodLabel!,
-              style: DauVietTypography.labelMedium.copyWith(
-                color: DauVietColors.cinnabarRed,
-                fontWeight: FontWeight.w700,
-              ),
-            ),
-          ],
-          if (period.description != null &&
-              period.description!.trim().isNotEmpty) ...[
-            const SizedBox(height: 6),
-            Text(
-              period.description!,
-              style: DauVietTypography.bodySmall.copyWith(
-                color: DauVietColors.inkSecondary,
-                height: 1.4,
-              ),
-            ),
-          ],
-          const SizedBox(height: 12),
-          HeritageProgressIndicator(
-            label:
-                'Tiến độ thời kỳ: $completedEvents/$requiredEvents sự kiện • $completedLessons/$requiredLessons bài học',
-            percent: percent,
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildPhaseHeader(LearningPathChapterDto phase) {
-    return HeritageSectionHeader(
-      key: Key('phase-header-${phase.code}'),
-      title: phase.title,
-      periodLabel: phase.periodLabel,
-    );
   }
 
   Future<void> _openEventCampaign(
@@ -470,54 +576,4 @@ class _PhaseSection {
   final List<LearningPathEventNodeDto> events;
 
   const _PhaseSection({required this.phase, required this.events});
-}
-
-/// D3 — Một dòng trên Timeline các chặng:
-/// Kết hợp `HeritageTimelineNode` (bên trái) và `HistoricalEventCard` (bên phải)
-/// trong `IntrinsicHeight` để đường nối dọc luôn khớp chính xác giữa các node.
-class _EventTimelineItem extends StatelessWidget {
-  final LearningPathEventNodeDto event;
-  final int stepNumber;
-  final bool isFirstInSection;
-  final bool isLastInSection;
-  final bool isCurrentTarget;
-  final VoidCallback onTap;
-
-  const _EventTimelineItem({
-    required this.event,
-    required this.stepNumber,
-    this.isFirstInSection = false,
-    required this.isLastInSection,
-    required this.isCurrentTarget,
-    required this.onTap,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    return IntrinsicHeight(
-      child: Row(
-        crossAxisAlignment: CrossAxisAlignment.stretch,
-        children: [
-          HeritageTimelineNode(
-            status: event.status,
-            isFirst: isFirstInSection,
-            isLast: isLastInSection,
-            isCurrentTarget: isCurrentTarget,
-          ),
-          const SizedBox(width: 10),
-          Expanded(
-            child: Padding(
-              padding: const EdgeInsets.only(bottom: 12),
-              child: HistoricalEventCard(
-                event: event,
-                stepNumber: stepNumber,
-                isCurrentTarget: isCurrentTarget,
-                onTap: onTap,
-              ),
-            ),
-          ),
-        ],
-      ),
-    );
-  }
 }

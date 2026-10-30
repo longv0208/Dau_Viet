@@ -56,6 +56,11 @@ class MapLocationLinkedEventDto {
   final String? yearLabel;
   final String role;
   final int sortOrder;
+  final String? slug;
+  final String? summary;
+  final String? description;
+  final String? periodCode;
+  final String? periodTitle;
 
   const MapLocationLinkedEventDto({
     required this.eventId,
@@ -63,6 +68,11 @@ class MapLocationLinkedEventDto {
     this.yearLabel,
     this.role = 'PRIMARY',
     this.sortOrder = 0,
+    this.slug,
+    this.summary,
+    this.description,
+    this.periodCode,
+    this.periodTitle,
   });
 
   factory MapLocationLinkedEventDto.fromJson(Map<String, dynamic> json) {
@@ -72,6 +82,11 @@ class MapLocationLinkedEventDto {
       yearLabel: json['yearLabel'] as String?,
       role: json['role'] as String? ?? 'PRIMARY',
       sortOrder: (json['sortOrder'] as num?)?.toInt() ?? 0,
+      slug: json['slug'] as String?,
+      summary: json['summary'] as String?,
+      description: json['description'] as String?,
+      periodCode: json['periodCode'] as String?,
+      periodTitle: json['periodTitle'] as String?,
     );
   }
 }
@@ -111,6 +126,7 @@ class MapLocationMediaDto {
   final String? assetId;
   final String? assetUrl;
   final String? externalUrl;
+  final String? sourceCitation;
   final String visibility;
   final int sortOrder;
 
@@ -122,6 +138,7 @@ class MapLocationMediaDto {
     this.assetId,
     this.assetUrl,
     this.externalUrl,
+    this.sourceCitation,
     this.visibility = 'PUBLIC_PREVIEW',
     this.sortOrder = 0,
   });
@@ -137,6 +154,7 @@ class MapLocationMediaDto {
       assetId: json['assetId'] as String?,
       assetUrl: json['assetUrl'] as String?,
       externalUrl: json['externalUrl'] as String?,
+      sourceCitation: json['sourceCitation'] as String?,
       visibility: (json['visibility'] as String? ?? 'PUBLIC_PREVIEW')
           .trim()
           .toUpperCase(),
@@ -196,6 +214,9 @@ class MapLocationDto {
   final List<MapLocationLinkedEventDto> events;
   final List<MapLocationUnlockLessonDto> unlockLessons;
   final List<MapLocationMediaDto> media;
+  final String? keyFigures;
+  final String? storyNarrative;
+  final String? historicalSignificance;
 
   const MapLocationDto({
     required this.id,
@@ -220,6 +241,9 @@ class MapLocationDto {
     this.events = const [],
     this.unlockLessons = const [],
     this.media = const [],
+    this.keyFigures,
+    this.storyNarrative,
+    this.historicalSignificance,
   }) : unlocked = unlocked ?? (unlockState != MapUnlockState.locked);
 
   bool get isUnlocked => unlocked;
@@ -272,6 +296,27 @@ class MapLocationDto {
   List<MapLocationMediaDto> get imageMedia =>
       visibleMedia.where((m) => m.isImageMedia).toList();
 
+  /// Danh sách ảnh cho Carousel (gộp `imageMedia` hoặc tạo mục từ `coverAssetId`
+  /// khi `imageMedia` rỗng nhưng địa điểm có ảnh bìa).
+  List<MapLocationMediaDto> get galleryImages {
+    final imgs = imageMedia;
+    if (imgs.isNotEmpty) return imgs;
+    if (coverAssetId != null && coverAssetId!.trim().isNotEmpty) {
+      return [
+        MapLocationMediaDto(
+          id: 'cover_$id',
+          mediaType: 'IMAGE_2D',
+          title: title,
+          caption: shortSummary,
+          assetId: coverAssetId,
+          visibility: 'PUBLIC_PREVIEW',
+          sortOrder: 0,
+        ),
+      ];
+    }
+    return const [];
+  }
+
   /// Media thuộc tab "Video" (`DOCUMENTARY_CLIP`, `AUDIO_GUIDE`).
   List<MapLocationMediaDto> get videoMedia =>
       visibleMedia.where((m) => m.isVideoOrAudioMedia).toList();
@@ -280,11 +325,14 @@ class MapLocationDto {
   bool get hasDocumentContent =>
       (description != null && description!.trim().isNotEmpty) ||
       (shortSummary != null && shortSummary!.trim().isNotEmpty) ||
+      (storyNarrative != null && storyNarrative!.trim().isNotEmpty) ||
+      (keyFigures != null && keyFigures!.trim().isNotEmpty) ||
+      (historicalSignificance != null &&
+          historicalSignificance!.trim().isNotEmpty) ||
       events.isNotEmpty ||
       (eventTitle != null && eventTitle!.trim().isNotEmpty) ||
       unlockLessons.isNotEmpty ||
       requiredLesson != null;
-
   /// Bài học đại diện có thể mở để học/ôn (ưu tiên bài chưa hoàn thành trong
   /// `unlockLessons`, sau đó bài đầu tiên `accessible`, hoặc `requiredLesson`).
   RequiredLessonRef? get actionableLesson {
@@ -400,6 +448,9 @@ class MapLocationDto {
       events: parsedEvents,
       unlockLessons: parsedUnlockLessons,
       media: parsedMedia,
+      keyFigures: json['keyFigures'] as String?,
+      storyNarrative: json['storyNarrative'] as String?,
+      historicalSignificance: json['historicalSignificance'] as String?,
     );
   }
 }

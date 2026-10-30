@@ -25,7 +25,10 @@ public record MapLocationDto(
         List<UUID> eventIds,
         List<LinkedEventDto> events,
         List<UnlockLessonProgressDto> unlockLessons,
-        List<LocationMediaDto> media
+        List<LocationMediaDto> media,
+        String keyFigures,
+        String storyNarrative,
+        String historicalSignificance
 ) {
     public MapLocationDto(
             UUID id,
@@ -71,7 +74,10 @@ public record MapLocationDto(
                 eventIds,
                 events,
                 unlockLessons,
-                media
+                media,
+                null,
+                null,
+                null
         );
     }
 
@@ -107,7 +113,10 @@ public record MapLocationDto(
                 eventId == null ? List.of() : List.of(eventId),
                 List.of(),
                 List.of(),
-                List.of()
+                List.of(),
+                null,
+                null,
+                null
         );
     }
 
@@ -119,8 +128,17 @@ public record MapLocationDto(
             String title,
             String yearLabel,
             String role,
-            int sortOrder
+            int sortOrder,
+            String slug,
+            String summary,
+            String description,
+            String periodCode,
+            String periodTitle
     ) {
+        public LinkedEventDto(UUID eventId, String title, String yearLabel,
+                              String role, int sortOrder) {
+            this(eventId, title, yearLabel, role, sortOrder, null, null, null, null, null);
+        }
     }
 
     public record UnlockLessonProgressDto(
@@ -140,7 +158,14 @@ public record MapLocationDto(
             String assetUrl,
             String externalUrl,
             String visibility,
-            int sortOrder
+            int sortOrder,
+            String sourceCitation
     ) {
+        public LocationMediaDto(UUID id, String mediaType, String title, String caption,
+                                UUID assetId, String assetUrl, String externalUrl,
+                                String visibility, int sortOrder) {
+            this(id, mediaType, title, caption, assetId, assetUrl, externalUrl,
+                    visibility, sortOrder, null);
+        }
     }
 }

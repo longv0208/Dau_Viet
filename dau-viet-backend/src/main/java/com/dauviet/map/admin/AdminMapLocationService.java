@@ -466,6 +466,7 @@ public class AdminMapLocationService {
                         in.mediaType().trim().toUpperCase(Locale.ROOT),
                         in.title() == null ? "" : in.title(),
                         in.caption(),
+                        in.sourceCitation(),
                         in.assetId(),
                         in.externalUrl(),
                         in.visibility() == null ? "PUBLIC_PREVIEW" : in.visibility().trim().toUpperCase(Locale.ROOT),
@@ -559,6 +560,9 @@ public class AdminMapLocationService {
         l.setCoverAssetId(req.coverAssetId());
         l.setMapAssetId(req.mapAssetId());
         l.setDisplayOrder(req.displayOrder() == null ? 0 : req.displayOrder());
+        l.setKeyFigures(req.keyFigures());
+        l.setStoryNarrative(req.storyNarrative());
+        l.setHistoricalSignificance(req.historicalSignificance());
     }
 
     private StandaloneLocationResponse toStandaloneResponse(MapLocation l) {
@@ -616,7 +620,8 @@ public class AdminMapLocationService {
                         assetUrl,
                         m.getExternalUrl(),
                         m.getVisibility(),
-                        m.getSortOrder()));
+                        m.getSortOrder(),
+                        m.getSourceCitation()));
             }
         }
 
@@ -643,7 +648,10 @@ public class AdminMapLocationService {
                 l.getUpdatedAt(),
                 eventViews,
                 lessonViews,
-                mediaViews);
+                mediaViews,
+                l.getKeyFigures(),
+                l.getStoryNarrative(),
+                l.getHistoricalSignificance());
     }
 
     private void requireEvent(UUID eventId) {

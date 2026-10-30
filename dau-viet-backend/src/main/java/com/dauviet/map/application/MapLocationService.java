@@ -87,7 +87,7 @@ public class MapLocationService {
                                                UUID eventId, String kind,
                                                Boolean unlockedFilter) {
         List<MapLocation> rows = locations.findVisibleForLearner(MapLocationStatus.PUBLISHED);
-        List<MapLocationDto> dtos = toDtos(userId, rows, false);
+        List<MapLocationDto> dtos = toDtos(userId, rows, true);
 
         Set<UUID> periodEventIds = resolveEventIdsForPeriodCode(periodCode);
         return dtos.stream()
@@ -145,6 +145,10 @@ public class MapLocationService {
                         .collect(Collectors.groupingBy(MapLocationMedia::getLocationId))
                 : Map.of();
 
+        // Batch-resolve periodCode / periodTitle for linked events from the
+        // published HISTORY_MAIN learning path version (avoids N+1 queries).
+        Map<UUID, String[]> periodInfoByEventId = resolvePeriodInfoByEventId(allEventIds);
+
         return rows.stream().map(loc -> {
             Set<UUID> ruleLessons = rulesByLocation.getOrDefault(loc.getId(), Set.of());
             String unlockMode = ruleLessons.isEmpty() ? "NONE"
@@ -191,8 +195,12 @@ public class MapLocationService {
                 if (he != null) {
                     String yearLabel = he.getStartYear() == null ? he.getPeriod()
                             : YearLabelFormatter.formatYear(he.getStartYear(), he.getPeriod());
+                    String[] periodInfo = periodInfoByEventId.getOrDefault(
+                            he.getId(), new String[] { null, null });
                     linkedEventDtos.add(new MapLocationDto.LinkedEventDto(
-                            he.getId(), he.getTitle(), yearLabel, link.getRole(), link.getSortOrder()));
+                            he.getId(), he.getTitle(), yearLabel, link.getRole(), link.getSortOrder(),
+                            he.getSlug(), he.getSummary(), he.getDescription(),
+                            periodInfo[0], periodInfo[1]));
                 }
             }
             UUID primaryEventId = loc.getEventId() != null ? loc.getEventId()
@@ -214,7 +222,8 @@ public class MapLocationService {
                                 m.getAssetId() == null ? null : "/api/v1/assets/" + m.getAssetId() + "/content",
                                 m.getExternalUrl(),
                                 m.getVisibility(),
-                                m.getSortOrder()))
+                                m.getSortOrder(),
+                                m.getSourceCitation()))
                         .toList();
             }
 
@@ -240,9 +249,46 @@ public class MapLocationService {
                     List.copyOf(eventIdsSet),
                     linkedEventDtos,
                     unlockLessonDtos,
-                    mediaDtos
+                    mediaDtos,
+                    loc.getKeyFigures(),
+                    loc.getStoryNarrative(),
+                    loc.getHistoricalSignificance()
             );
         }).toList();
+    }
+
+    /**
+     * Batch-resolve the PERIOD chapter code/title each event belongs to in the
+     * published HISTORY_MAIN learning path version. Returns eventId → [periodCode, periodTitle].
+     */
+    private Map<UUID, String[]> resolvePeriodInfoByEventId(Set<UUID> eventIds) {
+        if (eventIds == null || eventIds.isEmpty()) {
+            return Map.of();
+        }
+        var versionOpt = pathVersions.findByPathCodeAndStatus("HISTORY_MAIN", LearningPathStatus.PUBLISHED);
+        if (versionOpt.isEmpty()) {
+            return Map.of();
+        }
+        UUID versionId = versionOpt.get().getId();
+        List<LearningPathChapter> allChapters = pathChapters.findByPathVersionIdOrderBySortOrderAsc(versionId);
+        Map<UUID, LearningPathChapter> chapterById = allChapters.stream()
+                .collect(Collectors.toMap(LearningPathChapter::getId, Function.identity()));
+
+        Map<UUID, String[]> result = new HashMap<>();
+        for (LearningPathEventNode node : pathEventNodes.findByPathVersionIdOrderBySortOrderAsc(versionId)) {
+            if (!eventIds.contains(node.getEventId()) || result.containsKey(node.getEventId())) {
+                continue;
+            }
+            LearningPathChapter chapter = chapterById.get(node.getChapterId());
+            // Walk up to the nearest PERIOD ancestor (node may sit under a PHASE/ERA).
+            while (chapter != null && chapter.getNodeType() != com.dauviet.path.domain.PathNodeType.PERIOD) {
+                chapter = chapter.getParentId() == null ? null : chapterById.get(chapter.getParentId());
+            }
+            if (chapter != null) {
+                result.put(node.getEventId(), new String[] { chapter.getCode(), chapter.getTitle() });
+            }
+        }
+        return result;
     }
 
     private Set<UUID> resolveEventIdsForPeriodCode(String periodCode) {

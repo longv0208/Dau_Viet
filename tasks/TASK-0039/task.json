@@ -1,0 +1,69 @@
+{
+  "schemaVersion": 1,
+  "id": "TASK-0039",
+  "type": "feature",
+  "risk": "high-risk",
+  "status": "done",
+  "goal": "[JOURNEY & MAP][UI/UX] Issue #48 — Thiết kế lại Hành trình Lịch sử dạng Đường đi Phong cảnh 2.5D (Đại thời kỳ -> Thời kỳ con, tự do chọn thời kỳ) & Nâng cấp Bản đồ Di sản thành Thư viện Đa ảnh và Sách Đọc Lịch sử.",
+  "owner": "claude",
+  "modules": ["backend", "admin", "mobile", "docs"],
+  "scope": [
+    "dau-viet-backend/src/",
+    "dau-viet-admin/src/",
+    "dau-viet-mobile/lib/",
+    "dau-viet-mobile/assets/images/",
+    "dau-viet-mobile/test/",
+    "tasks/TASK-0039/",
+    "plans/261030-issue-48-journey-map/",
+    "docs/PROGRESS.md",
+    "docs/PROJECT_OVERVIEW.md"
+  ],
+  "acceptanceCriteria": [
+    {
+      "id": "AC-1",
+      "text": "Giao diện Hành trình Đường đi Phong cảnh 2.5D: Màn hình Hành trình hiển thị thanh chọn Đại thời kỳ (ERA), đường đi uốn lượn trên nền tranh phong cảnh lịch sử đẹp mắt, thẻ tổng quan nổi ở đáy màn hình và khi đi vào Thời kỳ con hiển thị đầy đủ % hoàn thành cùng X/Y sự kiện đã hoàn thành."
+    },
+    {
+      "id": "AC-2",
+      "text": "Tự do chọn Thời kỳ — Không bắt buộc thứ tự: Người học có thể bấm chọn và học bất kỳ Đại thời kỳ / Thời kỳ con nào trên Hành trình mà không bị khóa chặn tuần tự giữa các thời kỳ."
+    },
+    {
+      "id": "AC-3",
+      "text": "Thư viện Đa ảnh & Tư liệu trên Bản đồ Di sản: Mỗi địa điểm trên Bản đồ Di sản hiển thị được nhiều hình ảnh và tư liệu lịch sử (carousel + thumbnails + xem toàn màn hình zoom ảnh kèm chú thích) thay vì chỉ 1 ảnh đơn lẻ."
+    },
+    {
+      "id": "AC-4",
+      "text": "Chế độ Cuốn Sách Đọc hiểu Sự kiện: Hồ sơ địa điểm di sản được trình bày như một cuốn sách lịch sử với phần Tóm tắt sự kiện, Câu chuyện diễn biến dễ đọc hiểu và Thư viện tư liệu trực quan."
+    },
+    {
+      "id": "AC-5",
+      "text": "Responsive & Tests: Chạy mượt trên nhiều kích thước màn hình mobile, không lỗi overflow và pass bộ test liên quan."
+    }
+  ],
+  "acceptanceStatus": {
+    "AC-1": "done — Thiết kế lại PeriodSelectionScreen (/journey) và PeriodJourneyScreen (/journey/:periodCode) theo mẫu journey-mockup.png với thanh chọn Đại thời kỳ (ERA), WindingLandscapeJourneyCanvas + WindingStonePathPainter (đường đá vàng 2.5D uốn lượn cubicTo xuyên tâm các mốc tròn trên nền tranh phong cảnh journey_coastal_landscape_bg.jpg) và BottomFloatingSummaryCard hiển thị ảnh tròn, thanh tiến độ xanh #2E7D47, X/Y sự kiện và Z% hoàn thành.",
+    "AC-2": "done — Chuẩn hóa derivePeriodStatus trong path_status_badge.dart không bao giờ trả về LearnerPathStatus.locked cho thời kỳ có nội dung học; học viên bấm chọn tự do bất kỳ Đại thời kỳ (ERA) hoặc Thời kỳ con (PERIOD) nào trên cả /journey và thanh chuyển nhanh của /journey/:periodCode.",
+    "AC-3": "done — Tạo migration V62 bổ sung source_citation và seed 3–4 ảnh/tư liệu cho mỗi địa điểm trong 12 địa điểm di sản chuẩn; xây dựng LocationMediaGalleryCarousel (PageView + bộ đếm 1/N + thumbnails + caption/sourceCitation) và LocationFullscreenLightbox (InteractiveViewer zoom 1.0x–4.0x); nâng cấp tab Media trên Admin /map-locations với thumbnail preview (useAssetObjectUrl), tải ảnh trực tiếp, sắp xếp thứ tự Lên/Xuống/Đưa lên đầu và nguồn sử liệu.",
+    "AC-4": "done — Mở rộng MapLocationDto & AdminStandaloneMapLocationDtos với keyFigures, storyNarrative, historicalSignificance và events[].(slug, summary, description, periodCode, periodTitle); xây dựng HistoricalStorybookReader 3 chương (Phần 1: Tóm tắt sự kiện & di tích, Phần 2: Câu chuyện & diễn biến có Drop-cap và trích dẫn sử liệu, Phần 3: Tư liệu & liên kết mở nhanh Sự kiện, Thời kỳ và Bài học).",
+    "AC-5": "done — Backend: mvnw.cmd test -Dtest=AdminMapLocationServiceTest pass 3/3; Mobile: flutter analyze --no-pub đạt 0 issues, flutter test test/learning_path/ test/map/ pass 52/52 tests (bao gồm kiểm tra responsive 320px/340x680/412x915 không overflow); Admin: npx tsc --noEmit đạt 0 lỗi, npx vitest run pass 54/54 test files (314/314 tests); Independent Code Review đạt 9/10 (verdict: correct)."
+  },
+  "dependencies": ["TASK-0037"],
+  "planPath": "plans/261030-issue-48-journey-map/plan.md",
+  "evidenceRefs": [
+    "plans/261030-issue-48-journey-map/plan.md",
+    "plans/261030-issue-48-journey-map/ui-sketch-after-fix.png",
+    "tasks/TASK-0039/handoff.md",
+    "mvnw.cmd test -Dtest=AdminMapLocationServiceTest -> 3/3 passed (BUILD SUCCESS)",
+    "flutter analyze --no-pub -> No issues found!",
+    "flutter test test/learning_path/ test/map/ -> 52/52 tests passed",
+    "npx tsc --noEmit -> 0 errors across dau-viet-admin",
+    "npx vitest run --testTimeout=15000 -> 54/54 test files passed (314/314 tests)",
+    "Independent code review (Issue48CodeReviewer) -> 9/10, verdict: correct"
+  ],
+  "notes": [
+    "Implemented Issue #48 across dau-viet-backend (V62), dau-viet-mobile, and dau-viet-admin.",
+    "GitNexus MCP tool was unavailable in this session; used targeted grep/read and full unit/widget/integration verification across all 3 modules."
+  ],
+  "nextAction": "Chờ người dùng review và ủy quyền commit/push.",
+  "handoff": "tasks/TASK-0039/handoff.md"
+}

@@ -92,6 +92,7 @@ export interface MediaView {
   externalUrl: string | null;
   visibility: LocationMediaVisibility;
   sortOrder: number;
+  sourceCitation?: string | null;
 }
 
 export interface MediaInput {
@@ -99,9 +100,11 @@ export interface MediaInput {
   title?: string;
   caption?: string;
   assetId?: string | null;
+  assetUrl?: string | null;
   externalUrl?: string | null;
   visibility: LocationMediaVisibility;
   sortOrder: number;
+  sourceCitation?: string | null;
 }
 
 export interface StandaloneLocationResponse {
@@ -128,6 +131,9 @@ export interface StandaloneLocationResponse {
   events: EventLinkView[];
   unlockLessons: UnlockLessonView[];
   media: MediaView[];
+  keyFigures?: string | null;
+  storyNarrative?: string | null;
+  historicalSignificance?: string | null;
 }
 
 export interface StandaloneLocationRequest {
@@ -144,6 +150,9 @@ export interface StandaloneLocationRequest {
   coverAssetId?: string | null;
   mapAssetId?: string | null;
   displayOrder?: number;
+  keyFigures?: string | null;
+  storyNarrative?: string | null;
+  historicalSignificance?: string | null;
 }
 
 export const LOCATION_KIND_LABELS: Record<MapLocationKind, string> = {

@@ -13,6 +13,8 @@ import 'package:dau_viet_mobile/features/learning_path/data/learning_path_reposi
 import 'package:dau_viet_mobile/features/learning_path/data/mock_learning_path_repository.dart';
 import 'package:dau_viet_mobile/features/learning_path/presentation/period_journey_screen.dart';
 import 'package:dau_viet_mobile/features/learning_path/presentation/period_selection_screen.dart';
+import 'package:dau_viet_mobile/features/learning_path/presentation/widgets/bottom_floating_summary_card.dart';
+import 'package:dau_viet_mobile/features/learning_path/presentation/widgets/winding_landscape_journey_canvas.dart';
 import 'package:dau_viet_mobile/mock/models/lesson_models.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -199,6 +201,18 @@ void main() {
         expect(find.text('CHỌN THỜI KỲ LỊCH SỬ'), findsOneWidget);
         expect(find.text('Buổi đầu độc lập tự chủ'), findsOneWidget);
         expect(find.text('Thời nhà Lý'), findsOneWidget);
+        // Issue #48 (AC-1/AC-2): canvas đường đi phong cảnh 2.5D + thẻ tổng
+        // quan nổi; không có nút thời kỳ nào hiển thị icon khóa.
+        expect(find.byType(WindingLandscapeJourneyCanvas), findsOneWidget);
+        expect(find.byType(BottomFloatingSummaryCard), findsOneWidget);
+        final lyPeriodCard = find.byKey(const Key('period-card-LY_DYNASTY'));
+        expect(
+          find.descendant(
+            of: lyPeriodCard,
+            matching: find.byIcon(Icons.lock_rounded),
+          ),
+          findsNothing,
+        );
         // Tiến độ Buổi đầu độc lập tự chủ: 0/1 sự kiện • 1/3 bài học (33%)
         expect(find.text('0/1 sự kiện • 1/3 bài học'), findsOneWidget);
 
