@@ -19,6 +19,11 @@ class HeroPaperBanner extends StatelessWidget {
   final Gradient? gradient;
   final bool showGrain;
   final VoidCallback? onTap;
+  final Color borderColor;
+  final double borderWidth;
+  final double borderRadius;
+  final bool usePixelShadow;
+  final List<BoxShadow>? boxShadow;
 
   const HeroPaperBanner({
     super.key,
@@ -32,6 +37,11 @@ class HeroPaperBanner extends StatelessWidget {
     this.gradient,
     this.showGrain = true,
     this.onTap,
+    this.borderColor = DauVietColors.inkHeading,
+    this.borderWidth = 2.4,
+    this.borderRadius = 20,
+    this.usePixelShadow = true,
+    this.boxShadow,
   });
 
   @override
@@ -48,9 +58,13 @@ class HeroPaperBanner extends StatelessWidget {
     final box = Container(
       height: height,
       decoration: BoxDecoration(
-        borderRadius: BorderRadius.circular(20),
-        border: Border.all(color: DauVietColors.inkHeading, width: 2.4),
-        boxShadow: DauVietColors.pixelShadow,
+        borderRadius: BorderRadius.circular(borderRadius),
+        border: Border.all(color: borderColor, width: borderWidth),
+        boxShadow:
+            boxShadow ??
+            (usePixelShadow
+                ? DauVietColors.pixelShadow
+                : DauVietColors.heritageShadow),
       ),
       clipBehavior: Clip.antiAlias,
       child: Stack(
@@ -137,7 +151,7 @@ class HeroPaperBanner extends StatelessWidget {
     return Material(
       color: Colors.transparent,
       child: InkWell(
-        borderRadius: BorderRadius.circular(20),
+        borderRadius: BorderRadius.circular(borderRadius),
         onTap: onTap,
         child: box,
       ),
