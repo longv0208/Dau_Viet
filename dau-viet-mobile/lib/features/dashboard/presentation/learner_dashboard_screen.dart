@@ -862,8 +862,12 @@ class _LearnerDashboardScreenState
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
+                // Eyebrow dịu — chip viền mảnh jade, bỏ pixel-shadow đỏ
+                // đậm để hòa với thẻ (mockup dùng nhãn phụ trợ nhẹ).
                 const SectionEyebrow(
                   'TIẾP TỤC HÀNH TRÌNH',
+                  color: DauVietColors.jade,
+                  showShadow: false,
                   padding: EdgeInsets.symmetric(horizontal: 8, vertical: 2),
                 ),
                 const SizedBox(height: 6),
