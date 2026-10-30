@@ -210,6 +210,31 @@ class EvaluationDto {
   /// Số phần CER đúng (0..3).
   int? get partsCorrect => (output?['partsCorrect'] as num?)?.toInt();
 
+
+  /// Điểm phần trăm (0..1) cho các activity chấm điểm theo F1 / partial credit.
+  double? get score => (output?['score'] as num?)?.toDouble();
+
+  /// Số bằng chứng chọn đúng trong lượt nộp (EVIDENCE_SELECT graded).
+  int? get correctCount => (output?['correctCount'] as num?)?.toInt();
+
+  /// Số bằng chứng chọn thừa/sai trong lượt nộp (EVIDENCE_SELECT graded).
+  int? get falseCount => (output?['falseCount'] as num?)?.toInt();
+
+  /// Đã cạn cả ngân sách lượt chấm lẫn lượt remedial (Policy B).
+  bool get budgetExhausted => output?['budgetExhausted'] == true;
+
+  /// Verdict đúng/sai cho từng bằng chứng học viên ĐÃ CHỌN (không chứa đáp án bị bỏ sót).
+  Map<String, String> get selectedVerdicts {
+    final raw = output?['selectedVerdicts'];
+    if (raw is! Map) return const {};
+    final result = <String, String>{};
+    raw.forEach((k, v) {
+      if (k is String && v is String) {
+        result[k] = v;
+      }
+    });
+    return result;
+  }
   /// Verdict kiểm chứng (SUPPORTED/PARTIAL/CONTRADICTED) — lấy từ
   /// output.verification, fallback outcome khi handler nhét vào outcome.
   String? get verificationVerdict =>

@@ -105,7 +105,7 @@ void main() {
         findsOneWidget,
       );
       // Progress bar phản ánh cursor server: 2/5.
-      expect(find.text('2/5'), findsOneWidget);
+      expect(find.text('Bước 2/5'), findsOneWidget);
       // Stage title từ cursor (không phải stage đầu).
       expect(find.text('Phân tích'), findsOneWidget);
     });

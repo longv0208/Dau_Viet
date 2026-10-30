@@ -43,6 +43,7 @@ class EvidenceSelectRenderer extends StatefulWidget {
 
 class _EvidenceSelectRendererState extends State<EvidenceSelectRenderer> {
   final Set<String> _selected = {};
+  bool _maxSelectReached = false;
 
   void _toggle(String id) {
     HapticFeedback.selectionClick();
@@ -51,11 +52,53 @@ class _EvidenceSelectRendererState extends State<EvidenceSelectRenderer> {
     setState(() {
       if (_selected.contains(id)) {
         _selected.remove(id);
+        _maxSelectReached = false;
       } else if (maxSelect == null || _selected.length < maxSelect) {
         _selected.add(id);
+        _maxSelectReached = false;
+      } else {
+        _maxSelectReached = true;
       }
       widget.onInputChanged?.call(_selected.isNotEmpty);
     });
+  }
+
+  String _buildSubtitle({
+    required bool graded,
+    required int? incorrectPenalty,
+    required int? maxAttempts,
+    required int remedialAttempts,
+    required EvaluationDto? evaluation,
+  }) {
+    if (!graded) {
+      return 'Chọn các dấu vết bạn thấy liên quan đến câu hỏi — không mất Thể lực. '
+          'Chạm vào thẻ để xem chi tiết; chạm nút Chọn để đánh dấu.';
+    }
+    final parts = <String>[
+      'Chạm vào thẻ để xem chi tiết; chạm nút Chọn để đánh dấu',
+    ];
+    if (incorrectPenalty != null && incorrectPenalty > 0) {
+      parts.add('Sai mất $incorrectPenalty Thể lực');
+    }
+    if (maxAttempts != null && maxAttempts > 0) {
+      final int used = evaluation?.attemptCount ?? 0;
+      final bool isExhausted =
+          (evaluation?.exhausted ?? false) ||
+          (evaluation?.budgetExhausted ?? false);
+      if (isExhausted && remedialAttempts > 0) {
+        final int remLeft =
+            (maxAttempts + remedialAttempts - used).clamp(0, remedialAttempts);
+        parts.add(
+          remLeft > 0 ? 'còn $remLeft lượt sửa bổ sung' : 'đã hết lượt thử',
+        );
+      } else {
+        final int left = (maxAttempts - used).clamp(0, maxAttempts);
+        final String remSuffix =
+            remedialAttempts > 0 ? ' + $remedialAttempts sửa' : '';
+        parts.add('còn $left/$maxAttempts lượt$remSuffix');
+      }
+    }
+    return parts.join(' · ');
   }
 
   @override
@@ -64,26 +107,44 @@ class _EvidenceSelectRendererState extends State<EvidenceSelectRenderer> {
     final ids = configIdList(config, 'visibleEvidenceIds');
     final int minRequired =
         ((config['minRequired'] ?? config['minSelect']) as num?)?.toInt() ?? 1;
+    final int? maxSelect = (config['maxSelect'] as num?)?.toInt();
+    final bool graded = widget.activity.graded || config['graded'] == true;
+    final int remedialAttempts =
+        (config['remedialAttempts'] as num?)?.toInt() ?? 0;
+    final Map<String, String> verdicts = graded
+        ? (widget.lastEvaluation?.selectedVerdicts ?? const {})
+        : const {};
+
     if (ids.isEmpty) {
       return const _NoEvidence();
     }
+
+    final String eyebrowText = graded
+        ? 'THU THẬP DẤU VẾT · CHỌN ĐÚNG CÁC DẤU VẾT LIÊN QUAN'
+        : 'THU THẬP DẤU VẾT · CHỌN ÍT NHẤT $minRequired';
+    final String subtitleText = _buildSubtitle(
+      graded: graded,
+      incorrectPenalty: widget.activity.incorrectPenalty,
+      maxAttempts: widget.activity.maxAttempts,
+      remedialAttempts: remedialAttempts,
+      evaluation: widget.lastEvaluation,
+    );
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
         Align(
           alignment: Alignment.centerLeft,
-          child: SectionEyebrow(
-            'THU THẬP DẤU VẾT · CHỌN ÍT NHẤT $minRequired',
-          ),
+          child: SectionEyebrow(eyebrowText),
         ),
         const SizedBox(height: 6),
         Text(
-          'Chạm vào thẻ để xem chi tiết; chạm dấu tích để chọn.',
+          subtitleText,
           style: DauVietTypography.bodySmall.copyWith(
-            fontSize: 11,
+            fontSize: 11.5,
             fontStyle: FontStyle.italic,
             color: DauVietColors.inkMuted,
+            height: 1.4,
           ),
         ),
         const SizedBox(height: 10),
@@ -92,10 +153,32 @@ class _EvidenceSelectRendererState extends State<EvidenceSelectRenderer> {
             evidence: widget.content.evidenceById(id),
             fallbackId: id,
             selected: _selected.contains(id),
+            verdict: verdicts[id],
             enabled: !widget.submitting,
             onSelect: () => _toggle(id),
             onDetail: () => _showDetail(id),
           ),
+        if (_maxSelectReached && maxSelect != null) ...[
+          const SizedBox(height: 4),
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+            decoration: BoxDecoration(
+              color: DauVietColors.imperialGold.withValues(alpha: 0.16),
+              borderRadius: BorderRadius.circular(8),
+              border: Border.all(
+                color: DauVietColors.imperialGold.withValues(alpha: 0.55),
+              ),
+            ),
+            child: Text(
+              'Đã đạt giới hạn $maxSelect dấu vết. Bỏ chọn một thẻ trước khi chọn thẻ khác.',
+              textAlign: TextAlign.center,
+              style: DauVietTypography.labelSmall.copyWith(
+                color: DauVietColors.inkText,
+                fontWeight: FontWeight.w600,
+              ),
+            ),
+          ),
+        ],
         const SizedBox(height: 10),
         Text(
           'Đã chọn ${_selected.length}/$minRequired',
@@ -110,10 +193,11 @@ class _EvidenceSelectRendererState extends State<EvidenceSelectRenderer> {
           ),
         ),
         const SizedBox(height: 8),
-        InlineGradingHint(
-          evaluation: widget.lastEvaluation,
-          maxAttempts: widget.activity.maxAttempts,
-        ),
+        if (graded)
+          InlineGradingHint(
+            evaluation: widget.lastEvaluation,
+            maxAttempts: widget.activity.maxAttempts,
+          ),
         SubmitBar(
           enabled: _selected.length >= minRequired,
           submitting: widget.submitting,
@@ -174,6 +258,8 @@ class _EvidenceCard extends StatelessWidget {
   final Map<String, dynamic>? evidence;
   final String fallbackId;
   final bool selected;
+  /// Verdict của server cho thẻ đã nộp ('correct' | 'incorrect' | null).
+  final String? verdict;
   final bool enabled;
   final VoidCallback onSelect;
   final VoidCallback onDetail;
@@ -182,6 +268,7 @@ class _EvidenceCard extends StatelessWidget {
     required this.evidence,
     required this.fallbackId,
     required this.selected,
+    this.verdict,
     required this.enabled,
     required this.onSelect,
     required this.onDetail,
@@ -195,6 +282,16 @@ class _EvidenceCard extends StatelessWidget {
     final String sourceText = _sourceText(e);
     final String? assetId = _imageAssetId(e);
     final String? category = _evidenceCategory(e);
+    final bool isVerdictCorrect = verdict == 'correct';
+    final bool isVerdictIncorrect = verdict == 'incorrect';
+
+    final Color borderColor = isVerdictCorrect
+        ? DauVietColors.natureGreen
+        : isVerdictIncorrect
+            ? DauVietColors.cinnabarRed.withValues(alpha: 0.75)
+            : selected
+                ? DauVietColors.cinnabarRed
+                : DauVietColors.outlineVariant;
 
     return Padding(
       padding: const EdgeInsets.only(bottom: 10),
@@ -203,20 +300,77 @@ class _EvidenceCard extends StatelessWidget {
         children: [
           TactileCard(
             enabled: enabled,
-            onTap: enabled ? onSelect : null,
+            onTap: enabled ? onDetail : null,
             backgroundColor: selected
                 ? DauVietColors.paperCardHi
                 : DauVietColors.paperCard,
-            borderColor: selected
-                ? DauVietColors.cinnabarRed
-                : DauVietColors.outlineVariant,
-            borderWidth: selected ? 2.4 : 1.4,
+            borderColor: borderColor,
+            borderWidth:
+                (selected || isVerdictCorrect || isVerdictIncorrect) ? 2.4 : 1.4,
             padding: const EdgeInsets.all(12),
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                if (category != null) ...[
-                  ClueTag.category(category, filled: selected),
+                if (category != null ||
+                    isVerdictCorrect ||
+                    isVerdictIncorrect) ...[
+                  Wrap(
+                    spacing: 6,
+                    runSpacing: 6,
+                    crossAxisAlignment: WrapCrossAlignment.center,
+                    children: [
+                      if (category != null)
+                        ClueTag.category(category, filled: selected),
+                      if (isVerdictCorrect)
+                        Container(
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 8,
+                            vertical: 2,
+                          ),
+                          decoration: BoxDecoration(
+                            color: DauVietColors.natureGreen.withValues(
+                              alpha: 0.14,
+                            ),
+                            borderRadius: BorderRadius.circular(6),
+                            border: Border.all(
+                              color: DauVietColors.natureGreen,
+                            ),
+                          ),
+                          child: Text(
+                            '✓ Đúng dấu vết liên quan',
+                            style: DauVietTypography.labelSmall.copyWith(
+                              color: DauVietColors.natureGreen,
+                              fontWeight: FontWeight.w700,
+                            ),
+                          ),
+                        ),
+                      if (isVerdictIncorrect)
+                        Container(
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 8,
+                            vertical: 2,
+                          ),
+                          decoration: BoxDecoration(
+                            color: DauVietColors.cinnabarRed.withValues(
+                              alpha: 0.12,
+                            ),
+                            borderRadius: BorderRadius.circular(6),
+                            border: Border.all(
+                              color: DauVietColors.cinnabarRed.withValues(
+                                alpha: 0.65,
+                              ),
+                            ),
+                          ),
+                          child: Text(
+                            '✗ Chưa liên quan câu hỏi',
+                            style: DauVietTypography.labelSmall.copyWith(
+                              color: DauVietColors.cinnabarRed,
+                              fontWeight: FontWeight.w700,
+                            ),
+                          ),
+                        ),
+                    ],
+                  ),
                   const SizedBox(height: 8),
                 ],
                 if (assetId != null) ...[
@@ -321,6 +475,7 @@ class _EvidenceCard extends StatelessWidget {
                     ),
                     const SizedBox(width: 8),
                     Semantics(
+                      excludeSemantics: true,
                       button: true,
                       selected: selected,
                       enabled: enabled,
@@ -328,21 +483,60 @@ class _EvidenceCard extends StatelessWidget {
                           ? 'Bỏ chọn bằng chứng $title'
                           : 'Chọn bằng chứng $title',
                       child: GestureDetector(
+                        key: ValueKey('evidence-select-btn-$fallbackId'),
                         behavior: HitTestBehavior.opaque,
                         onTap: enabled ? onSelect : null,
                         child: Container(
                           constraints: const BoxConstraints(
-                            minWidth: 44,
-                            minHeight: 44,
+                            minWidth: 56,
+                            minHeight: 54,
+                          ),
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 6,
+                            vertical: 4,
+                          ),
+                          decoration: BoxDecoration(
+                            color: selected
+                                ? DauVietColors.cinnabarRed.withValues(
+                                    alpha: 0.10,
+                                  )
+                                : DauVietColors.paperBackground,
+                            borderRadius: BorderRadius.circular(10),
+                            border: Border.all(
+                              color: selected
+                                  ? DauVietColors.cinnabarRed
+                                  : DauVietColors.outlineVariant,
+                              width: selected ? 1.6 : 1.0,
+                            ),
                           ),
                           alignment: Alignment.center,
-                          child: selected
-                              ? const SizedBox(width: 32, height: 32)
-                              : const Icon(
-                                  Icons.radio_button_off,
-                                  size: 24,
-                                  color: DauVietColors.inkMuted,
+                          child: Column(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              selected
+                                  ? const Icon(
+                                      Icons.check_circle_rounded,
+                                      size: 24,
+                                      color: DauVietColors.cinnabarRed,
+                                    )
+                                  : const Icon(
+                                      Icons.radio_button_off,
+                                      size: 24,
+                                      color: DauVietColors.inkMuted,
+                                    ),
+                              const SizedBox(height: 2),
+                              Text(
+                                selected ? 'Đã chọn' : 'Chọn',
+                                style: DauVietTypography.labelSmall.copyWith(
+                                  fontSize: 10.5,
+                                  fontWeight: FontWeight.w700,
+                                  color: selected
+                                      ? DauVietColors.cinnabarRed
+                                      : DauVietColors.inkSecondary,
                                 ),
+                              ),
+                            ],
+                          ),
                         ),
                       ),
                     ),
@@ -353,10 +547,10 @@ class _EvidenceCard extends StatelessWidget {
           ),
           if (selected)
             Positioned(
-              top: 8,
-              right: 8,
+              top: -6,
+              right: -4,
               child: IgnorePointer(
-                child: const StampSealBadge.success('✓', size: 32),
+                child: const StampSealBadge.success('✓', size: 24),
               ),
             ),
         ],
