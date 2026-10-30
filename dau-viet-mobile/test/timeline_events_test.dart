@@ -173,7 +173,7 @@ void main() {
   });
 
   testWidgets(
-    'TimelineScreen tự động chuyển hướng sang /map khi có route /map (Issue #36)',
+    'TimelineScreen tự động chuyển hướng sang /journey khi có route /journey (Issue #42)',
     (tester) async {
       final repo = _StubEventsRepository()
         ..onGetEvents = () => const EventsPageResult(
@@ -191,9 +191,9 @@ void main() {
             builder: (context, state) => const TimelineScreen(),
           ),
           GoRoute(
-            path: '/map',
+            path: '/journey',
             builder: (context, state) =>
-                const Scaffold(body: Center(child: Text('MAP_SCREEN'))),
+                const Scaffold(body: Center(child: Text('JOURNEY_SCREEN'))),
           ),
         ],
       );
@@ -205,7 +205,7 @@ void main() {
       );
       await tester.pumpAndSettle();
 
-      expect(find.text('MAP_SCREEN'), findsOneWidget);
+      expect(find.text('JOURNEY_SCREEN'), findsOneWidget);
     },
   );
 }

@@ -501,12 +501,12 @@ class _LearnerDashboardScreenState
                         }
                         return _buildHeroCtaButton(
                           label: 'KHÁM PHÁ NGAY ›',
-                          onTap: () => context.go('/map'),
+                          onTap: () => context.go('/journey'),
                         );
                       },
                       orElse: () => _buildHeroCtaButton(
                         label: 'KHÁM PHÁ NGAY ›',
-                        onTap: () => context.go('/map'),
+                        onTap: () => context.go('/journey'),
                       ),
                     );
                   },
@@ -549,7 +549,7 @@ class _LearnerDashboardScreenState
             button: true,
             label: 'Xem tất cả bài học',
             child: GestureDetector(
-              onTap: () => context.go('/map'),
+              onTap: () => context.go('/journey'),
               child: Padding(
                 padding: const EdgeInsets.symmetric(vertical: 8, horizontal: 4),
                 child: Text(
@@ -619,14 +619,14 @@ class _LearnerDashboardScreenState
                 subtitle: 'Đang đồng bộ dữ liệu',
                 progressFraction: 0.0,
                 progressText: '—',
-                onTap: () => context.go('/map'),
+                onTap: () => context.go('/journey'),
               ),
               error: (_, _) => _buildTodayLessonCard(
                 title: 'Khám phá Bản đồ Dấu Ấn',
                 subtitle: 'Bắt đầu hành trình lịch sử',
                 progressFraction: 0.0,
                 progressText: 'Chưa bắt đầu',
-                onTap: () => context.go('/map'),
+                onTap: () => context.go('/journey'),
               ),
               data: (path) {
                 final target = _resolveJourneyTarget(path);
@@ -680,8 +680,8 @@ class _LearnerDashboardScreenState
                     onTap: () => context.go(
                       target.period != null &&
                               target.period!.code.isNotEmpty
-                          ? '/map?period=${target.period!.code}'
-                          : '/map',
+                          ? '/journey/${target.period!.code}'
+                          : '/journey',
                     ),
                   );
                 }
@@ -690,7 +690,7 @@ class _LearnerDashboardScreenState
                   subtitle: 'Bắt đầu hành trình lịch sử',
                   progressFraction: 0.0,
                   progressText: 'Chưa bắt đầu',
-                  onTap: () => context.go('/map'),
+                  onTap: () => context.go('/journey'),
                 );
               },
             );
@@ -898,7 +898,7 @@ class _LearnerDashboardScreenState
             button: true,
             label: 'Xem hành trình',
             child: GestureDetector(
-              onTap: () => context.go('/map'),
+              onTap: () => context.go('/journey'),
               child: Padding(
                 padding: const EdgeInsets.symmetric(vertical: 8, horizontal: 4),
                 child: Text(
@@ -930,7 +930,7 @@ class _LearnerDashboardScreenState
               bgIconColor: DauVietColors.heritageGreenSurface,
               title: 'Bản đồ Dấu Ấn',
               subtitle: 'Lộ trình lịch sử',
-              onTap: () => context.go('/map'),
+              onTap: () => context.go('/journey'),
             ),
             _buildJourneyCard(
               icon: Icons.auto_stories_rounded,
@@ -1091,7 +1091,7 @@ class _LearnerDashboardScreenState
               _buildQuestItem(
                 completed: completedLessonToday,
                 title: 'Hoàn thành bài học hôm nay',
-                onTap: () => context.go('/map'),
+                onTap: () => context.go('/journey'),
               ),
               const SizedBox(height: 10),
 
@@ -1151,7 +1151,7 @@ class _LearnerDashboardScreenState
       if (featuredEventId != null && featuredEventId.isNotEmpty) {
         context.go('/campaign/$featuredEventId');
       } else {
-        context.go('/map');
+        context.go('/journey');
       }
     }
 

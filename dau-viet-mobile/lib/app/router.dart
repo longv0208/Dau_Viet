@@ -16,6 +16,8 @@ import '../features/demo/presentation/theme_showcase_screen.dart';
 import '../features/learning/data/attempt_dtos.dart';
 import '../features/learning/data/learning_providers.dart';
 import '../features/learning/presentation/chronological_order_screen.dart';
+import '../features/learning_path/presentation/period_journey_screen.dart';
+import '../features/learning_path/presentation/period_selection_screen.dart';
 import '../features/learning/presentation/context_reader_screen.dart';
 import '../features/learning/presentation/cer_conclusion_screen.dart';
 import '../features/learning/presentation/hypothesis_verification_screen.dart';
@@ -188,16 +190,20 @@ final appRouter = GoRouter(
       builder: (context, state) => const TimelineScreen(),
     ),
 
-    // Issue #36: `/journey` (danh sách chữ cũ) được hợp nhất vào Bản Đồ
-    // Dấu Ấn `/map` — giữ redirect để deep-link cũ không gãy.
+    // Issue #42: `/journey` là LUỒNG HỌC CHÍNH — cây ĐẠI THỜI KỲ →
+    // THỜI KỲ → Sự kiện → Bài học. `/map` quay về đúng vai trò Bản đồ
+    // Dấu Ấn (di tích mở khoá sau bài học), không còn là trục học.
     GoRoute(
       path: '/journey',
-      redirect: (context, state) => '/map',
+      name: 'journey',
+      builder: (context, state) => const PeriodSelectionScreen(),
       routes: [
         GoRoute(
           path: ':periodCode',
-          redirect: (context, state) =>
-              '/map?period=${state.pathParameters['periodCode'] ?? ''}',
+          name: 'period_journey',
+          builder: (context, state) => PeriodJourneyScreen(
+            periodCode: state.pathParameters['periodCode'] ?? '',
+          ),
         ),
       ],
     ),
@@ -211,20 +217,20 @@ final appRouter = GoRouter(
       ),
     ),
 
-    // TASK-0021: Bản Đồ Dấu Ấn Lịch Sử (unlock theo learner)
+    // TASK-0021 / Issue #42: Bản Đồ Dấu Ấn — chỉ di tích mở khoá.
     GoRoute(
       path: '/map',
       name: 'historical_map',
       builder: (context, state) {
         final view = state.uri.queryParameters['view'];
-        final period = state.uri.queryParameters['period'];
         final eventId = state.uri.queryParameters['eventId'];
+        final locationId = state.uri.queryParameters['locationId'];
         return HistoricalMapScreen(
           initialMode: view == 'timeline'
               ? ExploreViewMode.timeline
               : ExploreViewMode.map,
-          initialPeriodCode: period,
           initialEventId: eventId,
+          initialLocationId: locationId,
         );
       },
     ),

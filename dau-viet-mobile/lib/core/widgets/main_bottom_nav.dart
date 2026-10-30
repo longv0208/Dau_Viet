@@ -4,15 +4,16 @@ import 'package:go_router/go_router.dart';
 import '../theme/dau_viet_colors.dart';
 import '../theme/dau_viet_typography.dart';
 
-/// Bottom navigation chuẩn 4 tab của app — một nơi duy nhất định nghĩa
+/// Bottom navigation chuẩn 5 tab của app — một nơi duy nhất định nghĩa
 /// label/icon/route, mọi màn dùng chung. Tab đang chọn suy ra từ route
 /// thực của go_router (không giữ index rời trên từng màn).
 ///
-/// Tab mapping (P0-01):
+/// Tab mapping (Issue #42 — 2 trục tách biệt):
 ///   0 Học tập  → /dashboard   (bàn học + resume bài học)
-///   1 Khám phá → /map         (bản đồ hành trình mở khoá)
-///   2 Sưu tập  → /collection  (bằng chứng đã thu thập)
-///   3 Cá nhân  → /profile     (hồ sơ + thành tích + đăng xuất)
+///   1 Hành trình → /journey   (cây Era→Period→Sự kiện→Bài học — HỌC)
+///   2 Bản đồ   → /map         (di tích mở khoá sau bài học — BỔ TRỢ)
+///   3 Sưu tập  → /collection  (bằng chứng đã thu thập)
+///   4 Cá nhân  → /profile     (hồ sơ + thành tích + đăng xuất)
 class MainBottomNav extends StatelessWidget {
   const MainBottomNav({super.key});
 
@@ -23,16 +24,16 @@ class MainBottomNav extends StatelessWidget {
     ('/learning', 0),
     ('/campaign', 0),
     ('/traces', 0),
-    ('/timeline', 1),
-    ('/map', 1),
     ('/journey', 1),
-    ('/saban', 1),
-    ('/heritage', 1),
-    ('/collection', 2),
-    ('/profile', 3),
-    ('/inventory', 3),
-    ('/island', 3),
-    ('/energy', 3),
+    ('/timeline', 1),
+    ('/map', 2),
+    ('/saban', 2),
+    ('/heritage', 2),
+    ('/collection', 3),
+    ('/profile', 4),
+    ('/inventory', 4),
+    ('/island', 4),
+    ('/energy', 4),
   ];
 
   /// Tab index cho location hiện tại; route lạ → -1 (không chọn tab nào).
@@ -47,7 +48,13 @@ class MainBottomNav extends StatelessWidget {
 
   static const _destinations = [
     ('/dashboard', Icons.school_outlined, Icons.school_rounded, 'Học tập'),
-    ('/map', Icons.explore_outlined, Icons.explore_rounded, 'Hành trình'),
+    (
+      '/journey',
+      Icons.explore_outlined,
+      Icons.explore_rounded,
+      'Hành trình',
+    ),
+    ('/map', Icons.map_outlined, Icons.map_rounded, 'Bản đồ'),
     (
       '/collection',
       Icons.auto_stories_outlined,

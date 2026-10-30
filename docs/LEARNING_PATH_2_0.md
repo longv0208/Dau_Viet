@@ -1,5 +1,7 @@
 
-> **Cập nhật Issue #36 (2026-10-29):** Trục học trên mobile đã hợp nhất vào `/map` — Bản Đồ Dấu Ấn lấy `GET /api/v1/me/learning-path` làm nguồn đường đi duy nhất; `/journey` redirect sang `/map`. Địa điểm di tích là lớp phụ (ghim vệ tinh + `LocationProfileSheet`) mở khóa sau khi học. Xem mục 8.5.
+> **Cập nhật Issue #42 (2026-10-30):** Quay về kiến trúc 2 trục tách biệt. `/journey` (`PeriodSelectionScreen`/`PeriodJourneyScreen`) là **luồng học chính** — cây `ĐẠI THỜI KỲ → THỜI KỲ → Sự kiện → Bài học`, chọn bài/sự kiện học trực tiếp từ đây. `/map` (Bản Đồ Dấu Ấn) về đúng vai trò **bổ trợ**: chỉ hiển thị địa điểm di tích `map_locations` mở khóa SAU khi hoàn thành bài học/sự kiện (`ANY`/`ALL`) → `LocationProfileSheet`. Bottom nav có 2 tab riêng: "Hành trình"→`/journey` + "Bản đồ"→`/map`. Xem mục 8.6. (Đoạn mô tả luồng-gộp-`/map` của Issue #36 ở mục 8.5 lưu lại làm tham chiếu lịch sử — đã bị #42 hoàn tác.)
+>
+> **Cập nhật Issue #36 (2026-10-29) — [ĐÃ HOÀN TÁC bởi #42]:** Trục học trên mobile từng được hợp nhất vào `/map`; xem 8.6 cho kiến trúc hiện hành.
 
 > Tài liệu kỹ thuật chuẩn hóa nguồn dữ liệu và lộ trình học tập lịch sử Việt Nam (TASK PATH-01).  
 > Phiên bản baseline: `HISTORY_MAIN` v1 (Flyway V33).
@@ -244,13 +246,17 @@ Mỗi sự kiện trong lộ trình được server đánh giá tự động d�
 - Trong giai đoạn chuyển tiếp (Phase 1), `AdminMapLocationService` tự động đồng bộ xuống `map_location_events` và `map_location_unlock_lessons` khi gọi qua endpoint legacy `/api/v1/admin/events/{eventId}/map-locations`, còn `MapLocationService` và `LocationUnlockEvaluator` đọc từ hai bảng nối làm nguồn chuẩn.
 - Việc xóa vật lý hai cột (`ALTER TABLE map_locations DROP COLUMN event_id, DROP COLUMN unlock_lesson_id`) được ấn định vào **Milestone M4 Cleanup** ngay sau khi hoàn tất 4 điều kiện: (1) Mobile E4/E5 và Admin D2/D3 hợp nhất hoàn toàn trên `main`, (2) chuyển/ngừng endpoint `/api/v1/admin/events/{eventId}/map-locations`, (3) cập nhật fixture trong `MapLocationIT`, và (4) truy vấn kiểm toán không còn bản ghi mồ côi giữa cột cũ và bảng nối.
 
-### 8.5. Hợp nhất trục học trên Bản Đồ Dấu Ấn (Issue #36)
+### 8.5. Hợp nhất trục học trên Bản Đồ Dấu Ấn (Issue #36) — ĐÃ HOÀN TÁC bởi Issue #42
 
-- **Trước #36:** `/map` vẽ đường đi từ `map_locations` → bài học không gắn di tích "vắng mặt"; `/journey` (`PeriodSelectionScreen`/`PeriodJourneyScreen`) là danh sách chữ đi qua `CampaignDetailScreen`.
-- **Sau #36:** `HistoricalMapScreen` lấy `learningPathProvider` làm nguồn chính:
-  - "Chặng" = `PERIOD` trong cây `ERA → PERIOD → PHASE`; đổi chặng gọi `touchPeriod(periodCode)`; deep-link `/map?period=<code>`.
-  - Node trên canvas = `LearningPathEventNodeDto` theo `sortOrder`, trạng thái `LOCKED/AVAILABLE/IN_PROGRESS/COMPLETED/MASTERED` ánh xạ `MapUnlockState` cho `JourneyPathPainter`.
-  - Chạm node → `EventActionSheet` → CTA "BẮT ĐẦU HỌC"/"TIẾP TỤC HỌC" đi thẳng `/learning/lesson/:lessonId` (bài `IN_PROGRESS` đầu tiên, không có thì `AVAILABLE` đầu tiên).
-  - `/journey` + `/journey/:periodCode` redirect sang `/map`/`/map?period=`; hai màn danh sách cũ đã gỡ.
-  - Địa điểm di tích là **lớp phụ**: ghim vệ tinh cạnh nút sự kiện chỉ hiện khi `unlocked` (`mapLocationsByEventProvider`), tap → `LocationProfileSheet`; đang khóa `HIDDEN_UNTIL_UNLOCKED` không hiện (không gián đoạn luồng học). Bài học không gắn di tích vẫn học/mở khóa bình thường (AC-2).
-  - `LessonPlayerScreen.complete()` invalidate `learningPathProvider` + `mapLocationsProvider` để nút kế và ghim di tích cập nhật ngay; `UnlockedLocationBanner` "Tiếp tục học" → `/map`; bottom-nav tab 1 "Hành trình".
+> Lịch sử: cách tiếp cận "học trực tiếp trên bản đồ" dưới đây đã được triển khai ở `b5e471f` rồi **hoàn tác** ở Issue #42 vì hiểu sai ý đồ — mọi sự kiện/bài học phải học được trên `/journey` kể cả khi không gắn địa điểm, còn `/map` chỉ là di tích bổ trợ. Giữ phần mô tả để truy vết, đọc 8.6 cho kiến trúc hiện hành.
+
+- **Trước #36:** `/map` vẽ đường đi từ `map_locations`; `/journey` (`PeriodSelectionScreen`/`PeriodJourneyScreen`) là danh sách chữ đi qua `CampaignDetailScreen`.
+- **#36 (đã revert):** `HistoricalMapScreen` lấy `learningPathProvider` làm nguồn chính; node sự kiện → `EventActionSheet` → lesson; `/journey` redirect → `/map`; di tích là ghim vệ tinh phụ.
+
+### 8.6. Hai trục tách biệt — `/journey` học, `/map` di tích (Issue #42)
+
+- **`/journey` — Luồng học chính.** `PeriodSelectionScreen` + `PeriodJourneyScreen` (khôi phục từ `9000c04`, vá Design System v3) render cây `ĐẠI THỜI KỲ → THỜI KỲ → Sự kiện → Bài học` từ `learningPathProvider`. Chạm sự kiện → `CampaignDetailScreen`; chạm bài học → `LessonPlayerScreen`. Không yêu cầu địa điểm — bài học không gắn di tích vẫn học bình thường.
+- **Route:** `/journey` → `PeriodSelectionScreen`; `/journey/:periodCode` → `PeriodJourneyScreen`. Bỏ redirect `/journey→/map` của #36.
+- **`/map` — Bản Đồ Dấu Ấn (bổ trợ).** `HistoricalMapScreen` về trục `mapLocationsProvider`/`map_locations`: chỉ ghim địa điểm di tích theo `shouldDisplayOnMap`, `LOCKED→UNLOCKED` theo `unlockRuleMode`. Chạm ghim → `LocationProfileSheet` (tab `Ảnh`/`Video`/`Tư liệu`) có đường tắt sang bài học/sự kiện liên kết; bản đồ KHÔNG chứa cây lộ trình bài học. Xóa `path_event_node.dart`, `event_action_sheet.dart`, `mapLocationsByEventProvider`, `mapLocationsByPeriodProvider` (phát sinh từ #36).
+- **Điều hướng:** bottom nav 5 tab — `Học tập`/`dashboard`, `Hành trình`/`journey`, `Bản đồ`/`map`, `Sưu tập`/`collection`, `Cá nhân`/`profile`. Dashboard "Khám phá ngay"/thẻ bài học/today-card/quest/featured → `/journey` (hoặc `/journey/:periodCode` khi biết thời kỳ). `TimelineScreen` redirect → `/journey`.
+- **Mở khóa sau bài học:** `LessonResultScreen` nút chính "TIẾP TỤC HỌC" → `/journey`; `UnlockedLocationBanner` "Xem địa điểm" → `/map?locationId=` (hoặc `/heritage/:id`) khi `newlyUnlockedLocations` không rỗng; "Tiếp tục học" trong banner → `/journey`.

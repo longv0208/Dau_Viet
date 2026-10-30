@@ -485,13 +485,15 @@ class _ResultBody extends StatelessWidget {
                 ],
                 const SizedBox(height: 20),
 
-                // 4. Hai nút hành động: Tiếp tục và Ôn tập lại
+                // 4. Hai nút hành động: Tiếp tục học và Ôn tập lại.
+                // Issue #42: "Tiếp tục học" quay về Hành trình Lịch sử
+                // (`/journey` — luồng học chính) để chọn bài/sự kiện tiếp theo.
                 DongSonButton(
-                  label: 'VỀ TRANG CHỦ',
+                  label: 'TIẾP TỤC HỌC',
                   icon: Icons.arrow_forward_rounded,
                   variant: DongSonButtonVariant.natureGreen,
                   height: 52,
-                  onPressed: () => context.go('/dashboard'),
+                  onPressed: () => context.go('/journey'),
                 ),
                 const SizedBox(height: 10),
                 OutlinedButton.icon(
