@@ -89,9 +89,22 @@ class EnergyController extends AsyncNotifier<EnergyStateDto> {
     return true;
   }
 
+  /// State mặc định khi chưa đăng nhập — màn /auth / splash real-mode không
+  /// bắn GET /me/energy (401 spam trên Console, Issue #41).
+  static EnergyStateDto _anonymous() => EnergyStateDto(current: 0, max: 0);
+
   @override
   Future<EnergyStateDto> build() async {
-    _sessionKey = _energySessionKey(ref.watch(authSessionProvider));
+    final auth = ref.watch(authSessionProvider);
+    _sessionKey = _energySessionKey(auth);
+    // Đã biết chắc chưa đăng nhập (unauthenticated/guest) → trả placeholder
+    // rỗng, KHÔNG bắn GET /me/energy không có Bearer token (401 spam ở màn
+    // /auth, Issue #41). `unknown` (đang restore) vẫn fetch như cũ.
+    if (!ApiConfig.useMock &&
+        (auth.status == AuthStatus.unauthenticated ||
+         auth.status == AuthStatus.guest)) {
+      return _anonymous();
+    }
     final repo = ref.watch(energyRepositoryProvider);
     final String sess = _sessionKey;
     final EnergyStateDto dto;

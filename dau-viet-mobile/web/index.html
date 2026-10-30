@@ -27,6 +27,14 @@
   <link rel="apple-touch-icon" href="icons/Icon-192.png">
 
   <!-- Favicon -->
+  <!-- Google Sign-In Web: điền Web OAuth client id vào content bên dưới
+       (…apps.googleusercontent.com) HOẶC truyền --dart-define=GOOGLE_WEB_CLIENT_ID
+       khi flutter run/build — dart-define được ưu tiên hơn meta này.
+       Để trống → google_sign_in_web không có client id và nút Google báo
+       lỗi cấu hình rõ ràng thay vì crash. -->
+  <meta name="google-signin-client_id" content="">
+
+
   <link rel="icon" type="image/png" href="favicon.png"/>
 
   <title>Dấu Việt — Học Sử Việt, Gìn Giữ Hồn Việt</title>

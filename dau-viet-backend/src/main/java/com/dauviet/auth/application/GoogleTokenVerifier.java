@@ -1,11 +1,14 @@
 package com.dauviet.auth.application;
 
+import org.springframework.lang.Nullable;
+
 import com.dauviet.auth.domain.GoogleTokenInvalidException;
 
 /**
- * Verifies a Google-issued idToken and returns the checked claims. Kept as
- * an interface so tests can stub verification without Google's JWKS; the
- * production implementation is GoogleIdTokenVerifier-backed.
+ * Verifies a Google-issued credential and returns the checked claims. Kept
+ * as an interface so tests can stub verification without Google's JWKS /
+ * tokeninfo endpoints. Exactly one of the two tokens is expected non-null:
+ * idToken (Android/iOS JWT) or OAuth2 accessToken (Flutter Web — Issue #41).
  */
 public interface GoogleTokenVerifier {
 
@@ -16,5 +19,5 @@ public interface GoogleTokenVerifier {
      * @throws GoogleTokenInvalidException on any verification failure
      *         (signature, iss, aud, exp, missing email, email_verified=false).
      */
-    VerifiedGoogleUser verify(String idToken);
+    VerifiedGoogleUser verify(@Nullable String idToken, @Nullable String accessToken);
 }

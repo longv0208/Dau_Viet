@@ -109,9 +109,11 @@ class AuthSessionController extends Notifier<AuthState> {
       email: email, otpCode: otpCode, newPassword: newPassword);
   }
 
-  /// Google Sign-In — idToken từ GoogleSignIn SDK.
-  Future<void> loginWithGoogle({required String idToken}) async {
-    state = await ref.read(authRepositoryProvider).loginWithGoogle(idToken: idToken);
+  /// Google Sign-In — idToken (mobile) hoặc accessToken (web) (Issue #41).
+  Future<void> loginWithGoogle({String? idToken, String? accessToken}) async {
+    state = await ref
+        .read(authRepositoryProvider)
+        .loginWithGoogle(idToken: idToken, accessToken: accessToken);
   }
 
   /// Demo mode chỉ hợp lệ khi USE_MOCK=true (theo quyết định brief).

@@ -79,13 +79,13 @@ class GoogleAuthServiceTest {
     @Test
     void google_newEmail_createsVerifiedLearner_linksAndIssuesTokens() {
         stubTokenIssue();
-        when(googleVerifier.verify("good-token")).thenReturn(googleUser("sub-1", "new@gmail.com"));
+        when(googleVerifier.verify("good-token", null)).thenReturn(googleUser("sub-1", "new@gmail.com"));
         when(oauthAccounts.findByProviderAndProviderSubject("GOOGLE", "sub-1"))
                 .thenReturn(Optional.empty());
         when(users.findByEmailIgnoreCase("new@gmail.com")).thenReturn(Optional.empty());
         when(users.saveAndFlush(any(User.class))).thenAnswer(i -> i.getArgument(0));
 
-        TokenResponse res = service.loginWithGoogle(new GoogleLoginRequest("good-token"));
+        TokenResponse res = service.loginWithGoogle(new GoogleLoginRequest("good-token", null));
 
         ArgumentCaptor<User> uc = ArgumentCaptor.forClass(User.class);
         verify(users).saveAndFlush(uc.capture());
@@ -114,12 +114,12 @@ class GoogleAuthServiceTest {
         existing.setEmail("ex@gmail.com");
         existing.setStatus(UserStatus.ACTIVE);
         existing.setEmailVerifiedAt(Instant.now());
-        when(googleVerifier.verify("tok")).thenReturn(googleUser("sub-2", "ex@gmail.com"));
+        when(googleVerifier.verify("tok", null)).thenReturn(googleUser("sub-2", "ex@gmail.com"));
         when(oauthAccounts.findByProviderAndProviderSubject("GOOGLE", "sub-2"))
                 .thenReturn(Optional.empty());
         when(users.findByEmailIgnoreCase("ex@gmail.com")).thenReturn(Optional.of(existing));
 
-        TokenResponse res = service.loginWithGoogle(new GoogleLoginRequest("tok"));
+        TokenResponse res = service.loginWithGoogle(new GoogleLoginRequest("tok", null));
 
         verify(oauthAccounts).save(any(UserOauthAccount.class));
         assertThat(res.accessToken()).isNotEmpty();
@@ -133,12 +133,12 @@ class GoogleAuthServiceTest {
         pending.setEmail("p@gmail.com");
         pending.setStatus(UserStatus.ACTIVE);
         pending.setEmailVerifiedAt(null);
-        when(googleVerifier.verify("tok")).thenReturn(googleUser("sub-3", "p@gmail.com"));
+        when(googleVerifier.verify("tok", null)).thenReturn(googleUser("sub-3", "p@gmail.com"));
         when(oauthAccounts.findByProviderAndProviderSubject("GOOGLE", "sub-3"))
                 .thenReturn(Optional.empty());
         when(users.findByEmailIgnoreCase("p@gmail.com")).thenReturn(Optional.of(pending));
 
-        assertThatThrownBy(() -> service.loginWithGoogle(new GoogleLoginRequest("tok")))
+        assertThatThrownBy(() -> service.loginWithGoogle(new GoogleLoginRequest("tok", null)))
                 .isInstanceOf(GoogleEmailUnverifiedException.class);
         verify(oauthAccounts, never()).save(any());
     }
@@ -152,12 +152,12 @@ class GoogleAuthServiceTest {
         u.setStatus(UserStatus.ACTIVE);
         UserOauthAccount link = new UserOauthAccount();
         link.setUserId(u.getId());
-        when(googleVerifier.verify("tok")).thenReturn(googleUser("sub-4", "linked@gmail.com"));
+        when(googleVerifier.verify("tok", null)).thenReturn(googleUser("sub-4", "linked@gmail.com"));
         when(oauthAccounts.findByProviderAndProviderSubject("GOOGLE", "sub-4"))
                 .thenReturn(Optional.of(link));
         when(users.findById(u.getId())).thenReturn(Optional.of(u));
 
-        TokenResponse res = service.loginWithGoogle(new GoogleLoginRequest("tok"));
+        TokenResponse res = service.loginWithGoogle(new GoogleLoginRequest("tok", null));
         assertThat(res.refreshToken()).isEqualTo("raw-refresh");
         verify(oauthAccounts, never()).save(any()); // already linked
     }
@@ -170,20 +170,43 @@ class GoogleAuthServiceTest {
         locked.setStatus(UserStatus.LOCKED);
         UserOauthAccount link = new UserOauthAccount();
         link.setUserId(locked.getId());
-        when(googleVerifier.verify("tok")).thenReturn(googleUser("sub-5", "lock@gmail.com"));
+        when(googleVerifier.verify("tok", null)).thenReturn(googleUser("sub-5", "lock@gmail.com"));
         when(oauthAccounts.findByProviderAndProviderSubject("GOOGLE", "sub-5"))
                 .thenReturn(Optional.of(link));
         when(users.findById(locked.getId())).thenReturn(Optional.of(locked));
 
-        assertThatThrownBy(() -> service.loginWithGoogle(new GoogleLoginRequest("tok")))
+        assertThatThrownBy(() -> service.loginWithGoogle(new GoogleLoginRequest("tok", null)))
                 .isInstanceOf(AuthenticationFailedException.class);
     }
 
     @Test
     void google_invalidToken_propagates401() {
-        when(googleVerifier.verify("bad")).thenThrow(new GoogleTokenInvalidException("bad sig"));
-        assertThatThrownBy(() -> service.loginWithGoogle(new GoogleLoginRequest("bad")))
+        when(googleVerifier.verify("bad", null)).thenThrow(new GoogleTokenInvalidException("bad sig"));
+        assertThatThrownBy(() -> service.loginWithGoogle(new GoogleLoginRequest("bad", null)))
                 .isInstanceOf(GoogleTokenInvalidException.class);
+    }
+
+    // Issue #41 — Flutter Web sends an OAuth2 accessToken (idToken is null
+    // on web); it must flow to the verifier's accessToken branch and log in
+    // identically to the idToken path.
+    @Test
+    void google_accessToken_newEmail_createsLearnerAndIssuesTokens() {
+        when(googleVerifier.verify(null, "ya29.web-token"))
+                .thenReturn(googleUser("sub-web", "web@gmail.com"));
+        when(users.findByEmailIgnoreCase("web@gmail.com")).thenReturn(Optional.empty());
+        when(oauthAccounts.findByProviderAndProviderSubject("GOOGLE", "sub-web"))
+                .thenReturn(Optional.empty());
+        stubTokenIssue();
+
+        TokenResponse res =
+                service.loginWithGoogle(new GoogleLoginRequest(null, "ya29.web-token"));
+
+        ArgumentCaptor<User> uc = ArgumentCaptor.forClass(User.class);
+        verify(users).saveAndFlush(uc.capture());
+        assertThat(uc.getValue().getRole()).isEqualTo(UserRole.LEARNER);
+        assertThat(uc.getValue().getStatus()).isEqualTo(UserStatus.ACTIVE);
+        verify(oauthAccounts).save(any(UserOauthAccount.class));
+        assertThat(res.accessToken()).isEqualTo("access.jwt");
     }
 
     @Test
@@ -191,7 +214,7 @@ class GoogleAuthServiceTest {
         AuthService noGoogle = new AuthService(users, passwordEncoder, jwtTokenService,
                 refreshTokenService, props, otpService, otpChallenges,
                 oauthAccounts, Optional.empty());
-        assertThatThrownBy(() -> noGoogle.loginWithGoogle(new GoogleLoginRequest("tok")))
+        assertThatThrownBy(() -> noGoogle.loginWithGoogle(new GoogleLoginRequest("tok", null)))
                 .isInstanceOf(FeatureDisabledException.class);
     }
 }

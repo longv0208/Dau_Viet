@@ -154,14 +154,23 @@ class AuthApiClient {
     );
   }
 
-  /// Google Sign-In — idToken từ Google SDK → token pair (200).
-  Future<AuthTokenDto> loginWithGoogle({required String idToken}) async {
+  /// Google Sign-In — gửi idToken (Android/iOS) hoặc accessToken (Flutter
+  /// Web, nơi plugin chỉ trả OAuth2 access token). Backend chấp nhận cả hai
+  /// (Issue #41).
+  Future<AuthTokenDto> loginWithGoogle({
+    String? idToken,
+    String? accessToken,
+  }) async {
     final json = await _client.post(
       '/api/v1/auth/google',
-      body: {'idToken': idToken},
+      body: {
+        'idToken': ?idToken,
+        'accessToken': ?accessToken,
+      },
     );
     return AuthTokenDto.fromJson(json);
   }
+
   Future<AuthTokenDto> refresh(String refreshToken) async {
     final json = await _client.post(
       '/api/v1/auth/refresh',

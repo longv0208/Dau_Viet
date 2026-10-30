@@ -28,6 +28,15 @@ dauviet:
     # Env DAUVIET_ENERGY_ENABLED vẫn override được khi cần.
     enabled: ${DAUVIET_ENERGY_ENABLED:true}
 
+  auth:
+    google:
+      # OAuth client-id whitelist for /auth/google (idToken aud check AND
+      # accessToken tokeninfo aud check, Issue #41). Paste the Web OAuth
+      # client id (…apps.googleusercontent.com) for Flutter Web + any
+      # Android/iOS client ids, comma-separated. Empty → 503 FEATURE_DISABLED.
+      # Override via GOOGLE_CLIENT_IDS env var.
+      client-ids: ${GOOGLE_CLIENT_IDS:}
+
 logging:
   level:
     org.hibernate.orm.deprecation: warn

@@ -1,0 +1,69 @@
+{
+  "schemaVersion": 1,
+  "id": "TASK-0033",
+  "type": "bugfix",
+  "risk": "high",
+  "status": "implemented",
+  "owner": "claude",
+  "modules": [
+    "mobile",
+    "backend"
+  ],
+  "scope": [
+    "dau-viet-mobile/lib/features/auth/data/google_sign_in_provider.dart",
+    "dau-viet-mobile/lib/features/auth/data/auth_api_client.dart",
+    "dau-viet-mobile/lib/features/auth/data/auth_repository.dart",
+    "dau-viet-mobile/lib/features/auth/presentation/auth_screen.dart",
+    "dau-viet-mobile/lib/features/learning/data/learning_providers.dart",
+    "dau-viet-mobile/lib/features/energy/data/energy_providers.dart",
+    "dau-viet-mobile/lib/features/streak/data/streak_providers.dart",
+    "dau-viet-mobile/lib/features/rewards/data/reward_providers.dart",
+    "dau-viet-mobile/lib/features/profile/presentation/profile_screen.dart",
+    "dau-viet-mobile/web/index.html",
+    "dau-viet-mobile/test/",
+    "dau-viet-backend/src/main/java/com/dauviet/auth/",
+    "dau-viet-backend/src/test/java/com/dauviet/auth/",
+    "dau-viet-backend/src/main/resources/application-local.yml",
+    "docs/backend-runbook.md",
+    "tasks/TASK-0033/"
+  ],
+  "acceptanceCriteria": [
+    {
+      "id": "AC-1",
+      "text": "Không truyền serverClientId trên kIsWeb; hỗ trợ cả idToken và accessToken để đăng nhập Google hoạt động trên cả Flutter Web lẫn Android/iOS."
+    },
+    {
+      "id": "AC-2",
+      "text": "POST /api/v1/auth/google xác thực hợp lệ cho cả Google idToken và OAuth2 accessToken (email_verified=true), tự tạo/liên kết tài khoản LEARNER và trả TokenResponse."
+    },
+    {
+      "id": "AC-3",
+      "text": "Màn /auth chưa đăng nhập không còn spam 401 từ /me/energy, /me/streak, /me/rewards/summary và không còn 404 dv_avatar_scholar.png."
+    },
+    {
+      "id": "AC-4",
+      "text": "Tests cho nhánh idToken và accessToken trên backend + unit/widget test mobile."
+    }
+  ],
+  "acceptanceStatus": {
+    "AC-1": "done — kIsWeb branch: GoogleSignIn(clientId: GOOGLE_WEB_CLIENT_ID||GOOGLE_CLIENT_ID), KHÔNG serverClientId; mobile giữ serverClientId. signIn() trả (idToken, accessToken); api_client/repo/session/screen forward cả hai; meta google-signin-client_id trong web/index.html.",
+    "AC-2": "done — GoogleLoginRequest(idToken?, accessToken?) @AssertTrue hasCredential; GoogleTokenVerifier.verify(idToken, accessToken); accessToken → POST oauth2.googleapis.com/tokeninfo, kiểm aud∈GOOGLE_CLIENT_IDS + email_verified=true; application-local.yml + runbook docs.",
+    "AC-3": "done — energy/streak/rewardSummary/catalog/inventory/transactions providers trả placeholder rỗng khi real-mode + unauthenticated/guest (không fetch repo); profile_screen bỏ asset thiếu dv_avatar_scholar.png → StampSealBadge.",
+    "AC-4": "done — backend: GoogleAccessTokenVerifierTest 7 tests (valid tokeninfo, aud sai, email unverified/missing, non-200, unreachable, no-credential) + GoogleAuthServiceTest accessToken-login test; mobile: auth_repository_test accessToken forwarding + energy_provider_test unauthenticated-guard."
+  },
+  "dependencies": [],
+  "evidenceRefs": [
+    "mvnw test -Dtest=GoogleAuthServiceTest,GoogleAccessTokenVerifierTest,AuthServiceTest → 30/30 pass, BUILD SUCCESS",
+    "flutter test (toàn bộ) → 522/522 pass",
+    "flutter analyze → 9 issues, tất cả pre-existing trong island/* (không có issue mới)",
+    "git diff --check clean; generated plugin files (linux/macos/windows) đã revert"
+  ],
+  "notes": [
+    "Issue: https://github.com/longv0208/Dau_Viet/issues/41",
+    "Root cause: google_sign_in_web không hỗ trợ serverClientId (AssertionError); web signIn() trả accessToken không idToken; backend /auth/google chỉ nhận idToken; /me/* providers fetch khi unauthenticated; dv_avatar_scholar.png không tồn tại trong assets/images/.",
+    "Access token verify: Google oauth2/v3/tokeninfo → kiểm aud ∈ GOOGLE_CLIENT_IDS + email_verified=true → map về VerifiedGoogleUser(sub,email,name).",
+    "Để chạy thật trên web: cần Web OAuth client id trong GOOGLE_CLIENT_IDS (backend) + --dart-define=GOOGLE_WEB_CLIENT_ID hoặc meta content trong web/index.html (mobile)."
+  ],
+  "nextAction": "User cấu hình Web OAuth client id (GCP console) vào GOOGLE_CLIENT_IDS + GOOGLE_WEB_CLIENT_ID/meta rồi kiểm chứng luồng đăng nhập Google thật trên localhost:4300. Chờ ủy quyền commit.",
+  "handoff": "tasks/TASK-0033/brief.md"
+}

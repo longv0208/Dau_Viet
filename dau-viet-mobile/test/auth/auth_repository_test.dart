@@ -55,6 +55,8 @@ class _FakeAuthApiClient implements AuthApiClient {
   Object? verifyOtpError;
   Object? resendError;
   Object? googleError;
+  String? lastIdToken;
+  String? lastAccessToken;
 
   @override
   Future<OtpChallengeDto> requestRegisterOtp({
@@ -113,8 +115,13 @@ class _FakeAuthApiClient implements AuthApiClient {
   }
 
   @override
-  Future<AuthTokenDto> loginWithGoogle({required String idToken}) async {
+  Future<AuthTokenDto> loginWithGoogle({
+    String? idToken,
+    String? accessToken,
+  }) async {
     googleCalls++;
+    lastIdToken = idToken;
+    lastAccessToken = accessToken;
     final err = googleError;
     if (err != null) throw err;
     return loginResponse;
@@ -391,6 +398,16 @@ void main() {
         throwsA(isA<ApiException>()),
       );
       expect(storage.saved, isNull);
+    });
+
+    test('Issue #41 — accessToken path (Flutter Web): forwarded to API + '
+        'lưu token + authenticated', () async {
+      final state = await repo.loginWithGoogle(accessToken: 'ya29.web-token');
+      expect(state.status, AuthStatus.authenticated);
+      expect(api.googleCalls, 1);
+      expect(api.lastAccessToken, 'ya29.web-token');
+      expect(api.lastIdToken, isNull);
+      expect(storage.saved, isNotNull);
     });
   });
 }

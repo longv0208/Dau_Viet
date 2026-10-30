@@ -69,15 +69,19 @@ class _AuthScreenState extends ConsumerState<AuthScreen> {
       _error = null;
     });
     try {
-      final idToken =
-          await ref.read(googleSignInGatewayProvider).signInForIdToken();
-      if (idToken == null) {
+      final credentials =
+          await ref.read(googleSignInGatewayProvider).signIn();
+      if (credentials == null) {
         // Người dùng huỷ chọn tài khoản — không phải lỗi.
         return;
       }
+      // Flutter Web: plugin trả accessToken (idToken null); mobile: idToken.
       await ref
           .read(authSessionProvider.notifier)
-          .loginWithGoogle(idToken: idToken);
+          .loginWithGoogle(
+            idToken: credentials.idToken,
+            accessToken: credentials.accessToken,
+          );
       if (!mounted) return;
       final session = ref.read(authSessionProvider);
       if (session.isAuthenticated) {
@@ -85,6 +89,9 @@ class _AuthScreenState extends ConsumerState<AuthScreen> {
       } else {
         setState(() => _error = 'Đăng nhập Google chưa thành công, thử lại.');
       }
+    } on GoogleSignInNotConfiguredException catch (e) {
+      if (!mounted) return;
+      setState(() => _error = e.message);
     } on ApiException catch (e) {
       // Đăng nhập thất bại → sign out để lần sau chọn được tài khoản khác.
       await ref.read(googleSignInGatewayProvider).signOut();
