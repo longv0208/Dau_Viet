@@ -2,6 +2,9 @@ import 'dart:async';
 
 import 'package:dau_viet_mobile/core/api/api_error.dart';
 import 'package:dau_viet_mobile/core/api/api_exception.dart';
+import 'package:dau_viet_mobile/core/theme/dau_viet_colors.dart';
+import 'package:dau_viet_mobile/core/widgets/stamp_seal_badge.dart';
+import 'package:dau_viet_mobile/core/widgets/tactile_card.dart';
 import 'package:dau_viet_mobile/features/auth/data/auth_api_client.dart';
 import 'package:dau_viet_mobile/features/auth/data/auth_repository.dart';
 import 'package:dau_viet_mobile/features/auth/data/auth_state.dart';
@@ -345,6 +348,78 @@ void main() {
       expect(find.text('Đèo Ngang'), findsOneWidget);
       expect(find.text('THỬ LẠI'), findsNothing);
     });
+
+    testWidgets(
+      'Soft Heritage Card UI: đồng bộ bóng mềm, viền mảnh 1.1px, không còn pixelShadowSm/StampSealBadge và 0 overflow trên 360x800 & 390x844',
+      (tester) async {
+        final repo = _FakeCollectionRepository()
+          ..items = const [item1, item2]
+          ..dossierItems = const [
+            DossierSummaryDto(
+              dossierId: 'd1',
+              canonicalCode: 'person-ngo-quyen',
+              dossierType: 'PERSON',
+              title: 'Ngô Quyền',
+              summary: 'Tiền Ngô Vương người lãnh đạo trận Bạch Đằng 938.',
+              unlocked: true,
+              preview: false,
+            ),
+          ];
+
+        for (final size in const [Size(360, 800), Size(390, 844)]) {
+          tester.view.physicalSize = size;
+          tester.view.devicePixelRatio = 1.0;
+          await tester.pumpWidget(
+            ProviderScope(
+              key: ValueKey(size),
+              overrides: [collectionRepositoryProvider.overrideWithValue(repo)],
+              child: const MaterialApp(home: CollectionScreen()),
+            ),
+          );
+          await tester.pumpAndSettle();
+          expect(tester.takeException(), isNull);
+        }
+        addTearDown(tester.view.resetPhysicalSize);
+        addTearDown(tester.view.resetDevicePixelRatio);
+
+        expect(find.byType(StampSealBadge), findsNothing);
+        final cards = tester
+            .widgetList<TactileCard>(find.byType(TactileCard))
+            .toList();
+        expect(cards.length, greaterThanOrEqualTo(2));
+        for (final card in cards) {
+          expect(card.usePixelShadow, isFalse);
+          expect(card.borderWidth, closeTo(1.1, 0.05));
+        }
+
+        final containers = tester.widgetList<Container>(find.byType(Container));
+        for (final c in containers) {
+          final dec = c.decoration;
+          if (dec is BoxDecoration && dec.boxShadow != null) {
+            for (final shadow in dec.boxShadow!) {
+              expect(
+                shadow.color == DauVietColors.pixelShadowColor &&
+                    shadow.blurRadius == 0,
+                isFalse,
+              );
+            }
+          }
+        }
+
+        // Chuyển sang tab Nhân vật -> DossierCard cũng hiển thị theo Soft Heritage Card
+        await tester.tap(find.widgetWithText(Tab, 'Nhân vật'));
+        await tester.pumpAndSettle();
+        expect(find.text('Ngô Quyền'), findsOneWidget);
+        final dossierCards = tester
+            .widgetList<TactileCard>(find.byType(TactileCard))
+            .toList();
+        expect(dossierCards, isNotEmpty);
+        for (final card in dossierCards) {
+          expect(card.usePixelShadow, isFalse);
+          expect(card.borderWidth, closeTo(1.1, 0.05));
+        }
+      },
+    );
   });
 
   group('collectionListProvider session scoping', () {

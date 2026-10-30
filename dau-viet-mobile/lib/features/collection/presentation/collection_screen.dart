@@ -5,17 +5,15 @@ import 'package:go_router/go_router.dart';
 import '../../../core/theme/dau_viet_colors.dart';
 import '../../../core/theme/dau_viet_typography.dart';
 import '../../../core/widgets/async_state_view.dart';
-import '../../../core/widgets/clue_tag.dart';
 import '../../../core/widgets/empty_state_card.dart';
 import '../../../core/widgets/main_bottom_nav.dart';
 import '../../../core/widgets/rare_frame_badge.dart';
-import '../../../core/widgets/section_eyebrow.dart';
-import '../../../core/widgets/stamp_seal_badge.dart';
 import '../../../core/widgets/tactile_card.dart';
 import '../../learning/presentation/renderers/learning_asset_image.dart';
 import '../data/collection_dto.dart';
 import '../data/collection_providers.dart';
 import 'dossier_tab_view.dart';
+import 'models_collection_tab_view.dart';
 
 /// FR-40 — Màn "Bộ Sưu Tập Dấu Việt": danh sách bằng chứng lịch sử đã
 /// thu thập qua học tập thật (EVIDENCE_SELECT hoàn thành). Nguồn duy nhất
@@ -55,66 +53,156 @@ class _CollectionScreenState extends ConsumerState<CollectionScreen> {
   Widget build(BuildContext context) {
     final async = ref.watch(collectionListProvider(_typeFilter));
     return DefaultTabController(
-      length: 4,
+      length: 5,
       child: Scaffold(
         backgroundColor: DauVietColors.paperBackground,
         appBar: AppBar(
-          backgroundColor: DauVietColors.paperBackground,
+          backgroundColor: const Color(0xFFFAF2E1),
+          surfaceTintColor: Colors.transparent,
           elevation: 0,
-          toolbarHeight: 68,
-          leading: IconButton(
-            icon: const Icon(Icons.arrow_back_ios_new_rounded, size: 20),
-            color: DauVietColors.inkText,
-            onPressed: () =>
-                context.canPop() ? context.pop() : context.go('/dashboard'),
+          toolbarHeight: 74,
+          leading: Padding(
+            padding: const EdgeInsets.only(left: 10),
+            child: Center(
+              child: Container(
+                width: 38,
+                height: 38,
+                decoration: BoxDecoration(
+                  color: const Color(0xFFFAF3E4),
+                  shape: BoxShape.circle,
+                  border: Border.all(
+                    color: const Color(0xFFE3D2B4),
+                    width: 1.1,
+                  ),
+                  boxShadow: DauVietColors.softCardShadow,
+                ),
+                child: IconButton(
+                  padding: EdgeInsets.zero,
+                  icon: const Icon(Icons.arrow_back_ios_new_rounded, size: 17),
+                  color: DauVietColors.inkHeading,
+                  onPressed: () => context.canPop()
+                      ? context.pop()
+                      : context.go('/dashboard'),
+                ),
+              ),
+            ),
           ),
           title: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             mainAxisSize: MainAxisSize.min,
             children: [
-              const SectionEyebrow(
-                'BẢO TÀNG DẤU VIỆT',
-                padding: EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+              Container(
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 8,
+                  vertical: 2.5,
+                ),
+                decoration: BoxDecoration(
+                  color: const Color(0xFFBC3023),
+                  borderRadius: BorderRadius.circular(6),
+                  border: Border.all(
+                    color: const Color(0xFFE6B665),
+                    width: 1.0,
+                  ),
+                ),
+                child: Text(
+                  'BẢO TÀNG DẤU VIỆT',
+                  style: DauVietTypography.labelSmall.copyWith(
+                    fontSize: 9,
+                    fontWeight: FontWeight.w800,
+                    letterSpacing: 0.6,
+                    color: const Color(0xFFFFF6E5),
+                  ),
+                ),
               ),
-              const SizedBox(height: 4),
+              const SizedBox(height: 5),
               Text(
                 'Bộ Sưu Tập Dấu Việt',
                 style: DauVietTypography.headlineSmall.copyWith(
-                  color: DauVietColors.cinnabarRed,
+                  fontSize: 19,
+                  fontWeight: FontWeight.w800,
+                  color: const Color(0xFF163C2B),
+                  height: 1.15,
                 ),
               ),
             ],
           ),
           centerTitle: false,
-          bottom: TabBar(
-            labelColor: DauVietColors.cinnabarRed,
-            unselectedLabelColor: DauVietColors.inkMuted,
-            indicatorColor: DauVietColors.cinnabarRed,
-            labelStyle: DauVietTypography.labelSmall.copyWith(
-              fontWeight: FontWeight.w800,
+          bottom: PreferredSize(
+            preferredSize: const Size.fromHeight(54),
+            child: Padding(
+              padding: const EdgeInsets.fromLTRB(20, 4, 20, 10),
+              child: Container(
+                height: 40,
+                padding: const EdgeInsets.all(3.5),
+                decoration: BoxDecoration(
+                  color: const Color(0xFFF3E5CE),
+                  borderRadius: BorderRadius.circular(13),
+                  border: Border.all(
+                    color: const Color(0xFFE3D2B4),
+                    width: 1.1,
+                  ),
+                ),
+                child: TabBar(
+                  dividerColor: Colors.transparent,
+                  indicatorSize: TabBarIndicatorSize.tab,
+                  indicator: BoxDecoration(
+                    color: DauVietColors.heritageGreen,
+                    borderRadius: BorderRadius.circular(9.5),
+                    boxShadow: const [
+                      BoxShadow(
+                        color: Color(0x24163A2B),
+                        blurRadius: 4,
+                        offset: Offset(0, 1),
+                      ),
+                    ],
+                  ),
+                  labelColor: Colors.white,
+                  unselectedLabelColor: DauVietColors.woodBrown,
+                  labelPadding: EdgeInsets.zero,
+                  labelStyle: DauVietTypography.labelSmall.copyWith(
+                    fontSize: 11.5,
+                    fontWeight: FontWeight.w800,
+                  ),
+                  unselectedLabelStyle: DauVietTypography.labelSmall.copyWith(
+                    fontSize: 11.5,
+                    fontWeight: FontWeight.w700,
+                  ),
+                  tabs: const [
+                    Tab(text: 'Dấu'),
+                    Tab(text: 'Nhân vật'),
+                    Tab(text: 'Địa điểm'),
+                    Tab(text: 'Hiện vật'),
+                    Tab(text: 'Mô hình'),
+                  ],
+                ),
+              ),
             ),
-            tabs: const [
-              Tab(text: 'Dấu'),
-              Tab(text: 'Nhân vật'),
-              Tab(text: 'Địa điểm'),
-              Tab(text: 'Hiện vật'),
-            ],
+
           ),
         ),
-        body: TabBarView(
-          children: [
-            // Tab 1: bằng chứng đã thu thập (UI cũ, giữ nguyên).
-            Column(
-              children: [
-                _buildHeader(async),
-                _buildFilterRow(async),
-                Expanded(child: _buildBody(async)),
-              ],
+        body: DecoratedBox(
+          decoration: const BoxDecoration(
+            gradient: LinearGradient(
+              begin: Alignment.topCenter,
+              end: Alignment.bottomCenter,
+              colors: [Color(0xFFFAF2E1), Color(0xFFF6ECDA)],
             ),
-            const DossierTabView(dossierType: 'PERSON'),
-            const DossierTabView(dossierType: 'LOCATION'),
-            const DossierTabView(dossierType: 'ARTIFACT'),
-          ],
+          ),
+          child: TabBarView(
+            children: [
+              Column(
+                children: [
+                  _buildHeader(async),
+                  _buildFilterRow(async),
+                  Expanded(child: _buildBody(async)),
+                ],
+              ),
+              const DossierTabView(dossierType: 'PERSON'),
+              const DossierTabView(dossierType: 'LOCATION'),
+              const DossierTabView(dossierType: 'ARTIFACT'),
+              const ModelsCollectionTabView(),
+            ],
+          ),
         ),
         bottomNavigationBar: const MainBottomNav(),
       ),
@@ -128,26 +216,45 @@ class _CollectionScreenState extends ConsumerState<CollectionScreen> {
     final filtered = _typeFilter.isNotEmpty;
     return Padding(
       padding: const EdgeInsets.fromLTRB(20, 4, 20, 8),
-      child: Row(
-        children: [
-          Expanded(
-            child: Text(
-              total == null
-                  ? 'Bằng chứng thu thập qua các bài học'
-                  : filtered
-                  ? '$total bằng chứng thuộc loại này'
-                  : '$total bằng chứng đã sưu tầm',
-              style: DauVietTypography.bodySmall.copyWith(
-                color: DauVietColors.inkMuted,
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+        decoration: BoxDecoration(
+          color: const Color(0xFFFAF3E4),
+          borderRadius: BorderRadius.circular(12),
+          border: Border.all(color: const Color(0xFFE3D2B4), width: 1.0),
+          boxShadow: DauVietColors.softCardShadow,
+        ),
+        child: Row(
+          children: [
+            Container(
+              padding: const EdgeInsets.all(6),
+              decoration: const BoxDecoration(
+                color: Color(0xFFFFF3D6),
+                shape: BoxShape.circle,
+              ),
+              child: const Icon(
+                Icons.auto_stories_rounded,
+                size: 15,
+                color: DauVietColors.imperialGoldDark,
               ),
             ),
-          ),
-          const Icon(
-            Icons.auto_stories_rounded,
-            size: 18,
-            color: DauVietColors.imperialGold,
-          ),
-        ],
+            const SizedBox(width: 9),
+            Expanded(
+              child: Text(
+                total == null
+                    ? 'Bằng chứng thu thập qua các bài học'
+                    : filtered
+                    ? '$total bằng chứng thuộc loại này'
+                    : '$total bằng chứng đã sưu tầm',
+                style: DauVietTypography.bodySmall.copyWith(
+                  fontSize: 12,
+                  fontWeight: FontWeight.w700,
+                  color: DauVietColors.inkHeading,
+                ),
+              ),
+            ),
+          ],
+        ),
       ),
     );
   }
@@ -191,9 +298,60 @@ class _CollectionScreenState extends ConsumerState<CollectionScreen> {
             child: ConstrainedBox(
               constraints: const BoxConstraints(minHeight: 44),
               child: Center(
-                child: ClueTag.category(
-                  label,
-                  filled: selected,
+                child: AnimatedContainer(
+                  duration: const Duration(milliseconds: 140),
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 13,
+                    vertical: 6,
+                  ),
+                  decoration: BoxDecoration(
+                    color: selected
+                        ? const Color(0xFF1A4B38)
+                        : const Color(0xFFFAF3E4),
+                    borderRadius: BorderRadius.circular(999),
+                    border: Border.all(
+                      color: selected
+                          ? const Color(0xFFDEC69A).withValues(alpha: 0.55)
+                          : const Color(0xFFE3D2B4),
+                      width: 1.1,
+                    ),
+                    boxShadow: selected
+                        ? const [
+                            BoxShadow(
+                              color: Color(0x24163A2B),
+                              blurRadius: 4,
+                              offset: Offset(0, 1),
+                            ),
+                          ]
+                        : DauVietColors.softCardShadow,
+                  ),
+                  child: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Icon(
+                        value.isEmpty
+                            ? Icons.grid_view_rounded
+                            : _typeIcon(value),
+                        size: 13,
+                        color: selected
+                            ? const Color(0xFFFFDEA7)
+                            : _typeStampColor(value),
+                      ),
+                      const SizedBox(width: 5),
+                      Text(
+                        label,
+                        style: DauVietTypography.labelSmall.copyWith(
+                          fontSize: 11.5,
+                          fontWeight: selected
+                              ? FontWeight.w800
+                              : FontWeight.w700,
+                          color: selected
+                              ? Colors.white
+                              : DauVietColors.inkSecondary,
+                        ),
+                      ),
+                    ],
+                  ),
                 ),
               ),
             ),
@@ -305,6 +463,10 @@ class _CollectionScreenState extends ConsumerState<CollectionScreen> {
     return Padding(
       padding: const EdgeInsets.only(top: 8),
       child: TactileCard(
+        usePixelShadow: false,
+        backgroundColor: const Color(0xFFFDE3DD),
+        borderRadius: 14,
+        borderWidth: 1.1,
         padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
         borderColor: DauVietColors.errorRed.withValues(alpha: 0.4),
         child: Row(
@@ -354,33 +516,47 @@ class _CollectionScreenState extends ConsumerState<CollectionScreen> {
     ItemRarity? rarity,
   }) {
     final evidence = item.evidence;
+    final accent = _typeStampColor(item.evidenceType);
+    final bgTint = _typeBgColor(item.evidenceType);
+
     final rowContent = Row(
-      crossAxisAlignment: CrossAxisAlignment.start,
+      crossAxisAlignment: CrossAxisAlignment.center,
       children: [
-        // Thumbnail: asset thật nếu có; fallback icon loại bằng chứng.
-        ClipRRect(
-          borderRadius: BorderRadius.circular(10),
-          child: SizedBox(
-            width: 72,
-            height: 72,
-            child: item.assetId != null
-                ? LearningAssetImage(
-                    assetId: item.assetId!,
-                    altText: item.title,
-                    height: 72,
-                    fit: BoxFit.cover,
-                    tappable: false,
-                  )
-                : Container(
-                    color: DauVietColors.paperCardHi,
-                    alignment: Alignment.center,
+        // Thumbnail: asset thật nếu có; fallback icon loại bằng chứng trong khung pastel mềm.
+        Container(
+          width: 72,
+          height: 72,
+          decoration: BoxDecoration(
+            color: bgTint,
+            borderRadius: BorderRadius.circular(13),
+            border: Border.all(
+              color: accent.withValues(alpha: 0.30),
+              width: 1.0,
+            ),
+          ),
+          clipBehavior: Clip.antiAlias,
+          child: item.assetId != null
+              ? LearningAssetImage(
+                  assetId: item.assetId!,
+                  altText: item.title,
+                  height: 72,
+                  fit: BoxFit.cover,
+                  tappable: false,
+                )
+              : Center(
+                  child: Container(
+                    padding: const EdgeInsets.all(10),
+                    decoration: BoxDecoration(
+                      color: Colors.white.withValues(alpha: 0.72),
+                      shape: BoxShape.circle,
+                    ),
                     child: Icon(
                       _typeIcon(item.evidenceType),
-                      size: 30,
-                      color: DauVietColors.cinnabarRed,
+                      size: 24,
+                      color: accent,
                     ),
                   ),
-          ),
+                ),
         ),
         const SizedBox(width: 12),
         Expanded(
@@ -389,14 +565,6 @@ class _CollectionScreenState extends ConsumerState<CollectionScreen> {
             children: [
               Row(
                 children: [
-                  StampSealBadge(
-                    _typeStampLabel(item.evidenceType),
-                    size: 22,
-                    color: _typeStampColor(item.evidenceType),
-                    filled: false,
-                    rotationDeg: -6,
-                  ),
-                  const SizedBox(width: 6),
                   _typeBadge(item.evidenceType),
                   const SizedBox(width: 6),
                   if (item.eventTitle != null)
@@ -407,6 +575,8 @@ class _CollectionScreenState extends ConsumerState<CollectionScreen> {
                         overflow: TextOverflow.ellipsis,
                         textAlign: TextAlign.right,
                         style: DauVietTypography.labelSmall.copyWith(
+                          fontSize: 10.5,
+                          fontWeight: FontWeight.w600,
                           color: DauVietColors.inkMuted,
                         ),
                       ),
@@ -419,7 +589,9 @@ class _CollectionScreenState extends ConsumerState<CollectionScreen> {
                 maxLines: 2,
                 overflow: TextOverflow.ellipsis,
                 style: DauVietTypography.labelMedium.copyWith(
-                  fontWeight: FontWeight.w700,
+                  fontSize: 14,
+                  fontWeight: FontWeight.w800,
+                  color: DauVietColors.inkHeading,
                 ),
               ),
               if (evidence?.description != null) ...[
@@ -429,6 +601,7 @@ class _CollectionScreenState extends ConsumerState<CollectionScreen> {
                   maxLines: 2,
                   overflow: TextOverflow.ellipsis,
                   style: DauVietTypography.bodySmall.copyWith(
+                    fontSize: 11.5,
                     color: DauVietColors.inkMuted,
                     height: 1.35,
                   ),
@@ -441,14 +614,34 @@ class _CollectionScreenState extends ConsumerState<CollectionScreen> {
         Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            if (unlocked)
-              const StampSealBadge.success('✓', size: 24)
-            else
-              const StampSealBadge.outline('🔒', size: 24),
-            const SizedBox(height: 8),
+            Container(
+              width: 24,
+              height: 24,
+              decoration: BoxDecoration(
+                color: unlocked
+                    ? DauVietColors.heritageGreenSurface
+                    : const Color(0xFFF3E5CE),
+                shape: BoxShape.circle,
+                border: Border.all(
+                  color: unlocked
+                      ? DauVietColors.heritageGreenLight.withValues(alpha: 0.38)
+                      : const Color(0xFFE3D2B4),
+                  width: 1.0,
+                ),
+              ),
+              child: Icon(
+                unlocked ? Icons.check_rounded : Icons.lock_outline_rounded,
+                size: 14,
+                color: unlocked
+                    ? DauVietColors.heritageGreen
+                    : DauVietColors.inkMuted,
+              ),
+            ),
+            const SizedBox(height: 6),
             const Icon(
               Icons.chevron_right_rounded,
               color: DauVietColors.inkMuted,
+              size: 20,
             ),
           ],
         ),
@@ -457,18 +650,17 @@ class _CollectionScreenState extends ConsumerState<CollectionScreen> {
 
     Widget cardBody = unlocked
         ? rowContent
-        : Stack(
-            alignment: Alignment.topRight,
-            children: [
-              ColorFiltered(
-                colorFilter: _grayscaleFilter,
-                child: rowContent,
-              ),
-              const StampSealBadge.outline('🔒', size: 24),
-            ],
+        : ColorFiltered(
+            colorFilter: _grayscaleFilter,
+            child: rowContent,
           );
 
     Widget card = TactileCard(
+      usePixelShadow: false,
+      backgroundColor: const Color(0xFFFAF3E4),
+      borderColor: const Color(0xFFE3D2B4),
+      borderWidth: 1.1,
+      borderRadius: 16,
       padding: const EdgeInsets.all(12),
       onTap: unlocked
           ? () => context.push('/collection/${item.evidenceId}')
@@ -489,20 +681,20 @@ class _CollectionScreenState extends ConsumerState<CollectionScreen> {
     );
   }
 
-  String _typeStampLabel(String? type) => switch (type) {
-    'LOCATION' => 'ĐỊA',
-    'CHARACTER' => 'NHÂN',
-    'ARTIFACT' => 'VẬT',
-    'DOCUMENT' => 'THƯ',
-    _ => 'DẤU',
-  };
-
   Color _typeStampColor(String? type) => switch (type) {
-    'LOCATION' => DauVietColors.riverBlue,
-    'CHARACTER' => DauVietColors.heritageGreen,
+    'LOCATION' => DauVietColors.jadeDark,
+    'CHARACTER' => DauVietColors.heritageGreenLight,
     'ARTIFACT' => DauVietColors.imperialGoldDark,
     'DOCUMENT' => DauVietColors.cinnabarRed,
-    _ => DauVietColors.jade,
+    _ => DauVietColors.jadeDark,
+  };
+
+  Color _typeBgColor(String? type) => switch (type) {
+    'LOCATION' => const Color(0xFFDCEFED),
+    'CHARACTER' => DauVietColors.heritageGreenSurface,
+    'ARTIFACT' => const Color(0xFFFFF3D6),
+    'DOCUMENT' => const Color(0xFFFDE3DD),
+    _ => const Color(0xFFDCEFED),
   };
 
   IconData _typeIcon(String? type) => switch (type) {
@@ -514,13 +706,16 @@ class _CollectionScreenState extends ConsumerState<CollectionScreen> {
   };
 
   Widget _typeBadge(String? type) {
+    final accent = _typeStampColor(type);
+    final bg = _typeBgColor(type);
     return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 3),
+      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
       decoration: BoxDecoration(
-        color: DauVietColors.cinnabarRed.withValues(alpha: 0.1),
+        color: bg,
         borderRadius: BorderRadius.circular(6),
         border: Border.all(
-          color: DauVietColors.cinnabarRed.withValues(alpha: 0.35),
+          color: accent.withValues(alpha: 0.42),
+          width: 1.0,
         ),
       ),
       child: Text(
@@ -528,7 +723,7 @@ class _CollectionScreenState extends ConsumerState<CollectionScreen> {
         style: DauVietTypography.labelSmall.copyWith(
           fontSize: 9,
           fontWeight: FontWeight.w800,
-          color: DauVietColors.cinnabarRed,
+          color: accent,
           letterSpacing: 0.4,
         ),
       ),

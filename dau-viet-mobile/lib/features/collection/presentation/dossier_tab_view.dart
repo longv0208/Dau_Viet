@@ -4,7 +4,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../core/theme/dau_viet_colors.dart';
 import '../../../core/theme/dau_viet_typography.dart';
 import '../../../core/widgets/async_state_view.dart';
-import '../../../core/widgets/parchment_card.dart';
+import '../../../core/widgets/tactile_card.dart';
 import '../data/dossier_providers.dart';
 import 'dossier_card.dart';
 
@@ -71,15 +71,34 @@ class DossierTabView extends ConsumerWidget {
           const SizedBox(height: 80),
           Padding(
             padding: const EdgeInsets.symmetric(horizontal: 24),
-            child: ParchmentCard(
+            child: TactileCard(
+              usePixelShadow: false,
+              backgroundColor: const Color(0xFFFAF3E4),
+              borderColor: const Color(0xFFE3D2B4),
+              borderWidth: 1.1,
+              borderRadius: 18,
               padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 28),
               child: Column(
                 mainAxisSize: MainAxisSize.min,
                 children: [
-                  const Icon(
-                    Icons.menu_book_outlined,
-                    size: 40,
-                    color: DauVietColors.cinnabarRed,
+                  Container(
+                    width: 56,
+                    height: 56,
+                    decoration: BoxDecoration(
+                      color: DauVietColors.heritageGreenSurface,
+                      shape: BoxShape.circle,
+                      border: Border.all(
+                        color: DauVietColors.heritageGreenLight.withValues(
+                          alpha: 0.35,
+                        ),
+                        width: 1.1,
+                      ),
+                    ),
+                    child: const Icon(
+                      Icons.menu_book_outlined,
+                      size: 28,
+                      color: DauVietColors.heritageGreen,
+                    ),
                   ),
                   const SizedBox(height: 14),
                   Text(
@@ -87,11 +106,13 @@ class DossierTabView extends ConsumerWidget {
                         ? 'Sự kiện chưa có hồ sơ'
                         : 'Chưa có hồ sơ loại này',
                     textAlign: TextAlign.center,
-                    style: DauVietTypography.headlineMedium.copyWith(
+                    style: DauVietTypography.headlineSmall.copyWith(
                       fontSize: 16,
+                      fontWeight: FontWeight.w800,
+                      color: DauVietColors.inkHeading,
                     ),
                   ),
-                  const SizedBox(height: 8),
+                  const SizedBox(height: 6),
                   Text(
                     isEventScope
                         ? 'Hoàn thành sự kiện để mở hồ sơ lịch sử liên quan.'
@@ -155,7 +176,11 @@ class DossierTabView extends ConsumerWidget {
   ) {
     return Padding(
       padding: const EdgeInsets.only(top: 8),
-      child: ParchmentCard(
+      child: TactileCard(
+        usePixelShadow: false,
+        backgroundColor: const Color(0xFFFDE3DD),
+        borderRadius: 14,
+        borderWidth: 1.1,
         padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
         borderColor: DauVietColors.errorRed.withValues(alpha: 0.4),
         child: Row(

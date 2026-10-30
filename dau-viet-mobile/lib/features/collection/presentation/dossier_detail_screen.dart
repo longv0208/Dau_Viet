@@ -5,7 +5,9 @@ import 'package:go_router/go_router.dart';
 import '../../../core/theme/dau_viet_colors.dart';
 import '../../../core/theme/dau_viet_typography.dart';
 import '../../../core/widgets/async_state_view.dart';
+import '../../../core/widgets/tactile_card.dart';
 import '../../../core/widgets/parchment_card.dart';
+import '../../../core/widgets/heritage_artifact_model_view.dart';
 import '../../learning/presentation/renderers/learning_asset_image.dart';
 import '../data/dossier_dto.dart';
 import '../data/dossier_providers.dart';
@@ -29,31 +31,61 @@ class DossierDetailScreen extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final async = ref.watch(dossierDetailProvider(dossierId));
     return Scaffold(
-      backgroundColor: DauVietColors.parchmentSurface,
+      backgroundColor: DauVietColors.paperBackground,
       appBar: AppBar(
-        backgroundColor: DauVietColors.parchmentSurface,
+        backgroundColor: const Color(0xFFFAF2E1),
+        surfaceTintColor: Colors.transparent,
         elevation: 0,
-        leading: IconButton(
-          icon: const Icon(Icons.arrow_back_ios_new_rounded, size: 20),
-          color: DauVietColors.inkText,
-          onPressed: () =>
-              context.canPop() ? context.pop() : context.go('/collection'),
+        leading: Padding(
+          padding: const EdgeInsets.only(left: 10),
+          child: Center(
+            child: Container(
+              width: 38,
+              height: 38,
+              decoration: BoxDecoration(
+                color: const Color(0xFFFAF3E4),
+                shape: BoxShape.circle,
+                border: Border.all(color: const Color(0xFFE3D2B4), width: 1.1),
+                boxShadow: DauVietColors.softCardShadow,
+              ),
+              child: IconButton(
+                padding: EdgeInsets.zero,
+                icon: const Icon(Icons.arrow_back_ios_new_rounded, size: 17),
+                color: DauVietColors.inkHeading,
+                onPressed: () =>
+                    context.canPop() ? context.pop() : context.go('/collection'),
+              ),
+            ),
+          ),
         ),
         title: Text(
           'Hồ Sơ Lịch Sử',
           style: DauVietTypography.headlineSmall.copyWith(
-            color: DauVietColors.cinnabarRed,
+            fontSize: 18,
+            fontWeight: FontWeight.w800,
+            color: const Color(0xFF163C2B),
           ),
         ),
         centerTitle: false,
       ),
-      body: async.when(
-        loading: () => AsyncStateView.loading(),
-        error: (e, _) => AsyncStateView.error(
-          error: e,
-          onRetry: () => ref.invalidate(dossierDetailProvider(dossierId)),
+      body: DecoratedBox(
+        decoration: const BoxDecoration(
+          gradient: LinearGradient(
+            begin: Alignment.topCenter,
+            end: Alignment.bottomCenter,
+            colors: [Color(0xFFFAF2E1), Color(0xFFF6ECDA)],
+          ),
         ),
-        data: (d) => _buildDetail(context, d),
+        child: SizedBox.expand(
+          child: async.when(
+            loading: () => AsyncStateView.loading(),
+            error: (e, _) => AsyncStateView.error(
+              error: e,
+              onRetry: () => ref.invalidate(dossierDetailProvider(dossierId)),
+            ),
+            data: (d) => _buildDetail(context, d),
+          ),
+        ),
       ),
     );
   }
@@ -66,12 +98,96 @@ class DossierDetailScreen extends ConsumerWidget {
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           if (d.assetId != null)
-            LearningAssetImage(
-              assetId: d.assetId!,
-              altText: d.title,
-              height: 240,
-              fit: BoxFit.cover,
+            Container(
+              decoration: BoxDecoration(
+                borderRadius: BorderRadius.circular(16),
+                border: Border.all(color: const Color(0xFFDEC69A), width: 1.2),
+                boxShadow: DauVietColors.softCardShadow,
+              ),
+              clipBehavior: Clip.antiAlias,
+              child: LearningAssetImage(
+                assetId: d.assetId!,
+                altText: d.title,
+                height: 240,
+                fit: BoxFit.cover,
+              ),
+            )
+          else
+            Container(
+              height: 200,
+              width: double.infinity,
+              decoration: BoxDecoration(
+                gradient: const RadialGradient(
+                  colors: [Color(0xFFFFF8E8), DauVietColors.paperCardHi],
+                ),
+                borderRadius: BorderRadius.circular(16),
+                border: Border.all(color: DauVietColors.imperialGold),
+              ),
+              alignment: Alignment.center,
+              child: HeritageArtifactModelView(
+                code: d.canonicalCode,
+                title: d.title,
+                category: d.dossierType,
+                size: 148,
+                showPedestal: true,
+                interactiveInspector: !locked,
+                description: d.description ?? d.summary,
+              ),
             ),
+          if (!locked && d.dossierType == 'ARTIFACT') ...[
+            const SizedBox(height: 12),
+            ParchmentCard(
+              padding: const EdgeInsets.all(12),
+              borderColor: DauVietColors.imperialGold,
+              onTap: () => showHeritageModelInspectorDialog(
+                context,
+                kind: resolveHeritageModelKind(
+                  code: d.canonicalCode,
+                  title: d.title,
+                  category: d.dossierType,
+                ),
+                title: d.title,
+                description: d.description ?? d.summary,
+              ),
+              child: Row(
+                children: [
+                  HeritageArtifactModelView(
+                    code: d.canonicalCode,
+                    title: d.title,
+                    category: d.dossierType,
+                    size: 56,
+                    showPedestal: true,
+                  ),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          'MÔ HÌNH HIỆN VẬT 2.5D',
+                          style: DauVietTypography.labelSmall.copyWith(
+                            color: DauVietColors.cinnabarRed,
+                            fontWeight: FontWeight.w800,
+                          ),
+                        ),
+                        const SizedBox(height: 2),
+                        Text(
+                          'Chạm để phóng to và khám phá cấu tạo chi tiết của hiện vật',
+                          style: DauVietTypography.bodySmall.copyWith(
+                            color: DauVietColors.inkSecondary,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                  const Icon(
+                    Icons.view_in_ar_rounded,
+                    color: DauVietColors.cinnabarRed,
+                  ),
+                ],
+              ),
+            ),
+          ],
           const SizedBox(height: 16),
           _typeBadge(d.dossierType),
           const SizedBox(height: 10),
@@ -117,9 +233,13 @@ class DossierDetailScreen extends ConsumerWidget {
   }
 
   Widget _lockedBanner() {
-    return ParchmentCard(
+    return TactileCard(
+      usePixelShadow: false,
+      backgroundColor: const Color(0xFFFAF3E4),
+      borderColor: const Color(0xFFE3D2B4),
+      borderWidth: 1.1,
+      borderRadius: 16,
       padding: const EdgeInsets.all(14),
-      borderColor: DauVietColors.outlineVariant,
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
@@ -144,14 +264,33 @@ class DossierDetailScreen extends ConsumerWidget {
     );
   }
 
+  Color _typeAccentColor(String type) => switch (type) {
+    'PERSON' => DauVietColors.heritageGreenLight,
+    'LOCATION' => DauVietColors.jadeDark,
+    'ARTIFACT' => DauVietColors.imperialGoldDark,
+    'CONTEXT' => DauVietColors.cinnabarRed,
+    _ => DauVietColors.jadeDark,
+  };
+
+  Color _typeBgColor(String type) => switch (type) {
+    'PERSON' => DauVietColors.heritageGreenSurface,
+    'LOCATION' => const Color(0xFFDCEFED),
+    'ARTIFACT' => const Color(0xFFFFF3D6),
+    'CONTEXT' => const Color(0xFFFDE3DD),
+    _ => const Color(0xFFDCEFED),
+  };
+
   Widget _typeBadge(String type) {
+    final accent = _typeAccentColor(type);
+    final bg = _typeBgColor(type);
     return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 4),
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
       decoration: BoxDecoration(
-        color: DauVietColors.cinnabarRed.withValues(alpha: 0.1),
+        color: bg,
         borderRadius: BorderRadius.circular(7),
         border: Border.all(
-          color: DauVietColors.cinnabarRed.withValues(alpha: 0.4),
+          color: accent.withValues(alpha: 0.42),
+          width: 1.0,
         ),
       ),
       child: Text(
@@ -159,7 +298,7 @@ class DossierDetailScreen extends ConsumerWidget {
         style: DauVietTypography.labelSmall.copyWith(
           fontSize: 10,
           fontWeight: FontWeight.w800,
-          color: DauVietColors.cinnabarRed,
+          color: accent,
           letterSpacing: 0.6,
         ),
       ),
@@ -167,7 +306,12 @@ class DossierDetailScreen extends ConsumerWidget {
   }
 
   Widget _metaSection(DossierDetailDto d) {
-    return ParchmentCard(
+    return TactileCard(
+      usePixelShadow: false,
+      backgroundColor: const Color(0xFFFAF3E4),
+      borderColor: const Color(0xFFE3D2B4),
+      borderWidth: 1.1,
+      borderRadius: 16,
       padding: const EdgeInsets.all(14),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -224,9 +368,13 @@ class DossierDetailScreen extends ConsumerWidget {
   }
 
   Widget _sourceCard(DossierSourceDto s) {
-    return ParchmentCard(
+    return TactileCard(
+      usePixelShadow: false,
+      backgroundColor: const Color(0xFFFAF3E4),
+      borderColor: const Color(0xFFDEC69A),
+      borderWidth: 1.1,
+      borderRadius: 16,
       padding: const EdgeInsets.all(14),
-      borderColor: DauVietColors.imperialGold,
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [

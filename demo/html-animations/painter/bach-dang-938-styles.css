@@ -1,214 +1,801 @@
-/* Bạch Đằng 938 — overlay UI trên canvas */
+/* ==========================================================================
+   Dấu Việt — Sa bàn Tương tác & Hoạt họa Lịch sử (Mobile + Desktop Responsive)
+   Tương thích hoàn hảo:
+     - Mobile Portrait (360x800, 390x844)
+     - Mobile Embedded 16:9 WebView trong LessonPlayerScreen (360x202, 412x232)
+     - Tablet & Desktop (1280x840)
+   ========================================================================== */
+:root {
+  --river-ink: #3c2f22;
+  --river-ink-muted: #6e5c47;
+  --river-red: #983b28;
+  --river-red-bright: #c9462c;
+  --river-gold: #d8a23b;
+  --river-gold-light: #f6e3b4;
+  --river-jade: #285952;
+  --river-jade-light: #5c8b83;
+  --river-border: #cbb78d;
+  --river-surface: #fdf8ee;
+  --river-card: #f7f0df;
+}
+
+*, *::before, *::after {
+  box-sizing: border-box;
+  -webkit-tap-highlight-color: transparent;
+}
+
 html, body {
   margin: 0;
   padding: 0;
+  width: 100%;
   height: 100%;
   overflow: hidden;
   user-select: none;
   -webkit-user-select: none;
+  background: var(--river-surface);
+  color: var(--river-ink);
+  font-family: "Segoe UI", -apple-system, BlinkMacSystemFont, Roboto, "Helvetica Neue", Arial, sans-serif;
 }
-body {
-  background: #060a0e;
-  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
-  color: #f7ecd5;
-}
+
 #dv-root {
   position: fixed;
   inset: 0;
-  overflow: hidden;
-  background: #060a0e;
-}
-#dv-stage {
-  position: absolute;
-  inset: 0;
-  display: block;
-  cursor: pointer;
-}
-
-/* ---------- Chữ & Khung tiêu đề (HUD trên) ---------- */
-.dv-hud {
-  position: absolute;
-  left: 0;
-  right: 0;
-  top: 0;
-  padding: 18px 26px 0;
-  pointer-events: none;
   display: flex;
   flex-direction: column;
-  gap: 4px;
-  text-shadow: 0 2px 14px rgba(0, 0, 0, 0.95);
-  z-index: 10;
+  background: radial-gradient(circle at 50% 0%, #fffdf7 0%, #f6edda 100%);
+  padding: 12px 16px;
+  gap: 10px;
+  overflow-y: auto;
+  overflow-x: hidden;
 }
+
+/* ---------- 1. Header Bar ---------- */
+.tide-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  flex-wrap: wrap;
+  flex-shrink: 0;
+}
+
+.tide-header__left {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+  flex: 1 1 260px;
+}
+
+.tide-eyebrow-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
 #dv-scene {
-  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
-  font-size: 11px;
-  letter-spacing: 0.24em;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 10.5px;
+  font-weight: 800;
+  letter-spacing: 0.12em;
   text-transform: uppercase;
-  color: #f0be52;
+  color: var(--river-red);
+  background: #f3e3c6;
+  border: 1px solid #d7bc8e;
+  padding: 3px 9px;
+  border-radius: 999px;
+}
+
+#dv-scene::before {
+  content: "";
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--river-red);
+  box-shadow: 0 0 6px var(--river-red);
+}
+
+.tide-brand-tag {
+  font-size: 10.5px;
   font-weight: 700;
+  letter-spacing: 0.12em;
+  color: var(--river-jade);
+  text-transform: uppercase;
+}
+
+#dv-title {
+  font-size: clamp(16px, 2vw, 22px);
+  font-weight: 800;
+  color: #4f2d1e;
+  line-height: 1.22;
+  margin: 0;
+}
+
+#dv-sub {
+  font-size: 12px;
+  color: var(--river-ink-muted);
+  font-weight: 500;
+  line-height: 1.35;
+}
+
+/* ---------- Quick Toggle & Playback Controls ---------- */
+.tide-header__actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.tide-quick-group {
+  display: inline-flex;
+  background: #efe4ce;
+  padding: 3px;
+  border-radius: 9px;
+  border: 1px solid var(--river-border);
+  gap: 3px;
+}
+
+.tide-quick-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 7px 10px;
+  border: 1px solid transparent;
+  border-radius: 6px;
+  background: transparent;
+  color: #5e4833;
+  font-size: 11.5px;
+  font-weight: 700;
+  cursor: pointer;
+  transition: all 0.18s ease;
+  white-space: nowrap;
+}
+
+.tide-quick-btn svg {
+  width: 14px;
+  height: 14px;
+  flex-shrink: 0;
+}
+
+.tide-quick-btn:hover {
+  background: #f9f1e1;
+  color: var(--river-red);
+}
+
+.tide-quick-btn[aria-pressed="true"] {
+  background: var(--river-red);
+  color: #fff8ec;
+  border-color: #7a2919;
+  box-shadow: 0 2px 6px rgba(152, 59, 40, 0.3);
+}
+
+.dv-ctl {
   display: inline-flex;
   align-items: center;
   gap: 6px;
 }
-#dv-scene::before {
-  content: "";
-  display: inline-block;
-  width: 6px;
-  height: 6px;
-  border-radius: 50%;
-  background: #f0be52;
-  box-shadow: 0 0 8px #f0be52;
-}
-#dv-title {
-  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
-  font-size: 28px;
-  line-height: 1.25;
-  font-weight: 800;
-  letter-spacing: 0.01em;
-  color: #fff6e2;
-  text-shadow: 0 2px 14px rgba(0, 0, 0, 0.95), 0 0 25px rgba(240, 190, 82, 0.3);
-}
-#dv-sub {
-  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
-  font-size: 13px;
-  color: rgba(247, 236, 213, 0.92);
-  letter-spacing: 0.02em;
-  font-weight: 500;
-  text-shadow: 0 1px 8px rgba(0, 0, 0, 0.9);
+
+.dv-ctl button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 5px;
+  min-height: 36px;
+  padding: 0 12px;
+  border: 1.5px solid #204943;
+  border-radius: 8px;
+  background: var(--river-jade);
+  color: #fff9ec;
+  font-size: 12px;
+  font-weight: 700;
+  cursor: pointer;
+  transition: all 0.18s ease;
+  box-shadow: 0 3px 8px rgba(40, 89, 82, 0.25);
+  white-space: nowrap;
 }
 
-/* ---------- Khung Caption dưới ---------- */
-.dv-cap-wrap {
-  position: absolute;
-  left: 0;
-  right: 0;
-  bottom: 0;
-  padding: 0 24px calc(18px + env(safe-area-inset-bottom, 0px));
-  pointer-events: none;
+#dv-replay {
+  padding: 0 10px;
+  min-width: 36px;
+  background: #f7eedb;
+  color: #4f3926;
+  border-color: var(--river-border);
+  box-shadow: none;
+}
+
+/* ---------- 2. Main Battle Stage Figure ---------- */
+.tide-battle-scene {
+  position: relative;
+  flex: 1 1 auto;
+  min-height: 240px;
+  margin: 0;
+  border: 1.5px solid #a88f61;
+  border-radius: 12px;
+  overflow: hidden;
+  background: #1a3a3f;
+  box-shadow: 0 8px 24px rgba(55, 42, 24, 0.16);
   display: flex;
   flex-direction: column;
-  gap: 8px;
-  z-index: 10;
 }
-#dv-caption {
-  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
-  font-size: 15px;
-  line-height: 1.5;
-  color: #ffffff;
-  max-width: 740px;
-  font-weight: 500;
-  text-shadow: 0 2px 12px rgba(0, 0, 0, 0.95);
-  background: linear-gradient(90deg, rgba(8, 14, 18, 0.82) 0%, rgba(8, 14, 18, 0.55) 85%, transparent 100%);
-  padding: 8px 16px;
-  border-left: 3.5px solid #f0be52;
-  border-radius: 0 8px 8px 0;
-  backdrop-filter: blur(8px);
-  -webkit-backdrop-filter: blur(8px);
-}
-#dv-note {
-  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
-  font-size: 12px;
-  color: #f3d489;
-  font-style: italic;
-  min-height: 18px;
-  letter-spacing: 0.01em;
-  text-shadow: 0 1px 8px rgba(0, 0, 0, 0.9);
-  padding-left: 4px;
-}
-#dv-track {
-  height: 4px;
-  background: rgba(246, 236, 218, 0.22);
-  border-radius: 3px;
+
+.tide-canvas-wrap {
+  position: relative;
+  flex: 1 1 auto;
+  width: 100%;
+  height: 100%;
+  min-height: 200px;
   overflow: hidden;
+}
+
+#dv-stage {
+  display: block;
+  width: 100%;
+  height: 100%;
+  cursor: pointer;
+  touch-action: manipulation;
+}
+
+/* Status Pill Top-Left inside Stage */
+.tide-scene-status {
+  position: absolute;
+  left: 12px;
+  top: 12px;
+  padding: 7px 12px;
+  max-width: calc(100% - 230px);
+  border: 1px solid rgba(229, 201, 139, 0.6);
+  border-radius: 8px;
+  background: rgba(28, 36, 30, 0.88);
+  backdrop-filter: blur(6px);
+  -webkit-backdrop-filter: blur(6px);
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
+  pointer-events: none;
+  z-index: 5;
+}
+
+.tide-scene-status[data-phase="ambush"] {
+  background: rgba(88, 22, 16, 0.92);
+  border-color: #f7be56;
+}
+
+.tide-scene-status__eyebrow {
+  display: block;
+  font-size: 9px;
+  letter-spacing: 0.14em;
+  color: #ebd094;
+  font-weight: 800;
+  margin-bottom: 2px;
+  text-transform: uppercase;
+}
+
+.tide-scene-status__text {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  color: #fff8ea;
+  font-size: 11.5px;
+  font-weight: 700;
+  line-height: 1.3;
+}
+
+.tide-status-dot {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: #6ee7b7;
+  box-shadow: 0 0 8px #6ee7b7;
+  flex-shrink: 0;
+}
+
+.tide-scene-status[data-phase="ebb"] .tide-status-dot {
+  background: #fbbf24;
+  box-shadow: 0 0 8px #fbbf24;
+}
+
+.tide-scene-status[data-phase="ambush"] .tide-status-dot {
+  background: #ff4d4d;
+  box-shadow: 0 0 10px #ff4d4d;
+}
+
+/* Action Trigger Button on Stage */
+.tide-trap-cta {
+  position: absolute;
+  right: 12px;
+  top: 12px;
+  z-index: 6;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 7px 12px;
+  border-radius: 8px;
+  border: 1.5px solid #ffd276;
+  background: linear-gradient(135deg, #b32b1d, #821910);
+  color: #fff9eb;
+  font-size: 11px;
+  font-weight: 800;
+  cursor: pointer;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.4);
+}
+
+/* Legend Bottom-Right on Stage */
+.tide-scene-legend {
+  position: absolute;
+  right: 12px;
+  bottom: 12px;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  pointer-events: none;
+  z-index: 5;
+}
+
+.tide-legend-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  font-size: 10px;
+  font-weight: 700;
+  color: #fdf6e4;
+  padding: 4px 9px;
+  border-radius: 999px;
+  border: 1px solid rgba(243, 225, 180, 0.5);
   backdrop-filter: blur(4px);
 }
+
+.tide-legend-pill--viet { background: rgba(34, 83, 71, 0.88); }
+.tide-legend-pill--viet::before { content: ""; width: 6px; height: 6px; border-radius: 50%; background: #6ee7b7; }
+.tide-legend-pill--han { background: rgba(108, 49, 31, 0.88); }
+.tide-legend-pill--han::before { content: ""; width: 6px; height: 6px; border-radius: 50%; background: #fca5a5; }
+.tide-legend-pill--stake { background: rgba(74, 55, 35, 0.88); }
+.tide-legend-pill--stake::before { content: ""; width: 6px; height: 6px; border-radius: 50%; background: #fcd34d; }
+
+/* Caption Overlay Bottom-Left on Stage */
+.dv-cap-wrap {
+  position: absolute;
+  left: 12px;
+  bottom: 12px;
+  max-width: min(530px, calc(100% - 410px));
+  background: rgba(20, 28, 25, 0.88);
+  border-left: 3.5px solid var(--river-gold);
+  border-radius: 0 8px 8px 0;
+  padding: 7px 12px;
+  backdrop-filter: blur(6px);
+  -webkit-backdrop-filter: blur(6px);
+  pointer-events: none;
+  z-index: 5;
+}
+
+#dv-caption {
+  font-size: 11.5px;
+  line-height: 1.4;
+  color: #fff9ed;
+  font-weight: 500;
+}
+
+#dv-note {
+  margin-top: 2px;
+  font-size: 10.5px;
+  color: #f5d27b;
+  font-style: italic;
+}
+
+#dv-track {
+  margin-top: 5px;
+  height: 3.5px;
+  background: rgba(255, 255, 255, 0.2);
+  border-radius: 3px;
+  overflow: hidden;
+}
+
 #dv-bar {
   height: 100%;
   width: 0%;
-  background: linear-gradient(90deg, #d48b1c, #f0be52, #ffe7aa);
-  box-shadow: 0 0 10px rgba(240, 190, 82, 0.8);
-  border-radius: 3px;
-  transition: width 0.12s linear;
+  background: linear-gradient(90deg, #d88924, #f7c95c);
+  transition: width 0.1s linear;
 }
 
-/* ---------- Nút Điều khiển ---------- */
-.dv-ctl {
-  position: absolute;
-  right: 22px;
-  bottom: calc(18px + env(safe-area-inset-bottom, 0px));
-  display: flex;
-  gap: 12px;
-  pointer-events: auto;
-  z-index: 20;
+/* ---------- 3. Bottom Interactive Panel ---------- */
+.tide-bottom-deck {
+  display: grid;
+  grid-template-columns: 1.35fr 1fr;
+  gap: 10px;
+  flex-shrink: 0;
 }
-.dv-ctl button {
-  min-width: 46px;
-  min-height: 46px;
-  border: 1.5px solid rgba(240, 190, 82, 0.45);
-  background: rgba(10, 18, 24, 0.7);
-  color: #fff2d8;
-  font-size: 19px;
-  border-radius: 12px;
+
+.tide-story {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 8px;
+}
+
+.tide-story-card {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  text-align: left;
+  padding: 9px 11px;
+  border: 1px solid #d7c39c;
+  background: #f8f2e4;
+  border-radius: 9px;
+  color: #5c422f;
   cursor: pointer;
-  backdrop-filter: blur(8px);
-  -webkit-backdrop-filter: blur(8px);
+  transition: all 0.18s ease;
+}
+
+.tide-story-card[aria-pressed="true"] {
+  border-color: var(--river-red);
+  background: #f1dfbc;
+  box-shadow: inset 3.5px 0 0 var(--river-red), 0 2px 8px rgba(152, 59, 40, 0.12);
+}
+
+.tide-story-card__number {
+  color: var(--river-red);
+  font-size: 10px;
+  font-weight: 800;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+}
+
+.tide-story-card__title {
+  font-size: 11.8px;
+  font-weight: 800;
+  color: #462a1b;
+  line-height: 1.28;
+}
+
+.tide-story-card__desc {
+  margin: 0;
+  color: #6e5a44;
+  font-size: 10.5px;
+  line-height: 1.38;
+}
+
+/* Tide Slider Control Box */
+.tide-control-panel {
+  border: 1px solid var(--river-border);
+  border-radius: 9px;
+  background: linear-gradient(135deg, #faf4e8, #f4ebda);
+  padding: 9px 13px;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  gap: 6px;
+}
+
+.tide-control-panel__heading {
   display: flex;
   align-items: center;
-  justify-content: center;
-  transition: all 0.2s cubic-bezier(0.2, 0.8, 0.2, 1);
-  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.5), inset 0 1px 0 rgba(255, 255, 255, 0.15);
-}
-.dv-ctl button:hover {
-  background: rgba(20, 32, 42, 0.9);
-  border-color: #f0be52;
-  color: #ffffff;
-  transform: translateY(-2px);
-  box-shadow: 0 6px 20px rgba(240, 190, 82, 0.35);
-}
-.dv-ctl button:active {
-  transform: translateY(1px) scale(0.95);
-}
-.dv-ctl button:focus-visible {
-  outline: 2px solid #f0be52;
-  outline-offset: 3px;
+  justify-content: space-between;
+  gap: 8px;
 }
 
-/* ---------- Báo Lỗi ---------- */
+.tide-control-panel__label {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 13px;
+  font-weight: 800;
+  color: #4b3121;
+}
+
+.tide-control-panel__label svg {
+  width: 17px;
+  height: 17px;
+  color: var(--river-jade);
+  flex-shrink: 0;
+}
+
+.tide-control-panel__output {
+  padding: 2px 8px;
+  background: #4b3828;
+  border-radius: 6px;
+  color: #fff3d8;
+  font-size: 11.5px;
+  font-weight: 800;
+  font-variant-numeric: tabular-nums;
+}
+
+.tide-controls__slider {
+  -webkit-appearance: none;
+  appearance: none;
+  width: 100%;
+  height: 22px;
+  margin: 0;
+  border: 1px solid #b9a077;
+  border-radius: 999px;
+  background: linear-gradient(
+    to right,
+    #a24930 0%,
+    #a24930 var(--tide-level, 85%),
+    #5f8c86 var(--tide-level, 85%),
+    #5f8c86 100%
+  );
+  cursor: ew-resize;
+  touch-action: pan-y;
+}
+
+.tide-controls__slider::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  appearance: none;
+  width: 24px;
+  height: 24px;
+  background: #753824;
+  border: 3.5px solid #fff5df;
+  outline: 1px solid #6e442c;
+  border-radius: 50%;
+  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.35);
+}
+
+.tide-control-limits {
+  display: flex;
+  justify-content: space-between;
+  font-size: 9.8px;
+  font-weight: 700;
+  gap: 8px;
+}
+
+.tide-control-limits span:first-child { color: var(--river-red); }
+.tide-control-limits span:last-child { color: var(--river-jade); text-align: right; }
+
 #dv-error {
   position: absolute;
   inset: 0;
   display: none;
   align-items: center;
   justify-content: center;
-  background: rgba(8, 14, 18, 0.94);
-  color: #ff9b85;
-  font-size: 16px;
-  padding: 30px;
+  background: rgba(20, 14, 12, 0.94);
+  color: #ffb4a2;
+  font-size: 14px;
+  padding: 20px;
   text-align: center;
   z-index: 100;
 }
 
-/* ---------- Chế độ màn hình dọc (Portrait) ---------- */
-.dv-portrait #dv-title {
-  font-size: 23px;
+
+/* ==========================================================================
+   MOBILE PORTRAIT & SMALL SCREEN OPTIMIZATION (<= 768px)
+   Đảm bảo 100% khung cảnh 12:7 hiển thị trọn vẹn, không bị hộp chữ đè lên nhau!
+   ========================================================================== */
+@media (max-width: 768px) {
+  #dv-root {
+    padding: 8px 10px 14px;
+    gap: 7px;
+  }
+
+  .tide-header {
+    gap: 6px;
+  }
+
+  #dv-scene {
+    font-size: 9.5px;
+    padding: 2px 8px;
+  }
+
+  .tide-brand-tag {
+    font-size: 9.5px;
+  }
+
+  #dv-title {
+    font-size: 16px;
+    line-height: 1.22;
+  }
+
+  #dv-sub {
+    font-size: 11px;
+    line-height: 1.32;
+  }
+
+  .tide-header__actions {
+    width: 100%;
+    flex-direction: column;
+    align-items: stretch;
+    gap: 6px;
+  }
+
+  .tide-quick-group {
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    width: 100%;
+    gap: 3px;
+  }
+
+  .tide-quick-btn {
+    padding: 6px 4px;
+    font-size: 10.5px;
+    line-height: 1.2;
+    white-space: normal;
+    text-align: center;
+    justify-content: center;
+  }
+
+  .tide-quick-btn svg {
+    display: none;
+  }
+
+  .dv-ctl {
+    width: 100%;
+    display: flex;
+    gap: 6px;
+  }
+
+  #dv-play {
+    flex: 1 1 auto;
+    min-height: 34px;
+    font-size: 11.5px;
+  }
+
+  #dv-replay {
+    min-height: 34px;
+  }
+
+  /* Trên mobile: giữ tỷ lệ 12:7 chuẩn cho phần canvas, ẩn status box trùng lặp, đặt nút kích nổ gọn ở góc dưới phải canvas */
+  .tide-battle-scene {
+    flex: 0 0 auto;
+    min-height: 0;
+  }
+
+  .tide-canvas-wrap {
+    aspect-ratio: 12 / 7;
+    width: 100%;
+    height: auto;
+    min-height: 195px;
+  }
+
+  .tide-scene-status {
+    display: none;
+  }
+
+  .tide-trap-cta {
+    top: auto;
+    bottom: 8px;
+    right: 8px;
+    padding: 5px 10px;
+    font-size: 10px;
+    border-radius: 999px;
+  }
+
+  .dv-cap-wrap {
+    position: static;
+    max-width: 100%;
+    border-radius: 0;
+    border-left: 0;
+    border-top: 2px solid var(--river-gold);
+    background: #1f2b27;
+    padding: 7px 10px;
+  }
+
+  #dv-caption {
+    font-size: 11px;
+    line-height: 1.38;
+  }
+
+  #dv-note {
+    font-size: 10px;
+  }
+
+  .tide-scene-legend {
+    position: static;
+    background: #182320;
+    padding: 5px 8px;
+    justify-content: center;
+    border-top: 1px solid rgba(255, 255, 255, 0.1);
+  }
+
+  .tide-legend-pill {
+    font-size: 9.2px;
+    padding: 3px 7px;
+  }
+
+  .tide-bottom-deck {
+    grid-template-columns: 1fr;
+    gap: 7px;
+  }
+
+  .tide-control-panel {
+    order: -1;
+    padding: 8px 11px;
+  }
+
+  .tide-control-panel__label {
+    font-size: 12px;
+  }
+
+  .tide-story {
+    grid-template-columns: 1fr;
+    gap: 6px;
+  }
+
+  .tide-story-card {
+    padding: 8px 10px;
+  }
 }
-.dv-portrait #dv-caption {
-  font-size: 13.5px;
-  line-height: 1.45;
-  padding: 6px 12px;
-}
-.dv-portrait .dv-hud {
-  padding: 14px 16px 0;
-}
-.dv-portrait .dv-cap-wrap {
-  padding: 0 16px calc(14px + env(safe-area-inset-bottom, 0px));
-}
-.dv-portrait .dv-ctl {
-  right: 16px;
-  bottom: calc(14px + env(safe-area-inset-bottom, 0px));
-}
-.dv-portrait .dv-ctl button {
-  min-width: 42px;
-  min-height: 42px;
-  font-size: 17px;
+
+/* ==========================================================================
+   EMBEDDED MOBILE 16:9 WEBVIEW MODE (max-height: 430px, ví dụ 360x202 trong App)
+   Hiển thị tràn khung 16:9 với thanh điều khiển nổi gọn gàng!
+   ========================================================================== */
+@media (max-height: 430px) {
+  #dv-root {
+    padding: 0;
+    gap: 0;
+    overflow: hidden;
+  }
+
+  .tide-header,
+  .dv-cap-wrap,
+  .tide-scene-legend,
+  .tide-story {
+    display: none !important;
+  }
+
+  .tide-battle-scene {
+    border: 0;
+    border-radius: 0;
+    width: 100%;
+    height: 100%;
+    min-height: 0;
+  }
+
+  .tide-canvas-wrap {
+    width: 100%;
+    height: 100%;
+    min-height: 0;
+    max-height: none;
+    aspect-ratio: auto;
+  }
+
+  .tide-scene-status {
+    left: 8px;
+    top: 8px;
+    padding: 4px 8px;
+  }
+
+  .tide-trap-cta {
+    right: 8px;
+    top: 8px;
+    padding: 5px 9px;
+    font-size: 10px;
+  }
+
+  .tide-bottom-deck {
+    position: absolute;
+    left: 8px;
+    right: 8px;
+    bottom: 6px;
+    z-index: 10;
+    display: block;
+  }
+
+  .tide-control-panel {
+    padding: 4px 10px;
+    background: rgba(28, 36, 32, 0.86);
+    border-color: rgba(229, 201, 139, 0.55);
+    backdrop-filter: blur(6px);
+    gap: 2px;
+  }
+
+  .tide-control-panel__label {
+    color: #fff6e0;
+    font-size: 10.5px;
+  }
+
+  .tide-control-panel__output {
+    font-size: 10px;
+    padding: 1px 6px;
+  }
+
+  .tide-controls__slider {
+    height: 14px;
+  }
+
+  .tide-controls__slider::-webkit-slider-thumb {
+    width: 18px;
+    height: 18px;
+  }
+
+  .tide-control-limits {
+    display: none;
+  }
 }
