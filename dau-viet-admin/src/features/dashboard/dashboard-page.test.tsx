@@ -24,7 +24,7 @@ function renderPage() {
 }
 
 describe("DashboardPage (A-02)", () => {
-  it("renders welcome, ping status and quick nav", async () => {
+  it("renders welcome, 4-step onboarding workflow, ping status and quick nav", async () => {
     authStore.setAccessToken("test-access-token", 900);
     renderPage();
     await waitFor(() =>
@@ -33,10 +33,14 @@ describe("DashboardPage (A-02)", () => {
     await waitFor(() =>
       expect(screen.getByText("Máy chủ: Hoạt động")).toBeInTheDocument(),
     );
+    expect(screen.getByText("Quy trình Biên tập Nội dung 4 Bước")).toBeInTheDocument();
+    expect(screen.getByText(/Bước 1: Tạo Sự kiện & Địa điểm lịch sử/)).toBeInTheDocument();
+    expect(screen.getByText(/Bước 2: Chuẩn bị Tư liệu, Bằng chứng & Hồ sơ/)).toBeInTheDocument();
+    expect(screen.getByText(/Bước 3: Soạn Bài học & Gắn phần thưởng mở khóa/)).toBeInTheDocument();
+    expect(screen.getByText(/Bước 4: Đưa vào Bản đồ Dấu Ấn & Xuất bản/)).toBeInTheDocument();
     expect(screen.getByText("Truy cập nhanh")).toBeInTheDocument();
     expect(screen.getByText("Bài học gần đây")).toBeInTheDocument();
   });
-
   it("shows backend error + traceId when ping fails", async () => {
     authStore.setAccessToken("test-access-token", 900);
     server.use(

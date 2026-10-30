@@ -286,13 +286,12 @@ export function ItemDetail({ itemId }: { itemId: string }) {
         </CardContent>
       </Card>
 
-      <Card>
+      <Card id="unlock-rule" className="scroll-mt-20">
         <CardHeader>
           <CardTitle>Điều kiện mở khóa</CardTitle>
           <CardDescription>
-            Server đánh giá lúc hoàn thành bài học và sau khi sưu tầm bằng chứng.
-            Vật phẩm đã cấp không bị thu hồi khi đổi điều kiện — lưu mới tạo
-            revision mới trong lịch sử.
+            Gắn vật phẩm này vào phần thưởng khi học viên hoàn thành Bài học, hoàn thành Sự kiện hoặc sưu tầm đủ Bằng chứng.
+            Vật phẩm đã cấp không bị thu hồi khi đổi điều kiện — mỗi lần lưu tạo một phiên bản lịch sử mới.
           </CardDescription>
         </CardHeader>
         <CardContent className="flex flex-col gap-4">

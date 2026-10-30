@@ -265,7 +265,7 @@ export function IslandShopManager() {
             <div className="overflow-x-auto">
               <table className="w-full border-collapse text-left text-sm">
                 <thead>
-                  <tr className="border-b-2 border-heading bg-surface-alt font-pixel text-[10px] uppercase tracking-wider text-ink-muted">
+                  <tr className="border-b-2 border-heading bg-surface-alt font-sans text-xs font-bold uppercase tracking-wider text-ink-secondary">
                     <th className="py-3 pr-3">Thứ tự</th>
                     <th className="px-3 py-3">Artwork / Render Key</th>
                     <th className="px-3 py-3">Vật phẩm</th>

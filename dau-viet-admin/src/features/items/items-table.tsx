@@ -70,37 +70,56 @@ export function ItemsTable() {
     {
       key: "name",
       header: "Vật phẩm",
+      headerTooltip: "Tên hiển thị của vật phẩm thưởng trong Kho Sưu tập và Đảo Di Sản của học viên.",
       cell: (r) => (
-        <Link
-          href={`/items/${r.id}`}
-          className="font-medium text-brand hover:underline"
-        >
-          {r.name}
-        </Link>
+        <div className="flex flex-col gap-0.5">
+          <Link
+            href={`/items/${r.id}`}
+            className="font-medium text-brand hover:underline"
+          >
+            {r.name}
+          </Link>
+          {r.description && (
+            <span className="max-w-xs truncate text-xs text-ink-muted">
+              {r.description}
+            </span>
+          )}
+        </div>
       ),
     },
     {
       key: "code",
       header: "Mã",
+      headerTooltip: "Mã định danh kỹ thuật duy nhất (không đổi sau khi tạo).",
       cell: (r) => <ClueTag label={r.code} color="jade" className="font-mono" />,
     },
     {
       key: "itemType",
       header: "Loại",
+      headerTooltip: "Phân loại vật phẩm: Trang trí Đảo Di Sản (DECOR), Mô hình, Phiên bản số hoặc Huy hiệu.",
       cell: (r) => <ClueTag label={TYPE_LABELS[r.itemType] ?? r.itemType} color="gold" />,
     },
     {
       key: "placeable",
       header: "Đặt lên đảo",
+      headerTooltip: "Bật cho vật phẩm DECOR / Mô hình để học viên có thể đặt lên ô đất trên Đảo Di Sản 2.5D hoặc mua trong Cửa hàng.",
       cell: (r) => (
-        <div className="flex flex-col gap-0.5">
+        <div className="flex flex-col gap-1">
           {r.placeable ? (
-            <ClueTag label="Có thể đặt" color="brand" className="w-fit" />
+            <>
+              <ClueTag label="Có thể đặt" color="brand" className="w-fit" />
+              {r.renderKey && (
+                <code className="font-mono text-[11px] text-ink-muted">{r.renderKey}</code>
+              )}
+              <Link
+                href="/island-shop"
+                className="text-[11px] font-medium text-jade-dark hover:underline"
+              >
+                Cấu hình bán tại Shop →
+              </Link>
+            </>
           ) : (
-            <span className="text-xs text-ink-muted">Không</span>
-          )}
-          {r.renderKey && (
-            <code className="text-[11px] text-ink-muted">{r.renderKey}</code>
+            <span className="text-xs text-ink-muted">Không đặt lên đảo</span>
           )}
         </div>
       ),
@@ -108,19 +127,37 @@ export function ItemsTable() {
     {
       key: "rule",
       header: "Điều kiện mở khóa",
+      headerTooltip: "Quy tắc tự động trao thưởng khi học viên hoàn thành bài học, sự kiện hoặc sưu tầm đủ bằng chứng.",
       cell: (r) =>
         r.rule ? (
-          <span className="text-ink-muted">
-            {RULE_LABELS[r.rule.ruleType] ?? r.rule.ruleType}
-            {r.rule.threshold != null ? ` (≥ ${r.rule.threshold})` : ""}
-          </span>
+          <div className="flex flex-col gap-0.5">
+            <span className="text-xs font-medium text-ink">
+              {RULE_LABELS[r.rule.ruleType] ?? r.rule.ruleType}
+              {r.rule.threshold != null ? ` (≥ ${r.rule.threshold})` : ""}
+            </span>
+            <Link
+              href={`/items/${r.id}#unlock-rule`}
+              className="text-[11px] font-medium text-brand hover:underline"
+            >
+              Sửa điều kiện mở khóa →
+            </Link>
+          </div>
         ) : (
-          <span className="text-ink-muted">Chưa cấu hình</span>
+          <div className="flex flex-col gap-1">
+            <span className="text-xs text-ink-muted">Chưa cấu hình</span>
+            <Link
+              href={`/items/${r.id}#unlock-rule`}
+              className="inline-flex w-fit items-center rounded border border-brand/30 bg-brand/10 px-2 py-0.5 text-[11px] font-semibold text-brand transition-colors hover:bg-brand hover:text-surface-alt"
+            >
+              + Gắn vào bài học / sự kiện →
+            </Link>
+          </div>
         ),
     },
     {
       key: "active",
       header: "Trạng thái",
+      headerTooltip: "Đang bật = hiển thị trong danh mục của học viên; Đã ẩn = tạm ngừng hiển thị.",
       cell: (r) => (
         <ClueTag
           label={r.active ? "Đang bật" : "Đã ẩn"}

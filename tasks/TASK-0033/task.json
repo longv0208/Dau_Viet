@@ -1,69 +1,65 @@
 {
   "schemaVersion": 1,
   "id": "TASK-0033",
-  "type": "bugfix",
-  "risk": "high",
-  "status": "implemented",
+  "type": "feature",
+  "risk": "normal",
+  "status": "done",
+  "goal": "[ADMIN][UI/UX] Issue #44 — Cải tổ Giao diện & Luồng Quản trị Web Admin: Sửa lỗi font chữ tiếng Việt, thu gọn Sidebar và bổ sung Hướng dẫn từng bước cho người mới.",
   "owner": "claude",
-  "modules": [
-    "mobile",
-    "backend"
-  ],
+  "modules": ["admin"],
   "scope": [
-    "dau-viet-mobile/lib/features/auth/data/google_sign_in_provider.dart",
-    "dau-viet-mobile/lib/features/auth/data/auth_api_client.dart",
-    "dau-viet-mobile/lib/features/auth/data/auth_repository.dart",
-    "dau-viet-mobile/lib/features/auth/presentation/auth_screen.dart",
-    "dau-viet-mobile/lib/features/learning/data/learning_providers.dart",
-    "dau-viet-mobile/lib/features/energy/data/energy_providers.dart",
-    "dau-viet-mobile/lib/features/streak/data/streak_providers.dart",
-    "dau-viet-mobile/lib/features/rewards/data/reward_providers.dart",
-    "dau-viet-mobile/lib/features/profile/presentation/profile_screen.dart",
-    "dau-viet-mobile/web/index.html",
-    "dau-viet-mobile/test/",
-    "dau-viet-backend/src/main/java/com/dauviet/auth/",
-    "dau-viet-backend/src/test/java/com/dauviet/auth/",
-    "dau-viet-backend/src/main/resources/application-local.yml",
-    "docs/backend-runbook.md",
-    "tasks/TASK-0033/"
+    "dau-viet-admin/src/app/layout.tsx",
+    "dau-viet-admin/src/app/globals.css",
+    "dau-viet-admin/tailwind.config.ts",
+    "dau-viet-admin/src/components/",
+    "dau-viet-admin/src/features/",
+    "dau-viet-admin/src/app/(admin)/",
+    "tasks/TASK-0033/",
+    "plans/261030-issue-44-admin-web-ux-overhaul/"
   ],
   "acceptanceCriteria": [
     {
       "id": "AC-1",
-      "text": "Không truyền serverClientId trên kIsWeb; hỗ trợ cả idToken và accessToken để đăng nhập Google hoạt động trên cả Flutter Web lẫn Android/iOS."
+      "text": "Sửa triệt để lỗi font chữ: Không còn bất kỳ tiêu đề bảng, nhãn eyebrow, con dấu hay badge tiếng Việt nào bị lỗi nhảy font/lệch dấu do Press_Start_2P; toàn bộ chữ tiếng Việt hiển thị đồng nhất, sắc nét bằng Be Vietnam Pro / Noto Serif."
     },
     {
       "id": "AC-2",
-      "text": "POST /api/v1/auth/google xác thực hợp lệ cho cả Google idToken và OAuth2 accessToken (email_verified=true), tự tạo/liên kết tài khoản LEARNER và trả TokenResponse."
+      "text": "Thu gọn Sidebar: Sidebar được gom nhóm hợp lý, rút gọn số lượng mục cấp 1 (gộp các trang con liên quan vào tab/workspace), có mô tả hoặc phân nhóm trực quan giúp nhận diện ngay chức năng chính."
     },
     {
       "id": "AC-3",
-      "text": "Màn /auth chưa đăng nhập không còn spam 401 từ /me/energy, /me/streak, /me/rewards/summary và không còn 404 dv_avatar_scholar.png."
+      "text": "Hướng dẫn cho người mới trên Dashboard: Trang /dashboard có khu vực hướng dẫn quy trình biên tập từng bước (từ tạo Sự kiện -> Học liệu -> Bài học -> Phần thưởng -> Xuất bản) giúp người mới biết bắt đầu từ đâu."
     },
     {
       "id": "AC-4",
-      "text": "Tests cho nhánh idToken và accessToken trên backend + unit/widget test mobile."
+      "text": "Chú thích & Chỉ dẫn ngữ cảnh: Các trang quản lý chính (Sự kiện, Bài học, Bản đồ Dấu Ấn, Vật phẩm thưởng, Đảo Di Sản...) đều có chú thích rõ vai trò của màn hình, giải thích các cột/trường trạng thái (như Điều kiện mở khóa, Đặt lên đảo) và có liên kết điều hướng trực tiếp tới bước cấu hình liên quan."
+    },
+    {
+      "id": "AC-5",
+      "text": "Kiểm chứng giao diện & Tests: Kiểm tra trực quan trên trình duyệt ở các màn hình chính của dau-viet-admin đảm bảo typography, sidebar mới và các khung chỉ dẫn hiển thị đẹp, không vỡ bố cục, và pass toàn bộ test suite."
     }
   ],
   "acceptanceStatus": {
-    "AC-1": "done — kIsWeb branch: GoogleSignIn(clientId: GOOGLE_WEB_CLIENT_ID||GOOGLE_CLIENT_ID), KHÔNG serverClientId; mobile giữ serverClientId. signIn() trả (idToken, accessToken); api_client/repo/session/screen forward cả hai; meta google-signin-client_id trong web/index.html.",
-    "AC-2": "done — GoogleLoginRequest(idToken?, accessToken?) @AssertTrue hasCredential; GoogleTokenVerifier.verify(idToken, accessToken); accessToken → POST oauth2.googleapis.com/tokeninfo, kiểm aud∈GOOGLE_CLIENT_IDS + email_verified=true; application-local.yml + runbook docs.",
-    "AC-3": "done — energy/streak/rewardSummary/catalog/inventory/transactions providers trả placeholder rỗng khi real-mode + unauthenticated/guest (không fetch repo); profile_screen bỏ asset thiếu dv_avatar_scholar.png → StampSealBadge.",
-    "AC-4": "done — backend: GoogleAccessTokenVerifierTest 7 tests (valid tokeninfo, aud sai, email unverified/missing, non-200, unreachable, no-credential) + GoogleAuthServiceTest accessToken-login test; mobile: auth_repository_test accessToken forwarding + energy_provider_test unauthenticated-guard."
+    "AC-1": "done — gỡ Press_Start_2P khỏi layout.tsx, cấu hình Be_Vietnam_Pro (--font-sans), Noto_Serif (--font-display), JetBrains_Mono (--font-mono, subsets vietnamese/latin); cập nhật DataTable, SectionEyebrow, StampSeal, ChapterBadge, IslandShopManager, AdminPingCard, EventOverviewTab, PathVersions",
+    "AC-2": "done — tái cấu trúc admin-shell.tsx thành Tree Sidebar 3 nhóm với Sự kiện (/events) chứa 7 nhánh con trực thuộc (Bài học, Mẫu bài học, Bằng chứng, Hoạt họa lịch sử, Hồ sơ lịch sử, Địa điểm di tích, Phiên bản) và Đảo Di Sản (/island-builder) chứa nhánh con Cửa hàng Đảo Di Sản (/island-shop); bổ sung WorkspaceHubTabs và breadcrumbs tiếng Việt đầy đủ",
+    "AC-3": "done — bổ sung OnboardingWorkflowCard (Sơ đồ Quy trình Biên tập 4 Bước cho người mới) trên /dashboard và Checklist 4 bước trong EventOverviewTab",
+    "AC-4": "done — tích hợp PageGuideBanner (đóng/mở lưu localStorage) trên 14 trang quản trị chính; bổ sung headerTooltip trên DataTable (EventsTable, ItemsTable) và liên kết trực tiếp + Gắn vào bài học / sự kiện → (/items/[id]#unlock-rule) cùng Cấu hình bán tại Shop → (/island-shop)",
+    "AC-5": "done — npx vitest run: 51/51 files pass (300/300 tests); npx tsc --noEmit: 0 lỗi mới trên toàn bộ file sửa/tạo mới; git diff --check: sạch; independent code-reviewer pass (đã fix P2 toggle nhánh con khi đang ở route con)"
   },
-  "dependencies": [],
+  "dependencies": ["TASK-0031"],
+  "planPath": "plans/261030-issue-44-admin-web-ux-overhaul/plan.md",
   "evidenceRefs": [
-    "mvnw test -Dtest=GoogleAuthServiceTest,GoogleAccessTokenVerifierTest,AuthServiceTest → 30/30 pass, BUILD SUCCESS",
-    "flutter test (toàn bộ) → 522/522 pass",
-    "flutter analyze → 9 issues, tất cả pre-existing trong island/* (không có issue mới)",
-    "git diff --check clean; generated plugin files (linux/macos/windows) đã revert"
+    "plans/261030-issue-44-admin-web-ux-overhaul/plan.md",
+    "npx vitest run -> 51/51 test files passed, 300/300 tests passed",
+    "npx tsc --noEmit -> 0 errors in modified/added files (only 12 pre-existing errors in map-location.ts and island-builder/*)",
+    "git diff --check -> clean (0 whitespace/formatting errors)",
+    "Independent code review (Issue44CodeReviewer) -> 0 blockers, P2 branch toggle fixed and covered by test"
   ],
   "notes": [
-    "Issue: https://github.com/longv0208/Dau_Viet/issues/41",
-    "Root cause: google_sign_in_web không hỗ trợ serverClientId (AssertionError); web signIn() trả accessToken không idToken; backend /auth/google chỉ nhận idToken; /me/* providers fetch khi unauthenticated; dv_avatar_scholar.png không tồn tại trong assets/images/.",
-    "Access token verify: Google oauth2/v3/tokeninfo → kiểm aud ∈ GOOGLE_CLIENT_IDS + email_verified=true → map về VerifiedGoogleUser(sub,email,name).",
-    "Để chạy thật trên web: cần Web OAuth client id trong GOOGLE_CLIENT_IDS (backend) + --dart-define=GOOGLE_WEB_CLIENT_ID hoặc meta content trong web/index.html (mobile)."
+    "Branch feat/issue-44-admin-web-ux-overhaul đang active.",
+    "Chỉ thay đổi trên dau-viet-admin và docs, giữ nguyên toàn bộ API contract và URL routes hiện có.",
+    "GitNexus MCP tool không có sẵn trong runtime session này — đã thực hiện targeted grep/read toàn bộ references của font-pixel, NAV_ITEMS, DataTable, PageHeader."
   ],
-  "nextAction": "User cấu hình Web OAuth client id (GCP console) vào GOOGLE_CLIENT_IDS + GOOGLE_WEB_CLIENT_ID/meta rồi kiểm chứng luồng đăng nhập Google thật trên localhost:4300. Chờ ủy quyền commit.",
-  "handoff": "tasks/TASK-0033/brief.md"
+  "nextAction": "Chờ người dùng review và ủy quyền commit/push trên nhánh feat/issue-44-admin-web-ux-overhaul.",
+  "handoff": "tasks/TASK-0033/handoff.md"
 }

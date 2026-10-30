@@ -109,6 +109,7 @@ Phân biệt **mục tiêu MVP** ở trên với **đã implement trong source**
 | — | **EXP/reward thật** (FR-34): `reward_transactions` chỉ là schema, `complete()` chưa grant |
 | — | **Heritage Island / Shop / Energy** (design M-22–M-28): UI demo hard-coded, chưa có catalog/ownership/placement backend |
 | **UI/UX Design System v3** (Issue #40): đại tu mobile + admin theo Landing Page (giấy dó `#F8F0E0`, mực nho `#30251F`, chu sa `#B93430`, vàng ngự `#E0AE45`, jade `#247D78`, pixel shadow `4px 4px 0 #402C29`, Noto Serif + Be Vietnam Pro + Press Start 2P); 12 atoms mới mobile + 8 atoms admin; Lesson Player → "Sổ tay Thám tử Lịch sử" (StepProgressBar 6 chặng, clue cards, sa bàn, C-E-R board); 11 renderer thiết kế lại | — |
+| **Cải tổ Giao diện & Luồng Quản trị Web Admin** (Issue #44, TASK-0033): gỡ `Press_Start_2P` khỏi chữ tiếng Việt, chuẩn hóa `Be Vietnam Pro` + `Noto Serif` + `JetBrains Mono` (`vietnamese`); Tree Sidebar 3 nhóm với `Sự kiện` chứa 7 nhánh con (*Bài học, Mẫu bài học, Bằng chứng, Hoạt họa, Hồ sơ, Địa điểm di tích, Phiên bản*) và `Đảo Di Sản` chứa nhánh con *Cửa hàng*; Sơ đồ Quy trình Biên tập 4 Bước (`OnboardingWorkflowCard`) trên `/dashboard`; `PageGuideBanner` & `WorkspaceHubTabs` trên 14 màn quản trị chính + tooltip/link cấu hình trực tiếp `#unlock-rule` | — |
 
 ## 7. Hoạt động tương tác dự kiến
 

@@ -1,3 +1,4 @@
+import { HelpCircle } from "lucide-react";
 import type { ReactNode } from "react";
 
 import { Skeleton } from "@/components/ui/skeleton";
@@ -8,6 +9,7 @@ import { ErrorState } from "./error-state";
 export interface Column<T> {
   key: string;
   header: string;
+  headerTooltip?: string;
   cell: (row: T) => ReactNode;
 }
 
@@ -47,9 +49,20 @@ export function DataTable<T>({
               <th
                 key={c.key}
                 scope="col"
-                className="px-4 py-3 font-pixel text-[10px] uppercase tracking-wider text-ink-muted"
+                className="px-4 py-3 font-sans text-xs font-bold uppercase tracking-wider text-ink-secondary"
               >
-                {c.header}
+                <span className="inline-flex items-center gap-1.5">
+                  <span>{c.header}</span>
+                  {c.headerTooltip && (
+                    <span
+                      title={c.headerTooltip}
+                      aria-label={c.headerTooltip}
+                      className="inline-flex cursor-help items-center text-ink-muted transition-colors hover:text-brand"
+                    >
+                      <HelpCircle className="size-3.5 shrink-0" aria-hidden />
+                    </span>
+                  )}
+                </span>
               </th>
             ))}
           </tr>

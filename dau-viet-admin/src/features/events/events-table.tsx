@@ -44,9 +44,24 @@ export function EventsTable() {
         </Link>
       ),
     },
-    { key: "era", header: "Thời kỳ", cell: (r) => r.era || <span className="text-ink-muted">—</span> },
-    { key: "startYear", header: "Năm", cell: (r) => r.startYear ?? "—" },
-    { key: "status", header: "Trạng thái", cell: (r) => <StatusChip status={r.status} /> },
+    {
+      key: "era",
+      header: "Thời kỳ",
+      headerTooltip: "Giai đoạn / triều đại lịch sử mà sự kiện thuộc về.",
+      cell: (r) => r.era || <span className="text-ink-muted">—</span>,
+    },
+    {
+      key: "startYear",
+      header: "Năm",
+      headerTooltip: "Năm bắt đầu sự kiện (số âm biểu thị Trước Công Nguyên).",
+      cell: (r) => r.startYear ?? "—",
+    },
+    {
+      key: "status",
+      header: "Trạng thái",
+      headerTooltip: "Chỉ sự kiện Đã xuất bản mới hiển thị cho học viên trên ứng dụng.",
+      cell: (r) => <StatusChip status={r.status} />,
+    },
     {
       key: "tags",
       header: "Tags",
@@ -63,10 +78,13 @@ export function EventsTable() {
     },
     {
       key: "actions",
-      header: "",
+      header: "Không gian biên tập",
       cell: (r) => (
-        <Link href={`/events/${r.id}`} className="text-sm font-medium text-brand hover:underline">
-          Sửa
+        <Link
+          href={`/events/${r.id}`}
+          className="inline-flex items-center rounded-md bg-brand/10 px-2.5 py-1 text-xs font-semibold text-brand transition-colors hover:bg-brand hover:text-surface-alt"
+        >
+          Mở không gian →
         </Link>
       ),
     },

@@ -1,5 +1,5 @@
 import type { Metadata } from "next";
-import { Be_Vietnam_Pro, Noto_Serif, Press_Start_2P } from "next/font/google";
+import { Be_Vietnam_Pro, JetBrains_Mono, Noto_Serif } from "next/font/google";
 import { Toaster } from "sonner";
 
 import { QueryProvider } from "@/components/query-provider";
@@ -18,10 +18,10 @@ const notoSerif = Noto_Serif({
   variable: "--font-display",
 });
 
-const pressStart2P = Press_Start_2P({
-  subsets: ["latin"],
-  weight: ["400"],
-  variable: "--font-pixel",
+const jetbrainsMono = JetBrains_Mono({
+  subsets: ["vietnamese", "latin"],
+  weight: ["400", "500", "600"],
+  variable: "--font-mono",
 });
 
 export const metadata: Metadata = {
@@ -31,7 +31,7 @@ export const metadata: Metadata = {
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
-    <html lang="vi" className={`${beVietnamPro.variable} ${notoSerif.variable} ${pressStart2P.variable}`}>
+    <html lang="vi" className={`${beVietnamPro.variable} ${notoSerif.variable} ${jetbrainsMono.variable}`}>
       <body className="font-sans antialiased">
         <QueryProvider>{children}</QueryProvider>
         <Toaster richColors position="top-right" />
