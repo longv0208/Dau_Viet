@@ -128,6 +128,10 @@ public final class SelectionHandlers {
                             prior.path("selectedCount").asInt(
                                     prior.get("selectedEvidenceIds").size()));
                 }
+                if (prior != null && prior.hasNonNull("selectedVerdicts")) {
+                    out.set("selectedVerdicts",
+                            prior.get("selectedVerdicts").deepCopy());
+                }
                 out.put("correct", lockedCorrect);
                 out.put("score", lockedScore);
                 out.put("budgetExhausted", true);
@@ -170,6 +174,12 @@ public final class SelectionHandlers {
             out.put("falseCount", falseCount);
             out.put("attemptCount", attemptNo);
             if (exhausted) out.put("exhausted", true);
+            if (!selected.isEmpty()) {
+                ObjectNode verdicts = out.putObject("selectedVerdicts");
+                for (String id : selected) {
+                    verdicts.put(id, correctHits.contains(id) ? "correct" : "incorrect");
+                }
+            }
 
             String outcome = right ? ActivityResult.COMPLETED
                     : !correctHits.isEmpty() && !exhausted ? ActivityResult.PARTIAL

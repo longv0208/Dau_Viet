@@ -86,7 +86,7 @@ void main() {
       repo.onGetCurrent = () => _current(_readActivity);
       await _pump(tester, repo);
       expect(find.text('Đọc rồi bấm tiếp.'), findsOneWidget);
-      expect(find.text('0/2'), findsOneWidget);
+      expect(find.text('Bước 0/2'), findsOneWidget);
       expect(find.text('ĐÃ ĐỌC XONG, TIẾP TỤC'), findsOneWidget);
     });
 

@@ -133,6 +133,14 @@ class SelectionHandlersTest {
         assertThat(r.output().get("score").asDouble()).isEqualTo(0.5);
         assertThat(r.output().get("correctCount").asInt()).isEqualTo(1);
         assertThat(r.output().get("falseCount").asInt()).isEqualTo(1);
+        // Per-card verdicts only include submitted ids (e1=correct, e3=incorrect),
+        // never exposing missed accepted ids (e2) or acceptedEvidenceIds key.
+        JsonNode verdicts = r.output().get("selectedVerdicts");
+        assertThat(verdicts).isNotNull();
+        assertThat(verdicts.get("e1").asText()).isEqualTo("correct");
+        assertThat(verdicts.get("e3").asText()).isEqualTo("incorrect");
+        assertThat(verdicts.has("e2")).isFalse();
+        assertThat(r.output().has("acceptedEvidenceIds")).isFalse();
     }
 
     @Test
@@ -433,6 +441,46 @@ class SelectionHandlersTest {
                 HandlerTestSupport.sub("es", "{\"selectedEvidenceIds\":[\"e1\",\"e2\"]}"));
         assertThat(r.completed()).isTrue();
         assertThat(r.output().has("score")).isFalse();
+    }
+
+    @Test
+    void evidenceSelect_ungraded_doesNotEmitSelectedVerdicts() {
+        JsonNode act = HandlerTestSupport.json(
+                "{\"id\":\"es\",\"type\":\"EVIDENCE_SELECT\",\"config\":{"
+              + "\"visibleEvidenceIds\":[\"e1\",\"e2\"],\"minRequired\":1}}");
+        ActivityResult r = evidenceSelect.evaluate(
+                HandlerTestSupport.ctx(act, snapshotWithEvidence()),
+                HandlerTestSupport.sub("es", "{\"selectedEvidenceIds\":[\"e1\"]}"));
+        assertThat(r.completed()).isTrue();
+        assertThat(r.output().has("selectedVerdicts")).isFalse();
+    }
+
+    @Test
+    void evidenceSelect_overBudget_doesNotLeakNewVerdicts() {
+        JsonNode act = HandlerTestSupport.json(
+                "{\"id\":\"es\",\"type\":\"EVIDENCE_SELECT\",\"config\":{"
+              + "\"visibleEvidenceIds\":[\"e1\",\"e2\",\"e3\"],\"graded\":true,"
+              + "\"acceptedEvidenceIds\":[\"e1\",\"e2\"],"
+              + "\"maxAttempts\":1,\"remedialAttempts\":0}}");
+        java.util.Map<String, JsonNode> prior = new java.util.LinkedHashMap<>();
+        prior.put("es", HandlerTestSupport.json(
+                "{\"attemptCount\":1,\"exhausted\":true,\"correct\":false,"
+              + "\"score\":0.0,\"selectedEvidenceIds\":[\"e3\"],"
+              + "\"selectedVerdicts\":{\"e3\":\"incorrect\"}}"));
+        java.util.Map<String, Integer> counts = new java.util.LinkedHashMap<>();
+        counts.put("es", 1);
+        ActivityResult r = evidenceSelect.evaluate(
+                HandlerTestSupport.ctxLedger(act, snapshotWithEvidence(),
+                        prior, "es", counts),
+                HandlerTestSupport.sub("es",
+                        "{\"selectedEvidenceIds\":[\"e1\",\"e2\"]}"));
+        assertThat(r.output().get("budgetExhausted").asBoolean()).isTrue();
+        // Over-budget probing must preserve locked selectedVerdicts, never
+        // revealing verdicts for newly submitted e1/e2.
+        JsonNode verdicts = r.output().get("selectedVerdicts");
+        assertThat(verdicts.get("e3").asText()).isEqualTo("incorrect");
+        assertThat(verdicts.has("e1")).isFalse();
+        assertThat(verdicts.has("e2")).isFalse();
     }
 
     @Test

@@ -48,6 +48,10 @@ class IslandScene extends StatefulWidget {
   final String? activeEffectSlotId;
   final int placementEffectToken;
   final int removalEffectToken;
+  final bool isEditMode;
+  final Set<String> flippedSlotIds;
+  final int previewTier;
+  final ValueChanged<int>? onSelectTier;
 
   const IslandScene({
     super.key,
@@ -61,6 +65,10 @@ class IslandScene extends StatefulWidget {
     this.activeEffectSlotId,
     this.placementEffectToken = 0,
     this.removalEffectToken = 0,
+    this.isEditMode = false,
+    this.flippedSlotIds = const {},
+    this.previewTier = 1,
+    this.onSelectTier,
   });
 
   @override
@@ -213,8 +221,8 @@ class _IslandSceneState extends State<IslandScene>
     final targetY = (viewportSize.height - m.height * fitScale) * 0.45;
 
     _controller.value = Matrix4.identity()
-      ..translate(targetX, targetY)
-      ..scale(fitScale, fitScale);
+      ..translateByDouble(targetX, targetY, 0.0, 1.0)
+      ..scaleByDouble(fitScale, fitScale, 1.0, 1.0);
   }
 
   @override
@@ -241,105 +249,379 @@ class _IslandSceneState extends State<IslandScene>
           });
         }
 
-        return DecoratedBox(
-          decoration: const BoxDecoration(
-            gradient: RadialGradient(
-              center: Alignment(-0.15, -0.10),
-              radius: 1.15,
-              colors: [
-                Color(0xFF7AD2DC),
-                Color(0xFF5AB4C0),
-                Color(0xFF3E94A4),
-                Color(0xFF2D7686),
-              ],
-              stops: [0.0, 0.45, 0.80, 1.0],
+        return Stack(
+          fit: StackFit.expand,
+          children: [
+            // Lớp nền toàn cảnh vịnh núi đá vôi Hạ Long, mây trôi & đảo phụ phía xa (Issue #46 AC-1)
+            Positioned.fill(
+              child: _IslandPanoramicBackdrop(
+                island: widget.island,
+                previewTier: widget.previewTier,
+                isEditMode: widget.isEditMode,
+                onSelectTier: widget.onSelectTier,
+              ),
             ),
-          ),
-          child: InteractiveViewer(
-            transformationController: _controller,
-            minScale: 0.30,
-            maxScale: 2.6,
-            boundaryMargin: const EdgeInsets.all(520),
-            constrained: false,
-            child: AnimatedBuilder(
-              animation: Listenable.merge([
-                _waterController,
-                _rotationTransitionController,
-              ]),
-              builder: (context, _) {
-                final rotT = Curves.easeOutCubic.transform(
-                  _rotationTransitionController.value,
-                );
-                final slideDx = (1.0 - rotT) * 22.0 * _lastRotationTurnDelta;
-                final scale = 0.965 + 0.035 * rotT;
-                final opacity = (0.72 + 0.28 * rotT).clamp(0.0, 1.0);
+            InteractiveViewer(
+              transformationController: _controller,
+              minScale: 0.30,
+              maxScale: 2.6,
+              boundaryMargin: const EdgeInsets.all(520),
+              constrained: false,
+              child: AnimatedBuilder(
+                animation: Listenable.merge([
+                  _waterController,
+                  _rotationTransitionController,
+                ]),
+                builder: (context, _) {
+                  final rotT = Curves.easeOutCubic.transform(
+                    _rotationTransitionController.value,
+                  );
+                  final slideDx = (1.0 - rotT) * 22.0 * _lastRotationTurnDelta;
+                  final scale = 0.965 + 0.035 * rotT;
+                  final opacity = (0.72 + 0.28 * rotT).clamp(0.0, 1.0);
 
-                return Opacity(
-                  opacity: opacity,
-                  child: Transform.translate(
-                    offset: Offset(slideDx, 0),
-                    child: Transform.scale(
-                      scale: scale,
-                      alignment: Alignment.center,
-                      child: SizedBox(
-                        width: m.width,
-                        height: m.height,
-                        child: IslandIsometricRenderer(
-                          board: board,
-                          slots: widget.island.slots,
-                          currentTier: widget.island.tier,
-                          selectedSlotId: widget.selectedSlotId,
-                          selectedTileCoord: _selectedTileCoord,
-                          cameraDirection: widget.cameraDirection,
-                          waterAnimationValue: _waterController.value,
-                          expansionRevealProgress:
-                              widget.expansionTransition?.landRevealProgress ?? 1.0,
-                          expandingFromTier: widget.expansionTransition?.fromTier,
-                          expandingToTier: widget.expansionTransition?.toTier,
-                          onTileTap: (coord) {
-                            setState(() {
-                              _selectedTileCoord = coord;
-                            });
-                            final tile = board.tileAt(coord.$1, coord.$2);
-                            final tileSlotId = tile?.slotId;
-                            IslandSlotDto? slot;
-                            if (tileSlotId != null && tileSlotId.isNotEmpty) {
-                              for (final s in widget.island.slots) {
-                                if (s.slotId == tileSlotId) {
-                                  slot = s;
-                                  break;
+                  return Opacity(
+                    opacity: opacity,
+                    child: Transform.translate(
+                      offset: Offset(slideDx, 0),
+                      child: Transform.scale(
+                        scale: scale,
+                        alignment: Alignment.center,
+                        child: SizedBox(
+                          width: m.width,
+                          height: m.height,
+                          child: IslandIsometricRenderer(
+                            board: board,
+                            slots: widget.island.slots,
+                            currentTier: widget.island.tier,
+                            selectedSlotId: widget.selectedSlotId,
+                            selectedTileCoord: _selectedTileCoord,
+                            cameraDirection: widget.cameraDirection,
+                            waterAnimationValue: _waterController.value,
+                            expansionRevealProgress:
+                                widget.expansionTransition?.landRevealProgress ??
+                                1.0,
+                            expandingFromTier:
+                                widget.expansionTransition?.fromTier,
+                            expandingToTier: widget.expansionTransition?.toTier,
+                            isEditMode: widget.isEditMode,
+                            flippedSlotIds: widget.flippedSlotIds,
+                            onTileTap: (coord) {
+                              setState(() {
+                                _selectedTileCoord = coord;
+                              });
+                              final tile = board.tileAt(coord.$1, coord.$2);
+                              final tileSlotId = tile?.slotId;
+                              IslandSlotDto? slot;
+                              if (tileSlotId != null && tileSlotId.isNotEmpty) {
+                                for (final s in widget.island.slots) {
+                                  if (s.slotId == tileSlotId) {
+                                    slot = s;
+                                    break;
+                                  }
                                 }
                               }
-                            }
-                            widget.onSelectSlot(slot);
-                          },
-                          onSlotTap: (slot) {
-                            setState(() {
-                              final host = slot.tileKey != null
-                                  ? board.tiles
-                                      .where((t) => t.key == slot.tileKey)
-                                      .firstOrNull
-                                  : null;
-                              if (host != null) {
-                                _selectedTileCoord = (host.row, host.col);
-                              } else if (slot.tileRow != null && slot.tileCol != null) {
-                                _selectedTileCoord = (slot.tileRow!, slot.tileCol!);
-                              } else {
-                                _selectedTileCoord = null;
-                              }
-                            });
-                            widget.onSelectSlot(slot);
-                          },
+                              widget.onSelectSlot(slot);
+                            },
+                            onSlotTap: (slot) {
+                              setState(() {
+                                final host = slot.tileKey != null
+                                    ? board.tiles
+                                        .where((t) => t.key == slot.tileKey)
+                                        .firstOrNull
+                                    : null;
+                                if (host != null) {
+                                  _selectedTileCoord = (host.row, host.col);
+                                } else if (slot.tileRow != null &&
+                                    slot.tileCol != null) {
+                                  _selectedTileCoord = (
+                                    slot.tileRow!,
+                                    slot.tileCol!,
+                                  );
+                                } else {
+                                  _selectedTileCoord = null;
+                                }
+                              });
+                              widget.onSelectSlot(slot);
+                            },
+                          ),
                         ),
                       ),
                     ),
-                  ),
-                );
-              },
+                  );
+                },
+              ),
             ),
-          ),
+          ],
         );
       },
     );
   }
+}
+
+/// Khung cảnh biển trời vịnh núi đá vôi Hạ Long, mây trôi và các đảo phụ phía xa (Issue #46 AC-1).
+class _IslandPanoramicBackdrop extends StatelessWidget {
+  final IslandDto island;
+  final int previewTier;
+  final bool isEditMode;
+  final ValueChanged<int>? onSelectTier;
+
+  const _IslandPanoramicBackdrop({
+    required this.island,
+    required this.previewTier,
+    required this.isEditMode,
+    this.onSelectTier,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final leftPreviewTier = previewTier == 1 ? 3 : 1;
+    final rightPreviewTier = previewTier == 2 ? 3 : 2;
+    final leftLocked = leftPreviewTier > island.tier;
+    final rightLocked = rightPreviewTier > island.tier;
+
+    return Stack(
+      fit: StackFit.expand,
+      children: [
+        // 1. Nền biển trời chuyển sắc kèm núi đá vôi và mây mờ
+        CustomPaint(
+          painter: _HaLongBayHorizonPainter(),
+        ),
+
+        // 2. Hai đảo phụ lơ lửng phía xa trên biển mây khi ở Chế độ Tham quan
+        if (!isEditMode) ...[
+          Positioned(
+            top: 175,
+            left: 16,
+            child: _DistantFloatingIslandBadge(
+              tier: leftPreviewTier,
+              isLocked: leftLocked,
+              isGreySilhouette: true,
+              onTap: onSelectTier != null
+                  ? () => onSelectTier!(leftPreviewTier)
+                  : null,
+            ),
+          ),
+          Positioned(
+            top: 168,
+            right: 16,
+            child: _DistantFloatingIslandBadge(
+              tier: rightPreviewTier,
+              isLocked: rightLocked,
+              isGreySilhouette: false,
+              onTap: onSelectTier != null
+                  ? () => onSelectTier!(rightPreviewTier)
+                  : null,
+            ),
+          ),
+        ],
+      ],
+    );
+  }
+}
+
+class _HaLongBayHorizonPainter extends CustomPainter {
+  @override
+  void paint(Canvas canvas, Size size) {
+    final rect = Offset.zero & size;
+    canvas.drawRect(
+      rect,
+      Paint()
+        ..shader = const LinearGradient(
+          begin: Alignment.topCenter,
+          end: Alignment.bottomCenter,
+          colors: [
+            Color(0xFF9AD8E4),
+            Color(0xFF66B8CE),
+            Color(0xFF3E94AE),
+            Color(0xFF28738A),
+          ],
+          stops: [0.0, 0.32, 0.72, 1.0],
+        ).createShader(rect),
+    );
+
+    // Dãy núi đá vôi vịnh Hạ Long bên trái & bên phải chân trời
+    final leftKarst = Path()
+      ..moveTo(0, size.height * 0.34)
+      ..lineTo(size.width * 0.06, size.height * 0.21)
+      ..lineTo(size.width * 0.13, size.height * 0.26)
+      ..lineTo(size.width * 0.19, size.height * 0.19)
+      ..lineTo(size.width * 0.28, size.height * 0.34)
+      ..close();
+    canvas.drawPath(
+      leftKarst,
+      Paint()..color = const Color(0xFF4B8E9B).withValues(alpha: 0.55),
+    );
+
+    final rightKarst = Path()
+      ..moveTo(size.width * 0.72, size.height * 0.35)
+      ..lineTo(size.width * 0.80, size.height * 0.20)
+      ..lineTo(size.width * 0.87, size.height * 0.25)
+      ..lineTo(size.width * 0.94, size.height * 0.17)
+      ..lineTo(size.width, size.height * 0.35)
+      ..close();
+    canvas.drawPath(
+      rightKarst,
+      Paint()..color = const Color(0xFF448390).withValues(alpha: 0.52),
+    );
+
+    // Lớp mây bồng bềnh quanh đảo
+    final cloudPaint = Paint()
+      ..color = const Color(0xFFFFFBF2).withValues(alpha: 0.32)
+      ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 18);
+    canvas.drawOval(
+      Rect.fromCenter(
+        center: Offset(size.width * 0.20, size.height * 0.36),
+        width: size.width * 0.42,
+        height: 44,
+      ),
+      cloudPaint,
+    );
+    canvas.drawOval(
+      Rect.fromCenter(
+        center: Offset(size.width * 0.82, size.height * 0.34),
+        width: size.width * 0.40,
+        height: 42,
+      ),
+      cloudPaint,
+    );
+    canvas.drawOval(
+      Rect.fromCenter(
+        center: Offset(size.width * 0.50, size.height * 0.86),
+        width: size.width * 0.85,
+        height: 64,
+      ),
+      cloudPaint,
+    );
+  }
+
+  @override
+  bool shouldRepaint(covariant CustomPainter oldDelegate) => false;
+}
+
+class _DistantFloatingIslandBadge extends StatelessWidget {
+  final int tier;
+  final bool isLocked;
+  final bool isGreySilhouette;
+  final VoidCallback? onTap;
+
+  const _DistantFloatingIslandBadge({
+    required this.tier,
+    required this.isLocked,
+    required this.isGreySilhouette,
+    this.onTap,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return GestureDetector(
+      onTap: onTap,
+      child: SizedBox(
+        width: 96,
+        height: 68,
+        child: Stack(
+          alignment: Alignment.center,
+          children: [
+            CustomPaint(
+              size: const Size(92, 60),
+              painter: _MiniatureFloatingIslandPainter(
+                isGrey: isGreySilhouette && isLocked,
+              ),
+            ),
+            if (isLocked)
+              Container(
+                width: 24,
+                height: 24,
+                decoration: BoxDecoration(
+                  color: const Color(0xFFFDF6E7),
+                  shape: BoxShape.circle,
+                  border: Border.all(
+                    color: const Color(0xFF8C7355),
+                    width: 1.4,
+                  ),
+                  boxShadow: [
+                    BoxShadow(
+                      color: Colors.black.withValues(alpha: 0.22),
+                      blurRadius: 4,
+                      offset: const Offset(0, 2),
+                    ),
+                  ],
+                ),
+                child: const Icon(
+                  Icons.lock_rounded,
+                  size: 13,
+                  color: Color(0xFF5D4632),
+                ),
+              ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _MiniatureFloatingIslandPainter extends CustomPainter {
+  final bool isGrey;
+
+  const _MiniatureFloatingIslandPainter({required this.isGrey});
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    final w = size.width;
+    final h = size.height;
+
+    // Đám mây đỡ chân đảo
+    canvas.drawOval(
+      Rect.fromCenter(
+        center: Offset(w * 0.50, h * 0.80),
+        width: w * 0.88,
+        height: h * 0.30,
+      ),
+      Paint()..color = Colors.white.withValues(alpha: 0.65),
+    );
+
+    // Khối đá dưới đảo
+    final cliff = Path()
+      ..moveTo(w * 0.14, h * 0.50)
+      ..lineTo(w * 0.50, h * 0.72)
+      ..lineTo(w * 0.86, h * 0.50)
+      ..lineTo(w * 0.76, h * 0.82)
+      ..lineTo(w * 0.50, h * 0.92)
+      ..lineTo(w * 0.24, h * 0.82)
+      ..close();
+    canvas.drawPath(
+      cliff,
+      Paint()
+        ..color = isGrey ? const Color(0xFF6E7476) : const Color(0xFF7B5836),
+    );
+
+    // Mặt cỏ hình thoi
+    final topDiamond = Path()
+      ..moveTo(w * 0.50, h * 0.26)
+      ..lineTo(w * 0.86, h * 0.50)
+      ..lineTo(w * 0.50, h * 0.72)
+      ..lineTo(w * 0.14, h * 0.50)
+      ..close();
+    canvas.drawPath(
+      topDiamond,
+      Paint()
+        ..color = isGrey ? const Color(0xFF8C9294) : const Color(0xFF6AA24A),
+    );
+
+    // Mái đình nhỏ trên đảo phụ
+    final roof = Path()
+      ..moveTo(w * 0.34, h * 0.42)
+      ..lineTo(w * 0.50, h * 0.22)
+      ..lineTo(w * 0.66, h * 0.42)
+      ..close();
+    canvas.drawPath(
+      roof,
+      Paint()
+        ..color = isGrey ? const Color(0xFF595E60) : const Color(0xFFB93430),
+    );
+  }
+
+  @override
+  bool shouldRepaint(covariant _MiniatureFloatingIslandPainter oldDelegate) =>
+      oldDelegate.isGrey != isGrey;
 }
