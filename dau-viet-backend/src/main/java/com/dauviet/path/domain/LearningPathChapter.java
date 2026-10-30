@@ -3,6 +3,12 @@ package com.dauviet.path.domain;
 import java.time.Instant;
 import java.util.UUID;
 
+import org.hibernate.annotations.JdbcTypeCode;
+import org.hibernate.type.SqlTypes;
+
+import com.dauviet.common.heritage.HeritageBackgroundConfigDto;
+import com.dauviet.common.heritage.HeritageBackgroundConfigValidator;
+import com.fasterxml.jackson.annotation.JsonIgnore;
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
 import jakarta.persistence.EnumType;
@@ -55,6 +61,10 @@ public class LearningPathChapter {
     @Column(name = "cover_image_key", length = 255)
     private String coverImageKey;
 
+
+    @JdbcTypeCode(SqlTypes.JSON)
+    @Column(name = "background_config_json", columnDefinition = "jsonb")
+    private String backgroundConfigJson;
     @Column(name = "created_at", nullable = false, updatable = false)
     private Instant createdAt = Instant.now();
 
@@ -79,6 +89,15 @@ public class LearningPathChapter {
                                String code, String title, String description,
                                int startYear, int endYear, String periodLabel,
                                int sortOrder, String themeKey, String coverImageKey) {
+        this(id, pathVersionId, parentId, nodeType, code, title, description,
+                startYear, endYear, periodLabel, sortOrder, themeKey, coverImageKey, null);
+    }
+
+    public LearningPathChapter(UUID id, UUID pathVersionId, UUID parentId, PathNodeType nodeType,
+                               String code, String title, String description,
+                               int startYear, int endYear, String periodLabel,
+                               int sortOrder, String themeKey, String coverImageKey,
+                               String backgroundConfigJson) {
         this.id = id != null ? id : UUID.randomUUID();
         this.pathVersionId = pathVersionId;
         this.parentId = parentId;
@@ -92,6 +111,7 @@ public class LearningPathChapter {
         this.sortOrder = sortOrder;
         this.themeKey = themeKey;
         this.coverImageKey = coverImageKey;
+        this.backgroundConfigJson = backgroundConfigJson;
         this.createdAt = Instant.now();
     }
 
@@ -110,6 +130,13 @@ public class LearningPathChapter {
     public String getCoverImageKey() { return coverImageKey; }
     public Instant getCreatedAt() { return createdAt; }
 
+    @JsonIgnore
+    public String getBackgroundConfigJson() { return backgroundConfigJson; }
+
+    public HeritageBackgroundConfigDto getBackgroundConfig() {
+        return HeritageBackgroundConfigValidator.parseOrDefault(backgroundConfigJson);
+    }
+
     public void setSortOrder(int sortOrder) { this.sortOrder = sortOrder; }
     public void setParentId(UUID parentId) { this.parentId = parentId; }
     public void setNodeType(PathNodeType nodeType) {
@@ -117,6 +144,9 @@ public class LearningPathChapter {
     }
     public void setCoverImageKey(String coverImageKey) {
         this.coverImageKey = coverImageKey;
+    }
+    public void setBackgroundConfigJson(String backgroundConfigJson) {
+        this.backgroundConfigJson = backgroundConfigJson;
     }
 
     public void update(String code, String title, String description, int startYear,

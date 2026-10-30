@@ -20,6 +20,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import com.dauviet.collection.domain.EventCompletionPolicy;
+import com.dauviet.common.heritage.HeritageBackgroundConfigDto;
 import com.dauviet.collection.domain.UserEventProgress;
 import com.dauviet.collection.infrastructure.persistence.EventCompletionPolicyRepository;
 import com.dauviet.collection.infrastructure.persistence.UserEventProgressRepository;
@@ -208,16 +209,30 @@ public class LearnerPathProgressionService {
                             ln.getLessonId(),
                             lesson == null ? null : lesson.getTitle(),
                             ln.getSortOrder(),
-                            lessonStatus));
+                            lessonStatus,
+                            lesson == null ? null : lesson.getCoverAssetId(),
+                            lesson == null || lesson.getCoverAssetId() == null
+                                    ? null
+                                    : "/api/v1/assets/" + lesson.getCoverAssetId() + "/content",
+                            lesson == null
+                                    ? HeritageBackgroundConfigDto.defaultConfig()
+                                    : lesson.getBackgroundConfig()));
                 }
                 LearnerPathStatus eventStatus = p.eventStatus.get(node.getId());
                 eventOut.add(new LearnerLearningPathResponse.Event(
                         node.getId(),
                         node.getEventId(),
+                        event == null ? null : event.getSlug(),
                         event == null ? null : event.getTitle(),
+                        event == null ? null : event.getStartYear(),
                         event == null ? null : YearLabelFormatter.formatYear(event.getStartYear(), event.getPeriod()),
                         event == null ? null : event.getEndYear(),
                         event == null || event.getDatePrecision() == null ? DatePrecision.EXACT : DatePrecision.valueOf(event.getDatePrecision()),
+                        event == null ? null : event.getPeriod(),
+                        event == null ? null : event.getCoverAssetKey(),
+                        event == null
+                                ? HeritageBackgroundConfigDto.defaultConfig()
+                                : event.getBackgroundConfig(),
                         node.getSortOrder(),
                         node.getParticipationType(),
                         eventStatus,
@@ -230,7 +245,14 @@ public class LearnerPathProgressionService {
                     chapter.getNodeType() == null ? PathNodeType.PERIOD : chapter.getNodeType(),
                     chapter.getCode(),
                     chapter.getTitle(),
+                    chapter.getDescription(),
+                    chapter.getStartYear(),
+                    chapter.getEndYear(),
+                    chapter.getPeriodLabel(),
                     chapter.getSortOrder(),
+                    chapter.getThemeKey(),
+                    chapter.getCoverImageKey(),
+                    chapter.getBackgroundConfig(),
                     eventOut));
         }
 

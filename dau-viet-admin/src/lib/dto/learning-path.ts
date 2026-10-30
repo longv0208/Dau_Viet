@@ -1,3 +1,5 @@
+import type { HeritageBackgroundConfig } from "./heritage-background";
+
 export type PathStatus = "DRAFT" | "PUBLISHED" | "ARCHIVED";
 export type ParticipationType = "REQUIRED" | "EXPLORATION_ONLY";
 export type ContentStatus = "PLAYABLE" | "NO_PUBLISHED_LESSON" | "NO_COMPLETION_POLICY" | "CONTENT_REVIEW_REQUIRED";
@@ -26,6 +28,9 @@ export interface ChapterInput {
   themeKey: string;
   /** Khóa ảnh bìa tùy chọn, dạng `periods/<code>/<file>` (PERIOD). */
   coverImageKey?: string | null;
+  clearCoverImage?: boolean;
+  backgroundConfig?: HeritageBackgroundConfig | null;
+  clearBackgroundConfig?: boolean;
   parentId?: string | null;
   nodeType?: PathNodeType;
 }
@@ -38,6 +43,7 @@ export interface PathChapter {
     nodeType: PathNodeType;
     description: string | null;
     sortOrder: number;
+    backgroundConfig?: HeritageBackgroundConfig | null;
   };
   events: PathEvent[];
 }

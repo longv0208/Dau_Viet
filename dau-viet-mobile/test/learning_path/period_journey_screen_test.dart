@@ -533,6 +533,186 @@ void main() {
           expect(find.text('Thời kỳ Cổ – Trung đại'), findsOneWidget);
         },
       );
+
+      testWidgets(
+        'Phần E: Đồng bộ HeritageBackground (có ảnh riêng, không ảnh, tên dài trên màn nhỏ, điểm lấy nét khác nhau & khóa bài học)',
+        (tester) async {
+          tester.view.physicalSize = const Size(340, 680);
+          tester.view.devicePixelRatio = 1.0;
+          addTearDown(tester.view.resetPhysicalSize);
+          addTearDown(tester.view.resetDevicePixelRatio);
+
+          const syncedPath = LearningPathDto(
+            pathCode: 'HISTORY_MAIN',
+            pathVersion: 3,
+            enrolled: true,
+            periodProgress: [
+              PeriodProgressDto(
+                chapterId: 'p-ly',
+                code: 'LY_DYNASTY',
+                title: 'Thời nhà Lý — Kỷ nguyên Văn hiến Đại Việt rực rỡ tại kinh thành Thăng Long',
+                completedEvents: 0,
+                requiredEvents: 2,
+                completedLessons: 1,
+                requiredLessons: 3,
+                percent: 0,
+              ),
+            ],
+            currentByPeriod: {
+              'LY_DYNASTY': LearningPathCurrentDto(
+                chapterId: 'p-ly',
+                eventNodeId: 'en-1010',
+                lessonId: 'les-1010-2',
+              ),
+            },
+            chapters: [
+              LearningPathChapterDto(
+                chapterId: 'era-feudal',
+                nodeType: PathNodeType.era,
+                code: 'ERA_FEUDAL',
+                title: 'Thời kỳ Phong kiến Độc lập Tự chủ',
+                sortOrder: 1,
+              ),
+              LearningPathChapterDto(
+                chapterId: 'p-ly',
+                parentId: 'era-feudal',
+                nodeType: PathNodeType.period,
+                code: 'LY_DYNASTY',
+                title:
+                    'Thời nhà Lý — Kỷ nguyên Văn hiến Đại Việt rực rỡ tại kinh thành Thăng Long',
+                periodLabel: 'Năm 1009 – năm 1225',
+                description: 'Khởi đầu kỷ nguyên độc lập lâu dài tại Thăng Long.',
+                sortOrder: 1,
+                backgroundConfig: HeritageBackgroundConfigDto(
+                  backgroundImageUrl:
+                      'assets/images/heritage/hoang-thanh-thang-long.jpg',
+                  backgroundMode: HeritageBackgroundMode.heritageFade,
+                  focusX: 0.65,
+                  focusY: 0.25,
+                  imageOpacity: 0.6,
+                  fadeStrength: 0.85,
+                  tintPreset: HeritageTintPreset.warm,
+                  enabled: true,
+                ),
+                events: [
+                  LearningPathEventNodeDto(
+                    eventNodeId: 'en-1010',
+                    eventId: 'evt-1010',
+                    slug: 'thang-long-1010',
+                    title: 'Dời đô ra Thăng Long năm 1010',
+                    yearLabel: 'Năm 1010',
+                    coverAssetKey: 'events/bach-dang-938/hero.jpg',
+                    sortOrder: 1,
+                    participationType: ParticipationType.required,
+                    status: LearnerPathStatus.available,
+                    lessons: [
+                      LearningPathLessonNodeDto(
+                        lessonId: 'les-1010-1',
+                        title: 'Vì sao dời đô?',
+                        sortOrder: 1,
+                        status: LearnerPathStatus.completed,
+                      ),
+                      LearningPathLessonNodeDto(
+                        lessonId: 'les-1010-2',
+                        title: 'Dấu tích đô thành qua thời gian',
+                        sortOrder: 2,
+                        status: LearnerPathStatus.available,
+                      ),
+                      LearningPathLessonNodeDto(
+                        lessonId: 'les-1010-3',
+                        title: 'Quy hoạch kinh thành Thăng Long',
+                        sortOrder: 3,
+                        status: LearnerPathStatus.locked,
+                      ),
+                    ],
+                  ),
+                  LearningPathEventNodeDto(
+                    eventNodeId: 'en-1077',
+                    eventId: 'evt-1077',
+                    title: 'Chiến thắng Như Nguyệt 1077',
+                    yearLabel: 'Năm 1077',
+                    sortOrder: 2,
+                    participationType: ParticipationType.required,
+                    status: LearnerPathStatus.locked,
+                  ),
+                ],
+              ),
+              LearningPathChapterDto(
+                chapterId: 'p-no-bg',
+                parentId: 'era-feudal',
+                nodeType: PathNodeType.period,
+                code: 'TRAN_DYNASTY_NEW',
+                title: 'Thời nhà Trần (Không có ảnh nền riêng)',
+                sortOrder: 2,
+                backgroundConfig: HeritageBackgroundConfigDto.paperDefault,
+                events: [
+                  LearningPathEventNodeDto(
+                    eventNodeId: 'en-1288',
+                    eventId: 'evt-1288',
+                    title: 'Chiến thắng Bạch Đằng 1288',
+                    yearLabel: 'Năm 1288',
+                    sortOrder: 1,
+                    status: LearnerPathStatus.available,
+                  ),
+                ],
+              ),
+            ],
+          );
+
+          final repo = _RecordingLearningPathRepository(syncedPath);
+          LearningPathEventNodeDto? selectedEvent;
+
+          // 1) Thời kỳ có ảnh nền riêng + tên dài + mốc tiếp theo + bài học khóa
+          await tester.pumpWidget(
+            ProviderScope(
+              overrides: [
+                learningPathRepositoryProvider.overrideWithValue(repo),
+              ],
+              child: MaterialApp(
+                home: PeriodJourneyScreen(
+                  periodCode: 'LY_DYNASTY',
+                  onEventSelected: (evt) => selectedEvent = evt,
+                ),
+              ),
+            ),
+          );
+          await tester.pumpAndSettle();
+
+          expect(find.byType(HeritageBackground), findsOneWidget);
+          expect(find.text('Thời kỳ Phong kiến Độc lập Tự chủ'), findsOneWidget);
+          expect(
+            find.text('Tiến độ thời kỳ: 0/2 sự kiện bắt buộc'),
+            findsOneWidget,
+          );
+          expect(find.text('Mốc tiếp theo'), findsOneWidget);
+          expect(find.text('1. Vì sao dời đô?'), findsOneWidget);
+          expect(find.text('2. Dấu tích đô thành qua thời gian'), findsOneWidget);
+          expect(find.text('3. Quy hoạch kinh thành Thăng Long'), findsOneWidget);
+
+          // Nhấn bài đang khóa -> hiện SnackBar và không mở sự kiện
+          await tester.ensureVisible(
+            find.text('3. Quy hoạch kinh thành Thăng Long'),
+          );
+          await tester.tap(find.text('3. Quy hoạch kinh thành Thăng Long'));
+          await tester.pump();
+          expect(selectedEvent, isNull);
+
+          // 2) Thời kỳ mới không có ảnh nền riêng -> vẫn render nền giấy cổ bình thường
+          await tester.pumpWidget(
+            ProviderScope(
+              overrides: [
+                learningPathRepositoryProvider.overrideWithValue(repo),
+              ],
+              child: const MaterialApp(
+                home: PeriodJourneyScreen(periodCode: 'TRAN_DYNASTY_NEW'),
+              ),
+            ),
+          );
+          await tester.pumpAndSettle();
+
+          expect(find.text('Chiến thắng Bạch Đằng 1288'), findsOneWidget);
+        },
+      );
     },
   );
 }

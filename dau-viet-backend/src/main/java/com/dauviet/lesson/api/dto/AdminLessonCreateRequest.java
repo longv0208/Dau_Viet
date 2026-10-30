@@ -2,6 +2,7 @@ package com.dauviet.lesson.api.dto;
 
 import java.util.UUID;
 
+import com.dauviet.common.heritage.HeritageBackgroundConfigDto;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotNull;
 import jakarta.validation.constraints.Size;
@@ -14,7 +15,8 @@ public record AdminLessonCreateRequest(
         @NotBlank String centralQuestion,
         String objectivesJson,
         String draftJson,
-        UUID coverAssetId
+        UUID coverAssetId,
+        HeritageBackgroundConfigDto backgroundConfig
 ) {
     public AdminLessonCreateRequest(
             UUID eventId,
@@ -23,6 +25,17 @@ public record AdminLessonCreateRequest(
             String centralQuestion,
             String objectivesJson,
             String draftJson) {
-        this(eventId, templateId, title, centralQuestion, objectivesJson, draftJson, null);
+        this(eventId, templateId, title, centralQuestion, objectivesJson, draftJson, null, null);
+    }
+
+    public AdminLessonCreateRequest(
+            UUID eventId,
+            UUID templateId,
+            String title,
+            String centralQuestion,
+            String objectivesJson,
+            String draftJson,
+            UUID coverAssetId) {
+        this(eventId, templateId, title, centralQuestion, objectivesJson, draftJson, coverAssetId, null);
     }
 }

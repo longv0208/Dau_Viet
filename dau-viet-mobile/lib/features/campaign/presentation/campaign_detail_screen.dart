@@ -11,6 +11,7 @@ import '../../../core/widgets/dong_son_button.dart';
 import '../../../core/widgets/energy_pill.dart';
 import '../../../core/widgets/event_cover_image.dart';
 import '../../../core/widgets/hero_paper_banner.dart';
+import '../../../core/widgets/heritage_background.dart';
 import '../../../core/widgets/paper_grain_overlay.dart';
 import '../../../core/widgets/section_divider.dart';
 import '../../../core/widgets/section_eyebrow.dart';
@@ -53,22 +54,28 @@ class CampaignDetailScreen extends ConsumerWidget {
           ),
         ),
       ),
-      data: (event) => _buildScaffold(context, _buildBody(context, event)),
+      data: (event) => _buildScaffold(
+        context,
+        _buildBody(context, event),
+        backgroundConfig: event.backgroundConfig,
+      ),
     );
   }
 
-  Widget _buildScaffold(BuildContext context, Widget body) {
+  Widget _buildScaffold(
+    BuildContext context,
+    Widget body, {
+    HeritageBackgroundConfigDto backgroundConfig =
+        HeritageBackgroundConfigDto.paperDefault,
+  }) {
     return Scaffold(
       backgroundColor: DauVietColors.paperBackground,
-      body: Container(
-        decoration: const BoxDecoration(
-          gradient: LinearGradient(
-            begin: Alignment.topCenter,
-            end: Alignment.bottomCenter,
-            colors: [DauVietColors.paperBackground, DauVietColors.paperCard],
-          ),
+      body: HeritageBackground(
+        config: backgroundConfig,
+        heroHeight: 220,
+        child: SafeArea(
+          child: Column(children: [_buildTopBar(context), body]),
         ),
-        child: SafeArea(child: Column(children: [_buildTopBar(context), body])),
       ),
     );
   }

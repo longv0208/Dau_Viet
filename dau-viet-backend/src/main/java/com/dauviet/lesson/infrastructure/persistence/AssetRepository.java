@@ -80,7 +80,13 @@ public interface AssetRepository extends JpaRepository<Asset, UUID> {
                 OR EXISTS (
                     SELECT 1
                     FROM lessons l
-                    WHERE l.cover_asset_id = :assetId
+                    WHERE (
+                        l.cover_asset_id = :assetId
+                        OR (
+                            l.background_config_json IS NOT NULL
+                            AND CAST(l.background_config_json AS text) LIKE CONCAT('%', CAST(:assetId AS text), '%')
+                        )
+                    )
                       AND l.status = 'PUBLISHED'
                 )
                 OR EXISTS (
@@ -155,12 +161,46 @@ public interface AssetRepository extends JpaRepository<Asset, UUID> {
                 OR EXISTS (
                     SELECT 1
                     FROM historical_events he
-                    WHERE he.cover_asset_key IN (
-                        CAST(:assetId AS text),
-                        CONCAT('/api/v1/assets/', CAST(:assetId AS text), '/content'),
-                        CONCAT('/api/v1/admin/assets/', CAST(:assetId AS text), '/content')
+                    WHERE (
+                        he.cover_asset_key IN (
+                            CAST(:assetId AS text),
+                            CONCAT('/api/v1/assets/', CAST(:assetId AS text), '/content'),
+                            CONCAT('/api/v1/admin/assets/', CAST(:assetId AS text), '/content')
+                        )
+                        OR (
+                            he.background_config_json IS NOT NULL
+                            AND CAST(he.background_config_json AS text) LIKE CONCAT('%', CAST(:assetId AS text), '%')
+                        )
                     )
                       AND he.status = 'PUBLISHED'
+                )
+                OR EXISTS (
+                    SELECT 1
+                    FROM learning_path_chapters lpc
+                    JOIN learning_path_versions lpv ON lpv.id = lpc.path_version_id
+                    WHERE (
+                        lpc.cover_image_key IN (
+                            CAST(:assetId AS text),
+                            CONCAT('/api/v1/assets/', CAST(:assetId AS text), '/content'),
+                            CONCAT('/api/v1/admin/assets/', CAST(:assetId AS text), '/content')
+                        )
+                        OR (
+                            lpc.background_config_json IS NOT NULL
+                            AND CAST(lpc.background_config_json AS text) LIKE CONCAT('%', CAST(:assetId AS text), '%')
+                        )
+                    )
+                      AND (
+                          lpv.status = 'PUBLISHED'
+                          OR (
+                              lpv.status = 'ARCHIVED'
+                              AND EXISTS (
+                                  SELECT 1
+                                  FROM user_learning_path_enrollments ulpe
+                                  WHERE ulpe.user_id = :userId
+                                    AND ulpe.path_version_id = lpv.id
+                              )
+                          )
+                      )
                 )
             )
             """, nativeQuery = true)

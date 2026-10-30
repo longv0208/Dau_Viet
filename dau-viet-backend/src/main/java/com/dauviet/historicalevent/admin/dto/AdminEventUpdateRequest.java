@@ -2,6 +2,7 @@ package com.dauviet.historicalevent.admin.dto;
 
 import java.util.List;
 
+import com.dauviet.common.heritage.HeritageBackgroundConfigDto;
 import jakarta.validation.constraints.Pattern;
 import jakarta.validation.constraints.Size;
 
@@ -25,6 +26,22 @@ public record AdminEventUpdateRequest(
         String location,
         @Size(max = 512) String coverAssetKey,
         List<String> tags,
-        Long expectedRowVersion
+        Long expectedRowVersion,
+        HeritageBackgroundConfigDto backgroundConfig,
+        Boolean clearBackgroundConfig
 ) {
+    public AdminEventUpdateRequest(
+            String slug,
+            String title,
+            String era,
+            String period,
+            Integer startYear,
+            String summary,
+            String description,
+            String location,
+            String coverAssetKey,
+            List<String> tags,
+            Long expectedRowVersion) {
+        this(slug, title, era, period, startYear, summary, description, location, coverAssetKey, tags, expectedRowVersion, null, null);
+    }
 }

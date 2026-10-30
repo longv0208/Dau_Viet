@@ -133,7 +133,12 @@ public class LearningPathService {
                             lesson.getId(),
                             lesson.getTitle(),
                             lNode.getSortOrder(),
-                            lesson.getStatus().name()
+                            lesson.getStatus().name(),
+                            lesson.getCoverAssetId(),
+                            lesson.getCoverAssetId() == null
+                                    ? null
+                                    : "/api/v1/assets/" + lesson.getCoverAssetId() + "/content",
+                            lesson.getBackgroundConfig()
                     ));
                 }
 
@@ -153,6 +158,7 @@ public class LearningPathService {
                         yearLabel,
                         event.getPeriod(),
                         event.getCoverAssetKey(),
+                        event.getBackgroundConfig(),
                         eventNode.getSortOrder(),
                         contentStatus,
                         lessonResponses,
@@ -173,6 +179,7 @@ public class LearningPathService {
                     chapter.getSortOrder(),
                     chapter.getThemeKey(),
                     chapter.getCoverImageKey(),
+                    chapter.getBackgroundConfig(),
                     eventResponses
             ));
         }

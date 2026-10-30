@@ -8,6 +8,9 @@ import org.hibernate.annotations.JdbcTypeCode;
 import org.hibernate.annotations.UpdateTimestamp;
 import org.hibernate.type.SqlTypes;
 
+import com.dauviet.common.heritage.HeritageBackgroundConfigDto;
+import com.dauviet.common.heritage.HeritageBackgroundConfigValidator;
+import com.fasterxml.jackson.annotation.JsonIgnore;
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
 import jakarta.persistence.EnumType;
@@ -62,6 +65,10 @@ public class Lesson {
     @Column(name = "cover_asset_id")
     private UUID coverAssetId;
 
+    @JdbcTypeCode(SqlTypes.JSON)
+    @Column(name = "background_config_json", columnDefinition = "jsonb")
+    private String backgroundConfigJson;
+
     @Column(name = "created_by", updatable = false)
     private UUID createdBy;
 
@@ -112,6 +119,14 @@ public class Lesson {
 
     public UUID getCoverAssetId() { return coverAssetId; }
     public void setCoverAssetId(UUID coverAssetId) { this.coverAssetId = coverAssetId; }
+
+    @JsonIgnore
+    public String getBackgroundConfigJson() { return backgroundConfigJson; }
+    public void setBackgroundConfigJson(String backgroundConfigJson) { this.backgroundConfigJson = backgroundConfigJson; }
+
+    public HeritageBackgroundConfigDto getBackgroundConfig() {
+        return HeritageBackgroundConfigValidator.parseOrDefault(backgroundConfigJson);
+    }
 
     public UUID getCreatedBy() { return createdBy; }
     public void setCreatedBy(UUID createdBy) { this.createdBy = createdBy; }

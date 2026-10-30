@@ -4,6 +4,8 @@ import java.util.Objects;
 import java.util.UUID;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.beans.factory.annotation.Autowired;
+import com.dauviet.common.heritage.HeritageBackgroundConfigValidator;
 import com.dauviet.path.api.dto.*;
 import com.dauviet.path.domain.LearningPathChapter;
 import com.dauviet.path.domain.PathNodeType;
@@ -17,15 +19,27 @@ public class AdminPathChapterService {
     private final LearningPathChapterRepository chapters;
     private final LearningPathEventNodeRepository events;
     private final PathHierarchyValidator hierarchyValidator;
+    private final HeritageBackgroundConfigValidator backgroundValidator;
 
     public AdminPathChapterService(AdminPathAccess access, AdminPathReadService read,
             LearningPathChapterRepository chapters, LearningPathEventNodeRepository events,
             PathHierarchyValidator hierarchyValidator) {
+        this(access, read, chapters, events, hierarchyValidator, new HeritageBackgroundConfigValidator());
+    }
+
+    @Autowired
+    public AdminPathChapterService(AdminPathAccess access, AdminPathReadService read,
+            LearningPathChapterRepository chapters, LearningPathEventNodeRepository events,
+            PathHierarchyValidator hierarchyValidator,
+            HeritageBackgroundConfigValidator backgroundValidator) {
         this.access = access;
         this.read = read;
         this.chapters = chapters;
         this.events = events;
         this.hierarchyValidator = hierarchyValidator;
+        this.backgroundValidator = backgroundValidator != null
+                ? backgroundValidator
+                : new HeritageBackgroundConfigValidator();
     }
 
     public AdminPathResponse add(UUID versionId, AdminPathRequests.Chapter request) {
@@ -38,10 +52,16 @@ public class AdminPathChapterService {
         int order = chapters.findByPathVersionIdOrderBySortOrderAsc(versionId).stream()
                 .filter(c -> Objects.equals(c.getParentId(), request.parentId()))
                 .mapToInt(LearningPathChapter::getSortOrder).max().orElse(0) + 1;
+        String coverKey = request.coverImageKey() != null && !request.coverImageKey().isBlank()
+                ? request.coverImageKey().trim()
+                : null;
+        String bgJson = request.backgroundConfig() != null
+                ? backgroundValidator.validateAndSerialize(request.backgroundConfig())
+                : null;
         chapters.saveAndFlush(new LearningPathChapter(null, versionId, request.parentId(), nodeType,
                 request.code(), request.title(), request.description(), request.startYear(),
                 request.endYear(), request.periodLabel(), order, request.themeKey(),
-                request.coverImageKey()));
+                coverKey, bgJson));
         return read.detail(versionId);
     }
 
@@ -73,8 +93,15 @@ public class AdminPathChapterService {
         }
         chapter.update(parentId, nodeType, code, title,
                 value(request.description(), chapter.getDescription()), start, end, period, theme);
-        if (request.coverImageKey() != null) {
-            chapter.setCoverImageKey(request.coverImageKey());
+        if (Boolean.TRUE.equals(request.clearCoverImage())) {
+            chapter.setCoverImageKey(null);
+        } else if (request.coverImageKey() != null) {
+            chapter.setCoverImageKey(request.coverImageKey().isBlank() ? null : request.coverImageKey().trim());
+        }
+        if (Boolean.TRUE.equals(request.clearBackgroundConfig())) {
+            chapter.setBackgroundConfigJson(null);
+        } else if (request.backgroundConfig() != null) {
+            chapter.setBackgroundConfigJson(backgroundValidator.validateAndSerialize(request.backgroundConfig()));
         }
         chapters.flush();
         return read.detail(versionId);

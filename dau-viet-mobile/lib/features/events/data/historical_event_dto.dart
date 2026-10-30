@@ -1,3 +1,5 @@
+import '../../../core/models/heritage_background_config.dart';
+
 /// DTO khớp contract `GET /api/v1/events` trong
 /// docs/backend-flutter-contract-notes.md §1.
 /// Parse chặt bằng `as` — field bắt buộc sai kiểu sẽ ném lỗi rõ ràng
@@ -12,6 +14,7 @@ class HistoricalEventSummaryDto {
   final String summary;
   final String? coverAssetKey;
   final List<String> tags;
+  final HeritageBackgroundConfigDto backgroundConfig;
 
   const HistoricalEventSummaryDto({
     required this.id,
@@ -23,6 +26,7 @@ class HistoricalEventSummaryDto {
     required this.summary,
     this.coverAssetKey,
     this.tags = const [],
+    this.backgroundConfig = HeritageBackgroundConfigDto.paperDefault,
   });
 
   factory HistoricalEventSummaryDto.fromJson(Map<String, dynamic> json) {
@@ -38,6 +42,11 @@ class HistoricalEventSummaryDto {
       tags: json['tags'] is List
           ? (json['tags'] as List).cast<String>()
           : const [],
+      backgroundConfig: json['backgroundConfig'] is Map
+          ? HeritageBackgroundConfigDto.fromJson(
+              (json['backgroundConfig'] as Map).cast<String, dynamic>(),
+            )
+          : HeritageBackgroundConfigDto.paperDefault,
     );
   }
 }
@@ -58,6 +67,7 @@ class HistoricalEventDetailDto extends HistoricalEventSummaryDto {
     required super.summary,
     super.coverAssetKey,
     super.tags,
+    super.backgroundConfig,
     this.description,
     this.location,
     this.publishedAt,
@@ -76,6 +86,11 @@ class HistoricalEventDetailDto extends HistoricalEventSummaryDto {
       tags: json['tags'] is List
           ? (json['tags'] as List).cast<String>()
           : const [],
+      backgroundConfig: json['backgroundConfig'] is Map
+          ? HeritageBackgroundConfigDto.fromJson(
+              (json['backgroundConfig'] as Map).cast<String, dynamic>(),
+            )
+          : HeritageBackgroundConfigDto.paperDefault,
       description: json['description'] as String?,
       location: json['location'] as String?,
       publishedAt: json['publishedAt'] as String?,

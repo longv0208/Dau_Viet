@@ -1,3 +1,5 @@
+import type { HeritageBackgroundConfig } from "./heritage-background";
+
 /** Mirrors com.dauviet.lesson.api.dto.* */
 
 export type LessonStatus = "DRAFT" | "PUBLISHED" | "ARCHIVED";
@@ -25,6 +27,7 @@ export interface AdminLessonDetail {
   status: LessonStatus;
   currentVersionId: string | null;
   coverAssetId?: string | null;
+  backgroundConfig?: HeritageBackgroundConfig | null;
   rowVersion: number;
   createdBy: string;
   updatedBy: string;
@@ -41,6 +44,7 @@ export interface AdminLessonCreateRequest {
   objectivesJson?: string;
   draftJson?: string;
   coverAssetId?: string | null;
+  backgroundConfig?: HeritageBackgroundConfig | null;
 }
 
 /** AdminLessonUpdateRequest — PATCH /admin/lessons/{id}. */
@@ -52,6 +56,8 @@ export interface AdminLessonUpdateRequest {
   expectedRowVersion?: number;
   coverAssetId?: string | null;
   clearCoverAsset?: boolean;
+  backgroundConfig?: HeritageBackgroundConfig | null;
+  clearBackgroundConfig?: boolean;
 }
 
 /** LessonTemplateResponse — template catalogue entry (GET returns List, not paged). */

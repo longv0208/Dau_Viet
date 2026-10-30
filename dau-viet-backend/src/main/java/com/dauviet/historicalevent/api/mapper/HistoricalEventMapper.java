@@ -25,7 +25,8 @@ public class HistoricalEventMapper {
                 e.getStartYear(),
                 e.getSummary(),
                 e.getCoverAssetKey(),
-                copyTags(e)
+                copyTags(e),
+                e.getBackgroundConfig()
         );
     }
 
@@ -42,7 +43,8 @@ public class HistoricalEventMapper {
                 e.getLocation(),
                 e.getCoverAssetKey(),
                 copyTags(e),
-                null // publishedAt reserved; not populated until lesson_versions exist
+                null, // publishedAt reserved; not populated until lesson_versions exist
+                e.getBackgroundConfig()
         );
     }
 

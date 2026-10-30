@@ -69,6 +69,7 @@ public class SnapshotBuilder {
         snapshot.put("centralQuestion", lesson.getCentralQuestion());
         snapshot.set("objectives", parse(lesson.getObjectivesJson()));
         snapshot.put("templateCode", template.getCode());
+        snapshot.set("backgroundConfig", mapper.valueToTree(lesson.getBackgroundConfig()));
         JsonNode stagesNode = draft.path("stages");
         if (!stagesNode.isArray()) {
             // Contract: draft.stages phải là JSON array — DraftValidator đã
@@ -185,6 +186,10 @@ public class SnapshotBuilder {
                     if (id != null) ids.add(id);
                 }
             }
+        }
+        if (snapshot.hasNonNull("backgroundConfig")) {
+            UUID bgId = parseUuid(snapshot.get("backgroundConfig").path("backgroundAssetId").asText(null));
+            if (bgId != null) ids.add(bgId);
         }
         JsonNode stages = draft.get("stages");
         if (stages == null || !stages.isArray()) return ids;

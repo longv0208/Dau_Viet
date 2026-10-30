@@ -23,6 +23,11 @@ import { applyServerFieldErrors } from "@/lib/form-utils";
 import { qk } from "@/lib/query-keys";
 import { AssetImage } from "@/features/assets/asset-image";
 import { AssetPickerDialog } from "@/features/assets/asset-picker-dialog";
+import { HeritageBackgroundEditor } from "@/components/heritage/heritage-background-editor";
+import {
+  normalizeHeritageBackgroundConfig,
+  type HeritageBackgroundConfig,
+} from "@/lib/dto/heritage-background";
 import { PaperCard } from "@/components/atoms/paper-card";
 import { SectionDivider } from "@/components/atoms/section-divider";
 import { StampSeal } from "@/components/atoms/stamp-seal";
@@ -89,6 +94,10 @@ export function LessonBasicEditor({ lessonId }: { lessonId: string }) {
   const [pickedAsset, setPickedAsset] = useState<AdminAsset | null>(null);
   const [coverError, setCoverError] = useState<string | null>(null);
   const [coverSavedTick, setCoverSavedTick] = useState(false);
+  const [backgroundConfig, setBackgroundConfig] =
+    useState<HeritageBackgroundConfig>(() =>
+      normalizeHeritageBackgroundConfig(undefined),
+    );
 
   const lessonQuery = useQuery({
     queryKey: qk.lessons.detail(lessonId),
@@ -99,8 +108,9 @@ export function LessonBasicEditor({ lessonId }: { lessonId: string }) {
   useEffect(() => {
     if (lesson !== undefined) {
       setSelectedCoverId(lesson.coverAssetId ?? null);
+      setBackgroundConfig(normalizeHeritageBackgroundConfig(lesson.backgroundConfig));
     }
-  }, [lesson?.id, lesson?.coverAssetId]);
+  }, [lesson?.id, lesson?.coverAssetId, lesson?.backgroundConfig]);
 
   const coverAssetQuery = useQuery({
     queryKey: qk.assets.detail(selectedCoverId ?? "none"),
@@ -133,6 +143,7 @@ export function LessonBasicEditor({ lessonId }: { lessonId: string }) {
     register,
     control,
     handleSubmit,
+    watch,
     reset,
     setError,
     formState: { errors, isDirty, isSubmitting },
@@ -236,6 +247,7 @@ export function LessonBasicEditor({ lessonId }: { lessonId: string }) {
         centralQuestion: v.centralQuestion.trim(),
         objectivesJson: JSON.stringify(v.objectives.map((o) => o.value.trim()).filter(Boolean)),
         expectedRowVersion: latest.rowVersion,
+        backgroundConfig,
         ...(selectedCoverId !== (latest.coverAssetId ?? null)
           ? selectedCoverId === null
             ? { clearCoverAsset: true }
@@ -251,6 +263,7 @@ export function LessonBasicEditor({ lessonId }: { lessonId: string }) {
         centralQuestion: res.centralQuestion,
         objectives: parseObjectives(res.objectivesJson),
       });
+      setBackgroundConfig(normalizeHeritageBackgroundConfig(res.backgroundConfig));
       setCoverError(null);
       setSavedTick(true);
       setTimeout(() => setSavedTick(false), 3000);
@@ -454,6 +467,16 @@ export function LessonBasicEditor({ lessonId }: { lessonId: string }) {
           </div>
         </div>
       </PaperCard>
+
+      <HeritageBackgroundEditor
+        value={backgroundConfig}
+        onChange={setBackgroundConfig}
+        disabled={archived || isSubmitting}
+        contextType="lesson"
+        previewTitle={watch("title") || lesson.title}
+        previewSubtitle={watch("centralQuestion") || lesson.centralQuestion}
+        previewParentTitle={eventQuery.data?.title}
+      />
 
       <PaperCard className="p-5">
         <SectionDivider

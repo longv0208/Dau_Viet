@@ -16,7 +16,7 @@ public class AdminLessonMapper {
                 l.getCentralQuestion(), l.getObjectivesJson(), l.getDraftJson(),
                 l.getStatus().name(), l.getCurrentVersionId(), l.getCoverAssetId(),
                 l.getRowVersion(), l.getCreatedBy(), l.getUpdatedBy(),
-                l.getCreatedAt(), l.getUpdatedAt());
+                l.getCreatedAt(), l.getUpdatedAt(), l.getBackgroundConfig());
     }
 
     public AdminLessonSummaryResponse toSummary(Lesson l) {

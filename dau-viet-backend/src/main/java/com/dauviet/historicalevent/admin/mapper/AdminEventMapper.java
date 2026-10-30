@@ -18,7 +18,7 @@ public class AdminEventMapper {
                 e.getStartYear(), e.getSummary(), e.getDescription(),
                 e.getLocation(), e.getCoverAssetKey(), copyTags(e),
                 e.getStatus().name(), e.getRowVersion(),
-                e.getCreatedAt(), e.getUpdatedAt());
+                e.getCreatedAt(), e.getUpdatedAt(), e.getBackgroundConfig());
     }
 
     public AdminEventSummaryResponse toSummary(HistoricalEvent e) {

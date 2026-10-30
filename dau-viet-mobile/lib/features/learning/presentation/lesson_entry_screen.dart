@@ -12,6 +12,8 @@ import '../../../core/theme/dau_viet_colors.dart';
 import '../../../core/theme/dau_viet_typography.dart';
 import '../../../core/widgets/async_state_view.dart';
 import '../../../core/widgets/dong_son_button.dart';
+import '../../../core/widgets/heritage_background.dart';
+import '../../../core/widgets/heritage_ornaments.dart';
 import '../../auth/data/auth_state.dart';
 import '../../learning_path/data/learning_path_providers.dart';
 import '../../streak/data/streak_providers.dart';
@@ -169,6 +171,13 @@ class _LessonEntryScreenState extends ConsumerState<LessonEntryScreen> {
           data: (meta) {
             return Stack(
               children: [
+                Positioned.fill(
+                  child: HeritageBackground(
+                    config: meta.backgroundConfig,
+                    heroHeight: 215,
+                    child: const SizedBox.expand(),
+                  ),
+                ),
                 // Dải tranh phong cảnh chân trang
                 Positioned(
                   left: 0,
@@ -194,7 +203,9 @@ class _LessonEntryScreenState extends ConsumerState<LessonEntryScreen> {
                     children: [
                       // 1. Tranh minh hoạ di sản mở bài khổ lớn (hỗ trợ coverAssetId từ backend)
                       _LessonCoverHero(
-                        coverAssetId: meta.resolvedCoverAssetId,
+                        coverAssetId:
+                            meta.resolvedCoverAssetId ??
+                            meta.backgroundConfig.resolvedAssetId,
                         title: meta.title,
                       ),
                       const SizedBox(height: 14),
@@ -578,24 +589,17 @@ class _DefaultLessonHeroFallback extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final assetPath = resolveLessonFallbackAsset(title);
-    final imageChild = Image.asset(
-      assetPath,
-      width: double.infinity,
-      height: double.infinity,
-      fit: BoxFit.cover,
-      semanticLabel: title,
-      errorBuilder: (_, _, _) => const ColoredBox(
-        color: Color(0xFFEFE8DA),
-        child: Center(
-          child: Icon(
-            Icons.account_balance_rounded,
-            size: 64,
-            color: DauVietColors.heritageGreen,
-          ),
-        ),
-      ),
-    );
+    final assetPath = resolveOptionalLessonFallbackAsset(title);
+    final Widget imageChild = assetPath != null
+        ? Image.asset(
+            assetPath,
+            width: double.infinity,
+            height: double.infinity,
+            fit: BoxFit.cover,
+            semanticLabel: title,
+            errorBuilder: (_, _, _) => const _HeritagePaperHeroFallback(),
+          )
+        : const _HeritagePaperHeroFallback();
     if (embedded) {
       return imageChild;
     }
@@ -615,6 +619,49 @@ class _DefaultLessonHeroFallback extends StatelessWidget {
         ),
         clipBehavior: Clip.antiAlias,
         child: AspectRatio(aspectRatio: 16 / 10, child: imageChild),
+      ),
+    );
+  }
+}
+
+class _HeritagePaperHeroFallback extends StatelessWidget {
+  const _HeritagePaperHeroFallback();
+
+  @override
+  Widget build(BuildContext context) {
+    return DecoratedBox(
+      decoration: const BoxDecoration(
+        gradient: LinearGradient(
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+          colors: [
+            DauVietColors.paperCardHi,
+            DauVietColors.paperBackground,
+          ],
+        ),
+      ),
+      child: Stack(
+        fit: StackFit.expand,
+        children: const [
+          Positioned(
+            right: -18,
+            top: -18,
+            child: DongSonWatermark(size: 140, opacity: 0.14),
+          ),
+          Positioned(
+            left: 0,
+            right: 0,
+            bottom: 0,
+            child: TraditionalCloudOrnament(height: 32, opacity: 0.24),
+          ),
+          Center(
+            child: Icon(
+              Icons.account_balance_rounded,
+              size: 52,
+              color: DauVietColors.heritageGreen,
+            ),
+          ),
+        ],
       ),
     );
   }

@@ -2,6 +2,7 @@
 /// `content` của snapshot giữ nguyên Map vì cấu trúc stages/evidence/assets
 /// là free-form JSON do projection sinh ra.
 library;
+import '../../../core/models/heritage_background_config.dart';
 
 String? _extractLearnerAssetId(String? coverAssetId, String? coverImageUrl) {
   final trimmedId = coverAssetId?.trim();
@@ -22,6 +23,7 @@ class LessonListItemDto {
   final String? centralQuestion;
   final String? coverAssetId;
   final String? coverImageUrl;
+  final HeritageBackgroundConfigDto backgroundConfig;
 
   const LessonListItemDto({
     required this.id,
@@ -29,6 +31,7 @@ class LessonListItemDto {
     this.centralQuestion,
     this.coverAssetId,
     this.coverImageUrl,
+    this.backgroundConfig = HeritageBackgroundConfigDto.paperDefault,
   });
 
   String? get resolvedCoverAssetId =>
@@ -46,6 +49,11 @@ class LessonListItemDto {
           rawCoverUrl != null && !rawCoverUrl.contains('/admin/')
               ? rawCoverUrl
               : null,
+      backgroundConfig: json['backgroundConfig'] is Map
+          ? HeritageBackgroundConfigDto.fromJson(
+              (json['backgroundConfig'] as Map).cast<String, dynamic>(),
+            )
+          : HeritageBackgroundConfigDto.paperDefault,
     );
   }
 }
@@ -61,6 +69,7 @@ class LessonMetadataDto {
   final String? publishedAt;
   final String? coverAssetId;
   final String? coverImageUrl;
+  final HeritageBackgroundConfigDto backgroundConfig;
 
   const LessonMetadataDto({
     required this.id,
@@ -73,6 +82,7 @@ class LessonMetadataDto {
     this.publishedAt,
     this.coverAssetId,
     this.coverImageUrl,
+    this.backgroundConfig = HeritageBackgroundConfigDto.paperDefault,
   });
 
   String? get resolvedCoverAssetId =>
@@ -95,6 +105,11 @@ class LessonMetadataDto {
           rawCoverUrl != null && !rawCoverUrl.contains('/admin/')
               ? rawCoverUrl
               : null,
+      backgroundConfig: json['backgroundConfig'] is Map
+          ? HeritageBackgroundConfigDto.fromJson(
+              (json['backgroundConfig'] as Map).cast<String, dynamic>(),
+            )
+          : HeritageBackgroundConfigDto.paperDefault,
     );
   }
 }

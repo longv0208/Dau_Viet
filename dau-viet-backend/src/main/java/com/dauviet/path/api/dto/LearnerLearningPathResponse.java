@@ -6,6 +6,7 @@ import java.util.Map;
 import java.util.UUID;
 
 import com.dauviet.historicalevent.domain.DatePrecision;
+import com.dauviet.common.heritage.HeritageBackgroundConfigDto;
 import com.dauviet.path.domain.LearnerPathStatus;
 import com.dauviet.path.domain.ParticipationType;
 import com.dauviet.path.domain.PathContentStatus;
@@ -62,21 +63,40 @@ public record LearnerLearningPathResponse(
             PathNodeType nodeType,
             String code,
             String title,
+            String description,
+            Integer startYear,
+            Integer endYear,
+            String periodLabel,
             int sortOrder,
+            String themeKey,
+            String coverImageKey,
+            HeritageBackgroundConfigDto backgroundConfig,
             List<Event> events
     ) {
         public Chapter(UUID chapterId, String code, String title, int sortOrder, List<Event> events) {
-            this(chapterId, null, PathNodeType.PERIOD, code, title, sortOrder, events);
+            this(chapterId, null, PathNodeType.PERIOD, code, title, null, null, null, null,
+                    sortOrder, null, null, HeritageBackgroundConfigDto.defaultConfig(), events);
+        }
+
+        public Chapter(UUID chapterId, UUID parentId, PathNodeType nodeType, String code,
+                       String title, int sortOrder, List<Event> events) {
+            this(chapterId, parentId, nodeType, code, title, null, null, null, null,
+                    sortOrder, null, null, HeritageBackgroundConfigDto.defaultConfig(), events);
         }
     }
 
     public record Event(
             UUID eventNodeId,
             UUID eventId,
+            String slug,
             String title,
+            Integer startYear,
             String yearLabel,
             Integer endYear,
             DatePrecision datePrecision,
+            String period,
+            String coverAssetKey,
+            HeritageBackgroundConfigDto backgroundConfig,
             int sortOrder,
             ParticipationType participationType,
             LearnerPathStatus status,
@@ -86,7 +106,17 @@ public record LearnerLearningPathResponse(
         public Event(UUID eventNodeId, UUID eventId, String title, String yearLabel, int sortOrder,
                 ParticipationType participationType, LearnerPathStatus status, PathContentStatus contentStatus,
                 List<Lesson> lessons) {
-            this(eventNodeId, eventId, title, yearLabel, null, DatePrecision.EXACT, sortOrder,
+            this(eventNodeId, eventId, null, title, null, yearLabel, null, DatePrecision.EXACT,
+                    null, null, HeritageBackgroundConfigDto.defaultConfig(), sortOrder,
+                    participationType, status, contentStatus, lessons);
+        }
+
+        public Event(UUID eventNodeId, UUID eventId, String title, String yearLabel,
+                Integer endYear, DatePrecision datePrecision, int sortOrder,
+                ParticipationType participationType, LearnerPathStatus status,
+                PathContentStatus contentStatus, List<Lesson> lessons) {
+            this(eventNodeId, eventId, null, title, null, yearLabel, endYear, datePrecision,
+                    null, null, HeritageBackgroundConfigDto.defaultConfig(), sortOrder,
                     participationType, status, contentStatus, lessons);
         }
     }
@@ -95,8 +125,16 @@ public record LearnerLearningPathResponse(
             UUID lessonId,
             String title,
             int sortOrder,
-            LearnerPathStatus status
-    ) {}
+            LearnerPathStatus status,
+            UUID coverAssetId,
+            String coverImageUrl,
+            HeritageBackgroundConfigDto backgroundConfig
+    ) {
+        public Lesson(UUID lessonId, String title, int sortOrder, LearnerPathStatus status) {
+            this(lessonId, title, sortOrder, status, null, null,
+                    HeritageBackgroundConfigDto.defaultConfig());
+        }
+    }
 
     public record TouchPeriodResponse(
             String periodCode,

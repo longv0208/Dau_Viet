@@ -1,3 +1,5 @@
+import '../../core/models/heritage_background_config.dart';
+
 /// Định nghĩa các loại hình hoạt động học tập tương tác
 /// Khớp 100% với UI_COMPONENT_SPEC.md v2.0
 enum ActivityType {
@@ -18,6 +20,8 @@ class HistoricalEventModel {
   final String heroBannerUrl;
   final String summary;
   final List<String> lessonIds;
+  final String? coverAssetKey;
+  final HeritageBackgroundConfigDto backgroundConfig;
 
   const HistoricalEventModel({
     required this.id,
@@ -27,6 +31,8 @@ class HistoricalEventModel {
     required this.heroBannerUrl,
     required this.summary,
     required this.lessonIds,
+    this.coverAssetKey,
+    this.backgroundConfig = HeritageBackgroundConfigDto.paperDefault,
   });
 }
 

@@ -1,3 +1,5 @@
+import type { HeritageBackgroundConfig } from "./heritage-background";
+
 /** Mirrors com.dauviet.historicalevent.admin.dto.* */
 
 export type EventStatus = "DRAFT" | "PUBLISHED" | "ARCHIVED";
@@ -30,6 +32,7 @@ export interface AdminEventDetail {
   rowVersion: number;
   createdAt: string;
   updatedAt: string;
+  backgroundConfig?: HeritageBackgroundConfig | null;
 }
 
 /** AdminEventCreateRequest — POST /admin/events. */
@@ -44,9 +47,11 @@ export interface AdminEventCreateRequest {
   location?: string;
   coverAssetKey?: string;
   tags?: string[];
+  backgroundConfig?: HeritageBackgroundConfig | null;
 }
 
 /** AdminEventUpdateRequest — PATCH /admin/events/{id}. Null/omitted = unchanged. */
 export interface AdminEventUpdateRequest extends Partial<AdminEventCreateRequest> {
   expectedRowVersion?: number;
+  clearBackgroundConfig?: boolean;
 }

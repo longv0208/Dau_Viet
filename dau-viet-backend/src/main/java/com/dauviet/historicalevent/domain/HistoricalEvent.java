@@ -10,6 +10,9 @@ import org.hibernate.annotations.JdbcTypeCode;
 import org.hibernate.annotations.UpdateTimestamp;
 import org.hibernate.type.SqlTypes;
 
+import com.dauviet.common.heritage.HeritageBackgroundConfigDto;
+import com.dauviet.common.heritage.HeritageBackgroundConfigValidator;
+import com.fasterxml.jackson.annotation.JsonIgnore;
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
 import jakarta.persistence.EnumType;
@@ -71,6 +74,10 @@ public class HistoricalEvent {
      */
     @Column(name = "cover_asset_key", length = 512)
     private String coverAssetKey;
+
+    @JdbcTypeCode(SqlTypes.JSON)
+    @Column(name = "background_config_json", columnDefinition = "jsonb")
+    private String backgroundConfigJson;
 
     @JdbcTypeCode(SqlTypes.ARRAY)
     @Column(name = "tags", columnDefinition = "text[]", nullable = false)
@@ -134,6 +141,14 @@ public class HistoricalEvent {
 
     public String getCoverAssetKey() { return coverAssetKey; }
     public void setCoverAssetKey(String coverAssetKey) { this.coverAssetKey = coverAssetKey; }
+
+    @JsonIgnore
+    public String getBackgroundConfigJson() { return backgroundConfigJson; }
+    public void setBackgroundConfigJson(String backgroundConfigJson) { this.backgroundConfigJson = backgroundConfigJson; }
+
+    public HeritageBackgroundConfigDto getBackgroundConfig() {
+        return HeritageBackgroundConfigValidator.parseOrDefault(backgroundConfigJson);
+    }
 
     public List<String> getTags() { return tags; }
     public void setTags(List<String> tags) { this.tags = tags == null ? new ArrayList<>() : tags; }

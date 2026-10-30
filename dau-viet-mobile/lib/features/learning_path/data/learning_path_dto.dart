@@ -3,6 +3,8 @@
 /// `POST /api/v1/me/learning-path/periods/{periodCode}/touch`).
 library;
 
+import '../../../core/models/heritage_background_config.dart';
+export '../../../core/models/heritage_background_config.dart';
 /// Mã lộ trình chuẩn hóa xuyên suốt ứng dụng.
 const String defaultLearningPathCode = 'HISTORY_MAIN';
 
@@ -424,6 +426,9 @@ class LearningPathLessonNodeDto {
   final int sortOrder;
   final LearnerPathStatus status;
   final String? rawStatus;
+  final String? coverAssetId;
+  final String? coverImageUrl;
+  final HeritageBackgroundConfigDto backgroundConfig;
 
   const LearningPathLessonNodeDto({
     this.lessonNodeId,
@@ -432,6 +437,9 @@ class LearningPathLessonNodeDto {
     required this.sortOrder,
     required this.status,
     this.rawStatus,
+    this.coverAssetId,
+    this.coverImageUrl,
+    this.backgroundConfig = HeritageBackgroundConfigDto.paperDefault,
   });
 
   bool get isUnlocked => status.isUnlocked;
@@ -440,6 +448,7 @@ class LearningPathLessonNodeDto {
 
   factory LearningPathLessonNodeDto.fromJson(Map<String, dynamic> json) {
     final String? raw = json['status'] as String?;
+    final rawBg = json['backgroundConfig'];
     return LearningPathLessonNodeDto(
       lessonNodeId: json['lessonNodeId'] as String?,
       lessonId: json['lessonId'] as String? ?? '',
@@ -447,6 +456,11 @@ class LearningPathLessonNodeDto {
       sortOrder: (json['sortOrder'] as num?)?.toInt() ?? 0,
       status: LearnerPathStatus.parse(raw),
       rawStatus: raw,
+      coverAssetId: json['coverAssetId']?.toString(),
+      coverImageUrl: json['coverImageUrl'] as String?,
+      backgroundConfig: rawBg is Map
+          ? HeritageBackgroundConfigDto.fromJson(rawBg.cast<String, dynamic>())
+          : HeritageBackgroundConfigDto.paperDefault,
     );
   }
 
@@ -456,6 +470,9 @@ class LearningPathLessonNodeDto {
     'title': title,
     'sortOrder': sortOrder,
     'status': status.wireValue,
+    if (coverAssetId != null) 'coverAssetId': coverAssetId,
+    if (coverImageUrl != null) 'coverImageUrl': coverImageUrl,
+    'backgroundConfig': backgroundConfig.toJson(),
   };
 }
 
@@ -474,6 +491,7 @@ class LearningPathEventNodeDto {
   final String yearLabel;
   final String? period;
   final String? coverAssetKey;
+  final HeritageBackgroundConfigDto backgroundConfig;
   final int sortOrder;
   final ParticipationType participationType;
   final LearnerPathStatus status;
@@ -491,6 +509,7 @@ class LearningPathEventNodeDto {
     required this.yearLabel,
     this.period,
     this.coverAssetKey,
+    this.backgroundConfig = HeritageBackgroundConfigDto.paperDefault,
     required this.sortOrder,
     this.participationType = ParticipationType.required,
     this.status = LearnerPathStatus.locked,
@@ -540,6 +559,11 @@ class LearningPathEventNodeDto {
       yearLabel: json['yearLabel'] as String? ?? '',
       period: json['period'] as String?,
       coverAssetKey: json['coverAssetKey'] as String?,
+      backgroundConfig: json['backgroundConfig'] is Map
+          ? HeritageBackgroundConfigDto.fromJson(
+              (json['backgroundConfig'] as Map).cast<String, dynamic>(),
+            )
+          : HeritageBackgroundConfigDto.paperDefault,
       sortOrder: (json['sortOrder'] as num?)?.toInt() ?? 0,
       participationType: ParticipationType.parse(
         json['participationType'] as String?,
@@ -561,6 +585,7 @@ class LearningPathEventNodeDto {
     'yearLabel': yearLabel,
     if (period != null) 'period': period,
     if (coverAssetKey != null) 'coverAssetKey': coverAssetKey,
+    'backgroundConfig': backgroundConfig.toJson(),
     'sortOrder': sortOrder,
     'participationType': participationType.wireValue,
     'status': status.wireValue,
@@ -590,6 +615,7 @@ class LearningPathChapterDto {
   /// Dạng `periods/<code>/<file>`; resolve sang asset bundle qua
   /// `AssetResolver.resolvePeriodCover`.
   final String? coverImageKey;
+  final HeritageBackgroundConfigDto backgroundConfig;
   final List<LearningPathEventNodeDto> events;
 
   const LearningPathChapterDto({
@@ -605,6 +631,7 @@ class LearningPathChapterDto {
     required this.sortOrder,
     this.themeKey,
     this.coverImageKey,
+    this.backgroundConfig = HeritageBackgroundConfigDto.paperDefault,
     this.events = const [],
   });
 
@@ -637,6 +664,11 @@ class LearningPathChapterDto {
       sortOrder: (json['sortOrder'] as num?)?.toInt() ?? 0,
       themeKey: json['themeKey'] as String?,
       coverImageKey: json['coverImageKey'] as String?,
+      backgroundConfig: json['backgroundConfig'] is Map
+          ? HeritageBackgroundConfigDto.fromJson(
+              (json['backgroundConfig'] as Map).cast<String, dynamic>(),
+            )
+          : HeritageBackgroundConfigDto.paperDefault,
       events: events,
     );
   }
@@ -654,6 +686,7 @@ class LearningPathChapterDto {
     'sortOrder': sortOrder,
     if (themeKey != null) 'themeKey': themeKey,
     if (coverImageKey != null) 'coverImageKey': coverImageKey,
+    'backgroundConfig': backgroundConfig.toJson(),
     'events': events.map((e) => e.toJson()).toList(),
   };
 }

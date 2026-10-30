@@ -8,6 +8,7 @@ import org.springframework.data.domain.Sort;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import com.dauviet.path.api.dto.AdminPathResponse;
+import com.dauviet.common.heritage.HeritageBackgroundConfigDto;
 import com.dauviet.path.domain.*;
 import com.dauviet.path.infrastructure.persistence.*;
 import com.dauviet.historicalevent.domain.HistoricalEvent;
@@ -91,9 +92,12 @@ public class AdminPathReadService {
                                         l,
                                         lesson == null ? null : lesson.getTitle(),
                                         lesson == null ? "MISSING" : lesson.getStatus().name(),
-                                        lesson == null ? null : lesson.getCoverAssetId());
+                                        lesson == null ? null : lesson.getCoverAssetId(),
+                                        lesson == null ? HeritageBackgroundConfigDto.defaultConfig() : lesson.getBackgroundConfig());
                             }).toList(), data == null ? "MISSING" : data.getStatus().name(),
-                            identities.canonical(e.getEventId(), aliases), aliases.containsKey(e.getEventId()));
+                            identities.canonical(e.getEventId(), aliases), aliases.containsKey(e.getEventId()),
+                            data == null ? null : data.getCoverAssetKey(),
+                            data == null ? HeritageBackgroundConfigDto.defaultConfig() : data.getBackgroundConfig());
                 }).toList())).toList());
     }
 

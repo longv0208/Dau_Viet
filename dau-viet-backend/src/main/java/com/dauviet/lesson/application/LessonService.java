@@ -13,6 +13,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import com.dauviet.common.error.ResourceNotFoundException;
+import com.dauviet.common.heritage.HeritageBackgroundConfigValidator;
 import com.dauviet.historicalevent.infrastructure.persistence.HistoricalEventRepository;
 import com.dauviet.lesson.api.dto.AdminLessonCreateRequest;
 import com.dauviet.lesson.api.dto.AdminLessonDraftRequest;
@@ -66,6 +67,7 @@ public class LessonService {
     private final com.dauviet.lesson.draft.SnapshotBuilder snapshotBuilder;
     private final com.fasterxml.jackson.databind.ObjectMapper objectMapper;
     private final AssetRepository assets;
+    private final HeritageBackgroundConfigValidator backgroundValidator;
 
     public LessonService(LessonRepository lessons,
                          LessonTemplateRepository templates,
@@ -101,6 +103,7 @@ public class LessonService {
         this.snapshotBuilder = snapshotBuilder;
         this.objectMapper = objectMapper;
         this.assets = assets;
+        this.backgroundValidator = new HeritageBackgroundConfigValidator(assets);
     }
 
     @Transactional
@@ -130,8 +133,10 @@ public class LessonService {
         l.setObjectivesJson(objectives);
         l.setDraftJson(draft);
         l.setCoverAssetId(req.coverAssetId());
+        if (req.backgroundConfig() != null) {
+            l.setBackgroundConfigJson(backgroundValidator.validateAndSerialize(req.backgroundConfig()));
+        }
         l.setStatus(LessonStatus.DRAFT);
-        l.setCreatedBy(adminId);
         l.setUpdatedBy(adminId);
         return mapper.toResponse(lessons.saveAndFlush(l));
     }
@@ -195,6 +200,11 @@ public class LessonService {
         } else if (req.coverAssetId() != null) {
             validateCoverAsset(req.coverAssetId());
             l.setCoverAssetId(req.coverAssetId());
+        }
+        if (Boolean.TRUE.equals(req.clearBackgroundConfig())) {
+            l.setBackgroundConfigJson(null);
+        } else if (req.backgroundConfig() != null) {
+            l.setBackgroundConfigJson(backgroundValidator.validateAndSerialize(req.backgroundConfig()));
         }
         l.setUpdatedBy(adminId);
         return mapper.toResponse(lessons.saveAndFlush(l));

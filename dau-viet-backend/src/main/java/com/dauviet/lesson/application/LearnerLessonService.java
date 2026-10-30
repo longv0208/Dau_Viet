@@ -64,7 +64,8 @@ public class LearnerLessonService {
                         l.getTitle(),
                         l.getCentralQuestion(),
                         l.getCoverAssetId(),
-                        toLearnerCoverUrl(l.getCoverAssetId())))
+                        toLearnerCoverUrl(l.getCoverAssetId()),
+                        l.getBackgroundConfig()))
                 .toList();
     }
 
@@ -84,7 +85,8 @@ public class LearnerLessonService {
                 current.getVersionNo(),
                 current.getPublishedAt(),
                 l.getCoverAssetId(),
-                toLearnerCoverUrl(l.getCoverAssetId()));
+                toLearnerCoverUrl(l.getCoverAssetId()),
+                l.getBackgroundConfig());
     }
 
     /** Learner-safe projection of the current published snapshot. */

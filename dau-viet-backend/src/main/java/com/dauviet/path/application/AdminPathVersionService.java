@@ -67,7 +67,8 @@ public class AdminPathVersionService {
                     var copy = new LearningPathChapter(newId, target.getId(), newParentId, chapter.getNodeType(),
                             chapter.getCode(), chapter.getTitle(), chapter.getDescription(),
                             chapter.getStartYear(), chapter.getEndYear(), chapter.getPeriodLabel(),
-                            chapter.getSortOrder(), chapter.getThemeKey());
+                            chapter.getSortOrder(), chapter.getThemeKey(),
+                            chapter.getCoverImageKey(), chapter.getBackgroundConfigJson());
                     chapters.save(copy);
                     insertedSourceIds.add(chapter.getId());
                     iterator.remove();
@@ -81,7 +82,8 @@ public class AdminPathVersionService {
                     var copy = new LearningPathChapter(newId, target.getId(), newParentId, chapter.getNodeType(),
                             chapter.getCode(), chapter.getTitle(), chapter.getDescription(),
                             chapter.getStartYear(), chapter.getEndYear(), chapter.getPeriodLabel(),
-                            chapter.getSortOrder(), chapter.getThemeKey());
+                            chapter.getSortOrder(), chapter.getThemeKey(),
+                            chapter.getCoverImageKey(), chapter.getBackgroundConfigJson());
                     chapters.save(copy);
                 }
                 break;

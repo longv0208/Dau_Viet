@@ -16,6 +16,11 @@ import { qk } from "@/lib/query-keys";
 import { uploadAsset, validateAssetFile } from "@/features/assets/asset-api";
 import { AssetImage } from "@/features/assets/asset-image";
 import { AssetPickerDialog } from "@/features/assets/asset-picker-dialog";
+import { HeritageBackgroundEditor } from "@/components/heritage/heritage-background-editor";
+import {
+  normalizeHeritageBackgroundConfig,
+  type HeritageBackgroundConfig,
+} from "@/lib/dto/heritage-background";
 import { applyServerFieldErrors, toSlug } from "@/lib/form-utils";
 import { PaperCard } from "@/components/atoms/paper-card";
 import { SectionDivider } from "@/components/atoms/section-divider";
@@ -99,6 +104,10 @@ export function EventForm({ initial }: Props) {
   const [pickedAsset, setPickedAsset] = useState<AdminAsset | null>(null);
   const [uploadingCover, setUploadingCover] = useState(false);
   const [coverUploadError, setCoverUploadError] = useState<string | null>(null);
+  const [backgroundConfig, setBackgroundConfig] =
+    useState<HeritageBackgroundConfig>(() =>
+      normalizeHeritageBackgroundConfig(initial?.backgroundConfig),
+    );
   const {
     register,
     handleSubmit,
@@ -139,9 +148,10 @@ export function EventForm({ initial }: Props) {
 
   const tags = useFieldArray({ control, name: "tags" });
   const titleValue = watch("title");
+  const eraValue = watch("era");
+  const periodValue = watch("period");
   const coverAssetKeyValue = watch("coverAssetKey") ?? "";
   const coverAssetId = extractAssetId(coverAssetKeyValue);
-
   const coverAssetQuery = useQuery({
     queryKey: qk.assets.detail(coverAssetId ?? "none"),
     queryFn:
@@ -229,8 +239,9 @@ export function EventForm({ initial }: Props) {
         ? nextCover
         : isEdit && initial?.coverAssetKey
           ? ""
-          : undefined,
+        : undefined,
       tags: v.tags.map((t) => t.value.trim()).filter(Boolean),
+      backgroundConfig,
     };
     try {
       if (isEdit && initial) {
@@ -250,6 +261,7 @@ export function EventForm({ initial }: Props) {
           coverAssetKey: res.coverAssetKey ?? "",
           tags: (res.tags ?? []).map((t: string) => ({ value: t })),
         });
+        setBackgroundConfig(normalizeHeritageBackgroundConfig(res.backgroundConfig));
         setSavedTick(true);
         setTimeout(() => setSavedTick(false), 3000);
         qc.invalidateQueries({ queryKey: ["events"] });
@@ -504,6 +516,16 @@ export function EventForm({ initial }: Props) {
           </div>
         </div>
       </div>
+
+      <HeritageBackgroundEditor
+        value={backgroundConfig}
+        onChange={setBackgroundConfig}
+        disabled={archived || isSubmitting}
+        contextType="event"
+        previewTitle={titleValue}
+        previewSubtitle={periodValue}
+        previewParentTitle={eraValue}
+      />
 
       <div className="flex flex-col gap-2">
         <Label className="font-medium text-ink-secondary">Tags</Label>

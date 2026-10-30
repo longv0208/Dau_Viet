@@ -3,6 +3,7 @@ package com.dauviet.path.api.dto;
 import java.util.List;
 import java.util.UUID;
 import com.dauviet.path.domain.ParticipationType;
+import com.dauviet.common.heritage.HeritageBackgroundConfigDto;
 import jakarta.validation.constraints.*;
 
 public final class AdminPathRequests {
@@ -19,10 +20,16 @@ public final class AdminPathRequests {
                           @NotBlank @Size(max = 64) String themeKey,
                           @Size(max = 255) String coverImageKey,
                           UUID parentId,
-                          String nodeType) {
+                          String nodeType,
+                          HeritageBackgroundConfigDto backgroundConfig) {
         public Chapter(Long expectedRevision, String code, String title, String description,
                        Integer startYear, Integer endYear, String periodLabel, String themeKey) {
-            this(expectedRevision, code, title, description, startYear, endYear, periodLabel, themeKey, null, null, null);
+            this(expectedRevision, code, title, description, startYear, endYear, periodLabel, themeKey, null, null, null, null);
+        }
+        public Chapter(Long expectedRevision, String code, String title, String description,
+                       Integer startYear, Integer endYear, String periodLabel, String themeKey,
+                       String coverImageKey, UUID parentId, String nodeType) {
+            this(expectedRevision, code, title, description, startYear, endYear, periodLabel, themeKey, coverImageKey, parentId, nodeType, null);
         }
     }
     public record ChapterPatch(@NotNull @PositiveOrZero Long expectedRevision,
@@ -30,11 +37,22 @@ public final class AdminPathRequests {
                                String description, Integer startYear, Integer endYear,
                                @Size(max = 120) String periodLabel, @Size(max = 64) String themeKey,
                                @Size(max = 255) String coverImageKey,
-                               UUID parentId, Boolean clearParent, String nodeType) {
+                               UUID parentId, Boolean clearParent, String nodeType,
+                               Boolean clearCoverImage,
+                               HeritageBackgroundConfigDto backgroundConfig,
+                               Boolean clearBackgroundConfig) {
         public ChapterPatch(Long expectedRevision, String code, String title,
                             String description, Integer startYear, Integer endYear,
                             String periodLabel, String themeKey) {
-            this(expectedRevision, code, title, description, startYear, endYear, periodLabel, themeKey, null, null, null, null);
+            this(expectedRevision, code, title, description, startYear, endYear, periodLabel, themeKey,
+                    null, null, null, null, null, null, null);
+        }
+        public ChapterPatch(Long expectedRevision, String code, String title,
+                            String description, Integer startYear, Integer endYear,
+                            String periodLabel, String themeKey,
+                            String coverImageKey, UUID parentId, Boolean clearParent, String nodeType) {
+            this(expectedRevision, code, title, description, startYear, endYear, periodLabel, themeKey,
+                    coverImageKey, parentId, clearParent, nodeType, null, null, null);
         }
     }
     public record Event(@NotNull @PositiveOrZero Long expectedRevision, @NotNull UUID eventId,

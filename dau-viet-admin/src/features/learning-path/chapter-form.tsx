@@ -2,6 +2,11 @@
 
 import { useState, type FormEvent } from "react";
 import type { PathChapter, PathNodeType } from "@/lib/dto/learning-path";
+import { HeritageBackgroundEditor } from "@/components/heritage/heritage-background-editor";
+import {
+  normalizeHeritageBackgroundConfig,
+  type HeritageBackgroundConfig,
+} from "@/lib/dto/heritage-background";
 import { Dialog } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -47,6 +52,14 @@ export function ChapterForm({
     return raw;
   });
   const [error, setError] = useState<string | null>(null);
+  const [titlePreview, setTitlePreview] = useState(data?.title ?? "");
+  const [periodLabelPreview, setPeriodLabelPreview] = useState(
+    data?.periodLabel ?? "",
+  );
+  const [backgroundConfig, setBackgroundConfig] =
+    useState<HeritageBackgroundConfig>(() =>
+      normalizeHeritageBackgroundConfig(data?.backgroundConfig),
+    );
 
   const hasChildren = Boolean(
     data && allChapters.some((c) => c.chapter.parentId === data.id),
@@ -88,6 +101,9 @@ export function ChapterForm({
     const resolvedParentId =
       nodeType === "ERA" ? null : parentId.trim() ? parentId.trim() : null;
 
+    const rawCoverImageKey = String(values.get("coverImageKey") ?? "").trim();
+    const selectedParent = allowedParents.find((p) => p.chapter.id === resolvedParentId);
+
     const saved = await onSave({
       code: String(values.get("code")).trim(),
       title: String(values.get("title")).trim(),
@@ -96,8 +112,9 @@ export function ChapterForm({
       endYear,
       periodLabel: String(values.get("periodLabel")).trim(),
       themeKey: String(values.get("themeKey")).trim(),
-      coverImageKey:
-        String(values.get("coverImageKey")).trim() || undefined,
+      coverImageKey: rawCoverImageKey || undefined,
+      ...(data?.coverImageKey && !rawCoverImageKey ? { clearCoverImage: true } : {}),
+      backgroundConfig,
       nodeType,
       parentId: resolvedParentId,
     });
@@ -105,9 +122,13 @@ export function ChapterForm({
     else setError("Chưa lưu được đơn vị lộ trình. Kiểm tra thông báo lỗi và thử lại.");
   };
 
+  const selectedParentTitle =
+    allowedParents.find((p) => p.chapter.id === parentId)?.chapter.title;
+
   return (
     <Dialog
       open
+      size="xl"
       onOpenChange={(open) => {
         if (!open && !busy) onClose();
       }}
@@ -186,6 +207,7 @@ export function ChapterForm({
                     : "Ví dụ: Kháng chiến chống Tống giai đoạn 2"
               }
               defaultValue={data?.title ?? ""}
+              onChange={(e) => setTitlePreview(e.target.value)}
               autoFocus
             />
           </div>
@@ -260,11 +282,14 @@ export function ChapterForm({
               maxLength={120}
               placeholder="Năm 1009 – năm 1225"
               defaultValue={data?.periodLabel ?? ""}
+              onChange={(e) => setPeriodLabelPreview(e.target.value)}
             />
           </div>
           {nodeType === "PERIOD" && (
             <div>
-              <Label htmlFor="chapter-cover-image">Khóa ảnh bìa (tùy chọn)</Label>
+              <Label htmlFor="chapter-cover-image">
+                Khóa ảnh đại diện / Thumbnail thẻ thời kỳ (tùy chọn)
+              </Label>
               <Input
                 id="chapter-cover-image"
                 name="coverImageKey"
@@ -273,12 +298,21 @@ export function ChapterForm({
                 defaultValue={data?.coverImageKey ?? ""}
               />
               <p className="mt-1 text-xs text-ink-muted">
-                Dạng <code>periods/&lt;code&gt;/&lt;file&gt;</code>. Mobile sẽ
-                resolve qua <code>AssetResolver.resolvePeriodCover</code> —
-                bỏ trống để dùng ảnh mặc định theo <code>code</code>.
+                Ảnh nhỏ hiển thị ở danh sách chọn thời kỳ (phân biệt với{" "}
+                <strong>Ảnh nền Hành trình thời kỳ</strong> bên dưới). Bỏ trống
+                để dùng ảnh đại diện mặc định theo <code>code</code>.
               </p>
             </div>
           )}
+          <HeritageBackgroundEditor
+            value={backgroundConfig}
+            onChange={setBackgroundConfig}
+            disabled={busy}
+            contextType="period"
+            previewTitle={titlePreview}
+            previewSubtitle={periodLabelPreview}
+            previewParentTitle={selectedParentTitle}
+          />
           {error && (
             <p role="alert" className="text-sm text-error">
               {error}

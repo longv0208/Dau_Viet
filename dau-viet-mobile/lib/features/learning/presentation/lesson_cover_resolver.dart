@@ -1,6 +1,9 @@
 /// Phân giải tranh minh họa lịch sử cục bộ (bundled asset) theo tiêu đề / ngữ cảnh
 /// của bài học hoặc hoạt động đọc khi chưa có `coverAssetId` từ máy chủ hoặc đang tải.
-String resolveLessonFallbackAsset(String title, [String? secondaryText]) {
+String? resolveOptionalLessonFallbackAsset(
+  String title, [
+  String? secondaryText,
+]) {
   final combined =
       '${title.toLowerCase()} ${(secondaryText ?? '').toLowerCase()}';
 
@@ -94,5 +97,10 @@ String resolveLessonFallbackAsset(String title, [String? secondaryText]) {
     return 'assets/images/bg_story_thu_phong.jpg';
   }
 
-  return 'assets/images/heritage/den-hung-phong-chau.jpg';
+  return null;
+}
+
+String resolveLessonFallbackAsset(String title, [String? secondaryText]) {
+  return resolveOptionalLessonFallbackAsset(title, secondaryText) ??
+      'assets/images/heritage/den-hung-phong-chau.jpg';
 }

@@ -12,6 +12,8 @@ import org.springframework.data.jpa.domain.Specification;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import org.springframework.beans.factory.annotation.Autowired;
+import com.dauviet.common.heritage.HeritageBackgroundConfigValidator;
 import com.dauviet.common.error.ResourceNotFoundException;
 import com.dauviet.historicalevent.admin.dto.AdminEventCreateRequest;
 import com.dauviet.historicalevent.admin.dto.AdminEventResponse;
@@ -40,13 +42,25 @@ public class AdminEventService {
     private final HistoricalEventRepository events;
     private final LessonRepository lessons;
     private final AdminEventMapper mapper;
+    private final HeritageBackgroundConfigValidator backgroundValidator;
 
     public AdminEventService(HistoricalEventRepository events,
                              LessonRepository lessons,
                              AdminEventMapper mapper) {
+        this(events, lessons, mapper, new HeritageBackgroundConfigValidator());
+    }
+
+    @Autowired
+    public AdminEventService(HistoricalEventRepository events,
+                             LessonRepository lessons,
+                             AdminEventMapper mapper,
+                             HeritageBackgroundConfigValidator backgroundValidator) {
         this.events = events;
         this.lessons = lessons;
         this.mapper = mapper;
+        this.backgroundValidator = backgroundValidator != null
+                ? backgroundValidator
+                : new HeritageBackgroundConfigValidator();
     }
 
     @Transactional
@@ -64,6 +78,9 @@ public class AdminEventService {
         e.setCoverAssetKey(req.coverAssetKey() != null && !req.coverAssetKey().isBlank()
                 ? req.coverAssetKey().trim()
                 : null);
+        if (req.backgroundConfig() != null) {
+            e.setBackgroundConfigJson(backgroundValidator.validateAndSerialize(req.backgroundConfig()));
+        }
         e.setTags(req.tags() == null ? new ArrayList<>() : new ArrayList<>(req.tags()));
         e.setStatus(EventStatus.DRAFT);
         try {
@@ -126,6 +143,11 @@ public class AdminEventService {
         if (req.location() != null) e.setLocation(req.location());
         if (req.coverAssetKey() != null) {
             e.setCoverAssetKey(req.coverAssetKey().isBlank() ? null : req.coverAssetKey().trim());
+        }
+        if (Boolean.TRUE.equals(req.clearBackgroundConfig())) {
+            e.setBackgroundConfigJson(null);
+        } else if (req.backgroundConfig() != null) {
+            e.setBackgroundConfigJson(backgroundValidator.validateAndSerialize(req.backgroundConfig()));
         }
         if (req.tags() != null) e.setTags(new ArrayList<>(req.tags()));
         try {

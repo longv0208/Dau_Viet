@@ -45,6 +45,8 @@ class EventModelAdapter {
       heroBannerUrl: heroAssetPath ?? '',
       summary: dto.summary,
       lessonIds: const [],
+      coverAssetKey: dto.coverAssetKey,
+      backgroundConfig: dto.backgroundConfig,
     );
   }
 }
