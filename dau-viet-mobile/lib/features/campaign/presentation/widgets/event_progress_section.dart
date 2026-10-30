@@ -4,7 +4,6 @@ import 'package:go_router/go_router.dart';
 
 import '../../../../core/theme/dau_viet_colors.dart';
 import '../../../../core/theme/dau_viet_typography.dart';
-import '../../../../core/widgets/parchment_card.dart';
 import '../../../collection/data/dossier_providers.dart';
 import '../../../collection/data/event_progress_dto.dart';
 import '../../../learning_path/data/learning_path_dto.dart';
@@ -50,8 +49,7 @@ class EventProgressSection extends ConsumerWidget {
     LearningPathEventNodeDto? pathEvent,
   ) {
     if (p.status == 'NOT_CONFIGURED') {
-      return ParchmentCard(
-        padding: const EdgeInsets.all(14),
+      return _TurtleSyncBannerContainer(
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
@@ -59,16 +57,17 @@ class EventProgressSection extends ConsumerWidget {
               children: [
                 const Icon(
                   Icons.flag_outlined,
-                  size: 18,
+                  size: 16,
                   color: DauVietColors.inkMuted,
                 ),
-                const SizedBox(width: 10),
+                const SizedBox(width: 6),
                 Expanded(
                   child: Text(
                     'Sự kiện này chưa có mục tiêu hoàn thành — hãy khám phá '
                     'các bài học bên dưới.',
                     style: DauVietTypography.bodySmall.copyWith(
-                      color: DauVietColors.inkMuted,
+                      color: const Color(0xFF4A3C2E),
+                      height: 1.35,
                     ),
                   ),
                 ),
@@ -79,7 +78,7 @@ class EventProgressSection extends ConsumerWidget {
               ],
             ),
             if (pathEvent != null && pathEvent.lessons.isNotEmpty) ...[
-              const SizedBox(height: 8),
+              const SizedBox(height: 6),
               _PathLessonStatusSummary(lessons: pathEvent.lessons),
             ],
           ],
@@ -95,8 +94,7 @@ class EventProgressSection extends ConsumerWidget {
         p.earnedPolicyVersion != null &&
         p.policyVersion != null &&
         p.earnedPolicyVersion! < p.policyVersion!;
-    return ParchmentCard(
-      padding: const EdgeInsets.all(14),
+    return _TurtleSyncBannerContainer(
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
@@ -104,12 +102,12 @@ class EventProgressSection extends ConsumerWidget {
             children: [
               Icon(
                 done ? Icons.emoji_events_rounded : Icons.flag_rounded,
-                size: 18,
+                size: 17,
                 color: done
-                    ? DauVietColors.imperialGold
+                    ? DauVietColors.imperialGoldDark
                     : DauVietColors.cinnabarRed,
               ),
-              const SizedBox(width: 8),
+              const SizedBox(width: 6),
               Expanded(
                 child: Text(
                   done
@@ -120,15 +118,15 @@ class EventProgressSection extends ConsumerWidget {
                   style: DauVietTypography.labelSmall.copyWith(
                     fontWeight: FontWeight.w800,
                     color: done
-                        ? DauVietColors.imperialGold
+                        ? DauVietColors.imperialGoldDark
                         : DauVietColors.cinnabarRed,
-                    letterSpacing: 0.6,
+                    letterSpacing: 0.5,
                   ),
                 ),
               ),
               if (pathEvent != null) ...[
                 _PathStatusBadge(status: pathEvent.status),
-                const SizedBox(width: 8),
+                const SizedBox(width: 6),
               ],
               Text(
                 '${p.requiredLessonsCompleted}/${p.requiredLessonsTotal}',
@@ -139,28 +137,30 @@ class EventProgressSection extends ConsumerWidget {
               ),
             ],
           ),
-          const SizedBox(height: 8),
-          LinearProgressIndicator(
-            // fraction null khi total=0 — render 0 an toàn.
-            value: p.fraction ?? 0,
-            minHeight: 6,
-            backgroundColor: DauVietColors.parchmentHigh,
-            valueColor: AlwaysStoppedAnimation<Color>(
-              done ? DauVietColors.imperialGold : DauVietColors.cinnabarRed,
+          const SizedBox(height: 6),
+          ClipRRect(
+            borderRadius: BorderRadius.circular(999),
+            child: LinearProgressIndicator(
+              value: p.fraction ?? 0,
+              minHeight: 6,
+              backgroundColor: DauVietColors.parchmentHigh,
+              valueColor: AlwaysStoppedAnimation<Color>(
+                done ? DauVietColors.imperialGold : DauVietColors.cinnabarRed,
+              ),
             ),
           ),
-          const SizedBox(height: 8),
+          const SizedBox(height: 6),
           Text(
             'Hoàn thành ${p.requiredLessonsCompleted}/${p.requiredLessonsTotal} '
             'bài bắt buộc'
             '${p.masteryThreshold != null ? ' • Ngưỡng tinh thông: ${p.masteryThreshold}' : ''}',
             style: DauVietTypography.bodySmall.copyWith(
-              color: DauVietColors.inkMuted,
+              color: const Color(0xFF5C4E42),
+              fontSize: 11.5,
             ),
           ),
-          // FIX 7: thông báo nhẹ khi milestone cấp theo policy cũ.
           if (earnedOlder) ...[
-            const SizedBox(height: 6),
+            const SizedBox(height: 4),
             Text(
               'Bạn đã hoàn thành phiên bản trước — chính sách mới bổ sung '
               'bài học để khám phá thêm.',
@@ -171,17 +171,17 @@ class EventProgressSection extends ConsumerWidget {
             ),
           ],
           if (pathEvent != null && pathEvent.lessons.isNotEmpty) ...[
-            const SizedBox(height: 8),
+            const SizedBox(height: 6),
             _PathLessonStatusSummary(lessons: pathEvent.lessons),
           ],
           if (p.unlockedDossiersCount > 0) ...[
-            const SizedBox(height: 8),
+            const SizedBox(height: 6),
             Row(
               children: [
                 const Icon(
                   Icons.menu_book_rounded,
                   size: 14,
-                  color: DauVietColors.imperialGold,
+                  color: DauVietColors.imperialGoldDark,
                 ),
                 const SizedBox(width: 6),
                 Expanded(
@@ -198,7 +198,7 @@ class EventProgressSection extends ConsumerWidget {
                   style: TextButton.styleFrom(
                     foregroundColor: DauVietColors.cinnabarRed,
                     padding: EdgeInsets.zero,
-                    minimumSize: const Size(0, 32),
+                    minimumSize: const Size(0, 30),
                     textStyle: DauVietTypography.labelSmall.copyWith(
                       fontWeight: FontWeight.w800,
                     ),
@@ -214,30 +214,86 @@ class EventProgressSection extends ConsumerWidget {
   }
 }
 
-/// Loading placeholder — gọn, không mở rộng layout.
-class _Loading extends StatelessWidget {
-  const _Loading();
+/// Khung banner giấy dó có linh vật Rùa Kabi cầm chiếu thư bên trái (khớp ảnh mẫu #1).
+class _TurtleSyncBannerContainer extends StatelessWidget {
+  final Widget child;
+  const _TurtleSyncBannerContainer({required this.child});
 
   @override
   Widget build(BuildContext context) {
-    return const ParchmentCard(
-      padding: EdgeInsets.symmetric(horizontal: 14, vertical: 12),
-      child: Row(
-        children: [
-          SizedBox(
-            width: 16,
-            height: 16,
-            child: CircularProgressIndicator(strokeWidth: 2),
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 11),
+      decoration: BoxDecoration(
+        gradient: const LinearGradient(
+          begin: Alignment.centerLeft,
+          end: Alignment.centerRight,
+          colors: [Color(0xFFFCF7EB), Color(0xFFF6EAD3)],
+        ),
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: const Color(0xFFDEC69A), width: 1.4),
+        boxShadow: const [
+          BoxShadow(
+            color: Color(0x145D4024),
+            blurRadius: 8,
+            offset: Offset(0, 3),
           ),
-          SizedBox(width: 10),
-          Text('Đang tải tiến độ sự kiện…', style: TextStyle(fontSize: 12)),
+        ],
+      ),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.center,
+        children: [
+          Image.asset(
+            'assets/images/kabi_sync_scroll.png',
+            width: 58,
+            height: 50,
+            fit: BoxFit.contain,
+            filterQuality: FilterQuality.high,
+            errorBuilder: (_, _, _) => const Icon(
+              Icons.auto_stories_rounded,
+              size: 32,
+              color: DauVietColors.heritageGreen,
+            ),
+          ),
+          const SizedBox(width: 10),
+          Expanded(child: child),
         ],
       ),
     );
   }
 }
 
-/// Error nhỏ gọn + retry — không ẩn lỗi mạng khỏi learner.
+/// Loading placeholder — gọn, có Rùa Kabi cầm chiếu thư (khớp ảnh mẫu #1).
+class _Loading extends StatelessWidget {
+  const _Loading();
+
+  @override
+  Widget build(BuildContext context) {
+    return _TurtleSyncBannerContainer(
+      child: Row(
+        children: [
+          const SizedBox(
+            width: 16,
+            height: 16,
+            child: CircularProgressIndicator(strokeWidth: 2),
+          ),
+          const SizedBox(width: 10),
+          Expanded(
+            child: Text(
+              'Đang tải tiến độ sự kiện…',
+              style: DauVietTypography.bodySmall.copyWith(
+                fontSize: 12.5,
+                fontWeight: FontWeight.w700,
+                color: const Color(0xFF2B1F17),
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+/// Error nhỏ gọn + nút THỬ LẠI bo viền đỏ/vàng (khớp ảnh mẫu #1).
 class _Error extends StatelessWidget {
   final VoidCallback onRetry;
 
@@ -245,35 +301,57 @@ class _Error extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return ParchmentCard(
-      padding: const EdgeInsets.all(14),
+    return _TurtleSyncBannerContainer(
       child: Row(
         children: [
-          const Icon(
-            Icons.wifi_off_rounded,
-            size: 16,
-            color: DauVietColors.inkMuted,
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Text(
+                  'Không tải được tiến độ',
+                  style: DauVietTypography.labelMedium.copyWith(
+                    color: const Color(0xFF2B1F17),
+                    fontWeight: FontWeight.w800,
+                    fontSize: 13,
+                  ),
+                ),
+                const SizedBox(height: 2),
+                Text(
+                  'Dữ liệu học tập của bạn sẽ được cập nhật mới nhất trên mọi thiết bị.',
+                  style: DauVietTypography.bodySmall.copyWith(
+                    color: const Color(0xFF6B5B4B),
+                    fontSize: 10.5,
+                    height: 1.3,
+                  ),
+                ),
+              ],
+            ),
           ),
           const SizedBox(width: 8),
-          Expanded(
-            child: Text(
-              'Không tải được tiến độ',
-              style: DauVietTypography.bodySmall.copyWith(
-                color: DauVietColors.inkMuted,
-              ),
-            ),
-          ),
-          TextButton(
+          OutlinedButton.icon(
             onPressed: onRetry,
-            style: TextButton.styleFrom(
-              foregroundColor: DauVietColors.cinnabarRed,
-              padding: EdgeInsets.zero,
+            icon: const Icon(
+              Icons.refresh_rounded,
+              size: 14,
+              color: Color(0xFFA8221B),
+            ),
+            label: const Text('THỬ LẠI'),
+            style: OutlinedButton.styleFrom(
+              foregroundColor: const Color(0xFFA8221B),
+              backgroundColor: const Color(0xFFFFFDF8),
+              side: const BorderSide(color: Color(0xFFDEC69A), width: 1.2),
+              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
               minimumSize: const Size(0, 32),
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(999),
+              ),
               textStyle: DauVietTypography.labelSmall.copyWith(
                 fontWeight: FontWeight.w800,
+                fontSize: 11,
               ),
             ),
-            child: const Text('THỬ LẠI'),
           ),
         ],
       ),

@@ -99,6 +99,16 @@ class DauVietColors {
     ),
   ];
 
+  /// Đổ bóng mềm tinh tế chuẩn Soft Heritage Card (đồng bộ ProfileScreen).
+  static const List<BoxShadow> softCardShadow = [
+    BoxShadow(
+      color: Color(0x0F5D4024),
+      offset: Offset(0, 2),
+      blurRadius: 6,
+      spreadRadius: 0,
+    ),
+  ];
+
   /// Pixel-shadow lớn (`shadow-pixel` trên Landing) — button, chip nổi bật.
   static const List<BoxShadow> pixelShadow = [
     BoxShadow(

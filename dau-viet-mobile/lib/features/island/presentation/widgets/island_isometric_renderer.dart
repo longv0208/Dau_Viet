@@ -27,6 +27,11 @@ class IslandIsometricRenderer extends StatelessWidget {
   final int? expandingToTier;
   final bool isEditMode;
   final Set<String> flippedSlotIds;
+  final IslandPlacementDto? previewPlacement;
+  final bool previewFlipHorizontally;
+  final VoidCallback? onCancelPreviewPlacement;
+  final VoidCallback? onRotatePreviewPlacement;
+  final VoidCallback? onConfirmPreviewPlacement;
 
   const IslandIsometricRenderer({
     super.key,
@@ -44,8 +49,12 @@ class IslandIsometricRenderer extends StatelessWidget {
     this.expandingToTier,
     this.isEditMode = false,
     this.flippedSlotIds = const {},
+    this.previewPlacement,
+    this.previewFlipHorizontally = false,
+    this.onCancelPreviewPlacement,
+    this.onRotatePreviewPlacement,
+    this.onConfirmPreviewPlacement,
   });
-
   /// Chuyển tọa độ logic (row, col) của tile sang tọa độ màn hình theo góc nhìn `cameraDirection`.
   Offset _tileToScreenOffset(
     int row,
@@ -127,14 +136,13 @@ class IslandIsometricRenderer extends StatelessWidget {
       maxY = (board.rows + board.cols) * (tileH * 0.5);
     }
 
-    final padX = tileW * 1.45;
-    final padTop = tileH * 2.85;
-    final padBottom = tileH * 2.25;
+    final padX = tileW * 1.05;
+    final padTop = tileH * 2.35;
+    final padBottom = tileH * 1.95;
     minX -= padX;
     maxX += padX;
     minY -= padTop;
     maxY += padBottom;
-
     final sceneWidth = maxX - minX;
     final sceneHeight = maxY - minY;
     final originX = sceneWidth * 0.5 - ((maxX + minX) * 0.5);
@@ -229,6 +237,7 @@ class IslandIsometricRenderer extends StatelessWidget {
                     ),
 
                   // 2C: Rìa cỏ rủ hữu cơ chờm qua mép vách đất & hiệu ứng viền chọn tile
+                  // 2C: Rìa cỏ rủ hữu cơ, lưới ô isometric sáng & đế xanh lá preview 2x2/1x1
                   Positioned.fill(
                     child: CustomPaint(
                       painter: _OrganicShoreOverhangAndSelectionPainter(
@@ -244,14 +253,23 @@ class IslandIsometricRenderer extends StatelessWidget {
                         slotById: slotById,
                         slotByTileKey: slotByTileKey,
                         isEditMode: isEditMode,
+                        previewPlacement: previewPlacement,
                       ),
                     ),
+                  ),
+
+                  // 2D: Quần thể cổ thụ, rặng dừa/tre ở đỉnh đảo & thuyền gỗ neo đậu tại cầu tàu (Issue #50 AC-1)
+                  ..._buildDioramaPerimeterLandmarks(
+                    sortedTiles: sortedTiles,
+                    originX: originX,
+                    originY: originY,
+                    tileW: tileW,
+                    tileH: tileH,
                   ),
                 ],
               ),
             ),
           ),
-
           // LỚP 3: Tiểu cảnh làng Việt 2.5D, nền móng xây dựng, công trình di sản và sương mù vùng khóa
           for (final tile in sortedTiles)
             _buildTileInteractiveObject(
@@ -305,7 +323,8 @@ class IslandIsometricRenderer extends StatelessWidget {
     );
     final center = Offset(rawCenter.dx, rawCenter.dy - elevOffset);
 
-    // Mở rộng nhẹ 6% để các cạnh hình thoi gối lên nhau mượt mà, triệt tiêu hoàn toàn khe hở
+    // Mặt phẳng đảo liền mạch theo phong cách 2.5D Illustrated Diorama (Issue #50 AC-1):
+    // kết hợp nền thảo nguyên ấm áp với độ mờ nhẹ để không tạo đốm tối rời rạc giữa các ô
     final spriteW = tileW * 1.06;
     final spriteH = tileH * 1.06;
     final spritePath = IslandVisualAssetManager.resolveAutotiledTerrainSprite(
@@ -314,14 +333,16 @@ class IslandIsometricRenderer extends StatelessWidget {
       cameraDirection: cameraDirection,
     );
 
-    Widget tileImage = Image.asset(
-      spritePath,
-      width: spriteW,
-      height: spriteH,
-      fit: BoxFit.fill,
-      filterQuality: FilterQuality.medium,
+    Widget tileImage = Opacity(
+      opacity: tile.terrainType == IslandTerrainType.grass ? 0.42 : 0.78,
+      child: Image.asset(
+        spritePath,
+        width: spriteW,
+        height: spriteH,
+        fit: BoxFit.fill,
+        filterQuality: FilterQuality.medium,
+      ),
     );
-
     if (state.isLocked) {
       tileImage = ColorFiltered(
         colorFilter: const ColorFilter.matrix(<double>[
@@ -380,12 +401,27 @@ class IslandIsometricRenderer extends StatelessWidget {
     final objW = tileW * 1.38;
     final objH = tileH * 2.95;
 
+    final bool isPreviewAnchorSlot =
+        previewPlacement != null &&
+        slot != null &&
+        slot.slotId == selectedSlotId &&
+        !isLocked;
+
     final Widget tileStack = Stack(
       alignment: Alignment.bottomCenter,
       clipBehavior: Clip.none,
       children: [
+        // 0. Preview đặt vật phẩm trực tiếp trên lưới kèm 3 nút tròn ✕ / ↻ / ✓ (Màn 2 — Issue #50 AC-3)
+        if (isPreviewAnchorSlot)
+          _buildPlacementPreviewWithInlineControls(
+            slot: slot,
+            placement: previewPlacement!,
+            tileW: tileW,
+            tileH: tileH,
+          )
+
         // 1. Công trình di sản người học đã đặt trên đảo
-        if (slot != null && slot.placement != null && !isLocked)
+        else if (slot != null && slot.placement != null && !isLocked)
           IslandHeritageBuilding(
             placement: slot.placement!,
             isSelected: isSelected,
@@ -399,7 +435,7 @@ class IslandIsometricRenderer extends StatelessWidget {
             onTap: () => onSlotTap(slot),
           )
 
-        // 2. Ô đất xây dựng trống đã mở khóa: Nền móng đá & gỗ cổ tự nhiên
+        // 2. Ô đất xây dựng trống đã mở khóa
         else if (slot != null && !isLocked && tile.buildable)
           _buildSubtleBuildableSlotPlinth(
             slot: slot,
@@ -408,7 +444,6 @@ class IslandIsometricRenderer extends StatelessWidget {
             tileW: tileW,
             tileH: tileH,
           )
-
         // 3. Tiểu cảnh làng Việt 2.5D (hiển thị cả khi mở khóa lẫn trong làn sương vùng khóa)
         else if (IslandVisualAssetManager.hasSceneryVisual(tile))
           GestureDetector(
@@ -483,6 +518,192 @@ class IslandIsometricRenderer extends StatelessWidget {
             )
           : tileStack,
     );
+  }
+  /// Màn 2 (Issue #50 AC-3): Hiển thị vật phẩm đang preview trên lưới kèm cụm 3 nút tròn `✕` / `↻` / `✓` ngay dưới chân.
+  Widget _buildPlacementPreviewWithInlineControls({
+    required IslandSlotDto slot,
+    required IslandPlacementDto placement,
+    required double tileW,
+    required double tileH,
+  }) {
+    final (footW, _) = resolveIslandItemFootprint(
+      placement.code,
+      placement.renderKey,
+    );
+    final is2x2 = footW >= 2;
+
+    return Stack(
+      alignment: Alignment.bottomCenter,
+      clipBehavior: Clip.none,
+      children: [
+        Positioned(
+          bottom: is2x2 ? -tileH * 0.28 : 0,
+          child: IslandHeritageBuilding(
+            placement: placement,
+            isSelected: true,
+            tileWidth: tileW,
+            tileHeight: tileH,
+            flipHorizontally: previewFlipHorizontally,
+            onTap: () => onSlotTap(slot),
+          ),
+        ),
+        Positioned(
+          bottom: is2x2 ? -tileH * 0.88 : -tileH * 0.62,
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              _buildInlinePreviewCircleButton(
+                icon: Icons.close_rounded,
+                bgColor: const Color(0xFFE04F44),
+                iconColor: Colors.white,
+                tooltip: 'Hủy đặt',
+                onTap: onCancelPreviewPlacement,
+              ),
+              const SizedBox(width: 8),
+              _buildInlinePreviewCircleButton(
+                icon: Icons.rotate_right_rounded,
+                bgColor: const Color(0xFFFBF3E4),
+                iconColor: const Color(0xFF3E2D20),
+                tooltip: 'Xoay hướng',
+                onTap: onRotatePreviewPlacement,
+              ),
+              const SizedBox(width: 8),
+              _buildInlinePreviewCircleButton(
+                icon: Icons.check_rounded,
+                bgColor: const Color(0xFF2B7A4B),
+                iconColor: Colors.white,
+                tooltip: 'Xác nhận đặt',
+                onTap: onConfirmPreviewPlacement,
+              ),
+            ],
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildInlinePreviewCircleButton({
+    required IconData icon,
+    required Color bgColor,
+    required Color iconColor,
+    required String tooltip,
+    required VoidCallback? onTap,
+  }) {
+    return GestureDetector(
+      onTap: onTap,
+      behavior: HitTestBehavior.opaque,
+      child: Semantics(
+        button: true,
+        label: tooltip,
+        child: Container(
+          width: 30,
+          height: 30,
+          decoration: BoxDecoration(
+            color: bgColor,
+            shape: BoxShape.circle,
+            border: Border.all(color: const Color(0xFFFBF3E4), width: 2.0),
+            boxShadow: [
+              BoxShadow(
+                color: Colors.black.withValues(alpha: 0.25),
+                blurRadius: 6,
+                offset: const Offset(0, 2),
+              ),
+            ],
+          ),
+          child: Icon(icon, size: 17, color: iconColor),
+        ),
+      ),
+    );
+  }
+
+  /// Quần thể cây đa cổ thụ ở đỉnh Bắc của đảo & rặng cây xanh hai bên rìa như ảnh mẫu (Issue #50 AC-1).
+  List<Widget> _buildDioramaPerimeterLandmarks({
+    required List<IslandTileDto> sortedTiles,
+    required double originX,
+    required double originY,
+    required double tileW,
+    required double tileH,
+  }) {
+    if (sortedTiles.isEmpty) return const [];
+    final topTile = sortedTiles.first;
+    final topCenter = _tileToScreenOffset(
+      topTile.row,
+      topTile.col,
+      originX: originX,
+      originY: originY,
+    );
+
+    int minCol = 999, maxCol = -999;
+    IslandTileDto? westTile;
+    IslandTileDto? eastTile;
+    for (final t in sortedTiles) {
+      if (t.col < minCol) {
+        minCol = t.col;
+        westTile = t;
+      }
+      if (t.col > maxCol) {
+        maxCol = t.col;
+        eastTile = t;
+      }
+    }
+    final westCenter = westTile != null
+        ? _tileToScreenOffset(
+            westTile.row,
+            westTile.col,
+            originX: originX,
+            originY: originY,
+          )
+        : topCenter;
+    final eastCenter = eastTile != null
+        ? _tileToScreenOffset(
+            eastTile.row,
+            eastTile.col,
+            originX: originX,
+            originY: originY,
+          )
+        : topCenter;
+
+    return [
+      // Đại cổ thụ tỏa bóng ở đỉnh Bắc của đảo
+      Positioned(
+        left: topCenter.dx - tileW * 0.95,
+        top: topCenter.dy - tileH * 2.55,
+        width: tileW * 1.90,
+        height: tileH * 2.40,
+        child: IgnorePointer(
+          child: Image.asset(
+            'assets/island/scenery/cay_da_co_thu.png',
+            fit: BoxFit.contain,
+          ),
+        ),
+      ),
+      // Rặng tre / đá rêu phong bên cánh Tây
+      Positioned(
+        left: westCenter.dx - tileW * 0.90,
+        top: westCenter.dy - tileH * 1.40,
+        width: tileW * 1.05,
+        height: tileH * 1.65,
+        child: IgnorePointer(
+          child: Image.asset(
+            IslandVisualAssetManager.bambooGroveLarge,
+            fit: BoxFit.contain,
+          ),
+        ),
+      ),
+      // Khóm tre / cây xanh bên cánh Đông
+      Positioned(
+        left: eastCenter.dx - tileW * 0.15,
+        top: eastCenter.dy - tileH * 1.35,
+        width: tileW * 1.00,
+        height: tileH * 1.55,
+        child: IgnorePointer(
+          child: Image.asset(
+            IslandVisualAssetManager.banyanSapling,
+            fit: BoxFit.contain,
+          ),
+        ),
+      ),
+    ];
   }
 
   /// Nền móng xây dựng bằng đá xanh & gỗ lim vẽ tay hòa vào mặt cỏ.
@@ -963,15 +1184,8 @@ class _HeritageIslandCliffAndUnderlayPainter extends CustomPainter {
           isSunlit: false,
           isLocked: isLocked,
         );
-        if (!isLocked && seEdgeCounter == 1) {
+        if (!isLocked && seEdgeCounter == 2) {
           _drawWaterfallCascade(
-            canvas: canvas,
-            pStart: bottomPt,
-            pEnd: rightPt,
-            cliffDepth: cliffH,
-          );
-        } else if (!isLocked && seEdgeCounter == 3) {
-          _drawWoodenDockAndSteps(
             canvas: canvas,
             pStart: bottomPt,
             pEnd: rightPt,
@@ -980,19 +1194,36 @@ class _HeritageIslandCliffAndUnderlayPainter extends CustomPainter {
         }
       }
 
-      final palette = IslandVisualAssetManager.getTerrainPalette(
-        tile.terrainType,
-        row: tile.row,
-        col: tile.col,
-        isLocked: isLocked,
-      );
+      if (!isLocked && swEdgeCounter == 3 && !hasSW) {
+        _drawWoodenDockAndSteps(
+          canvas: canvas,
+          pStart: leftPt,
+          pEnd: bottomPt,
+          cliffDepth: cliffH,
+          isLeftShore: true,
+        );
+      } else if (!isLocked && seEdgeCounter == 4 && !hasSE) {
+        _drawWoodenDockAndSteps(
+          canvas: canvas,
+          pStart: bottomPt,
+          pEnd: rightPt,
+          cliffDepth: cliffH,
+          isLeftShore: false,
+        );
+      }
+
+      final underlayColor = isLocked
+          ? const Color(0xFF6B857E)
+          : ((tile.row + tile.col).isEven
+                ? const Color(0xFF9AC54F)
+                : const Color(0xFF8EBA47));
       final underlayDiamond = Path()
-        ..moveTo(topPt.dx, topPt.dy - 1.0)
-        ..lineTo(rightPt.dx + 1.5, rightPt.dy)
-        ..lineTo(bottomPt.dx, bottomPt.dy + 1.0)
-        ..lineTo(leftPt.dx - 1.5, leftPt.dy)
+        ..moveTo(topPt.dx, topPt.dy - 1.2)
+        ..lineTo(rightPt.dx + 1.6, rightPt.dy)
+        ..lineTo(bottomPt.dx, bottomPt.dy + 1.2)
+        ..lineTo(leftPt.dx - 1.6, leftPt.dy)
         ..close();
-      canvas.drawPath(underlayDiamond, Paint()..color = palette.base);
+      canvas.drawPath(underlayDiamond, Paint()..color = underlayColor);
     }
   }
 
@@ -1041,16 +1272,18 @@ class _HeritageIslandCliffAndUnderlayPainter extends CustomPainter {
     );
   }
 
-  /// Vẽ bậc thang đá dẫn xuống cầu tàu gỗ vươn ra mặt biển (Issue #46 AC-1 & AC-2).
+  /// Vẽ bậc thang đá dẫn xuống cầu tàu gỗ kèm thuyền gỗ truyền thống neo đậu (Issue #50 AC-1).
   void _drawWoodenDockAndSteps({
     required Canvas canvas,
     required Offset pStart,
     required Offset pEnd,
     required double cliffDepth,
+    bool isLeftShore = true,
   }) {
     final mid = Offset.lerp(pStart, pEnd, 0.50)!;
-    final dockStart = Offset(mid.dx, mid.dy + cliffDepth * 0.35);
-    final dockEnd = Offset(mid.dx + 34, mid.dy + cliffDepth * 0.95 + 16);
+    final dirX = isLeftShore ? -32.0 : 34.0;
+    final dockStart = Offset(mid.dx, mid.dy + cliffDepth * 0.32);
+    final dockEnd = Offset(mid.dx + dirX, mid.dy + cliffDepth * 0.96 + 18);
 
     // Bậc thang đá nối từ mặt đảo xuống cầu tàu
     for (int i = 0; i < 4; i++) {
@@ -1058,10 +1291,10 @@ class _HeritageIslandCliffAndUnderlayPainter extends CustomPainter {
       final stepCenter = Offset.lerp(mid, dockStart, t)!;
       canvas.drawRRect(
         RRect.fromRectAndRadius(
-          Rect.fromCenter(center: stepCenter, width: 16, height: 5),
+          Rect.fromCenter(center: stepCenter, width: 17, height: 5.5),
           const Radius.circular(2),
         ),
-        Paint()..color = const Color(0xFFB0BEC5),
+        Paint()..color = const Color(0xFFC5B8A5),
       );
     }
 
@@ -1072,7 +1305,7 @@ class _HeritageIslandCliffAndUnderlayPainter extends CustomPainter {
       ..lineTo(dockEnd.dx + 10, dockEnd.dy - 5)
       ..lineTo(dockEnd.dx - 10, dockEnd.dy)
       ..close();
-    canvas.drawPath(pierPath, Paint()..color = const Color(0xFF8D5B36));
+    canvas.drawPath(pierPath, Paint()..color = const Color(0xFF9C6639));
     canvas.drawPath(
       pierPath,
       Paint()
@@ -1089,13 +1322,51 @@ class _HeritageIslandCliffAndUnderlayPainter extends CustomPainter {
     ]) {
       canvas.drawLine(
         pt,
-        Offset(pt.dx, pt.dy + 12),
+        Offset(pt.dx, pt.dy + 13),
         Paint()
           ..color = const Color(0xFF4E342E)
           ..strokeWidth = 3.2
           ..strokeCap = StrokeCap.round,
       );
     }
+
+    // Thuyền gỗ truyền thống neo đậu cạnh cầu tàu
+    final boatCenter = Offset(
+      dockEnd.dx + (isLeftShore ? -12 : 14),
+      dockEnd.dy + 12,
+    );
+    final hullPath = Path()
+      ..moveTo(boatCenter.dx - 24, boatCenter.dy - 4)
+      ..quadraticBezierTo(
+        boatCenter.dx,
+        boatCenter.dy + 12,
+        boatCenter.dx + 24,
+        boatCenter.dy - 4,
+      )
+      ..quadraticBezierTo(
+        boatCenter.dx,
+        boatCenter.dy + 2,
+        boatCenter.dx - 24,
+        boatCenter.dy - 4,
+      )
+      ..close();
+    canvas.drawPath(hullPath, Paint()..color = const Color(0xFF7D4825));
+    canvas.drawPath(
+      hullPath,
+      Paint()
+        ..color = const Color(0xFF4A2811)
+        ..style = PaintingStyle.stroke
+        ..strokeWidth = 1.2,
+    );
+    // Mui thuyền đan tre ấm áp
+    canvas.drawOval(
+      Rect.fromCenter(
+        center: Offset(boatCenter.dx, boatCenter.dy - 2),
+        width: 20,
+        height: 9,
+      ),
+      Paint()..color = const Color(0xFFC89654),
+    );
   }
 
   void _drawOrganicCliffEdge({
@@ -1223,6 +1494,7 @@ class _OrganicShoreOverhangAndSelectionPainter extends CustomPainter {
   final Map<String, IslandSlotDto> slotById;
   final Map<String, IslandSlotDto> slotByTileKey;
   final bool isEditMode;
+  final IslandPlacementDto? previewPlacement;
 
   _OrganicShoreOverhangAndSelectionPainter({
     required this.board,
@@ -1237,7 +1509,9 @@ class _OrganicShoreOverhangAndSelectionPainter extends CustomPainter {
     required this.slotById,
     required this.slotByTileKey,
     this.isEditMode = false,
+    this.previewPlacement,
   });
+
   @override
   void paint(Canvas canvas, Size size) {
     final tileW = board.tileWidth;
@@ -1277,11 +1551,44 @@ class _OrganicShoreOverhangAndSelectionPainter extends CustomPainter {
 
       final linkedSlot = slotByTileKey[tile.key] ??
           (tile.slotId != null ? slotById[tile.slotId] : null);
+      // Xác định vùng ô thuộc footprint preview (2x2 hoặc 1x1) khi ở Màn 2
+      // (chỉ neo vào selectedSlotId đã mở khóa để khớp 100% với vị trí thực đặt)
+      int? anchorRow, anchorCol;
+      if (selectedSlotId != null) {
+        for (final t in sortedTiles) {
+          final s = slotByTileKey[t.key] ??
+              (t.slotId != null ? slotById[t.slotId] : null);
+          if (t.slotId == selectedSlotId || s?.slotId == selectedSlotId) {
+            anchorRow = t.row;
+            anchorCol = t.col;
+            break;
+          }
+        }
+      } else if (previewPlacement == null && selectedCoord != null) {
+        anchorRow = selectedCoord!.$1;
+        anchorCol = selectedCoord!.$2;
+      }
+
+      final (footW, footH) = previewPlacement != null
+          ? resolveIslandItemFootprint(
+              previewPlacement!.code,
+              previewPlacement!.renderKey,
+            )
+          : (1, 1);
+
+      final bool isInPreviewFootprint = previewPlacement != null &&
+          anchorRow != null &&
+          anchorCol != null &&
+          tile.row >= anchorRow &&
+          tile.row < anchorRow + footH &&
+          tile.col >= anchorCol &&
+          tile.col < anchorCol + footW;
       final isSelected = (selectedCoord != null &&
               selectedCoord!.$1 == tile.row &&
               selectedCoord!.$2 == tile.col) ||
           (selectedSlotId != null &&
-              (tile.slotId == selectedSlotId || linkedSlot?.slotId == selectedSlotId));
+              (tile.slotId == selectedSlotId ||
+                  linkedSlot?.slotId == selectedSlotId));
       final diamond = Path()
         ..moveTo(topPt.dx, topPt.dy)
         ..lineTo(rightPt.dx, rightPt.dy)
@@ -1289,33 +1596,48 @@ class _OrganicShoreOverhangAndSelectionPainter extends CustomPainter {
         ..lineTo(leftPt.dx, leftPt.dy)
         ..close();
 
-      // Chế độ Bài trí: hiển thị rõ lưới ô cỏ/đá sáng trên mặt đảo để căn chỉnh (Issue #46 AC-2 & AC-3)
-      if (isEditMode && !isLocked && tile.buildable) {
+      // Kẻ đường lưới ô isometric màu kem sáng rõ nét trên vùng mặt phẳng xây dựng (Issue #50 AC-1 & AC-2)
+      if (!isLocked && tile.buildable) {
         final isEven = (tile.row + tile.col) % 2 == 0;
         canvas.drawPath(
           diamond,
           Paint()
             ..color = isEven
-                ? const Color(0x24E8F5E9)
-                : const Color(0x14FFFDE7)
+                ? const Color(0x28F6F4C8)
+                : const Color(0x16DCE775)
             ..style = PaintingStyle.fill,
         );
         canvas.drawPath(
           diamond,
           Paint()
-            ..color = const Color(0xCCDCEDC8)
+            ..color = const Color(0xB8F9F6D0)
             ..style = PaintingStyle.stroke
-            ..strokeWidth = 1.35,
+            ..strokeWidth = 1.25,
         );
       }
 
-      if (isSelected) {
+      // Màn 2 (Issue #50 AC-3): Vùng ô dưới chân đế vật phẩm preview tô sáng màu xanh lá
+      if (isInPreviewFootprint && !isLocked) {
+        canvas.drawPath(
+          diamond,
+          Paint()
+            ..color = const Color(0x88388E3C)
+            ..style = PaintingStyle.fill,
+        );
+        canvas.drawPath(
+          diamond,
+          Paint()
+            ..color = const Color(0xFFB9F6CA)
+            ..style = PaintingStyle.stroke
+            ..strokeWidth = 2.2,
+        );
+      } else if (isSelected) {
         canvas.drawPath(
           diamond,
           Paint()
             ..color = DauVietColors.imperialGold.withValues(alpha: 0.45)
             ..style = PaintingStyle.stroke
-            ..strokeWidth = 4.5
+            ..strokeWidth = 4.2
             ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 4),
         );
         canvas.drawPath(
@@ -1360,11 +1682,14 @@ class _OrganicShoreOverhangAndSelectionPainter extends CustomPainter {
   }
 
   @override
-  bool shouldRepaint(covariant _OrganicShoreOverhangAndSelectionPainter oldDelegate) {
+  bool shouldRepaint(
+    covariant _OrganicShoreOverhangAndSelectionPainter oldDelegate,
+  ) {
     return oldDelegate.cameraDirection != cameraDirection ||
         oldDelegate.selectedCoord != selectedCoord ||
         oldDelegate.selectedSlotId != selectedSlotId ||
         oldDelegate.currentTier != currentTier ||
-        oldDelegate.isEditMode != isEditMode;
+        oldDelegate.isEditMode != isEditMode ||
+        oldDelegate.previewPlacement != previewPlacement;
   }
 }

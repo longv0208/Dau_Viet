@@ -442,10 +442,14 @@ public class LearnerPathProgressionService {
                             : inProgressLessons.contains(id)
                                     ? LearnerPathStatus.IN_PROGRESS
                                     : LearnerPathStatus.LOCKED;
-                    if (es == LearnerPathStatus.AVAILABLE
+                    boolean eventUnlocked = es == LearnerPathStatus.AVAILABLE
+                            || es == LearnerPathStatus.IN_PROGRESS
+                            || es == LearnerPathStatus.COMPLETED
+                            || es == LearnerPathStatus.MASTERED;
+                    if (eventUnlocked
                             && (requiredLessons.contains(id)
                                     ? requiredLessons.indexOf(id) == firstLesson
-                                    : true)) {
+                                    : firstLesson < 0)) {
                         ls = ls == LearnerPathStatus.LOCKED ? LearnerPathStatus.AVAILABLE : ls;
                     }
                     p.lessonStatus.put(id, ls);

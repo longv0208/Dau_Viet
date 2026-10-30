@@ -19,6 +19,7 @@ class TactileCard extends StatefulWidget {
   final double borderRadius;
   final bool enabled;
   final bool usePixelShadow;
+  final List<BoxShadow>? boxShadow;
 
   const TactileCard({
     super.key,
@@ -32,6 +33,7 @@ class TactileCard extends StatefulWidget {
     this.borderRadius = 16,
     this.enabled = true,
     this.usePixelShadow = true,
+    this.boxShadow,
   });
 
   @override
@@ -60,9 +62,11 @@ class _TactileCardState extends State<TactileCard> {
         color: widget.backgroundColor,
         borderRadius: radius,
         border: Border.all(color: widget.borderColor, width: widget.borderWidth),
-        boxShadow: widget.usePixelShadow
-            ? DauVietColors.pixelShadowSm
-            : DauVietColors.heritageShadow,
+        boxShadow:
+            widget.boxShadow ??
+            (widget.usePixelShadow
+                ? DauVietColors.pixelShadowSm
+                : DauVietColors.softCardShadow),
       ),
       child: widget.child,
     );

@@ -1,4 +1,8 @@
+import 'package:dau_viet_mobile/core/theme/dau_viet_colors.dart';
 import 'package:dau_viet_mobile/core/widgets/dong_son_button.dart';
+import 'package:dau_viet_mobile/core/widgets/hero_paper_banner.dart';
+import 'package:dau_viet_mobile/core/widgets/tactile_3d_button.dart';
+import 'package:dau_viet_mobile/core/widgets/tactile_card.dart';
 import 'package:dau_viet_mobile/features/dashboard/presentation/learner_dashboard_screen.dart';
 import 'package:dau_viet_mobile/features/events/data/events_providers.dart';
 import 'package:dau_viet_mobile/features/events/data/events_repository.dart';
@@ -37,12 +41,12 @@ void main() {
         );
         await tester.pumpAndSettle();
 
-        // 1. Top Bar: Dấu Việt logo, chuông thông báo & avatar + tagline brand
+        // 1. Top Bar: Dấu Việt logo, chuông thông báo & avatar (không lặp text khẩu hiệu dưới app_logo.png)
         expect(find.text('Dấu Việt'), findsOneWidget);
         expect(find.byIcon(Icons.notifications_none_rounded), findsOneWidget);
         expect(
           find.text('— HỌC SỬ VIỆT · GÌN GIỮ HỒN VIỆT —'),
-          findsOneWidget,
+          findsNothing,
         );
 
         // 2. Greeting & Status Row — pill có nhãn dưới số (mockup M-03)
@@ -57,10 +61,7 @@ void main() {
           find.text('Những câu chuyện hào hùng\nđang chờ bạn khám phá!'),
           findsOneWidget,
         );
-        expect(
-          find.widgetWithText(DongSonButton, 'KHÁM PHÁ NGAY ›'),
-          findsOneWidget,
-        );
+        expect(find.text('KHÁM PHÁ NGAY ›'), findsOneWidget);
 
         // 4. Section: Bài học hôm nay — lấy từ currentByPeriod[lastPeriodCode]
         // (mặc định lastPeriodCode = 'EARLY_INDEPENDENCE' -> Đại Chiến Bạch Đằng 938, 1/3 bài học)
@@ -160,7 +161,7 @@ void main() {
         expect(find.text('Sự kiện đầu danh sách cũ'), findsNothing);
 
         // Bấm CTA Hero Banner -> điều hướng tới eventId của LY_DYNASTY
-        await tester.tap(find.widgetWithText(DongSonButton, 'KHÁM PHÁ NGAY ›'));
+        await tester.tap(find.text('KHÁM PHÁ NGAY ›'));
         await tester.pumpAndSettle();
 
         expect(openedEventId, '00000000-0000-0000-0000-000000000003');
@@ -208,10 +209,7 @@ void main() {
 
         // Hero giữ tiêu đề mockup; chỉ CTA đổi sang "Tiếp tục học →"
         expect(find.text('Khám phá\nlịch sử Việt Nam'), findsOneWidget);
-        expect(
-          find.widgetWithText(DongSonButton, 'Tiếp tục học →'),
-          findsOneWidget,
-        );
+        expect(find.text('Tiếp tục học →'), findsOneWidget);
         expect(find.text('Bài học đang tiếp diễn'), findsOneWidget);
         expect(find.text('Giai đoạn: EVIDENCE'), findsOneWidget);
         expect(find.text('2/5 hoạt động'), findsOneWidget);
@@ -297,6 +295,185 @@ void main() {
       },
     );
   });
+
+  group(
+    'LearnerDashboardScreen — Đồng bộ Soft Heritage Card & Logo (Issue #49)',
+    () {
+      testWidgets(
+        'AC-1 & AC-2: không lặp khẩu hiệu dưới Logo và toàn bộ Button/Card/Pill dùng bóng mềm tinh tế đồng bộ ProfileScreen',
+        (tester) async {
+          final mockPathRepo = MockLearningPathRepository();
+          await tester.pumpWidget(
+            ProviderScope(
+              overrides: [
+                attemptRepositoryProvider.overrideWithValue(
+                  FakeAttemptRepository(),
+                ),
+                learningPathRepositoryProvider.overrideWithValue(mockPathRepo),
+                learnerLearningPathProvider.overrideWith(
+                  () => _StubLearningPathController(mockPathRepo),
+                ),
+              ],
+              child: const MaterialApp(home: LearnerDashboardScreen()),
+            ),
+          );
+          await tester.pumpAndSettle();
+
+          // AC-1: Logo dùng app_logo.png (height 38) và không render trùng Text khẩu hiệu bên dưới
+          expect(find.textContaining('HỌC SỬ VIỆT'), findsNothing);
+          final logoImages = tester.widgetList<Image>(
+            find.byWidgetPredicate(
+              (w) =>
+                  w is Image &&
+                  w.image is AssetImage &&
+                  (w.image as AssetImage).assetName ==
+                      'assets/images/app_logo.png',
+            ),
+          );
+          expect(logoImages.length, 1);
+          expect(logoImages.single.height, 38);
+
+          // AC-2a: Không còn nút 3D dày (DongSonButton / Tactile3DButton) trên Dashboard
+          expect(find.byType(DongSonButton), findsNothing);
+          expect(find.byType(Tactile3DButton), findsNothing);
+
+          // AC-2b: Toàn bộ TactileCard (2 pills + Bài học hôm nay + 4 thẻ Hành trình + Nhiệm vụ) tắt pixelShadow và dùng viền mảnh 1.1px
+          final tactileCards = tester
+              .widgetList<TactileCard>(find.byType(TactileCard))
+              .toList();
+          expect(tactileCards.length, greaterThanOrEqualTo(8));
+          for (final card in tactileCards) {
+            expect(card.usePixelShadow, isFalse);
+            expect(card.borderWidth, closeTo(1.1, 0.05));
+          }
+
+          // AC-2c: Toàn bộ HeroPaperBanner (Hero + Sự kiện nổi bật) tắt pixelShadow và dùng viền mảnh <= 1.3px
+          final heroBanners = tester
+              .widgetList<HeroPaperBanner>(find.byType(HeroPaperBanner))
+              .toList();
+          expect(heroBanners.length, 2);
+          for (final banner in heroBanners) {
+            expect(banner.usePixelShadow, isFalse);
+            expect(banner.borderWidth, lessThanOrEqualTo(1.3));
+          }
+
+          // AC-2d: Không còn bất kỳ Container/AnimatedContainer nào gắn pixelShadow cứng (blurRadius == 0, color == pixelShadowColor)
+          final containers = tester.widgetList<Container>(
+            find.byType(Container),
+          );
+          for (final c in containers) {
+            final dec = c.decoration;
+            if (dec is BoxDecoration && dec.boxShadow != null) {
+              for (final shadow in dec.boxShadow!) {
+                expect(
+                  shadow.color == DauVietColors.pixelShadowColor &&
+                      shadow.blurRadius == 0,
+                  isFalse,
+                );
+              }
+            }
+          }
+        },
+      );
+
+      testWidgets(
+        'AC-3: hiển thị không tràn (0 overflow) trên 360x800 & 390x844 và tương tác mượt các nút TopBar, Status Pills, Sự kiện nổi bật',
+        (tester) async {
+          final mockPathRepo = MockLearningPathRepository();
+          final visitedRoutes = <String>[];
+          final router = GoRouter(
+            initialLocation: '/dashboard',
+            routes: [
+              GoRoute(
+                path: '/dashboard',
+                builder: (_, _) => const LearnerDashboardScreen(),
+              ),
+              GoRoute(
+                path: '/profile',
+                builder: (_, _) {
+                  visitedRoutes.add('/profile');
+                  return const Scaffold(body: Text('PROFILE_SCREEN'));
+                },
+              ),
+              GoRoute(
+                path: '/energy',
+                builder: (_, _) {
+                  visitedRoutes.add('/energy');
+                  return const Scaffold(body: Text('ENERGY_SCREEN'));
+                },
+              ),
+              GoRoute(
+                path: '/streak',
+                builder: (_, _) {
+                  visitedRoutes.add('/streak');
+                  return const Scaffold(body: Text('STREAK_SCREEN'));
+                },
+              ),
+              GoRoute(
+                path: '/campaign/:eventId',
+                builder: (_, state) {
+                  final id = state.pathParameters['eventId'] ?? '';
+                  visitedRoutes.add('/campaign/$id');
+                  return Scaffold(body: Text('CAMPAIGN:$id'));
+                },
+              ),
+            ],
+          );
+
+          for (final size in const [Size(360, 800), Size(390, 844)]) {
+            tester.view.physicalSize = size;
+            tester.view.devicePixelRatio = 1.0;
+            await tester.pumpWidget(
+              ProviderScope(
+                key: ValueKey(size),
+                overrides: [
+                  attemptRepositoryProvider.overrideWithValue(
+                    FakeAttemptRepository(),
+                  ),
+                  learningPathRepositoryProvider.overrideWithValue(
+                    mockPathRepo,
+                  ),
+                  learnerLearningPathProvider.overrideWith(
+                    () => _StubLearningPathController(mockPathRepo),
+                  ),
+                ],
+                child: MaterialApp.router(routerConfig: router),
+              ),
+            );
+            await tester.pumpAndSettle();
+            expect(tester.takeException(), isNull);
+          }
+          addTearDown(tester.view.resetPhysicalSize);
+          addTearDown(tester.view.resetDevicePixelRatio);
+
+          // Bấm chuông thông báo -> hiện SnackBar
+          await tester.tap(find.byIcon(Icons.notifications_none_rounded));
+          await tester.pump();
+          expect(find.text('Chưa có thông báo mới.'), findsOneWidget);
+
+          // Bấm pill Năng lượng -> /energy
+          await tester.tap(find.text('Năng lượng'));
+          await tester.pumpAndSettle();
+          expect(visitedRoutes.last, '/energy');
+
+          // Bấm pill Chuỗi ngày -> /streak
+          router.go('/dashboard');
+          await tester.pumpAndSettle();
+          await tester.tap(find.text('Chuỗi ngày'));
+          await tester.pumpAndSettle();
+          expect(visitedRoutes.last, '/streak');
+
+          // Bấm CTA Sự kiện nổi bật "Khám phá ngay →" -> /campaign/:id
+          router.go('/dashboard');
+          await tester.pumpAndSettle();
+          await tester.ensureVisible(find.text('Khám phá ngay →'));
+          await tester.tap(find.text('Khám phá ngay →'));
+          await tester.pumpAndSettle();
+          expect(visitedRoutes.last, startsWith('/campaign/'));
+        },
+      );
+    },
+  );
 }
 
 class _StubLearningPathController extends LearningPathController {

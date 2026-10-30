@@ -1,6 +1,5 @@
 import 'package:flutter/material.dart';
 
-import '../theme/dau_viet_colors.dart';
 import '../theme/dau_viet_typography.dart';
 import 'kabi_mascot_widget.dart';
 
@@ -26,83 +25,64 @@ class MascotSpeechBubble extends StatelessWidget {
       container: true,
       label: 'Hướng dẫn từ Kabi: $message',
       child: Padding(
-        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+        padding: const EdgeInsets.fromLTRB(14, 2, 16, 4),
         child: Row(
           crossAxisAlignment: CrossAxisAlignment.center,
           children: [
-            // Avatar Linh vật Kabi đội nón lá
-            Container(
-              width: avatarSize,
+            // Linh vật Rùa Kabi đội nón lá cầm sách lịch sử (khớp ảnh mẫu #3, #4, #5, #6)
+            SizedBox(
+              width: avatarSize + 8,
               height: avatarSize,
-              decoration: BoxDecoration(
-                shape: BoxShape.circle,
-                color: DauVietColors.parchmentSurface,
-                border: Border.all(
-                  color: DauVietColors.outlineVariant,
-                  width: 1.5,
-                ),
-                boxShadow: [
-                  BoxShadow(
-                    color: const Color(0xFF8B4513).withValues(alpha: 0.10),
-                    blurRadius: 8,
-                    offset: const Offset(0, 3),
-                  ),
-                ],
-              ),
-              child: ClipOval(
-                child: KabiMascotWidget(
-                  mood: mood,
-                  width: avatarSize,
-                  height: avatarSize,
-                  headOnly: true,
-                  enableSound: false,
-                ),
+              child: KabiMascotWidget(
+                mood: mood,
+                width: avatarSize + 8,
+                height: avatarSize,
+                headOnly: true,
+                enableSound: false,
               ),
             ),
-            const SizedBox(width: 10),
+            const SizedBox(width: 8),
 
-            // Bong bóng thoại chỉ về phía Mascot
+            // Bong bóng thoại giấy kem viền vàng ấm chỉ về phía Mascot
             Expanded(
               child: Stack(
                 clipBehavior: Clip.none,
                 children: [
                   Container(
                     padding: const EdgeInsets.symmetric(
-                      horizontal: 14,
-                      vertical: 10,
+                      horizontal: 12,
+                      vertical: 8,
                     ),
                     decoration: BoxDecoration(
-                      color: Colors.white,
-                      borderRadius: BorderRadius.circular(16),
+                      color: const Color(0xFFFFFDF8),
+                      borderRadius: BorderRadius.circular(14),
                       border: Border.all(
-                        color: DauVietColors.outlineVariant,
-                        width: 1.2,
+                        color: const Color(0xFFDEC8A2),
+                        width: 1.3,
                       ),
-                      boxShadow: [
+                      boxShadow: const [
                         BoxShadow(
-                          color: const Color(
-                            0xFF8B4513,
-                          ).withValues(alpha: 0.06),
+                          color: Color(0x145D4024),
                           blurRadius: 8,
-                          offset: const Offset(0, 3),
+                          offset: Offset(0, 3),
                         ),
                       ],
                     ),
                     child: Text(
                       message,
-                      style: DauVietTypography.bodyMedium.copyWith(
-                        color: DauVietColors.inkText,
-                        fontWeight: FontWeight.w700,
-                        fontSize: 14.0,
-                        height: 1.45,
+                      style: DauVietTypography.headlineSmall.copyWith(
+                        color: const Color(0xFF2B1F17),
+                        fontWeight: FontWeight.w800,
+                        fontSize: 13.5,
+                        height: 1.38,
                       ),
                     ),
                   ),
 
                   // Mũi nhọn bong bóng thoại (Speech bubble tail)
                   Positioned(
-                    left: -6,
-                    top: 14,
+                    left: -7,
+                    top: 16,
                     child: CustomPaint(
                       size: const Size(8, 12),
                       painter: _SpeechTailPainter(),
@@ -128,14 +108,13 @@ class _SpeechTailPainter extends CustomPainter {
       ..close();
 
     final fillPaint = Paint()
-      ..color = Colors.white
+      ..color = const Color(0xFFFFFDF8)
       ..style = PaintingStyle.fill;
 
     final borderPaint = Paint()
-      ..color = const Color(0xFFE5DAC6)
+      ..color = const Color(0xFFDEC8A2)
       ..style = PaintingStyle.stroke
-      ..strokeWidth = 1.2;
-
+      ..strokeWidth = 1.3;
     canvas.drawPath(path, fillPaint);
     canvas.drawLine(
       Offset(size.width, 0),

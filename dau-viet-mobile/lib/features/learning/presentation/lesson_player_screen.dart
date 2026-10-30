@@ -899,28 +899,32 @@ class _LessonPlayerScreenState extends ConsumerState<LessonPlayerScreen> {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.stretch,
                 children: [
-                  if (cur.activity?.instruction != null) ...[
-                    Text(
-                      cur.activity!.instruction!,
-                      style: DauVietTypography.bodyMedium.copyWith(
-                        fontStyle: FontStyle.italic,
-                        color: DauVietColors.inkMuted,
-                        fontSize: 14,
-                        height: 1.45,
+                  if (cur.activity!.graded &&
+                      (cur.activity!.incorrectPenalty ?? 0) > 0)
+                    Padding(
+                      padding: const EdgeInsets.only(bottom: 10),
+                      child: _EnergyCostHint(
+                        penalty: cur.activity!.incorrectPenalty!,
                       ),
                     ),
-                    // GAME-03: hint chi phí Thể lực TRƯỚC khi submit — chỉ hiện
-                    // khi server xác nhận activity graded (additive field);
-                    // activity không graded / server cũ → ẩn hoàn toàn.
-                    if (cur.activity!.graded &&
-                        (cur.activity!.incorrectPenalty ?? 0) > 0)
-                      Padding(
-                        padding: const EdgeInsets.only(top: 6, bottom: 10),
-                        child: _EnergyCostHint(
-                          penalty: cur.activity!.incorrectPenalty!,
+                  if (cur.activity?.instruction != null &&
+                      cur.activity!.instruction!.trim().isNotEmpty) ...[
+                    Padding(
+                      padding: const EdgeInsets.only(
+                        bottom: 8,
+                        left: 2,
+                        right: 2,
+                      ),
+                      child: Text(
+                        cur.activity!.instruction!,
+                        style: DauVietTypography.bodySmall.copyWith(
+                          fontStyle: FontStyle.italic,
+                          color: const Color(0xFF5C4E42),
+                          fontSize: 12.5,
+                          height: 1.4,
                         ),
                       ),
-                    const SizedBox(height: 8),
+                    ),
                   ],
                   ActivityRenderer(
                     key: ValueKey(cur.activity!.id),
@@ -948,103 +952,97 @@ class _LessonPlayerScreenState extends ConsumerState<LessonPlayerScreen> {
   Widget _buildTopBar(_PlayerState st) {
     final cur = st.current;
     return Container(
-      padding: const EdgeInsets.fromLTRB(8, 6, 12, 8),
-      decoration: BoxDecoration(
-        color: DauVietColors.paperBackground,
-        border: const Border(
-          bottom: BorderSide(color: DauVietColors.inkHeading, width: 3),
+      padding: const EdgeInsets.fromLTRB(8, 2, 12, 4),
+      decoration: const BoxDecoration(
+        gradient: LinearGradient(
+          begin: Alignment.topCenter,
+          end: Alignment.bottomCenter,
+          colors: [Color(0xFFFAF2E1), Color(0xFFF7ECD8)],
         ),
       ),
       child: Column(
         mainAxisSize: MainAxisSize.min,
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
+          // Hàng 1: Nút Back + Tiêu đề chặng chữ Serif lớn + Energy + Streak + Sound
           Row(
             children: [
               IconButton(
                 icon: const Icon(Icons.arrow_back_ios_new_rounded, size: 20),
-                color: DauVietColors.inkText,
+                color: const Color(0xFF2B1F17),
                 tooltip: 'Thoát bài học',
                 constraints: const BoxConstraints(minWidth: 44, minHeight: 44),
                 onPressed: _confirmExit,
               ),
               Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Row(
-                      children: [
-                        Expanded(
-                          child: Text(
-                            cur.stage?.title ?? 'Bài học',
-                            maxLines: 1,
-                            overflow: TextOverflow.ellipsis,
-                            style: DauVietTypography.headlineMedium.copyWith(
-                              fontSize: 14,
-                              fontWeight: FontWeight.w700,
-                            ),
-                          ),
-                        ),
-                        const SizedBox(width: 6),
-                        _EnergyBadge(),
-                        const SizedBox(width: 4),
-                        // STREAK-01: huy hiệu ngọn lửa chuỗi học — số thật từ
-                        // streakProvider (server), không hard-code.
-                        _StreakBadge(),
-                      ],
-                    ),
-                    const SizedBox(height: 4),
-                    // Tiến trình 6 chặng + số bước — compact trên màn hẹp.
-                    Row(
-                      children: [
-                        Expanded(
-                          child: StepProgressBar(
-                            currentStep: cur.progress.completedRequired.clamp(
-                              0,
-                              cur.progress.totalRequired,
-                            ),
-                            totalSteps: cur.progress.totalRequired.clamp(1, 12),
-                            showLabels: false,
-                            height: 32,
-                          ),
-                        ),
-                        const SizedBox(width: 4),
-                        Container(
-                          padding: const EdgeInsets.symmetric(
-                            horizontal: 6,
-                            vertical: 2,
-                          ),
-                          decoration: BoxDecoration(
-                            color: DauVietColors.paperCardHi,
-                            borderRadius: BorderRadius.circular(10),
-                            border: Border.all(
-                              color: DauVietColors.outlineVariant,
-                              width: 1,
-                            ),
-                          ),
-                          child: ConstrainedBox(
-                            constraints: const BoxConstraints(maxWidth: 64),
-                            child: FittedBox(
-                              fit: BoxFit.scaleDown,
-                              child: Text(
-                                'Bước ${cur.progress.completedRequired}/${cur.progress.totalRequired}',
-                                style: DauVietTypography.labelSmall.copyWith(
-                                  color: DauVietColors.inkSecondary,
-                                  fontWeight: FontWeight.w800,
-                                  fontSize: 10.5,
-                                ),
-                              ),
-                            ),
-                          ),
-                        ),
-                      ],
-                    ),
-                  ],
+                child: Text(
+                  cur.stage?.title ?? 'Bài học',
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: DauVietTypography.headlineMedium.copyWith(
+                    fontSize: 18,
+                    fontWeight: FontWeight.w800,
+                    color: const Color(0xFF2B1F17),
+                  ),
                 ),
               ),
-              const SizedBox(width: 8),
+              const SizedBox(width: 6),
+              _EnergyBadge(),
+              const SizedBox(width: 6),
+              _StreakBadge(),
+              const SizedBox(width: 2),
               const SoundToggleButton(),
             ],
+          ),
+          const SizedBox(height: 2),
+          // Hàng 2: Thanh tiến trình các chặng kèm nhãn tiếng Việt + Pill Bước X/Y
+          Padding(
+            padding: const EdgeInsets.fromLTRB(12, 0, 4, 2),
+            child: Row(
+              crossAxisAlignment: CrossAxisAlignment.center,
+              children: [
+                Expanded(
+                  child: StepProgressBar(
+                    currentStep: cur.progress.completedRequired.clamp(
+                      0,
+                      cur.progress.totalRequired,
+                    ),
+                    totalSteps: cur.progress.totalRequired.clamp(1, 12),
+                    showLabels: true,
+                    height: 38,
+                  ),
+                ),
+                const SizedBox(width: 10),
+                Container(
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 10,
+                    vertical: 5,
+                  ),
+                  decoration: BoxDecoration(
+                    color: const Color(0xFFEFE4CE),
+                    borderRadius: BorderRadius.circular(14),
+                    border: Border.all(
+                      color: const Color(0xFFD8C5A5),
+                      width: 1.1,
+                    ),
+                  ),
+                  child: ConstrainedBox(
+                    constraints: const BoxConstraints(maxWidth: 72),
+                    child: FittedBox(
+                      fit: BoxFit.scaleDown,
+                      child: Text(
+                        'Bước ${cur.progress.completedRequired}/${cur.progress.totalRequired}',
+                        style: DauVietTypography.labelSmall.copyWith(
+                          color: const Color(0xFF3A2E25),
+                          fontWeight: FontWeight.w800,
+                          fontSize: 11,
+                        ),
+                      ),
+                    ),
+                  ),
+                ),
+              ],
+            ),
           ),
         ],
       ),
@@ -1517,17 +1515,17 @@ class _EnergyBadge extends ConsumerWidget {
       child: GestureDetector(
         onTap: () => context.push('/energy'),
         child: Container(
-          padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 2),
+          padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 4),
           decoration: BoxDecoration(
             color: isDepleted
                 ? const Color(0xFFFDEEEC)
-                : const Color(0xFFFFF8E1),
-            borderRadius: BorderRadius.circular(10),
+                : const Color(0xFFFDF7E9),
+            borderRadius: BorderRadius.circular(16),
             border: Border.all(
               color: isDepleted
                   ? DauVietColors.cinnabarRed
-                  : DauVietColors.imperialGold,
-              width: 1,
+                  : const Color(0xFFDFC28C),
+              width: 1.1,
             ),
           ),
           child: Row(
@@ -1535,7 +1533,7 @@ class _EnergyBadge extends ConsumerWidget {
             children: [
               Icon(
                 Icons.bolt_rounded,
-                size: 13,
+                size: 14,
                 color: isDepleted
                     ? DauVietColors.cinnabarRed
                     : const Color(0xFFD97706),
@@ -1547,9 +1545,9 @@ class _EnergyBadge extends ConsumerWidget {
                 style: DauVietTypography.labelSmall.copyWith(
                   color: isDepleted
                       ? DauVietColors.cinnabarRed
-                      : const Color(0xFF92400E),
+                      : const Color(0xFF8A4B15),
                   fontWeight: FontWeight.w800,
-                  fontSize: 11,
+                  fontSize: 11.5,
                 ),
               ),
             ],
@@ -1573,27 +1571,27 @@ class _StreakBadge extends ConsumerWidget {
       error: (_, _) => '—',
     );
     return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 2),
+      padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 4),
       decoration: BoxDecoration(
-        color: const Color(0xFFFFF3E0),
-        borderRadius: BorderRadius.circular(10),
-        border: Border.all(color: const Color(0xFFFFB74D), width: 1),
+        color: const Color(0xFFFDF7E9),
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: const Color(0xFFDFC28C), width: 1.1),
       ),
       child: Row(
         mainAxisSize: MainAxisSize.min,
         children: [
           const Icon(
             Icons.local_fire_department_rounded,
-            size: 13,
-            color: Color(0xFFE65100),
+            size: 14,
+            color: Color(0xFFD9481A),
           ),
-          const SizedBox(width: 2),
+          const SizedBox(width: 3),
           Text(
             value,
             style: DauVietTypography.labelSmall.copyWith(
-              color: const Color(0xFFE65100),
+              color: const Color(0xFFB83214),
               fontWeight: FontWeight.w800,
-              fontSize: 11,
+              fontSize: 11.5,
             ),
           ),
         ],
@@ -1602,8 +1600,7 @@ class _StreakBadge extends ConsumerWidget {
   }
 }
 
-/// Chip nhỏ báo activity có chấm điểm sẽ trừ Thể lực khi sai — đặt ngay trên
-/// renderer để learner thấy chi phí trước khi quyết định. Không block UI.
+/// Thanh thông báo activity có chấm điểm sẽ trừ Thể lực khi sai — khớp ảnh mẫu #3, #4, #5.
 class _EnergyCostHint extends StatelessWidget {
   final int penalty;
   const _EnergyCostHint({required this.penalty});
@@ -1611,30 +1608,28 @@ class _EnergyCostHint extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+      width: double.infinity,
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 7.5),
       decoration: BoxDecoration(
-        color: DauVietColors.imperialGold.withValues(alpha: 0.14),
-        borderRadius: BorderRadius.circular(8),
-        border: Border.all(
-          color: DauVietColors.imperialGold.withValues(alpha: 0.6),
-        ),
+        color: const Color(0xFFFBF0D5),
+        borderRadius: BorderRadius.circular(10),
+        border: Border.all(color: const Color(0xFFDFC07B), width: 1.2),
       ),
       child: Row(
-        mainAxisSize: MainAxisSize.min,
         children: [
           const Icon(
             Icons.bolt_rounded,
-            size: 15,
-            color: DauVietColors.imperialGold,
+            size: 16,
+            color: Color(0xFFD9821E),
           ),
-          const SizedBox(width: 5),
+          const SizedBox(width: 6),
           Expanded(
             child: Text(
               'Hoạt động chấm điểm — trả lời sai mất $penalty Thể lực',
               style: DauVietTypography.bodySmall.copyWith(
-                fontSize: 11.5,
-                color: const Color(0xFF7A5B18),
-                fontWeight: FontWeight.w600,
+                fontSize: 12,
+                color: const Color(0xFF6E4715),
+                fontWeight: FontWeight.w700,
               ),
             ),
           ),

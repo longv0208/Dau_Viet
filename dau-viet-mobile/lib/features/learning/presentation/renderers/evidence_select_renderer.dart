@@ -5,8 +5,7 @@ import '../../../../core/theme/dau_viet_colors.dart';
 import '../../../../core/theme/dau_viet_typography.dart';
 import '../../../../core/widgets/clue_tag.dart';
 import '../../../../core/widgets/empty_state_card.dart';
-import '../../../../core/widgets/section_eyebrow.dart';
-import '../../../../core/widgets/stamp_seal_badge.dart';
+import '../../../../core/widgets/heritage_design_components.dart';
 import '../../../../core/widgets/tactile_card.dart';
 import '../../data/attempt_dtos.dart';
 import '../../data/learning_dtos.dart';
@@ -135,93 +134,98 @@ class _EvidenceSelectRendererState extends State<EvidenceSelectRenderer> {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
-        Align(
-          alignment: Alignment.centerLeft,
-          child: SectionEyebrow(eyebrowText),
-        ),
-        const SizedBox(height: 6),
-        Text(
-          subtitleText,
-          style: DauVietTypography.bodySmall.copyWith(
-            fontSize: 11.5,
-            fontStyle: FontStyle.italic,
-            color: DauVietColors.inkMuted,
-            height: 1.4,
-          ),
-        ),
-        const SizedBox(height: 10),
-        for (final id in ids)
-          _EvidenceCard(
-            evidence: widget.content.evidenceById(id),
-            fallbackId: id,
-            selected: _selected.contains(id),
-            verdict: verdicts[id],
-            enabled: !widget.submitting,
-            onSelect: () => _toggle(id),
-            onDetail: () => _showDetail(id),
-          ),
-        if (_maxSelectReached && maxSelect != null) ...[
-          const SizedBox(height: 4),
-          Container(
-            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
-            decoration: BoxDecoration(
-              color: DauVietColors.imperialGold.withValues(alpha: 0.16),
-              borderRadius: BorderRadius.circular(8),
-              border: Border.all(
-                color: DauVietColors.imperialGold.withValues(alpha: 0.55),
+        ImperialScrollFrame(
+          plaqueTitle: 'THU THẬP DẤU VẾT',
+          hiddenPlaqueTestText: eyebrowText,
+          padding: const EdgeInsets.fromLTRB(14, 16, 14, 16),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              Text(
+                subtitleText,
+                style: DauVietTypography.bodySmall.copyWith(
+                  fontSize: 12.5,
+                  fontStyle: FontStyle.italic,
+                  color: const Color(0xFF3A2E25),
+                  height: 1.42,
+                ),
               ),
-            ),
-            child: Text(
-              'Đã đạt giới hạn $maxSelect dấu vết. Bỏ chọn một thẻ trước khi chọn thẻ khác.',
-              textAlign: TextAlign.center,
-              style: DauVietTypography.labelSmall.copyWith(
-                color: DauVietColors.inkText,
-                fontWeight: FontWeight.w600,
+              const SizedBox(height: 12),
+              for (final id in ids)
+                _EvidenceCard(
+                  evidence: widget.content.evidenceById(id),
+                  fallbackId: id,
+                  selected: _selected.contains(id),
+                  verdict: verdicts[id],
+                  enabled: !widget.submitting,
+                  onSelect: () => _toggle(id),
+                  onDetail: () => _showDetail(id),
+                ),
+              if (_maxSelectReached && maxSelect != null) ...[
+                const SizedBox(height: 4),
+                Container(
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 10,
+                    vertical: 6,
+                  ),
+                  decoration: BoxDecoration(
+                    color: DauVietColors.imperialGold.withValues(alpha: 0.16),
+                    borderRadius: BorderRadius.circular(8),
+                    border: Border.all(
+                      color: DauVietColors.imperialGold.withValues(alpha: 0.55),
+                    ),
+                  ),
+                  child: Text(
+                    'Đã đạt giới hạn $maxSelect dấu vết. Bỏ chọn một thẻ trước khi chọn thẻ khác.',
+                    textAlign: TextAlign.center,
+                    style: DauVietTypography.labelSmall.copyWith(
+                      color: DauVietColors.inkText,
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
+                ),
+              ],
+              const SizedBox(height: 6),
+              Text(
+                'Đã chọn ${_selected.length}/$targetCount',
+                textAlign: TextAlign.center,
+                style: DauVietTypography.bodyMedium.copyWith(
+                  fontSize: 13.5,
+                  color: hasExpectedTarget
+                      ? (_selected.length == targetCount
+                            ? const Color(0xFF2B1F17)
+                            : _selected.length > targetCount
+                            ? DauVietColors.cinnabarRed
+                            : const Color(0xFF4A3C2E))
+                      : (_selected.length >= minRequired
+                            ? const Color(0xFF2B1F17)
+                            : const Color(0xFF4A3C2E)),
+                  fontWeight: FontWeight.w800,
+                ),
               ),
-            ),
-          ),
-        ],
-        const SizedBox(height: 10),
-        Text(
-          'Đã chọn ${_selected.length}/$targetCount',
-          textAlign: TextAlign.center,
-          style: DauVietTypography.bodySmall.copyWith(
-            color: hasExpectedTarget
-                ? (_selected.length == targetCount
-                      ? DauVietColors.natureGreen
-                      : _selected.length > targetCount
-                      ? DauVietColors.cinnabarRed
-                      : DauVietColors.inkMuted)
-                : (_selected.length >= minRequired
-                      ? DauVietColors.natureGreen
-                      : DauVietColors.inkMuted),
-            fontWeight: hasExpectedTarget
-                ? (_selected.length == targetCount ||
-                          _selected.length > targetCount
-                      ? FontWeight.w700
-                      : FontWeight.w400)
-                : (_selected.length >= minRequired
-                      ? FontWeight.w700
-                      : FontWeight.w400),
+              if (hasExpectedTarget && _selected.length > targetCount) ...[
+                const SizedBox(height: 4),
+                Text(
+                  'Cảnh báo: Bạn đã chọn nhiều hơn $targetCount dấu vết yêu cầu.',
+                  textAlign: TextAlign.center,
+                  style: DauVietTypography.bodySmall.copyWith(
+                    color: DauVietColors.cinnabarRed,
+                    fontSize: 11,
+                    fontWeight: FontWeight.w600,
+                  ),
+                ),
+              ],
+            ],
           ),
         ),
-        if (hasExpectedTarget && _selected.length > targetCount) ...[
-          const SizedBox(height: 4),
-          Text(
-            'Cảnh báo: Bạn đã chọn nhiều hơn $targetCount dấu vết yêu cầu.',
-            textAlign: TextAlign.center,
-            style: DauVietTypography.bodySmall.copyWith(
-              color: DauVietColors.cinnabarRed,
-              fontSize: 11,
-              fontWeight: FontWeight.w600,
-            ),
-          ),
-        ],
-        const SizedBox(height: 8),
+        const SizedBox(height: 12),
         if (graded)
-          InlineGradingHint(
-            evaluation: widget.lastEvaluation,
-            maxAttempts: widget.activity.maxAttempts,
+          Padding(
+            padding: const EdgeInsets.only(bottom: 10),
+            child: InlineGradingHint(
+              evaluation: widget.lastEvaluation,
+              maxAttempts: widget.activity.maxAttempts,
+            ),
           ),
         SubmitBar(
           enabled: _selected.length >= minRequired,
@@ -313,272 +317,263 @@ class _EvidenceCard extends StatelessWidget {
     final Color borderColor = isVerdictCorrect
         ? DauVietColors.natureGreen
         : isVerdictIncorrect
-            ? DauVietColors.cinnabarRed.withValues(alpha: 0.75)
-            : selected
-                ? DauVietColors.cinnabarRed
-                : DauVietColors.outlineVariant;
+        ? DauVietColors.cinnabarRed.withValues(alpha: 0.75)
+        : selected
+        ? const Color(0xFFC02D24)
+        : const Color(0xFFDECBA8);
 
     return Padding(
       padding: const EdgeInsets.only(bottom: 10),
-      child: Stack(
-        clipBehavior: Clip.none,
-        children: [
-          TactileCard(
-            enabled: enabled,
-            onTap: enabled ? onDetail : null,
-            backgroundColor: selected
-                ? DauVietColors.paperCardHi
-                : DauVietColors.paperCard,
-            borderColor: borderColor,
-            borderWidth:
-                (selected || isVerdictCorrect || isVerdictIncorrect) ? 2.4 : 1.4,
-            padding: const EdgeInsets.all(12),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                if (category != null ||
-                    isVerdictCorrect ||
-                    isVerdictIncorrect) ...[
-                  Wrap(
-                    spacing: 6,
-                    runSpacing: 6,
-                    crossAxisAlignment: WrapCrossAlignment.center,
-                    children: [
-                      if (category != null)
-                        ClueTag.category(category, filled: selected),
-                      if (isVerdictCorrect)
-                        Container(
-                          padding: const EdgeInsets.symmetric(
-                            horizontal: 8,
-                            vertical: 2,
-                          ),
-                          decoration: BoxDecoration(
-                            color: DauVietColors.natureGreen.withValues(
-                              alpha: 0.14,
-                            ),
-                            borderRadius: BorderRadius.circular(6),
-                            border: Border.all(
-                              color: DauVietColors.natureGreen,
-                            ),
-                          ),
-                          child: Text(
-                            '✓ Đúng dấu vết liên quan',
-                            style: DauVietTypography.labelSmall.copyWith(
-                              color: DauVietColors.natureGreen,
-                              fontWeight: FontWeight.w700,
-                            ),
-                          ),
+      child: TactileCard(
+        usePixelShadow: false,
+        enabled: enabled,
+        onTap: enabled ? onDetail : null,
+        backgroundColor: selected
+            ? const Color(0xFFFFFDF9)
+            : const Color(0xFFFAF5E8),
+        borderColor: borderColor,
+        borderWidth: (selected || isVerdictCorrect || isVerdictIncorrect)
+            ? 1.8
+            : 1.2,
+        borderRadius: 14,
+        padding: const EdgeInsets.all(11),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            if (isVerdictCorrect || isVerdictIncorrect) ...[
+              Wrap(
+                spacing: 6,
+                runSpacing: 6,
+                crossAxisAlignment: WrapCrossAlignment.center,
+                children: [
+                  if (category != null)
+                    ClueTag.category(category, filled: selected),
+                  if (isVerdictCorrect)
+                    Container(
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 8,
+                        vertical: 2,
+                      ),
+                      decoration: BoxDecoration(
+                        color: DauVietColors.natureGreen.withValues(alpha: 0.14),
+                        borderRadius: BorderRadius.circular(6),
+                        border: Border.all(color: DauVietColors.natureGreen),
+                      ),
+                      child: Text(
+                        '✓ Đúng dấu vết liên quan',
+                        style: DauVietTypography.labelSmall.copyWith(
+                          color: DauVietColors.natureGreen,
+                          fontWeight: FontWeight.w700,
                         ),
-                      if (isVerdictIncorrect)
-                        Container(
-                          padding: const EdgeInsets.symmetric(
-                            horizontal: 8,
-                            vertical: 2,
-                          ),
-                          decoration: BoxDecoration(
-                            color: DauVietColors.cinnabarRed.withValues(
-                              alpha: 0.12,
-                            ),
-                            borderRadius: BorderRadius.circular(6),
-                            border: Border.all(
-                              color: DauVietColors.cinnabarRed.withValues(
-                                alpha: 0.65,
-                              ),
-                            ),
-                          ),
-                          child: Text(
-                            '✗ Chưa liên quan câu hỏi',
-                            style: DauVietTypography.labelSmall.copyWith(
-                              color: DauVietColors.cinnabarRed,
-                              fontWeight: FontWeight.w700,
-                            ),
-                          ),
-                        ),
-                    ],
-                  ),
-                  const SizedBox(height: 8),
-                ],
-                if (assetId != null) ...[
-                  ClipRRect(
-                    borderRadius: BorderRadius.circular(12),
-                    child: LearningAssetImage(
-                      assetId: assetId,
-                      altText: title,
-                      height: 72,
-                      fit: BoxFit.cover,
-                      tappable: false,
-                    ),
-                  ),
-                  const SizedBox(height: 8),
-                ],
-                Row(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Expanded(
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Text(
-                            title,
-                            style: DauVietTypography.labelMedium.copyWith(
-                              fontWeight: FontWeight.w700,
-                              color: DauVietColors.inkText,
-                              height: 1.35,
-                            ),
-                          ),
-                          if (desc != null && desc.isNotEmpty)
-                            Padding(
-                              padding: const EdgeInsets.only(top: 4),
-                              child: Text(
-                                desc,
-                                maxLines: 2,
-                                overflow: TextOverflow.ellipsis,
-                                style: DauVietTypography.bodySmall.copyWith(
-                                  color: DauVietColors.inkMuted,
-                                  height: 1.4,
-                                ),
-                              ),
-                            ),
-                          if (sourceText.isNotEmpty)
-                            Padding(
-                              padding: const EdgeInsets.only(top: 6),
-                              child: Row(
-                                children: [
-                                  const Icon(
-                                    Icons.menu_book_outlined,
-                                    size: 14,
-                                    color: DauVietColors.jade,
-                                  ),
-                                  const SizedBox(width: 4),
-                                  Expanded(
-                                    child: Text(
-                                      'Nguồn: $sourceText',
-                                      maxLines: 1,
-                                      overflow: TextOverflow.ellipsis,
-                                      style: DauVietTypography.labelSmall
-                                          .copyWith(
-                                            color: DauVietColors.inkMuted,
-                                          ),
-                                    ),
-                                  ),
-                                ],
-                              ),
-                            ),
-                          Padding(
-                            padding: const EdgeInsets.only(top: 6),
-                            child: GestureDetector(
-                              behavior: HitTestBehavior.opaque,
-                              onTap: enabled ? onDetail : null,
-                              child: ConstrainedBox(
-                                constraints: const BoxConstraints(
-                                  minHeight: 28,
-                                ),
-                                child: Row(
-                                  mainAxisSize: MainAxisSize.min,
-                                  children: [
-                                    const Icon(
-                                      Icons.manage_search_rounded,
-                                      size: 15,
-                                      color: DauVietColors.jadeDark,
-                                    ),
-                                    const SizedBox(width: 4),
-                                    Text(
-                                      'Xem chi tiết dấu vết',
-                                      style: DauVietTypography.labelSmall
-                                          .copyWith(
-                                            color: DauVietColors.jadeDark,
-                                            fontWeight: FontWeight.w700,
-                                          ),
-                                    ),
-                                  ],
-                                ),
-                              ),
-                            ),
-                          ),
-                        ],
                       ),
                     ),
-                    const SizedBox(width: 8),
-                    Semantics(
-                      excludeSemantics: true,
-                      button: true,
-                      selected: selected,
-                      enabled: enabled,
-                      label: selected
-                          ? 'Bỏ chọn bằng chứng $title'
-                          : 'Chọn bằng chứng $title',
-                      child: GestureDetector(
-                        key: ValueKey('evidence-select-btn-$fallbackId'),
-                        behavior: HitTestBehavior.opaque,
-                        onTap: enabled ? onSelect : null,
-                        child: Container(
-                          constraints: const BoxConstraints(
-                            minWidth: 56,
-                            minHeight: 54,
+                  if (isVerdictIncorrect)
+                    Container(
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 8,
+                        vertical: 2,
+                      ),
+                      decoration: BoxDecoration(
+                        color: DauVietColors.cinnabarRed.withValues(alpha: 0.12),
+                        borderRadius: BorderRadius.circular(6),
+                        border: Border.all(
+                          color: DauVietColors.cinnabarRed.withValues(
+                            alpha: 0.65,
                           ),
-                          padding: const EdgeInsets.symmetric(
-                            horizontal: 6,
-                            vertical: 4,
-                          ),
-                          decoration: BoxDecoration(
-                            color: selected
-                                ? DauVietColors.cinnabarRed.withValues(
-                                    alpha: 0.10,
-                                  )
-                                : DauVietColors.paperBackground,
-                            borderRadius: BorderRadius.circular(10),
-                            border: Border.all(
-                              color: selected
-                                  ? DauVietColors.cinnabarRed
-                                  : DauVietColors.outlineVariant,
-                              width: selected ? 1.6 : 1.0,
+                        ),
+                      ),
+                      child: Text(
+                        '✗ Chưa liên quan câu hỏi',
+                        style: DauVietTypography.labelSmall.copyWith(
+                          color: DauVietColors.cinnabarRed,
+                          fontWeight: FontWeight.w700,
+                        ),
+                      ),
+                    ),
+                ],
+              ),
+              const SizedBox(height: 8),
+            ],
+            Row(
+              crossAxisAlignment: CrossAxisAlignment.center,
+              children: [
+                if (assetId != null) ...[
+                  ClipRRect(
+                    borderRadius: BorderRadius.circular(10),
+                    child: SizedBox(
+                      width: 78,
+                      height: 82,
+                      child: LearningAssetImage(
+                        assetId: assetId,
+                        altText: title,
+                        height: 82,
+                        fit: BoxFit.cover,
+                        tappable: false,
+                      ),
+                    ),
+                  ),
+                  const SizedBox(width: 11),
+                ],
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      if (category != null &&
+                          !isVerdictCorrect &&
+                          !isVerdictIncorrect &&
+                          assetId == null) ...[
+                        ClueTag.category(category, filled: selected),
+                        const SizedBox(height: 5),
+                      ],
+                      Text(
+                        title,
+                        style: DauVietTypography.headlineSmall.copyWith(
+                          fontSize: 15,
+                          fontWeight: FontWeight.w800,
+                          color: const Color(0xFF7A1C16),
+                          height: 1.28,
+                        ),
+                      ),
+                      if (desc != null && desc.isNotEmpty)
+                        Padding(
+                          padding: const EdgeInsets.only(top: 4),
+                          child: Text(
+                            desc,
+                            maxLines: 2,
+                            overflow: TextOverflow.ellipsis,
+                            style: DauVietTypography.bodySmall.copyWith(
+                              color: const Color(0xFF2B1F17),
+                              fontSize: 12.2,
+                              height: 1.38,
                             ),
                           ),
-                          alignment: Alignment.center,
-                          child: Column(
-                            mainAxisSize: MainAxisSize.min,
+                        ),
+                      if (sourceText.isNotEmpty)
+                        Padding(
+                          padding: const EdgeInsets.only(top: 5),
+                          child: Row(
                             children: [
-                              selected
-                                  ? const Icon(
-                                      Icons.check_circle_rounded,
-                                      size: 24,
-                                      color: DauVietColors.cinnabarRed,
-                                    )
-                                  : const Icon(
-                                      Icons.radio_button_off,
-                                      size: 24,
-                                      color: DauVietColors.inkMuted,
-                                    ),
-                              const SizedBox(height: 2),
-                              Text(
-                                selected ? 'Đã chọn' : 'Chọn',
-                                style: DauVietTypography.labelSmall.copyWith(
-                                  fontSize: 10.5,
-                                  fontWeight: FontWeight.w700,
-                                  color: selected
-                                      ? DauVietColors.cinnabarRed
-                                      : DauVietColors.inkSecondary,
+                              const Icon(
+                                Icons.menu_book_rounded,
+                                size: 13.5,
+                                color: Color(0xFF1E6B52),
+                              ),
+                              const SizedBox(width: 4),
+                              Expanded(
+                                child: Text(
+                                  'Nguồn: $sourceText',
+                                  maxLines: 1,
+                                  overflow: TextOverflow.ellipsis,
+                                  style: DauVietTypography.labelSmall.copyWith(
+                                    color: const Color(0xFF4A3C2E),
+                                    fontSize: 11,
+                                  ),
                                 ),
                               ),
                             ],
                           ),
                         ),
+                      Padding(
+                        padding: const EdgeInsets.only(top: 5),
+                        child: GestureDetector(
+                          behavior: HitTestBehavior.opaque,
+                          onTap: enabled ? onDetail : null,
+                          child: ConstrainedBox(
+                            constraints: const BoxConstraints(minHeight: 24),
+                            child: Row(
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                const Icon(
+                                  Icons.manage_search_rounded,
+                                  size: 15,
+                                  color: Color(0xFF1A6B64),
+                                ),
+                                const SizedBox(width: 4),
+                                Text(
+                                  'Xem chi tiết dấu vết',
+                                  style: DauVietTypography.labelSmall.copyWith(
+                                    color: const Color(0xFF1A6B64),
+                                    fontWeight: FontWeight.w800,
+                                    fontSize: 11.2,
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+                const SizedBox(width: 8),
+                Semantics(
+                  excludeSemantics: true,
+                  button: true,
+                  selected: selected,
+                  enabled: enabled,
+                  label: selected
+                      ? 'Bỏ chọn bằng chứng $title'
+                      : 'Chọn bằng chứng $title',
+                  child: GestureDetector(
+                    key: ValueKey('evidence-select-btn-$fallbackId'),
+                    behavior: HitTestBehavior.opaque,
+                    onTap: enabled ? onSelect : null,
+                    child: Container(
+                      constraints: const BoxConstraints(
+                        minWidth: 56,
+                        minHeight: 58,
+                      ),
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 6,
+                        vertical: 5,
+                      ),
+                      decoration: BoxDecoration(
+                        color: selected
+                            ? const Color(0xFFFDF5EE)
+                            : const Color(0xFFFAF3E4),
+                        borderRadius: BorderRadius.circular(11),
+                        border: Border.all(
+                          color: selected
+                              ? const Color(0xFFC02D24)
+                              : const Color(0xFFD5C3A6),
+                          width: selected ? 1.5 : 1.1,
+                        ),
+                      ),
+                      alignment: Alignment.center,
+                      child: Column(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          selected
+                              ? const Icon(
+                                  Icons.radio_button_checked_rounded,
+                                  size: 23,
+                                  color: Color(0xFFA8221B),
+                                )
+                              : const Icon(
+                                  Icons.radio_button_off,
+                                  size: 23,
+                                  color: Color(0xFF4A3C2E),
+                                ),
+                          const SizedBox(height: 3),
+                          Text(
+                            selected ? 'Đã chọn' : 'Chọn',
+                            style: DauVietTypography.labelSmall.copyWith(
+                              fontSize: 10.5,
+                              fontWeight: FontWeight.w800,
+                              color: selected
+                                  ? const Color(0xFFA8221B)
+                                  : const Color(0xFF4A3C2E),
+                            ),
+                          ),
+                        ],
                       ),
                     ),
-                  ],
+                  ),
                 ),
               ],
             ),
-          ),
-          if (selected)
-            Positioned(
-              top: -6,
-              right: -4,
-              child: IgnorePointer(
-                child: const StampSealBadge.success('✓', size: 24),
-              ),
-            ),
-        ],
+          ],
+        ),
       ),
     );
   }

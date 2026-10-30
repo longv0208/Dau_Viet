@@ -31,6 +31,11 @@ class EmptyStateCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return TactileCard(
+      usePixelShadow: false,
+      backgroundColor: const Color(0xFFFAF3E4),
+      borderColor: const Color(0xFFE3D2B4),
+      borderWidth: 1.1,
+      borderRadius: 18,
       padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 28),
       child: Column(
         mainAxisSize: MainAxisSize.min,
@@ -41,20 +46,29 @@ class EmptyStateCard extends StatelessWidget {
                       width: 64,
                       height: 64,
                       decoration: BoxDecoration(
-                        color: DauVietColors.jade.withValues(alpha: 0.12),
+                        color: DauVietColors.heritageGreenSurface,
                         shape: BoxShape.circle,
                         border: Border.all(
-                          color: DauVietColors.jade,
-                          width: 1.6,
+                          color: DauVietColors.heritageGreenLight.withValues(
+                            alpha: 0.35,
+                          ),
+                          width: 1.2,
                         ),
                       ),
-                      child: Icon(icon, color: DauVietColors.jade, size: 30),
+                      child: Icon(
+                        icon,
+                        color: DauVietColors.heritageGreen,
+                        size: 30,
+                      ),
                     )
                   : KabiMascotWidget(mood: mood, width: 84, height: 84)),
           const SizedBox(height: 16),
           Text(
             title,
-            style: DauVietTypography.headlineSmall,
+            style: DauVietTypography.headlineSmall.copyWith(
+              color: DauVietColors.inkHeading,
+              fontWeight: FontWeight.w800,
+            ),
             textAlign: TextAlign.center,
           ),
           if (description != null) ...[
@@ -62,27 +76,49 @@ class EmptyStateCard extends StatelessWidget {
             Text(
               description!,
               style: DauVietTypography.bodyMedium.copyWith(
-                color: DauVietColors.inkSecondary,
+                color: DauVietColors.inkMuted,
+                height: 1.4,
               ),
               textAlign: TextAlign.center,
             ),
           ],
           if (actionLabel != null && onAction != null) ...[
-            const SizedBox(height: 16),
-            FilledButton(
-              onPressed: onAction,
-              style: FilledButton.styleFrom(
-                backgroundColor: DauVietColors.cinnabarRed,
-                foregroundColor: DauVietColors.paperBackground,
-                padding: const EdgeInsets.symmetric(
-                  horizontal: 20,
-                  vertical: 12,
-                ),
-                shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(12),
+            const SizedBox(height: 18),
+            Material(
+              color: Colors.transparent,
+              child: InkWell(
+                onTap: onAction,
+                borderRadius: BorderRadius.circular(11),
+                child: Container(
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 20,
+                    vertical: 11,
+                  ),
+                  decoration: BoxDecoration(
+                    color: const Color(0xFF1A4B38),
+                    borderRadius: BorderRadius.circular(11),
+                    border: Border.all(
+                      color: const Color(0xFFDEC69A).withValues(alpha: 0.55),
+                      width: 1.0,
+                    ),
+                    boxShadow: const [
+                      BoxShadow(
+                        color: Color(0x24163A2B),
+                        blurRadius: 4,
+                        offset: Offset(0, 1),
+                      ),
+                    ],
+                  ),
+                  child: Text(
+                    actionLabel!,
+                    style: DauVietTypography.labelMedium.copyWith(
+                      color: Colors.white,
+                      fontWeight: FontWeight.w800,
+                      fontSize: 12.5,
+                    ),
+                  ),
                 ),
               ),
-              child: Text(actionLabel!, style: DauVietTypography.labelLarge),
             ),
           ],
         ],

@@ -3,6 +3,7 @@ import 'package:flutter/services.dart';
 
 import '../../../../core/theme/dau_viet_typography.dart';
 import '../../../../core/widgets/tactile_3d_card.dart';
+import '../../../../core/widgets/heritage_design_components.dart';
 import '../../data/attempt_dtos.dart';
 import 'renderer_base.dart';
 
@@ -81,45 +82,55 @@ class _MultipleChoiceRendererState extends State<MultipleChoiceRenderer> {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
-        if (question != null)
-          Padding(
-            padding: const EdgeInsets.symmetric(vertical: 10, horizontal: 4),
-            child: Text(
-              question,
-              textAlign: TextAlign.center,
-              style: DauVietTypography.headlineMedium.copyWith(
-                fontSize: 18.5,
-                fontWeight: FontWeight.w800,
-                color: const Color(0xFF1F2421),
-                height: 1.35,
-              ),
-            ),
+        ImperialScrollFrame(
+          plaqueTitle: 'TRẮC NGHIỆM • TƯ LIỆU',
+          padding: const EdgeInsets.fromLTRB(12, 10, 12, 10),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              if (question != null)
+                Padding(
+                  padding: const EdgeInsets.only(bottom: 8),
+                  child: Text(
+                    question,
+                    textAlign: TextAlign.left,
+                    style: DauVietTypography.headlineMedium.copyWith(
+                      fontSize: 16.5,
+                      fontWeight: FontWeight.w800,
+                      color: const Color(0xFF2B1F17),
+                      height: 1.32,
+                    ),
+                  ),
+                ),
+              if (_multi)
+                Padding(
+                  padding: const EdgeInsets.only(bottom: 8, left: 2),
+                  child: Text(
+                    'Chọn tất cả đáp án đúng (đã chọn ${_selected.length})',
+                    style: DauVietTypography.bodySmall.copyWith(
+                      fontSize: 11.5,
+                      color: const Color(0xFF6B5B4B),
+                      fontStyle: FontStyle.italic,
+                    ),
+                  ),
+                ),
+              for (int i = 0; i < options.length; i++)
+                _OptionTile(
+                  id: options[i]['id'] as String? ?? '',
+                  label:
+                      (options[i]['label'] ?? options[i]['text'] ?? '')
+                          as String,
+                  index: i,
+                  selected: _selected.contains(options[i]['id']),
+                  multi: _multi,
+                  enabled: !widget.submitting,
+                  reduceMotion: reduceMotion,
+                  onTap: () => _tap(options[i]['id'] as String? ?? ''),
+                ),
+            ],
           ),
-        const SizedBox(height: 6),
-        if (_multi)
-          Padding(
-            padding: const EdgeInsets.only(bottom: 8, left: 4),
-            child: Text(
-              'Chọn tất cả đáp án đúng (đã chọn ${_selected.length})',
-              style: DauVietTypography.bodySmall.copyWith(
-                fontSize: 11.5,
-                color: const Color(0xFF75807A),
-                fontStyle: FontStyle.italic,
-              ),
-            ),
-          ),
-        for (int i = 0; i < options.length; i++)
-          _OptionTile(
-            id: options[i]['id'] as String? ?? '',
-            label: (options[i]['label'] ?? options[i]['text'] ?? '') as String,
-            index: i,
-            selected: _selected.contains(options[i]['id']),
-            multi: _multi,
-            enabled: !widget.submitting,
-            reduceMotion: reduceMotion,
-            onTap: () => _tap(options[i]['id'] as String? ?? ''),
-          ),
-        const SizedBox(height: 16),
+        ),
+        const SizedBox(height: 10),
         SubmitBar(
           enabled: _selected.isNotEmpty,
           submitting: widget.submitting,

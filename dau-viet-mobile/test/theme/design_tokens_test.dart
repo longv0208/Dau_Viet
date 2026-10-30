@@ -49,6 +49,8 @@ void main() {
       expect(DauVietColors.pixelShadowSm.single.offset, const Offset(2, 2));
       expect(DauVietColors.pixelShadowLg.single.offset, const Offset(6, 6));
       expect(DauVietColors.heritageShadow, isNotEmpty);
+      expect(DauVietColors.softCardShadow.single.offset, const Offset(0, 2));
+      expect(DauVietColors.softCardShadow.single.blurRadius, 6);
     });
   });
 

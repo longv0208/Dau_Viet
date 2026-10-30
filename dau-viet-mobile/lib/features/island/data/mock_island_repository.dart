@@ -135,6 +135,52 @@ class MockIslandRepository implements IslandRepository {
         renderKey: 'decor.den_long_hoi_an',
         owned: true,
       ),
+      const ShopItemDto(
+        itemId: 'item_decor_nha_rong',
+        code: 'decor_nha_rong',
+        name: 'Nhà rông',
+        description: 'Biểu tượng văn hóa cộng đồng của người Việt.',
+        category: 'DECOR',
+        pricePoints: 120,
+        purchasable: true,
+        renderKey: 'decor.nha_rong',
+        owned: true,
+      ),
+      const ShopItemDto(
+        itemId: 'item_decor_chua_co',
+        code: 'decor_chua_co',
+        name: 'Chùa cổ',
+        description:
+            'Ngôi chùa cổ thanh tịnh mang đậm dấu ấn kiến trúc truyền thống Việt Nam.',
+        category: 'DECOR',
+        pricePoints: 180,
+        purchasable: true,
+        renderKey: 'decor.chua_co',
+        owned: true,
+      ),
+      const ShopItemDto(
+        itemId: 'item_decor_thap_cham',
+        code: 'decor_thap_cham',
+        name: 'Tháp Chăm',
+        description: 'Tuyệt tác kiến trúc gạch nung Chămpa cổ đại trên Đảo Di Sản.',
+        category: 'DECOR',
+        pricePoints: 200,
+        purchasable: true,
+        renderKey: 'decor.thap_cham',
+        owned: true,
+      ),
+      const ShopItemDto(
+        itemId: 'item_decor_tre_truc',
+        code: 'decor_tre_truc',
+        name: 'Tre trúc',
+        description:
+            'Lũy tre xanh kiên cường gắn liền với làng quê và lịch sử dân tộc.',
+        category: 'DECOR',
+        pricePoints: 40,
+        purchasable: true,
+        renderKey: 'decor.tre_truc',
+        owned: true,
+      ),
     ];
   }
 

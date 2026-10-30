@@ -3,8 +3,8 @@ import 'package:flutter/services.dart';
 
 import '../../../../core/theme/dau_viet_colors.dart';
 import '../../../../core/theme/dau_viet_typography.dart';
-import '../../../../core/widgets/chapter_number_badge.dart';
 import '../../../../core/widgets/clue_tag.dart';
+import '../../../../core/widgets/heritage_design_components.dart';
 import '../../../../core/widgets/section_eyebrow.dart';
 import '../../../../core/widgets/tactile_card.dart';
 import '../../data/attempt_dtos.dart';
@@ -119,59 +119,65 @@ class _DragOrderRendererState extends State<DragOrderRenderer> {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
-        const Align(
-          alignment: Alignment.centerLeft,
-          child: SectionEyebrow('DÒNG THỜI GIAN · SẮP XẾP'),
-        ),
-        const SizedBox(height: 8),
-        Padding(
-          padding: const EdgeInsets.only(bottom: 10, left: 2),
-          child: Text(
-            'Kéo thả hoặc dùng mũi tên để sắp xếp theo trình tự thời gian',
-            style: DauVietTypography.bodySmall.copyWith(
-              fontWeight: FontWeight.w600,
-              color: DauVietColors.inkSecondary,
-            ),
+        ImperialScrollFrame(
+          plaqueTitle: 'DÒNG THỜI GIAN • SẮP XẾP',
+          hiddenPlaqueTestText: 'DÒNG THỜI GIAN · SẮP XẾP',
+          padding: const EdgeInsets.fromLTRB(14, 16, 14, 16),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              Padding(
+                padding: const EdgeInsets.only(bottom: 12, left: 2),
+                child: Text(
+                  'Kéo thả hoặc dùng mũi tên để sắp xếp theo trình tự thời gian',
+                  style: DauVietTypography.bodySmall.copyWith(
+                    fontSize: 12.5,
+                    fontWeight: FontWeight.w600,
+                    color: const Color(0xFF3A2E25),
+                  ),
+                ),
+              ),
+              ReorderableListView.builder(
+                shrinkWrap: true,
+                physics: const NeverScrollableScrollPhysics(),
+                buildDefaultDragHandles: false,
+                itemCount: _items.length,
+                onReorderItem: (oldIndex, newIndex) {
+                  HapticFeedback.mediumImpact();
+                  setState(() {
+                    final item = _items.removeAt(oldIndex);
+                    _items.insert(newIndex, item);
+                    _reportDirty();
+                  });
+                },
+                proxyDecorator: (child, index, animation) => Material(
+                  elevation: 8,
+                  borderRadius: BorderRadius.circular(14),
+                  shadowColor: DauVietColors.pixelShadowColor,
+                  color: const Color(0xFFFDECC8),
+                  child: child,
+                ),
+                itemBuilder: (context, i) {
+                  final item = _items[i];
+                  final String id = item['id'] as String? ?? 'item-$i';
+                  return _OrderTile(
+                    key: ValueKey(id),
+                    index: i,
+                    total: _items.length,
+                    label: (item['label'] ?? item['text'] ?? id) as String,
+                    timeLabel: _itemTimeLabel(item),
+                    assetId: _itemAssetId(item),
+                    misplaced: _isMisplaced(i, id),
+                    enabled: !widget.submitting,
+                    onUp: () => _move(i, -1),
+                    onDown: () => _move(i, 1),
+                  );
+                },
+              ),
+            ],
           ),
         ),
-        ReorderableListView.builder(
-          shrinkWrap: true,
-          physics: const NeverScrollableScrollPhysics(),
-          buildDefaultDragHandles: false,
-          itemCount: _items.length,
-          onReorderItem: (oldIndex, newIndex) {
-            HapticFeedback.mediumImpact();
-            setState(() {
-              final item = _items.removeAt(oldIndex);
-              _items.insert(newIndex, item);
-              _reportDirty();
-            });
-          },
-          proxyDecorator: (child, index, animation) => Material(
-            elevation: 8,
-            borderRadius: BorderRadius.circular(16),
-            shadowColor: DauVietColors.pixelShadowColor,
-            color: DauVietColors.paperCard,
-            child: child,
-          ),
-          itemBuilder: (context, i) {
-            final item = _items[i];
-            final String id = item['id'] as String? ?? 'item-$i';
-            return _OrderTile(
-              key: ValueKey(id),
-              index: i,
-              total: _items.length,
-              label: (item['label'] ?? item['text'] ?? id) as String,
-              timeLabel: _itemTimeLabel(item),
-              assetId: _itemAssetId(item),
-              misplaced: _isMisplaced(i, id),
-              enabled: !widget.submitting,
-              onUp: () => _move(i, -1),
-              onDown: () => _move(i, 1),
-            );
-          },
-        ),
-        const SizedBox(height: 16),
+        const SizedBox(height: 12),
         InlineGradingHint(
           evaluation: widget.lastEvaluation,
           maxAttempts: widget.activity.maxAttempts,
@@ -215,47 +221,57 @@ class _OrderTile extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final String stepNumber = (index + 1).toString().padLeft(2, '0');
+    final bool canUp = index > 0 && enabled;
+    final bool canDown = index < total - 1 && enabled;
+
     return Semantics(
       container: true,
       label: 'Vị trí ${index + 1}: $label',
       child: TactileCard(
+        usePixelShadow: false,
         margin: const EdgeInsets.only(bottom: 10),
         padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 10),
         backgroundColor: misplaced
-            ? DauVietColors.paperCardHi
-            : DauVietColors.paperCard,
+            ? const Color(0xFFFDECC8)
+            : const Color(0xFFFAF5E8),
         borderColor: misplaced
-            ? DauVietColors.imperialGoldDark
-            : DauVietColors.outlineVariant,
-        borderWidth: misplaced ? 1.8 : 1.4,
+            ? const Color(0xFFD99A36)
+            : const Color(0xFFDECBA8),
+        borderWidth: misplaced ? 1.8 : 1.3,
         borderRadius: 14,
         child: Row(
           crossAxisAlignment: CrossAxisAlignment.center,
           children: [
-            // 1. Huy hiệu số bước pixel bên trái
-            ChapterNumberBadge(
+            // 1. Huy hiệu vòng tròn kép số bước bên trái (khớp ảnh mẫu #5)
+            ImperialDoubleCircleBadge(
               stepNumber,
               size: 36,
               color: misplaced
-                  ? DauVietColors.imperialGoldDark
-                  : DauVietColors.chapterGreen,
+                  ? const Color(0xFFB8781C)
+                  : const Color(0xFF1B4332),
+              filled: false,
             ),
             const SizedBox(width: 10),
 
-            // 2. Thumbnail sự kiện nếu có image/assetId
+            // 2. Thumbnail sự kiện nếu có image/assetId thật trong config
             if (assetId != null) ...[
-              ClipRRect(
-                borderRadius: BorderRadius.circular(8),
-                child: SizedBox(
-                  width: 44,
-                  height: 44,
-                  child: LearningAssetImage(
-                    assetId: assetId!,
-                    altText: label,
-                    height: 44,
-                    fit: BoxFit.cover,
-                    tappable: false,
+              Container(
+                width: 58,
+                height: 44,
+                decoration: BoxDecoration(
+                  borderRadius: BorderRadius.circular(8),
+                  border: Border.all(
+                    color: const Color(0xFFD5BF98),
+                    width: 1.1,
                   ),
+                ),
+                clipBehavior: Clip.antiAlias,
+                child: LearningAssetImage(
+                  assetId: assetId!,
+                  altText: label,
+                  height: 44,
+                  fit: BoxFit.cover,
+                  tappable: false,
                 ),
               ),
               const SizedBox(width: 10),
@@ -277,14 +293,15 @@ class _OrderTile extends StatelessWidget {
                       ),
                       showShadow: false,
                     ),
-                    const SizedBox(height: 6),
+                    const SizedBox(height: 5),
                   ],
                   Text(
                     label,
                     style: DauVietTypography.bodyMedium.copyWith(
-                      color: DauVietColors.inkText,
-                      fontWeight: FontWeight.w600,
-                      height: 1.4,
+                      color: const Color(0xFF2B1F17),
+                      fontWeight: FontWeight.w700,
+                      fontSize: 13.5,
+                      height: 1.35,
                     ),
                   ),
                   if (misplaced) ...[
@@ -299,27 +316,67 @@ class _OrderTile extends StatelessWidget {
               ),
             ),
 
-            // 4. Phím điều hướng Accessibility (Lên / Xuống, >= 44x44dp)
+            // 4. Phím điều hướng Accessibility (Lên / Xuống, >= 44x44dp, vòng tròn viền đỏ/mờ khớp ảnh mẫu #5)
             if (total > 1) ...[
               IconButton(
-                icon: const Icon(Icons.arrow_upward_rounded, size: 18),
+                icon: Container(
+                  width: 28,
+                  height: 28,
+                  decoration: BoxDecoration(
+                    shape: BoxShape.circle,
+                    color: canUp
+                        ? const Color(0xFFFFFDF9)
+                        : const Color(0xFFF3ECE0),
+                    border: Border.all(
+                      color: canUp
+                          ? const Color(0xFFC96858)
+                          : const Color(0xFFE2D6C3),
+                      width: 1.2,
+                    ),
+                  ),
+                  alignment: Alignment.center,
+                  child: Icon(
+                    Icons.arrow_upward_rounded,
+                    size: 15,
+                    color: canUp
+                        ? const Color(0xFFA8221B)
+                        : const Color(0xFFC5B9A5),
+                  ),
+                ),
                 padding: EdgeInsets.zero,
                 constraints: const BoxConstraints(minWidth: 44, minHeight: 44),
-                color: index > 0 && enabled
-                    ? DauVietColors.inkSecondary
-                    : DauVietColors.inkLight.withValues(alpha: 0.4),
                 tooltip: 'Di chuyển lên',
-                onPressed: index > 0 && enabled ? onUp : null,
+                onPressed: canUp ? onUp : null,
               ),
               IconButton(
-                icon: const Icon(Icons.arrow_downward_rounded, size: 18),
+                icon: Container(
+                  width: 28,
+                  height: 28,
+                  decoration: BoxDecoration(
+                    shape: BoxShape.circle,
+                    color: canDown
+                        ? const Color(0xFFFFFDF9)
+                        : const Color(0xFFF3ECE0),
+                    border: Border.all(
+                      color: canDown
+                          ? const Color(0xFFC96858)
+                          : const Color(0xFFE2D6C3),
+                      width: 1.2,
+                    ),
+                  ),
+                  alignment: Alignment.center,
+                  child: Icon(
+                    Icons.arrow_downward_rounded,
+                    size: 15,
+                    color: canDown
+                        ? const Color(0xFFA8221B)
+                        : const Color(0xFFC5B9A5),
+                  ),
+                ),
                 padding: EdgeInsets.zero,
                 constraints: const BoxConstraints(minWidth: 44, minHeight: 44),
-                color: index < total - 1 && enabled
-                    ? DauVietColors.inkSecondary
-                    : DauVietColors.inkLight.withValues(alpha: 0.4),
                 tooltip: 'Di chuyển xuống',
-                onPressed: index < total - 1 && enabled ? onDown : null,
+                onPressed: canDown ? onDown : null,
               ),
             ],
 
@@ -338,7 +395,7 @@ class _OrderTile extends StatelessWidget {
                   child: const Icon(
                     Icons.drag_handle,
                     size: 22,
-                    color: DauVietColors.inkMuted,
+                    color: Color(0xFF5C4E42),
                   ),
                 ),
               ),

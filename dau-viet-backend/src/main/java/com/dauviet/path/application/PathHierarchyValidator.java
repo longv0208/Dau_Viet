@@ -125,16 +125,16 @@ public class PathHierarchyValidator {
             PathNodeType type = ch.getNodeType();
             UUID parentId = ch.getParentId();
             if (type == PathNodeType.ERA && parentId != null) {
-                errors.add("ERA node " + ch.getCode() + " must not have parentId");
+                errors.add("Đại thời kỳ (ERA) «" + ch.getTitle() + "» (" + ch.getCode() + ") là cấp gốc nên không được phép có đơn vị cha.");
             } else if (type == PathNodeType.PERIOD && parentId != null) {
                 LearningPathChapter p = byId.get(parentId);
                 if (p == null || p.getNodeType() != PathNodeType.ERA) {
-                    errors.add("PERIOD node " + ch.getCode() + " parent must be an ERA in the same version");
+                    errors.add("Thời kỳ (PERIOD) «" + ch.getTitle() + "» (" + ch.getCode() + ") phải trực thuộc một Đại thời kỳ (ERA) trong cùng phiên bản lộ trình.");
                 }
             } else if (type == PathNodeType.PHASE) {
                 LearningPathChapter p = parentId == null ? null : byId.get(parentId);
                 if (p == null || p.getNodeType() != PathNodeType.PERIOD) {
-                    errors.add("PHASE node " + ch.getCode() + " must have a PERIOD parent in the same version");
+                    errors.add("Giai đoạn con (PHASE) «" + ch.getTitle() + "» (" + ch.getCode() + ") bắt buộc phải trực thuộc một Thời kỳ (PERIOD) trong cùng phiên bản lộ trình.");
                 }
             }
             // Cycle check
@@ -142,7 +142,7 @@ public class PathHierarchyValidator {
             UUID cursor = ch.getId();
             while (cursor != null) {
                 if (!visited.add(cursor)) {
-                    errors.add("Hierarchy cycle detected at chapter " + ch.getCode());
+                    errors.add("Phát hiện vòng lặp phân cấp cha–con không hợp lệ tại chương «" + ch.getTitle() + "» (" + ch.getCode() + ").");
                     break;
                 }
                 LearningPathChapter current = byId.get(cursor);
@@ -152,7 +152,7 @@ public class PathHierarchyValidator {
         for (LearningPathEventNode ev : nodeList) {
             LearningPathChapter ch = byId.get(ev.getChapterId());
             if (ch != null && ch.getNodeType() == PathNodeType.ERA) {
-                errors.add("Event node " + ev.getId() + " cannot be attached directly to ERA " + ch.getCode());
+                errors.add("Không thể gắn trực tiếp sự kiện vào Đại thời kỳ (ERA) «" + ch.getTitle() + "» (" + ch.getCode() + ") — vui lòng gắn vào Thời kỳ (PERIOD) hoặc Giai đoạn (PHASE).");
             }
         }
         return errors;

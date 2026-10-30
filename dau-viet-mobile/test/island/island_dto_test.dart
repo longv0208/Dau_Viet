@@ -187,24 +187,32 @@ void main() {
     );
 
     test(
-      'Issue #46: tierHeritageName, kabiGuideTextForTier, and 5-category classification',
+      'Issue #50: tierHeritageName (Đảo Nhỏ / Đảo Vừa / Đảo Lớn), 2x2/1x1 footprint, and 4-category classification',
       () {
-        expect(IslandDto.tierHeritageName(1, 'tier.an_lac'), 'Đảo An Lạc');
-        expect(IslandDto.tierHeritageName(2, 'tier.phon_thinh'), 'Đảo Phồn Thịnh');
-        expect(IslandDto.tierHeritageName(3, 'tier.truong_ton'), 'Đảo Trường Tồn');
+        expect(IslandDto.tierHeritageName(1, 'tier.small'), 'Đảo Nhỏ');
+        expect(IslandDto.tierHeritageName(2, 'tier.medium'), 'Đảo Vừa');
+        expect(IslandDto.tierHeritageName(3, 'tier.grand'), 'Đảo Lớn');
 
         expect(
           IslandDto.kabiGuideTextForTier(1),
-          contains('Đây là Đảo An Lạc!'),
+          contains('Đây là Đảo Nhỏ của bạn!'),
         );
         expect(
           IslandDto.kabiGuideTextForTier(2),
-          contains('Đảo Phồn Thịnh rộng hơn nhiều!'),
+          contains('Đây là Đảo Vừa của bạn!'),
         );
 
-        // 5-category classification
+        // Category classification
         expect(
-          resolveIslandItemCategory(code: 'DECOR_DINH_LANG'),
+          resolveIslandItemCategory(code: 'DECOR_NHA_RONG'),
+          IslandInventoryCategory.building,
+        );
+        expect(
+          resolveIslandItemCategory(code: 'DECOR_CHUA_CO'),
+          IslandInventoryCategory.building,
+        );
+        expect(
+          resolveIslandItemCategory(code: 'DECOR_THAP_CHAM'),
           IslandInventoryCategory.building,
         );
         expect(
@@ -212,32 +220,43 @@ void main() {
           IslandInventoryCategory.tree,
         );
         expect(
-          resolveIslandItemCategory(code: 'DECOR_GIENG_CO'),
-          IslandInventoryCategory.decoration,
+          resolveIslandItemCategory(code: 'DECOR_TRE_TRUC'),
+          IslandInventoryCategory.tree,
         );
         expect(
           resolveIslandItemCategory(code: 'DECOR_COT_CO'),
           IslandInventoryCategory.decoration,
         );
         expect(
-          resolveIslandItemCategory(code: 'DECOR_THUYEN_RONG'),
-          IslandInventoryCategory.other,
+          resolveIslandItemCategory(code: 'DECOR_TUONG_LY_THAI_TO'),
+          IslandInventoryCategory.decoration,
         );
 
-        // Visual footprint scale: large building > tree > small decor
+        // Footprint 2x2 vs 1x1
+        expect(resolveIslandItemFootprint('DECOR_NHA_RONG', null), (2, 2));
+        expect(resolveIslandItemFootprintLabel('DECOR_NHA_RONG', null), '2x2');
+        expect(resolveIslandItemFootprint('DECOR_CAY_DA', null), (2, 2));
+        expect(resolveIslandItemFootprintLabel('DECOR_COT_CO', null), '1x1');
+        expect(resolveIslandItemPricePoints('DECOR_CAY_DA', null), 50);
+
+        // Visual footprint scale: 2x2 building/banyan > medium > 1x1 decor
         final buildingScale =
-            resolveIslandItemVisualScale('DECOR_DINH_LANG', 'decor.dinh_lang');
-        final treeScale =
-            resolveIslandItemVisualScale('DECOR_CAY_DA', 'decor.cay_da');
+            resolveIslandItemVisualScale('DECOR_NHA_RONG', 'decor.nha_rong');
+        final bambooScale =
+            resolveIslandItemVisualScale('DECOR_TRE_TRUC', 'decor.tre_truc');
         final decorScale =
-            resolveIslandItemVisualScale('DECOR_DEN_LONG', 'decor.den_long');
-        expect(buildingScale, greaterThan(treeScale));
-        expect(treeScale, greaterThan(decorScale));
+            resolveIslandItemVisualScale('DECOR_COT_CO', 'decor.cot_co');
+        expect(buildingScale, greaterThan(bambooScale));
+        expect(bambooScale, greaterThan(decorScale));
 
         // Short card labels for 4-column inventory grid
         expect(
+          shortIslandItemDisplayName('Nhà rông', 'DECOR_NHA_RONG', null),
+          'Nhà rông',
+        );
+        expect(
           shortIslandItemDisplayName('Đình Làng Mái Đao', 'DECOR_DINH_LANG', null),
-          'Nhà đình',
+          'Đình làng',
         );
         expect(
           shortIslandItemDisplayName('Cây Đa Cổ Thụ', 'DECOR_CAY_DA', null),
@@ -245,7 +264,7 @@ void main() {
         );
         expect(
           shortIslandItemDisplayName('Tượng Lý Thái Tổ', 'DECOR_TUONG_LY_THAI_TO', null),
-          'Tượng Lý Thái Tổ',
+          'Bức tượng',
         );
       },
     );

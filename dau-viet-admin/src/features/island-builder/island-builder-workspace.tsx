@@ -126,10 +126,9 @@ export function IslandBuilderWorkspace({ versionId }: { versionId: string }) {
   const [pan, setPan] = useState({ x: 0, y: 0 });
   const [previewTier, setPreviewTier] = useState<number | null>(initialPreview ? 1 : null);
 
-  // Grid Dimensions (Issue #46: mặc định 8x8 đồng tâm 4x4 / 6x6 / 8x8)
-  const [gridRowsInput, setGridRowsInput] = useState<number>(8);
-  const [gridColsInput, setGridColsInput] = useState<number>(8);
-  // Validation & Modals
+  // Grid Dimensions (Issue #50: mặc định 10x10 đồng tâm 6x6 / 8x8 / 10x10)
+  const [gridRowsInput, setGridRowsInput] = useState<number>(10);
+  const [gridColsInput, setGridColsInput] = useState<number>(10);
   const [validationErrors, setValidationErrors] = useState<ValidationErrorDto[]>([]);
   const [validationPassed, setValidationPassed] = useState<boolean | null>(null);
   const [bannerMessage, setBannerMessage] = useState<{
@@ -146,7 +145,7 @@ export function IslandBuilderWorkspace({ versionId }: { versionId: string }) {
   useEffect(() => {
     if (versionQuery.data && !snapshot) {
       const d = versionQuery.data;
-      const board = d.board || createDefaultIsometricBoard(8, 8, 84, 42);
+      const board = d.board || createDefaultIsometricBoard(10, 10, 84, 42);
       setSnapshot({
         canvasWidth: d.canvasWidth || 960,
         canvasHeight: d.canvasHeight || 720,
@@ -684,9 +683,9 @@ export function IslandBuilderWorkspace({ versionId }: { versionId: string }) {
               Tất cả
             </Button>
             {[
-              { tier: 1, label: "Đảo An Lạc" },
-              { tier: 2, label: "Đảo Phồn Thịnh" },
-              { tier: 3, label: "Đảo Trường Tồn" },
+              { tier: 1, label: "Đảo Nhỏ" },
+              { tier: 2, label: "Đảo Vừa" },
+              { tier: 3, label: "Đảo Lớn" },
             ].map((item) => (
               <Button
                 key={item.tier}

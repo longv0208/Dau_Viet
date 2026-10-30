@@ -55,7 +55,8 @@ class SubmitBar extends StatelessWidget {
         label: effectiveLabel,
         icon: Icons.send_rounded,
         variant: DongSonButtonVariant.primaryCinnabar,
-        height: 50,
+        height: 52,
+        width: double.infinity,
         onPressed: (enabled && !submitting) ? onPressed : null,
       ),
     );

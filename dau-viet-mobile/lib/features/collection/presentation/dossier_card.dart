@@ -3,7 +3,8 @@ import 'package:go_router/go_router.dart';
 
 import '../../../core/theme/dau_viet_colors.dart';
 import '../../../core/theme/dau_viet_typography.dart';
-import '../../../core/widgets/parchment_card.dart';
+import '../../../core/widgets/tactile_card.dart';
+import '../../../core/widgets/heritage_artifact_model_view.dart';
 import '../../learning/presentation/renderers/learning_asset_image.dart';
 import '../data/dossier_dto.dart';
 
@@ -30,45 +31,91 @@ class DossierCard extends StatelessWidget {
     _ => Icons.inventory_2_rounded,
   };
 
+  Color _typeAccentColor(String type) => switch (type) {
+    'PERSON' => DauVietColors.heritageGreenLight,
+    'LOCATION' => DauVietColors.jadeDark,
+    'ARTIFACT' => DauVietColors.imperialGoldDark,
+    'CONTEXT' => DauVietColors.cinnabarRed,
+    _ => DauVietColors.jadeDark,
+  };
+
+  Color _typeBgColor(String type) => switch (type) {
+    'PERSON' => DauVietColors.heritageGreenSurface,
+    'LOCATION' => const Color(0xFFDCEFED),
+    'ARTIFACT' => const Color(0xFFFFF3D6),
+    'CONTEXT' => const Color(0xFFFDE3DD),
+    _ => const Color(0xFFDCEFED),
+  };
+
   @override
   Widget build(BuildContext context) {
     final locked = dossier.preview;
+    final accent = _typeAccentColor(dossier.dossierType);
+    final bgTint = _typeBgColor(dossier.dossierType);
+
     return Padding(
       padding: const EdgeInsets.only(bottom: 12),
-      child: ParchmentCard(
+      child: TactileCard(
+        usePixelShadow: false,
+        backgroundColor: const Color(0xFFFAF3E4),
+        borderColor: const Color(0xFFE3D2B4),
+        borderWidth: 1.1,
+        borderRadius: 16,
         padding: const EdgeInsets.all(12),
         onTap: () => context.push('/collection/dossiers/${dossier.dossierId}'),
         child: Row(
-          crossAxisAlignment: CrossAxisAlignment.start,
+          crossAxisAlignment: CrossAxisAlignment.center,
           children: [
-            ClipRRect(
-              borderRadius: BorderRadius.circular(10),
-              child: SizedBox(
-                width: 72,
-                height: 72,
-                child: dossier.assetId != null
-                    ? LearningAssetImage(
-                        assetId: dossier.assetId!,
-                        altText: dossier.title,
-                        height: 72,
-                        fit: BoxFit.cover,
-                        tappable: false,
-                      )
-                    : Container(
-                        color: locked
-                            ? DauVietColors.parchmentHigh
-                            : DauVietColors.parchmentContainer,
+            Container(
+              width: 72,
+              height: 72,
+              decoration: BoxDecoration(
+                color: locked ? const Color(0xFFF3E5CE) : bgTint,
+                borderRadius: BorderRadius.circular(13),
+                border: Border.all(
+                  color: locked
+                      ? const Color(0xFFE3D2B4)
+                      : accent.withValues(alpha: 0.30),
+                  width: 1.0,
+                ),
+              ),
+              clipBehavior: Clip.antiAlias,
+              child: dossier.assetId != null
+                  ? LearningAssetImage(
+                      assetId: dossier.assetId!,
+                      altText: dossier.title,
+                      height: 72,
+                      fit: BoxFit.cover,
+                      tappable: false,
+                    )
+                  : (!locked && dossier.dossierType == 'ARTIFACT')
+                  ? Center(
+                      child: HeritageArtifactModelView(
+                        code: dossier.canonicalCode,
+                        title: dossier.title,
+                        category: dossier.dossierType,
+                        size: 62,
+                        showPedestal: true,
+                      ),
+                    )
+                  : Center(
+                      child: Container(
+                        padding: const EdgeInsets.all(10),
+                        decoration: BoxDecoration(
+                          color: locked
+                              ? Colors.white.withValues(alpha: 0.5)
+                              : Colors.white.withValues(alpha: 0.72),
+                          shape: BoxShape.circle,
+                        ),
                         child: Icon(
                           locked
                               ? Icons.lock_outline_rounded
                               : _typeIcon(dossier.dossierType),
-                          size: 30,
-                          color: locked
-                              ? DauVietColors.inkMuted
-                              : DauVietColors.cinnabarRed,
+                          size: 24,
+                          color: locked ? DauVietColors.inkMuted : accent,
                         ),
                       ),
-              ),
+                    ),
             ),
             const SizedBox(width: 12),
             Expanded(
@@ -80,10 +127,38 @@ class DossierCard extends StatelessWidget {
                       _typeBadge(dossier.dossierType),
                       const SizedBox(width: 6),
                       if (locked)
-                        const Icon(
-                          Icons.lock_rounded,
-                          size: 13,
-                          color: DauVietColors.inkMuted,
+                        Container(
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 6,
+                            vertical: 2,
+                          ),
+                          decoration: BoxDecoration(
+                            color: const Color(0xFFF3E5CE),
+                            borderRadius: BorderRadius.circular(6),
+                            border: Border.all(
+                              color: const Color(0xFFE3D2B4),
+                              width: 0.9,
+                            ),
+                          ),
+                          child: Row(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              const Icon(
+                                Icons.lock_rounded,
+                                size: 11,
+                                color: DauVietColors.inkMuted,
+                              ),
+                              const SizedBox(width: 3),
+                              Text(
+                                'Chưa mở',
+                                style: DauVietTypography.labelSmall.copyWith(
+                                  fontSize: 8.5,
+                                  color: DauVietColors.inkMuted,
+                                  fontWeight: FontWeight.w700,
+                                ),
+                              ),
+                            ],
+                          ),
                         ),
                     ],
                   ),
@@ -93,10 +168,11 @@ class DossierCard extends StatelessWidget {
                     maxLines: 2,
                     overflow: TextOverflow.ellipsis,
                     style: DauVietTypography.labelMedium.copyWith(
-                      fontWeight: FontWeight.w700,
+                      fontSize: 14,
+                      fontWeight: FontWeight.w800,
                       color: locked
                           ? DauVietColors.inkMuted
-                          : DauVietColors.inkText,
+                          : DauVietColors.inkHeading,
                     ),
                   ),
                   if (dossier.summary != null) ...[
@@ -106,6 +182,7 @@ class DossierCard extends StatelessWidget {
                       maxLines: 2,
                       overflow: TextOverflow.ellipsis,
                       style: DauVietTypography.bodySmall.copyWith(
+                        fontSize: 11.5,
                         color: DauVietColors.inkMuted,
                         height: 1.35,
                       ),
@@ -116,6 +193,7 @@ class DossierCard extends StatelessWidget {
                     Text(
                       'Hoàn thành sự kiện để mở hồ sơ',
                       style: DauVietTypography.labelSmall.copyWith(
+                        fontSize: 10.5,
                         color: DauVietColors.inkMuted,
                         fontStyle: FontStyle.italic,
                       ),
@@ -124,9 +202,11 @@ class DossierCard extends StatelessWidget {
                 ],
               ),
             ),
-            const Icon(
+            const SizedBox(width: 8),
+            Icon(
               Icons.chevron_right_rounded,
               color: DauVietColors.inkMuted,
+              size: 20,
             ),
           ],
         ),
@@ -135,13 +215,16 @@ class DossierCard extends StatelessWidget {
   }
 
   Widget _typeBadge(String type) {
+    final accent = _typeAccentColor(type);
+    final bg = _typeBgColor(type);
     return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 3),
+      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
       decoration: BoxDecoration(
-        color: DauVietColors.cinnabarRed.withValues(alpha: 0.1),
+        color: bg,
         borderRadius: BorderRadius.circular(6),
         border: Border.all(
-          color: DauVietColors.cinnabarRed.withValues(alpha: 0.35),
+          color: accent.withValues(alpha: 0.42),
+          width: 1.0,
         ),
       ),
       child: Text(
@@ -149,7 +232,7 @@ class DossierCard extends StatelessWidget {
         style: DauVietTypography.labelSmall.copyWith(
           fontSize: 9,
           fontWeight: FontWeight.w800,
-          color: DauVietColors.cinnabarRed,
+          color: accent,
           letterSpacing: 0.4,
         ),
       ),

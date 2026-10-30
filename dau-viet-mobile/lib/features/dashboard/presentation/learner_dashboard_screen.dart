@@ -3,7 +3,6 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import '../../../core/theme/dau_viet_colors.dart';
 import '../../../core/theme/dau_viet_typography.dart';
-import '../../../core/widgets/dong_son_button.dart';
 import '../../../core/widgets/hero_paper_banner.dart';
 import '../../../core/widgets/main_bottom_nav.dart';
 import '../../../core/widgets/section_divider.dart';
@@ -177,74 +176,56 @@ class _LearnerDashboardScreenState
       child: Row(
         mainAxisAlignment: MainAxisAlignment.spaceBetween,
         children: [
-          // Logo Dấu Việt + khẩu hiệu brand (theo mockup M-03 v3)
+          // Logo Dấu Việt chính thức (ảnh app_logo.png đã bao gồm chữ Dấu Việt,
+          // triện đỏ và dòng khẩu hiệu "— HỌC SỬ VIỆT - GÌN GIỮ HỒN VIỆT —")
           Flexible(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              mainAxisSize: MainAxisSize.min,
+            child: Stack(
+              alignment: Alignment.centerLeft,
               children: [
-              Stack(
-                alignment: Alignment.centerLeft,
-                children: [
-                  // Giữ text 'Dấu Việt' cho accessibility & widget test runner
-                  Opacity(
-                    opacity: 0.0,
-                    child: Text(
-                      'Dấu Việt',
-                      style: DauVietTypography.labelSmall.copyWith(fontSize: 1),
-                    ),
-                  ),
-                  Image.asset(
-                    'assets/images/app_logo.png',
-                    height: 34,
-                    fit: BoxFit.contain,
-                    errorBuilder: (_, _, _) => Row(
-                      children: [
-                        Text(
-                          'Dấu Việt',
-                          style: DauVietTypography.headlineMedium.copyWith(
-                            fontSize: 22,
-                            fontWeight: FontWeight.w800,
-                            color: DauVietColors.heritageGreen,
-                          ),
-                        ),
-                        const SizedBox(width: 6),
-                        Container(
-                          width: 22,
-                          height: 22,
-                          decoration: BoxDecoration(
-                            color: DauVietColors.cinnabarRed,
-                            borderRadius: BorderRadius.circular(4),
-                          ),
-                          alignment: Alignment.center,
-                          child: Text(
-                            '印',
-                            style: DauVietTypography.labelSmall.copyWith(
-                              color: Colors.white,
-                              fontSize: 12,
-                            ),
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
-                ],
-              ),
-              const SizedBox(height: 2),
-              Padding(
-                padding: const EdgeInsets.only(left: 2),
-                child: Text(
-                  '— HỌC SỬ VIỆT · GÌN GIỮ HỒN VIỆT —',
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                  style: DauVietTypography.labelSmall.copyWith(
-                    fontSize: 7.5,
-                    letterSpacing: 1.1,
-                    fontWeight: FontWeight.w700,
-                    color: DauVietColors.inkMuted,
+                // Giữ text 'Dấu Việt' cho accessibility & widget test runner
+                Opacity(
+                  opacity: 0.0,
+                  child: Text(
+                    'Dấu Việt',
+                    style: DauVietTypography.labelSmall.copyWith(fontSize: 1),
                   ),
                 ),
-              ),
+                Image.asset(
+                  'assets/images/app_logo.png',
+                  height: 38,
+                  fit: BoxFit.contain,
+                  filterQuality: FilterQuality.high,
+                  errorBuilder: (_, _, _) => Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Text(
+                        'Dấu Việt',
+                        style: DauVietTypography.headlineMedium.copyWith(
+                          fontSize: 22,
+                          fontWeight: FontWeight.w800,
+                          color: DauVietColors.heritageGreen,
+                        ),
+                      ),
+                      const SizedBox(width: 6),
+                      Container(
+                        width: 22,
+                        height: 22,
+                        decoration: BoxDecoration(
+                          color: DauVietColors.cinnabarRed,
+                          borderRadius: BorderRadius.circular(4),
+                        ),
+                        alignment: Alignment.center,
+                        child: Text(
+                          '印',
+                          style: DauVietTypography.labelSmall.copyWith(
+                            color: Colors.white,
+                            fontSize: 12,
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
               ],
             ),
           ),
@@ -264,12 +245,12 @@ class _LearnerDashboardScreenState
                       height: 44,
                       decoration: BoxDecoration(
                         shape: BoxShape.circle,
-                        color: DauVietColors.paperCard,
+                        color: const Color(0xFFFAF3E4),
                         border: Border.all(
-                          color: DauVietColors.outlineVariant,
-                          width: 1.2,
+                          color: const Color(0xFFE3D2B4),
+                          width: 1.1,
                         ),
-                        boxShadow: DauVietColors.pixelShadowSm,
+                        boxShadow: DauVietColors.softCardShadow,
                       ),
                       child: IconButton(
                         padding: EdgeInsets.zero,
@@ -317,12 +298,12 @@ class _LearnerDashboardScreenState
                     height: 44,
                     decoration: BoxDecoration(
                       shape: BoxShape.circle,
-                      color: DauVietColors.paperCardHi,
+                      color: const Color(0xFFFAF3E4),
                       border: Border.all(
-                        color: DauVietColors.imperialGold,
-                        width: 2.0,
+                        color: const Color(0xFFDEC69A),
+                        width: 1.4,
                       ),
-                      boxShadow: DauVietColors.pixelShadowSm,
+                      boxShadow: DauVietColors.softCardShadow,
                     ),
                     child: ClipOval(
                       child: Image.asset(
@@ -440,6 +421,10 @@ class _LearnerDashboardScreenState
     return HeroPaperBanner(
       height: 202,
       padding: EdgeInsets.zero,
+      usePixelShadow: false,
+      borderRadius: 18,
+      borderColor: const Color(0xFFDEC69A),
+      borderWidth: 1.3,
       child: Stack(
         fit: StackFit.expand,
         children: [
@@ -583,12 +568,49 @@ class _LearnerDashboardScreenState
     required String label,
     required VoidCallback onTap,
   }) {
-    return DongSonButton(
+    return Semantics(
+      button: true,
       label: label,
-      variant: DongSonButtonVariant.heritageGreen,
-      height: 44,
-      width: 148,
-      onPressed: onTap,
+      child: Material(
+        color: Colors.transparent,
+        child: InkWell(
+          onTap: onTap,
+          borderRadius: BorderRadius.circular(11),
+          child: Container(
+            height: 40,
+            padding: const EdgeInsets.symmetric(horizontal: 16),
+            decoration: BoxDecoration(
+              color: const Color(0xFF1A4B38),
+              borderRadius: BorderRadius.circular(11),
+              border: Border.all(
+                color: const Color(0xFFDEC69A).withValues(alpha: 0.55),
+                width: 1.0,
+              ),
+              boxShadow: const [
+                BoxShadow(
+                  color: Color(0x24163A2B),
+                  blurRadius: 4,
+                  offset: Offset(0, 1),
+                ),
+              ],
+            ),
+            child: FittedBox(
+              fit: BoxFit.scaleDown,
+              child: Text(
+                label,
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: DauVietTypography.labelMedium.copyWith(
+                  fontSize: 12,
+                  fontWeight: FontWeight.w800,
+                  letterSpacing: 0.4,
+                  color: Colors.white,
+                ),
+              ),
+            ),
+          ),
+        ),
+      ),
     );
   }
 
@@ -851,25 +873,29 @@ class _LearnerDashboardScreenState
   }) {
     return TactileCard(
       onTap: onTap,
+      usePixelShadow: false,
       padding: const EdgeInsets.all(12),
-      borderRadius: 20,
-      backgroundColor: DauVietColors.paperCard,
-      borderColor: DauVietColors.outlineVariant,
+      borderRadius: 16,
+      backgroundColor: const Color(0xFFFAF3E4),
+      borderColor: const Color(0xFFE3D2B4),
+      borderWidth: 1.1,
       child: Row(
         children: [
-          ClipRRect(
-            borderRadius: BorderRadius.circular(14),
-            child: SizedBox(
-              width: 90,
-              height: 76,
-              child: Container(
-                color: DauVietColors.paperCardHi,
-                child: const Icon(
-                  Icons.history_edu_rounded,
-                  size: 36,
-                  color: DauVietColors.heritageGreen,
-                ),
+          Container(
+            width: 86,
+            height: 74,
+            decoration: BoxDecoration(
+              color: DauVietColors.heritageGreenSurface,
+              borderRadius: BorderRadius.circular(12),
+              border: Border.all(
+                color: DauVietColors.heritageGreenLight.withValues(alpha: 0.25),
+                width: 1.0,
               ),
+            ),
+            child: const Icon(
+              Icons.history_edu_rounded,
+              size: 34,
+              color: DauVietColors.heritageGreen,
             ),
           ),
           const SizedBox(width: 12),
@@ -988,8 +1014,8 @@ class _LearnerDashboardScreenState
             Expanded(
               child: _buildJourneyCard(
                 icon: Icons.menu_book_rounded,
-                iconColor: DauVietColors.imperialGoldDark,
-                bgIconColor: DauVietColors.imperialGoldLight,
+                iconColor: DauVietColors.heritageGreenLight,
+                bgIconColor: DauVietColors.heritageGreenSurface,
                 title: 'Bài học',
                 subtitle: 'Khám phá\nlịch sử',
                 onTap: () => context.go('/journey'),
@@ -1000,7 +1026,7 @@ class _LearnerDashboardScreenState
               child: _buildJourneyCard(
                 icon: Icons.psychology_rounded,
                 iconColor: DauVietColors.imperialGoldDark,
-                bgIconColor: DauVietColors.imperialGoldLight,
+                bgIconColor: const Color(0xFFFFF3D6),
                 title: 'Ôn tập',
                 subtitle: 'Củng cố\nkiến thức',
                 // Chưa có route Ôn tập riêng → dẫn Sưu tập tư liệu.
@@ -1011,8 +1037,8 @@ class _LearnerDashboardScreenState
             Expanded(
               child: _buildJourneyCard(
                 icon: Icons.emoji_events_rounded,
-                iconColor: DauVietColors.imperialGoldDark,
-                bgIconColor: DauVietColors.imperialGoldLight,
+                iconColor: DauVietColors.cinnabarRed,
+                bgIconColor: const Color(0xFFFDE3DD),
                 title: 'Thành tích',
                 subtitle: 'Theo dõi\ntiến bộ',
                 onTap: () => context.go('/profile'),
@@ -1022,8 +1048,8 @@ class _LearnerDashboardScreenState
             Expanded(
               child: _buildJourneyCard(
                 icon: Icons.auto_stories_rounded,
-                iconColor: DauVietColors.imperialGoldDark,
-                bgIconColor: DauVietColors.imperialGoldLight,
+                iconColor: DauVietColors.jadeDark,
+                bgIconColor: const Color(0xFFDCEFED),
                 title: 'Thư viện',
                 subtitle: 'Tài liệu\nmở rộng',
                 onTap: () => context.go('/collection'),
@@ -1045,10 +1071,12 @@ class _LearnerDashboardScreenState
   }) {
     return TactileCard(
       onTap: onTap,
+      usePixelShadow: false,
       padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 10),
-      borderRadius: 16,
-      backgroundColor: DauVietColors.paperCard,
-      borderColor: DauVietColors.outlineVariant,
+      borderRadius: 14,
+      backgroundColor: const Color(0xFFFAF3E4),
+      borderColor: const Color(0xFFE3D2B4),
+      borderWidth: 1.1,
       child: Column(
         mainAxisSize: MainAxisSize.min,
         mainAxisAlignment: MainAxisAlignment.center,
@@ -1128,9 +1156,10 @@ class _LearnerDashboardScreenState
     return TactileCard(
       usePixelShadow: false,
       padding: const EdgeInsets.all(12),
-      borderRadius: 18,
-      backgroundColor: DauVietColors.paperCard,
-      borderColor: DauVietColors.outlineVariant,
+      borderRadius: 16,
+      backgroundColor: const Color(0xFFFAF3E4),
+      borderColor: const Color(0xFFE3D2B4),
+      borderWidth: 1.1,
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
@@ -1251,6 +1280,10 @@ class _LearnerDashboardScreenState
     return HeroPaperBanner(
       height: 218,
       padding: EdgeInsets.zero,
+      usePixelShadow: false,
+      borderRadius: 16,
+      borderColor: const Color(0xFFDEC69A),
+      borderWidth: 1.2,
       onTap: openFeatured,
       child: Stack(
         fit: StackFit.expand,
@@ -1353,10 +1386,16 @@ class _LearnerDashboardScreenState
                       color: DauVietColors.cinnabarRed,
                       borderRadius: BorderRadius.circular(10),
                       border: Border.all(
-                        color: DauVietColors.imperialGold,
-                        width: 1.2,
+                        color: const Color(0xFFE6B665).withValues(alpha: 0.75),
+                        width: 1.0,
                       ),
-                      boxShadow: DauVietColors.pixelShadowSm,
+                      boxShadow: const [
+                        BoxShadow(
+                          color: Color(0x24381713),
+                          blurRadius: 4,
+                          offset: Offset(0, 1),
+                        ),
+                      ],
                     ),
                     alignment: Alignment.center,
                     child: Text(
@@ -1468,11 +1507,12 @@ class _EnergyMiniPill extends ConsumerWidget {
         child: Center(
           child: TactileCard(
             onTap: () => context.push('/energy'),
+            usePixelShadow: false,
             padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
             borderRadius: 999,
-            backgroundColor: DauVietColors.paperCardHi,
-            borderColor: DauVietColors.imperialGold,
-            borderWidth: 1.4,
+            backgroundColor: const Color(0xFFFFF3D6),
+            borderColor: DauVietColors.imperialGoldDark.withValues(alpha: 0.42),
+            borderWidth: 1.1,
             child: Column(
               mainAxisSize: MainAxisSize.min,
               children: [
@@ -1534,11 +1574,12 @@ class _StreakMiniPill extends ConsumerWidget {
         child: Center(
           child: TactileCard(
             onTap: () => context.push('/streak'),
+            usePixelShadow: false,
             padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
             borderRadius: 999,
-            backgroundColor: DauVietColors.paperCard,
-            borderColor: DauVietColors.cinnabarRed,
-            borderWidth: 1.4,
+            backgroundColor: const Color(0xFFFDE3DD),
+            borderColor: DauVietColors.cinnabarRed.withValues(alpha: 0.42),
+            borderWidth: 1.1,
             child: Column(
               mainAxisSize: MainAxisSize.min,
               children: [

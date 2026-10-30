@@ -389,10 +389,10 @@ public class IslandLayoutService {
             String key = s.stableSlotKey() != null && !s.stableSlotKey().isBlank()
                     ? s.stableSlotKey().trim()
                     : "slot_" + slotIndex;
-            if (slotIndex < 1 || slotIndex > 64) {
+            if (slotIndex < 1 || slotIndex > 256) {
                 snapshotKeyErrors.add(new ValidationError(
                         "SLOT", key, "slotIndex", "INVALID_SLOT_INDEX",
-                        "Chỉ mục slot (slotIndex) phải nằm trong khoảng 1..64: " + slotIndex));
+                        "Chỉ mục slot (slotIndex) phải nằm trong khoảng 1..256: " + slotIndex));
             }
             if (!checkSlotKeys.add(key)) {
                 snapshotKeyErrors.add(new ValidationError(

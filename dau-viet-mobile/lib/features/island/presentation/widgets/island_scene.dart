@@ -52,6 +52,11 @@ class IslandScene extends StatefulWidget {
   final Set<String> flippedSlotIds;
   final int previewTier;
   final ValueChanged<int>? onSelectTier;
+  final IslandPlacementDto? previewPlacement;
+  final bool previewFlipHorizontally;
+  final VoidCallback? onCancelPreviewPlacement;
+  final VoidCallback? onRotatePreviewPlacement;
+  final VoidCallback? onConfirmPreviewPlacement;
 
   const IslandScene({
     super.key,
@@ -69,8 +74,12 @@ class IslandScene extends StatefulWidget {
     this.flippedSlotIds = const {},
     this.previewTier = 1,
     this.onSelectTier,
+    this.previewPlacement,
+    this.previewFlipHorizontally = false,
+    this.onCancelPreviewPlacement,
+    this.onRotatePreviewPlacement,
+    this.onConfirmPreviewPlacement,
   });
-
   @override
   State<IslandScene> createState() => _IslandSceneState();
 }
@@ -117,14 +126,13 @@ class _IslandSceneState extends State<IslandScene>
       if (y > maxY) maxY = y;
     }
 
-    final padX = tileW * 1.45;
-    final padTop = tileH * 2.85;
-    final padBottom = tileH * 2.25;
+    final padX = tileW * 1.05;
+    final padTop = tileH * 2.35;
+    final padBottom = tileH * 1.95;
     minX -= padX;
     maxX += padX;
     minY -= padTop;
     maxY += padBottom;
-
     return (
       width: maxX - minX,
       height: maxY - minY,
@@ -210,15 +218,15 @@ class _IslandSceneState extends State<IslandScene>
     final bool isPortraitMobile = viewportSize.width < 600 &&
         viewportSize.height > viewportSize.width;
 
-    final widthFill = isPortraitMobile ? 0.96 : 0.88;
-    final heightFill = isPortraitMobile ? 0.80 : 0.86;
+    final widthFill = isPortraitMobile ? 0.96 : 0.90;
+    final heightFill = isPortraitMobile ? 0.78 : 0.84;
 
     final scaleX = (viewportSize.width * widthFill) / m.width;
     final scaleY = (viewportSize.height * heightFill) / m.height;
-    final fitScale = math.min(scaleX, scaleY).clamp(0.32, 1.85);
+    final fitScale = math.min(scaleX, scaleY).clamp(0.36, 2.10);
 
     final targetX = (viewportSize.width - m.width * fitScale) * 0.5;
-    final targetY = (viewportSize.height - m.height * fitScale) * 0.45;
+    final targetY = (viewportSize.height - m.height * fitScale) * 0.42;
 
     _controller.value = Matrix4.identity()
       ..translateByDouble(targetX, targetY, 0.0, 1.0)
@@ -306,6 +314,15 @@ class _IslandSceneState extends State<IslandScene>
                             expandingToTier: widget.expansionTransition?.toTier,
                             isEditMode: widget.isEditMode,
                             flippedSlotIds: widget.flippedSlotIds,
+                            previewPlacement: widget.previewPlacement,
+                            previewFlipHorizontally:
+                                widget.previewFlipHorizontally,
+                            onCancelPreviewPlacement:
+                                widget.onCancelPreviewPlacement,
+                            onRotatePreviewPlacement:
+                                widget.onRotatePreviewPlacement,
+                            onConfirmPreviewPlacement:
+                                widget.onConfirmPreviewPlacement,
                             onTileTap: (coord) {
                               setState(() {
                                 _selectedTileCoord = coord;
