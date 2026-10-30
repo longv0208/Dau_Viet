@@ -35,7 +35,7 @@ dauviet:
       # client id (…apps.googleusercontent.com) for Flutter Web + any
       # Android/iOS client ids, comma-separated. Empty → 503 FEATURE_DISABLED.
       # Override via GOOGLE_CLIENT_IDS env var.
-      client-ids: ${GOOGLE_CLIENT_IDS:}
+      client-ids: ${GOOGLE_CLIENT_IDS:73221283418-jg0kuhf7j5j24mais237ief4qchdpbdd.apps.googleusercontent.com}
 
 logging:
   level:
