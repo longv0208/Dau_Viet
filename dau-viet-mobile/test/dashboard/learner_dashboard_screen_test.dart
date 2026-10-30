@@ -37,17 +37,26 @@ void main() {
         );
         await tester.pumpAndSettle();
 
-        // 1. Top Bar: Dấu Việt logo, chuông thông báo & avatar
+        // 1. Top Bar: Dấu Việt logo, chuông thông báo & avatar + tagline brand
         expect(find.text('Dấu Việt'), findsOneWidget);
         expect(find.byIcon(Icons.notifications_none_rounded), findsOneWidget);
+        expect(
+          find.text('— HỌC SỬ VIỆT · GÌN GIỮ HỒN VIỆT —'),
+          findsOneWidget,
+        );
 
-        // 2. Greeting & Status Row
+        // 2. Greeting & Status Row — pill có nhãn dưới số (mockup M-03)
         expect(find.text('Xin chào,'), findsOneWidget);
-        expect(find.text('🔥'), findsOneWidget);
+        expect(find.text('Năng lượng'), findsOneWidget);
+        expect(find.text('Chuỗi ngày'), findsOneWidget);
         expect(find.text('—'), findsNWidgets(2));
 
-        // 3. Hero Banner Card
-        expect(find.text('Bắt đầu hành trình'), findsOneWidget);
+        // 3. Hero Banner Card — tagline mới theo mockup
+        expect(find.text('Khám phá\nlịch sử Việt Nam'), findsOneWidget);
+        expect(
+          find.text('Những câu chuyện hào hùng\nđang chờ bạn khám phá!'),
+          findsOneWidget,
+        );
         expect(
           find.widgetWithText(DongSonButton, 'KHÁM PHÁ NGAY ›'),
           findsOneWidget,
@@ -64,17 +73,18 @@ void main() {
           findsOneWidget,
         );
         expect(find.text('1/3 bài học'), findsOneWidget);
-        // 5. Section: Hành trình của bạn (4 thẻ chức năng)
+        // 5. Section: Hành trình của bạn — 4 thẻ vuông 1 hàng (mockup)
         expect(find.text('Hành trình của bạn'), findsOneWidget);
-        expect(find.text('Bản đồ Dấu Ấn'), findsOneWidget);
-        expect(find.text('Cổ vật & hồ sơ'), findsOneWidget);
-        expect(find.text('Đảo Di Sản'), findsOneWidget);
-        expect(find.text('Thành tích & XP'), findsOneWidget);
-        // 6. Section: Mục tiêu hôm nay & Sự kiện nổi bật
-        expect(find.text('Mục tiêu hôm nay'), findsOneWidget);
+        expect(find.text('Bài học'), findsOneWidget);
+        expect(find.text('Ôn tập'), findsOneWidget);
+        expect(find.text('Thành tích'), findsOneWidget);
+        expect(find.text('Thư viện'), findsOneWidget);
+        // 6. Section: Nhiệm vụ hôm nay & Sự kiện nổi bật (2 cột)
+        expect(find.text('Nhiệm vụ hôm nay'), findsOneWidget);
         expect(find.text('Hoàn thành bài học hôm nay'), findsOneWidget);
+        expect(find.text('Ôn tập 3 câu hỏi'), findsOneWidget);
         expect(find.text('Sự kiện nổi bật'), findsOneWidget);
-        expect(find.text('Xem chi tiết →'), findsOneWidget);
+        expect(find.text('Khám phá ngay →'), findsOneWidget);
       },
     );
 
@@ -196,7 +206,8 @@ void main() {
         );
         await tester.pumpAndSettle();
 
-        expect(find.text('Bài học đang học dở'), findsOneWidget);
+        // Hero giữ tiêu đề mockup; chỉ CTA đổi sang "Tiếp tục học →"
+        expect(find.text('Khám phá\nlịch sử Việt Nam'), findsOneWidget);
         expect(
           find.widgetWithText(DongSonButton, 'Tiếp tục học →'),
           findsOneWidget,
