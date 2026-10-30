@@ -10,7 +10,7 @@ export default function LearningPathPage() {
       <PageGuideBanner
         storageKey="learning-path"
         title="Bản đồ Dấu Ấn (Lộ trình học chính)"
-        purpose="Sắp xếp thứ tự các Đại thời kỳ → Thời kỳ → Sự kiện (Bắt buộc / Tham khảo) để định hình lộ trình học tập tuần tự."
+        purpose="Sắp xếp thứ tự các Đại thời kỳ → Thời kỳ → Sự kiện để định hình lộ trình học tập tuần tự."
         appSurface="Hiển thị trực tiếp tại tab 'Hành trình' (/journey) — luồng học tập chính của học viên trên ứng dụng."
         nextStep="Tạo bản nháp từ phiên bản hiện tại, thêm Sự kiện đã xuất bản vào chương phù hợp rồi nhấn Xuất bản lộ trình."
         links={[

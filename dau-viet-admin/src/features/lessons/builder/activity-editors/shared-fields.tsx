@@ -20,9 +20,8 @@ export interface EditorProps {
   onChange: (patch: Partial<Activity>) => void;
 }
 
-/** Shared header: instruction + required toggle (warns inside optional stage). */
+/** Shared header: instruction + activity type label + default feedback panel. */
 export function ActivityCommonFields({ stage, activity, readOnly, onChange }: EditorProps) {
-  const blockedByOptional = Boolean(activity.required) && !(stage.required ?? false);
   return (
     <div className="flex flex-col gap-3">
       <div className="flex flex-col gap-1.5">
@@ -35,22 +34,6 @@ export function ActivityCommonFields({ stage, activity, readOnly, onChange }: Ed
           onChange={(e) => onChange({ instruction: e.target.value })}
         />
       </div>
-      <label className="flex items-center gap-2 text-sm text-ink">
-        <input
-          type="checkbox"
-          className="size-4 accent-brand"
-          checked={activity.required ?? false}
-          disabled={readOnly}
-          onChange={(e) => onChange({ required: e.target.checked })}
-        />
-        Bắt buộc hoàn thành
-      </label>
-      {blockedByOptional && (
-        <p role="alert" className="rounded-md bg-warning/15 px-3 py-2 text-xs text-ink">
-          Hoạt động bắt buộc nằm trong giai đoạn tuỳ chọn — bài học sẽ không xuất bản được
-          cho tới khi giai đoạn được đặt bắt buộc hoặc hoạt động chuyển thành tuỳ chọn.
-        </p>
-      )}
       <p className="text-xs text-ink-muted">
         Loại: {ACTIVITY_LABELS[activity.type].label}
       </p>
@@ -120,10 +103,10 @@ export function evidenceSelectActivities(
         if (a.type !== "EVIDENCE_SELECT" || a.id === excludeId) return false;
         // A required consumer can only depend on a guaranteed source;
         // optional consumers keep the looser list (backend still revalidates).
-        if (consumer?.required) {
-          if (!(s.required ?? false)) return false;
-          if (!(a.required ?? false)) return false;
-          if (s.id === consumer.stageId) {
+        if (consumer?.required ?? true) {
+          if (!(s.required ?? true)) return false;
+          if (!(a.required ?? true)) return false;
+          if (s.id === consumer?.stageId) {
             const srcIdx = s.activities.findIndex((x) => x.id === a.id);
             const consIdx = s.activities.findIndex((x) => x.id === consumer.activityId);
             if (srcIdx < 0 || consIdx < 0 || srcIdx >= consIdx) return false;

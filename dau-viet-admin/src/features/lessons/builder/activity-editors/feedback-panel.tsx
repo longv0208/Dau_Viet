@@ -1,8 +1,12 @@
 "use client";
 
+import { RotateCcw } from "lucide-react";
+
+import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 
+import { defaultFeedbackForActivity } from "../draft-model";
 import type { EditorProps } from "./shared-fields";
 
 /** Outcome keys the learning engine looks up inside activity.feedback
@@ -18,24 +22,27 @@ const OUTCOME_FIELDS: { key: string; label: string; hint: string }[] = [
 ];
 
 /**
- * Feedback editor — writes activity.feedback{outcomeKey: string}. Backend
- * resolves a feedbackCode only when the key exists, so absent keys are the
- * "no feedback" state (not an empty string).
+ * Feedback editor — hiển thị sẵn bộ câu phản hồi mặc định theo từng loại
+ * hoạt động (Issue #47). Quản trị viên không cần nhập tay nếu giữ mặc định;
+ * nếu xoá trắng một ô khi sửa rồi rời khỏi ô (blur) hoặc bấm "Khôi phục mặc định",
+ * hệ thống tự điền lại câu mặc định để không bao giờ thiếu feedback khi xuất bản.
  */
 export function FeedbackPanel({ activity, readOnly, onChange }: EditorProps) {
+  const defaults = defaultFeedbackForActivity(activity.type);
   const fb = (activity.feedback && typeof activity.feedback === "object"
     ? activity.feedback
     : {}) as Record<string, unknown>;
 
-  function set(key: string, value: string) {
-    const next = { ...fb };
-    // Keep the raw value while typing — a trailing space must not be stripped
-    // from the controlled input, otherwise Space "doesn't work" mid-sentence.
-    // Emptiness is judged by the trimmed value: all-whitespace deletes the key.
-    if (value.trim()) next[key] = value;
-    else delete next[key];
-    // Emit undefined instead of {} so the object stays absent when empty.
-    onChange({ feedback: Object.keys(next).length ? next : undefined });
+  const visibleFields = OUTCOME_FIELDS.filter(
+    (f) => f.key in defaults || f.key in fb,
+  );
+
+  function restoreKeyIfEmpty(key: string, value: string) {
+    if (value.trim()) return;
+    const fallback = defaults[key];
+    if (!fallback) return;
+    const next: Record<string, unknown> = { ...defaults, ...fb, [key]: fallback };
+    onChange({ feedback: next });
   }
 
   return (
@@ -43,28 +50,47 @@ export function FeedbackPanel({ activity, readOnly, onChange }: EditorProps) {
       <summary className="cursor-pointer select-none px-3 py-2 text-sm font-semibold text-ink">
         Phản hồi cho học viên
         <span className="ml-2 font-normal text-xs text-ink-muted">
-          {Object.values(fb).filter((v) => String(v ?? "").trim()).length > 0
-            ? `(${Object.values(fb).filter((v) => String(v ?? "").trim()).length} mục đã nhập)`
-            : "(tuỳ chọn)"}
+          (Đã có sẵn phản hồi mặc định — nhấn để xem hoặc chỉnh sửa)
         </span>
       </summary>
       <div className="flex flex-col gap-3 border-t border-border/60 p-3">
-        <p className="text-xs text-ink-muted">
-          Nội dung hiển thị sau mỗi lần học viên nộp câu trả lời. Bỏ trống = không hiển thị phản hồi cho trường hợp đó.
-        </p>
-        {OUTCOME_FIELDS.map((f) => (
-        <div key={f.key} className="flex flex-col gap-1">
-          <Label htmlFor={`fb-${f.key}-${activity.id}`}>{f.label}</Label>
-          <Textarea
-            id={`fb-${f.key}-${activity.id}`}
-            rows={2}
-            value={String(fb[f.key] ?? "")}
-            disabled={readOnly}
-            placeholder={f.hint}
-            onChange={(e) => set(f.key, e.target.value)}
-          />
+        <div className="flex flex-wrap items-center justify-between gap-2">
+          <p className="text-xs text-ink-muted">
+            Hệ thống đã điền sẵn phản hồi chuẩn theo loại hoạt động. Nếu xoá trống một ô, câu mặc định sẽ tự khôi phục khi rời ô hoặc lưu bài.
+          </p>
+          {!readOnly && (
+            <Button
+              type="button"
+              variant="secondary"
+              size="sm"
+              onClick={() => onChange({ feedback: defaultFeedbackForActivity(activity.type) })}
+              className="h-7 px-2 text-xs"
+            >
+              <RotateCcw className="mr-1 size-3" aria-hidden />
+              Khôi phục mặc định
+            </Button>
+          )}
         </div>
-        ))}
+        {visibleFields.map((f) => {
+          const currentVal =
+            f.key in fb ? String(fb[f.key] ?? "") : String(defaults[f.key] ?? "");
+          return (
+            <div key={f.key} className="flex flex-col gap-1">
+              <Label htmlFor={`fb-${f.key}-${activity.id}`}>{f.label}</Label>
+              <Textarea
+                id={`fb-${f.key}-${activity.id}`}
+                rows={2}
+                value={currentVal}
+                disabled={readOnly}
+                placeholder={defaults[f.key] ?? f.hint}
+                onChange={(e) =>
+                  onChange({ feedback: { ...defaults, ...fb, [f.key]: e.target.value } })
+                }
+                onBlur={(e) => restoreKeyIfEmpty(f.key, e.target.value)}
+              />
+            </div>
+          );
+        })}
       </div>
     </details>
   );

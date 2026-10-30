@@ -30,7 +30,7 @@ export function EventCatalog({ detail, chapterId, disabled, change, onAdded }: {
       <Input aria-label="Tìm sự kiện theo tên hoặc năm" placeholder="Tên sự kiện hoặc năm…" value={input} onChange={(event) => setInput(event.target.value)} />
       <Button type="submit" variant="secondary" disabled={query.isFetching}>Tìm</Button>
     </form>
-    <p className="text-xs text-ink-muted">Sự kiện được thêm ở chế độ tham khảo. Chọn sự kiện để gắn bài và cấu hình bắt buộc.</p>
+    <p className="text-xs text-ink-muted">Sự kiện thêm vào lộ trình mặc định là bắt buộc. Chọn sự kiện để gắn bài học tương ứng.</p>
     {query.isPending && <p role="status" className="text-sm text-ink-muted">Đang tải kho sự kiện…</p>}
     {query.isError && <ErrorState error={query.error} onRetry={() => void query.refetch()} />}
     {query.data && <>
@@ -38,7 +38,7 @@ export function EventCatalog({ detail, chapterId, disabled, change, onAdded }: {
         {query.data.content.map((event) => <li key={event.id} className="flex items-center gap-3 py-3">
           <div className="min-w-0 flex-1"><p className="text-sm font-medium">{event.title}</p><div className="mt-1 flex flex-wrap items-center gap-2"><span className="text-xs text-ink-muted">{historicalYear(event.startYear)}</span><StatusChip status={event.status} /></div></div>
           <Button variant="secondary" size="sm" disabled={disabled || query.isPlaceholderData || attached.has(event.id) || event.status === "ARCHIVED"}
-            onClick={async () => { const result = await change(`/chapters/${chapterId}/events`, "POST", { eventId: event.id, participationType: "EXPLORATION_ONLY" });
+            onClick={async () => { const result = await change(`/chapters/${chapterId}/events`, "POST", { eventId: event.id, participationType: "REQUIRED" });
               const added = result?.chapters.flatMap((row) => row.events).find((row) => row.node.eventId === event.id);
               if (added) onAdded(added.node.id);
             }}>{attached.has(event.id) ? "Đã gắn" : event.status === "ARCHIVED" ? "Đã lưu trữ" : "Thêm"}</Button>

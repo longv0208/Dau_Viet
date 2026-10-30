@@ -5,6 +5,7 @@ import { useMemo, useReducer } from "react";
 import { genSlugId } from "./draft-id";
 import {
   allIds,
+  defaultFeedbackForActivity,
   type Activity,
   type ActivityType,
   type Draft,
@@ -235,7 +236,14 @@ function reducer(state: BuilderState, a: Action): BuilderState {
 }
 
 export function makeActivity(type: ActivityType, existing: string[]): Activity {
-  return { id: genSlugId("act", existing), type, required: false, instruction: "", config: {} };
+  return {
+    id: genSlugId("act", existing),
+    type,
+    required: true,
+    instruction: "",
+    config: type === "EVIDENCE_SELECT" ? { graded: true } : {},
+    feedback: defaultFeedbackForActivity(type),
+  };
 }
 
 export function makeStage(type: StageType, existing: string[], title?: string): Stage {

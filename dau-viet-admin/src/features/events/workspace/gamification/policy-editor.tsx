@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 
 import { apiFetch, toQuery } from "@/lib/api-client";
@@ -39,12 +39,16 @@ export function PolicyEditor({
   onSubmit: (req: AdminCompletionPolicyUpsert) => void;
   onCancel: () => void;
 }) {
-  const [required, setRequired] = useState<string[]>(
-    initial?.requiredLessonIds ?? [],
-  );
-  const [optional, setOptional] = useState<string[]>(
-    initial?.optionalLessonIds ?? [],
-  );
+  const initialRequired = initial
+    ? Array.from(
+        new Set([
+          ...(initial.requiredLessonIds ?? []),
+          ...(initial.optionalLessonIds ?? []),
+        ]),
+      )
+    : [];
+  const [required, setRequired] = useState<string[]>(initialRequired);
+  const autoSeededRef = useRef(initialRequired.length > 0);
   const [useThreshold, setUseThreshold] = useState(
     initial?.masteryThreshold != null,
   );
@@ -60,72 +64,59 @@ export function PolicyEditor({
       ),
   });
 
-  const allLessons = lessons.data?.content ?? [];
-  const requiredSet = useMemo(() => new Set(required), [required]);
-  const optionalSet = useMemo(() => new Set(optional), [optional]);
+  const allLessons = (lessons.data?.content ?? []).filter(
+    (l) => !l.status || l.status === "PUBLISHED",
+  );
 
-  const buildReq = (): AdminCompletionPolicyUpsert => ({
+  useEffect(() => {
+    if (!autoSeededRef.current && allLessons.length > 0) {
+      autoSeededRef.current = true;
+      setRequired(allLessons.map((l) => l.id));
+    }
+  }, [allLessons]);
+
+  const payload: AdminCompletionPolicyUpsert = {
     requiredLessonIds: required,
-    optionalLessonIds: optional,
+    optionalLessonIds: [],
     masteryThreshold: useThreshold ? threshold : null,
     expectedPolicyVersion: initial?.policyVersion ?? null,
-  });
+  };
 
-  const toggle = (id: string, list: string[], set: (v: string[]) => void) =>
-    set(list.includes(id) ? list.filter((x) => x !== id) : [...list, id]);
-
-  void requiredSet;
-  void optionalSet;
-
-  const lessonPicker = (
-    title: string,
-    list: string[],
-    set: (v: string[]) => void,
-    excluded: Set<string>,
-  ) => (
-    <fieldset className="rounded-md border border-border p-3">
-      <legend className="px-1 text-sm font-medium text-ink">{title}</legend>
-      {allLessons.length === 0 && !lessons.isPending && (
-        <p className="text-sm text-ink-muted">
-          Sự kiện chưa có bài học PUBLISHED.
-        </p>
-      )}
-      <ul className="mt-1 flex max-h-56 flex-col gap-1 overflow-y-auto">
-        {allLessons.map((l) => {
-          const disabled = excluded.has(l.id);
-          return (
+  return (
+    <div className="flex flex-col gap-4 rounded-lg border border-border bg-white p-4">
+      <fieldset className="rounded-md border border-border p-3">
+        <legend className="px-1 text-sm font-medium text-ink">
+          Bài học bắt buộc hoàn thành (mặc định chọn toàn bộ bài học đã xuất bản)
+        </legend>
+        {allLessons.length === 0 && !lessons.isPending && (
+          <p className="text-sm text-ink-muted">
+            Sự kiện chưa có bài học PUBLISHED.
+          </p>
+        )}
+        <ul className="mt-1 flex max-h-56 flex-col gap-1 overflow-y-auto">
+          {allLessons.map((l) => (
             <li key={l.id}>
-              <label
-                className={
-                  "flex items-center gap-2 rounded px-2 py-1.5 text-sm " +
-                  (disabled ? "opacity-40" : "hover:bg-surface-alt")
-                }
-              >
+              <label className="flex items-center gap-2 rounded px-2 py-1.5 text-sm hover:bg-surface-alt">
                 <input
                   type="checkbox"
-                  disabled={disabled}
-                  checked={list.includes(l.id)}
-                  onChange={() => toggle(l.id, list, set)}
+                  checked={required.includes(l.id)}
+                  onChange={() =>
+                    setRequired((prev) =>
+                      prev.includes(l.id)
+                        ? prev.filter((x) => x !== l.id)
+                        : [...prev, l.id],
+                    )
+                  }
                 />
                 <span className="truncate">{l.title}</span>
               </label>
             </li>
-          );
-        })}
-      </ul>
-      <p className="mt-1 text-xs text-ink-muted">
-        Đã chọn: {list.length}
-        {disabledNote(excluded, list)}
-      </p>
-    </fieldset>
-  );
-
-  return (
-    <div className="flex flex-col gap-4 rounded-lg border border-border bg-white p-4">
-      <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
-        {lessonPicker("Bài học bắt buộc (required)", required, setRequired, optionalSet)}
-        {lessonPicker("Bài học tuỳ chọn (optional)", optional, setOptional, requiredSet)}
-      </div>
+          ))}
+        </ul>
+        <p className="mt-1 text-xs text-ink-muted">
+          Đã chọn: {required.length} / {allLessons.length} bài học
+        </p>
+      </fieldset>
 
       <div className="flex items-end gap-3">
         <div className="flex items-center gap-2">
@@ -187,11 +178,11 @@ export function PolicyEditor({
         <Button
           variant="secondary"
           disabled={validating}
-          onClick={() => onValidate(buildReq())}
+          onClick={() => onValidate(payload)}
         >
           {validating ? "Đang kiểm tra…" : "Kiểm tra"}
         </Button>
-        <Button disabled={saving} onClick={() => onSubmit(buildReq())}>
+        <Button disabled={saving} onClick={() => onSubmit(payload)}>
           {saving ? "Đang lưu…" : "Lưu bản nháp"}
         </Button>
         <Button variant="secondary" onClick={onCancel}>
@@ -200,9 +191,4 @@ export function PolicyEditor({
       </div>
     </div>
   );
-}
-
-function disabledNote(excluded: Set<string>, list: string[]) {
-  const n = list.filter((id) => excluded.has(id)).length;
-  return n > 0 ? ` (${n} trùng danh sách kia)` : "";
 }

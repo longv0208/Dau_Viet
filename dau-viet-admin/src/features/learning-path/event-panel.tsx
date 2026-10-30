@@ -47,7 +47,7 @@ export function EventPanel({
 
   useEffect(() => {
     if (selectedEventId) {
-      document.getElementById(`path-event-${selectedEventId}`)?.scrollIntoView({ block: "nearest" });
+      document.getElementById(`path-event-${selectedEventId}`)?.scrollIntoView?.({ block: "nearest" });
     }
   }, [selectedEventId]);
 
@@ -201,30 +201,13 @@ export function EventPanel({
                 Đây là tên thay thế (alias) của một sự kiện canonical. Không thêm đại diện khác của cùng sự kiện vào lộ trình.
               </p>
             )}
-            {!readOnly ? (
+            {!readOnly && (
               <div className="mt-3 space-y-2">
-                <label className="block text-xs font-medium">
-                  Vai trò trong lộ trình
-                  <Select
-                    disabled={disabled}
-                    className="mt-1"
-                    value={event.node.participationType}
-                    onChange={(value) =>
-                      void change(`/events/${event.node.id}`, "PATCH", {
-                        participationType: value.target.value,
-                      })
-                    }
-                  >
-                    <option value="EXPLORATION_ONLY">Tham khảo — không chặn tiến độ</option>
-                    <option value="REQUIRED">Bắt buộc trong lộ trình</option>
-                  </Select>
-                </label>
-                {event.node.participationType === "REQUIRED" &&
-                  event.contentStatus !== "PLAYABLE" && (
-                    <p className="text-xs text-error">
-                      Sự kiện bắt buộc chưa sẵn sàng; cần hoàn thiện bài học và policy trước khi xuất bản.
-                    </p>
-                  )}
+                {event.contentStatus !== "PLAYABLE" && (
+                  <p className="text-xs text-error">
+                    Sự kiện chưa sẵn sàng; cần hoàn thiện bài học và policy trước khi xuất bản.
+                  </p>
+                )}
                 <div className="flex items-end gap-2">
                   <label className="min-w-0 flex-1 text-xs font-medium">
                     Chuyển sang Thời kỳ / Giai đoạn
@@ -256,12 +239,6 @@ export function EventPanel({
                   </Button>
                 </div>
               </div>
-            ) : (
-              <p className="mt-2 text-xs font-semibold">
-                {event.node.participationType === "REQUIRED"
-                  ? "Bắt buộc trong lộ trình"
-                  : "Tham khảo"}
-              </p>
             )}
           </article>
         )}

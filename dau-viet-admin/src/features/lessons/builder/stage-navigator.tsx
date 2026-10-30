@@ -7,7 +7,6 @@ import type { Draft, StageType } from "./draft-model";
 import { STAGE_TYPES } from "./draft-model";
 import { STAGE_LABELS } from "./labels";
 import { ChapterBadge } from "@/components/atoms/chapter-badge";
-import { ClueTag } from "@/components/atoms/clue-tag";
 import { SectionDivider } from "@/components/atoms/section-divider";
 import { Button } from "@/components/ui/button";
 import { Select } from "@/components/ui/select";
@@ -71,11 +70,6 @@ export function StageNavigator({
                       <span>{meta?.label ?? "—"}</span>
                       <span aria-hidden>·</span>
                       <span>{s.activities.length} hoạt động</span>
-                      <ClueTag
-                        label={s.required ? "bắt buộc" : "tuỳ chọn"}
-                        color={s.required ? "brand" : "jade"}
-                        className="px-1.5 py-0 text-[10px]"
-                      />
                     </span>
                   </span>
                 </button>

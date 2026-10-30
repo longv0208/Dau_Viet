@@ -235,4 +235,24 @@ describe("BuilderPage", () => {
     // "Bối cảnh (mẫu)" xuất hiện cả trong navigator lẫn ô nextStageIds của stage 1.
     expect(screen.getAllByText(/Bối cảnh \(mẫu\)/).length).toBeGreaterThan(0);
   });
+
+  it("does not render required/optional toggles and pre-populates default feedback on new activities", async () => {
+    authStore.setAccessToken("t", 900);
+    renderBuilder();
+    await waitFor(() => screen.getByText("Giai đoạn (4)"));
+
+    // Không còn checkbox "Bắt buộc hoàn thành" hay "Yêu cầu hoàn thành tất cả giai đoạn bắt buộc".
+    expect(screen.queryByText("Bắt buộc hoàn thành")).toBeNull();
+    expect(
+      screen.queryByText(/Yêu cầu hoàn thành tất cả giai đoạn bắt buộc/i),
+    ).toBeNull();
+
+    // Thêm một hoạt động mới vào giai đoạn 1 (CONTEXT) → tự động có sẵn phản hồi mặc định.
+    await userEvent.click(screen.getByRole("button", { name: /thêm hoạt động/i }));
+    const readBtns = screen.getAllByRole("button", { name: /đọc tư liệu/i });
+    await userEvent.click(readBtns[0]!);
+    expect(
+      screen.getByText(/Đã có sẵn phản hồi mặc định — nhấn để xem hoặc chỉnh sửa/i),
+    ).toBeInTheDocument();
+  });
 });

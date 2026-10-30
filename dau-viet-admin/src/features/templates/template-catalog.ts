@@ -7,6 +7,8 @@ import {
   ACTIVITY_TYPES,
   STAGE_ALLOWED_ACTIVITIES,
   STAGE_TYPES,
+  defaultFeedbackForActivity,
+  withDefaultFeedback,
   type Activity,
   type ActivityType,
   type Draft,
@@ -63,7 +65,14 @@ export function makeTemplateStage(type: StageType, existingIds: string[]): Stage
 }
 
 export function makeTemplateActivity(type: ActivityType, existingIds: string[]): Activity {
-  return { id: genSlugId("act", existingIds), type, required: false, instruction: "", config: {} };
+  return {
+    id: genSlugId("act", existingIds),
+    type,
+    required: true,
+    instruction: "",
+    config: type === "EVIDENCE_SELECT" ? { graded: true } : {},
+    feedback: defaultFeedbackForActivity(type),
+  };
 }
 
 /** Serialize the working stage list back to a presetJson skeleton —
@@ -75,8 +84,15 @@ export function buildPresetJson(stages: Stage[]): string {
       id: s.id,
       type: s.type,
       title: (s.title ?? "").trim(),
-      required: s.required ?? true,
-      activities: s.activities,
+      required: true,
+      activities: s.activities.map((a) => ({
+        ...a,
+        required: true,
+        ...(a.type === "EVIDENCE_SELECT"
+          ? { config: { ...(a.config ?? {}), graded: true } }
+          : {}),
+        feedback: withDefaultFeedback(a.type, a.feedback),
+      })),
       nextStageIds: s.nextStageIds ?? [],
     })),
   });

@@ -199,10 +199,18 @@ describe("useBuilder", () => {
     expect(result.current.state.selectedStageId).toBe("s1");
   });
 
-  it("makeActivity honors ID_PATTERN and uniqueness", () => {
-    const a = makeActivity("READ", ["act-x"]);
+  it("makeActivity honors ID_PATTERN, uniqueness, required=true and default feedback", () => {
+    const a = makeActivity("EVIDENCE_SELECT", ["act-x"]);
     expect(ID_PATTERN.test(a.id)).toBe(true);
     expect(a.id).not.toBe("act-x");
-    expect(a.type).toBe("READ");
+    expect(a.type).toBe("EVIDENCE_SELECT");
+    expect(a.required).toBe(true);
+    expect(a.config?.graded).toBe(true);
+    expect(a.feedback).toMatchObject({
+      COMPLETED: expect.any(String),
+      INCORRECT: expect.any(String),
+      PARTIAL: expect.any(String),
+      EXHAUSTED: expect.any(String),
+    });
   });
 });
