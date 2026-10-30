@@ -729,7 +729,7 @@ class _EnergyManagementScreenState extends ConsumerState<EnergyManagementScreen>
                     clipBehavior: Clip.antiAlias,
                     child: Image.asset(
                       remedy.assetImagePath,
-                      fit: BoxFit.contain,
+                      fit: BoxFit.cover,
                       errorBuilder: (context, error, stackTrace) =>
                           Container(
                         color: rarityStyle.borderColor

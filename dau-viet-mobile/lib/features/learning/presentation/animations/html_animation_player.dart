@@ -2,6 +2,7 @@ import 'dart:async';
 import 'dart:convert';
 
 import 'package:crypto/crypto.dart';
+import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:webview_flutter/webview_flutter.dart';
@@ -11,6 +12,7 @@ import '../../../../../core/theme/dau_viet_typography.dart';
 import '../../data/learning_api_client.dart';
 import '../../data/learning_providers.dart';
 import 'runtime/animation_manifest_dto.dart';
+import 'html_iframe_view.dart';
 
 /// HTML_WEBVIEW runtime — renderer DUY NHẤT cho mọi cảnh HTML tải lên.
 ///
@@ -105,6 +107,7 @@ class _HtmlAnimationPlayerState extends ConsumerState<HtmlAnimationPlayer> {
   _HtmlLoadState _state = _HtmlLoadState.loading;
   String _error = '';
   bool _finishedFired = false;
+  String _loadedHtml = '';
 
   WebViewController? get _ctrlOrNull =>
       widget.controllerOverride ?? _controller;
@@ -255,14 +258,18 @@ class _HtmlAnimationPlayerState extends ConsumerState<HtmlAnimationPlayer> {
     // `builtFor == _controllerGen` check drop. Chỉ tạo khi sẽ render
     // platform view thật (không webViewBuilder/controllerOverride) —
     // test seam không đụng WebViewPlatform.
-    if (widget.controllerOverride == null && widget.webViewBuilder == null) {
-      _controller = _buildController();
-    }
+    final bool useNativeWebView =
+        !kIsWeb &&
+        widget.controllerOverride == null &&
+        widget.webViewBuilder == null;
     setState(() {
       _state = _HtmlLoadState.loading;
       _error = '';
     });
     try {
+      if (useNativeWebView) {
+        _controller = _buildController();
+      }
       final List<int> bytes;
       if (widget.apiOverride != null) {
         bytes = await widget.apiOverride!.getAnimationHtmlBytes(
@@ -301,7 +308,12 @@ class _HtmlAnimationPlayerState extends ConsumerState<HtmlAnimationPlayer> {
       // loadHtmlString: không URL thật, không token, không file://.
       // baseUrl about:blank giữ document ở opaque origin. CSP meta server
       // chèn chạy ngay cả khi không có response header.
-      if (widget.controllerOverride != null || widget.webViewBuilder == null) {
+      _loadedHtml = html;
+      if (!kIsWeb &&
+          (widget.controllerOverride != null ||
+              widget.webViewBuilder == null)) {
+        await _ctrl.loadHtmlString(html, baseUrl: 'about:blank');
+      } else if (kIsWeb && widget.controllerOverride != null) {
         await _ctrl.loadHtmlString(html, baseUrl: 'about:blank');
       }
       if (gen != _generation || !mounted) return;
@@ -360,6 +372,16 @@ class _HtmlAnimationPlayerState extends ConsumerState<HtmlAnimationPlayer> {
             _HtmlLoadState.ready =>
               widget.webViewBuilder != null
                   ? widget.webViewBuilder!(context, _ctrlOrNull)
+                  : kIsWeb && widget.controllerOverride == null
+                  ? buildWebHtmlIframe(
+                      key: ValueKey<String>(
+                        'web-iframe-$_controllerGen-${widget.sceneVersionId}',
+                      ),
+                      html: _loadedHtml,
+                      channelTag: 'dv-$_controllerGen',
+                      onJsMessage: (msg) =>
+                          _onJsMessage(JavaScriptMessage(message: msg)),
+                    )
                   // Key theo controller identity → khi session đổi,
                   // platform view cũ bị dispose và document cũ chết theo;
                   // không dùng document phiên trước cho phiên mới.

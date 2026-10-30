@@ -483,12 +483,19 @@ class _HtmlSceneSlot extends StatelessWidget {
     if (playerFactory != null) {
       return playerFactory!(versionId, manifest);
     }
-    return HtmlAnimationPlayer(
-      sceneVersionId: versionId,
-      manifest: manifest,
-      aspectRatio: manifest.canvasAspectRatio > 0
-          ? manifest.canvasAspectRatio
-          : 16 / 10,
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final double resolvedAspectRatio = manifest.canvasAspectRatio > 0
+            ? manifest.canvasAspectRatio
+            : (constraints.maxWidth > 0 && constraints.maxWidth < 600
+                  ? 0.66
+                  : 16 / 10);
+        return HtmlAnimationPlayer(
+          sceneVersionId: versionId,
+          manifest: manifest,
+          aspectRatio: resolvedAspectRatio,
+        );
+      },
     );
   }
 }
