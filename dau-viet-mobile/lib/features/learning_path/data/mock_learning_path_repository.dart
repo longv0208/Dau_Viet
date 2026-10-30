@@ -95,6 +95,7 @@ class MockLearningPathRepository extends LearningPathRepository {
       periodLabel: 'Khoảng thế kỷ VII TCN – năm 179 TCN',
       sortOrder: 1,
       themeKey: 'FOUNDING_ERA',
+      coverImageKey: 'periods/FOUNDING_ERA/cover.jpg',
       events: [
         LearningPathEventNodeDto(
           eventNodeId: 'd7e30000-0000-4000-8000-000000000001',
@@ -136,6 +137,7 @@ class MockLearningPathRepository extends LearningPathRepository {
       periodLabel: 'Năm 179 TCN – năm 938',
       sortOrder: 2,
       themeKey: 'NORTHERN_DOMINATION',
+      coverImageKey: 'periods/NORTHERN_DOMINATION/cover.jpg',
       events: [
         LearningPathEventNodeDto(
           eventNodeId: 'd7e30000-0000-4000-8000-000000000002',
@@ -177,6 +179,7 @@ class MockLearningPathRepository extends LearningPathRepository {
       periodLabel: 'Năm 938 – năm 1009',
       sortOrder: 3,
       themeKey: 'EARLY_INDEPENDENCE',
+      coverImageKey: 'periods/EARLY_INDEPENDENCE/cover.jpg',
       events: [
         LearningPathEventNodeDto(
           eventNodeId: 'd7e30000-0000-4000-8000-000000000003',
@@ -232,6 +235,7 @@ class MockLearningPathRepository extends LearningPathRepository {
       periodLabel: 'Năm 1009 – năm 1225',
       sortOrder: 4,
       themeKey: 'LY_DYNASTY',
+      coverImageKey: 'periods/LY_DYNASTY/cover.jpg',
       events: [
         LearningPathEventNodeDto(
           eventNodeId: 'd7e30000-0000-4000-8000-000000000004',
@@ -346,6 +350,7 @@ class MockLearningPathRepository extends LearningPathRepository {
       periodLabel: 'Năm 1945 – năm 1954',
       sortOrder: 1,
       themeKey: 'ANTI_FRENCH_RESISTANCE',
+      coverImageKey: 'periods/ANTI_FRENCH_RESISTANCE/cover.jpg',
       events: [
         LearningPathEventNodeDto(
           eventNodeId: 'd7e30000-0000-4000-8000-000000000007',

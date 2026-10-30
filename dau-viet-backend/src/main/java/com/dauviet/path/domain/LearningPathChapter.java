@@ -52,6 +52,9 @@ public class LearningPathChapter {
     @Column(name = "theme_key", nullable = false, length = 64)
     private String themeKey;
 
+    @Column(name = "cover_image_key", length = 255)
+    private String coverImageKey;
+
     @Column(name = "created_at", nullable = false, updatable = false)
     private Instant createdAt = Instant.now();
 
@@ -61,13 +64,21 @@ public class LearningPathChapter {
                                String description, int startYear, int endYear,
                                String periodLabel, int sortOrder, String themeKey) {
         this(id, pathVersionId, null, PathNodeType.PERIOD, code, title,
-                description, startYear, endYear, periodLabel, sortOrder, themeKey);
+                description, startYear, endYear, periodLabel, sortOrder, themeKey, null);
     }
 
     public LearningPathChapter(UUID id, UUID pathVersionId, UUID parentId, PathNodeType nodeType,
                                String code, String title, String description,
                                int startYear, int endYear, String periodLabel,
                                int sortOrder, String themeKey) {
+        this(id, pathVersionId, parentId, nodeType, code, title, description,
+                startYear, endYear, periodLabel, sortOrder, themeKey, null);
+    }
+
+    public LearningPathChapter(UUID id, UUID pathVersionId, UUID parentId, PathNodeType nodeType,
+                               String code, String title, String description,
+                               int startYear, int endYear, String periodLabel,
+                               int sortOrder, String themeKey, String coverImageKey) {
         this.id = id != null ? id : UUID.randomUUID();
         this.pathVersionId = pathVersionId;
         this.parentId = parentId;
@@ -80,6 +91,7 @@ public class LearningPathChapter {
         this.periodLabel = periodLabel;
         this.sortOrder = sortOrder;
         this.themeKey = themeKey;
+        this.coverImageKey = coverImageKey;
         this.createdAt = Instant.now();
     }
 
@@ -95,12 +107,16 @@ public class LearningPathChapter {
     public String getPeriodLabel() { return periodLabel; }
     public int getSortOrder() { return sortOrder; }
     public String getThemeKey() { return themeKey; }
+    public String getCoverImageKey() { return coverImageKey; }
     public Instant getCreatedAt() { return createdAt; }
 
     public void setSortOrder(int sortOrder) { this.sortOrder = sortOrder; }
     public void setParentId(UUID parentId) { this.parentId = parentId; }
     public void setNodeType(PathNodeType nodeType) {
         this.nodeType = nodeType != null ? nodeType : PathNodeType.PERIOD;
+    }
+    public void setCoverImageKey(String coverImageKey) {
+        this.coverImageKey = coverImageKey;
     }
 
     public void update(String code, String title, String description, int startYear,

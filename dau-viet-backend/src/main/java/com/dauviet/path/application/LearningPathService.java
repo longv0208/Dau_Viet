@@ -172,6 +172,7 @@ public class LearningPathService {
                     chapter.getPeriodLabel(),
                     chapter.getSortOrder(),
                     chapter.getThemeKey(),
+                    chapter.getCoverImageKey(),
                     eventResponses
             ));
         }

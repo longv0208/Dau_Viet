@@ -26,6 +26,7 @@ public record LearningPathResponse(
             String periodLabel,
             int sortOrder,
             String themeKey,
+            String coverImageKey,
             List<EventNodeResponse> events
     ) {
         public ChapterResponse(
@@ -40,7 +41,7 @@ public record LearningPathResponse(
                 String themeKey,
                 List<EventNodeResponse> events) {
             this(chapterId, null, PathNodeType.PERIOD, code, title, description,
-                    startYear, endYear, periodLabel, sortOrder, themeKey, events);
+                    startYear, endYear, periodLabel, sortOrder, themeKey, null, events);
         }
     }
 

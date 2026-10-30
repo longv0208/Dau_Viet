@@ -40,7 +40,8 @@ public class AdminPathChapterService {
                 .mapToInt(LearningPathChapter::getSortOrder).max().orElse(0) + 1;
         chapters.saveAndFlush(new LearningPathChapter(null, versionId, request.parentId(), nodeType,
                 request.code(), request.title(), request.description(), request.startYear(),
-                request.endYear(), request.periodLabel(), order, request.themeKey()));
+                request.endYear(), request.periodLabel(), order, request.themeKey(),
+                request.coverImageKey()));
         return read.detail(versionId);
     }
 
@@ -72,6 +73,9 @@ public class AdminPathChapterService {
         }
         chapter.update(parentId, nodeType, code, title,
                 value(request.description(), chapter.getDescription()), start, end, period, theme);
+        if (request.coverImageKey() != null) {
+            chapter.setCoverImageKey(request.coverImageKey());
+        }
         chapters.flush();
         return read.detail(versionId);
     }

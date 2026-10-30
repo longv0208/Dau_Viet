@@ -340,6 +340,7 @@ class _FlameHero extends StatelessWidget {
           clipBehavior: Clip.antiAlias,
           child: Stack(
             children: [
+              // Minh họa Trâu Đỏ cầm đuốc + cổng thành + mây vàng 4x sắc nét bên phải
               Positioned(
                 right: 0,
                 top: 0,
@@ -349,6 +350,7 @@ class _FlameHero extends StatelessWidget {
                   height: 118,
                   fit: BoxFit.contain,
                   alignment: Alignment.centerRight,
+                  filterQuality: FilterQuality.high,
                   errorBuilder: (_, _, _) => const SizedBox.shrink(),
                 ),
               ),
@@ -435,8 +437,20 @@ class _FlameHero extends StatelessWidget {
                 child: Image.asset(
                   'assets/images/streak_flame_landscape_bg.png',
                   fit: BoxFit.cover,
-                  alignment: Alignment.topCenter,
+                  alignment: Alignment.center,
+                  filterQuality: FilterQuality.high,
                   errorBuilder: (_, _, _) => const SizedBox.shrink(),
+                ),
+              ),
+              // Ngọn lửa 3 lớp + hào quang mặt trời vẽ bằng Vector CustomPainter (không bao giờ mờ)
+              const Positioned(
+                top: 6,
+                child: SizedBox(
+                  width: 96,
+                  height: 82,
+                  child: CustomPaint(
+                    painter: _VectorHeroThreeLayerFlamePainter(),
+                  ),
                 ),
               ),
               Positioned(
@@ -967,3 +981,79 @@ class _ErrorView extends StatelessWidget {
     );
   }
 }
+
+/// Vẽ Vector ngọn lửa 3 lớp (đỏ chu sa -> cam rực -> vàng kim) kèm vầng hào quang
+/// cho thẻ trung tâm Ngọn Lửa Hào Khí.
+class _VectorHeroThreeLayerFlamePainter extends CustomPainter {
+  const _VectorHeroThreeLayerFlamePainter();
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    final w = size.width;
+    final h = size.height;
+    final center = Offset(w * 0.5, h * 0.54);
+
+    // 1. Vầng hào quang mặt trời phía sau ngọn lửa
+    final haloPaint = Paint()
+      ..shader = RadialGradient(
+        colors: [
+          const Color(0xFFF6C665).withValues(alpha: 0.65),
+          const Color(0xFFF6C665).withValues(alpha: 0.25),
+          const Color(0xFFF6C665).withValues(alpha: 0.0),
+        ],
+        stops: const [0.0, 0.65, 1.0],
+      ).createShader(Rect.fromCircle(center: center, radius: w * 0.54));
+    canvas.drawCircle(center, w * 0.54, haloPaint);
+
+    // 2. Lớp lửa ngoài cùng (Đỏ chu sa đậm)
+    final outer = Path()
+      ..moveTo(w * 0.52, h * 0.04)
+      ..cubicTo(w * 0.58, h * 0.18, w * 0.66, h * 0.26, w * 0.64, h * 0.38)
+      ..cubicTo(w * 0.72, h * 0.30, w * 0.80, h * 0.44, w * 0.78, h * 0.62)
+      ..cubicTo(w * 0.76, h * 0.82, w * 0.64, h * 0.94, w * 0.50, h * 0.94)
+      ..cubicTo(w * 0.36, h * 0.94, w * 0.22, h * 0.82, w * 0.22, h * 0.60)
+      ..cubicTo(w * 0.22, h * 0.44, w * 0.30, h * 0.32, w * 0.36, h * 0.38)
+      ..cubicTo(w * 0.35, h * 0.24, w * 0.44, h * 0.14, w * 0.52, h * 0.04)
+      ..close();
+    canvas.drawPath(
+      outer,
+      Paint()
+        ..shader = const LinearGradient(
+          begin: Alignment.topCenter,
+          end: Alignment.bottomCenter,
+          colors: [Color(0xFFB32317), Color(0xFFD8431E)],
+        ).createShader(Rect.fromLTWH(0, 0, w, h)),
+    );
+
+    // 3. Lớp lửa giữa (Cam vàng rực)
+    final mid = Path()
+      ..moveTo(w * 0.50, h * 0.28)
+      ..cubicTo(w * 0.58, h * 0.40, w * 0.67, h * 0.52, w * 0.65, h * 0.70)
+      ..cubicTo(w * 0.63, h * 0.86, w * 0.56, h * 0.93, w * 0.50, h * 0.93)
+      ..cubicTo(w * 0.44, h * 0.93, w * 0.36, h * 0.86, w * 0.35, h * 0.68)
+      ..cubicTo(w * 0.34, h * 0.52, w * 0.43, h * 0.40, w * 0.50, h * 0.28)
+      ..close();
+    canvas.drawPath(
+      mid,
+      Paint()
+        ..shader = const LinearGradient(
+          begin: Alignment.topCenter,
+          end: Alignment.bottomCenter,
+          colors: [Color(0xFFF39832), Color(0xFFF9C459)],
+        ).createShader(Rect.fromLTWH(0, h * 0.28, w, h * 0.66)),
+    );
+
+    // 4. Lõi lửa trong cùng (Đỏ cam + tâm vàng sáng)
+    final core = Path()
+      ..moveTo(w * 0.50, h * 0.54)
+      ..cubicTo(w * 0.56, h * 0.64, w * 0.58, h * 0.76, w * 0.55, h * 0.88)
+      ..cubicTo(w * 0.52, h * 0.94, w * 0.48, h * 0.94, w * 0.45, h * 0.88)
+      ..cubicTo(w * 0.42, h * 0.76, w * 0.44, h * 0.64, w * 0.50, h * 0.54)
+      ..close();
+    canvas.drawPath(core, Paint()..color = const Color(0xFFC83619));
+  }
+
+  @override
+  bool shouldRepaint(covariant CustomPainter oldDelegate) => false;
+}
+

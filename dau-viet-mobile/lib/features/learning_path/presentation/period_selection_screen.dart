@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
+import '../../../core/assets/asset_resolver.dart';
 import '../../../core/theme/dau_viet_colors.dart';
 import '../../../core/theme/dau_viet_typography.dart';
 import '../../../core/widgets/async_state_view.dart';
@@ -36,26 +37,70 @@ class PeriodSelectionScreen extends ConsumerWidget {
     final asyncPath = ref.watch(learningPathProvider);
 
     return Scaffold(
-      backgroundColor: DauVietColors.parchmentSurface,
-      body: SafeArea(
-        child: Column(
-          children: [
-            _buildTopBar(context),
-            Expanded(
-              child: asyncPath.when(
-                loading: () => AsyncStateView.loading(
-                  message: 'Đang mở cuộn thư lộ trình lịch sử...',
-                ),
-                error: (err, _) => AsyncStateView.error(
-                  error: err,
-                  onRetry: () =>
-                      ref.read(learningPathProvider.notifier).refresh(),
-                ),
-                data: (path) => _buildContent(context, ref, path),
+      backgroundColor: DauVietColors.paperBackground,
+      body: Stack(
+        children: [
+          // Nền tranh non nước màu nước trải toàn top (theo mockup M-03 v3).
+          Positioned(
+            top: 0,
+            left: 0,
+            right: 0,
+            height: 280,
+            child: IgnorePointer(
+              child: Image.asset(
+                'assets/images/landscape_hero_bg.jpg',
+                fit: BoxFit.cover,
+                alignment: Alignment.topCenter,
+                errorBuilder: (_, _, _) => const SizedBox.shrink(),
               ),
             ),
-          ],
-        ),
+          ),
+          // Veil giấy mờ để nền chìm vào parchment — fade dần từ trên xuống,
+          // nặng ở đáy để nội dung dưới đọc rõ trên nền giấy.
+          Positioned(
+            top: 0,
+            left: 0,
+            right: 0,
+            height: 320,
+            child: IgnorePointer(
+              child: DecoratedBox(
+                decoration: BoxDecoration(
+                  gradient: LinearGradient(
+                    begin: Alignment.topCenter,
+                    end: Alignment.bottomCenter,
+                    colors: [
+                      DauVietColors.paperCard.withValues(alpha: 0.40),
+                      DauVietColors.paperCard.withValues(alpha: 0.55),
+                      DauVietColors.paperBackground.withValues(alpha: 0.92),
+                      DauVietColors.paperBackground,
+                    ],
+                    stops: const [0.0, 0.35, 0.78, 1.0],
+                  ),
+                ),
+              ),
+            ),
+          ),
+          SafeArea(
+            child: Column(
+              children: [
+                _buildTopBar(context),
+                Expanded(
+                  child: asyncPath.when(
+                    loading: () => AsyncStateView.loading(
+                      message: 'Đang mở cuộn thư lộ trình lịch sử...',
+                    ),
+                    error: (err, _) => AsyncStateView.error(
+                      error: err,
+                      onRetry: () =>
+                          ref.read(learningPathProvider.notifier).refresh(),
+                    ),
+                    data: (path) => _buildContent(context, ref, path),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ],
       ),
       bottomNavigationBar: showBottomNav ? const MainBottomNav() : null,
     );
@@ -65,12 +110,6 @@ class PeriodSelectionScreen extends ConsumerWidget {
     final canPop = Navigator.of(context).canPop();
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-      decoration: const BoxDecoration(
-        color: DauVietColors.parchmentContainer,
-        border: Border(
-          bottom: BorderSide(color: DauVietColors.outlineVariant, width: 1),
-        ),
-      ),
       child: Row(
         children: [
           if (canPop) ...[
@@ -84,11 +123,17 @@ class PeriodSelectionScreen extends ConsumerWidget {
             ),
             const SizedBox(width: 4),
           ] else ...[
+            // Icon sách đỏ trong vòng tròn nổi trên tranh nền.
             Container(
               padding: const EdgeInsets.all(8),
               decoration: BoxDecoration(
-                color: DauVietColors.cinnabarRed.withValues(alpha: 0.12),
+                color: DauVietColors.paperCard.withValues(alpha: 0.92),
                 shape: BoxShape.circle,
+                border: Border.all(
+                  color: DauVietColors.cinnabarRed.withValues(alpha: 0.35),
+                  width: 1.2,
+                ),
+                boxShadow: DauVietColors.pixelShadowSm,
               ),
               child: const Icon(
                 Icons.auto_stories_rounded,
@@ -114,7 +159,8 @@ class PeriodSelectionScreen extends ConsumerWidget {
                   'Khám phá tự do từng thời kỳ • Mở khóa tuần tự trong thời kỳ',
                   style: DauVietTypography.bodySmall.copyWith(
                     fontSize: 11.5,
-                    color: DauVietColors.inkMuted,
+                    fontWeight: FontWeight.w600,
+                    color: DauVietColors.inkSecondary,
                   ),
                 ),
               ],
@@ -172,39 +218,64 @@ class PeriodSelectionScreen extends ConsumerWidget {
   Widget _buildOverallSummaryCard(LearningPathDto path) {
     final summary = path.summary;
     return ParchmentCard(
-      backgroundColor: DauVietColors.parchmentContainer,
+      backgroundColor: DauVietColors.paperCard,
       borderColor: DauVietColors.imperialGold,
+      borderWidth: 1.5,
       padding: const EdgeInsets.all(14),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Row(
+            crossAxisAlignment: CrossAxisAlignment.center,
             children: [
-              const Icon(
-                Icons.explore_rounded,
-                size: 18,
-                color: DauVietColors.cinnabarRed,
+              // La bàn vàng tròn (compass) — điểm nhấn nhận diện hành trình.
+              Container(
+                width: 40,
+                height: 40,
+                decoration: BoxDecoration(
+                  color: DauVietColors.imperialGoldLight,
+                  shape: BoxShape.circle,
+                  border: Border.all(
+                    color: DauVietColors.imperialGold,
+                    width: 1.4,
+                  ),
+                ),
+                child: const Icon(
+                  Icons.explore_rounded,
+                  size: 21,
+                  color: DauVietColors.woodBrown,
+                ),
               ),
-              const SizedBox(width: 8),
+              const SizedBox(width: 10),
               Expanded(
                 child: Text(
                   path.title ?? 'Hành trình Lịch sử Việt Nam',
-                  style: DauVietTypography.headlineSmall.copyWith(fontSize: 16),
+                  style: DauVietTypography.headlineSmall.copyWith(
+                    fontSize: 16,
+                    color: DauVietColors.inkHeading,
+                  ),
                 ),
               ),
+              const SizedBox(width: 8),
               Container(
-                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 9,
+                  vertical: 4,
+                ),
                 decoration: BoxDecoration(
                   color: DauVietColors.imperialGoldLight,
                   borderRadius: BorderRadius.circular(999),
-                  border: Border.all(color: DauVietColors.imperialGold),
+                  border: Border.all(
+                    color: DauVietColors.imperialGold,
+                    width: 1.1,
+                  ),
                 ),
                 child: Row(
                   mainAxisSize: MainAxisSize.min,
                   children: [
                     const Icon(
-                      Icons.verified_rounded,
-                      size: 13,
+                      Icons.settings_rounded,
+                      size: 12,
                       color: DauVietColors.woodBrown,
                     ),
                     const SizedBox(width: 4),
@@ -222,7 +293,7 @@ class PeriodSelectionScreen extends ConsumerWidget {
           ),
           if (path.description != null &&
               path.description!.trim().isNotEmpty) ...[
-            const SizedBox(height: 6),
+            const SizedBox(height: 8),
             Text(
               path.description!,
               style: DauVietTypography.bodySmall.copyWith(
@@ -230,13 +301,13 @@ class PeriodSelectionScreen extends ConsumerWidget {
               ),
             ),
           ],
-          const SizedBox(height: 10),
+          const SizedBox(height: 11),
           ClipRRect(
             borderRadius: BorderRadius.circular(6),
             child: LinearProgressIndicator(
               value: summary.eventProgressFraction,
               minHeight: 7,
-              backgroundColor: DauVietColors.parchmentHigh,
+              backgroundColor: DauVietColors.paperDim,
               valueColor: const AlwaysStoppedAnimation<Color>(
                 DauVietColors.heritageGreen,
               ),
@@ -470,177 +541,206 @@ class _PeriodCard extends StatelessWidget {
         (requiredEvents > 0
             ? ((completedEvents * 100) / requiredEvents).round()
             : 0);
+    final coverPath = _resolveCoverAsset(period);
 
     return ParchmentCard(
       key: Key('period-card-${period.code}'),
       onTap: onTap,
-      backgroundColor: isLastTouched
-          ? DauVietColors.parchmentContainer
-          : DauVietColors.parchmentSurface,
+      backgroundColor: DauVietColors.paperCard,
       borderColor: isLastTouched
           ? DauVietColors.cinnabarRed
           : DauVietColors.outlineVariant,
+      borderWidth: isLastTouched ? 1.5 : 1.0,
       padding: const EdgeInsets.all(14),
-      child: Column(
+      child: Row(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Wrap(
-            spacing: 8,
-            runSpacing: 6,
-            crossAxisAlignment: WrapCrossAlignment.center,
-            children: [
-              PathStatusBadge(status: periodStatus, compact: true),
-              if (isLastTouched)
-                Container(
-                  key: Key('period-active-badge-${period.code}'),
-                  padding: const EdgeInsets.symmetric(
-                    horizontal: 8,
-                    vertical: 3,
-                  ),
-                  decoration: BoxDecoration(
-                    color: DauVietColors.cinnabarRed,
-                    borderRadius: BorderRadius.circular(999),
-                  ),
-                  child: Row(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      const Icon(
-                        Icons.bookmark_rounded,
-                        size: 12,
-                        color: Colors.white,
-                      ),
-                      const SizedBox(width: 4),
-                      Text(
-                        'Đang theo học',
-                        style: DauVietTypography.labelSmall.copyWith(
-                          fontSize: 10.5,
-                          color: Colors.white,
-                          fontWeight: FontWeight.w700,
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-              if (period.periodLabel != null &&
-                  period.periodLabel!.trim().isNotEmpty)
-                Row(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    const Icon(
-                      Icons.schedule_rounded,
-                      size: 13,
-                      color: DauVietColors.inkMuted,
-                    ),
-                    const SizedBox(width: 4),
-                    Flexible(
-                      child: Text(
-                        period.periodLabel!,
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                        style: DauVietTypography.labelSmall.copyWith(
-                          color: DauVietColors.inkMuted,
-                        ),
-                      ),
-                    ),
-                  ],
-                ),
-            ],
+          // Thumbnail thời kỳ — khung vuông bo góc bên trái (giống mockup).
+          ClipRRect(
+            borderRadius: BorderRadius.circular(10),
+            child: Container(
+              width: 76,
+              height: 76,
+              color: DauVietColors.paperDim,
+              child: coverPath != null
+                  ? Image.asset(
+                      coverPath,
+                      fit: BoxFit.cover,
+                      errorBuilder: (_, _, _) => _buildCoverFallback(),
+                    )
+                  : _buildCoverFallback(),
+            ),
           ),
-          const SizedBox(height: 8),
-          Row(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
+          const SizedBox(width: 12),
+          // Cột nội dung chính.
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                // Badges trạng thái + niên đại.
+                Wrap(
+                  spacing: 6,
+                  runSpacing: 4,
+                  crossAxisAlignment: WrapCrossAlignment.center,
                   children: [
-                    Text(
-                      period.title,
-                      style: DauVietTypography.headlineSmall.copyWith(
-                        fontSize: 16,
-                      ),
-                    ),
-                    if (period.description != null &&
-                        period.description!.trim().isNotEmpty) ...[
-                      const SizedBox(height: 4),
-                      Text(
-                        period.description!,
-                        style: DauVietTypography.bodySmall.copyWith(
-                          color: DauVietColors.inkMuted,
+                    PathStatusBadge(status: periodStatus, compact: true),
+                    if (isLastTouched)
+                      Container(
+                        key: Key('period-active-badge-${period.code}'),
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 7,
+                          vertical: 3,
+                        ),
+                        decoration: BoxDecoration(
+                          color: DauVietColors.cinnabarRed,
+                          borderRadius: BorderRadius.circular(999),
+                        ),
+                        child: Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            const Icon(
+                              Icons.bookmark_rounded,
+                              size: 11,
+                              color: Colors.white,
+                            ),
+                            const SizedBox(width: 3),
+                            Text(
+                              'Đang theo học',
+                              style: DauVietTypography.labelSmall.copyWith(
+                                fontSize: 10,
+                                color: Colors.white,
+                                fontWeight: FontWeight.w700,
+                              ),
+                            ),
+                          ],
                         ),
                       ),
-                    ],
-                    if (periodStatus == LearnerPathStatus.locked) ...[
-                      const SizedBox(height: 4),
+                    if (period.periodLabel != null &&
+                        period.periodLabel!.trim().isNotEmpty)
                       Row(
+                        mainAxisSize: MainAxisSize.min,
                         children: [
                           const Icon(
-                            Icons.lock_outline_rounded,
-                            size: 13,
+                            Icons.schedule_rounded,
+                            size: 12,
                             color: DauVietColors.inkMuted,
                           ),
-                          const SizedBox(width: 4),
-                          Expanded(
+                          const SizedBox(width: 3),
+                          Flexible(
                             child: Text(
-                              'Hoàn thành các bài học bắt buộc ở thời kỳ trước để mở khóa',
-                              style: DauVietTypography.bodySmall.copyWith(
-                                fontSize: 11.5,
-                                fontStyle: FontStyle.italic,
+                              period.periodLabel!,
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                              style: DauVietTypography.labelSmall.copyWith(
+                                fontSize: 10.5,
                                 color: DauVietColors.inkMuted,
                               ),
                             ),
                           ),
                         ],
                       ),
-                    ],
                   ],
                 ),
-              ),
-              const SizedBox(width: 8),
-              const Icon(
-                Icons.chevron_right_rounded,
-                color: DauVietColors.woodBrown,
-              ),
-            ],
-          ),
-          const SizedBox(height: 10),
-          ClipRRect(
-            borderRadius: BorderRadius.circular(5),
-            child: LinearProgressIndicator(
-              value: (percent / 100.0).clamp(0.0, 1.0),
-              minHeight: 6,
-              backgroundColor: DauVietColors.parchmentHigh,
-              valueColor: const AlwaysStoppedAnimation<Color>(
-                DauVietColors.heritageGreen,
-              ),
-            ),
-          ),
-          const SizedBox(height: 6),
-          Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-            children: [
-              Expanded(
-                child: Text(
+                const SizedBox(height: 6),
+                Text(
+                  period.title,
+                  style: DauVietTypography.headlineSmall.copyWith(
+                    fontSize: 15,
+                    color: DauVietColors.inkHeading,
+                    height: 1.2,
+                  ),
+                  maxLines: 2,
+                  overflow: TextOverflow.ellipsis,
+                ),
+                if (period.description != null &&
+                    period.description!.trim().isNotEmpty) ...[
+                  const SizedBox(height: 3),
+                  Text(
+                    period.description!,
+                    maxLines: 2,
+                    overflow: TextOverflow.ellipsis,
+                    style: DauVietTypography.bodySmall.copyWith(
+                      fontSize: 11.5,
+                      color: DauVietColors.inkMuted,
+                      height: 1.3,
+                    ),
+                  ),
+                ],
+                const SizedBox(height: 8),
+                // Hàng progress bar + %.
+                Row(
+                  children: [
+                    Expanded(
+                      child: ClipRRect(
+                        borderRadius: BorderRadius.circular(4),
+                        child: LinearProgressIndicator(
+                          value: (percent / 100.0).clamp(0.0, 1.0),
+                          minHeight: 5,
+                          backgroundColor: DauVietColors.paperDim,
+                          valueColor: const AlwaysStoppedAnimation<Color>(
+                            DauVietColors.heritageGreen,
+                          ),
+                        ),
+                      ),
+                    ),
+                    const SizedBox(width: 6),
+                    Text(
+                      '$percent%',
+                      style: DauVietTypography.labelSmall.copyWith(
+                        fontSize: 11,
+                        color: DauVietColors.heritageGreen,
+                        fontWeight: FontWeight.w700,
+                      ),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 4),
+                // Stats dòng dưới.
+                Text(
                   '$completedEvents/$requiredEvents sự kiện • $completedLessons/$requiredLessons bài học',
                   maxLines: 1,
                   overflow: TextOverflow.ellipsis,
                   style: DauVietTypography.bodySmall.copyWith(
-                    fontSize: 11.5,
+                    fontSize: 11,
                     color: DauVietColors.inkMuted,
                   ),
                 ),
-              ),
-              const SizedBox(width: 8),
-              Text(
-                '$percent%',
-                style: DauVietTypography.labelSmall.copyWith(
-                  color: DauVietColors.heritageGreen,
-                  fontWeight: FontWeight.w700,
-                ),
-              ),
-            ],
+              ],
+            ),
+          ),
+          const SizedBox(width: 6),
+          const Padding(
+            padding: EdgeInsets.only(top: 4),
+            child: Icon(
+              Icons.chevron_right_rounded,
+              size: 20,
+              color: DauVietColors.woodBrown,
+            ),
           ),
         ],
+      ),
+    );
+  }
+
+  /// Tra cứu ảnh bìa của thời kỳ — ưu tiên `coverImageKey` do admin cấu hình,
+  /// rơi về tra theo `chapter.code` (xem `AssetResolver.resolvePeriodCover`).
+  String? _resolveCoverAsset(LearningPathChapterDto period) {
+    return const AssetResolver().resolvePeriodCover(
+      period.coverImageKey,
+      period.code,
+    );
+  }
+
+  /// Fallback khi chưa có ảnh hoặc file chưa bundle — icon lịch sử trên nền
+  /// giấy dó mờ để giữ card không bị rỗng.
+  Widget _buildCoverFallback() {
+    return Container(
+      color: DauVietColors.paperDim,
+      alignment: Alignment.center,
+      child: const Icon(
+        Icons.account_balance_rounded,
+        size: 28,
+        color: DauVietColors.inkLight,
       ),
     );
   }

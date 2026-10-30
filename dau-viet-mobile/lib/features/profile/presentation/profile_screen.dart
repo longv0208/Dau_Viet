@@ -180,27 +180,66 @@ class _TopHeroWithProfileCard extends StatelessWidget {
     return Column(
       mainAxisSize: MainAxisSize.min,
       children: [
-        Stack(
-          alignment: Alignment.center,
-          children: [
-            ClipRRect(
-              borderRadius: const BorderRadius.vertical(
-                bottom: Radius.circular(8),
+        SizedBox(
+          height: 92,
+          width: double.infinity,
+          child: Stack(
+            alignment: Alignment.center,
+            children: [
+              Positioned.fill(
+                child: Image.asset(
+                  'assets/images/profile_top_landscape.png',
+                  fit: BoxFit.cover,
+                  alignment: Alignment.topCenter,
+                  filterQuality: FilterQuality.high,
+                  errorBuilder: (_, _, _) => const SizedBox.shrink(),
+                ),
               ),
-              child: Image.asset(
-                'assets/images/profile_top_landscape.png',
-                width: double.infinity,
-                height: 92,
-                fit: BoxFit.cover,
-                alignment: Alignment.topCenter,
-                errorBuilder: (_, _, _) => const SizedBox(height: 76),
+              // Cụm chữ Vector sắc nét tuyệt đối đặt đúng khoảng trời trống giữa cây tùng và cổng thành
+              Padding(
+                padding: const EdgeInsets.only(right: 108, bottom: 8),
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Text(
+                          'Dấu Việt',
+                          style: DauVietTypography.headlineLarge.copyWith(
+                            fontSize: 25,
+                            fontWeight: FontWeight.w900,
+                            color: const Color(0xFF16422F),
+                            height: 1.05,
+                            letterSpacing: 0.2,
+                          ),
+                        ),
+                        const SizedBox(width: 6),
+                        Image.asset(
+                          'assets/images/app_seal.png',
+                          width: 22,
+                          height: 22,
+                          fit: BoxFit.contain,
+                          filterQuality: FilterQuality.high,
+                          errorBuilder: (_, _, _) => const SizedBox.shrink(),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 3),
+                    Text(
+                      'KHÁM PHÁ DI SẢN VIỆT NAM',
+                      style: DauVietTypography.labelSmall.copyWith(
+                        fontSize: 9.5,
+                        fontWeight: FontWeight.w800,
+                        letterSpacing: 1.3,
+                        color: const Color(0xFF4A3C2E),
+                      ),
+                    ),
+                  ],
+                ),
               ),
-            ),
-            const Opacity(
-              opacity: 0.0,
-              child: Text('KHÁM PHÁ DI SẢN VIỆT NAM'),
-            ),
-          ],
+            ],
+          ),
         ),
         Transform.translate(
           offset: const Offset(0, -10),
@@ -438,40 +477,22 @@ class _ProfileHeader extends StatelessWidget {
           SizedBox(
             width: 66,
             height: 64,
-            child: Stack(
-              alignment: Alignment.center,
-              children: [
-                Image.asset(
-                  'assets/images/profile_avatar_medallion.png',
-                  width: 66,
-                  height: 64,
-                  fit: BoxFit.contain,
-                  errorBuilder: (_, _, _) => Container(
-                    width: 58,
-                    height: 58,
-                    decoration: BoxDecoration(
-                      shape: BoxShape.circle,
-                      color: const Color(0xFF3A1814),
-                      border: Border.all(
-                        color: DauVietColors.cinnabarRed,
-                        width: 3,
-                      ),
-                    ),
-                  ),
-                ),
-                Padding(
-                  padding: const EdgeInsets.only(bottom: 3, right: 1),
+            child: CustomPaint(
+              painter: const _VectorAvatarMedallionPainter(),
+              child: Center(
+                child: Padding(
+                  padding: const EdgeInsets.only(bottom: 2, left: 2),
                   child: Text(
                     _initial,
                     style: DauVietTypography.headlineMedium.copyWith(
                       fontSize: 23,
-                      fontWeight: FontWeight.w800,
-                      color: const Color(0xFFE04837),
+                      fontWeight: FontWeight.w900,
+                      color: const Color(0xFFE24A38),
                       height: 1.0,
                     ),
                   ),
                 ),
-              ],
+              ),
             ),
           ),
           const SizedBox(width: 12),
@@ -531,13 +552,21 @@ class _ProfileHeader extends StatelessWidget {
           ),
           const SizedBox(width: 10),
           // Ô vuông bo góc xanh rêu chứa linh vật Trâu Đỏ (ảnh mẫu #1)
-          ClipRRect(
-            borderRadius: BorderRadius.circular(12),
+          Container(
+            width: 58,
+            height: 58,
+            decoration: BoxDecoration(
+              color: const Color(0xFF184434),
+              borderRadius: BorderRadius.circular(13),
+              border: Border.all(color: const Color(0xFFDEC69A), width: 1.4),
+            ),
+            clipBehavior: Clip.antiAlias,
             child: Image.asset(
               'assets/images/profile_buffalo_mascot.png',
               width: 58,
               height: 58,
               fit: BoxFit.cover,
+              filterQuality: FilterQuality.high,
               errorBuilder: (_, _, _) => const MascotSlot.icon(size: 48),
             ),
           ),
@@ -709,7 +738,7 @@ class _StreakCard extends ConsumerWidget {
             height: 76,
             child: Stack(
               children: [
-                // Minh họa Trâu Đỏ + mặt trời vàng + vân mây bên phải (ảnh mẫu #2)
+                // Minh họa Trâu Đỏ + mặt trời vàng + vân mây cam sắc nét 4x (không viền lồng)
                 Positioned(
                   right: 0,
                   top: 0,
@@ -719,10 +748,11 @@ class _StreakCard extends ConsumerWidget {
                     height: 76,
                     fit: BoxFit.contain,
                     alignment: Alignment.bottomRight,
+                    filterQuality: FilterQuality.high,
                     errorBuilder: (_, _, _) => const SizedBox.shrink(),
                   ),
                 ),
-                // Thanh nhấn cam đậm ở viền dưới bên trái (ảnh mẫu #2)
+                // Thanh nhấn cam đậm ở viền dưới bên trái
                 Positioned(
                   left: 14,
                   bottom: 0,
@@ -736,26 +766,14 @@ class _StreakCard extends ConsumerWidget {
                   ),
                 ),
                 Padding(
-                  padding: const EdgeInsets.fromLTRB(12, 10, 108, 10),
+                  padding: const EdgeInsets.fromLTRB(12, 10, 96, 10),
                   child: Row(
                     children: [
-                      Image.asset(
-                        'assets/images/streak_card_flame_circle.png',
+                      const SizedBox(
                         width: 48,
                         height: 48,
-                        fit: BoxFit.contain,
-                        errorBuilder: (_, _, _) => Container(
-                          width: 44,
-                          height: 44,
-                          decoration: const BoxDecoration(
-                            color: Color(0xFFE08834),
-                            shape: BoxShape.circle,
-                          ),
-                          child: const Icon(
-                            Icons.local_fire_department_rounded,
-                            size: 24,
-                            color: Colors.white,
-                          ),
+                        child: CustomPaint(
+                          painter: _VectorFlameCirclePainter(),
                         ),
                       ),
                       const SizedBox(width: 12),
@@ -1044,3 +1062,149 @@ class _MenuTile extends StatelessWidget {
     );
   }
 }
+
+/// Vẽ Vector vòng tròn kép Avatar + vân mây vàng cổ điển ở góc trái dưới
+/// (không bị viền hộp vuông hay vỡ hạt ở mọi độ phân giải).
+class _VectorAvatarMedallionPainter extends CustomPainter {
+  const _VectorAvatarMedallionPainter();
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    final center = Offset(size.width * 0.52, size.height * 0.48);
+    const outerR = 27.5;
+
+    // 1. Vòng ngoài xanh rêu đậm + viền vàng mảnh
+    canvas.drawCircle(
+      center,
+      outerR + 1.5,
+      Paint()..color = const Color(0xFFE2BE78),
+    );
+    canvas.drawCircle(
+      center,
+      outerR,
+      Paint()..color = const Color(0xFF1B4535),
+    );
+
+    // 2. Vòng giữa đỏ chu sa
+    canvas.drawCircle(
+      center,
+      outerR - 3.2,
+      Paint()..color = const Color(0xFFB82B20),
+    );
+    canvas.drawCircle(
+      center,
+      outerR - 6.0,
+      Paint()
+        ..color = const Color(0xFFD99A4E)
+        ..style = PaintingStyle.stroke
+        ..strokeWidth = 0.9,
+    );
+
+    // 3. Lõi trong nâu rượu vang đậm
+    canvas.drawCircle(
+      center,
+      outerR - 6.6,
+      Paint()..color = const Color(0xFF381713),
+    );
+
+    // 4. Vân mây vàng kem góc dưới-trái gộp thành một khối mây thống nhất (PathOperation.union)
+    final cloudFill = Paint()
+      ..shader = const LinearGradient(
+        begin: Alignment.topCenter,
+        end: Alignment.bottomCenter,
+        colors: [Color(0xFFFFFBF0), Color(0xFFF3CF85)],
+      ).createShader(Rect.fromLTWH(0, size.height * 0.55, 38, 26));
+    final cloudStroke = Paint()
+      ..color = const Color(0xFFC9933B)
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = 1.2
+      ..strokeCap = StrokeCap.round
+      ..strokeJoin = StrokeJoin.round;
+
+    const puffs = <(double, double, double)>[
+      (8, 52, 6.2),
+      (16, 48.5, 7.8),
+      (24.5, 52.5, 6.8),
+      (32, 55.5, 4.8),
+      (13, 55.5, 5.5),
+    ];
+    Path cloudUnion = Path();
+    for (final (cx, cy, r) in puffs) {
+      final p = Path()
+        ..addOval(Rect.fromCircle(center: Offset(cx, cy), radius: r));
+      cloudUnion = Path.combine(PathOperation.union, cloudUnion, p);
+    }
+    canvas.drawPath(cloudUnion, cloudFill);
+    canvas.drawPath(cloudUnion, cloudStroke);
+
+    // Nét xoắn ốc vân mây cổ điển bên trong đám mây
+    final spiral = Path()
+      ..moveTo(12, 53)
+      ..cubicTo(14, 49, 19, 49, 20, 52.5)
+      ..cubicTo(20.5, 54.5, 17.5, 55.5, 16, 54);
+    canvas.drawPath(spiral, cloudStroke);
+  }
+
+  @override
+  bool shouldRepaint(covariant CustomPainter oldDelegate) => false;
+}
+
+/// Vẽ Vector huy hiệu tròn cam + ngọn lửa 2 lớp sắc nét cho thẻ Chuỗi ngày học.
+class _VectorFlameCirclePainter extends CustomPainter {
+  const _VectorFlameCirclePainter();
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    final center = Offset(size.width / 2, size.height / 2);
+    final r = size.width / 2;
+
+    final bgPaint = Paint()
+      ..shader = const LinearGradient(
+        begin: Alignment.topLeft,
+        end: Alignment.bottomRight,
+        colors: [Color(0xFFEB9942), Color(0xFFD67121)],
+      ).createShader(Rect.fromCircle(center: center, radius: r));
+    canvas.drawCircle(center, r, bgPaint);
+    canvas.drawCircle(
+      center,
+      r - 0.8,
+      Paint()
+        ..color = const Color(0xFFF7C98B)
+        ..style = PaintingStyle.stroke
+        ..strokeWidth = 1.2,
+    );
+
+    // Ngọn lửa ngoài (đỏ nâu viền + trắng kem bên trong)
+    final w = size.width;
+    final h = size.height;
+    final outer = Path()
+      ..moveTo(w * 0.50, h * 0.16)
+      ..cubicTo(w * 0.65, h * 0.30, w * 0.78, h * 0.48, w * 0.72, h * 0.68)
+      ..cubicTo(w * 0.68, h * 0.80, w * 0.58, h * 0.84, w * 0.50, h * 0.84)
+      ..cubicTo(w * 0.42, h * 0.84, w * 0.32, h * 0.80, w * 0.28, h * 0.68)
+      ..cubicTo(w * 0.22, h * 0.48, w * 0.36, h * 0.32, w * 0.50, h * 0.16)
+      ..close();
+    canvas.drawPath(outer, Paint()..color = const Color(0xFFFFF8EB));
+    canvas.drawPath(
+      outer,
+      Paint()
+        ..color = const Color(0xFF9E2B15)
+        ..style = PaintingStyle.stroke
+        ..strokeWidth = 1.8
+        ..strokeJoin = StrokeJoin.round,
+    );
+
+    // Lõi lửa cam đỏ bên trong
+    final inner = Path()
+      ..moveTo(w * 0.50, h * 0.42)
+      ..cubicTo(w * 0.59, h * 0.52, w * 0.63, h * 0.64, w * 0.58, h * 0.76)
+      ..cubicTo(w * 0.55, h * 0.82, w * 0.45, h * 0.82, w * 0.42, h * 0.76)
+      ..cubicTo(w * 0.37, h * 0.64, w * 0.41, h * 0.52, w * 0.50, h * 0.42)
+      ..close();
+    canvas.drawPath(inner, Paint()..color = const Color(0xFFD9581A));
+  }
+
+  @override
+  bool shouldRepaint(covariant CustomPainter oldDelegate) => false;
+}
+

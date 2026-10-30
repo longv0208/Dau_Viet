@@ -96,6 +96,8 @@ export function ChapterForm({
       endYear,
       periodLabel: String(values.get("periodLabel")).trim(),
       themeKey: String(values.get("themeKey")).trim(),
+      coverImageKey:
+        String(values.get("coverImageKey")).trim() || undefined,
       nodeType,
       parentId: resolvedParentId,
     });
@@ -260,6 +262,23 @@ export function ChapterForm({
               defaultValue={data?.periodLabel ?? ""}
             />
           </div>
+          {nodeType === "PERIOD" && (
+            <div>
+              <Label htmlFor="chapter-cover-image">Khóa ảnh bìa (tùy chọn)</Label>
+              <Input
+                id="chapter-cover-image"
+                name="coverImageKey"
+                maxLength={255}
+                placeholder="periods/LY_DYNASTY/cover.jpg"
+                defaultValue={data?.coverImageKey ?? ""}
+              />
+              <p className="mt-1 text-xs text-ink-muted">
+                Dạng <code>periods/&lt;code&gt;/&lt;file&gt;</code>. Mobile sẽ
+                resolve qua <code>AssetResolver.resolvePeriodCover</code> —
+                bỏ trống để dùng ảnh mặc định theo <code>code</code>.
+              </p>
+            </div>
+          )}
           {error && (
             <p role="alert" className="text-sm text-error">
               {error}

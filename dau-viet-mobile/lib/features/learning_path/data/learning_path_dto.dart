@@ -585,6 +585,11 @@ class LearningPathChapterDto {
   final String? periodLabel;
   final int sortOrder;
   final String? themeKey;
+
+  /// Khóa ảnh bìa hiển thị trên thẻ thời kỳ (do admin cấu hình trong CMS).
+  /// Dạng `periods/<code>/<file>`; resolve sang asset bundle qua
+  /// `AssetResolver.resolvePeriodCover`.
+  final String? coverImageKey;
   final List<LearningPathEventNodeDto> events;
 
   const LearningPathChapterDto({
@@ -599,6 +604,7 @@ class LearningPathChapterDto {
     this.periodLabel,
     required this.sortOrder,
     this.themeKey,
+    this.coverImageKey,
     this.events = const [],
   });
 
@@ -630,6 +636,7 @@ class LearningPathChapterDto {
       periodLabel: json['periodLabel'] as String?,
       sortOrder: (json['sortOrder'] as num?)?.toInt() ?? 0,
       themeKey: json['themeKey'] as String?,
+      coverImageKey: json['coverImageKey'] as String?,
       events: events,
     );
   }
@@ -646,9 +653,11 @@ class LearningPathChapterDto {
     if (periodLabel != null) 'periodLabel': periodLabel,
     'sortOrder': sortOrder,
     if (themeKey != null) 'themeKey': themeKey,
+    if (coverImageKey != null) 'coverImageKey': coverImageKey,
     'events': events.map((e) => e.toJson()).toList(),
   };
 }
+
 
 typedef PathChapterDto = LearningPathChapterDto;
 

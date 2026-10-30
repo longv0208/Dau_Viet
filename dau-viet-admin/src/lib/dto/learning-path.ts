@@ -24,6 +24,8 @@ export interface ChapterInput {
   endYear: number;
   periodLabel: string;
   themeKey: string;
+  /** Khóa ảnh bìa tùy chọn, dạng `periods/<code>/<file>` (PERIOD). */
+  coverImageKey?: string | null;
   parentId?: string | null;
   nodeType?: PathNodeType;
 }
