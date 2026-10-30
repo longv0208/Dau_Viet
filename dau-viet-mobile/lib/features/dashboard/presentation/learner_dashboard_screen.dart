@@ -3,12 +3,9 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import '../../../core/theme/dau_viet_colors.dart';
 import '../../../core/theme/dau_viet_typography.dart';
-import '../../../core/widgets/chapter_number_badge.dart';
 import '../../../core/widgets/dong_son_button.dart';
 import '../../../core/widgets/hero_paper_banner.dart';
-import '../../../core/widgets/kabi_mascot_widget.dart';
 import '../../../core/widgets/main_bottom_nav.dart';
-import '../../../core/widgets/mascot_slot.dart';
 import '../../../core/widgets/section_divider.dart';
 import '../../../core/widgets/section_eyebrow.dart';
 import '../../../core/widgets/stamp_seal_badge.dart';
@@ -20,7 +17,6 @@ import '../../learning/data/learning_providers.dart';
 import '../../learning_path/data/learning_path_dto.dart';
 import '../../learning_path/data/learning_path_providers.dart';
 import '../../rewards/data/reward_providers.dart';
-import '../../streak/data/streak_dto.dart';
 import '../../streak/data/streak_providers.dart';
 
 /// Màn hình M-03: Trang Chủ / Bàn Học Tập Người Học (Learner Dashboard & Homepage)
@@ -60,54 +56,93 @@ class _LearnerDashboardScreenState
             ],
           ),
         ),
-        child: SafeArea(
-          child: Column(
-            children: [
-              // 1. Top Bar: Logo Dấu Việt, Chuông thông báo & Avatar Chú Rùa
-              _buildTopBar(),
-
-              // 2. Nội dung cuộn chính của Trang Chủ
-              Expanded(
-                child: SingleChildScrollView(
-                  physics: const BouncingScrollPhysics(),
-                  padding: const EdgeInsets.symmetric(
-                    horizontal: 18,
-                    vertical: 10,
-                  ),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      // Lời chào & Chỉ số Năng lượng / Chuỗi ngày
-                      _buildGreetingAndStatsRow(displayName),
-                      const SizedBox(height: 12),
-
-                      // STREAK-01: strip 7 ngày gần nhất — dữ liệu thật từ
-                      // GET /me/streak/calendar; 3 trạng thái phân biệt:
-                      // đã học / hôm nay / bỏ lỡ. Bấm → màn chi tiết.
-                      const _StreakWeekStrip(),
-                      const SizedBox(height: 12),
-
-                      // 3. Hero Banner Card: "Khám phá lịch sử Việt Nam"
-                      _buildHeroBanner(),
-                      const SizedBox(height: 12),
-
-                      // 4. Khối: "Bài học hôm nay"
-                      _buildTodayLessonSection(),
-                      const SizedBox(height: 12),
-
-                      // 5. Khối: "Hành trình của bạn" (4 thẻ chức năng nhanh)
-                      _buildYourJourneySection(),
-                      const SizedBox(height: 12),
-
-                      // 6. Khối: "Nhiệm vụ hôm nay" & "Sự kiện nổi bật"
-                      _buildQuestsAndFeaturedRow(),
-                      const SizedBox(height: 24),
-                    ],
+        child: Stack(
+          children: [
+            // Nền chìm: tranh non nước màu nước phía sau top region,
+            // tràn mép hero card rồi phai dần vào nền giấy (mockup M-03 v3).
+            Positioned(
+              top: 0,
+              left: 0,
+              right: 0,
+              height: 460,
+              child: IgnorePointer(
+                child: Image.asset(
+                  'assets/images/landscape_hero_bg.jpg',
+                  fit: BoxFit.cover,
+                  alignment: Alignment.topCenter,
+                  errorBuilder: (_, _, _) => const SizedBox.shrink(),
+                ),
+              ),
+            ),
+            // Veil giấy mờ để nền chìm vào parchment — đậm dần từ giữa
+            // xuống đáy vùng tranh, để section dưới đọc rõ trên nền giấy.
+            Positioned(
+              top: 0,
+              left: 0,
+              right: 0,
+              height: 520,
+              child: IgnorePointer(
+                child: DecoratedBox(
+                  decoration: BoxDecoration(
+                    gradient: LinearGradient(
+                      begin: Alignment.topCenter,
+                      end: Alignment.bottomCenter,
+                      colors: [
+                        DauVietColors.paperCard.withValues(alpha: 0.52),
+                        DauVietColors.paperCard.withValues(alpha: 0.62),
+                        DauVietColors.paperBackground.withValues(alpha: 0.90),
+                        DauVietColors.paperBackground,
+                      ],
+                      stops: const [0.0, 0.40, 0.80, 1.0],
+                    ),
                   ),
                 ),
               ),
-            ],
-          ),
+            ),
+
+            SafeArea(
+              child: Column(
+                children: [
+                  // 1. Top Bar: Logo Dấu Việt, Chuông thông báo & Avatar Chú Rùa
+                  _buildTopBar(),
+
+                  // 2. Nội dung cuộn chính của Trang Chủ
+                  Expanded(
+                    child: SingleChildScrollView(
+                      physics: const BouncingScrollPhysics(),
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 18,
+                        vertical: 10,
+                      ),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          // Lời chào & Chỉ số Năng lượng / Chuỗi ngày
+                          _buildGreetingAndStatsRow(displayName),
+                          const SizedBox(height: 12),
+                          // 3. Hero Banner Card: "Khám phá lịch sử Việt Nam"
+                          _buildHeroBanner(),
+                          const SizedBox(height: 12),
+
+                          // 4. Khối: "Bài học hôm nay"
+                          _buildTodayLessonSection(),
+                          const SizedBox(height: 12),
+
+                          // 5. Khối: "Hành trình của bạn" (4 thẻ chức năng nhanh)
+                          _buildYourJourneySection(),
+                          const SizedBox(height: 12),
+
+                          // 6. Khối: "Nhiệm vụ hôm nay" & "Sự kiện nổi bật"
+                          _buildQuestsAndFeaturedRow(),
+                          const SizedBox(height: 24),
+                        ],
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ],
         ),
       ),
       bottomNavigationBar: const MainBottomNav(),
@@ -128,11 +163,13 @@ class _LearnerDashboardScreenState
   Widget _buildTopBar() {
     return Container(
       padding: const EdgeInsets.fromLTRB(18, 8, 18, 8),
+      // Nền trong suốt để tranh non nước chìm lộ phía sau (mockup M-03 v3);
+      // giữ viền dưới mảnh phân tách.
       decoration: BoxDecoration(
-        color: DauVietColors.paperCard.withValues(alpha: 0.95),
+        color: DauVietColors.paperCard.withValues(alpha: 0.35),
         border: Border(
           bottom: BorderSide(
-            color: DauVietColors.outlineVariant.withValues(alpha: 0.6),
+            color: DauVietColors.outlineVariant.withValues(alpha: 0.45),
             width: 1,
           ),
         ),
@@ -140,50 +177,71 @@ class _LearnerDashboardScreenState
       child: Row(
         mainAxisAlignment: MainAxisAlignment.spaceBetween,
         children: [
-          // Logo Dấu Việt chính thức từ logo2.svg (tỷ lệ chuẩn, tách nền trong suốt)
-          Stack(
-            alignment: Alignment.centerLeft,
+          // Logo Dấu Việt + khẩu hiệu brand (theo mockup M-03 v3)
+          Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            mainAxisSize: MainAxisSize.min,
             children: [
-              // Giữ text 'Dấu Việt' cho accessibility & widget test runner
-              Opacity(
-                opacity: 0.0,
-                child: Text(
-                  'Dấu Việt',
-                  style: DauVietTypography.labelSmall.copyWith(fontSize: 1),
-                ),
-              ),
-              Image.asset(
-                'assets/images/app_logo.png',
-                height: 38,
-                fit: BoxFit.contain,
-                errorBuilder: (_, _, _) => Row(
-                  children: [
-                    Text(
+              Stack(
+                alignment: Alignment.centerLeft,
+                children: [
+                  // Giữ text 'Dấu Việt' cho accessibility & widget test runner
+                  Opacity(
+                    opacity: 0.0,
+                    child: Text(
                       'Dấu Việt',
-                      style: DauVietTypography.headlineMedium.copyWith(
-                        fontSize: 22,
-                        fontWeight: FontWeight.w800,
-                        color: DauVietColors.heritageGreen,
-                      ),
+                      style: DauVietTypography.labelSmall.copyWith(fontSize: 1),
                     ),
-                    const SizedBox(width: 6),
-                    Container(
-                      width: 22,
-                      height: 22,
-                      decoration: BoxDecoration(
-                        color: DauVietColors.cinnabarRed,
-                        borderRadius: BorderRadius.circular(4),
-                      ),
-                      alignment: Alignment.center,
-                      child: Text(
-                        '印',
-                        style: DauVietTypography.labelSmall.copyWith(
-                          color: Colors.white,
-                          fontSize: 12,
+                  ),
+                  Image.asset(
+                    'assets/images/app_logo.png',
+                    height: 34,
+                    fit: BoxFit.contain,
+                    errorBuilder: (_, _, _) => Row(
+                      children: [
+                        Text(
+                          'Dấu Việt',
+                          style: DauVietTypography.headlineMedium.copyWith(
+                            fontSize: 22,
+                            fontWeight: FontWeight.w800,
+                            color: DauVietColors.heritageGreen,
+                          ),
                         ),
-                      ),
+                        const SizedBox(width: 6),
+                        Container(
+                          width: 22,
+                          height: 22,
+                          decoration: BoxDecoration(
+                            color: DauVietColors.cinnabarRed,
+                            borderRadius: BorderRadius.circular(4),
+                          ),
+                          alignment: Alignment.center,
+                          child: Text(
+                            '印',
+                            style: DauVietTypography.labelSmall.copyWith(
+                              color: Colors.white,
+                              fontSize: 12,
+                            ),
+                          ),
+                        ),
+                      ],
                     ),
-                  ],
+                  ),
+                ],
+              ),
+              const SizedBox(height: 2),
+              Padding(
+                padding: const EdgeInsets.only(left: 2),
+                child: Text(
+                  '— HỌC SỬ VIỆT · GÌN GIỮ HỒN VIỆT —',
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: DauVietTypography.labelSmall.copyWith(
+                    fontSize: 7.5,
+                    letterSpacing: 1.1,
+                    fontWeight: FontWeight.w700,
+                    color: DauVietColors.inkMuted,
+                  ),
                 ),
               ),
             ],
@@ -288,85 +346,82 @@ class _LearnerDashboardScreenState
   // 2. GREETING & STATS ROW: XIN CHÀO, NĂNG LƯỢNG & CHUỖI NGÀY (real data)
   // ===========================================================================
   Widget _buildGreetingAndStatsRow(String displayName) {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
+    return Row(
+      mainAxisAlignment: MainAxisAlignment.spaceBetween,
       children: [
-        const SectionEyebrow('BÀN HỌC TẬP'),
-        const SizedBox(height: 8),
-        Row(
-          mainAxisAlignment: MainAxisAlignment.spaceBetween,
-          children: [
-            // Lời chào kèm MascotSlot.icon & icon mầm cây xanh
-            Expanded(
-              child: Row(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  const MascotSlot.icon(
-                    mood: KabiMood.guiding,
-                    size: 38,
+        // Lời chào kèm icon mầm cây xanh (theo mockup M-03)
+        Expanded(
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Container(
+                padding: const EdgeInsets.all(6),
+                decoration: BoxDecoration(
+                  color: DauVietColors.heritageGreenSurface,
+                  shape: BoxShape.circle,
+                  border: Border.all(
+                    color: DauVietColors.natureGreen.withValues(alpha: 0.4),
+                    width: 1,
                   ),
-                  const SizedBox(width: 8),
-                  Container(
-                    padding: const EdgeInsets.all(5),
-                    decoration: BoxDecoration(
-                      color: DauVietColors.heritageGreenSurface,
-                      shape: BoxShape.circle,
-                      border: Border.all(
-                        color: DauVietColors.natureGreen.withValues(alpha: 0.4),
-                        width: 1,
+                ),
+                child: const Icon(
+                  Icons.eco_rounded,
+                  size: 18,
+                  color: DauVietColors.heritageGreenLight,
+                ),
+              ),
+              const SizedBox(width: 8),
+              Flexible(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Text(
+                      'Xin chào,',
+                      style: DauVietTypography.bodySmall.copyWith(
+                        color: DauVietColors.inkSecondary,
+                        fontSize: 11.5,
+                        fontWeight: FontWeight.w600,
+                        shadows: [
+                          const Shadow(
+                            color: DauVietColors.paperCard,
+                            blurRadius: 6,
+                          ),
+                        ],
                       ),
                     ),
-                    child: const Icon(
-                      Icons.eco_rounded,
-                      size: 16,
-                      color: DauVietColors.heritageGreenLight,
-                    ),
-                  ),
-                  const SizedBox(width: 8),
-                  Flexible(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        Text(
-                          'Xin chào,',
-                          style: DauVietTypography.bodySmall.copyWith(
-                            color: DauVietColors.inkMuted,
-                            fontSize: 11.5,
+                    Text(
+                      '$displayName!',
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: DauVietTypography.labelMedium.copyWith(
+                        color: DauVietColors.inkHeading,
+                        fontWeight: FontWeight.w800,
+                        fontSize: 14.5,
+                        shadows: [
+                          const Shadow(
+                            color: DauVietColors.paperCard,
+                            blurRadius: 6,
                           ),
-                        ),
-                        Text(
-                          displayName,
-                          maxLines: 1,
-                          overflow: TextOverflow.ellipsis,
-                          style: DauVietTypography.labelMedium.copyWith(
-                            color: DauVietColors.inkHeading,
-                            fontWeight: FontWeight.w800,
-                            fontSize: 14.5,
-                          ),
-                        ),
-                      ],
+                        ],
+                      ),
                     ),
-                  ),
-                ],
+                  ],
+                ),
               ),
-            ),
-            const SizedBox(width: 8),
+            ],
+          ),
+        ),
+        const SizedBox(width: 8),
 
-            // Cụm 2 status pills: ⚡ Năng lượng (energyProvider) & 🔥 Chuỗi
-            // ngày (streakProvider) — số thật từ server, không hard-code.
-            Row(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                // Pill 1: ⚡ Năng lượng — balance thật GET /me/energy.
-                _EnergyMiniPill(),
-                const SizedBox(width: 6),
-
-                // Pill 2: 🔥 Chuỗi ngày — currentStreak thật GET /me/streak;
-                // bấm → màn chi tiết Ngọn Lửa Hào Khí (/streak).
-                _StreakMiniPill(),
-              ],
-            ),
+        // Cụm 2 status pills: ⚡ Năng lượng & ❤️ Chuỗi ngày — số + nhãn
+        // thật từ server, không hard-code.
+        const Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            _EnergyMiniPill(),
+            SizedBox(width: 6),
+            _StreakMiniPill(),
           ],
         ),
       ],
@@ -437,29 +492,21 @@ class _LearnerDashboardScreenState
               children: [
                 Builder(
                   builder: (context) {
-                    final bool hasInProgress = progressAsync.maybeWhen(
-                      data: (p) => p.inProgress.isNotEmpty,
-                      orElse: () => false,
-                    );
                     return Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
                         Text(
-                          hasInProgress
-                              ? 'Bài học đang học dở'
-                              : 'Bắt đầu hành trình',
+                          'Khám phá\nlịch sử Việt Nam',
                           style: DauVietTypography.headlineMedium.copyWith(
                             fontSize: 19,
                             fontWeight: FontWeight.w800,
-                            color: DauVietColors.inkHeading,
-                            height: 1.25,
+                            color: DauVietColors.chapterGreen,
+                            height: 1.2,
                           ),
                         ),
                         const SizedBox(height: 6),
                         Text(
-                          hasInProgress
-                              ? 'Tiếp tục ngay tại hoạt động\nđã dừng lại trước đó'
-                              : 'Khám phá hào khí sử Việt\nqua từng dấu mốc lịch sử',
+                          'Những câu chuyện hào hùng\nđang chờ bạn khám phá!',
                           style: DauVietTypography.bodyMedium.copyWith(
                             fontSize: 12,
                             color: DauVietColors.inkSecondary,
@@ -501,12 +548,12 @@ class _LearnerDashboardScreenState
                         }
                         return _buildHeroCtaButton(
                           label: 'KHÁM PHÁ NGAY ›',
-                          onTap: () => context.go('/journey'),
+                          onTap: () => context.go('/map'),
                         );
                       },
                       orElse: () => _buildHeroCtaButton(
                         label: 'KHÁM PHÁ NGAY ›',
-                        onTap: () => context.go('/journey'),
+                        onTap: () => context.go('/map'),
                       ),
                     );
                   },
@@ -527,6 +574,7 @@ class _LearnerDashboardScreenState
       label: label,
       variant: DongSonButtonVariant.heritageGreen,
       height: 44,
+      width: 148,
       onPressed: onTap,
     );
   }
@@ -541,15 +589,15 @@ class _LearnerDashboardScreenState
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         // Tiêu đề khối với SectionDivider chuẩn v3 & Link "Xem tất cả →"
+        // Mockup: tiêu đề trái + link "Xem tất cả →" phải (không badge MỤC)
         SectionDivider(
-          eyebrow: 'MỤC 01',
           title: 'Bài học hôm nay',
           padding: const EdgeInsets.only(top: 6, bottom: 10),
           trailing: Semantics(
             button: true,
             label: 'Xem tất cả bài học',
             child: GestureDetector(
-              onTap: () => context.go('/journey'),
+              onTap: () => context.go('/map'),
               child: Padding(
                 padding: const EdgeInsets.symmetric(vertical: 8, horizontal: 4),
                 child: Text(
@@ -619,14 +667,14 @@ class _LearnerDashboardScreenState
                 subtitle: 'Đang đồng bộ dữ liệu',
                 progressFraction: 0.0,
                 progressText: '—',
-                onTap: () => context.go('/journey'),
+                onTap: () => context.go('/map'),
               ),
               error: (_, _) => _buildTodayLessonCard(
                 title: 'Khám phá Bản đồ Dấu Ấn',
                 subtitle: 'Bắt đầu hành trình lịch sử',
                 progressFraction: 0.0,
                 progressText: 'Chưa bắt đầu',
-                onTap: () => context.go('/journey'),
+                onTap: () => context.go('/map'),
               ),
               data: (path) {
                 final target = _resolveJourneyTarget(path);
@@ -680,8 +728,8 @@ class _LearnerDashboardScreenState
                     onTap: () => context.go(
                       target.period != null &&
                               target.period!.code.isNotEmpty
-                          ? '/journey/${target.period!.code}'
-                          : '/journey',
+                          ? '/map?period=${target.period!.code}'
+                          : '/map',
                     ),
                   );
                 }
@@ -690,7 +738,7 @@ class _LearnerDashboardScreenState
                   subtitle: 'Bắt đầu hành trình lịch sử',
                   progressFraction: 0.0,
                   progressText: 'Chưa bắt đầu',
-                  onTap: () => context.go('/journey'),
+                  onTap: () => context.go('/map'),
                 );
               },
             );
@@ -814,8 +862,12 @@ class _LearnerDashboardScreenState
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
+                // Eyebrow dịu — chip viền mảnh jade, bỏ pixel-shadow đỏ
+                // đậm để hòa với thẻ (mockup dùng nhãn phụ trợ nhẹ).
                 const SectionEyebrow(
                   'TIẾP TỤC HÀNH TRÌNH',
+                  color: DauVietColors.jade,
+                  showShadow: false,
                   padding: EdgeInsets.symmetric(horizontal: 8, vertical: 2),
                 ),
                 const SizedBox(height: 6),
@@ -891,14 +943,13 @@ class _LearnerDashboardScreenState
       children: [
         // Tiêu đề & Link "Xem hành trình →"
         SectionDivider(
-          eyebrow: 'MỤC 02',
           title: 'Hành trình của bạn',
           padding: const EdgeInsets.only(top: 6, bottom: 10),
           trailing: Semantics(
             button: true,
             label: 'Xem hành trình',
             child: GestureDetector(
-              onTap: () => context.go('/journey'),
+              onTap: () => context.go('/map'),
               child: Padding(
                 padding: const EdgeInsets.symmetric(vertical: 8, horizontal: 4),
                 child: Text(
@@ -914,47 +965,54 @@ class _LearnerDashboardScreenState
           ),
         ),
 
-        // 2×2 lưới chức năng bổ trợ — aspect 1.7 cho ô cao hơn, an toàn
-        // với font scale hệ thống (người dùng tăng cỡ chữ vẫn không tràn).
-        GridView.count(
-          crossAxisCount: 2,
-          crossAxisSpacing: 10,
-          mainAxisSpacing: 10,
-          childAspectRatio: 1.7,
-          shrinkWrap: true,
-          physics: const NeverScrollableScrollPhysics(),
+        // 4 thẻ chức năng vuông trên một hàng (theo mockup M-03 v3):
+        // Bài học / Ôn tập / Thành tích / Thư viện — icon cam-đất ấm.
+        Row(
+          crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            _buildJourneyCard(
-              icon: Icons.map_rounded,
-              iconColor: DauVietColors.heritageGreenLight,
-              bgIconColor: DauVietColors.heritageGreenSurface,
-              title: 'Bản đồ Dấu Ấn',
-              subtitle: 'Lộ trình lịch sử',
-              onTap: () => context.go('/journey'),
+            Expanded(
+              child: _buildJourneyCard(
+                icon: Icons.menu_book_rounded,
+                iconColor: DauVietColors.imperialGoldDark,
+                bgIconColor: DauVietColors.imperialGoldLight,
+                title: 'Bài học',
+                subtitle: 'Khám phá\nlịch sử',
+                onTap: () => context.go('/map'),
+              ),
             ),
-            _buildJourneyCard(
-              icon: Icons.auto_stories_rounded,
-              iconColor: DauVietColors.woodBrown,
-              bgIconColor: DauVietColors.imperialGoldLight,
-              title: 'Sưu tập',
-              subtitle: 'Cổ vật & hồ sơ',
-              onTap: () => context.go('/collection'),
+            const SizedBox(width: 8),
+            Expanded(
+              child: _buildJourneyCard(
+                icon: Icons.psychology_rounded,
+                iconColor: DauVietColors.imperialGoldDark,
+                bgIconColor: DauVietColors.imperialGoldLight,
+                title: 'Ôn tập',
+                subtitle: 'Củng cố\nkiến thức',
+                // Chưa có route Ôn tập riêng → dẫn Sưu tập tư liệu.
+                onTap: () => context.go('/collection'),
+              ),
             ),
-            _buildJourneyCard(
-              icon: Icons.account_balance_rounded,
-              iconColor: DauVietColors.imperialGoldDark,
-              bgIconColor: DauVietColors.paperCardHi,
-              title: 'Đảo Di Sản',
-              subtitle: 'Không gian của bạn',
-              onTap: () => context.go('/island'),
+            const SizedBox(width: 8),
+            Expanded(
+              child: _buildJourneyCard(
+                icon: Icons.emoji_events_rounded,
+                iconColor: DauVietColors.imperialGoldDark,
+                bgIconColor: DauVietColors.imperialGoldLight,
+                title: 'Thành tích',
+                subtitle: 'Theo dõi\ntiến bộ',
+                onTap: () => context.go('/profile'),
+              ),
             ),
-            _buildJourneyCard(
-              icon: Icons.person_rounded,
-              iconColor: DauVietColors.jadeDark,
-              bgIconColor: DauVietColors.jade.withValues(alpha: 0.14),
-              title: 'Hồ sơ',
-              subtitle: 'Thành tích & XP',
-              onTap: () => context.go('/profile'),
+            const SizedBox(width: 8),
+            Expanded(
+              child: _buildJourneyCard(
+                icon: Icons.auto_stories_rounded,
+                iconColor: DauVietColors.imperialGoldDark,
+                bgIconColor: DauVietColors.imperialGoldLight,
+                title: 'Thư viện',
+                subtitle: 'Tài liệu\nmở rộng',
+                onTap: () => context.go('/collection'),
+              ),
             ),
           ],
         ),
@@ -972,7 +1030,7 @@ class _LearnerDashboardScreenState
   }) {
     return TactileCard(
       onTap: onTap,
-      padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 8),
+      padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 10),
       borderRadius: 16,
       backgroundColor: DauVietColors.paperCard,
       borderColor: DauVietColors.outlineVariant,
@@ -981,12 +1039,12 @@ class _LearnerDashboardScreenState
         mainAxisAlignment: MainAxisAlignment.center,
         children: [
           Container(
-            padding: const EdgeInsets.all(6),
+            padding: const EdgeInsets.all(7),
             decoration: BoxDecoration(
               color: bgIconColor,
               shape: BoxShape.circle,
             ),
-            child: Icon(icon, color: iconColor, size: 19),
+            child: Icon(icon, color: iconColor, size: 20),
           ),
           const SizedBox(height: 6),
           Text(
@@ -995,21 +1053,21 @@ class _LearnerDashboardScreenState
             maxLines: 1,
             overflow: TextOverflow.ellipsis,
             style: DauVietTypography.labelMedium.copyWith(
-              fontSize: 12,
+              fontSize: 11.5,
               fontWeight: FontWeight.w800,
               height: 1.15,
               color: DauVietColors.inkHeading,
             ),
           ),
-          const SizedBox(height: 2),
+          const SizedBox(height: 3),
           Text(
             subtitle,
             textAlign: TextAlign.center,
-            maxLines: 1,
+            maxLines: 2,
             overflow: TextOverflow.ellipsis,
             style: DauVietTypography.bodySmall.copyWith(
-              fontSize: 10.5,
-              height: 1.15,
+              fontSize: 9.5,
+              height: 1.2,
               color: DauVietColors.inkMuted,
             ),
           ),
@@ -1022,15 +1080,15 @@ class _LearnerDashboardScreenState
   // 6. KHỐI SONG SONG 2 CỘT: "NHIỆM VỤ HÔM NAY" & "SỰ KIỆN NỔI BẬT" (BẠCH ĐẰNG 938)
   // ===========================================================================
   Widget _buildQuestsAndFeaturedRow() {
-    return Column(
+    // Mockup M-03 v3: hai cột song song — Nhiệm vụ hôm nay (trái) &
+    // Sự kiện nổi bật Bạch Đằng 938 (phải). Cột nhiệm vụ rộng hơn để
+    // đủ chỗ cho checklist; cột sự kiện là thẻ minh họa đứng.
+    return Row(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        // 1. Nhiệm vụ hôm nay (To-do list)
-        _buildQuestCard(),
-        const SizedBox(height: 14),
-
-        // 2. Thẻ sự kiện nổi bật (Bạch Đằng 938)
-        _buildFeaturedEventCard(),
+        Expanded(flex: 54, child: _buildQuestCard()),
+        const SizedBox(width: 10),
+        Expanded(flex: 46, child: _buildFeaturedEventCard()),
       ],
     );
   }
@@ -1052,71 +1110,89 @@ class _LearnerDashboardScreenState
       orElse: () => 0,
     );
 
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        SectionDivider(
-          eyebrow: 'MỤC 03 · NHIỆM VỤ HÔM NAY',
-          title: 'Mục tiêu hôm nay',
-          padding: const EdgeInsets.only(top: 6, bottom: 10),
-          trailing: Semantics(
-            button: true,
-            label: 'Xem tất cả mục tiêu',
-            child: GestureDetector(
-              onTap: () => context.push('/streak'),
-              child: Padding(
-                padding: const EdgeInsets.symmetric(vertical: 8, horizontal: 4),
+    return TactileCard(
+      usePixelShadow: false,
+      padding: const EdgeInsets.all(12),
+      borderRadius: 18,
+      backgroundColor: DauVietColors.paperCard,
+      borderColor: DauVietColors.outlineVariant,
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          // Header trong thẻ: icon mầm + tiêu đề; link "Xem tất cả →"
+          // dòng riêng canh phải (mockup) — tránh cắt tiêu đề.
+          Row(
+            children: [
+              const Icon(
+                Icons.eco_rounded,
+                size: 15,
+                color: DauVietColors.heritageGreenLight,
+              ),
+              const SizedBox(width: 5),
+              Expanded(
                 child: Text(
-                  'Xem tất cả →',
-                  style: DauVietTypography.labelSmall.copyWith(
-                    fontSize: 11.5,
-                    fontWeight: FontWeight.w600,
-                    color: DauVietColors.inkSecondary,
+                  'Nhiệm vụ hôm nay',
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: DauVietTypography.labelMedium.copyWith(
+                    fontSize: 12,
+                    fontWeight: FontWeight.w800,
+                    color: DauVietColors.inkHeading,
+                  ),
+                ),
+              ),
+            ],
+          ),
+          Align(
+            alignment: Alignment.centerRight,
+            child: Semantics(
+              button: true,
+              label: 'Xem tất cả mục tiêu',
+              child: GestureDetector(
+                onTap: () => context.push('/streak'),
+                child: Padding(
+                  padding: const EdgeInsets.symmetric(vertical: 3),
+                  child: Text(
+                    'Xem tất cả →',
+                    style: DauVietTypography.labelSmall.copyWith(
+                      fontSize: 9.5,
+                      fontWeight: FontWeight.w600,
+                      color: DauVietColors.inkMuted,
+                    ),
                   ),
                 ),
               ),
             ),
           ),
-        ),
-        TactileCard(
-          usePixelShadow: false,
-          padding: const EdgeInsets.all(16),
-          borderRadius: 20,
-          backgroundColor: DauVietColors.paperCard,
-          borderColor: DauVietColors.outlineVariant,
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              // Task 1: Hoàn thành bài học hôm nay
-              _buildQuestItem(
-                completed: completedLessonToday,
-                title: 'Hoàn thành bài học hôm nay',
-                onTap: () => context.go('/journey'),
-              ),
-              const SizedBox(height: 10),
+          const SizedBox(height: 2),
 
-              // Task 2: Duy trì ngọn lửa hào khí
-              _buildQuestItem(
-                completed: streakCount > 0,
-                title: streakCount > 0
-                    ? 'Đã thắp sáng chuỗi $streakCount ngày'
-                    : 'Thắp sáng chuỗi ngày học',
-                onTap: () => context.push('/streak'),
-              ),
-              const SizedBox(height: 10),
-
-              // Task 3: Thu thập cổ vật trong thư viện
-              _buildQuestItem(
-                completed: itemsCount > 0,
-                title: itemsCount > 0
-                    ? 'Đã sở hữu $itemsCount cổ vật'
-                    : 'Mở khóa cổ vật đầu tiên',
-                onTap: () => context.go('/collection'),
-              ),
-            ],
+          // Task 1: Hoàn thành bài học hôm nay
+          _buildQuestItem(
+            completed: completedLessonToday,
+            title: 'Hoàn thành bài học hôm nay',
+            reward: '+5',
+            onTap: () => context.go('/map'),
           ),
-        ),
-      ],
+          const SizedBox(height: 8),
+
+          // Task 2: Ôn tập câu hỏi — theo mockup (đếm bằng chuỗi ngày)
+          _buildQuestItem(
+            completed: streakCount > 0,
+            title: 'Ôn tập 3 câu hỏi',
+            reward: '+3',
+            onTap: () => context.push('/streak'),
+          ),
+          const SizedBox(height: 8),
+
+          // Task 3: Đọc tư liệu trong thư viện
+          _buildQuestItem(
+            completed: itemsCount > 0,
+            title: 'Đọc một tư liệu trong thư viện',
+            reward: '+2',
+            onTap: () => context.go('/collection'),
+          ),
+        ],
+      ),
     );
   }
 
@@ -1145,153 +1221,151 @@ class _LearnerDashboardScreenState
     final title = featuredMilestone?.title ?? 'Bạch Đằng 938';
     final summary =
         featuredMilestone?.description ??
-        'Bản hùng ca chấm dứt hơn 1000 năm Bắc thuộc';
+        'Bản hùng ca chấm dứt\nhơn 1000 năm Bắc thuộc';
 
     void openFeatured() {
       if (featuredEventId != null && featuredEventId.isNotEmpty) {
         context.go('/campaign/$featuredEventId');
       } else {
-        context.go('/journey');
+        context.go('/map');
       }
     }
 
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        const SectionDivider(
-          eyebrow: 'MỤC 04',
-          title: 'Sự kiện nổi bật',
-          padding: EdgeInsets.only(top: 6, bottom: 10),
-        ),
-        HeroPaperBanner(
-          height: 164,
-          padding: EdgeInsets.zero,
-          onTap: openFeatured,
-          child: Stack(
-            fit: StackFit.expand,
-            children: [
-              // Tranh Ngô Quyền đại phá quân Nam Hán trên sông Bạch Đằng
-              Positioned.fill(
-                child: Image.asset(
-                  'assets/images/bach_dang_938.jpg',
-                  fit: BoxFit.cover,
-                  alignment: Alignment.center,
-                  errorBuilder: (_, _, _) =>
-                      Container(color: DauVietColors.woodBrown),
+    // Thẻ minh họa đứng full-bleed (mockup M-03 v3): badge "Sự kiện nổi
+    // bật" ở góc trên, gradient mờ đáy, tiêu đề + nút "Khám phá ngay →".
+    return HeroPaperBanner(
+      height: 218,
+      padding: EdgeInsets.zero,
+      onTap: openFeatured,
+      child: Stack(
+        fit: StackFit.expand,
+        children: [
+          // Tranh Ngô Quyền đại phá quân Nam Hán trên sông Bạch Đằng
+          Positioned.fill(
+            child: Image.asset(
+              'assets/images/bach_dang_938.jpg',
+              fit: BoxFit.cover,
+              alignment: Alignment.center,
+              errorBuilder: (_, _, _) =>
+                  Container(color: DauVietColors.woodBrown),
+            ),
+          ),
+
+          // Gradient mờ từ dưới lên làm nổi text sáng
+          Positioned.fill(
+            child: DecoratedBox(
+              decoration: BoxDecoration(
+                gradient: LinearGradient(
+                  begin: Alignment.topCenter,
+                  end: Alignment.bottomCenter,
+                  colors: [
+                    DauVietColors.inkText.withValues(alpha: 0.05),
+                    DauVietColors.inkText.withValues(alpha: 0.55),
+                    DauVietColors.inkText.withValues(alpha: 0.92),
+                  ],
+                  stops: const [0.0, 0.45, 1.0],
                 ),
               ),
+            ),
+          ),
 
-              // Gradient mờ từ dưới lên làm nổi text sáng
-              Positioned.fill(
-                child: DecoratedBox(
-                  decoration: BoxDecoration(
-                    gradient: LinearGradient(
-                      begin: Alignment.topCenter,
-                      end: Alignment.bottomCenter,
-                      colors: [
-                        DauVietColors.inkText.withValues(alpha: 0.18),
-                        DauVietColors.inkText.withValues(alpha: 0.68),
-                        DauVietColors.inkText.withValues(alpha: 0.92),
-                      ],
-                      stops: const [0.0, 0.50, 1.0],
+          // Badge "Sự kiện nổi bật" góc trên trái — nền nâu sẫm (mockup)
+          Positioned(
+            top: 10,
+            left: 10,
+            child: Container(
+              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+              decoration: BoxDecoration(
+                color: DauVietColors.woodBrown,
+                borderRadius: BorderRadius.circular(8),
+                border: Border.all(
+                  color: DauVietColors.imperialGold.withValues(alpha: 0.5),
+                  width: 1,
+                ),
+              ),
+              child: Text(
+                'Sự kiện nổi bật',
+                style: DauVietTypography.labelSmall.copyWith(
+                  fontSize: 8.5,
+                  fontWeight: FontWeight.w800,
+                  letterSpacing: 0.4,
+                  color: DauVietColors.imperialGoldLight,
+                ),
+              ),
+            ),
+          ),
+
+          // Nội dung đáy: tiêu đề + tóm tắt + CTA
+          Positioned(
+            left: 12,
+            right: 12,
+            bottom: 12,
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Text(
+                  title,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: DauVietTypography.headlineSmall.copyWith(
+                    fontSize: 16,
+                    fontWeight: FontWeight.w900,
+                    color: DauVietColors.paperCard,
+                    height: 1.2,
+                  ),
+                ),
+                const SizedBox(height: 3),
+                Text(
+                  summary,
+                  maxLines: 2,
+                  overflow: TextOverflow.ellipsis,
+                  style: DauVietTypography.bodySmall.copyWith(
+                    fontSize: 10,
+                    color: DauVietColors.paperCard.withValues(alpha: 0.85),
+                    height: 1.3,
+                  ),
+                ),
+                const SizedBox(height: 8),
+
+                // Nút CTA đỏ-glossy: "Khám phá ngay →" (theo mockup)
+                GestureDetector(
+                  onTap: openFeatured,
+                  child: Container(
+                    width: double.infinity,
+                    padding: const EdgeInsets.symmetric(vertical: 9),
+                    decoration: BoxDecoration(
+                      color: DauVietColors.cinnabarRed,
+                      borderRadius: BorderRadius.circular(10),
+                      border: Border.all(
+                        color: DauVietColors.imperialGold,
+                        width: 1.2,
+                      ),
+                      boxShadow: DauVietColors.pixelShadowSm,
+                    ),
+                    alignment: Alignment.center,
+                    child: Text(
+                      'Khám phá ngay →',
+                      style: DauVietTypography.labelSmall.copyWith(
+                        fontSize: 11,
+                        fontWeight: FontWeight.w800,
+                        color: Colors.white,
+                      ),
                     ),
                   ),
                 ),
-              ),
-
-              // Nội dung chữ sự kiện
-              Padding(
-                padding: const EdgeInsets.all(16),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                  children: [
-                    const SectionEyebrow(
-                      'TIÊU ĐIỂM SỬ VIỆT',
-                      color: DauVietColors.imperialGoldLight,
-                      showShadow: false,
-                    ),
-                    Row(
-                      crossAxisAlignment: CrossAxisAlignment.end,
-                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                      children: [
-                        Expanded(
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            mainAxisSize: MainAxisSize.min,
-                            children: [
-                              Text(
-                                title,
-                                maxLines: 1,
-                                overflow: TextOverflow.ellipsis,
-                                style: DauVietTypography.headlineSmall.copyWith(
-                                  fontSize: 16,
-                                  fontWeight: FontWeight.w900,
-                                  color: DauVietColors.paperCard,
-                                  height: 1.2,
-                                ),
-                              ),
-                              const SizedBox(height: 3),
-                              Text(
-                                summary,
-                                maxLines: 1,
-                                overflow: TextOverflow.ellipsis,
-                                style: DauVietTypography.bodySmall.copyWith(
-                                  fontSize: 11.5,
-                                  color: DauVietColors.paperCard.withValues(
-                                    alpha: 0.85,
-                                  ),
-                                  height: 1.25,
-                                ),
-                              ),
-                            ],
-                          ),
-                        ),
-                        const SizedBox(width: 12),
-
-                        // Nút CTA: Xem chi tiết →
-                        GestureDetector(
-                          onTap: openFeatured,
-                          child: Container(
-                            padding: const EdgeInsets.symmetric(
-                              horizontal: 12,
-                              vertical: 8,
-                            ),
-                            decoration: BoxDecoration(
-                              color: DauVietColors.cinnabarRed,
-                              borderRadius: BorderRadius.circular(10),
-                              border: Border.all(
-                                color: DauVietColors.imperialGold,
-                                width: 1.2,
-                              ),
-                              boxShadow: DauVietColors.pixelShadowSm,
-                            ),
-                            alignment: Alignment.center,
-                            child: Text(
-                              'Xem chi tiết →',
-                              style: DauVietTypography.labelSmall.copyWith(
-                                fontSize: 11,
-                                fontWeight: FontWeight.w800,
-                                color: Colors.white,
-                              ),
-                            ),
-                          ),
-                        ),
-                      ],
-                    ),
-                  ],
-                ),
-              ),
-            ],
+              ],
+            ),
           ),
-        ),
-      ],
+        ],
+      ),
     );
   }
 
   Widget _buildQuestItem({
     required bool completed,
     required String title,
+    String? reward,
     VoidCallback? onTap,
   }) {
     return InkWell(
@@ -1302,11 +1376,11 @@ class _LearnerDashboardScreenState
         child: Row(
           children: [
             if (completed)
-              const StampSealBadge.success('✓', size: 22)
+              const StampSealBadge.success('✓', size: 20)
             else
               Container(
-                width: 22,
-                height: 22,
+                width: 20,
+                height: 20,
                 decoration: BoxDecoration(
                   shape: BoxShape.circle,
                   color: Colors.transparent,
@@ -1316,16 +1390,17 @@ class _LearnerDashboardScreenState
                   ),
                 ),
               ),
-            const SizedBox(width: 10),
+            const SizedBox(width: 8),
 
             // Tên nhiệm vụ
             Expanded(
               child: Text(
                 title,
-                maxLines: 1,
+                maxLines: 2,
                 overflow: TextOverflow.ellipsis,
                 style: DauVietTypography.bodySmall.copyWith(
-                  fontSize: 12,
+                  fontSize: 11,
+                  height: 1.25,
                   fontWeight: completed ? FontWeight.w700 : FontWeight.w500,
                   color: completed
                       ? DauVietColors.inkHeading
@@ -1333,6 +1408,23 @@ class _LearnerDashboardScreenState
                 ),
               ),
             ),
+
+            // Phần thưởng ⚡+N (theo mockup)
+            if (reward != null) ...[
+              const SizedBox(width: 4),
+              Text(
+                '⚡',
+                style: DauVietTypography.labelSmall.copyWith(fontSize: 10),
+              ),
+              Text(
+                reward,
+                style: DauVietTypography.labelSmall.copyWith(
+                  fontSize: 10.5,
+                  fontWeight: FontWeight.w800,
+                  color: DauVietColors.imperialGoldDark,
+                ),
+              ),
+            ],
           ],
         ),
       ),
@@ -1343,6 +1435,8 @@ class _LearnerDashboardScreenState
 /// Pill nhỏ ⚡ trên greeting row — balance Thể lực thật từ energyProvider
 /// (GAME-03). Loading/error giữ placeholder '—' thay vì số bịa.
 class _EnergyMiniPill extends ConsumerWidget {
+  const _EnergyMiniPill();
+
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final energyAsync = ref.watch(energyProvider);
@@ -1359,25 +1453,39 @@ class _EnergyMiniPill extends ConsumerWidget {
         child: Center(
           child: TactileCard(
             onTap: () => context.push('/energy'),
-            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
             borderRadius: 999,
             backgroundColor: DauVietColors.paperCardHi,
             borderColor: DauVietColors.imperialGold,
             borderWidth: 1.4,
-            child: Row(
+            child: Column(
               mainAxisSize: MainAxisSize.min,
               children: [
-                Text(
-                  '⚡',
-                  style: DauVietTypography.labelSmall.copyWith(fontSize: 12),
+                Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Text(
+                      '⚡',
+                      style: DauVietTypography.labelSmall.copyWith(fontSize: 11),
+                    ),
+                    const SizedBox(width: 3),
+                    Text(
+                      value,
+                      style: DauVietTypography.labelMedium.copyWith(
+                        fontSize: 12,
+                        fontWeight: FontWeight.w900,
+                        color: DauVietColors.imperialGoldDark,
+                      ),
+                    ),
+                  ],
                 ),
-                const SizedBox(width: 4),
                 Text(
-                  value,
-                  style: DauVietTypography.labelMedium.copyWith(
-                    fontSize: 12,
-                    fontWeight: FontWeight.w900,
-                    color: DauVietColors.imperialGoldDark,
+                  'Năng lượng',
+                  style: DauVietTypography.labelSmall.copyWith(
+                    fontSize: 8,
+                    fontWeight: FontWeight.w600,
+                    color: DauVietColors.inkMuted,
+                    height: 1.15,
                   ),
                 ),
               ],
@@ -1393,21 +1501,19 @@ class _EnergyMiniPill extends ConsumerWidget {
 /// (STREAK-01). Bấm → màn chi tiết Ngọn Lửa Hào Khí (/streak).
 /// Loading/error giữ placeholder '—' thay vì số bịa.
 class _StreakMiniPill extends ConsumerWidget {
+  const _StreakMiniPill();
+
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final streakAsync = ref.watch(streakProvider);
-    final streak = streakAsync.value;
     final String value = streakAsync.when(
       data: (s) => '${s.currentStreak}',
       loading: () => '—',
       error: (_, _) => '—',
     );
-    // STREAK-02: hiển thị số khiên còn lại (nhỏ) khi > 0 — nhắc learner
-    // chuỗi đang được bảo vệ.
-    final int shields = streak?.shieldCount ?? 0;
     return Semantics(
       button: true,
-      label: 'Chuỗi ngày học: $value, khiên: $shields',
+      label: 'Chuỗi ngày học: $value',
       child: ConstrainedBox(
         constraints: const BoxConstraints(minWidth: 44, minHeight: 44),
         child: Center(
@@ -1418,32 +1524,37 @@ class _StreakMiniPill extends ConsumerWidget {
             backgroundColor: DauVietColors.paperCard,
             borderColor: DauVietColors.cinnabarRed,
             borderWidth: 1.4,
-            child: Row(
+            child: Column(
               mainAxisSize: MainAxisSize.min,
               children: [
-                const StampSealBadge('🔥', size: 20),
-                const SizedBox(width: 4),
+                Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    const Icon(
+                      Icons.favorite_rounded,
+                      size: 13,
+                      color: DauVietColors.cinnabarRed,
+                    ),
+                    const SizedBox(width: 3),
+                    Text(
+                      value,
+                      style: DauVietTypography.labelMedium.copyWith(
+                        fontSize: 12,
+                        fontWeight: FontWeight.w900,
+                        color: DauVietColors.cinnabarRed,
+                      ),
+                    ),
+                  ],
+                ),
                 Text(
-                  value,
-                  style: DauVietTypography.labelMedium.copyWith(
-                    fontSize: 12,
-                    fontWeight: FontWeight.w900,
-                    color: DauVietColors.cinnabarRed,
+                  'Chuỗi ngày',
+                  style: DauVietTypography.labelSmall.copyWith(
+                    fontSize: 8,
+                    fontWeight: FontWeight.w600,
+                    color: DauVietColors.inkMuted,
+                    height: 1.15,
                   ),
                 ),
-                if (shields > 0) ...[
-                  const SizedBox(width: 4),
-                  const Icon(Icons.shield_rounded,
-                      size: 11, color: DauVietColors.heritageGreen),
-                  Text(
-                    '$shields',
-                    style: const TextStyle(
-                      fontSize: 10,
-                      fontWeight: FontWeight.w900,
-                      color: DauVietColors.heritageGreen,
-                    ),
-                  ),
-                ],
               ],
             ),
           ),
@@ -1453,142 +1564,3 @@ class _StreakMiniPill extends ConsumerWidget {
   }
 }
 
-/// Strip 7 ngày gần nhất trên Home (STREAK-01) — hiển thị 3 trạng thái
-/// phân biệt rõ: đã học (StampSealBadge.success) / hôm nay / bỏ lỡ (ChapterNumberBadge).
-/// Dữ liệu lấy từ streakCalendarProvider (GET /me/streak/calendar thật) + `today`
-/// theo giờ server VN từ streakProvider — KHÔNG dùng đồng hồ thiết bị.
-/// Bấm bất kỳ ô nào → màn chi tiết Ngọn Lửa Hào Khí (/streak).
-class _StreakWeekStrip extends ConsumerWidget {
-  const _StreakWeekStrip();
-
-  static const _weekdayShort = ['T2', 'T3', 'T4', 'T5', 'T6', 'T7', 'CN'];
-
-  @override
-  Widget build(BuildContext context, WidgetRef ref) {
-    final streakAsync = ref.watch(streakProvider);
-    final streak = streakAsync.value;
-    // Hôm nay theo SERVER (Asia/Ho_Chi_Minh); chưa có state (loading) thì
-    // không vẽ strip tránh nháy sai ngày.
-    final today = streak?.today;
-    if (streak == null || today == null) {
-      return const SizedBox.shrink();
-    }
-
-    final sess = streakSessionKeyOf(ref.watch(authSessionProvider));
-    // Fetch cả 2 tháng khi tuần vắt qua ranh tháng — family cache từng
-    // tháng nên tháng nào chưa có sẽ tự fetch.
-    final weekStart = today.subtract(const Duration(days: 6));
-    final crossesMonth =
-        weekStart.month != today.month || weekStart.year != today.year;
-    final calCur = ref.watch(
-      streakCalendarProvider((
-        year: today.year,
-        month: today.month,
-        sess: sess,
-      )),
-    );
-    final calPrev = crossesMonth
-        ? ref.watch(
-            streakCalendarProvider((
-              year: weekStart.year,
-              month: weekStart.month,
-              sess: sess,
-            )),
-          )
-        : const AsyncData(LearningStreakCalendarDto(days: []));
-
-    // Tập ngày đã học trong tháng hiện tại + tháng trước (nếu tuần vắt ranh).
-    final studied = <DateTime>{
-      for (final d in calCur.value?.days ?? const <DateTime>[])
-        DateTime(d.year, d.month, d.day),
-      for (final d in calPrev.value?.days ?? const <DateTime>[])
-        DateTime(d.year, d.month, d.day),
-    };
-    // STREAK-02: ngày được khiên cứu — vẽ marker 🛡️ thay màu đỏ trơn.
-    final shielded = <DateTime>{
-      for (final d in calCur.value?.protectedDates ?? const <DateTime>[])
-        DateTime(d.year, d.month, d.day),
-      for (final d in calPrev.value?.protectedDates ?? const <DateTime>[])
-        DateTime(d.year, d.month, d.day),
-    };
-    final todayKey = DateTime(today.year, today.month, today.day);
-
-    return TactileCard(
-      onTap: () => context.push('/streak'),
-      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
-      borderRadius: 16,
-      backgroundColor: DauVietColors.paperCard,
-      borderColor: DauVietColors.outlineVariant,
-      child: Row(
-        mainAxisAlignment: MainAxisAlignment.spaceBetween,
-        children: [
-          for (var i = 0; i < 7; i++)
-            _buildDayCell(
-              weekStart.add(Duration(days: i)),
-              studied,
-              shielded,
-              todayKey,
-            ),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildDayCell(DateTime day, Set<DateTime> studied,
-      Set<DateTime> shielded, DateTime todayKey) {
-    final key = DateTime(day.year, day.month, day.day);
-    final isToday = key == todayKey;
-    final didStudy = studied.contains(key);
-    final isShielded = shielded.contains(key);
-    final isFuture = key.isAfter(todayKey);
-    final isMissed = !isToday && !isFuture && !didStudy;
-
-    final Color badgeColor;
-    if (isToday) {
-      badgeColor = DauVietColors.cinnabarRed;
-    } else if (isMissed) {
-      badgeColor = DauVietColors.outline;
-    } else {
-      badgeColor = DauVietColors.inkLight;
-    }
-
-    return Column(
-      mainAxisSize: MainAxisSize.min,
-      children: [
-        Text(
-          _weekdayShort[day.weekday - 1],
-          style: DauVietTypography.bodySmall.copyWith(
-            fontSize: 9.5,
-            fontWeight: FontWeight.w700,
-            color: isToday
-                ? DauVietColors.cinnabarRed
-                : DauVietColors.inkMuted,
-          ),
-        ),
-        const SizedBox(height: 4),
-        if (didStudy)
-          SizedBox(
-            width: 32,
-            height: 32,
-            child: Center(
-              child: isShielded
-                  ? const Icon(
-                      Icons.shield_rounded,
-                      size: 24,
-                      color: DauVietColors.heritageGreen,
-                    )
-                  : const StampSealBadge.success('✓', size: 24),
-            ),
-          )
-        else
-          ChapterNumberBadge(
-            '${day.day}',
-            size: 32,
-            color: badgeColor,
-            filled: false,
-          ),
-
-      ],
-    );
-  }
-}
