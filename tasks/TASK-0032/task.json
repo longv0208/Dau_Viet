@@ -1,0 +1,76 @@
+{
+  "schemaVersion": 1,
+  "id": "TASK-0032",
+  "type": "bugfix",
+  "risk": "normal",
+  "status": "implemented",
+  "goal": "[MOBILE] Issue #42 — Khôi phục màn Hành trình Lịch sử (/journey) làm luồng học chính và đưa Bản đồ Dấu Ấn (/map) về trục di tích mở khóa sau bài học, sửa sai lệch do commit b5e471f (Issue #36) gây ra.",
+  "owner": "claude",
+  "modules": ["mobile"],
+  "scope": [
+    "dau-viet-mobile/lib/features/learning_path/presentation/",
+    "dau-viet-mobile/lib/features/map/",
+    "dau-viet-mobile/lib/app/router.dart",
+    "dau-viet-mobile/lib/core/widgets/main_bottom_nav.dart",
+    "dau-viet-mobile/lib/features/dashboard/presentation/learner_dashboard_screen.dart",
+    "dau-viet-mobile/lib/features/learning/presentation/lesson_result_screen.dart",
+    "dau-viet-mobile/lib/features/learning/presentation/widgets/unlocked_location_banner.dart",
+    "dau-viet-mobile/lib/features/timeline/presentation/timeline_screen.dart",
+    "dau-viet-mobile/test/learning_path/",
+    "dau-viet-mobile/test/map/",
+    "dau-viet-mobile/test/widget_test.dart",
+    "dau-viet-mobile/test/learning/unlocked_location_banner_test.dart",
+    "dau-viet-mobile/test/timeline_events_test.dart",
+    "docs/LEARNING_PATH_2_0.md",
+    "docs/PROJECT_OVERVIEW.md",
+    "tasks/TASK-0032/",
+    "plans/261030-issue-42-restore-journey/"
+  ],
+  "acceptanceCriteria": [
+    {
+      "id": "AC-1",
+      "text": "Màn Hành trình Lịch sử (/journey) khôi phục đầy đủ: PeriodSelectionScreen + PeriodJourneyScreen hiển thị cây ERA->PERIOD->Sự kiện->Bài học như mockup; người học chọn sự kiện và bắt đầu/tiếp tục học trực tiếp từ màn này."
+    },
+    {
+      "id": "AC-2",
+      "text": "HistoricalMapScreen (/map) về đúng thiết kế trước b5e471f: chỉ hiển thị map_locations di tích, mở LocationProfileSheet; xóa path_event_node.dart + event_action_sheet.dart; không trộn cây bài học làm trục."
+    },
+    {
+      "id": "AC-3",
+      "text": "Bài học không gắn địa điểm vẫn học bình thường trên /journey; bài học/sự kiện gắn địa điểm mở khóa địa điểm (LOCKED->UNLOCKED, ANY/ALL) sau khi hoàn thành; UnlockedLocationBanner 'Xem địa điểm' dẫn sang /map."
+    },
+    {
+      "id": "AC-4",
+      "text": "flutter analyze 0 lỗi mới; flutter test 100% pass gồm test/learning_path/, test/map/ (đã restore), widget_test; không còn path_map_test.dart."
+    }
+  ],
+  "acceptanceStatus": {
+    "AC-1": "done — period_selection_screen.dart (647) + period_journey_screen.dart (676) restore từ 9000c04, compile sạch (token DSv2 còn alias trong DSv3); /journey + /journey/:periodCode render; chạm sự kiện→CampaignDetailScreen, bài học→LessonPlayerScreen; period_journey_screen_test + learning_flow_e2e_integration_test pass.",
+    "AC-2": "done — historical_map_screen.dart viết lại trục mapLocationsProvider/groupChapters (theo 9000c04) + DSv3 tokens + PaperGrainOverlay + ?locationId= deep-link; xóa path_event_node.dart, event_action_sheet.dart, mapLocationsByEvent/PeriodProvider; journey_* giữ (thuộc bản đồ gốc); historical_map_test + journey_map_ui_test pass.",
+    "AC-3": "done — dashboard ~12 callsite '/map' → '/journey' (điểm-vào-học), '/journey/:periodCode' khi biết period; lesson_result 'TIẾP TỤC HỌC'→'/journey'; unlocked_location_banner 'Xem địa điểm'→'/map?locationId='/'/heritage/:id', 'Tiếp tục học'→'/journey'; timeline redirect→'/journey'; unlock rules ANY/ALL backend giữ nguyên; banner test pass.",
+    "AC-4": "done — flutter analyze: 0 lỗi mới (9 warnings island/* pre-existing); flutter test 545/545 pass; restore period_journey_screen_test, learning_flow_e2e_integration_test, historical_map_test; vá journey_map_ui_test, widget_test, unlocked_location_banner_test, timeline_events_test; xóa path_map_test.dart."
+  },
+  "dependencies": [],
+  "planPath": "plans/261030-issue-42-restore-journey/plan.md",
+  "evidenceRefs": [
+    "flutter analyze → 9 issues (1 warning unused_import + 8 info) toàn trong features/island/, pre-existing, KHÔNG liên quan diff",
+    "flutter test → 545/545 tests passed (~60s)",
+    "git show 9000c04 → restore period_selection_screen.dart, period_journey_screen.dart, 3 test files",
+    "docs/LEARNING_PATH_2_0.md §8.5 đánh dấu ĐÃ HOÀN TÁC + §8.6 mô tả kiến trúc 2 trục",
+    "docs/PROJECT_OVERVIEW.md dòng 107 ghi đúng 2 trục tách biệt"
+  ],
+  "notes": [
+    "Issue #42 (longv0208/Dau_Viet, OPEN, bug+enhancement+area:mobile).",
+    "KHÔNG revert nguyên b5e471f — giữ #37/#38/#39/#40; restore có chọn lọc từ 9000c04.",
+    "journey_* trong features/map/presentation/ là của BẢN ĐỒ GỐC (9000c04 đã import) — GIỮ; chỉ xóa path_event_node.dart + event_action_sheet.dart.",
+    "Tất cả token màu DSv2 (parchmentSurface/imperialGold/cinnabarRed/woodBrown/heritageGreen/inkText...) còn alias trong dau_viet_colors.dart DSv3 → file restore compile ngay, không cần vá màu.",
+    "learning_path/data/ (providers/repository/DTO) giữ nguyên — không động data layer.",
+    "main_bottom_nav: 5 tab — Học tập/dashboard, Hành trình/journey, Bản đồ/map, Sưu tập/collection, Cá nhân/profile (user chốt tab Bản đồ riêng).",
+    "listLocations(periodCode,eventId) trong repository giữ signature — chỉ provider thừa mapLocationsByEvent/PeriodProvider bị xóa.",
+    "Backend/Flyway/API contract: KHÔNG đổi."
+  ],
+  "nextAction": "Chờ user review + ủy quyền commit. Chưa commit — theo repo-rules không auto commit/push.",
+  "handoff": "tasks/TASK-0032/handoff.md",
+  "createdAt": "2026-10-30T00:00:00+07:00",
+  "updatedAt": "2026-10-30T00:00:00+07:00"
+}

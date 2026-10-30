@@ -39,7 +39,8 @@ class _TimelineScreenState extends ConsumerState<TimelineScreen> {
       _hasRedirected = true;
       WidgetsBinding.instance.addPostFrameCallback((_) {
         if (mounted) {
-          context.go('/map');
+          // Issue #42: lộ trình học tập trên /journey (không phải /map).
+          context.go('/journey');
         }
       });
     }

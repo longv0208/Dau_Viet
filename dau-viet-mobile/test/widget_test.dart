@@ -78,21 +78,21 @@ void main() {
       expect(find.text('Bắt đầu hành trình'), findsOneWidget);
       expect(find.text('KHÁM PHÁ NGAY ›'), findsOneWidget);
 
-      // Bottom nav chuẩn mới 4 tab (P0-01): Học tập / Khám phá / Sưu tập /
-      // Cá nhân. Các màn demo (Timeline/Sa Bàn/Đảo/Energy) không còn là tab
-      // và bị gate ở real mode — journey giờ đi qua route trực tiếp cho
-      // các màn demo để giữ coverage, không qua bottom nav.
+      // Bottom nav chuẩn 5 tab (Issue #42): Học tập / Hành trình / Bản đồ /
+      // Sưu tập / Cá nhân. Các màn demo (Timeline/Sa Bàn/Đảo/Energy) không
+      // còn là tab — journey giờ đi qua route trực tiếp cho các màn demo để
+      // giữ coverage, không qua bottom nav.
 
-      // 4. Mở /timeline — từ Issue #36 tự động chuyển hướng sang /map
-      // (Bản Đồ Dấu Ấn, trục học = learning-path).
+      // 4. Mở /timeline — từ Issue #42 tự động chuyển hướng sang /journey
+      // (Hành trình Lịch sử — luồng học chính, KHÔNG phải Bản Đồ Dấu Ấn).
       tester.element(find.text('Học tập').first).go('/timeline');
       await tester.pumpAndSettle();
-      expect(find.text('Bản Đồ Dấu Ấn'), findsOneWidget);
-      expect(find.text('Buổi đầu độc lập tự chủ'), findsWidgets);
+      // PeriodSelectionScreen — không còn 'Bản Đồ Dấu Ấn' appbar.
+      expect(find.text('Bản Đồ Dấu Ấn'), findsNothing);
 
-      // 5. Mở M-06 Sa Bàn qua route trực tiếp (icon saban giờ trùng cả
-      // trong nội dung và bottom nav — dùng route để tránh nhầm widget).
-      tester.element(find.text('Bản Đồ Dấu Ấn')).go('/saban');
+      // 5. Mở M-06 Sa Bàn qua route trực tiếp (dùng 'Học tập' bottom-nav làm
+      // neo — nó vẫn hiện trên mọi màn có MainBottomNav).
+      tester.element(find.text('Học tập').first).go('/saban');
       await tester.pumpAndSettle();
       expect(find.text('SA BÀN THỦY CHIẾN BẠCH ĐẰNG'), findsOneWidget);
       expect(find.text('CHU KỲ THỦY TRIỀU CHIẾN THUẬT'), findsOneWidget);
