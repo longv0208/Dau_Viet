@@ -26,7 +26,7 @@ function VersionCard({ version, disabled, onClone }: {
 }) {
   const detail = usePathVersion(version.id);
   const events = detail.data?.chapters.flatMap(c => c.events) ?? [];
-  const required = events.filter(e => e.node.participationType === "REQUIRED").length;
+  const lessonsCount = events.reduce((sum, e) => sum + e.lessons.length, 0);
   return (
     <PaperCard className="p-5">
       <div className="flex flex-wrap items-start justify-between gap-3">
@@ -50,8 +50,8 @@ function VersionCard({ version, disabled, onClone }: {
       {detail.isPending ? <p className="my-5 text-sm text-ink-muted" role="status">Đang tải cấu trúc...</p> : detail.isError ? (
         <div className="my-3 text-sm text-error" role="alert">Chưa tải được số liệu: {pathError(detail.error)} <button className="underline" onClick={() => void detail.refetch()}>Thử lại</button></div>
       ) : (
-        <dl className="my-5 grid grid-cols-2 gap-3 text-sm sm:grid-cols-4">
-          {[["Chương", detail.data?.chapters.length ?? 0], ["Sự kiện", events.length], ["Bắt buộc", required], ["Tham khảo", events.length - required]].map(([label, value]) => (
+        <dl className="my-5 grid grid-cols-3 gap-3 text-sm">
+          {[["Chương", detail.data?.chapters.length ?? 0], ["Sự kiện", events.length], ["Bài học", lessonsCount]].map(([label, value]) => (
             <div key={label} className="rounded-md border border-border bg-surface p-3"><dt className="text-xs text-ink-muted">{label}</dt><dd className="mt-1 font-display text-2xl font-bold text-chapter tabular-nums">{value}</dd></div>
           ))}
         </dl>

@@ -42,9 +42,6 @@ export function PolicyPublishDialog({
               ` (−${diff.to.requiredRemoved.length})`}
           </p>
           <p>
-            Tuỳ chọn: {diff.from.optionalCount} → {diff.to.optionalCount}
-          </p>
-          <p>
             Ngưỡng mastered:{" "}
             {diff.from.masteryThreshold == null
               ? "—"

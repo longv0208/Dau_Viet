@@ -1,0 +1,59 @@
+{
+  "schemaVersion": 1,
+  "id": "TASK-0036",
+  "type": "feature",
+  "risk": "normal",
+  "status": "done",
+  "goal": "[ADMIN][UX] Issue #47 — Mặc định Bắt buộc cho toàn bộ Giai đoạn/Hoạt động/Bài học/Sự kiện & Tự động điền sẵn Phản hồi học viên (Default Feedback) khi tạo hoạt động.",
+  "owner": "claude",
+  "modules": ["admin"],
+  "scope": [
+    "dau-viet-admin/src/features/lessons/builder/",
+    "dau-viet-admin/src/features/templates/template-catalog.ts",
+    "dau-viet-admin/src/features/events/workspace/gamification/",
+    "dau-viet-admin/src/features/learning-path/",
+    "dau-viet-admin/src/app/(admin)/learning-path/page.tsx",
+    "docs/PROJECT_OVERVIEW.md",
+    "tasks/TASK-0036/",
+    "plans/261030-issue-47-default-required-and-feedback/"
+  ],
+  "acceptanceCriteria": [
+    {
+      "id": "AC-1",
+      "text": "Loại bỏ tích chọn Bắt buộc/Tuỳ chọn: Không còn checkbox/dropdown bắt chọn Bắt buộc vs Tuỳ chọn/Tham khảo ở Stage, Activity, Completion, Event Policy và Learning Path Event; mọi thành phần tạo ra đều tự động là bắt buộc (required: true, participationType: REQUIRED, graded: true)."
+    },
+    {
+      "id": "AC-2",
+      "text": "Phản hồi học viên mặc định: Khi thêm bất kỳ Activity mới nào trong Lesson Builder (hoặc mở bản nháp hiện có), toàn bộ các trường phản hồi bắt buộc (COMPLETED, INCORRECT, PARTIAL, SUPPORTED, CONTRADICTED, EXHAUSTED tùy loại activity) đều đã được điền sẵn nội dung mặc định hợp lệ."
+    },
+    {
+      "id": "AC-3",
+      "text": "Không cần nhập lại nếu không muốn sửa: Quản trị viên tạo hoạt động mới, chỉ cần cấu hình câu hỏi/đáp án và nhấn Lưu/Xuất bản là thành công ngay mà không cần mở phần Phản hồi học viên; nếu muốn tùy chỉnh câu chữ vẫn có thể mở FeedbackPanel để sửa hoặc khôi phục mặc định."
+    },
+    {
+      "id": "AC-4",
+      "text": "Tests: Cập nhật và vượt qua toàn bộ unit/integration tests của Lesson Builder, Policy Editor và Learning Path."
+    }
+  ],
+  "acceptanceStatus": {
+    "AC-1": "done — chuẩn hóa required: true cho Stage/Activity, graded: true cho EVIDENCE_SELECT, requireAllRequiredStages: true cho Completion trong parseDraft/serializeDraft/makeActivity/makeTemplateActivity; xóa checkbox/badge Bắt buộc/Tuỳ chọn trên StageNavigator, StageEditor, ActivityCommonFields, EvidenceSelectEditor, CompletionEditor; bỏ cột Bài học tuỳ chọn và tự chọn sẵn toàn bộ bài học PUBLISHED trong PolicyEditor; mặc định participationType: REQUIRED trong EventCatalog và gỡ dropdown/nhãn/bộ đếm Tham khảo trong EventPanel, PathVersions, PathPreview",
+    "AC-2": "done — xây dựng DEFAULT_FEEDBACK_BY_TYPE, defaultFeedbackForActivity và withDefaultFeedback trong draft-model.ts cung cấp đầy đủ các key phản hồi bắt buộc (COMPLETED, INCORRECT, PARTIAL, SUPPORTED, CONTRADICTED, EXHAUSTED) cho cả 13 ActivityType khi tạo mới hoặc mở/lưu bản nháp",
+    "AC-3": "done — nâng cấp FeedbackPanel hiển thị sẵn phản hồi mặc định với tiêu đề phụ '(Đã có sẵn phản hồi mặc định — nhấn để xem hoặc chỉnh sửa)', nút 'Khôi phục mặc định' và tự động khôi phục câu mặc định khi onBlur trên ô trống",
+    "AC-4": "done — npx vitest run: 14/14 test files trong scope (builder, gamification, learning-path, templates) pass 100%; npx tsc --noEmit: 0 lỗi mới; git diff --check: sạch; independent code review (Issue47CodeReviewer) pass 0 blockers"
+  },
+  "dependencies": ["TASK-0035"],
+  "planPath": "plans/261030-issue-47-default-required-and-feedback/plan.md",
+  "evidenceRefs": [
+    "plans/261030-issue-47-default-required-and-feedback/plan.md",
+    "npx vitest run src/features/lessons/builder/ src/features/events/workspace/gamification/ src/features/learning-path/ src/features/templates/ -> 14/14 test files passed",
+    "npx tsc --noEmit -> 0 errors in modified/added files",
+    "git diff --check -> clean (0 whitespace/formatting errors)",
+    "Independent code review (Issue47CodeReviewer) -> 0 blockers, AC-1..AC-4 verified"
+  ],
+  "notes": [
+    "Branch feat/issue-47-default-required-and-feedback đang active.",
+    "Phạm vi thay đổi nằm trên dau-viet-admin và docs, tương thích 100% với hợp đồng DraftValidator, AdminCompletionPolicyService và AdminPathEventService phía backend."
+  ],
+  "nextAction": "Chờ người dùng review và ủy quyền commit/push trên nhánh feat/issue-47-default-required-and-feedback.",
+  "handoff": "tasks/TASK-0036/handoff.md"
+}

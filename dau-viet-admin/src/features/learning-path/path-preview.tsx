@@ -64,8 +64,6 @@ export function PathPreview({
         {row.events.length > 0 && (
           <ol className="ml-5 space-y-3 border-l-2 border-border pb-2 pl-5">
             {row.events.map((event) => {
-              const required = event.node.participationType === "REQUIRED";
-              const Icon = required ? Flag : Compass;
               return (
                 <li key={event.node.id} className="relative">
                   <span
@@ -85,8 +83,8 @@ export function PathPreview({
                       {event.title ?? "Sự kiện không còn tồn tại"}
                     </span>
                     <span className="mt-2 flex items-center gap-1 text-xs text-ink-muted">
-                      <Icon className="size-3.5" aria-hidden />
-                      {required ? "Bắt buộc" : "Tham khảo"}
+                      <Flag className="size-3.5" aria-hidden />
+                      Bắt buộc
                     </span>
                     <span className="mt-1 flex items-center gap-1 text-xs text-ink-muted">
                       <BookOpen className="size-3.5" aria-hidden />

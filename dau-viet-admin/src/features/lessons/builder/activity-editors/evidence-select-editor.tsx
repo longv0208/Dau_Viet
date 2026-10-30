@@ -41,16 +41,6 @@ export function EvidenceSelectEditor(props: EditorProps) {
           persistGraded({ config: { ...activity.config, visibleEvidenceIds: next } })
         }
       />
-      <label className="flex items-center gap-2 text-sm text-ink">
-        <input
-          type="checkbox"
-          className="size-4 accent-brand"
-          checked={true}
-          disabled={true}
-          readOnly
-        />
-        Chấm điểm theo đáp án (graded) — bắt buộc theo luồng 4 giai đoạn
-      </label>
       {graded && (
         <>
           <EvidenceRefPicker

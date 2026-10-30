@@ -77,26 +77,6 @@ export function StageEditor({
           </Select>
           <p className="text-xs text-ink-muted">{STAGE_LABELS[stage.type].description}</p>
         </div>
-        <div className="flex flex-col gap-1.5">
-          <Label className="font-medium text-ink-secondary">Bắt buộc hoàn thành</Label>
-          <label className="flex h-11 items-center gap-2 rounded-md border border-border px-3">
-            <input
-              type="checkbox"
-              checked={stage.required ?? false}
-              disabled={readOnly}
-              onChange={(e) => onUpdate({ required: e.target.checked })}
-              className="size-4 accent-brand"
-            />
-            <span className="text-sm text-ink">
-              {stage.required ? "Bắt buộc" : "Tuỳ chọn"}
-            </span>
-          </label>
-          {!stage.required && (
-            <p className="text-xs text-ink-muted">
-              Giai đoạn tuỳ chọn không chặn hoàn thành bài học.
-            </p>
-          )}
-        </div>
       </div>
 
       {/* nextStageIds via checkboxes */}
@@ -207,7 +187,6 @@ export function StageEditor({
                       </span>
                       <span className="text-[11px] text-ink-muted">
                         {meta?.label ?? "—"}
-                        {a.required ? " · bắt buộc" : " · tuỳ chọn"}
                       </span>
                     </span>
                   </button>

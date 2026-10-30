@@ -31,30 +31,31 @@ function renderEditor(props?: Partial<Parameters<typeof PolicyEditor>[0]>) {
 }
 
 describe("PolicyEditor", () => {
-  it("renders lesson checkboxes from the published lessons query", async () => {
+  it("renders only the required lessons list and pre-selects published lessons by default", async () => {
     authStore.setAccessToken("t", 900);
     renderEditor();
-    // Cung mot lesson xuat hien o ca 2 danh sach (required + optional).
     await waitFor(() =>
       expect(
         screen.getAllByText("Vì sao Ngô Quyền thắng trận Bạch Đằng?").length,
-      ).toBe(2),
+      ).toBe(1),
     );
+    expect(screen.queryByText(/Bài học tuỳ chọn/i)).toBeNull();
+    const checkbox = screen.getByRole("checkbox", {
+      name: /vì sao ngô quyền thắng trận bạch đằng/i,
+    });
+    expect(checkbox).toBeChecked();
   });
 
-  it("submits required/optional selection + threshold payload", async () => {
+  it("submits pre-selected required lessons + empty optionalLessonIds + threshold payload", async () => {
     authStore.setAccessToken("t", 900);
     const { onSubmit } = renderEditor();
     await waitFor(() =>
       expect(
-        screen.getAllByText("Vì sao Ngô Quyền thắng trận Bạch Đằng?").length,
-      ).toBeGreaterThan(0),
+        screen.getByRole("checkbox", {
+          name: /vì sao ngô quyền thắng trận bạch đằng/i,
+        }),
+      ).toBeChecked(),
     );
-    // Checkbox dau tien = required list (fieldset dau).
-    const checkboxes = screen.getAllByRole("checkbox", {
-      name: /vì sao ngô quyền thắng trận bạch đằng/i,
-    });
-    await userEvent.click(checkboxes[0]!);
     // Bat "Danh gia mastered" — mac dinh threshold = 70.
     await userEvent.click(screen.getByRole("checkbox", { name: /đánh giá mastered/i }));
     await userEvent.click(screen.getByRole("button", { name: /lưu bản nháp/i }));
@@ -66,20 +67,24 @@ describe("PolicyEditor", () => {
     });
   });
 
-  it("validate button forwards the current draft payload", async () => {
+  it("validate button forwards the current draft payload with pre-selected requiredLessonIds", async () => {
     authStore.setAccessToken("t", 900);
     const { onValidate } = renderEditor();
     await waitFor(() =>
       expect(
-        screen.getAllByText("Vì sao Ngô Quyền thắng trận Bạch Đằng?").length,
-      ).toBeGreaterThan(0),
+        screen.getByRole("checkbox", {
+          name: /vì sao ngô quyền thắng trận bạch đằng/i,
+        }),
+      ).toBeChecked(),
     );
     await userEvent.click(screen.getByRole("button", { name: /kiểm tra/i }));
     expect(onValidate).toHaveBeenCalledWith(
-      expect.objectContaining({ requiredLessonIds: [] }),
+      expect.objectContaining({
+        requiredLessonIds: ["33333333-3333-3333-3333-333333333333"],
+        optionalLessonIds: [],
+      }),
     );
   });
-
   it("renders backend validation errors", async () => {
     authStore.setAccessToken("t", 900);
     renderEditor({

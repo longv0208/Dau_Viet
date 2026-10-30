@@ -36,11 +36,6 @@ export function PolicyList({
       cell: (p) => String(p.requiredLessonIds.length),
     },
     {
-      key: "opt",
-      header: "Tuỳ chọn",
-      cell: (p) => String(p.optionalLessonIds.length),
-    },
-    {
       key: "th",
       header: "Ngưỡng mastered",
       cell: (p) => (p.masteryThreshold == null ? "—" : `${p.masteryThreshold}%`),

@@ -1,6 +1,13 @@
 import { describe, expect, it } from "vitest";
 
-import { allIds, parseDraft, serializeDraft } from "./draft-model";
+import {
+  ACTIVITY_TYPES,
+  allIds,
+  defaultFeedbackForActivity,
+  parseDraft,
+  serializeDraft,
+} from "./draft-model";
+import { validateDraftLocally } from "./draft-local-validator";
 
 describe("parseDraft", () => {
   it("parses empty/missing draft to empty stages with schemaVersion=1", () => {
@@ -50,6 +57,81 @@ describe("parseDraft", () => {
   it("defaults missing stage.activities to []", () => {
     const d = parseDraft(JSON.stringify({ stages: [{ id: "s", type: "CONTEXT" }] }));
     expect(d.stages[0]!.activities).toEqual([]);
+  });
+
+  it("normalizes stages and activities to required=true and pre-populates default feedback", () => {
+    const d = parseDraft(
+      JSON.stringify({
+        stages: [
+          {
+            id: "s1",
+            type: "EVIDENCE",
+            required: false,
+            activities: [
+              {
+                id: "a1",
+                type: "EVIDENCE_SELECT",
+                required: false,
+                config: {
+                  visibleEvidenceIds: ["e1"],
+                  acceptedEvidenceIds: ["e1"],
+                },
+              },
+              {
+                id: "a2",
+                type: "MULTIPLE_CHOICE",
+                feedback: { COMPLETED: "Tùy chỉnh của quản trị viên" },
+                config: {
+                  question: "Câu hỏi?",
+                  options: [
+                    { id: "o1", label: "A" },
+                    { id: "o2", label: "B" },
+                  ],
+                  correctOptionIds: ["o1"],
+                },
+              },
+            ],
+          },
+        ],
+        completion: { requireAllRequiredStages: false },
+      }),
+    );
+    expect(d.stages[0]!.required).toBe(true);
+    expect(d.completion?.requireAllRequiredStages).toBe(true);
+    const evAct = d.stages[0]!.activities[0]!;
+    expect(evAct.required).toBe(true);
+    expect(evAct.config?.graded).toBe(true);
+    expect(evAct.feedback).toMatchObject({
+      COMPLETED: expect.any(String),
+      PARTIAL: expect.any(String),
+      INCORRECT: expect.any(String),
+      EXHAUSTED: expect.any(String),
+    });
+    const mcAct = d.stages[0]!.activities[1]!;
+    expect(mcAct.required).toBe(true);
+    expect(mcAct.feedback?.COMPLETED).toBe("Tùy chỉnh của quản trị viên");
+    expect(mcAct.feedback?.INCORRECT).toBeTruthy();
+    expect(mcAct.feedback?.EXHAUSTED).toBeTruthy();
+    expect(validateDraftLocally(d)).toEqual([]);
+  });
+
+  it("provides valid defaultFeedbackForActivity for every ActivityType", () => {
+    for (const type of ACTIVITY_TYPES) {
+      const fb = defaultFeedbackForActivity(type);
+      expect(fb.COMPLETED?.trim().length).toBeGreaterThan(0);
+      expect(fb.INCORRECT?.trim().length).toBeGreaterThan(0);
+    }
+    const verFb = defaultFeedbackForActivity("VERIFICATION");
+    expect(Object.keys(verFb)).toEqual(
+      expect.arrayContaining([
+        "COMPLETED",
+        "INCORRECT",
+        "PARTIAL",
+        "SUPPORTED",
+        "CONTRADICTED",
+        "EXHAUSTED",
+      ]),
+    );
   });
 });
 
