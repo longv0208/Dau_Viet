@@ -269,19 +269,36 @@ class _VerificationRendererState extends State<VerificationRenderer> {
                   alignment: Alignment.centerLeft,
                   child: SectionEyebrow(
                     'CHỌN BẰNG CHỨNG ỦNG HỘ GIẢ THUYẾT',
-                    color: DauVietColors.chapterGreen,
+                    color: DauVietColors.cinnabarRed,
                   ),
                 ),
-                const SizedBox(height: 4),
-                Text(
-                  'Chọn những bằng chứng đã thu thập hoặc đối chiếu được để '
-                  'kiểm chứng giả thuyết của bạn:',
-                  style: DauVietTypography.bodySmall.copyWith(
-                    color: DauVietColors.inkSecondary,
-                    fontSize: 12,
+                const SizedBox(height: 8),
+                Container(
+                  width: double.infinity,
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 12,
+                    vertical: 10,
+                  ),
+                  decoration: BoxDecoration(
+                    color: const Color(0xFFFFF8EC),
+                    borderRadius: BorderRadius.circular(10),
+                    border: Border.all(
+                      color: const Color(0xFFDECBA8),
+                      width: 1.2,
+                    ),
+                  ),
+                  child: Text(
+                    'Chọn những bằng chứng đã thu thập hoặc đối chiếu được để '
+                    'kiểm chứng giả thuyết của bạn:',
+                    style: DauVietTypography.bodySmall.copyWith(
+                      color: const Color(0xFF2B1F17),
+                      fontSize: 13,
+                      fontWeight: FontWeight.w600,
+                      height: 1.4,
+                    ),
                   ),
                 ),
-                const SizedBox(height: 6),
+                const SizedBox(height: 8),
                 for (final id in sourceIds)
                   CompactEvidenceCard(
                     evidence: widget.content.evidenceById(id),

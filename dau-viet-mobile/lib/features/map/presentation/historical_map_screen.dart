@@ -1,5 +1,3 @@
-import 'dart:math' as math;
-
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
@@ -8,38 +6,19 @@ import '../../../core/theme/dau_viet_colors.dart';
 import '../../../core/theme/dau_viet_typography.dart';
 import '../../../core/widgets/async_state_view.dart';
 import '../../../core/widgets/main_bottom_nav.dart';
-import '../../../core/widgets/paper_grain_overlay.dart';
 import '../data/map_location_dto.dart';
 import '../data/map_providers.dart';
-import 'journey_chapter.dart';
-import 'journey_chapter_header.dart';
-import 'journey_layout.dart';
-import 'journey_location_list.dart';
-import 'journey_map_node.dart';
-import 'journey_progress_legend.dart';
+import '../geo/vietnam_world_map_projection.dart';
 import 'location_profile_screen.dart';
+import 'widgets/location_preview_sheet.dart';
+import 'widgets/vietnam_world_map_view.dart';
 
 /// Giữ enum tương thích chữ ký với `router.dart` (`/map?view=timeline`).
-/// Chế độ timeline dựa trên map đã được gỡ bỏ (Issue #24) — lộ trình học
-/// tập chuyển sang `/journey`.
 enum ExploreViewMode { timeline, map }
 
-/// Bản Đồ Dấu Ấn — trục ĐỊA ĐIỂM DI TÍCH (`map_locations`), bổ trợ bài học.
-///
-/// KHÔNG phải luồng học chính (đó là `/journey` — Issue #42). Màn này chỉ
-/// hiển thị các địa điểm di tích mở khoá SAU khi người học hoàn thành sự
-/// kiện/bài học gắn với chúng (`unlockRuleMode: ANY`/`ALL`):
-/// - Địa điểm `LOCKED` vẫn hiển thị nếu `visibility` là `PUBLIC` /
-///   `ALWAYS_VISIBLE` (ẩn `HIDDEN_UNTIL_UNLOCKED` khi đang khoá).
-/// - Bấm ghim hoặc chip địa điểm → `LocationProfileSheet` (tab `Ảnh` /
-///   `Video` / `Tư liệu`) — hồ sơ bổ trợ, có đường tắt sang bài học/sự
-///   kiện liên kết nhưng bản đồ KHÔNG chứa cây lộ trình bài học.
 class HistoricalMapScreen extends ConsumerStatefulWidget {
   final ExploreViewMode initialMode;
   final String? initialEventId;
-
-  /// `?locationId=<id>` — mở thẳng hồ sơ một địa điểm (deep-link từ
-  /// `UnlockedLocationBanner` "Xem địa điểm" sau khi hoàn thành bài học).
   final String? initialLocationId;
 
   const HistoricalMapScreen({
@@ -54,13 +33,26 @@ class HistoricalMapScreen extends ConsumerStatefulWidget {
       _HistoricalMapScreenState();
 }
 
-class _HistoricalMapScreenState extends ConsumerState<HistoricalMapScreen> {
-  final ScrollController _scroll = ScrollController();
-  int _chapterIndex = 0;
-  int? _selectedIndex;
-  bool _hasAppliedInitialEventId = false;
-  bool _hasOpenedInitialLocation = false;
+class _HistoricalMapScreenState extends ConsumerState<HistoricalMapScreen>
+    with TickerProviderStateMixin {
+  final TransformationController _camera = TransformationController();
+  final GlobalKey _mapKey = GlobalKey();
+  AnimationController? _cameraAnim;
+
+  String? _eventId;
+  String? _periodCode;
+  String? _kind;
+  bool _unlockedOnly = false;
+  String? _selectedId;
+  bool _hasAppliedDeepLink = false;
   bool _hasRedirectedTimeline = false;
+  bool _hasFittedVietnam = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _eventId = widget.initialEventId;
+  }
 
   @override
   void didChangeDependencies() {
@@ -87,6 +79,63 @@ class _HistoricalMapScreenState extends ConsumerState<HistoricalMapScreen> {
     return false;
   }
 
+  Size? get _viewport {
+    final box = _mapKey.currentContext?.findRenderObject() as RenderBox?;
+    if (box == null || !box.hasSize) return null;
+    return box.size;
+  }
+
+  void _animateCamera(Matrix4 target) {
+    _cameraAnim?.dispose();
+    final begin = Matrix4.copy(_camera.value);
+    final controller = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 420),
+    );
+    final animation = Matrix4Tween(begin: begin, end: target).animate(
+      CurvedAnimation(parent: controller, curve: Curves.easeInOutCubic),
+    );
+    controller.addListener(() => _camera.value = animation.value);
+    controller.addStatusListener((status) {
+      if (status == AnimationStatus.completed ||
+          status == AnimationStatus.dismissed) {
+        controller.dispose();
+        if (identical(_cameraAnim, controller)) _cameraAnim = null;
+      }
+    });
+    _cameraAnim = controller;
+    controller.forward();
+  }
+
+  void _fitVietnam() {
+    final vp = _viewport;
+    if (vp == null) return;
+    _animateCamera(VietnamWorldMapProjection.fitVietnam(vp));
+  }
+
+  void _fitLocations(Iterable<MapLocationDto> locations) {
+    final vp = _viewport;
+    if (vp == null) return;
+    _animateCamera(VietnamWorldMapProjection.fitLocations(locations, vp));
+  }
+
+  void _focusLocation(MapLocationDto location) {
+    final vp = _viewport;
+    if (vp == null) return;
+    _animateCamera(VietnamWorldMapProjection.focusLocation(location, vp));
+  }
+
+  void _zoomBy(double factor) {
+    final vp = _viewport;
+    if (vp == null) return;
+    final scale = (_camera.value.getMaxScaleOnAxis() * factor).clamp(0.22, 6.0);
+    final center = Offset(vp.width / 2, vp.height / 2);
+    final world = VietnamWorldMapProjection.screenToWorld(center, _camera.value);
+    _animateCamera(
+      VietnamWorldMapProjection.focusWorld(world, viewport: vp, scale: scale),
+    );
+  }
+
   Future<void> _openLesson(MapLocationDto loc) async {
     final lesson = loc.actionableLesson;
     if (lesson == null || !lesson.accessible) return;
@@ -101,7 +150,7 @@ class _HistoricalMapScreenState extends ConsumerState<HistoricalMapScreen> {
     if (mounted) ref.invalidate(mapLocationsProvider);
   }
 
-  void _showDetail(MapLocationDto loc) {
+  void _showProfile(MapLocationDto loc) {
     showModalBottomSheet<void>(
       context: context,
       backgroundColor: Colors.transparent,
@@ -120,27 +169,110 @@ class _HistoricalMapScreenState extends ConsumerState<HistoricalMapScreen> {
     );
   }
 
-  void _goChapter(int delta, int total) {
-    final next = (_chapterIndex + delta).clamp(0, total - 1);
-    if (next == _chapterIndex) return;
-    setState(() {
-      _chapterIndex = next;
-      _selectedIndex = null;
-    });
+  void _showPreview(MapLocationDto loc) {
+    showModalBottomSheet<void>(
+      context: context,
+      backgroundColor: Colors.transparent,
+      isScrollControlled: true,
+      enableDrag: true,
+      builder: (ctx) => LocationPreviewSheet(
+        location: loc,
+        onOpenProfile: () {
+          Navigator.of(ctx).pop();
+          _showProfile(loc);
+        },
+        onOpenLesson: loc.actionableLesson?.accessible == true
+            ? () {
+                Navigator.of(ctx).pop();
+                _openLesson(loc);
+              }
+            : null,
+        onOpenEvent: loc.primaryEventId == null
+            ? null
+            : () {
+                Navigator.of(ctx).pop();
+                _openEvent(loc);
+              },
+      ),
+    );
+  }
+
+  void _selectLocation(MapLocationDto loc) {
+    setState(() => _selectedId = loc.id);
+    if (loc.hasReliableGeographicCoordinate) {
+      _focusLocation(loc);
+    }
+    _showPreview(loc);
+  }
+
+  void _applyDeepLink(List<MapLocationDto> locations) {
+    if (_hasAppliedDeepLink) return;
+    _hasAppliedDeepLink = true;
     WidgetsBinding.instance.addPostFrameCallback((_) {
-      if (_scroll.hasClients) {
-        _scroll.animateTo(
-          0,
-          duration: const Duration(milliseconds: 250),
-          curve: Curves.easeOut,
-        );
+      if (!mounted) return;
+      final locationId = widget.initialLocationId;
+      if (locationId != null) {
+        MapLocationDto? target;
+        for (final loc in locations) {
+          if (loc.id == locationId) {
+            target = loc;
+            break;
+          }
+        }
+        if (target != null) {
+          setState(() => _selectedId = target!.id);
+          if (target.hasReliableGeographicCoordinate) {
+            _focusLocation(target);
+          } else {
+            _fitVietnam();
+          }
+          _showProfile(target);
+          return;
+        }
       }
+      if (_eventId != null && _eventId!.isNotEmpty) {
+        final focused = locations.where((l) => l.matchesEvent(_eventId)).toList();
+        if (focused.any((l) => l.hasReliableGeographicCoordinate)) {
+          _fitLocations(focused);
+          return;
+        }
+      }
+      _fitVietnam();
     });
+  }
+
+  List<MapLocationDto> _visible(List<MapLocationDto> raw) {
+    return raw.where((l) => l.shouldDisplayOnMap).where((l) {
+      if (_eventId != null && _eventId!.isNotEmpty && !l.matchesEvent(_eventId)) {
+        return false;
+      }
+      if (_periodCode != null &&
+          _periodCode!.isNotEmpty &&
+          !l.matchesPeriod(_periodCode)) {
+        return false;
+      }
+      if (_kind != null &&
+          _kind!.isNotEmpty &&
+          l.kind.toUpperCase() != _kind!.toUpperCase()) {
+        return false;
+      }
+      if (_unlockedOnly && !l.unlocked) return false;
+      return true;
+    }).toList();
+  }
+
+  void _goBack() {
+    if (Navigator.of(context).canPop()) {
+      context.pop();
+      return;
+    }
+    context.go('/dashboard');
   }
 
   @override
   void dispose() {
-    _scroll.dispose();
+    _cameraAnim?.dispose();
+    _camera.dispose();
     super.dispose();
   }
 
@@ -148,381 +280,420 @@ class _HistoricalMapScreenState extends ConsumerState<HistoricalMapScreen> {
   Widget build(BuildContext context) {
     final async = ref.watch(mapLocationsProvider);
     return Scaffold(
-      backgroundColor: DauVietColors.paperBackground,
+      backgroundColor: const Color(0xFFD7E4EC),
       appBar: AppBar(
         backgroundColor: DauVietColors.paperCard,
         elevation: 0,
         iconTheme: const IconThemeData(color: DauVietColors.inkText),
         leading: IconButton(
-          tooltip: 'Về Học tập',
-          icon: const Icon(
-            Icons.arrow_back_rounded,
-            color: DauVietColors.inkText,
-          ),
-          onPressed: () => context.go('/dashboard'),
+          tooltip: 'Quay lại',
+          icon: const Icon(Icons.arrow_back_rounded),
+          onPressed: _goBack,
         ),
-        title: Text('Bản Đồ Dấu Ấn', style: DauVietTypography.headlineSmall),
+        title: Text('Bản đồ Di sản', style: DauVietTypography.headlineSmall),
         centerTitle: true,
         actions: [
           IconButton(
-            tooltip: 'Tải lại bản đồ',
-            icon: const Icon(
-              Icons.map_outlined,
-              color: DauVietColors.inkMuted,
+            tooltip: 'Bộ lọc',
+            icon: const Icon(Icons.filter_list_rounded),
+            onPressed: () => async.whenOrNull(
+              data: (raw) => _openFilter(raw),
             ),
-            onPressed: () => ref.invalidate(mapLocationsProvider),
           ),
         ],
       ),
-      body: SafeArea(
-        child: async.when(
-          loading: () =>
-              AsyncStateView.loading(message: 'Đang mở tấm bản đồ cổ...'),
-          error: (e, _) => AsyncStateView.error(
-            error: e,
-            onRetry: () => ref.invalidate(mapLocationsProvider),
-          ),
-          data: (rawLocations) {
-            // Chỉ hiển thị địa điểm đã mở khoá hoặc địa điểm có
-            // visibility = PUBLIC / ALWAYS_VISIBLE (ẩn HIDDEN_UNTIL_UNLOCKED
-            // khi đang khoá).
-            final locations = rawLocations
-                .where((l) => l.shouldDisplayOnMap)
-                .toList();
-            if (locations.isEmpty) {
-              return AsyncStateView.empty(
-                message:
-                    'Chưa có địa điểm nào được mở trên bản đồ. Hoàn thành '
-                    'bài học để khám phá thêm dấu ấn lịch sử.',
-              );
-            }
-            final chapters = groupChapters(locations);
-
-            if (!_hasAppliedInitialEventId && widget.initialEventId != null) {
-              final found = chapters.indexWhere(
-                (c) => c.eventId == widget.initialEventId,
-              );
-              if (found != -1) {
-                _chapterIndex = found;
-              }
-              _hasAppliedInitialEventId = true;
-            }
-
-            if (_chapterIndex >= chapters.length) {
-              _chapterIndex = 0;
-              _selectedIndex = null;
-            }
-            final chapter = chapters[_chapterIndex];
-
-            // `?locationId=` — mở thẳng hồ sơ địa điểm vừa mở khoá.
-            if (!_hasOpenedInitialLocation &&
-                widget.initialLocationId != null) {
-              _hasOpenedInitialLocation = true;
-              final id = widget.initialLocationId;
-              MapLocationDto? target;
-              for (final l in locations) {
-                if (l.id == id) {
-                  target = l;
-                  break;
-                }
-              }
-              if (target != null) {
-                final loc = target;
-                WidgetsBinding.instance.addPostFrameCallback((_) {
-                  if (mounted) _showDetail(loc);
-                });
-              }
-            }
-
-            return _buildMapView(chapter, chapters, locations);
-          },
+      body: async.when(
+        loading: () =>
+            AsyncStateView.loading(message: 'Đang mở tấm bản đồ cổ...'),
+        error: (e, _) => AsyncStateView.error(
+          error: e,
+          onRetry: () => ref.invalidate(mapLocationsProvider),
         ),
+        data: (raw) {
+          final allVisible = raw.where((l) => l.shouldDisplayOnMap).toList();
+          if (allVisible.isEmpty) {
+            return AsyncStateView.empty(
+              message:
+                  'Chưa có địa điểm nào được mở trên bản đồ. Hoàn thành '
+                  'bài học để khám phá thêm dấu ấn lịch sử.',
+            );
+          }
+          final filtered = _visible(raw);
+          _applyDeepLink(allVisible);
+          if (!_hasFittedVietnam &&
+              widget.initialLocationId == null &&
+              (widget.initialEventId == null || widget.initialEventId!.isEmpty)) {
+            _hasFittedVietnam = true;
+            WidgetsBinding.instance.addPostFrameCallback((_) {
+              if (mounted) _fitVietnam();
+            });
+          }
+          return Column(
+            children: [
+              _ContextBar(
+                label: _contextLabel(filtered),
+                count: filtered.length,
+                onPick: () => _openFilter(raw),
+              ),
+              Expanded(
+                child: Stack(
+                  key: _mapKey,
+                  children: [
+                    VietnamWorldMapView(
+                      controller: _camera,
+                      locations: filtered,
+                      selectedId: _selectedId,
+                      highlightedIds: {
+                        if (_eventId != null && _eventId!.isNotEmpty)
+                          for (final loc in filtered)
+                            if (loc.matchesEvent(_eventId)) loc.id,
+                      },
+                      onSelect: _selectLocation,
+                      onClusterTap: (cluster) => _fitLocations(cluster.members),
+                    ),
+                    Positioned(
+                      right: 12,
+                      bottom: 16,
+                      child: _ZoomControls(
+                        onZoomIn: () => _zoomBy(1.35),
+                        onZoomOut: () => _zoomBy(1 / 1.35),
+                        onReset: () {
+                          setState(() {
+                            _eventId = null;
+                            _periodCode = null;
+                            _kind = null;
+                            _unlockedOnly = false;
+                            _selectedId = null;
+                          });
+                          _fitVietnam();
+                        },
+                      ),
+                    ),
+                    Positioned(
+                      left: 12,
+                      bottom: 16,
+                      right: 72,
+                      child: Text(
+                        VietnamWorldMapProjection.attribution,
+                        maxLines: 2,
+                        style: DauVietTypography.labelSmall.copyWith(
+                          fontSize: 9,
+                          color: const Color(0xFF3A4A42),
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          );
+        },
       ),
       bottomNavigationBar: const MainBottomNav(),
     );
   }
 
-  Widget _buildMapView(
-    JourneyChapter chapter,
-    List<JourneyChapter> chapters,
-    List<MapLocationDto> locations,
-  ) {
-    return Column(
-      children: [
-        // 1. Header Banner: Bản đồ Di sản Việt Nam
-        Container(
-          width: double.infinity,
-          padding: const EdgeInsets.fromLTRB(16, 2, 16, 6),
-          color: DauVietColors.paperCard,
-          child: Column(
+  String _contextLabel(List<MapLocationDto> filtered) {
+    if (_eventId != null && _eventId!.isNotEmpty) {
+      for (final loc in filtered) {
+        for (final ev in loc.events) {
+          if (ev.eventId == _eventId && ev.title.trim().isNotEmpty) {
+            return ev.title;
+          }
+        }
+        if (loc.eventId == _eventId &&
+            loc.eventTitle != null &&
+            loc.eventTitle!.trim().isNotEmpty) {
+          return loc.eventTitle!;
+        }
+      }
+      return 'Sự kiện đã chọn';
+    }
+    if (_periodCode != null && _periodCode!.isNotEmpty) {
+      for (final loc in filtered) {
+        for (final ev in loc.events) {
+          if ((ev.periodCode ?? '').toUpperCase() == _periodCode!.toUpperCase()) {
+            return ev.periodTitle ?? _periodCode!;
+          }
+        }
+      }
+      return _periodCode!;
+    }
+    return 'Tất cả Việt Nam';
+  }
+
+  Future<void> _openFilter(List<MapLocationDto> raw) async {
+    final visible = raw.where((l) => l.shouldDisplayOnMap).toList();
+    final events = <_FilterOption>[];
+    final seenEvents = <String>{};
+    final periods = <_FilterOption>[];
+    final seenPeriods = <String>{};
+    final kinds = <_FilterOption>[];
+    final seenKinds = <String>{};
+    final unlocated = <MapLocationDto>[];
+    for (final loc in visible) {
+      if (!loc.hasReliableGeographicCoordinate) unlocated.add(loc);
+      final eventId = loc.primaryEventId;
+      final eventTitle = loc.primaryEventTitle;
+      if (eventId != null && seenEvents.add(eventId)) {
+        events.add(_FilterOption(eventId, eventTitle ?? 'Sự kiện'));
+      }
+      for (final ev in loc.events) {
+        if (ev.eventId.isNotEmpty && seenEvents.add(ev.eventId)) {
+          events.add(_FilterOption(ev.eventId, ev.title));
+        }
+        final code = ev.periodCode?.trim() ?? '';
+        if (code.isNotEmpty && seenPeriods.add(code.toUpperCase())) {
+          periods.add(_FilterOption(code, ev.periodTitle ?? code));
+        }
+      }
+      if (seenKinds.add(loc.kind.toUpperCase())) {
+        kinds.add(_FilterOption(loc.kind, loc.kindLabelVi));
+      }
+    }
+    events.sort((a, b) => a.label.compareTo(b.label));
+    periods.sort((a, b) => a.label.compareTo(b.label));
+
+    await showModalBottomSheet<void>(
+      context: context,
+      backgroundColor: const Color(0xFFFBF6EA),
+      showDragHandle: true,
+      builder: (ctx) {
+        return SafeArea(
+          child: ListView(
+            padding: const EdgeInsets.fromLTRB(16, 0, 16, 24),
             children: [
-              Text(
-                'Bản đồ Di sản Lịch sử Việt Nam',
-                textAlign: TextAlign.center,
-                style: DauVietTypography.headlineMedium.copyWith(
-                  fontSize: 16.5,
-                  fontWeight: FontWeight.w800,
-                  color: DauVietColors.inkText,
+              Text('Bộ lọc bản đồ', style: DauVietTypography.headlineSmall),
+              const SizedBox(height: 12),
+              ListTile(
+                contentPadding: EdgeInsets.zero,
+                title: const Text('Tất cả Việt Nam'),
+                trailing: _eventId == null && _periodCode == null
+                    ? const Icon(Icons.check_rounded)
+                    : null,
+                onTap: () {
+                  setState(() {
+                    _eventId = null;
+                    _periodCode = null;
+                  });
+                  Navigator.pop(ctx);
+                  _fitVietnam();
+                },
+              ),
+              SwitchListTile(
+                contentPadding: EdgeInsets.zero,
+                title: const Text('Chỉ địa điểm đã mở khoá'),
+                value: _unlockedOnly,
+                onChanged: (v) => setState(() => _unlockedOnly = v),
+              ),
+              if (kinds.isNotEmpty) ...[
+                const SizedBox(height: 8),
+                Text('Loại địa điểm', style: DauVietTypography.labelMedium),
+                Wrap(
+                  spacing: 6,
+                  children: [
+                    ChoiceChip(
+                      label: const Text('Tất cả'),
+                      selected: _kind == null,
+                      onSelected: (_) => setState(() => _kind = null),
+                    ),
+                    for (final k in kinds)
+                      ChoiceChip(
+                        label: Text(k.label),
+                        selected: _kind == k.id,
+                        onSelected: (_) => setState(() => _kind = k.id),
+                      ),
+                  ],
+                ),
+              ],
+              if (events.isNotEmpty) ...[
+                const SizedBox(height: 12),
+                Text('Sự kiện', style: DauVietTypography.labelMedium),
+                for (final ev in events)
+                  ListTile(
+                    contentPadding: EdgeInsets.zero,
+                    title: Text(ev.label),
+                    trailing: _eventId == ev.id
+                        ? const Icon(Icons.check_rounded)
+                        : null,
+                    onTap: () {
+                      setState(() {
+                        _eventId = ev.id;
+                        _periodCode = null;
+                      });
+                      Navigator.pop(ctx);
+                      final focused = visible
+                          .where((l) => l.matchesEvent(ev.id))
+                          .toList();
+                      _fitLocations(focused);
+                    },
+                  ),
+              ],
+              if (periods.isNotEmpty) ...[
+                const SizedBox(height: 8),
+                Text('Thời kỳ', style: DauVietTypography.labelMedium),
+                for (final p in periods)
+                  ListTile(
+                    contentPadding: EdgeInsets.zero,
+                    title: Text(p.label),
+                    trailing: _periodCode == p.id
+                        ? const Icon(Icons.check_rounded)
+                        : null,
+                    onTap: () {
+                      setState(() {
+                        _periodCode = p.id;
+                        _eventId = null;
+                      });
+                      Navigator.pop(ctx);
+                      final focused = visible
+                          .where((l) => l.matchesPeriod(p.id))
+                          .toList();
+                      _fitLocations(focused);
+                    },
+                  ),
+              ],
+              if (unlocated.isNotEmpty) ...[
+                const SizedBox(height: 12),
+                Text(
+                  'Chưa định vị (${unlocated.length})',
+                  style: DauVietTypography.labelMedium,
+                ),
+                for (final loc in unlocated)
+                  ListTile(
+                    contentPadding: EdgeInsets.zero,
+                    title: Text(loc.title),
+                    subtitle: const Text('Chưa có tọa độ địa lý đáng tin cậy'),
+                    onTap: () {
+                      Navigator.pop(ctx);
+                      setState(() => _selectedId = loc.id);
+                      _showPreview(loc);
+                    },
+                  ),
+              ],
+            ],
+          ),
+        );
+      },
+    );
+  }
+}
+
+class _FilterOption {
+  final String id;
+  final String label;
+  const _FilterOption(this.id, this.label);
+}
+
+class _ContextBar extends StatelessWidget {
+  final String label;
+  final int count;
+  final VoidCallback onPick;
+
+  const _ContextBar({
+    required this.label,
+    required this.count,
+    required this.onPick,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Material(
+      color: const Color(0xF2FFF8EC),
+      child: InkWell(
+        onTap: onPick,
+        child: Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+          child: Row(
+            children: [
+              const Icon(Icons.public_rounded, size: 16, color: Color(0xFF1A5642)),
+              const SizedBox(width: 8),
+              Expanded(
+                child: Text(
+                  label,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: DauVietTypography.labelMedium.copyWith(
+                    fontWeight: FontWeight.w800,
+                  ),
                 ),
               ),
-              const SizedBox(height: 2),
               Text(
-                'Khám phá các địa điểm di sản và hồ sơ tư liệu lịch sử',
-                textAlign: TextAlign.center,
-                maxLines: 2,
-                overflow: TextOverflow.ellipsis,
-                style: DauVietTypography.bodySmall.copyWith(
-                  fontSize: 11,
+                '$count địa điểm',
+                style: DauVietTypography.labelSmall.copyWith(
                   color: DauVietColors.inkMuted,
-                  height: 1.3,
                 ),
               ),
+              const Icon(Icons.expand_more_rounded, size: 18),
             ],
           ),
         ),
+      ),
+    );
+  }
+}
 
-        // 2. Thống kê tiến độ mở khoá
-        JourneyProgressLegend(locations: locations),
+class _ZoomControls extends StatelessWidget {
+  final VoidCallback onZoomIn;
+  final VoidCallback onZoomOut;
+  final VoidCallback onReset;
 
-        // 3. Header chặng sự kiện
-        JourneyChapterHeader(
-          chapter: chapter,
-          totalChapters: chapters.length,
-          onPrev: _chapterIndex > 0
-              ? () => _goChapter(-1, chapters.length)
-              : null,
-          onNext: _chapterIndex < chapters.length - 1
-              ? () => _goChapter(1, chapters.length)
-              : null,
+  const _ZoomControls({
+    required this.onZoomIn,
+    required this.onZoomOut,
+    required this.onReset,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Column(
+      children: [
+        _RoundBtn(icon: Icons.add_rounded, tooltip: 'Phóng to', onTap: onZoomIn),
+        const SizedBox(height: 8),
+        _RoundBtn(
+          icon: Icons.remove_rounded,
+          tooltip: 'Thu nhỏ',
+          onTap: onZoomOut,
         ),
-
-        // 4. Thanh trượt chọn Chặng (nếu có nhiều chặng)
-        if (chapters.length > 1) _buildJourneySelector(chapters),
-
-        const SizedBox(height: 2),
-
-        // 5. Banner tên chặng & số mốc toạ độ
-        Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 2),
-          child: FittedBox(
-            fit: BoxFit.scaleDown,
-            alignment: Alignment.centerLeft,
-            child: Container(
-              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-              decoration: BoxDecoration(
-                color: DauVietColors.paperCardHi,
-                borderRadius: BorderRadius.circular(8),
-                border: Border.all(color: DauVietColors.outlineVariant),
-              ),
-              child: Row(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  const Icon(
-                    Icons.map_rounded,
-                    size: 14,
-                    color: DauVietColors.cinnabarRed,
-                  ),
-                  const SizedBox(width: 6),
-                  Text(
-                    'Bản Đồ Di Sản: ${chapter.title}',
-                    style: DauVietTypography.labelMedium.copyWith(
-                      fontWeight: FontWeight.w800,
-                      fontSize: 11,
-                      color: DauVietColors.inkText,
-                    ),
-                  ),
-                  const SizedBox(width: 8),
-                  Container(
-                    padding: const EdgeInsets.symmetric(
-                      horizontal: 5,
-                      vertical: 1.5,
-                    ),
-                    decoration: BoxDecoration(
-                      color: DauVietColors.cinnabarRed.withValues(alpha: 0.12),
-                      borderRadius: BorderRadius.circular(4),
-                    ),
-                    child: Text(
-                      '${chapter.locations.length} mốc toạ độ',
-                      style: DauVietTypography.labelSmall.copyWith(
-                        fontSize: 9,
-                        fontWeight: FontWeight.w700,
-                        color: DauVietColors.cinnabarRed,
-                      ),
-                    ),
-                  ),
-                ],
-              ),
-            ),
-          ),
-        ),
-        const SizedBox(height: 2),
-
-        // 6. Bản đồ cuộn dọc với các mốc địa điểm
-        Expanded(child: _buildJourneyCanvas(chapter)),
-        const Divider(height: 1, color: DauVietColors.outlineVariant),
-
-        // 7. Danh sách mốc địa điểm dưới đáy
-        JourneyLocationList(
-          locations: chapter.locations,
-          onTap: (loc) {
-            final idx = chapter.locations.indexOf(loc);
-            if (idx >= 0) setState(() => _selectedIndex = idx);
-            _showDetail(loc);
-          },
+        const SizedBox(height: 8),
+        _RoundBtn(
+          icon: Icons.center_focus_strong_rounded,
+          tooltip: 'Về toàn cảnh',
+          onTap: onReset,
         ),
       ],
     );
   }
+}
 
-  Widget _buildJourneySelector(List<JourneyChapter> chapters) {
-    return Container(
-      height: 48,
-      margin: const EdgeInsets.symmetric(vertical: 2),
-      child: ListView.separated(
-        scrollDirection: Axis.horizontal,
-        padding: const EdgeInsets.symmetric(horizontal: 16),
-        itemCount: chapters.length,
-        separatorBuilder: (_, _) => const SizedBox(width: 8),
-        itemBuilder: (context, idx) {
-          final ch = chapters[idx];
-          final isSelected = idx == _chapterIndex;
-          return GestureDetector(
-            onTap: () {
-              setState(() {
-                _chapterIndex = idx;
-                _selectedIndex = null;
-              });
-              WidgetsBinding.instance.addPostFrameCallback((_) {
-                if (_scroll.hasClients) {
-                  _scroll.animateTo(
-                    0,
-                    duration: const Duration(milliseconds: 250),
-                    curve: Curves.easeOut,
-                  );
-                }
-              });
-            },
-            child: AnimatedContainer(
-              duration: const Duration(milliseconds: 200),
-              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-              decoration: BoxDecoration(
-                color: isSelected
-                    ? DauVietColors.paperCard
-                    : DauVietColors.paperBackground,
-                borderRadius: BorderRadius.circular(12),
-                border: Border.all(
-                  color: isSelected
-                      ? DauVietColors.cinnabarRed
-                      : DauVietColors.outlineVariant,
-                  width: isSelected ? 2.0 : 1.0,
-                ),
-              ),
-              alignment: Alignment.center,
-              child: Row(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  Icon(
-                    Icons.place_rounded,
-                    size: 16,
-                    color: isSelected
-                        ? DauVietColors.cinnabarRed
-                        : DauVietColors.heritageGreen,
-                  ),
-                  const SizedBox(width: 6),
-                  Text(
-                    'Chặng ${idx + 1}: ${ch.title}',
-                    style: DauVietTypography.labelSmall.copyWith(
-                      fontWeight: FontWeight.w800,
-                      fontSize: 11,
-                      color: isSelected
-                          ? DauVietColors.cinnabarRed
-                          : DauVietColors.inkText,
-                    ),
-                  ),
-                ],
-              ),
-            ),
-          );
-        },
-      ),
-    );
-  }
+class _RoundBtn extends StatelessWidget {
+  final IconData icon;
+  final String tooltip;
+  final VoidCallback onTap;
 
-  Widget _buildJourneyCanvas(JourneyChapter chapter) {
-    return LayoutBuilder(
-      builder: (context, constraints) {
-        final w = constraints.maxWidth;
-        final double h = math.max(
-          JourneyLayout.canvasHeight(chapter.locations.length),
-          constraints.maxHeight,
-        );
-        final centers = JourneyLayout.centers(chapter.locations.length, w);
-        return ClipRRect(
-          borderRadius: BorderRadius.circular(14),
-          child: Container(
-            margin: const EdgeInsets.fromLTRB(12, 2, 12, 6),
-            decoration: BoxDecoration(
-              borderRadius: BorderRadius.circular(14),
-              border: Border.all(
-                color: DauVietColors.outlineVariant,
-                width: 1.5,
-              ),
-              boxShadow: [
-                BoxShadow(
-                  color: Colors.black.withValues(alpha: 0.08),
-                  blurRadius: 10,
-                  offset: const Offset(0, 3),
-                ),
-              ],
-            ),
-            child: SingleChildScrollView(
-              controller: _scroll,
-              physics: const BouncingScrollPhysics(),
-              child: SizedBox(
-                width: w,
-                height: h,
-                child: Stack(
-                  children: [
-                    // 1. Nền bản đồ cổ chung (không hardcode theo slug sự kiện)
-                    Positioned.fill(
-                      child: Image.asset(
-                        'assets/images/vietnam_journey_map_bg.jpg',
-                        fit: BoxFit.cover,
-                        alignment: Alignment.center,
-                        errorBuilder: (_, _, _) =>
-                            Container(color: DauVietColors.paperCardHi),
-                      ),
-                    ),
+  const _RoundBtn({
+    required this.icon,
+    required this.tooltip,
+    required this.onTap,
+  });
 
-                    // 2. Lớp phủ giấy dó nhẹ (Design System v3)
-                    const Positioned.fill(
-                      child: IgnorePointer(child: PaperGrainOverlay()),
-                    ),
-
-                    // 3. Ghim địa điểm — không vẽ đường nối (học trên hành trình)
-
-                    // 4. Các ghim địa điểm tương tác (kể cả LOCKED khi
-                    //    visibility = PUBLIC)
-                    for (int i = 0; i < chapter.locations.length; i++)
-                      Positioned(
-                        left: centers[i].dx - 64,
-                        top: centers[i].dy - 28,
-                        child: JourneyMapNode(
-                          location: chapter.locations[i],
-                          selected: _selectedIndex == i,
-                          onTap: () {
-                            setState(() => _selectedIndex = i);
-                            _showDetail(chapter.locations[i]);
-                          },
-                        ),
-                      ),
-                  ],
-                ),
-              ),
-            ),
+  @override
+  Widget build(BuildContext context) {
+    return Material(
+      color: const Color(0xF6FFF8EC),
+      shape: const CircleBorder(),
+      elevation: 2,
+      child: InkWell(
+        customBorder: const CircleBorder(),
+        onTap: onTap,
+        child: Tooltip(
+          message: tooltip,
+          child: SizedBox(
+            width: 42,
+            height: 42,
+            child: Icon(icon, size: 20, color: const Color(0xFF1A5642)),
           ),
-        );
-      },
+        ),
+      ),
     );
   }
 }

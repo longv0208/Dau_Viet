@@ -265,6 +265,29 @@ class MapLocationDto {
   ///   ẩn nếu `HIDDEN_UNTIL_UNLOCKED`.
   bool get shouldDisplayOnMap => unlocked || !isHiddenUntilUnlocked;
 
+  /// Tọa độ địa lý thật của Việt Nam — không phải X/Y % ảnh bản đồ cũ.
+  bool get hasReliableGeographicCoordinate =>
+      latitude >= 6.0 &&
+      latitude <= 24.5 &&
+      longitude > 100.0 &&
+      longitude <= 112.0;
+
+  bool matchesEvent(String? eventId) {
+    final id = eventId?.trim() ?? '';
+    if (id.isEmpty) return true;
+    if (this.eventId == id) return true;
+    if (eventIds.contains(id)) return true;
+    return events.any((e) => e.eventId == id);
+  }
+
+  bool matchesPeriod(String? periodCode) {
+    final code = periodCode?.trim() ?? '';
+    if (code.isEmpty) return true;
+    return events.any(
+      (e) => (e.periodCode ?? '').trim().toUpperCase() == code.toUpperCase(),
+    );
+  }
+
   /// ID sự kiện chính để nhóm chặng hoặc mở màn Chiến dịch.
   String? get primaryEventId {
     if (eventId.trim().isNotEmpty) return eventId.trim();

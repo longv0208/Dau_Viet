@@ -8,9 +8,8 @@ import 'package:flutter_test/flutter_test.dart';
 
 import '../fakes/fake_attempt_repository.dart';
 
-/// Recap semantics: section liệt kê evidence phải là "TƯ LIỆU TRONG BÀI HỌC"
-/// (đúng bản chất — snapshot evidence, không ngụ ý learner đã khảo sát từng
-/// mục); excerpt chỉ lấy từ READ content authored trong pinned snapshot.
+/// Màn hoàn thành chỉ giữ kết quả + phần thưởng + CTA, không còn khối
+/// "Ôn lại bài học" / "Tóm tắt khám phá".
 void main() {
   FakeAttemptRepository repoWithContent(Map<String, dynamic> content) =>
       FakeAttemptRepository()
@@ -48,7 +47,9 @@ void main() {
     await tester.pumpAndSettle();
   }
 
-  testWidgets('evidence section nhãn "TƯ LIỆU TRONG BÀI HỌC"', (tester) async {
+  testWidgets('màn hoàn thành không còn ôn lại / tóm tắt khám phá', (
+    tester,
+  ) async {
     final repo = repoWithContent({
       'title': 'Bài học thử',
       'evidence': [
@@ -57,13 +58,16 @@ void main() {
       ],
     });
     await pump(tester, repo);
-    expect(find.text('TƯ LIỆU TRONG BÀI HỌC'), findsOneWidget);
-    expect(find.text('BẰNG CHỨNG ĐÃ KHẢO SÁT'), findsNothing);
-    expect(find.textContaining('Sử ký'), findsOneWidget);
-    expect(find.text('Xem Bộ sưu tập tư liệu →'), findsOneWidget);
+    expect(find.text('HOÀN THÀNH BÀI HỌC'), findsOneWidget);
+    expect(find.text('TIẾP TỤC HÀNH TRÌNH'), findsOneWidget);
+    expect(find.text('ÔN LẠI BÀI HỌC'), findsNothing);
+    expect(find.text('TÓM TẮT KHÁM PHÁ'), findsNothing);
+    expect(find.text('TƯ LIỆU TRONG BÀI HỌC'), findsNothing);
   });
 
-  testWidgets('READ content → trích đoạn hiển thị trong recap', (tester) async {
+  testWidgets('trích đoạn READ không còn hiện trên màn hoàn thành', (
+    tester,
+  ) async {
     final repo = repoWithContent({
       'title': 'Bài học có đọc',
       'stages': [
@@ -85,13 +89,14 @@ void main() {
       ],
     });
     await pump(tester, repo);
-    expect(find.textContaining('Năm 938, quân Nam Hán'), findsOneWidget);
+    expect(find.textContaining('Năm 938, quân Nam Hán'), findsNothing);
+    expect(find.text('ÔN LẠI BÀI HỌC'), findsNothing);
   });
 
   testWidgets('không có content đáng kể → chỉ result-only, không crash', (
     tester,
   ) async {
-    final repo = repoWithContent(const {}); // content trống
+    final repo = repoWithContent(const {});
     await pump(tester, repo);
     expect(find.text('HOÀN THÀNH BÀI HỌC'), findsOneWidget);
     expect(find.text('ÔN LẠI BÀI HỌC'), findsNothing);

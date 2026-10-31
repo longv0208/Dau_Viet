@@ -205,7 +205,8 @@ public class AdminMapLocationService {
 
     @Transactional(readOnly = true)
     public List<StandaloneLocationResponse> listStandalone(
-            String q, String kind, MapLocationStatus status, UUID eventId) {
+            String q, String kind, MapLocationStatus status, UUID eventId,
+            Boolean unlocated) {
         List<MapLocation> all = locations.findAllOrderedForAdmin();
         Set<UUID> eventFilteredLocationIds = null;
         if (eventId != null) {
@@ -236,6 +237,8 @@ public class AdminMapLocationService {
                     String slug = l.getSlug() == null ? "" : l.getSlug().toLowerCase(Locale.ROOT);
                     return title.contains(normalizedQ) || slug.contains(normalizedQ);
                 })
+                .filter(l -> unlocated == null || !unlocated
+                        || !isReliableGeographic(l.getLatitude(), l.getLongitude()))
                 .toList();
 
         return filtered.stream().map(this::toStandaloneResponse).toList();
@@ -243,8 +246,9 @@ public class AdminMapLocationService {
 
     @Transactional(readOnly = true)
     public com.dauviet.common.api.PageResponse<StandaloneLocationResponse> listStandalonePage(
-            String q, String kind, MapLocationStatus status, UUID eventId, int page, int size) {
-        List<StandaloneLocationResponse> all = listStandalone(q, kind, status, eventId);
+            String q, String kind, MapLocationStatus status, UUID eventId, Boolean unlocated,
+            int page, int size) {
+        List<StandaloneLocationResponse> all = listStandalone(q, kind, status, eventId, unlocated);
         int safeSize = Math.max(1, Math.min(size, 100));
         int safePage = Math.max(0, page);
         long total = all.size();
@@ -749,5 +753,9 @@ public class AdminMapLocationService {
                 l.getDisplayOrder(), l.getStatus().name(),
                 l.getPublishedAt() != null,
                 l.getRowVersion(), l.getCreatedAt(), l.getUpdatedAt());
+    }
+
+    static boolean isReliableGeographic(double lat, double lng) {
+        return lat >= 6.0 && lat <= 24.5 && lng > 100.0 && lng <= 112.0;
     }
 }

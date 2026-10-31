@@ -49,8 +49,9 @@ public class AdminStandaloneMapLocationController {
             @RequestParam(required = false) String q,
             @RequestParam(required = false) String kind,
             @RequestParam(required = false) MapLocationStatus status,
-            @RequestParam(required = false) UUID eventId) {
-        return service.listStandalone(q, kind, status, eventId);
+            @RequestParam(required = false) UUID eventId,
+            @RequestParam(required = false) Boolean unlocated) {
+        return service.listStandalone(q, kind, status, eventId, unlocated);
     }
 
     @GetMapping(params = "page")
@@ -60,8 +61,9 @@ public class AdminStandaloneMapLocationController {
             @RequestParam(required = false) String q,
             @RequestParam(required = false) String kind,
             @RequestParam(required = false) MapLocationStatus status,
-            @RequestParam(required = false) UUID eventId) {
-        return service.listStandalonePage(q, kind, status, eventId, page, size);
+            @RequestParam(required = false) UUID eventId,
+            @RequestParam(required = false) Boolean unlocated) {
+        return service.listStandalonePage(q, kind, status, eventId, unlocated, page, size);
     }
 
     @PostMapping

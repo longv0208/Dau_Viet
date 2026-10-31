@@ -1,6 +1,12 @@
 "use client";
 
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useMemo, useRef, useState } from "react";
+import {
+  geoToWorld,
+  isReliableGeographic,
+  VIETNAM_WORLD_MAP,
+  worldToGeo,
+} from "@/lib/geo/vietnam-world-map-projection";
 import { cn } from "@/lib/utils";
 
 export interface LatLng {
@@ -8,86 +14,68 @@ export interface LatLng {
   lng: number;
 }
 
-interface LatLngMapPickerProps {
-  /**
-   * Giá trị hiện tại dạng phần trăm ảnh: lng = x% (0–100 trái→phải),
-   * lat = y% (0–100 trên→dưới). null = chưa chọn.
-   * Mobile không render theo lat/lng thật mà theo index — picker này
-   * chỉ để admin xem trước & lưu vị trí tương đối trên ảnh map.
-   */
-  value: LatLng | null;
-  onChange: (v: LatLng) => void;
-  /** Đường dẫn ảnh map của sự kiện (trong /public). */
-  imageSrc: string;
-  /** Tên bản đồ hiển thị phụ. */
-  imageLabel?: string;
-  /** Chiều cao khung preview px. Mặc định 320. */
-  height?: number;
+interface KnownPlace {
+  id: string;
+  title: string;
+  lat: number;
+  lng: number;
 }
 
-/**
- * Picker click-trên-ảnh — đúng tinh thần map mobile (ảnh lịch sử
- * + node theo %). Click → thả chấm node; click chỗ khác → dời chấm.
- * Kéo-thả chấm cũng được.
- */
+interface LatLngMapPickerProps {
+  /** WGS84 latitude / longitude. null = chưa chọn. */
+  value: LatLng | null;
+  onChange: (v: LatLng) => void;
+  /** Giữ prop cũ — World Map không dùng ảnh sự kiện để lưu tọa độ. */
+  imageSrc?: string;
+  imageLabel?: string;
+  height?: number;
+  knownPlaces?: KnownPlace[];
+}
+
+const DISPLAY_WIDTH = 420;
+
 export function LatLngMapPicker({
   value,
   onChange,
-  imageSrc,
   imageLabel,
-  height = 320,
+  height = 460,
+  knownPlaces = [],
 }: LatLngMapPickerProps) {
-  const frameRef = useRef<HTMLDivElement>(null);
-  const [imgError, setImgError] = useState(false);
+  const mapRef = useRef<HTMLDivElement>(null);
+  const [search, setSearch] = useState("");
+  const displayScale = DISPLAY_WIDTH / VIETNAM_WORLD_MAP.designWidth;
+  const displayHeight = VIETNAM_WORLD_MAP.designHeight * displayScale;
 
-  useEffect(() => {
-    setImgError(false);
-  }, [imageSrc]);
+  const hasGeo = value != null && isReliableGeographic(value.lat, value.lng);
+  const marker = useMemo(() => {
+    if (!hasGeo || !value) return null;
+    return geoToWorld(value.lat, value.lng);
+  }, [hasGeo, value]);
 
-  const displayPos = useMemo(() => {
-    if (!value) return null;
-    const { lat, lng } = value;
-    // Nếu là tọa độ địa lý thực tại Việt Nam (kinh độ > 100°E, vĩ độ 8..24°N),
-    // quy đổi sang vị trí tương đối % trên khung bản đồ để không bị dồn sát mép phải (100%).
-    if (lng > 100 && lat >= 5 && lat <= 26) {
-      const normY = ((23.5 - lat) / (23.5 - 8.5)) * 80 + 10;
-      const normX = ((lng - 102) / (109.5 - 102)) * 72 + 14;
-      return {
-        topPct: Math.min(95, Math.max(5, round2(normY))),
-        leftPct: Math.min(95, Math.max(5, round2(normX))),
-      };
-    }
-    return {
-      topPct: Math.min(100, Math.max(0, lat)),
-      leftPct: Math.min(100, Math.max(0, lng)),
-    };
-  }, [value]);
-
-  const toPct = (clientX: number, clientY: number): LatLng | null => {
-    const el = frameRef.current;
+  const toLatLng = (clientX: number, clientY: number): LatLng | null => {
+    const el = mapRef.current;
     if (!el) return null;
     const r = el.getBoundingClientRect();
     if (r.width <= 0 || r.height <= 0) return null;
-    const x = ((clientX - r.left) / r.width) * 100;
-    const y = ((clientY - r.top) / r.height) * 100;
-    return {
-      lng: Math.min(100, Math.max(0, round2(x))),
-      lat: Math.min(90, Math.max(0, round2(y))),
+    const world = {
+      x: ((clientX - r.left) / r.width) * VIETNAM_WORLD_MAP.designWidth,
+      y: ((clientY - r.top) / r.height) * VIETNAM_WORLD_MAP.designHeight,
     };
-  };
-  const handleClick = (e: React.MouseEvent<HTMLDivElement>) => {
-    const v = toPct(e.clientX, e.clientY);
-    if (v) onChange(v);
+    const geo = worldToGeo(world.x, world.y);
+    return { lat: round4(geo.lat), lng: round4(geo.lng) };
   };
 
-  const handleMarkerPointerDown = (e: React.PointerEvent<HTMLButtonElement>) => {
+  const handleClick = (e: React.MouseEvent<HTMLDivElement>) => {
+    const next = toLatLng(e.clientX, e.clientY);
+    if (next) onChange(next);
+  };
+
+  const handleMarkerDown = (e: React.PointerEvent<HTMLButtonElement>) => {
     e.preventDefault();
     e.stopPropagation();
-    const el = frameRef.current;
-    if (!el) return;
     const move = (ev: PointerEvent) => {
-      const v = toPct(ev.clientX, ev.clientY);
-      if (v) onChange(v);
+      const next = toLatLng(ev.clientX, ev.clientY);
+      if (next) onChange(next);
     };
     const up = () => {
       window.removeEventListener("pointermove", move);
@@ -97,66 +85,85 @@ export function LatLngMapPicker({
     window.addEventListener("pointerup", up);
   };
 
+  const filteredPlaces = knownPlaces.filter((p) =>
+    p.title.toLowerCase().includes(search.trim().toLowerCase()),
+  );
+
   return (
     <div className="flex flex-col gap-2">
+      <div className="flex flex-wrap items-center gap-2">
+        <input
+          type="search"
+          value={search}
+          onChange={(e) => setSearch(e.target.value)}
+          placeholder="Tìm địa điểm đã có trên bản đồ…"
+          className="h-9 min-w-[12rem] flex-1 rounded-md border border-border bg-white px-2 text-sm"
+        />
+      </div>
+      {search.trim() && filteredPlaces.length > 0 && (
+        <ul className="max-h-28 overflow-auto rounded-md border border-border bg-white text-sm">
+          {filteredPlaces.slice(0, 8).map((p) => (
+            <li key={p.id}>
+              <button
+                type="button"
+                className="w-full px-2 py-1 text-left hover:bg-muted"
+                onClick={() => onChange({ lat: p.lat, lng: p.lng })}
+              >
+                {p.title}
+              </button>
+            </li>
+          ))}
+        </ul>
+      )}
       <div
-        ref={frameRef}
-        role="button"
-        tabIndex={0}
-        aria-label="Chọn vị trí địa điểm trên bản đồ"
-        onClick={handleClick}
-        onKeyDown={(e) => {
-          if (e.key === "Enter" || e.key === " ") e.preventDefault();
-        }}
+        className="overflow-auto rounded-md border border-border bg-[#d7e4ec]"
         style={{ height }}
-        className={cn(
-          "relative w-full cursor-crosshair select-none overflow-hidden rounded-md border border-border",
-          "bg-muted/30",
-        )}
       >
-        {imgError ? (
-          <div className="flex h-full items-center justify-center text-xs text-ink-muted">
-            Không tải được ảnh bản đồ — vẫn nhập % thủ công bên dưới.
-          </div>
-        ) : (
-          // eslint-disable-next-line @next/next/no-img-element
+        <div
+          ref={mapRef}
+          role="application"
+          aria-label="Chọn vị trí địa điểm trên bản đồ Việt Nam"
+          onClick={handleClick}
+          className="relative cursor-crosshair"
+          style={{ width: DISPLAY_WIDTH, height: displayHeight }}
+        >
+          {/* eslint-disable-next-line @next/next/no-img-element */}
           <img
-            src={imageSrc}
-            alt={imageLabel ?? "Bản đồ sự kiện"}
+            src={VIETNAM_WORLD_MAP.rasterSrc}
+            alt={imageLabel ?? "Bản đồ địa hình Việt Nam"}
             draggable={false}
-            onError={() => setImgError(true)}
-            className="h-full w-full object-cover"
+            className="absolute inset-0 h-full w-full select-none"
           />
-        )}
-
-        {displayPos && !imgError && (
-          <button
-            type="button"
-            aria-label="Vị trí đã chọn — kéo để chỉnh"
-            onPointerDown={handleMarkerPointerDown}
-            onClick={(e) => e.stopPropagation()}
-            style={{
-              left: `${displayPos.leftPct}%`,
-              top: `${displayPos.topPct}%`,
-              transform: "translate(-50%, -50%)",
-            }}
-            className={cn(
-              "absolute h-5 w-5 cursor-grab rounded-full border-2 border-white",
-              "bg-red-700 shadow-[0_1px_4px_rgba(0,0,0,0.45)]",
-              "ring-2 ring-red-700/40 active:cursor-grabbing",
-            )}
-          />
-        )}
+          {marker && (
+            <button
+              type="button"
+              aria-label="Vị trí đã chọn — kéo để chỉnh"
+              onPointerDown={handleMarkerDown}
+              onClick={(e) => e.stopPropagation()}
+              style={{
+                left: marker.x * displayScale,
+                top: marker.y * displayScale,
+                transform: "translate(-50%, -50%)",
+              }}
+              className={cn(
+                "absolute h-5 w-5 cursor-grab rounded-full border-2 border-white",
+                "bg-red-700 shadow-[0_1px_4px_rgba(0,0,0,0.45)]",
+                "ring-2 ring-red-700/40 active:cursor-grabbing",
+              )}
+            />
+          )}
+        </div>
       </div>
       <p className="text-xs text-ink-muted">
-        {imageLabel ? `${imageLabel} · ` : ""}
-        Click lên ảnh để chọn vị trí — kéo chấm đỏ để tinh chỉnh. Giá trị lưu
-        là % theo ảnh (X→kinh độ, Y→vĩ độ).
+        {hasGeo && value
+          ? `${value.lat.toFixed(4)}°N, ${value.lng.toFixed(4)}°E`
+          : "Chưa xác định vị trí — bấm lên bản đồ Việt Nam để chọn tọa độ địa lý."}{" "}
+        {VIETNAM_WORLD_MAP.attribution}
       </p>
     </div>
   );
 }
 
-function round2(n: number): number {
-  return Math.round(n * 100) / 100;
+function round4(n: number): number {
+  return Math.round(n * 10000) / 10000;
 }

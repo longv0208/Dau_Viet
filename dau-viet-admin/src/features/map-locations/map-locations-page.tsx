@@ -99,10 +99,10 @@ function slugifyVi(text: string): string {
 }
 
 function formatCoordinateDisplay(lat: number, lng: number): string {
-  if (lng > 100 && lat >= -90 && lat <= 90) {
+  if (lng > 100 && lat >= 6 && lat <= 24.5) {
     return `${Number(lat.toFixed(4))}°N, ${Number(lng.toFixed(4))}°E`;
   }
-  return `${Number(lat.toFixed(2))}%, ${Number(lng.toFixed(2))}%`;
+  return "Chưa xác định vị trí";
 }
 
 function LocationCardThumbnail({ loc }: { loc: StandaloneLocationResponse }) {
@@ -176,6 +176,7 @@ export function MapLocationsWorkspace() {
   const [kindFilter, setKindFilter] = useState<string>("");
   const [statusFilter, setStatusFilter] = useState<string>("");
   const [eventFilter, setEventFilter] = useState<string>(initialEventId);
+  const [unlocatedFilter, setUnlocatedFilter] = useState(false);
   const [page, setPage] = useState(0);
   const pageSize = 8;
 
@@ -196,8 +197,9 @@ export function MapLocationsWorkspace() {
       kind: kindFilter || undefined,
       status: statusFilter || undefined,
       eventId: eventFilter || undefined,
+      unlocated: unlocatedFilter || undefined,
     }),
-    [page, pageSize, q, kindFilter, statusFilter, eventFilter],
+    [page, pageSize, q, kindFilter, statusFilter, eventFilter, unlocatedFilter],
   );
 
   const locationsQuery = useQuery({
@@ -387,6 +389,18 @@ export function MapLocationsWorkspace() {
                 ))}
               </Select>
             </div>
+
+            <label className="flex items-center gap-2 text-sm text-ink">
+              <input
+                type="checkbox"
+                checked={unlocatedFilter}
+                onChange={(e) => {
+                  setUnlocatedFilter(e.target.checked);
+                  setPage(0);
+                }}
+              />
+              Chưa xác định vị trí
+            </label>
           </div>
 
           <Button
@@ -438,7 +452,7 @@ export function MapLocationsWorkspace() {
             eyebrow="DANH MỤC"
             title={`Danh mục địa điểm (${totalLocations})`}
             action={
-              q || kindFilter || statusFilter || eventFilter ? (
+              q || kindFilter || statusFilter || eventFilter || unlocatedFilter ? (
                 <ClueTag
                   label="Xóa bộ lọc"
                   color="brand"
@@ -447,6 +461,7 @@ export function MapLocationsWorkspace() {
                     setKindFilter("");
                     setStatusFilter("");
                     setEventFilter("");
+                    setUnlocatedFilter(false);
                     setPage(0);
                   }}
                 />
@@ -750,8 +765,12 @@ function LocationDetailEditor({
     location?.historicalSignificance ?? "",
   );
   const [kind, setKind] = useState<MapLocationKind>(location?.kind ?? "HERITAGE_SITE");
-  const [latitude, setLatitude] = useState(String(location?.latitude ?? 50));
-  const [longitude, setLongitude] = useState(String(location?.longitude ?? 50));
+  const [latitude, setLatitude] = useState(
+    location && location.longitude > 100 ? String(location.latitude) : "",
+  );
+  const [longitude, setLongitude] = useState(
+    location && location.longitude > 100 ? String(location.longitude) : "",
+  );
   const [coordinatePrecision, setCoordinatePrecision] = useState<CoordinatePrecision>(
     location?.coordinatePrecision ?? "EXACT",
   );
@@ -815,14 +834,15 @@ function LocationDetailEditor({
 
   const saveMetadataMutation = useMutation({
     mutationFn: async () => {
-      const lat = Number(latitude);
-      const lng = Number(longitude);
+      const lat = latitude.trim() === "" ? Number.NaN : Number(latitude);
+      const lng = longitude.trim() === "" ? Number.NaN : Number(longitude);
       if (!title.trim()) throw new Error("Vui lòng nhập tên địa điểm di tích.");
-      if (!Number.isFinite(lat) || lat < -90 || lat > 90) {
-        throw new Error("Vĩ độ / vị trí dọc phải nằm trong khoảng hợp lệ.");
+      const hasTypedCoords = Number.isFinite(lat) && Number.isFinite(lng);
+      if (hasTypedCoords && (lat < -90 || lat > 90)) {
+        throw new Error("Vĩ độ phải nằm trong khoảng -90 đến 90.");
       }
-      if (!Number.isFinite(lng) || lng < -180 || lng > 180) {
-        throw new Error("Kinh độ / vị trí ngang phải nằm trong khoảng hợp lệ.");
+      if (hasTypedCoords && (lng < -180 || lng > 180)) {
+        throw new Error("Kinh độ phải nằm trong khoảng -180 đến 180.");
       }
       const payload: StandaloneLocationRequest = {
         slug: slug.trim() || slugifyVi(title),
@@ -830,9 +850,10 @@ function LocationDetailEditor({
         shortSummary: shortSummary.trim() || null,
         description: description.trim() || null,
         kind,
-        latitude: lat,
-        longitude: lng,
-        coordinatePrecision,
+        latitude: hasTypedCoords ? lat : 0,
+        longitude: hasTypedCoords ? lng : 0,
+        coordinatePrecision:
+          hasTypedCoords && lng > 100 ? coordinatePrecision : "SCHEMATIC_ONLY",
         visibility,
         unlockRuleMode,
         coverAssetId,
@@ -979,7 +1000,7 @@ function LocationDetailEditor({
   // Resolve active map image for LatLngMapPicker & Map Image editor
   const presetMap = useMemo(() => resolvePresetMapByAssetId(mapAssetId), [mapAssetId]);
   const customMapAssetId = mapAssetId && !presetMap ? mapAssetId : null;
-  const { src: customMapObjectUrl } = useAssetObjectUrl(
+  useAssetObjectUrl(
     customMapAssetId ? `/api/v1/admin/assets/${customMapAssetId}/content` : null,
   );
   const mapAssetDetailQuery = useQuery({
@@ -1018,7 +1039,6 @@ function LocationDetailEditor({
     [mapAssetId, slug, title, location?.eventId, eventHints],
   );
 
-  const activeMapImageSrc = customMapObjectUrl ?? resolvedMapPreset.url;
   const activeMapImageLabel = customMapAssetId
     ? (mapAssetDetailQuery.data?.originalFilename ?? "Bản đồ tùy chỉnh đã tải lên")
     : resolvedMapPreset.title;
@@ -1492,28 +1512,34 @@ function LocationDetailEditor({
 
               <LatLngMapPicker
                 value={pickerCoords}
-                imageSrc={activeMapImageSrc}
-                imageLabel={activeMapImageLabel}
+                imageLabel="Bản đồ địa hình Việt Nam"
                 onChange={({ lat, lng }) => {
                   setLatitude(String(lat));
                   setLongitude(String(lng));
+                  if (coordinatePrecision === "SCHEMATIC_ONLY") {
+                    setCoordinatePrecision("APPROXIMATE");
+                  }
                 }}
               />
 
               <div className="grid grid-cols-2 gap-3 pt-1">
                 <div>
-                  <Label htmlFor="loc-lat">Vị trí dọc / Vĩ độ (%) *</Label>
+                  <Label htmlFor="loc-lat">Vĩ độ (latitude) *</Label>
                   <Input
                     id="loc-lat"
                     value={latitude}
+                    inputMode="decimal"
+                    placeholder="21.0285"
                     onChange={(e) => setLatitude(e.target.value)}
                   />
                 </div>
                 <div>
-                  <Label htmlFor="loc-lng">Vị trí ngang / Kinh độ (%) *</Label>
+                  <Label htmlFor="loc-lng">Kinh độ (longitude) *</Label>
                   <Input
                     id="loc-lng"
                     value={longitude}
+                    inputMode="decimal"
+                    placeholder="105.8542"
                     onChange={(e) => setLongitude(e.target.value)}
                   />
                 </div>

@@ -226,7 +226,8 @@ class _ResultBody extends ConsumerWidget {
   }
 
   void _handleContinue(
-    BuildContext context, {
+    BuildContext context,
+    WidgetRef ref, {
     required String? eventId,
     required String? periodCode,
   }) {
@@ -234,15 +235,39 @@ class _ResultBody extends ConsumerWidget {
       onContinueLearning!();
       return;
     }
+    final String? currentLessonId =
+        recapContent?.lessonId ??
+        (result.rewards.isNotEmpty ? result.rewards.first.lessonId : null);
+    String? nextLessonId;
+    String? nextEventId = eventId;
+    String? nextPeriodCode = periodCode;
+    if (ref.exists(learningPathProvider)) {
+      final LearningPathDto? path = ref.read(learningPathProvider).asData?.value;
+      if (path != null) {
+        final next = path.nextStepAfterLesson(currentLessonId);
+        nextLessonId = next.lessonId;
+        if (next.eventId != null && next.eventId!.isNotEmpty) {
+          nextEventId = next.eventId;
+        }
+        if (next.periodCode != null && next.periodCode!.isNotEmpty) {
+          nextPeriodCode = next.periodCode;
+        }
+      }
+    }
     final router = GoRouter.maybeOf(context);
     if (router != null) {
       final routes = router.configuration.routes;
-      final evId = eventId?.trim() ?? '';
+      final lessonId = nextLessonId?.trim() ?? '';
+      if (lessonId.isNotEmpty && _hasRoutePrefix(routes, '/learning')) {
+        router.go('/learning/lesson/$lessonId');
+        return;
+      }
+      final evId = nextEventId?.trim() ?? '';
       if (evId.isNotEmpty && _hasRoutePrefix(routes, '/campaign')) {
         router.go('/campaign/$evId');
         return;
       }
-      final pCode = periodCode?.trim() ?? '';
+      final pCode = nextPeriodCode?.trim() ?? '';
       if (pCode.isNotEmpty &&
           router.configuration
               .findMatch(Uri.parse('/journey/$pCode'))
@@ -635,20 +660,6 @@ class _ResultBody extends ConsumerWidget {
                         periodCode: continueTarget.periodCode,
                       ),
                     ],
-                    // ── 4-step flow: danh sách 4 dấu vết đã thu thập ────
-                    if (_isFourStepContent(recapContent)) ...[
-                      const SizedBox(height: 12),
-                      _FourStepSummarySection(
-                        content: recapContent!,
-                        result: result,
-                      ),
-                    ],
-
-                    // Ôn lại bài học & Tư liệu (khớp ảnh mẫu #2)
-                    if (recapContent != null) ...[
-                      const SizedBox(height: 12),
-                      _RecapSection(content: recapContent!),
-                    ],
                     const SizedBox(height: 18),
 
                     // Nút hành động chính sơn son thếp vàng (khớp ảnh mẫu #2)
@@ -660,6 +671,7 @@ class _ResultBody extends ConsumerWidget {
                       width: double.infinity,
                       onPressed: () => _handleContinue(
                         context,
+                        ref,
                         eventId: continueTarget.eventId,
                         periodCode: continueTarget.periodCode,
                       ),
@@ -1202,256 +1214,6 @@ class _DossierUnlockBanner extends StatelessWidget {
   }
 }
 
-/// Recap lịch sử gọn — chỉ dùng field có thật trong pinned snapshot:
-/// title/centralQuestion của content, objectives[], stage titles,
-/// evidence titles + source. Không bịa narrative, không hiển thị answer key.
-class _RecapSection extends StatelessWidget {
-  final LessonContentDto content;
-  const _RecapSection({required this.content});
-
-  @override
-  Widget build(BuildContext context) {
-    final Map<String, dynamic> c = content.content;
-    final String? title = _str(c, ['title', 'lessonTitle']);
-    final String? question = _str(c, ['centralQuestion', 'central_question']);
-    final List<String> objectives = [
-      for (final o in (c['objectives'] as List? ?? const []))
-        if (o is String && o.isNotEmpty) o,
-    ];
-    final stages = content.stages;
-    final evidence = content.evidence;
-    final String? reading = _firstReadingExcerpt(c, stages);
-
-    final bool hasContent =
-        title != null ||
-        question != null ||
-        objectives.isNotEmpty ||
-        stages.isNotEmpty ||
-        evidence.isNotEmpty ||
-        reading != null;
-    if (!hasContent) return const SizedBox.shrink();
-
-    return ImperialScrollFrame(
-      plaqueTitle: 'ÔN LẠI BÀI HỌC',
-      padding: const EdgeInsets.fromLTRB(14, 16, 14, 18),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          if (title != null || question != null)
-            _RecapItemRow(
-              icon: Icons.menu_book_rounded,
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    'Bài học',
-                    style: DauVietTypography.labelSmall.copyWith(
-                      color: const Color(0xFF6B5B4B),
-                      fontSize: 11.5,
-                      fontWeight: FontWeight.w600,
-                    ),
-                  ),
-                  if (title != null) ...[
-                    const SizedBox(height: 2),
-                    Text(
-                      title,
-                      style: DauVietTypography.headlineSmall.copyWith(
-                        fontSize: 15.5,
-                        fontWeight: FontWeight.w800,
-                        color: const Color(0xFF6E1A14),
-                        height: 1.3,
-                      ),
-                    ),
-                  ],
-                  if (question != null) ...[
-                    const SizedBox(height: 6),
-                    Text(
-                      question,
-                      style: DauVietTypography.bodySmall.copyWith(
-                        fontStyle: FontStyle.italic,
-                        height: 1.45,
-                        color: const Color(0xFF3A2E25),
-                      ),
-                    ),
-                  ],
-                ],
-              ),
-            ),
-          if (objectives.isNotEmpty) ...[
-            const SizedBox(height: 12),
-            _RecapItemRow(
-              icon: Icons.track_changes_rounded,
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  const SectionLabel('MỤC TIÊU'),
-                  const SizedBox(height: 4),
-                  for (final o in objectives)
-                    Padding(
-                      padding: const EdgeInsets.only(bottom: 3),
-                      child: Row(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          const Text('• '),
-                          Expanded(
-                            child: Text(
-                              o,
-                              style: DauVietTypography.bodySmall.copyWith(
-                                color: const Color(0xFF2B1F17),
-                                fontSize: 12.5,
-                                height: 1.42,
-                              ),
-                            ),
-                          ),
-                        ],
-                      ),
-                    ),
-                ],
-              ),
-            ),
-          ],
-          if (reading != null) ...[
-            const SizedBox(height: 12),
-            Container(
-              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
-              decoration: BoxDecoration(
-                color: DauVietColors.imperialGold.withValues(alpha: 0.10),
-                borderRadius: BorderRadius.circular(8),
-                border: const Border(
-                  left: BorderSide(color: DauVietColors.imperialGold, width: 3),
-                ),
-              ),
-              child: Text(
-                reading,
-                style: DauVietTypography.bodySmall.copyWith(
-                  height: 1.5,
-                  fontStyle: FontStyle.italic,
-                  color: DauVietColors.inkText,
-                ),
-              ),
-            ),
-          ],
-          if (stages.isNotEmpty) ...[
-            const SizedBox(height: 12),
-            _RecapItemRow(
-              icon: Icons.format_list_bulleted_rounded,
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  const SectionLabel('HÀNH TRÌNH HỌC'),
-                  const Opacity(
-                    opacity: 0.0,
-                    child: SizedBox(height: 0, child: Text('HÀNH TRÌNH')),
-                  ),
-                  const SizedBox(height: 4),
-                  Text(
-                    stages
-                        .map((s) => s['title'] as String? ?? '')
-                        .where((t) => t.isNotEmpty)
-                        .join(' → '),
-                    style: DauVietTypography.bodySmall.copyWith(
-                      color: const Color(0xFF2B1F17),
-                      fontWeight: FontWeight.w600,
-                      fontSize: 12.5,
-                      height: 1.45,
-                    ),
-                  ),
-                ],
-              ),
-            ),
-          ],
-          if (evidence.isNotEmpty) ...[
-            const SizedBox(height: 12),
-            _RecapItemRow(
-              icon: Icons.description_rounded,
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  const SectionLabel('TƯ LIỆU TRONG BÀI HỌC'),
-                  const SizedBox(height: 4),
-                  for (final e in evidence.take(4))
-                    Padding(
-                      padding: const EdgeInsets.only(bottom: 3),
-                      child: Text(
-                        '• ${e['title'] ?? e['id'] ?? ''}'
-                        '${_srcSuffix(e)}',
-                        style: DauVietTypography.bodySmall.copyWith(
-                          color: const Color(0xFF2B1F17),
-                          fontSize: 12.5,
-                          height: 1.42,
-                        ),
-                      ),
-                    ),
-                  const SizedBox(height: 6),
-                  Align(
-                    alignment: Alignment.centerLeft,
-                    child: TextButton.icon(
-                      onPressed: () => context.go('/collection'),
-                      icon: const Icon(
-                        Icons.collections_bookmark_outlined,
-                        size: 15,
-                        color: DauVietColors.heritageGreen,
-                      ),
-                      label: Text(
-                        'Xem Bộ sưu tập tư liệu →',
-                        style: DauVietTypography.labelSmall.copyWith(
-                          color: DauVietColors.heritageGreen,
-                          fontWeight: FontWeight.w800,
-                          fontSize: 11.5,
-                        ),
-                      ),
-                      style: TextButton.styleFrom(
-                        padding: const EdgeInsets.symmetric(
-                          horizontal: 10,
-                          vertical: 5,
-                        ),
-                        minimumSize: const Size(0, 32),
-                        tapTargetSize: MaterialTapTargetSize.shrinkWrap,
-                        backgroundColor: DauVietColors.heritageGreen.withValues(
-                          alpha: 0.08,
-                        ),
-                        shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(8),
-                        ),
-                      ),
-                    ),
-                  ),
-                ],
-              ),
-            ),
-          ],
-        ],
-      ),
-    );
-  }
-}
-
-class _RecapItemRow extends StatelessWidget {
-  final IconData icon;
-  final Widget child;
-  const _RecapItemRow({required this.icon, required this.child});
-
-  @override
-  Widget build(BuildContext context) {
-    return Row(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Container(
-          width: 34,
-          height: 34,
-          decoration: BoxDecoration(
-            color: const Color(0xFFF9E9E2),
-            shape: BoxShape.circle,
-            border: Border.all(color: const Color(0xFFDDA594), width: 1.2),
-          ),
-          child: Icon(icon, size: 17, color: const Color(0xFF9E1F19)),
-        ),
-        const SizedBox(width: 11),
-        Expanded(child: child),
-      ],
-    );
-  }
-}
 
 String? _str(Map<String, dynamic> m, List<String> keys) {
   for (final k in keys) {
@@ -1461,37 +1223,6 @@ String? _str(Map<String, dynamic> m, List<String> keys) {
   return null;
 }
 
-String _srcSuffix(Map<String, dynamic> e) {
-  final src = e['source'];
-  String? text;
-  if (src is String) {
-    text = src;
-  } else if (src is Map) {
-    // V30+ embeds source as object {title, author, url, citation} — pick title.
-    text = (src['title'] ?? src['author']) as String?;
-  }
-  return (text != null && text.trim().isNotEmpty) ? ' (${text.trim()})' : '';
-}
-
-String? _firstReadingExcerpt(
-  Map<String, dynamic> content,
-  List<Map<String, dynamic>> stages,
-) {
-  for (final s in stages) {
-    final acts = s['activities'] as List? ?? const [];
-    for (final a in acts) {
-      if (a is Map<String, dynamic> && a['type'] == 'READ') {
-        final cfg = a['config'] as Map<String, dynamic>? ?? const {};
-        final body = cfg['body'] as String?;
-        if (body != null && body.trim().isNotEmpty) {
-          final t = body.trim();
-          return t.length > 200 ? '${t.substring(0, 197)}...' : t;
-        }
-      }
-    }
-  }
-  return null;
-}
 
 class _ErrorView extends StatelessWidget {
   final String message;
@@ -1542,191 +1273,3 @@ class _ErrorView extends StatelessWidget {
   }
 }
 
-/// true khi content là snapshot 4-step flow (có DISCOVERY stage chứa clueType).
-bool _isFourStepContent(LessonContentDto? content) {
-  if (content == null) return false;
-  for (final s in content.stages) {
-    if ((s['type'] as String?)?.toUpperCase() != 'DISCOVERY') continue;
-    final acts = s['activities'];
-    if (acts is! List) continue;
-    for (final a in acts.whereType<Map>()) {
-      if (a['clueType'] is String) return true;
-    }
-  }
-  return false;
-}
-
-/// Tổng kết 4 bước — 4 dấu vết đã thu thập + keyTakeaways.
-class _FourStepSummarySection extends StatelessWidget {
-  final LessonContentDto content;
-  final LessonResultDto result;
-
-  const _FourStepSummarySection({required this.content, required this.result});
-
-  @override
-  Widget build(BuildContext context) {
-    final discoveryStage = content.stages.firstWhere(
-      (s) => (s['type'] as String?)?.toUpperCase() == 'DISCOVERY',
-      orElse: () => <String, dynamic>{},
-    );
-    final activities = discoveryStage['activities'];
-    final clues = activities is List
-        ? activities.whereType<Map>().toList()
-        : const <Map>[];
-
-    final rawTakeaways = content.content['keyTakeaways'];
-    final takeaways = rawTakeaways is List
-        ? rawTakeaways.whereType<String>().toList()
-        : const <String>[];
-
-    return ImperialScrollFrame(
-      plaqueTitle: 'TÓM TẮT KHÁM PHÁ',
-      hiddenPlaqueTestText: 'TÓM TẮT KHÁM PHÁ',
-      padding: const EdgeInsets.fromLTRB(14, 14, 14, 16),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.stretch,
-        children: [
-          for (int i = 0; i < clues.length; i++) ...[
-            _ClueResultTile(
-              clue: clues[i].cast<String, dynamic>(),
-              index: i + 1,
-            ),
-            if (i < clues.length - 1) const SizedBox(height: 6),
-          ],
-          if (clues.isNotEmpty && takeaways.isNotEmpty) ...[
-            const SizedBox(height: 12),
-            const Divider(height: 1),
-            const SizedBox(height: 10),
-          ],
-          if (takeaways.isNotEmpty) ...[
-            const Align(
-              alignment: Alignment.centerLeft,
-              child: Text(
-                'BÀI HỌC RÚT RA',
-                style: TextStyle(
-                  fontSize: 10,
-                  fontWeight: FontWeight.w800,
-                  letterSpacing: 0.6,
-                  color: Color(0xFF8A5E1A),
-                ),
-              ),
-            ),
-            const SizedBox(height: 6),
-            for (final t in takeaways)
-              Padding(
-                padding: const EdgeInsets.only(bottom: 4),
-                child: Row(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    const Icon(
-                      Icons.circle,
-                      size: 6,
-                      color: Color(0xFFB88A3A),
-                    ),
-                    const SizedBox(width: 6),
-                    Expanded(
-                      child: Text(
-                        t,
-                        style: DauVietTypography.bodySmall.copyWith(
-                          color: DauVietColors.inkSecondary,
-                          fontSize: 12.5,
-                          height: 1.4,
-                        ),
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-          ],
-        ],
-      ),
-    );
-  }
-}
-
-/// Ô hiển thị 1 dấu vết đã thu thập trên màn kết quả.
-class _ClueResultTile extends StatelessWidget {
-  final Map<String, dynamic> clue;
-  final int index;
-
-  const _ClueResultTile({required this.clue, required this.index});
-
-  static const _clueLabels = <String, String>{
-    'CONTEXT': 'Bối cảnh',
-    'CHARACTERS': 'Nhân vật',
-    'DEVELOPMENT': 'Diễn biến',
-    'SIGNIFICANCE': 'Ý nghĩa',
-  };
-
-  @override
-  Widget build(BuildContext context) {
-    final clueType = clue['clueType'] as String? ?? '';
-    final title =
-        (clue['title'] as String?) ?? _clueLabels[clueType] ?? 'Dấu vết $index';
-    final desc = clue['description'] as String? ?? '';
-
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
-      decoration: BoxDecoration(
-        color: const Color(0xFFEDF6EC),
-        borderRadius: BorderRadius.circular(10),
-        border: Border.all(color: const Color(0xFFBBD9B8), width: 1.1),
-      ),
-      child: Row(
-        children: [
-          Container(
-            width: 26,
-            height: 26,
-            decoration: const BoxDecoration(
-              color: DauVietColors.natureGreen,
-              shape: BoxShape.circle,
-            ),
-            child: const Icon(
-              Icons.check_rounded,
-              size: 16,
-              color: Colors.white,
-            ),
-          ),
-          const SizedBox(width: 8),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  'DẤU VẾT $index · ${_clueLabels[clueType]?.toUpperCase() ?? clueType.toUpperCase()}',
-                  style: DauVietTypography.labelSmall.copyWith(
-                    color: DauVietColors.natureGreen,
-                    fontWeight: FontWeight.w800,
-                    fontSize: 9,
-                    letterSpacing: 0.4,
-                  ),
-                ),
-                Text(
-                  title,
-                  style: DauVietTypography.labelMedium.copyWith(
-                    color: DauVietColors.inkText,
-                    fontWeight: FontWeight.w700,
-                    fontSize: 12.5,
-                  ),
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                ),
-                if (desc.isNotEmpty)
-                  Text(
-                    desc,
-                    style: DauVietTypography.bodySmall.copyWith(
-                      color: DauVietColors.inkMuted,
-                      fontSize: 11,
-                      height: 1.3,
-                    ),
-                    maxLines: 2,
-                    overflow: TextOverflow.ellipsis,
-                  ),
-              ],
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-}

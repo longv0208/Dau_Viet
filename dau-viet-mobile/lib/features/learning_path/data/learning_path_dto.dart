@@ -1087,6 +1087,56 @@ class LearningPathDto {
     return null;
   }
 
+  /// Bài / sự kiện đứng ngay sau [currentLessonId] trên lộ trình.
+  /// Ưu tiên bài còn học được; nếu chưa refresh trạng thái thì vẫn trả bài kế.
+  ({String? lessonId, String? eventId, String? periodCode}) nextStepAfterLesson(
+    String? currentLessonId,
+  ) {
+    final steps = <({
+      String lessonId,
+      String eventId,
+      String periodCode,
+      LearnerPathStatus status,
+    })>[];
+    for (final period in periods) {
+      if (period.code.isEmpty) continue;
+      for (final event in eventsOfPeriod(period.chapterId)) {
+        for (final lesson in event.lessons) {
+          if (lesson.lessonId.isEmpty) continue;
+          steps.add((
+            lessonId: lesson.lessonId,
+            eventId: event.eventId,
+            periodCode: period.code,
+            status: lesson.status,
+          ));
+        }
+      }
+    }
+    final currentIndex = (currentLessonId == null || currentLessonId.isEmpty)
+        ? -1
+        : steps.indexWhere((s) => s.lessonId == currentLessonId);
+    final start = currentIndex >= 0 ? currentIndex + 1 : 0;
+    for (var i = start; i < steps.length; i++) {
+      if (steps[i].status.canStart && !steps[i].status.isDone) {
+        return (
+          lessonId: steps[i].lessonId,
+          eventId: steps[i].eventId,
+          periodCode: steps[i].periodCode,
+        );
+      }
+    }
+    for (var i = start; i < steps.length; i++) {
+      if (!steps[i].status.isNotReady) {
+        return (
+          lessonId: steps[i].lessonId,
+          eventId: steps[i].eventId,
+          periodCode: steps[i].periodCode,
+        );
+      }
+    }
+    return (lessonId: null, eventId: null, periodCode: null);
+  }
+
   LearningPathLessonNodeDto? findLessonById(String? lessonId) {
     if (lessonId == null || lessonId.isEmpty) return null;
     for (final ch in chapters) {

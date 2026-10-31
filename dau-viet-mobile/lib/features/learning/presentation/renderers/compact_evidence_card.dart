@@ -3,7 +3,6 @@ import 'package:flutter/material.dart';
 import '../../../../core/theme/dau_viet_colors.dart';
 import '../../../../core/theme/dau_viet_typography.dart';
 import '../../../../core/widgets/clue_tag.dart';
-import '../../../../core/widgets/tactile_card.dart';
 import 'learning_asset_image.dart';
 
 /// Compact evidence card (~76–90px) — checkbox riêng + title + 1–2 dòng
@@ -61,20 +60,24 @@ class CompactEvidenceCard extends StatelessWidget {
 
     return Padding(
       padding: const EdgeInsets.only(bottom: 8),
-      child: TactileCard(
-        usePixelShadow: false,
-        enabled: enabled,
-        onTap: enabled ? onReadFull : null,
-        backgroundColor: selected
-            ? const Color(0xFFFFFDF9)
-            : const Color(0xFFFAF5E8),
-        borderColor: borderColor,
-        borderWidth: (selected || isVerdictCorrect || isVerdictIncorrect)
-            ? 1.8
-            : 1.2,
-        borderRadius: 12,
-        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
-        child: Column(
+      child: Material(
+        color: selected ? const Color(0xFFFFFDF8) : const Color(0xFFFFFBF3),
+        elevation: 0,
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(12),
+          side: BorderSide(
+            color: borderColor,
+            width: (selected || isVerdictCorrect || isVerdictIncorrect)
+                ? 1.8
+                : 1.2,
+          ),
+        ),
+        child: InkWell(
+          onTap: enabled ? onReadFull : null,
+          borderRadius: BorderRadius.circular(12),
+          child: Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+            child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           mainAxisSize: MainAxisSize.min,
           children: [
@@ -125,18 +128,18 @@ class CompactEvidenceCard extends StatelessWidget {
                           ),
                           alignment: Alignment.center,
                           child: Container(
-                            width: 20,
-                            height: 20,
+                            width: 22,
+                            height: 22,
                             decoration: BoxDecoration(
                               color: selected
                                   ? DauVietColors.imperialGold
-                                  : Colors.transparent,
-                              borderRadius: BorderRadius.circular(4),
+                                  : Colors.white,
+                              borderRadius: BorderRadius.circular(6),
                               border: Border.all(
                                 color: selected
                                     ? DauVietColors.imperialGold
-                                    : DauVietColors.outlineVariant,
-                                width: 1.5,
+                                    : const Color(0xFF8C6747),
+                                width: 1.6,
                               ),
                             ),
                             child: selected
@@ -187,8 +190,9 @@ class CompactEvidenceCard extends StatelessWidget {
                         maxLines: 1,
                         overflow: TextOverflow.ellipsis,
                         style: DauVietTypography.labelMedium.copyWith(
-                          fontWeight: FontWeight.w700,
-                          color: const Color(0xFF7A1C16),
+                          fontWeight: FontWeight.w800,
+                          color: const Color(0xFF3A160F),
+                          fontSize: 13.5,
                           height: 1.28,
                         ),
                       ),
@@ -200,8 +204,8 @@ class CompactEvidenceCard extends StatelessWidget {
                             maxLines: 2,
                             overflow: TextOverflow.ellipsis,
                             style: DauVietTypography.bodySmall.copyWith(
-                              color: const Color(0xFF2B1F17),
-                              fontSize: 12.2,
+                              color: const Color(0xFF3A2A1E),
+                              fontSize: 12.5,
                               height: 1.38,
                             ),
                           ),
@@ -266,6 +270,8 @@ class CompactEvidenceCard extends StatelessWidget {
               ],
             ),
           ],
+        ),
+          ),
         ),
       ),
     );
