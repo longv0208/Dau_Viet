@@ -702,10 +702,13 @@ class _HistoricalAnimationPlayerState
               // ~full; thường → 0.55. Giữ aspect scene nếu đã đủ cao.
               final mediaH = MediaQuery.sizeOf(context).height;
               final aspectH = constraints.maxWidth / def.aspectRatio;
-              final frac = widget.immersive ? 0.92 : 0.55;
-              final targetH = aspectH > mediaH * frac
-                  ? aspectH
-                  : mediaH * frac;
+              // Immersive: Positioned.fill đã cấp full body — canvas fill,
+              // không vượt aspect tự nhiên (aspectH nhỏ → giữ aspectH).
+              // Non-immersive (fallback trong đọc): cap 55% viewport.
+              final capH = widget.immersive
+                  ? constraints.maxHeight
+                  : mediaH * 0.55;
+              final targetH = aspectH < capH ? aspectH : capH;
               final effectiveAspect = constraints.maxWidth / targetH;
               return SizedBox(
                 height: targetH,

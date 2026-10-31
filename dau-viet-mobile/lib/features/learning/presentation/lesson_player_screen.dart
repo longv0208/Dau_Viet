@@ -989,77 +989,100 @@ class _LessonPlayerScreenState extends ConsumerState<LessonPlayerScreen> {
         else if (cur.activity == null)
           _buildFinished(st)
         else ...[
-          // Bong bóng thoại Linh vật Tê Giác Dấu Việt
-          if (!_immersive)
+          // Immersive (Xem hoạt ảnh): renderer tự render SizedBox.expand +
+          // fixed button — KHÔNG SingleChildScrollView (tránh cuộn trong
+          // cuộn + khoảng trống). Mọi chrome (mascot/clue header/hint) ẩn.
+          if (_immersive)
+            Expanded(
+              child: ActivityRenderer(
+                key: ValueKey(cur.activity!.id),
+                activity: cur.activity!,
+                content: st.content,
+                submitting:
+                    st.submitting ||
+                    st.awaitingContinue ||
+                    st.completionReady,
+                hasSubmitError: st.feedback?.tone == _FeedbackTone.error,
+                onSubmit: _submit,
+                onInputChanged: _onInputChanged,
+                onImmersiveChanged: _onImmersiveChanged,
+                lastEvaluation: st.lastEvaluation,
+                onBackToHypothesis: _isVerificationActivity(cur)
+                    ? () => _backToHypothesis(st)
+                    : null,
+              ),
+            )
+          else ...[
+            // Bong bóng thoại Linh vật Tê Giác Dấu Việt
             MascotSpeechBubble(
               message: _resolveMascotPrompt(st),
               mood: _resolveMascotMood(st),
             ),
-          Expanded(
-            child: SingleChildScrollView(
-              padding: EdgeInsets.fromLTRB(
-                _immersive ? 0 : 16,
-                _immersive ? 0 : 4,
-                _immersive ? 0 : 16,
-                16 + MediaQuery.of(context).viewInsets.bottom,
-              ),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.stretch,
-                children: [
-                  if (!_immersive &&
-                      cur.activity!.graded &&
-                      (cur.activity!.incorrectPenalty ?? 0) > 0)
-                    Padding(
-                      padding: const EdgeInsets.only(bottom: 10),
-                      child: _EnergyCostHint(
-                        penalty: cur.activity!.incorrectPenalty!,
-                      ),
-                    ),
-                  // Header "DẤU VẾT X/4" khi đang làm clue trong DISCOVERY.
-                  if (isFourStep && cur.activity?.clueType != null)
-                    _buildClueActivityHeader(cur, stepProgress, st),
-                  if (!_immersive &&
-                      cur.activity?.instruction != null &&
-                      cur.activity!.instruction!.trim().isNotEmpty) ...[
-                    Padding(
-                      padding: const EdgeInsets.only(
-                        bottom: 8,
-                        left: 2,
-                        right: 2,
-                      ),
-                      child: Text(
-                        cur.activity!.instruction!,
-                        style: DauVietTypography.bodySmall.copyWith(
-                          fontStyle: FontStyle.italic,
-                          color: const Color(0xFF5C4E42),
-                          fontSize: 12.5,
-                          height: 1.4,
+            Expanded(
+              child: SingleChildScrollView(
+                padding: EdgeInsets.fromLTRB(
+                  16,
+                  4,
+                  16,
+                  16 + MediaQuery.of(context).viewInsets.bottom,
+                ),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: [
+                    if (cur.activity!.graded &&
+                        (cur.activity!.incorrectPenalty ?? 0) > 0)
+                      Padding(
+                        padding: const EdgeInsets.only(bottom: 10),
+                        child: _EnergyCostHint(
+                          penalty: cur.activity!.incorrectPenalty!,
                         ),
                       ),
+                    // Header "DẤU VẾT X/4" khi đang làm clue trong DISCOVERY.
+                    if (isFourStep && cur.activity?.clueType != null)
+                      _buildClueActivityHeader(cur, stepProgress, st),
+                    if (cur.activity?.instruction != null &&
+                        cur.activity!.instruction!.trim().isNotEmpty) ...[
+                      Padding(
+                        padding: const EdgeInsets.only(
+                          bottom: 8,
+                          left: 2,
+                          right: 2,
+                        ),
+                        child: Text(
+                          cur.activity!.instruction!,
+                          style: DauVietTypography.bodySmall.copyWith(
+                            fontStyle: FontStyle.italic,
+                            color: const Color(0xFF5C4E42),
+                            fontSize: 12.5,
+                            height: 1.4,
+                          ),
+                        ),
+                      ),
+                    ],
+                    ActivityRenderer(
+                      key: ValueKey(cur.activity!.id),
+                      activity: cur.activity!,
+                      content: st.content,
+                      submitting:
+                          st.submitting ||
+                          st.awaitingContinue ||
+                          st.completionReady,
+                      hasSubmitError:
+                          st.feedback?.tone == _FeedbackTone.error,
+                      onSubmit: _submit,
+                      onInputChanged: _onInputChanged,
+                      onImmersiveChanged: _onImmersiveChanged,
+                      lastEvaluation: st.lastEvaluation,
+                      onBackToHypothesis: _isVerificationActivity(cur)
+                          ? () => _backToHypothesis(st)
+                          : null,
                     ),
                   ],
-                  ActivityRenderer(
-                    key: ValueKey(cur.activity!.id),
-                    activity: cur.activity!,
-                    content: st.content,
-                    submitting:
-                        st.submitting ||
-                        st.awaitingContinue ||
-                        st.completionReady,
-                    hasSubmitError: st.feedback?.tone == _FeedbackTone.error,
-                    onSubmit: _submit,
-                    onInputChanged: _onInputChanged,
-                    onImmersiveChanged: _onImmersiveChanged,
-                    lastEvaluation: st.lastEvaluation,
-                    onBackToHypothesis: _isVerificationActivity(cur)
-                        ? () => _backToHypothesis(st)
-                        : null,
-                  ),
-                ],
+                ),
               ),
             ),
-          ),
-          if (!_immersive) _buildBottomBar(st),
+            _buildBottomBar(st),
+          ],
         ],
       ],
     );

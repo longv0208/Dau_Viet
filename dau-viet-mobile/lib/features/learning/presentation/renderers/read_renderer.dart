@@ -71,10 +71,15 @@ class _ReadRendererState extends State<ReadRenderer> {
     widget.onImmersiveChanged?.call(immersive);
   }
 
+  /// Nút TIẾP TỤC trong màn immersive — submit completion cho READ ngay,
+  /// KHÔNG chuyển sang phase đọc (yêu cầu: animation fullscreen → tiếp tục
+  /// → bước sau, không kẹt màn đọc dài). Reading phase vẫn render khi
+  /// không có animation hoặc manifest lỗi (fallback).
   void _enterReadingPhase() {
-    if (!_showAnimationPhase) return;
+    if (!_showAnimationPhase || submitting) return;
     setState(() => _showAnimationPhase = false);
     _reportImmersive(false);
+    onSubmit(const {});
   }
 
   @override
@@ -284,41 +289,55 @@ class _ReadRendererState extends State<ReadRenderer> {
     );
   }
 
-  /// Phase 0 — "Xem hoạt ảnh" fullscreen: chỉ canvas + narration/controls
-  /// + nút TIẾP TỤC. Player ẩn top bar/mascot/submit khi phase này hiện.
+  /// Phase 0 — "Xem hoạt ảnh" fullscreen: canvas chiếm gần hết màn,
+  /// nút TIẾP TỤC fixed đáy. Player ẩn top bar/mascot/submit — renderer
+  /// tự render body full screen không scroll.
   Widget _buildImmersivePhase({
     required Map<String, dynamic> config,
     required bool isHtmlScene,
     required AnimationManifestDto? manifestDto,
     required HistoricalAnimationDefinition? animation,
   }) {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.stretch,
-      children: [
-        if (isHtmlScene)
-          _HtmlSceneSlot(
-            key: ValueKey('html_anim_${activity.id}'),
-            config: config,
-            manifest: manifestDto!,
-            playerFactory: widget.htmlPlayerFactory,
-            immersive: true,
-          )
-        else
-          _CinematicBoundPlayer(
-            key: ValueKey('anim_${animation!.key}_${activity.id}'),
-            manifest: manifestDto ?? AnimationManifestDto.empty,
-            definition: animation,
-            immersive: true,
+    return SizedBox.expand(
+      child: Stack(
+        children: [
+          // Animation layer — full body, không card viền dày.
+          Positioned.fill(
+            child: isHtmlScene
+                ? _HtmlSceneSlot(
+                    key: ValueKey('html_anim_${activity.id}'),
+                    config: config,
+                    manifest: manifestDto!,
+                    playerFactory: widget.htmlPlayerFactory,
+                    immersive: true,
+                  )
+                : _CinematicBoundPlayer(
+                    key: ValueKey('anim_${animation!.key}_${activity.id}'),
+                    manifest: manifestDto ?? AnimationManifestDto.empty,
+                    definition: animation,
+                    immersive: true,
+                  ),
           ),
-        const SizedBox(height: 16),
-        // Nút chuyển tiếp DUY NHẤT — sang phase đọc, KHÔNG submit.
-        SubmitBar(
-          enabled: true,
-          submitting: false,
-          label: 'TIẾP TỤC ›',
-          onPressed: _enterReadingPhase,
-        ),
-      ],
+          // Nút TIẾP TỤC duy nhất — overlay cố định đáy, safe area.
+          Positioned(
+            left: 16,
+            right: 16,
+            bottom: 0,
+            child: SafeArea(
+              top: false,
+              child: Padding(
+                padding: const EdgeInsets.only(bottom: 12),
+                child: SubmitBar(
+                  enabled: !submitting,
+                  submitting: submitting,
+                  label: 'TIẾP TỤC ›',
+                  onPressed: _enterReadingPhase,
+                ),
+              ),
+            ),
+          ),
+        ],
+      ),
     );
   }
 
@@ -621,17 +640,20 @@ class _HtmlSceneSlot extends StatelessWidget {
     }
     return LayoutBuilder(
       builder: (context, constraints) {
+        // Immersive: Positioned.fill đã cấp full body — canvas chiếm hết,
+        // aspect tự xử lý bên trong WebView (letterbox nếu cần).
+        // Non-immersive (fallback): giữ aspect manifest, tối đa 55% viewport.
         final double baseAspect = manifest.canvasAspectRatio > 0
             ? manifest.canvasAspectRatio
             : (constraints.maxWidth > 0 && constraints.maxWidth < 600
                   ? 0.66
                   : 16 / 10);
-        // Issue #1: canvas tối thiểu 55% viewport; immersive (phase "Xem
-        // hoạt ảnh") → ~full viewport (trừ chỗ nút TIẾP TỤC + padding).
         final mediaH = MediaQuery.sizeOf(context).height;
-        final aspectH = constraints.maxWidth / baseAspect;
-        final frac = immersive ? 0.92 : 0.55;
-        final targetH = aspectH > mediaH * frac ? aspectH : mediaH * frac;
+        final targetH = immersive
+            ? constraints.maxHeight
+            : (constraints.maxWidth / baseAspect < mediaH * 0.55
+                ? constraints.maxWidth / baseAspect
+                : mediaH * 0.55);
         final resolvedAspectRatio = constraints.maxWidth / targetH;
         return HtmlAnimationPlayer(
           sceneVersionId: versionId,

@@ -1,0 +1,193 @@
+Resolving dependencies...
+Downloading packages...
+  clock 1.1.2 (1.1.3 available)
+  code_assets 1.2.1 (2.1.0 available)
+  crypto 3.0.7 (3.0.8 available)
+  cupertino_icons 1.0.9 (2.0.0 available)
+  cupertino_ui 1.0.2 (1.1.4 available)
+  go_router 18.0.2 (18.1.1 available)
+  google_fonts 8.2.1 (9.0.0 available)
+  google_sign_in 6.3.0 (7.2.0 available)
+  google_sign_in_android 6.2.1 (7.2.18 available)
+  google_sign_in_ios 5.9.0 (6.3.8 available)
+  google_sign_in_platform_interface 2.5.0 (3.1.0 available)
+  google_sign_in_web 0.12.4+4 (1.1.3 available)
+  hooks 2.0.2 (2.2.0 available)
+  material_color_utilities 0.13.0 (0.13.1 available)
+  material_ui 1.2.0 (1.8.0 available)
+  objective_c 9.5.0 (9.6.2 available)
+  record_use 0.6.0 (1.1.1 available)
+  shared_preferences_foundation 2.5.7 (2.6.1 available)
+  stack_trace 1.12.1 (1.12.2 available)
+  synchronized 3.4.2 (3.5.0 available)
+  test_api 0.7.12 (0.7.15 available)
+  vm_service 15.3.0 (15.4.0 available)
+  web 1.1.1 (1.1.2 available)
+  webview_flutter_wkwebview 3.26.2 (3.27.2 available)
+Got dependencies!
+24 packages have newer versions incompatible with dependency constraints.
+Try `flutter pub outdated` for more information.
+Launching lib\main.dart on Chrome in debug mode...
+Waiting for connection from debug service on Chrome...             45.1s
+
+Flutter run key commands.
+r Hot reload. 
+R Hot restart.
+h List all available interactive commands.
+d Detach (terminate "flutter run" but leave application running).
+c Clear the screen
+q Quit (terminate the application on the device).
+
+This app is linked to the debug service: ws://127.0.0.1:16269/78fk0VaOql0=/ws
+Debug service listening on ws://127.0.0.1:16269/78fk0VaOql0=/ws
+A Dart VM Service on Chrome is available at: http://127.0.0.1:16269/78fk0VaOql0=
+The Flutter DevTools debugger and profiler on Chrome is available at: http://127.0.0.1:16269/78fk0VaOql0=/devtools/?uri=ws://127.0.0.1:16269/78fk0VaOql0=/ws
+Starting application from main method in: org-dartlang-app:///web_entrypoint.dart.
+══╡ EXCEPTION CAUGHT BY RENDERING LIBRARY ╞═════════════════════════════════════════════════════════
+The following assertion was thrown during performLayout():
+BoxConstraints forces an infinite height.
+The offending constraints were:
+  BoxConstraints(w=368.0, h=Infinity)
+
+The relevant error-causing widget was:
+  SizedBox.expand
+  SizedBox:file:///E:/Telegram%20Desktop/Dau%20viet/Dau_Viet/dau-viet-mobile/lib/features/learning/presentation/renderers/read_renderer.dart:301:21
+
+When the exception was thrown, this was the stack:
+dart-sdk/lib/_internal/js_dev_runtime/private/ddc_runtime/errors.dart 274:3       throw_
+package:flutter/src/rendering/box.dart 549:9                                      throwError
+package:flutter/src/rendering/box.dart 614:11                                     <fn>
+package:flutter/src/rendering/box.dart 618:14                                     debugAssertIsValid
+package:flutter/src/rendering/object.dart 2823:18                                 layout
+package:flutter/src/rendering/proxy_box.dart 296:7                                performLayout
+package:flutter/src/rendering/object.dart 2923:7                                  layout
+package:flutter/src/rendering/layout_helper.dart 62:10                            layoutChild
+dart-sdk/lib/_internal/js_dev_runtime/private/ddc_runtime/operations.dart 118:77  tear
+package:flutter/src/rendering/flex.dart 1237:28                                   [_computeSizes]
+package:flutter/src/rendering/flex.dart 1329:32                                   performLayout
+package:flutter/src/rendering/object.dart 2923:7                                  layout
+package:flutter/src/rendering/shifted_box.dart 262:5                              performLayout
+package:flutter/src/rendering/object.dart 2923:7                                  layout
+package:flutter/src/widgets/single_child_scroll_view.dart 502:7                   performLayout
+package:flutter/src/rendering/object.dart 2923:7                                  layout
+package:flutter/src/rendering/proxy_box.dart 118:10                               <fn>
+package:flutter/src/rendering/proxy_box.dart 118:10                               performLayout
+package:flutter/src/rendering/object.dart 2923:7                                  layout
+package:flutter/src/rendering/proxy_box.dart 118:10                               <fn>
+package:flutter/src/rendering/proxy_box.dart 118:10                               performLayout
+package:flutter/src/rendering/object.dart 2923:7                                  layout
+package:flutter/src/rendering/proxy_box.dart 118:10                               <fn>
+package:flutter/src/rendering/proxy_box.dart 118:10                               performLayout
+package:flutter/src/rendering/object.dart 2923:7                                  layout
+package:flutter/src/rendering/proxy_box.dart 118:10                               <fn>
+package:flutter/src/rendering/proxy_box.dart 118:10                               performLayout
+package:flutter/src/rendering/object.dart 2923:7                                  layout
+package:flutter/src/rendering/proxy_box.dart 118:10                               <fn>
+package:flutter/src/rendering/proxy_box.dart 118:10                               performLayout
+package:flutter/src/rendering/object.dart 2923:7                                  layout
+package:flutter/src/rendering/proxy_box.dart 118:10                               <fn>
+package:flutter/src/rendering/proxy_box.dart 118:10                               performLayout
+package:flutter/src/rendering/object.dart 2923:7                                  layout
+package:flutter/src/rendering/proxy_box.dart 118:10                               <fn>
+package:flutter/src/rendering/proxy_box.dart 118:10                               performLayout
+package:flutter/src/rendering/object.dart 2923:7                                  layout
+package:flutter/src/rendering/proxy_box.dart 118:10                               <fn>
+package:flutter/src/rendering/proxy_box.dart 118:10                               performLayout
+package:flutter/src/rendering/custom_paint.dart 574:11                            performLayout
+package:flutter/src/rendering/object.dart 2923:7                                  layout
+package:flutter/src/rendering/proxy_box.dart 118:10                               <fn>
+package:flutter/src/rendering/proxy_box.dart 118:10                               performLayout
+package:flutter/src/rendering/object.dart 2923:7                                  layout
+package:flutter/src/rendering/proxy_box.dart 118:10                               <fn>
+package:flutter/src/rendering/proxy_box.dart 118:10                               performLayout
+package:flutter/src/rendering/object.dart 2923:7                                  layout
+package:flutter/src/rendering/proxy_box.dart 118:10                               <fn>
+package:flutter/src/rendering/proxy_box.dart 118:10                               performLayout
+package:flutter/src/rendering/object.dart 2923:7                                  layout
+package:flutter/src/rendering/proxy_box.dart 118:10                               <fn>
+package:flutter/src/rendering/proxy_box.dart 118:10                               performLayout
+package:flutter/src/rendering/object.dart 2923:7                                  layout
+package:flutter/src/rendering/proxy_box.dart 118:10                               <fn>
+package:flutter/src/rendering/proxy_box.dart 118:10                               performLayout
+package:flutter/src/rendering/object.dart 2923:7                                  layout
+package:flutter/src/rendering/layout_helper.dart 62:10                            layoutChild
+dart-sdk/lib/_internal/js_dev_runtime/private/ddc_runtime/operations.dart 118:77  tear
+package:flutter/src/rendering/flex.dart 1275:26                                   [_computeSizes]
+package:flutter/src/rendering/flex.dart 1329:32                                   performLayout
+package:flutter/src/rendering/object.dart 2923:7                                  layout
+package:flutter/src/rendering/proxy_box.dart 296:7                                performLayout
+package:flutter/src/rendering/object.dart 2923:7                                  layout
+package:flutter/src/rendering/shifted_box.dart 484:7                              performLayout
+package:flutter/src/rendering/object.dart 2923:7                                  layout
+package:flutter/src/rendering/shifted_box.dart 262:5                              performLayout
+package:flutter/src/rendering/object.dart 2923:7                                  layout
+package:flutter/src/rendering/shifted_box.dart 262:5                              performLayout
+package:flutter/src/rendering/object.dart 2923:7                                  layout
+package:flutter/src/rendering/proxy_box.dart 118:10                               <fn>
+package:flutter/src/rendering/proxy_box.dart 118:10                               performLayout
+package:flutter/src/rendering/object.dart 2923:7                                  layout
+package:flutter/src/rendering/custom_layout.dart 180:10                           layoutChild
+package:flutter/src/material/scaffold.dart 1113:7                                 performLayout
+package:flutter/src/rendering/custom_layout.dart 246:7                            [_callPerformLayout]
+package:flutter/src/rendering/custom_layout.dart 417:5                            performLayout
+package:flutter/src/rendering/object.dart 2771:7                                  [_layoutWithoutResize]
+package:flutter/src/rendering/object.dart 1174:17                                 flushLayout
+package:flutter/src/rendering/object.dart 1187:14                                 flushLayout
+package:flutter/src/rendering/binding.dart 692:5                                  drawFrame
+package:flutter/src/widgets/binding.dart 1573:13                                  drawFrame
+package:flutter/src/rendering/binding.dart 558:5                                  [_handlePersistentFrameCallback]
+dart-sdk/lib/_internal/js_dev_runtime/private/ddc_runtime/operations.dart 118:77  tear
+package:flutter/src/scheduler/binding.dart 1430:7                                 [_invokeFrameCallback]
+package:flutter/src/scheduler/binding.dart 1345:9                                 handleDrawFrame
+package:flutter/src/scheduler/binding.dart 1198:5                                 [_handleDrawFrame]
+dart-sdk/lib/_internal/js_dev_runtime/private/ddc_runtime/operations.dart 118:77  tear
+lib/_engine/engine/platform_dispatcher.dart 1733:5                                invoke
+lib/_engine/engine/platform_dispatcher.dart 268:5                                 invokeOnDrawFrame
+lib/_engine/engine/frame_service.dart 209:32                                      [_renderFrame]
+lib/_engine/engine/frame_service.dart 117:9                                       <fn>
+dart-sdk/lib/async/zone.dart 1034:54                                              runUnary
+dart-sdk/lib/async/zone.dart 989:26                                               <fn>
+dart-sdk/lib/_internal/js_dev_runtime/patch/js_allow_interop_patch.dart 218:27    _callDartFunctionFast1
+dart-sdk/lib/_internal/js_dev_runtime/patch/js_allow_interop_patch.dart 78:15     ret
+
+The following RenderObject was being processed when the exception was fired: RenderConstrainedBox#31897 relayoutBoundary=up23 NEEDS-LAYOUT NEEDS-PAINT NEEDS-COMPOSITING-BITS-UPDATE:
+  creator: SizedBox.expand ← ReadRenderer ← ActivityRenderer-[<'clue-context'>] ← Column ← Padding ←
+    _SingleChildViewport ← IgnorePointer-[GlobalKey#cba3c] ← Semantics ← Listener ← _GestureSemantics
+    ← RawGestureDetector-[LabeledGlobalKey<RawGestureDetectorState>#0ccc8] ← Listener ← ⋯
+  parentData: offset=Offset(0.0, 0.0); flex=null; fit=null (can use size)
+  constraints: BoxConstraints(w=368.0, 0.0<=h<=Infinity)
+  size: MISSING
+  additionalConstraints: BoxConstraints(biggest)
+This RenderObject had the following descendants (showing up to depth 5):
+    child: RenderStack#48984 NEEDS-LAYOUT NEEDS-PAINT NEEDS-COMPOSITING-BITS-UPDATE
+      child 1: _RenderLayoutBuilder#b45a2 NEEDS-LAYOUT NEEDS-PAINT
+      child 2: RenderPadding#b355d NEEDS-LAYOUT NEEDS-PAINT NEEDS-COMPOSITING-BITS-UPDATE
+        child: RenderPadding#3bf2a NEEDS-LAYOUT NEEDS-PAINT NEEDS-COMPOSITING-BITS-UPDATE
+          child: RenderSemanticsAnnotations#b3d7a NEEDS-LAYOUT NEEDS-PAINT NEEDS-COMPOSITING-BITS-UPDATE
+            child: RenderConstrainedBox#eede6 NEEDS-LAYOUT NEEDS-PAINT NEEDS-COMPOSITING-BITS-UPDATE
+════════════════════════════════════════════════════════════════════════════════════════════════════
+Another exception was thrown: Assertion failed: file:///E:/flutter/flutter/packages/flutter/lib/src/rendering/box.dart:2251:12
+Another exception was thrown: Assertion failed: file:///E:/flutter/flutter/packages/flutter/lib/src/rendering/box.dart:2251:12
+Another exception was thrown: BoxConstraints forces an infinite height.
+Another exception was thrown: Assertion failed: file:///E:/flutter/flutter/packages/flutter/lib/src/rendering/box.dart:2251:12
+Another exception was thrown: Assertion failed: file:///E:/flutter/flutter/packages/flutter/lib/src/rendering/box.dart:2251:12
+Another exception was thrown: Assertion failed: file:///E:/flutter/flutter/packages/flutter/lib/src/rendering/box.dart:2251:12
+Another exception was thrown: Assertion failed: file:///E:/flutter/flutter/packages/flutter/lib/src/rendering/box.dart:2251:12
+Another exception was thrown: Assertion failed: file:///E:/flutter/flutter/packages/flutter/lib/src/rendering/box.dart:2251:12
+Another exception was thrown: Assertion failed: file:///E:/flutter/flutter/packages/flutter/lib/src/rendering/box.dart:2251:12
+Another exception was thrown: Assertion failed: file:///E:/flutter/flutter/packages/flutter/lib/src/rendering/box.dart:2251:12
+Another exception was thrown: Assertion failed: file:///E:/flutter/flutter/packages/flutter/lib/src/rendering/box.dart:2251:12
+Another exception was thrown: Assertion failed: file:///E:/flutter/flutter/packages/flutter/lib/src/rendering/box.dart:2251:12
+Another exception was thrown: Assertion failed: file:///E:/flutter/flutter/packages/flutter/lib/src/rendering/box.dart:2251:12
+Another exception was thrown: Assertion failed: file:///E:/flutter/flutter/packages/flutter/lib/src/rendering/box.dart:2251:12
+Another exception was thrown: Assertion failed: file:///E:/flutter/flutter/packages/flutter/lib/src/rendering/box.dart:2251:12
+Another exception was thrown: Assertion failed: file:///E:/flutter/flutter/packages/flutter/lib/src/rendering/box.dart:2251:12
+Another exception was thrown: Assertion failed: file:///E:/flutter/flutter/packages/flutter/lib/src/rendering/box.dart:2251:12
+Another exception was thrown: Assertion failed: file:///E:/flutter/flutter/packages/flutter/lib/src/rendering/box.dart:2251:12
+Another exception was thrown: Assertion failed: file:///E:/flutter/flutter/packages/flutter/lib/src/rendering/box.dart:2251:12
+Another exception was thrown: Assertion failed: file:///E:/flutter/flutter/packages/flutter/lib/src/rendering/box.dart:2251:12
+Another exception was thrown: Assertion failed: file:///E:/flutter/flutter/packages/flutter/lib/src/rendering/box.dart:2251:12
+Another exception was thrown: Assertion failed: file:///E:/flutter/flutter/packages/flutter/lib/src/rendering/box.dart:2251:12
+Another exception was thrown: Assertion failed: file:///E:/flutter/flutter/packages/flutter/lib/src/rendering/box.dart:2251:12
+Another exception was thrown: Cannot hit test a render box with no size.
+Another exception was thrown: Cannot hit test a render box with no size.
