@@ -67,7 +67,7 @@ void main() {
       );
     await tester.pumpWidget(buildApp(repo, 'u1'));
     await tester.pumpAndSettle();
-    expect(find.text('CHI TIẾT CHIẾN DỊCH'), findsOneWidget);
+    expect(find.text('CHI TIẾT SỰ KIỆN'), findsOneWidget);
     // Nếu asset tồn tại trong test bundle, Image sẽ hiển thị; kiểm tra
     // widget EventCoverImage tồn tại là đủ (asset jpg thật có trong assets).
     expect(find.byType(Image), findsWidgets);

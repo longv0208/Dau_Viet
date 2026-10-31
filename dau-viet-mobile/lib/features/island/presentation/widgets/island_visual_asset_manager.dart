@@ -101,6 +101,11 @@ class IslandScenerySpriteSpec {
 class IslandVisualAssetManager {
   IslandVisualAssetManager._();
 
+  // --- Illustrated island dioramas (3 reference layouts) ---
+  static const String islandSmallArt = 'assets/island/terrain/island_small.png';
+  static const String islandMediumArt = 'assets/island/terrain/island_medium.png';
+  static const String islandLargeArt = 'assets/island/terrain/island_large.png';
+
   // --- Base Terrain Tiles ---
   static const String grassTile01 = 'assets/island/terrain/tile_grass_01.png';
   static const String grassTile02 = 'assets/island/terrain/tile_grass_02.png';
@@ -162,6 +167,9 @@ class IslandVisualAssetManager {
   static const String terracottaJarsFence = 'assets/island/scenery/terracotta_jars_fence.png';
 
   static const List<String> allCoreSprites = [
+    islandSmallArt,
+    islandMediumArt,
+    islandLargeArt,
     grassTile01,
     grassTile02,
     grassTile03,

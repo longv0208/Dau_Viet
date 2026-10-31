@@ -105,78 +105,71 @@ class _LearnerDashboardScreenState
       orElse: () => null,
     );
 
-    return SizedBox(
-      width: double.infinity,
-      child: Stack(
-        clipBehavior: Clip.none,
-        children: [
-          // Lớp 1: Tranh nền toàn cảnh Thành Cổ + Vịnh Thuyền Đỏ + Chú Tê Giác
-          SizedBox(
-            width: double.infinity,
-            height: 332 + topInset,
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        SizedBox(
+          width: double.infinity,
+          height: 280 + topInset,
+          child: ClipRect(
             child: Stack(
-              fit: StackFit.expand,
-              children: [
-                DbOrBundledImage(
-                  assetId: dbHeroAssetId,
-                  bundledPath: 'assets/images/home/home_hero_scenic_bg.jpg',
-                  fit: BoxFit.cover,
-                  alignment: Alignment.topCenter,
-                ),
-                // Gradient mờ nhẹ ở mép dưới cùng để chuyển mượt vào nền giấy
-                Positioned(
-                  left: 0,
-                  right: 0,
-                  bottom: 0,
-                  height: 54,
-                  child: DecoratedBox(
-                    decoration: BoxDecoration(
-                      gradient: LinearGradient(
-                        begin: Alignment.topCenter,
-                        end: Alignment.bottomCenter,
-                        colors: [
-                          const Color(0xFFF6EFE0).withValues(alpha: 0.0),
-                          const Color(0xFFF6EFE0).withValues(alpha: 0.85),
-                          const Color(0xFFF6EFE0),
-                        ],
-                      ),
+            fit: StackFit.expand,
+            children: [
+              DbOrBundledImage(
+                assetId: dbHeroAssetId,
+                bundledPath: 'assets/images/home/home_hero_scenic_bg.jpg',
+                fit: BoxFit.cover,
+                alignment: const Alignment(0, -0.35),
+              ),
+              Positioned(
+                left: 0,
+                right: 0,
+                bottom: 0,
+                height: 48,
+                child: DecoratedBox(
+                  decoration: BoxDecoration(
+                    gradient: LinearGradient(
+                      begin: Alignment.topCenter,
+                      end: Alignment.bottomCenter,
+                      colors: [
+                        const Color(0xFFF6EFE0).withValues(alpha: 0.0),
+                        const Color(0xFFF6EFE0).withValues(alpha: 0.88),
+                        const Color(0xFFF6EFE0),
+                      ],
                     ),
                   ),
                 ),
-              ],
-            ),
+              ),
+              Padding(
+                padding: EdgeInsets.only(top: topInset + 8),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Padding(
+                      padding: const EdgeInsets.symmetric(horizontal: 16),
+                      child: _buildTopBar(context),
+                    ),
+                    const SizedBox(height: 14),
+                    Padding(
+                      padding: const EdgeInsets.only(left: 18, right: 158),
+                      child: FittedBox(
+                        alignment: Alignment.centerLeft,
+                        fit: BoxFit.scaleDown,
+                        child: _buildHeroGreeting(),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ],
           ),
-
-          // Lớp 2: Nội dung Top Bar + Lời chào + Thẻ "Tiếp tục hành trình" đè lên đáy Hero
-          Padding(
-            padding: EdgeInsets.only(top: topInset + 8),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                // Top Bar: Logo Dấu Việt bên trái + 2 Gamified Pills & Chuông bên phải
-                Padding(
-                  padding: const EdgeInsets.symmetric(horizontal: 16),
-                  child: _buildTopBar(context),
-                ),
-                const SizedBox(height: 18),
-
-                // Lời chào bên trái (nhường nửa phải cho Chú Tê Giác trong tranh nền)
-                Padding(
-                  padding: const EdgeInsets.only(left: 18, right: 158),
-                  child: _buildHeroGreeting(),
-                ),
-                const SizedBox(height: 16),
-
-                // Thẻ Folder-Tab "Tiếp tục hành trình" đặt ngay dưới chân Chú Tê Giác
-                Padding(
-                  padding: const EdgeInsets.symmetric(horizontal: 16),
-                  child: _buildContinueJourneyCard(context),
-                ),
-              ],
-            ),
           ),
-        ],
-      ),
+        ),
+        Padding(
+          padding: const EdgeInsets.fromLTRB(16, 4, 16, 0),
+          child: _buildContinueJourneyCard(context),
+        ),
+      ],
     );
   }
 
@@ -316,11 +309,12 @@ class _LearnerDashboardScreenState
         Text(
           'Chào mừng\ntrở lại!',
           style: DauVietTypography.headlineLarge.copyWith(
-            fontSize: 28,
-            fontWeight: FontWeight.w900,
+            fontFamily: DauVietTypography.titleSmall.fontFamily,
+            fontSize: 22,
+            fontWeight: FontWeight.w800,
             color: const Color(0xFF23120B),
-            height: 1.08,
-            letterSpacing: -0.3,
+            height: 1.1,
+            letterSpacing: 0,
           ),
         ),
         const SizedBox(height: 6),

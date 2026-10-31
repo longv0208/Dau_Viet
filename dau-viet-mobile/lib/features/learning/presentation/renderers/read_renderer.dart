@@ -33,6 +33,7 @@ class ReadRenderer extends StatefulWidget {
   /// "Xem hoạt ảnh" fullscreen → player ẩn top bar/mascot/submit chrome.
   /// null = renderer không hỗ trợ immersive (player giữ chrome thường).
   final void Function(bool immersive)? onImmersiveChanged;
+  final SubmitSpecCallback? onSubmitSpec;
 
   const ReadRenderer({
     super.key,
@@ -41,6 +42,7 @@ class ReadRenderer extends StatefulWidget {
     required this.onSubmit,
     this.htmlPlayerFactory,
     this.onImmersiveChanged,
+    this.onSubmitSpec,
   });
 
   @override

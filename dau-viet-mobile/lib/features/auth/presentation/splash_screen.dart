@@ -69,7 +69,8 @@ class _SplashScreenState extends ConsumerState<SplashScreen>
     if (!mounted) return;
     final status = ref.read(authSessionProvider).status;
     final String dest = switch (status) {
-      AuthStatus.authenticated || AuthStatus.guest => '/dashboard',
+      AuthStatus.authenticated => '/island',
+      AuthStatus.guest => '/dashboard',
       _ => '/auth',
     };
     // Lần đầu mở app → đưa qua onboarding 3 bước trước khi vào đích (P1-02).

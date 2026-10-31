@@ -24,6 +24,7 @@ class HypothesisRenderer extends StatefulWidget {
   final void Function(bool hasUnsentInput)? onInputChanged;
   /// Evaluation mới nhất khi retry-in-place (nullable).
   final EvaluationDto? lastEvaluation;
+  final SubmitSpecCallback? onSubmitSpec;
 
   const HypothesisRenderer({
     super.key,
@@ -33,6 +34,7 @@ class HypothesisRenderer extends StatefulWidget {
     required this.onSubmit,
     this.onInputChanged,
     this.lastEvaluation,
+    this.onSubmitSpec,
   });
 
   @override
@@ -42,11 +44,42 @@ class HypothesisRenderer extends StatefulWidget {
 class _HypothesisRendererState extends State<HypothesisRenderer> {
   String? _hypothesisId;
   final Set<String> _evidenceIds = {};
+  final Set<String> _expandedHypothesisIds = {};
   bool _prefilled = false;
+  bool _promptExpanded = false;
 
   void _dirty() => widget.onInputChanged?.call(
     _hypothesisId != null || _evidenceIds.isNotEmpty,
   );
+
+  int _currentMinEvidence() {
+    final config = widget.activity.config;
+    final collected = _priorEvidenceIds();
+    final evidenceIds = <String>{
+      ...configIdList(config, 'visibleEvidenceIds'),
+      ..._supportingEvidenceIds(config),
+      ...collected,
+    };
+    final int rawMinEvidence =
+        ((config['minEvidence'] ?? config['minRequired']) as num?)?.toInt() ??
+        (evidenceIds.isNotEmpty ? 1 : 0);
+    return evidenceIds.isEmpty ? 0 : rawMinEvidence.clamp(1, evidenceIds.length);
+  }
+
+  void _notifySpec() {
+    notifySubmitSpec(
+      callback: widget.onSubmitSpec,
+      spec: RendererSubmitSpec(
+        enabled:
+            _hypothesisId != null && _evidenceIds.length >= _currentMinEvidence(),
+        label: 'GỬI CÂU TRẢ LỜI',
+        payload: () => {
+          'hypothesisId': _hypothesisId,
+          'evidenceIds': _evidenceIds.toList(),
+        },
+      ),
+    );
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -77,13 +110,25 @@ class _HypothesisRendererState extends State<HypothesisRenderer> {
       _prefilled = true;
     }
 
+    emitSubmitSpec(
+      callback: widget.onSubmitSpec,
+      spec: RendererSubmitSpec(
+        enabled: _hypothesisId != null && _evidenceIds.length >= minEvidence,
+        label: 'GỬI CÂU TRẢ LỜI',
+        payload: () => {
+          'hypothesisId': _hypothesisId,
+          'evidenceIds': _evidenceIds.toList(),
+        },
+      ),
+    );
+
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
         ImperialScrollFrame(
           plaqueTitle: 'BÀN SUY LUẬN • ĐẶT GIẢ THUYẾT',
           hiddenPlaqueTestText: 'BÀN SUY LUẬN · ĐẶT GIẢ THUYẾT',
-          padding: const EdgeInsets.fromLTRB(14, 16, 14, 16),
+          padding: const EdgeInsets.fromLTRB(12, 12, 12, 12),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
@@ -92,15 +137,19 @@ class _HypothesisRendererState extends State<HypothesisRenderer> {
                   usePixelShadow: false,
                   backgroundColor: const Color(0xFFFFFDF8),
                   borderColor: const Color(0xFFDECBA8),
-                  child: Text(
-                    prompt,
+                  padding: const EdgeInsets.fromLTRB(10, 8, 10, 8),
+                  child: _ExpandableCopy(
+                    text: prompt,
+                    expanded: _promptExpanded,
+                    onToggle: () =>
+                        setState(() => _promptExpanded = !_promptExpanded),
                     style: DauVietTypography.bodyMedium.copyWith(
                       fontWeight: FontWeight.w600,
-                      height: 1.5,
+                      height: 1.4,
                     ),
                   ),
                 ),
-                const SizedBox(height: 10),
+                const SizedBox(height: 8),
               ],
               if (hypotheses.isEmpty)
                 const EmptyStateCard(
@@ -113,7 +162,7 @@ class _HypothesisRendererState extends State<HypothesisRenderer> {
                 for (int i = 0; i < hypotheses.length; i++)
                   _buildHypothesisOption(hypotheses[i], i, evidenceIds),
               if (evidenceIds.isNotEmpty) ...[
-                const SizedBox(height: 10),
+                const SizedBox(height: 8),
                 Align(
                   alignment: Alignment.centerLeft,
                   child: SectionEyebrow(
@@ -123,10 +172,10 @@ class _HypothesisRendererState extends State<HypothesisRenderer> {
                     color: DauVietColors.jadeDark,
                   ),
                 ),
-                const SizedBox(height: 8),
+                const SizedBox(height: 6),
                 Wrap(
-                  spacing: 8,
-                  runSpacing: 8,
+                  spacing: 6,
+                  runSpacing: 6,
                   children: [
                     for (final id in evidenceIds) _buildEvidenceClueChip(id),
                   ],
@@ -135,20 +184,23 @@ class _HypothesisRendererState extends State<HypothesisRenderer> {
             ],
           ),
         ),
-        const SizedBox(height: 10),
+        const SizedBox(height: 8),
         InlineGradingHint(
           evaluation: widget.lastEvaluation,
           maxAttempts: widget.activity.maxAttempts,
         ),
-        const SizedBox(height: 8),
-        SubmitBar(
-          enabled: _hypothesisId != null && _evidenceIds.length >= minEvidence,
-          submitting: widget.submitting,
-          onPressed: () => widget.onSubmit({
-            'hypothesisId': _hypothesisId,
-            'evidenceIds': _evidenceIds.toList(),
-          }),
-        ),
+        if (widget.onSubmitSpec == null) ...[
+          const SizedBox(height: 8),
+          SubmitBar(
+            enabled:
+                _hypothesisId != null && _evidenceIds.length >= minEvidence,
+            submitting: widget.submitting,
+            onPressed: () => widget.onSubmit({
+              'hypothesisId': _hypothesisId,
+              'evidenceIds': _evidenceIds.toList(),
+            }),
+          ),
+        ],
       ],
     );
   }
@@ -164,8 +216,9 @@ class _HypothesisRendererState extends State<HypothesisRenderer> {
     final String badgeLetter = String.fromCharCode(65 + (index % 26));
     final List<String> subTags = _optionSupportingTags(h, poolEvidenceIds);
 
+    final bool expanded = _expandedHypothesisIds.contains(id);
     return Padding(
-      padding: const EdgeInsets.only(bottom: 10),
+      padding: const EdgeInsets.only(bottom: 6),
       child: Stack(
         clipBehavior: Clip.none,
         children: [
@@ -179,6 +232,7 @@ class _HypothesisRendererState extends State<HypothesisRenderer> {
                       _hypothesisId = id;
                       _dirty();
                     });
+                    _notifySpec();
                   },
             backgroundColor: selected
                 ? DauVietColors.paperCardHi
@@ -186,8 +240,8 @@ class _HypothesisRendererState extends State<HypothesisRenderer> {
             borderColor: selected
                 ? DauVietColors.cinnabarRed
                 : DauVietColors.outlineVariant,
-            borderWidth: selected ? 2.4 : 1.4,
-            padding: const EdgeInsets.all(12),
+            borderWidth: selected ? 2.2 : 1.2,
+            padding: const EdgeInsets.fromLTRB(10, 8, 10, 8),
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
@@ -196,30 +250,39 @@ class _HypothesisRendererState extends State<HypothesisRenderer> {
                   children: [
                     ChapterNumberBadge(
                       badgeLetter,
-                      size: 32,
+                      size: 28,
                       color: selected
                           ? DauVietColors.cinnabarRed
                           : DauVietColors.chapterGreen,
                       filled: selected,
                     ),
-                    const SizedBox(width: 10),
+                    const SizedBox(width: 8),
                     Expanded(
-                      child: Text(
-                        label,
+                      child: _ExpandableCopy(
+                        text: label,
+                        expanded: expanded,
+                        onToggle: () => setState(() {
+                          if (expanded) {
+                            _expandedHypothesisIds.remove(id);
+                          } else {
+                            _expandedHypothesisIds.add(id);
+                          }
+                        }),
                         style: DauVietTypography.bodyMedium.copyWith(
                           color: DauVietColors.inkText,
                           fontWeight: selected
                               ? FontWeight.w700
                               : FontWeight.w500,
-                          height: 1.4,
+                          height: 1.35,
+                          fontSize: 14,
                         ),
                       ),
                     ),
-                    if (selected) const SizedBox(width: 36),
+                    if (selected) const SizedBox(width: 32),
                   ],
                 ),
                 if (subTags.isNotEmpty) ...[
-                  const SizedBox(height: 8),
+                  const SizedBox(height: 6),
                   Wrap(
                     spacing: 6,
                     runSpacing: 6,
@@ -239,10 +302,10 @@ class _HypothesisRendererState extends State<HypothesisRenderer> {
           ),
           if (selected)
             const Positioned(
-              top: 8,
-              right: 8,
+              top: 6,
+              right: 6,
               child: IgnorePointer(
-                child: StampSealBadge.success('✓', size: 32),
+                child: StampSealBadge.success('✓', size: 28),
               ),
             ),
         ],
@@ -272,9 +335,10 @@ class _HypothesisRendererState extends State<HypothesisRenderer> {
                   }
                   _dirty();
                 });
+                _notifySpec();
               },
         child: ConstrainedBox(
-          constraints: const BoxConstraints(minHeight: 44, maxWidth: 300),
+          constraints: const BoxConstraints(minHeight: 40, maxWidth: 280),
           child: Align(
             widthFactor: 1.0,
             alignment: Alignment.centerLeft,
@@ -287,7 +351,7 @@ class _HypothesisRendererState extends State<HypothesisRenderer> {
                   ? DauVietColors.cinnabarRed
                   : DauVietColors.jade,
               filled: selected,
-              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
             ),
           ),
         ),
@@ -357,5 +421,55 @@ class _HypothesisRendererState extends State<HypothesisRenderer> {
       }
     }
     return const [];
+  }
+}
+
+/// Văn bản dài: 3 dòng + "Xem thêm" / "Thu gọn" — không cắt mất nội dung.
+class _ExpandableCopy extends StatelessWidget {
+  final String text;
+  final bool expanded;
+  final VoidCallback onToggle;
+  final TextStyle style;
+
+  const _ExpandableCopy({
+    required this.text,
+    required this.expanded,
+    required this.onToggle,
+    required this.style,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    const int collapsedLines = 3;
+    final bool canCollapse = text.trim().length > 90;
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(
+          text,
+          maxLines: expanded || !canCollapse ? null : collapsedLines,
+          overflow: expanded || !canCollapse
+              ? TextOverflow.visible
+              : TextOverflow.ellipsis,
+          style: style,
+        ),
+        if (canCollapse)
+          GestureDetector(
+            behavior: HitTestBehavior.opaque,
+            onTap: onToggle,
+            child: Padding(
+              padding: const EdgeInsets.only(top: 2),
+              child: Text(
+                expanded ? 'Thu gọn' : 'Xem thêm',
+                style: DauVietTypography.labelSmall.copyWith(
+                  color: DauVietColors.jadeDark,
+                  fontWeight: FontWeight.w800,
+                  fontSize: 11.5,
+                ),
+              ),
+            ),
+          ),
+      ],
+    );
   }
 }

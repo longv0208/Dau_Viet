@@ -16,7 +16,6 @@ import 'journey_chapter_header.dart';
 import 'journey_layout.dart';
 import 'journey_location_list.dart';
 import 'journey_map_node.dart';
-import 'journey_path_painter.dart';
 import 'journey_progress_legend.dart';
 import 'location_profile_screen.dart';
 
@@ -500,19 +499,7 @@ class _HistoricalMapScreenState extends ConsumerState<HistoricalMapScreen> {
                       child: IgnorePointer(child: PaperGrainOverlay()),
                     ),
 
-                    // 3. Đường kết nối các mốc địa điểm
-                    Positioned.fill(
-                      child: CustomPaint(
-                        painter: JourneyPathPainter(
-                          centers: centers,
-                          states: [
-                            for (final l in chapter.locations) l.unlockState,
-                          ],
-                          selectedIndex: _selectedIndex,
-                          showProceduralBackground: false,
-                        ),
-                      ),
-                    ),
+                    // 3. Ghim địa điểm — không vẽ đường nối (học trên hành trình)
 
                     // 4. Các ghim địa điểm tương tác (kể cả LOCKED khi
                     //    visibility = PUBLIC)

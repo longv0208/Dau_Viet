@@ -309,7 +309,7 @@ class MockIslandRepository implements IslandRepository {
         category: item.category,
         pricePoints: item.pricePoints,
         purchasable: item.purchasable,
-        owned: _ownedItemIds.contains(item.itemId),
+        owned: item.owned || _ownedItemIds.contains(item.itemId),
         renderKey: item.renderKey,
         assetId: item.assetId,
         placeable: item.placeable,

@@ -8,6 +8,8 @@ import '../../../core/widgets/async_state_view.dart';
 import '../../../core/widgets/gamification/gamification_widgets.dart';
 import '../../../core/widgets/heritage_background.dart';
 import '../../campaign/presentation/campaign_detail_screen.dart';
+import '../../campaign/presentation/widgets/event_progress_section.dart';
+import '../../events/data/events_providers.dart';
 import '../../learning/presentation/renderers/asset_cover_image.dart';
 import '../data/learning_path_dto.dart';
 import '../data/learning_path_providers.dart';
@@ -23,7 +25,7 @@ import 'widgets/winding_landscape_journey_canvas.dart';
 ///   kỳ ngang; muốn đổi thời kỳ bấm `<` quay lại màn Chọn thời kỳ).
 /// - Mỗi sự kiện gồm:
 ///   1. Nhãn sự kiện (`_EventCampaignRibbon`, giữ key `event-card-{eventId}` để
-///      mở màn Chi tiết chiến dịch).
+///      mở Bottom Sheet thông tin sự kiện).
 ///   2. Các mốc bài học (`_LessonMilestoneCard`) nối mượt trên đường cong
 ///      Catmull-Rom; mỗi thẻ gồm ảnh nền bài học, tên bài và năm của sự kiện.
 ///   3. Mốc rương quà (`_RewardChestMilestoneCard`) ở cuối sự kiện (chỉ hiện khi
@@ -393,9 +395,11 @@ class _PeriodJourneyScreenState extends ConsumerState<PeriodJourneyScreen> {
         final isCurrentTarget =
             currentPointer?.eventNodeId == event.eventNodeId;
         final stepNumber = _globalEventNumber(sections, s, i);
+        final bool sequentialLocked = _isSequentiallyLocked(allEvents, event);
         final bool isFeaturedStar =
             stepNumber == 1 &&
             !event.status.isLocked &&
+            !sequentialLocked &&
             !isCurrentTarget &&
             !event.status.isDone;
 
@@ -412,8 +416,9 @@ class _PeriodJourneyScreenState extends ConsumerState<PeriodJourneyScreen> {
               : (allEvents.length > 1
                     ? (milestoneCursor.isOdd ? 0.26 : 0.74)
                     : 0.30);
-          final bool isEventUnlocked =
-              !event.status.isLocked && !event.status.isNotReady;
+          final bool isEventUnlocked = !sequentialLocked &&
+              !event.status.isLocked &&
+              !event.status.isNotReady;
 
           entries.add(
             JourneyCanvasEntry.milestone(
@@ -446,12 +451,18 @@ class _PeriodJourneyScreenState extends ConsumerState<PeriodJourneyScreen> {
                   stepNumber: stepNumber,
                   rewardPreview: rewardPreview,
                 ),
-                onTap: () => _openEventCampaign(context, event),
+                onTap: () => _handleEventTap(
+                  context,
+                  event: event,
+                  stepNumber: stepNumber,
+                  rewardPreview: rewardPreview,
+                  sequentialLocked: sequentialLocked,
+                ),
               ),
             ),
           );
         } else {
-          // 1. Nhãn sự kiện (dải nhỏ không có huy hiệu trên đường cong; bấm mở Chi tiết chiến dịch)
+          // 1. Nhãn sự kiện (dải nhỏ không có huy hiệu trên đường cong; bấm mở Bottom Sheet thông tin sự kiện)
           entries.add(
             JourneyCanvasEntry.fullWidth(
               child: _EventCampaignRibbon(
@@ -460,7 +471,14 @@ class _PeriodJourneyScreenState extends ConsumerState<PeriodJourneyScreen> {
                 event: event,
                 stepNumber: stepNumber,
                 isCurrentTarget: isCurrentTarget,
-                onTap: () => _openEventCampaign(context, event),
+                sequentialLocked: sequentialLocked,
+                onTap: () => _handleEventTap(
+                  context,
+                  event: event,
+                  stepNumber: stepNumber,
+                  rewardPreview: rewardPreview,
+                  sequentialLocked: sequentialLocked,
+                ),
                 onInfoTap: () => _showEventDetailsBottomSheet(
                   context,
                   event: event,
@@ -483,8 +501,9 @@ class _PeriodJourneyScreenState extends ConsumerState<PeriodJourneyScreen> {
               lessonFocusX = milestoneCursor.isOdd ? 0.26 : 0.74;
             }
 
-            final bool isLessonUnlocked =
-                !lesson.status.isLocked && !lesson.status.isNotReady;
+            final bool isLessonUnlocked = !sequentialLocked &&
+                !lesson.status.isLocked &&
+                !lesson.status.isNotReady;
             final bool isCurrentLesson =
                 (currentPointer?.lessonId == lesson.lessonId) ||
                 (currentPointer?.lessonId == null && isCurrentTarget && l == 0);
@@ -496,8 +515,12 @@ class _PeriodJourneyScreenState extends ConsumerState<PeriodJourneyScreen> {
                 isUnlocked: isLessonUnlocked,
                 badge: GestureDetector(
                   key: Key('lesson-badge-${lesson.lessonId}'),
-                  onTap: () =>
-                      _handleLessonMilestoneTap(context, event, lesson),
+                  onTap: () => _handleLessonMilestoneTap(
+                    context,
+                    event,
+                    lesson,
+                    sequentialLocked: sequentialLocked,
+                  ),
                   child: JourneyNodeBadge(
                     status: lesson.status,
                     isSelected: isCurrentLesson,
@@ -509,8 +532,13 @@ class _PeriodJourneyScreenState extends ConsumerState<PeriodJourneyScreen> {
                   event: event,
                   lesson: lesson,
                   isCurrentTarget: isCurrentLesson,
-                  onTap: () =>
-                      _handleLessonMilestoneTap(context, event, lesson),
+                  sequentialLocked: sequentialLocked,
+                  onTap: () => _handleLessonMilestoneTap(
+                    context,
+                    event,
+                    lesson,
+                    sequentialLocked: sequentialLocked,
+                  ),
                 ),
               ),
             );
@@ -622,11 +650,33 @@ class _PeriodJourneyScreenState extends ConsumerState<PeriodJourneyScreen> {
     );
   }
 
+  bool _isSequentiallyLocked(
+    List<LearningPathEventNodeDto> events,
+    LearningPathEventNodeDto event,
+  ) {
+    final index = events.indexWhere((e) => e.eventId == event.eventId);
+    if (index <= 0) return false;
+    for (var i = 0; i < index; i++) {
+      if (!events[i].status.isDone) return true;
+    }
+    return false;
+  }
+
   Future<void> _handleLessonMilestoneTap(
     BuildContext context,
     LearningPathEventNodeDto event,
-    LearningPathLessonNodeDto lesson,
-  ) async {
+    LearningPathLessonNodeDto lesson, {
+    bool sequentialLocked = false,
+  }) async {
+    if (sequentialLocked) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Hãy hoàn thành sự kiện đứng trước rồi mới học tiếp.'),
+          duration: Duration(seconds: 2),
+        ),
+      );
+      return;
+    }
     if (lesson.status.isLocked || lesson.status.isNotReady) {
       final msg = lesson.status.isNotReady
           ? 'Bài học này hiện đang được biên soạn nội dung.'
@@ -775,7 +825,18 @@ class _PeriodJourneyScreenState extends ConsumerState<PeriodJourneyScreen> {
     target ??= events.where((e) => e.isPlayable && e.isUnlocked).firstOrNull;
     target ??= events.where((e) => e.isPlayable).firstOrNull;
     if (target != null) {
-      _openEventCampaign(context, target);
+      final lessons = [...target.lessons]
+        ..sort((a, b) => a.sortOrder.compareTo(b.sortOrder));
+      final picked =
+          lessons
+              .where((l) => l.status.canStart && !l.status.isDone)
+              .firstOrNull ??
+          lessons.where((l) => l.status.canStart).firstOrNull;
+      if (picked != null) {
+        _openLesson(context, target, picked);
+      } else {
+        _openEventCampaign(context, target);
+      }
     }
   }
 
@@ -849,6 +910,38 @@ class _PeriodJourneyScreenState extends ConsumerState<PeriodJourneyScreen> {
     await _openEventCampaign(context, event);
   }
 
+  /// Bấm vào nhãn/thẻ sự kiện: mặc định mở Bottom Sheet thông tin sự kiện.
+  /// Khi màn cha truyền `onEventSelected` thì ưu tiên gọi callback đó (để màn
+  /// cha tự quyết định chặn/gợi ý), khớp hành vi trước đây của `_openEventCampaign`.
+  void _handleEventTap(
+    BuildContext context, {
+    required LearningPathEventNodeDto event,
+    required int stepNumber,
+    required EventRewardPreview? rewardPreview,
+    bool sequentialLocked = false,
+  }) {
+    final onSelected = widget.onEventSelected;
+    if (onSelected != null) {
+      onSelected(event);
+      return;
+    }
+    if (sequentialLocked) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Hãy hoàn thành sự kiện đứng trước rồi mới học tiếp.'),
+          duration: Duration(seconds: 2),
+        ),
+      );
+      return;
+    }
+    _showEventDetailsBottomSheet(
+      context,
+      event: event,
+      stepNumber: stepNumber,
+      rewardPreview: rewardPreview,
+    );
+  }
+
   Future<void> _showEventDetailsBottomSheet(
     BuildContext context, {
     required LearningPathEventNodeDto event,
@@ -856,6 +949,24 @@ class _PeriodJourneyScreenState extends ConsumerState<PeriodJourneyScreen> {
     required EventRewardPreview? rewardPreview,
   }) async {
     final preview = rewardPreview;
+    String? coverAssetId =
+        event.backgroundConfig.resolvedAssetId ??
+        HeritageBackgroundConfigDto.extractAssetId(event.coverAssetKey);
+    if (coverAssetId == null || coverAssetId.isEmpty) {
+      for (final les in event.lessons) {
+        final lesAsset =
+            HeritageBackgroundConfigDto.extractAssetId(les.coverAssetId) ??
+            les.backgroundConfig.resolvedAssetId;
+        if (lesAsset != null && lesAsset.isNotEmpty) {
+          coverAssetId = lesAsset;
+          break;
+        }
+      }
+    }
+    final String? bundledCover = const AssetResolver().resolveEventCover(
+      event.coverAssetKey,
+      event.slug,
+    );
     await showModalBottomSheet<void>(
       context: context,
       isScrollControlled: true,
@@ -892,6 +1003,28 @@ class _PeriodJourneyScreenState extends ConsumerState<PeriodJourneyScreen> {
                     ),
                   ),
                   const SizedBox(height: 14),
+                  ClipRRect(
+                    borderRadius: BorderRadius.circular(14),
+                    child: SizedBox(
+                      height: 170,
+                      width: double.infinity,
+                      child: AssetCoverImage(
+                        assetId: coverAssetId,
+                        bundledPath: bundledCover,
+                        fit: BoxFit.cover,
+                        placeholder: Container(
+                          color: const Color(0xFFF3E6CE),
+                          alignment: Alignment.center,
+                          child: const Icon(
+                            Icons.history_edu_rounded,
+                            size: 40,
+                            color: Color(0xFFB99B6E),
+                          ),
+                        ),
+                      ),
+                    ),
+                  ),
+                  const SizedBox(height: 14),
                   Row(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
@@ -922,79 +1055,59 @@ class _PeriodJourneyScreenState extends ConsumerState<PeriodJourneyScreen> {
                       PathStatusBadge(status: event.status, compact: true),
                     ],
                   ),
-                  const SizedBox(height: 14),
-                  Container(
-                    padding: const EdgeInsets.all(12),
-                    decoration: BoxDecoration(
-                      color: const Color(0xFFF3E6CE).withValues(alpha: 0.65),
-                      borderRadius: BorderRadius.circular(14),
-                      border: Border.all(color: const Color(0xFFE0CCA8)),
-                    ),
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Row(
-                          children: [
-                            const Icon(
-                              Icons.menu_book_rounded,
-                              size: 16,
-                              color: Color(0xFF8E1D1D),
-                            ),
-                            const SizedBox(width: 6),
-                            Expanded(
-                              child: Text(
-                                'Lộ trình bài học (${event.lessons.length} bài • 5 pha tương tác)',
-                                style: DauVietTypography.labelLarge.copyWith(
-                                  fontSize: 13,
-                                  fontWeight: FontWeight.w800,
-                                  color: const Color(0xFF2B1B12),
-                                ),
-                              ),
-                            ),
-                          ],
-                        ),
-                        const SizedBox(height: 4),
-                        Text(
-                          'Mỗi bài gồm 5 pha: Khởi mở → Khám phá → Tương tác → Thử thách → Đúc kết',
+                  Consumer(
+                    builder: (consumerCtx, ref, _) {
+                      final summary = ref
+                          .watch(eventDetailProvider(event.eventId))
+                          .maybeWhen(
+                            data: (d) => d.summary,
+                            orElse: () => null,
+                          );
+                      if (summary == null || summary.trim().isEmpty) {
+                        return const SizedBox.shrink();
+                      }
+                      return Padding(
+                        padding: const EdgeInsets.only(top: 10),
+                        child: Text(
+                          summary,
+                          maxLines: 3,
+                          overflow: TextOverflow.ellipsis,
                           style: DauVietTypography.bodySmall.copyWith(
-                            fontSize: 11.2,
-                            color: const Color(0xFF5C4B3B),
+                            fontSize: 12.5,
+                            height: 1.45,
+                            color: const Color(0xFF4A3C2E),
                           ),
                         ),
-                        const SizedBox(height: 10),
-                        if (event.lessons.isEmpty)
-                          Text(
-                            'Chặng này đang được biên tập bài học.',
-                            style: DauVietTypography.bodySmall.copyWith(
-                              color: const Color(0xFF6E5D4F),
+                      );
+                    },
+                  ),
+                  const SizedBox(height: 14),
+                  Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Row(
+                        children: [
+                          const Icon(
+                            Icons.menu_book_rounded,
+                            size: 16,
+                            color: Color(0xFF8E1D1D),
+                          ),
+                          const SizedBox(width: 6),
+                          Expanded(
+                            child: Text(
+                              'Sự kiện lịch sử • ${event.lessons.length} bài học',
+                              style: DauVietTypography.labelLarge.copyWith(
+                                fontSize: 13,
+                                fontWeight: FontWeight.w800,
+                                color: const Color(0xFF2B1B12),
+                              ),
                             ),
-                          )
-                        else
-                          for (int idx = 0; idx < event.lessons.length; idx++) ...[
-                            if (idx > 0) const SizedBox(height: 8),
-                            _SheetLessonItem(
-                              lesson: event.lessons[idx],
-                              orderNumber: idx + 1,
-                              onTap: () {
-                                final les = event.lessons[idx];
-                                if (les.status.isLocked || les.status.isNotReady) {
-                                  ScaffoldMessenger.of(sheetCtx).showSnackBar(
-                                    const SnackBar(
-                                      content: Text(
-                                        'Hoàn thành bài học đứng trước để mở khóa bài học này.',
-                                      ),
-                                      duration: Duration(seconds: 2),
-                                    ),
-                                  );
-                                  return;
-                                }
-                                Navigator.of(sheetCtx).pop();
-                                _openLesson(context, event, les);
-                              },
-                            ),
-                          ],
-                      ],
-                    ),
+                          ),
+                        ],
+                      ),
+                      const SizedBox(height: 8),
+                      EventProgressSection(eventId: event.eventId),
+                    ],
                   ),
                   if (preview != null &&
                       (preview.hasLocation || preview.hasItem)) ...[
@@ -1047,27 +1160,16 @@ class _PeriodJourneyScreenState extends ConsumerState<PeriodJourneyScreen> {
                       ),
                     ],
                   ],
-                  const SizedBox(height: 16),
-                  FilledButton.icon(
-                    key: Key('sheet-open-campaign-${event.eventId}'),
-                    style: FilledButton.styleFrom(
-                      backgroundColor: const Color(0xFFC92525),
-                      foregroundColor: Colors.white,
-                      minimumSize: const Size.fromHeight(46),
-                      shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(14),
-                      ),
-                    ),
-                    onPressed: () {
-                      Navigator.of(sheetCtx).pop();
-                      _openEventCampaign(context, event);
-                    },
-                    icon: const Icon(Icons.flag_rounded, size: 18),
-                    label: Text(
-                      'Xem chi tiết chiến dịch & học ngay',
-                      style: DauVietTypography.labelLarge.copyWith(
-                        color: Colors.white,
-                        fontWeight: FontWeight.w800,
+                  const SizedBox(height: 12),
+                  Center(
+                    child: TextButton(
+                      onPressed: () => Navigator.of(sheetCtx).pop(),
+                      child: Text(
+                        'Đóng',
+                        style: DauVietTypography.labelLarge.copyWith(
+                          color: const Color(0xFF8E1D1D),
+                          fontWeight: FontWeight.w800,
+                        ),
                       ),
                     ),
                   ),
@@ -1082,8 +1184,8 @@ class _PeriodJourneyScreenState extends ConsumerState<PeriodJourneyScreen> {
 }
 
 /// Dải nhãn sự kiện nhỏ (`_EventCampaignRibbon`) nằm trước các mốc bài học của
-/// sự kiện đó: giữ key `event-card-{eventId}` để bấm mở màn Chi tiết chiến dịch,
-/// và nút `event-badge-{eventId}` để mở nhanh Bottom Sheet tổng quan.
+/// sự kiện đó: giữ key `event-card-{eventId}` để bấm mở Bottom Sheet thông tin
+/// sự kiện, và nút `event-badge-{eventId}` mở nhanh cùng Bottom Sheet đó.
 class _EventCampaignRibbon extends StatelessWidget {
   final Key cardKey;
   final Key infoBadgeKey;
@@ -1092,6 +1194,7 @@ class _EventCampaignRibbon extends StatelessWidget {
   final bool isCurrentTarget;
   final VoidCallback onTap;
   final VoidCallback onInfoTap;
+  final bool sequentialLocked;
 
   const _EventCampaignRibbon({
     required this.cardKey,
@@ -1101,11 +1204,13 @@ class _EventCampaignRibbon extends StatelessWidget {
     required this.isCurrentTarget,
     required this.onTap,
     required this.onInfoTap,
+    this.sequentialLocked = false,
   });
 
   @override
   Widget build(BuildContext context) {
-    final bool isLocked = event.status.isLocked || event.status.isNotReady;
+    final bool isLocked =
+        sequentialLocked || event.status.isLocked || event.status.isNotReady;
     final Color borderColor = isCurrentTarget
         ? const Color(0xFFC92525)
         : (event.status.isDone
@@ -1230,6 +1335,7 @@ class _LessonMilestoneCard extends StatelessWidget {
   final LearningPathLessonNodeDto lesson;
   final bool isCurrentTarget;
   final VoidCallback onTap;
+  final bool sequentialLocked;
 
   const _LessonMilestoneCard({
     super.key,
@@ -1237,12 +1343,14 @@ class _LessonMilestoneCard extends StatelessWidget {
     required this.lesson,
     required this.isCurrentTarget,
     required this.onTap,
+    this.sequentialLocked = false,
   });
 
   @override
   Widget build(BuildContext context) {
-    final bool isLocked =
-        lesson.status.isLocked || lesson.status.isNotReady;
+    final bool isLocked = sequentialLocked ||
+        lesson.status.isLocked ||
+        lesson.status.isNotReady;
     final bool isHighlightedRed = !isLocked &&
         (isCurrentTarget ||
             lesson.status.isInProgress ||
@@ -1810,93 +1918,6 @@ class _ChestCelebrationOverlayState extends State<_ChestCelebrationOverlay>
   }
 }
 
-class _SheetLessonItem extends StatelessWidget {
-  final LearningPathLessonNodeDto lesson;
-  final int orderNumber;
-  final VoidCallback onTap;
-
-  const _SheetLessonItem({
-    required this.lesson,
-    required this.orderNumber,
-    required this.onTap,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    final bool isBlocked = lesson.status.isLocked || lesson.status.isNotReady;
-    return Material(
-      color: isBlocked ? const Color(0xFFEDE4D3) : const Color(0xFFFFFDF8),
-      borderRadius: BorderRadius.circular(11),
-      child: InkWell(
-        key: Key('sheet-lesson-${lesson.lessonId}'),
-        borderRadius: BorderRadius.circular(11),
-        onTap: onTap,
-        child: Container(
-          padding: const EdgeInsets.symmetric(horizontal: 11, vertical: 9),
-          decoration: BoxDecoration(
-            borderRadius: BorderRadius.circular(11),
-            border: Border.all(
-              color: isBlocked
-                  ? const Color(0xFFD5C7B2)
-                  : const Color(0xFFD9C39E),
-            ),
-          ),
-          child: Row(
-            children: [
-              Container(
-                width: 24,
-                height: 24,
-                alignment: Alignment.center,
-                decoration: BoxDecoration(
-                  color: isBlocked
-                      ? const Color(0xFF9E9A90)
-                      : const Color(0xFFC92525),
-                  shape: BoxShape.circle,
-                ),
-                child: Text(
-                  '$orderNumber',
-                  style: DauVietTypography.labelSmall.copyWith(
-                    color: Colors.white,
-                    fontWeight: FontWeight.w800,
-                    fontSize: 11,
-                  ),
-                ),
-              ),
-              const SizedBox(width: 9),
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      lesson.title,
-                      style: DauVietTypography.labelLarge.copyWith(
-                        fontSize: 12.8,
-                        fontWeight: FontWeight.w700,
-                        color: isBlocked
-                            ? const Color(0xFF6B5E52)
-                            : const Color(0xFF2B1B12),
-                      ),
-                    ),
-                    const SizedBox(height: 2),
-                    Text(
-                      '5 pha học • 6 hoạt động tương tác',
-                      style: DauVietTypography.bodySmall.copyWith(
-                        fontSize: 10.5,
-                        color: const Color(0xFF705E4E),
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-              const SizedBox(width: 6),
-              PathStatusBadge(status: lesson.status, compact: true),
-            ],
-          ),
-        ),
-      ),
-    );
-  }
-}
 
 class _SheetRewardCard extends StatelessWidget {
   final IconData icon;

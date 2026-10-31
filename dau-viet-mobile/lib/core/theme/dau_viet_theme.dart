@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:google_fonts/google_fonts.dart';
 import 'dau_viet_colors.dart';
 import 'dau_viet_typography.dart';
 
@@ -12,6 +13,7 @@ class DauVietTheme {
     return ThemeData(
       useMaterial3: true,
       brightness: Brightness.light,
+      fontFamily: GoogleFonts.beVietnamPro().fontFamily,
       scaffoldBackgroundColor: DauVietColors.paperBackground,
       colorScheme: const ColorScheme(
         brightness: Brightness.light,

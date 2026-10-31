@@ -34,6 +34,7 @@ import '../data/learning_dtos.dart';
 import '../data/learning_providers.dart';
 import 'discovery_clue_grid.dart';
 import 'renderers/activity_renderer.dart';
+import 'renderers/renderer_base.dart';
 import '../../../core/widgets/mascot_speech_bubble.dart';
 
 /// Mức độ feedback sau submit — map đúng outcome backend trả về.
@@ -188,6 +189,29 @@ class _LessonPlayerScreenState extends ConsumerState<LessonPlayerScreen> {
   // The renderer moves between fullscreen and scrolling parents. A global
   // identity preserves its reading phase through that layout change.
   GlobalKey _activityRendererKey = GlobalKey();
+
+  /// Spec nút submit renderer emit — player pin `SubmitBar` đáy màn hình
+  /// ngay trên `_buildBottomBar`, KHÔNG cuộn theo nội dung. `null` →
+  /// activity không có nút submit chung (EXPLORE_MAP / READ immersive /
+  /// UNSUPPORTED / đang chờ TIẾP TỤC-HOÀN THÀNH).
+  RendererSubmitSpec? _submitSpec;
+
+  /// Renderer báo spec submit mới. `enabled`/`label` đổi → rebuild;
+  /// `payload` luôn refresh (closure đọc state renderer lúc bấm).
+  void _onSubmitSpec(RendererSubmitSpec? spec) {
+    if (!mounted) return;
+    final prev = _submitSpec;
+    if (spec == null && prev == null) return;
+    if (spec != null &&
+        prev != null &&
+        spec.enabled == prev.enabled &&
+        spec.label == prev.label) {
+      // Chỉ payload closure thay đổi — cập nhật lặng lẽ, không rebuild.
+      _submitSpec = spec;
+      return;
+    }
+    setState(() => _submitSpec = spec);
+  }
   String? _rendererActivityId;
 
   /// Renderer báo input thay đổi — chỉ nhận khi còn được phép sửa.
@@ -1006,6 +1030,10 @@ class _LessonPlayerScreenState extends ConsumerState<LessonPlayerScreen> {
     if (_rendererActivityId != cur.activity?.id) {
       _rendererActivityId = cur.activity?.id;
       _activityRendererKey = GlobalKey();
+      // Spec của activity cũ không áp cho activity mới — renderer mới sẽ
+      // emit spec riêng trong build (post-frame). Gán trực tiếp, không
+      // setState (đang trong build pass).
+      _submitSpec = null;
     }
     final isFourStep = cur.stepProgress?.isFourStep == true;
     final stepProgress = cur.stepProgress;
@@ -1065,6 +1093,7 @@ class _LessonPlayerScreenState extends ConsumerState<LessonPlayerScreen> {
                 onBackToHypothesis: _isVerificationActivity(cur)
                     ? () => _backToHypothesis(st)
                     : null,
+                onSubmitSpec: _onSubmitSpec,
               ),
             )
           else ...[
@@ -1131,15 +1160,53 @@ class _LessonPlayerScreenState extends ConsumerState<LessonPlayerScreen> {
                       onBackToHypothesis: _isVerificationActivity(cur)
                           ? () => _backToHypothesis(st)
                           : null,
+                      onSubmitSpec: _onSubmitSpec,
                     ),
                   ],
                 ),
               ),
             ),
+            // SubmitBar pin đáy — chỉ trong chế độ bình thường (không
+            // immersive/grid). Ẩn khi renderer không emit spec, hoặc
+            // awaitingContinue/completionReady đã chiếm bottom bar.
+            if (_submitSpec != null &&
+                !st.awaitingContinue &&
+                !st.completionReady)
+              _buildPinnedSubmitBar(st),
             _buildBottomBar(st),
           ],
         ],
       ],
+    );
+  }
+
+  /// SubmitBar pin đáy màn — ngoài `SingleChildScrollView`, luôn hiển thị
+  /// khi renderer emit spec (kể cả nội dung dài). Đặt ngay trên
+  /// `_buildBottomBar` để feedback/continue giữ nguyên hành vi cũ.
+  Widget _buildPinnedSubmitBar(_PlayerState st) {
+    final spec = _submitSpec!;
+    return Container(
+      padding: const EdgeInsets.fromLTRB(14, 8, 14, 8),
+      decoration: BoxDecoration(
+        color: DauVietColors.parchmentSurface,
+        border: Border(
+          top: BorderSide(
+            color: DauVietColors.outlineVariant.withValues(alpha: 0.5),
+          ),
+        ),
+      ),
+      child: SafeArea(
+        top: false,
+        child: SubmitBar(
+          enabled: spec.enabled,
+          submitting: st.submitting,
+          label: spec.label,
+          onPressed: () {
+            final payload = spec.payload();
+            _submit(payload);
+          },
+        ),
+      ),
     );
   }
 

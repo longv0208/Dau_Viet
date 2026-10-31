@@ -2,6 +2,7 @@ import 'dart:math' as math;
 import 'package:flutter/material.dart';
 
 import '../../data/island_dto.dart';
+import 'island_illustrated_layout.dart';
 import 'island_isometric_renderer.dart';
 import 'island_visual_asset_manager.dart';
 
@@ -126,9 +127,14 @@ class _IslandSceneState extends State<IslandScene>
       if (y > maxY) maxY = y;
     }
 
-    final padX = tileW * 1.05;
-    final padTop = tileH * 2.35;
-    final padBottom = tileH * 1.95;
+    final pad = IslandIllustratedLayout.paddingForTier(
+      tier: widget.previewTier,
+      tileW: tileW,
+      tileH: tileH,
+    );
+    final padX = pad.padX;
+    final padTop = pad.padTop;
+    final padBottom = pad.padBottom;
     minX -= padX;
     maxX += padX;
     minY -= padTop;
@@ -218,12 +224,12 @@ class _IslandSceneState extends State<IslandScene>
     final bool isPortraitMobile = viewportSize.width < 600 &&
         viewportSize.height > viewportSize.width;
 
-    final widthFill = isPortraitMobile ? 0.96 : 0.90;
-    final heightFill = isPortraitMobile ? 0.78 : 0.84;
+    final widthFill = isPortraitMobile ? 0.98 : 0.90;
+    final heightFill = isPortraitMobile ? 0.86 : 0.84;
 
     final scaleX = (viewportSize.width * widthFill) / m.width;
     final scaleY = (viewportSize.height * heightFill) / m.height;
-    final fitScale = math.min(scaleX, scaleY).clamp(0.36, 2.10);
+    final fitScale = math.min(scaleX, scaleY).clamp(0.70, 2.20);
 
     final targetX = (viewportSize.width - m.width * fitScale) * 0.5;
     final targetY = (viewportSize.height - m.height * fitScale) * 0.42;
@@ -271,10 +277,12 @@ class _IslandSceneState extends State<IslandScene>
             ),
             InteractiveViewer(
               transformationController: _controller,
-              minScale: 0.30,
-              maxScale: 2.6,
-              boundaryMargin: const EdgeInsets.all(520),
+              minScale: 0.70,
+              maxScale: 2.40,
+              boundaryMargin: const EdgeInsets.all(56),
               constrained: false,
+              panEnabled: true,
+              scaleEnabled: true,
               child: AnimatedBuilder(
                 animation: Listenable.merge([
                   _waterController,
@@ -295,13 +303,19 @@ class _IslandSceneState extends State<IslandScene>
                       child: Transform.scale(
                         scale: scale,
                         alignment: Alignment.center,
-                        child: SizedBox(
+                        child: AnimatedSwitcher(
+                          duration: const Duration(milliseconds: 420),
+                          switchInCurve: Curves.easeOutCubic,
+                          switchOutCurve: Curves.easeInCubic,
+                          child: SizedBox(
+                          key: ValueKey<int>(widget.previewTier),
                           width: m.width,
                           height: m.height,
                           child: IslandIsometricRenderer(
                             board: board,
                             slots: widget.island.slots,
                             currentTier: widget.island.tier,
+                            previewTier: widget.previewTier,
                             selectedSlotId: widget.selectedSlotId,
                             selectedTileCoord: _selectedTileCoord,
                             cameraDirection: widget.cameraDirection,
@@ -363,15 +377,84 @@ class _IslandSceneState extends State<IslandScene>
                             },
                           ),
                         ),
+                        ),
                       ),
                     ),
                   );
                 },
               ),
             ),
+            if (!widget.isEditMode && widget.previewPlacement == null)
+              Positioned(
+                right: 10,
+                bottom: 92,
+                child: _IslandZoomControls(
+                  onZoomIn: () => _zoomBy(1.28),
+                  onZoomOut: () => _zoomBy(1 / 1.28),
+                  onReset: () {
+                    if (_lastViewportSize != null) {
+                      _autoFitCamera(_lastViewportSize!);
+                    }
+                  },
+                ),
+              ),
           ],
         );
       },
+    );
+  }
+
+  void _zoomBy(double factor) {
+    final current = _controller.value.clone();
+    final scale = current.getMaxScaleOnAxis();
+    final next = (scale * factor).clamp(0.70, 2.40);
+    final actual = next / scale;
+    if ((actual - 1.0).abs() < 0.01) return;
+    final viewport = _lastViewportSize ?? Size.zero;
+    final center = Offset(viewport.width / 2, viewport.height / 2);
+    final nextMatrix = current.clone()
+      ..translateByDouble(center.dx, center.dy, 0, 1)
+      ..scaleByDouble(actual, actual, 1, 1)
+      ..translateByDouble(-center.dx, -center.dy, 0, 1);
+    _controller.value = nextMatrix;
+  }
+}
+
+class _IslandZoomControls extends StatelessWidget {
+  final VoidCallback onZoomIn;
+  final VoidCallback onZoomOut;
+  final VoidCallback onReset;
+
+  const _IslandZoomControls({
+    required this.onZoomIn,
+    required this.onZoomOut,
+    required this.onReset,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Material(
+      color: const Color(0xF6FFF8EC),
+      elevation: 3,
+      borderRadius: BorderRadius.circular(14),
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          _zoomBtn(Icons.add_rounded, 'Phóng to', onZoomIn),
+          _zoomBtn(Icons.center_focus_strong_rounded, 'Vừa khung', onReset),
+          _zoomBtn(Icons.remove_rounded, 'Thu nhỏ', onZoomOut),
+        ],
+      ),
+    );
+  }
+
+  Widget _zoomBtn(IconData icon, String tooltip, VoidCallback onTap) {
+    return IconButton(
+      tooltip: tooltip,
+      visualDensity: VisualDensity.compact,
+      constraints: const BoxConstraints(minWidth: 40, minHeight: 40),
+      onPressed: onTap,
+      icon: Icon(icon, size: 20, color: const Color(0xFF2B1F17)),
     );
   }
 }
@@ -392,10 +475,11 @@ class _IslandPanoramicBackdrop extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final leftPreviewTier = previewTier == 1 ? 3 : 1;
-    final rightPreviewTier = previewTier == 2 ? 3 : 2;
-    final leftLocked = leftPreviewTier > island.tier;
-    final rightLocked = rightPreviewTier > island.tier;
+    final futureTiers = [
+      for (var t = island.tier + 1; t <= island.maxTier; t++) t,
+    ];
+    final leftPreviewTier = futureTiers.isNotEmpty ? futureTiers.first : null;
+    final rightPreviewTier = futureTiers.length > 1 ? futureTiers[1] : null;
 
     return Stack(
       fit: StackFit.expand,
@@ -407,163 +491,33 @@ class _IslandPanoramicBackdrop extends StatelessWidget {
           ),
         ),
 
-        // 2. Các đảo đá nhỏ phủ cây xanh, hoa lá & bèo sen ngoài khơi giống hệt mẫu thiết kế (Image #2)
-        Positioned(
-          top: 118,
-          left: -8,
-          width: 112,
-          height: 92,
-          child: IgnorePointer(
-            child: Opacity(
-              opacity: 0.90,
-              child: Stack(
-                clipBehavior: Clip.none,
-                children: [
-                  Positioned(
-                    left: 8,
-                    bottom: 6,
-                    width: 82,
-                    height: 76,
-                    child: Image.asset(
-                      IslandVisualAssetManager.mossyRockCluster,
-                      fit: BoxFit.contain,
-                    ),
-                  ),
-                  Positioned(
-                    left: 26,
-                    bottom: 24,
-                    width: 68,
-                    height: 68,
-                    child: Image.asset(
-                      IslandVisualAssetManager.banyanSapling,
-                      fit: BoxFit.contain,
-                    ),
-                  ),
-                ],
-              ),
-            ),
-          ),
-        ),
-        Positioned(
-          top: 112,
-          right: -10,
-          width: 118,
-          height: 96,
-          child: IgnorePointer(
-            child: Opacity(
-              opacity: 0.90,
-              child: Stack(
-                clipBehavior: Clip.none,
-                children: [
-                  Positioned(
-                    right: 8,
-                    bottom: 6,
-                    width: 84,
-                    height: 78,
-                    child: Image.asset(
-                      IslandVisualAssetManager.mossyRockCluster,
-                      fit: BoxFit.contain,
-                    ),
-                  ),
-                  Positioned(
-                    right: 28,
-                    bottom: 24,
-                    width: 70,
-                    height: 70,
-                    child: Image.asset(
-                      IslandVisualAssetManager.banyanSapling,
-                      fit: BoxFit.contain,
-                    ),
-                  ),
-                  Positioned(
-                    right: 6,
-                    bottom: 8,
-                    width: 48,
-                    height: 46,
-                    child: Image.asset(
-                      IslandVisualAssetManager.floweringShrub,
-                      fit: BoxFit.contain,
-                    ),
-                  ),
-                ],
-              ),
-            ),
-          ),
-        ),
-        Positioned(
-          bottom: 132,
-          left: -6,
-          width: 108,
-          height: 88,
-          child: IgnorePointer(
-            child: Opacity(
-              opacity: 0.92,
-              child: Stack(
-                clipBehavior: Clip.none,
-                children: [
-                  Positioned(
-                    left: 6,
-                    bottom: 4,
-                    width: 78,
-                    height: 72,
-                    child: Image.asset(
-                      IslandVisualAssetManager.mossyRockCluster,
-                      fit: BoxFit.contain,
-                    ),
-                  ),
-                  Positioned(
-                    left: 18,
-                    bottom: 22,
-                    width: 64,
-                    height: 64,
-                    child: Image.asset(
-                      IslandVisualAssetManager.banyanSapling,
-                      fit: BoxFit.contain,
-                    ),
-                  ),
-                  Positioned(
-                    left: 44,
-                    bottom: 6,
-                    width: 44,
-                    height: 42,
-                    child: Image.asset(
-                      IslandVisualAssetManager.floweringShrub,
-                      fit: BoxFit.contain,
-                    ),
-                  ),
-                ],
-              ),
-            ),
-          ),
-        ),
-
-        // 3. Hai đảo phụ lơ lửng phía xa trên biển mây khi ở Chế độ Tham quan
-        if (!isEditMode) ...[
+        // 3. Đảo phụ phía xa — chỉ đảo chưa mở, không hiện đảo cũ.
+        if (!isEditMode && leftPreviewTier != null)
           Positioned(
             top: 175,
             left: 16,
             child: _DistantFloatingIslandBadge(
               tier: leftPreviewTier,
-              isLocked: leftLocked,
+              isLocked: leftPreviewTier > island.tier,
               isGreySilhouette: true,
               onTap: onSelectTier != null
                   ? () => onSelectTier!(leftPreviewTier)
                   : null,
             ),
           ),
+        if (!isEditMode && rightPreviewTier != null)
           Positioned(
             top: 168,
             right: 16,
             child: _DistantFloatingIslandBadge(
               tier: rightPreviewTier,
-              isLocked: rightLocked,
+              isLocked: rightPreviewTier > island.tier,
               isGreySilhouette: false,
               onTap: onSelectTier != null
                   ? () => onSelectTier!(rightPreviewTier)
                   : null,
             ),
           ),
-        ],
       ],
     );
   }
@@ -584,14 +538,14 @@ class _HaLongBayHorizonPainter extends CustomPainter {
           begin: Alignment.topCenter,
           end: Alignment.bottomCenter,
           colors: [
-            Color(0xFFF3EBD6),
-            Color(0xFFB5E3EE),
-            Color(0xFF5DC0D6),
-            Color(0xFF2889A6),
-            Color(0xFF176580),
-            Color(0xFF0F4C64),
+            Color(0xFFE7F6FB),
+            Color(0xFFB9E8F3),
+            Color(0xFF86D5E6),
+            Color(0xFF5FCBDC),
+            Color(0xFF3EB4C8),
+            Color(0xFF2B96AC),
           ],
-          stops: [0.0, 0.14, 0.30, 0.56, 0.80, 1.0],
+          stops: [0.0, 0.16, 0.34, 0.52, 0.76, 1.0],
         ).createShader(rect),
     );
 

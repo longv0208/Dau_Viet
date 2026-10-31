@@ -78,10 +78,7 @@ void main() {
       expect(find.text('Bắt đầu hành trình'), findsOneWidget);
       expect(find.text('KHÁM PHÁ NGAY ›'), findsOneWidget);
 
-      // Bottom nav chuẩn 5 tab (Issue #42): Học tập / Hành trình / Bản đồ /
-      // Sưu tập / Cá nhân. Các màn demo (Timeline/Sa Bàn/Đảo/Energy) không
-      // còn là tab — journey giờ đi qua route trực tiếp cho các màn demo để
-      // giữ coverage, không qua bottom nav.
+      // Bottom nav chuẩn 5 tab: Học tập / Hành trình / Đảo / Bản đồ / Cá nhân.
 
       // 4. Mở /timeline — từ Issue #42 tự động chuyển hướng sang /journey
       // (Hành trình Lịch sử — luồng học chính, KHÔNG phải Bản Đồ Dấu Ấn).
@@ -112,14 +109,14 @@ void main() {
 
       // Xác nhận đã vào M-07 Campaign Detail — real mode hiển thị
       // event.title từ backend (không còn headline hard-code).
-      expect(find.text('CHI TIẾT CHIẾN DỊCH'), findsOneWidget);
+      expect(find.text('CHI TIẾT SỰ KIỆN'), findsOneWidget);
       expect(find.text('Đại Chiến Bạch Đằng 938'), findsWidgets);
 
       // 7. Vào M-08 Trung Tâm 4 Dấu Vết — nút demo "BẮT ĐẦU KHÁM PHÁ"
       // chỉ render khi USE_MOCK; test chạy real-mode nên điều hướng thẳng
       // bằng route để giữ coverage các màn demo phía sau.
       final BuildContext campaignCtx = tester.element(
-        find.text('CHI TIẾT CHIẾN DỊCH'),
+        find.text('CHI TIẾT SỰ KIỆN'),
       );
       campaignCtx.go('/traces/evt_bach_dang_938');
       await tester.pumpAndSettle();
@@ -363,8 +360,8 @@ void main() {
       // fabricated victory/claim/artifact screens.
       expect(find.text('Học tập'), findsWidgets);
 
-      // 15. Mở tab Sưu tập qua bottom nav mới (tab 2 /collection).
-      await tester.tap(find.byIcon(Icons.auto_stories_outlined));
+      // 15. Mở Sưu tập qua route trực tiếp (tab footer giờ là Đảo, không còn Sưu tập).
+      tester.element(find.text('Học tập').first).go('/collection');
       await tester.pumpAndSettle();
       expect(find.text('Bộ Sưu Tập Dấu Việt'), findsOneWidget);
 

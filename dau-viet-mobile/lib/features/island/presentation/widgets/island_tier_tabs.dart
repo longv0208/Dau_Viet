@@ -23,7 +23,7 @@ class IslandTierTabs extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final tiers = island.tiers.isNotEmpty
+    final allTiers = island.tiers.isNotEmpty
         ? island.tiers
         : <IslandTierInfoDto>[
             const IslandTierInfoDto(
@@ -48,6 +48,8 @@ class IslandTierTabs extends StatelessWidget {
               unlocked: island.tier >= 3,
             ),
           ];
+    // Đã sang đảo mới thì không còn tab xem đảo cũ.
+    final tiers = allTiers.where((t) => t.tier >= island.tier).toList();
 
     return Container(
       padding: const EdgeInsets.all(4),
@@ -154,35 +156,43 @@ class IslandTierThumbnail extends StatelessWidget {
   static String _tierAssetPath(int tier) {
     switch (tier) {
       case 1:
-        return 'assets/island/effects/island_tier_1.png';
+        return 'assets/island/terrain/island_small.png';
       case 2:
-        return 'assets/island/effects/island_tier_2.png';
+        return 'assets/island/terrain/island_medium.png';
       case 3:
       default:
-        return 'assets/island/effects/island_tier_3.png';
+        return 'assets/island/terrain/island_large.png';
     }
   }
 
   @override
   Widget build(BuildContext context) {
-    return SizedBox(
+    Widget image = Image.asset(
+      _tierAssetPath(tier),
       width: width,
       height: height,
-      child: Image.asset(
-        _tierAssetPath(tier),
-        width: width,
-        height: height,
-        fit: BoxFit.contain,
-        filterQuality: FilterQuality.medium,
-        errorBuilder: (_, _, _) => CustomPaint(
-          painter: _TierIslandThumbnailPainter(
-            tier: tier,
-            isUnlocked: isUnlocked,
-            isActive: false,
-          ),
+      fit: BoxFit.contain,
+      filterQuality: FilterQuality.medium,
+      errorBuilder: (_, _, _) => CustomPaint(
+        painter: _TierIslandThumbnailPainter(
+          tier: tier,
+          isUnlocked: isUnlocked,
+          isActive: false,
         ),
       ),
     );
+    if (!isUnlocked) {
+      image = ColorFiltered(
+        colorFilter: const ColorFilter.matrix(<double>[
+          0.28, 0.42, 0.14, 0, 16,
+          0.28, 0.42, 0.14, 0, 16,
+          0.28, 0.42, 0.14, 0, 20,
+          0, 0, 0, 0.9, 0,
+        ]),
+        child: image,
+      );
+    }
+    return SizedBox(width: width, height: height, child: image);
   }
 }
 

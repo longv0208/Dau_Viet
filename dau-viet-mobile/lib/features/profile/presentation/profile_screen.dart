@@ -61,9 +61,7 @@ class ProfileScreen extends ConsumerWidget {
                         child: Column(
                           crossAxisAlignment: CrossAxisAlignment.stretch,
                           children: [
-                            // Segmented control: Tiến độ (active) | Thành tích
-                            const _SegmentedControl(),
-                            const SizedBox(height: 14),
+                            const SizedBox(height: 2),
                             _StatsCard(
                               summaryAsync: summaryAsync,
                               onRetry: () =>
@@ -231,7 +229,7 @@ class _TopHeroWithProfileCard extends StatelessWidget {
                       style: DauVietTypography.labelSmall.copyWith(
                         fontSize: 9.5,
                         fontWeight: FontWeight.w800,
-                        letterSpacing: 1.3,
+                        letterSpacing: 0.3,
                         color: const Color(0xFF4A3C2E),
                       ),
                     ),
@@ -344,83 +342,6 @@ class _SectionHeader extends StatelessWidget {
   }
 }
 
-/// Segmented control 2 tab: Tiến độ (active) | Thành tích (mockup).
-/// Hiện chỉ là điều hướng trực quan — 'Thành tích' scroll tới cụm thống kê.
-class _SegmentedControl extends StatelessWidget {
-  const _SegmentedControl();
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      padding: const EdgeInsets.all(4),
-      decoration: BoxDecoration(
-        color: DauVietColors.paperCardHi,
-        borderRadius: BorderRadius.circular(14),
-        border: Border.all(color: DauVietColors.outlineVariant),
-      ),
-      child: Row(
-        children: [
-          // Tab active: Tiến độ
-          Expanded(
-            child: Container(
-              padding: const EdgeInsets.symmetric(vertical: 10),
-              decoration: BoxDecoration(
-                color: DauVietColors.heritageGreen,
-                borderRadius: BorderRadius.circular(11),
-                boxShadow: DauVietColors.pixelShadowSm,
-              ),
-              child: Row(
-                mainAxisAlignment: MainAxisAlignment.center,
-                children: [
-                  const Icon(
-                    Icons.bar_chart_rounded,
-                    size: 16,
-                    color: Colors.white,
-                  ),
-                  const SizedBox(width: 6),
-                  Text(
-                    'Tiến độ',
-                    style: DauVietTypography.labelMedium.copyWith(
-                      fontSize: 12.5,
-                      fontWeight: FontWeight.w800,
-                      color: Colors.white,
-                    ),
-                  ),
-                ],
-              ),
-            ),
-          ),
-          // Tab inactive: Thành tích
-          Expanded(
-            child: Padding(
-              padding: const EdgeInsets.symmetric(vertical: 10),
-              child: Row(
-                mainAxisAlignment: MainAxisAlignment.center,
-                children: [
-                  const Icon(
-                    Icons.emoji_events_outlined,
-                    size: 16,
-                    color: DauVietColors.woodBrown,
-                  ),
-                  const SizedBox(width: 6),
-                  Text(
-                    'Thành tích',
-                    style: DauVietTypography.labelMedium.copyWith(
-                      fontSize: 12.5,
-                      fontWeight: FontWeight.w700,
-                      color: DauVietColors.woodBrown,
-                    ),
-                  ),
-                ],
-              ),
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-}
-
 class _ProfileHeader extends StatelessWidget {
   final AuthState session;
   const _ProfileHeader({required this.session});
@@ -520,7 +441,7 @@ class _ProfileHeader extends StatelessWidget {
                     style: DauVietTypography.labelSmall.copyWith(
                       fontSize: 9.5,
                       fontWeight: FontWeight.w800,
-                      letterSpacing: 0.6,
+                      letterSpacing: 0.15,
                       color: const Color(0xFFFFF6E5),
                     ),
                   ),

@@ -54,7 +54,7 @@ class DauVietTypography {
     fontSize: 11,
     fontWeight: FontWeight.w700,
     height: 1.2,
-    letterSpacing: 1.4,
+    letterSpacing: 0.6,
     color: DauVietColors.cinnabarRed,
   );
 
@@ -63,7 +63,7 @@ class DauVietTypography {
     fontSize: 11,
     fontWeight: FontWeight.w600,
     height: 1.2,
-    letterSpacing: 0.8,
+    letterSpacing: 0.2,
     color: DauVietColors.jadeDark,
   );
 

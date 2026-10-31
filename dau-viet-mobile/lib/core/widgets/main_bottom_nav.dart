@@ -3,22 +3,23 @@ import 'package:go_router/go_router.dart';
 
 import '../theme/dau_viet_colors.dart';
 import '../theme/dau_viet_typography.dart';
+import 'snackbar_route_observer.dart';
 
 /// Bottom navigation chuẩn 5 tab của app — một nơi duy nhất định nghĩa
 /// label/icon/route, mọi màn dùng chung. Tab đang chọn suy ra từ route
 /// thực của go_router (không giữ index rời trên từng màn).
 ///
-/// Tab mapping (Issue #42 — 2 trục tách biệt):
+/// Tab mapping:
 ///   0 Học tập  → /dashboard   (bàn học + resume bài học)
 ///   1 Hành trình → /journey   (cây Era→Period→Sự kiện→Bài học — HỌC)
-///   2 Bản đồ   → /map         (di tích mở khoá sau bài học — BỔ TRỢ)
-///   3 Sưu tập  → /collection  (bằng chứng đã thu thập)
+///   2 Đảo      → /island      (Đảo Di Sản — màn hình đầu sau đăng nhập)
+///   3 Bản đồ   → /map         (di tích mở khoá sau bài học)
 ///   4 Cá nhân  → /profile     (hồ sơ + thành tích + đăng xuất)
 class MainBottomNav extends StatelessWidget {
   const MainBottomNav({super.key});
 
   /// Route prefix → tab index. Thứ tự match: prefix dài đứng trước để
-  /// /collection/x vẫn thuộc tab Sưu tập.
+  /// /collection/x vẫn thuộc tab Cá nhân.
   static const List<(String prefix, int tab)> _routeTabs = [
     ('/dashboard', 0),
     ('/learning', 0),
@@ -26,13 +27,13 @@ class MainBottomNav extends StatelessWidget {
     ('/traces', 0),
     ('/journey', 1),
     ('/timeline', 1),
-    ('/map', 2),
-    ('/saban', 2),
-    ('/heritage', 2),
-    ('/collection', 3),
+    ('/island', 2),
+    ('/map', 3),
+    ('/saban', 3),
+    ('/heritage', 3),
+    ('/collection', 4),
     ('/profile', 4),
     ('/inventory', 4),
-    ('/island', 4),
     ('/energy', 4),
   ];
 
@@ -54,13 +55,13 @@ class MainBottomNav extends StatelessWidget {
       Icons.explore_rounded,
       'Hành trình',
     ),
-    ('/map', Icons.map_outlined, Icons.map_rounded, 'Bản đồ'),
     (
-      '/collection',
-      Icons.auto_stories_outlined,
-      Icons.auto_stories_rounded,
-      'Sưu tập',
+      '/island',
+      Icons.landscape_outlined,
+      Icons.landscape_rounded,
+      'Đảo',
     ),
+    ('/map', Icons.map_outlined, Icons.map_rounded, 'Bản đồ'),
     ('/profile', Icons.person_outline_rounded, Icons.person_rounded, 'Cá nhân'),
   ];
 
@@ -111,6 +112,12 @@ class MainBottomNav extends StatelessWidget {
         unselectedLabelStyle: DauVietTypography.labelSmall,
         onTap: (index) {
           if (index == current) return; // đang ở tab này
+          rootScaffoldMessengerKey.currentState
+            ?..hideCurrentSnackBar()
+            ..clearSnackBars();
+          ScaffoldMessenger.maybeOf(context)
+            ?..hideCurrentSnackBar()
+            ..clearSnackBars();
           try {
             context.go(_destinations[index].$1);
           } catch (_) {

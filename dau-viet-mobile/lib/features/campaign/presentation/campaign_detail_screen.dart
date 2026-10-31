@@ -88,7 +88,7 @@ class CampaignDetailScreen extends ConsumerWidget {
     final isMock = ApiConfig.useMock;
     final lesson = isMock ? MockBachDangData.lessonEpisode2 : null;
 
-    // 2. Nội dung chi tiết chiến dịch cuộn dọc
+    // 2. Nội dung chi tiết sự kiện cuộn dọc
     return Expanded(
       child: SingleChildScrollView(
         padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 14),
@@ -192,14 +192,14 @@ class CampaignDetailScreen extends ConsumerWidget {
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 const ImperialScrollPlaque(
-                  'CHIẾN DỊCH',
+                  'SỰ KIỆN',
                   pillStyle: true,
                   fontSize: 9.5,
                   padding: EdgeInsets.symmetric(horizontal: 10, vertical: 3),
                 ),
                 const SizedBox(height: 5),
                 Text(
-                  'CHI TIẾT CHIẾN DỊCH',
+                  'CHI TIẾT SỰ KIỆN',
                   style: DauVietTypography.headlineMedium.copyWith(
                     fontSize: 18,
                     fontWeight: FontWeight.w900,
@@ -355,14 +355,14 @@ class CampaignDetailScreen extends ConsumerWidget {
         : 'Năm ${event.year}';
 
     return ImperialScrollFrame(
-      plaqueTitle: 'THÔNG SỐ CHIẾN DỊCH SỬ KÝ',
+      plaqueTitle: 'THÔNG SỐ SỰ KIỆN SỬ KÝ',
       padding: const EdgeInsets.fromLTRB(16, 14, 16, 16),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           _buildMetaRow(
             Icons.menu_book_rounded,
-            'Chiến dịch:',
+            'Sự kiện:',
             event.title,
             iconColor: const Color(0xFF1E5E43),
           ),
@@ -604,7 +604,7 @@ class _CampaignPathLessonListSection extends ConsumerWidget {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        // Header BÀI HỌC | Nội dung chiến dịch (khớp ảnh mẫu #1)
+        // Header BÀI HỌC | Nội dung sự kiện (khớp ảnh mẫu #1)
         Padding(
           padding: const EdgeInsets.only(top: 4, bottom: 12),
           child: Column(
@@ -621,7 +621,7 @@ class _CampaignPathLessonListSection extends ConsumerWidget {
                   const SizedBox(width: 10),
                   Expanded(
                     child: Text(
-                      'Nội dung chiến dịch',
+                      'Nội dung sự kiện',
                       maxLines: 1,
                       overflow: TextOverflow.ellipsis,
                       style: DauVietTypography.headlineMedium.copyWith(
@@ -820,6 +820,9 @@ class _CampaignLessonCard extends StatelessWidget {
     final bool isCompleted =
         status == LearnerPathStatus.completed ||
         status == LearnerPathStatus.mastered;
+    // Attempt cũ (ôn tập) không được hiển thị % trên bài đã hoàn thành —
+    // tránh mâu thuẫn "Đã hoàn thành" + "14%".
+    final double? effectiveFraction = isCompleted ? null : progressFraction;
     final bool isActive =
         status == LearnerPathStatus.inProgress ||
         status == LearnerPathStatus.available ||
@@ -959,7 +962,7 @@ class _CampaignLessonCard extends StatelessWidget {
                           ),
                         ),
                       ),
-                      if (progressFraction != null) ...[
+                      if (effectiveFraction != null) ...[
                         const SizedBox(width: 8),
                         Expanded(
                           child: ClipRRect(
@@ -967,7 +970,7 @@ class _CampaignLessonCard extends StatelessWidget {
                             child: SizedBox(
                               height: 6,
                               child: LinearProgressIndicator(
-                                value: progressFraction!,
+                                value: effectiveFraction,
                                 backgroundColor: const Color(0xFFEAD8D4),
                                 valueColor: const AlwaysStoppedAnimation<Color>(
                                   Color(0xFFB82B20),
@@ -978,7 +981,7 @@ class _CampaignLessonCard extends StatelessWidget {
                         ),
                         const SizedBox(width: 6),
                         Text(
-                          '${(progressFraction! * 100).round()}%',
+                          '${(effectiveFraction * 100).round()}%',
                           style: DauVietTypography.labelSmall.copyWith(
                             fontSize: 11,
                             fontWeight: FontWeight.w800,

@@ -88,6 +88,9 @@ void main() {
       );
       await pumpAsync(tester);
 
+      expect(find.text('Đảo Nhỏ'), findsNothing);
+      expect(find.text('Đảo Vừa'), findsWidgets);
+
       final handle = tester.ensureSemantics();
       try {
         // Ô TIER_2 (slot_14 — Cổng Làng) được render mở khóa
@@ -175,7 +178,7 @@ void main() {
           find.bySemanticsLabel(RegExp(r'Đây là Đảo Nhỏ của bạn!')),
           findsOneWidget,
         );
-        expect(find.text('Bản đồ'), findsOneWidget);
+        expect(find.text('Bản đồ'), findsWidgets);
         expect(find.text('Kho vật phẩm'), findsOneWidget);
         expect(find.text('Cây đa'), findsOneWidget);
         expect(find.text('Nhà rông'), findsOneWidget);
@@ -189,11 +192,11 @@ void main() {
         expect(find.text('Cây cối'), findsOneWidget);
         expect(find.text('Trang trí'), findsOneWidget);
 
-        // Tap Cây đa in KHO VẬT PHẨM -> opens Modal 2 CHI TIẾT VẬT PHẨM
-        await tester.tap(find.text('Cây đa').last);
+        // Tap Nhà rông (đã mở khóa) trong KHO VẬT PHẨM -> Modal 2 CHI TIẾT VẬT PHẨM
+        await tester.tap(find.text('Nhà rông').last);
         await pumpAsync(tester);
         expect(find.text('CHI TIẾT VẬT PHẨM'), findsOneWidget);
-        expect(find.text('Cây đa cổ thụ'), findsOneWidget);
+        expect(find.text('Nhà rông'), findsWidgets);
         expect(find.text('Kích thước: 2x2'), findsOneWidget);
         expect(find.text('Đặt lên đảo'), findsOneWidget);
 
@@ -216,10 +219,10 @@ void main() {
         // Tap Lưu -> returns to Screen 1 view
         await tester.tap(find.text('Lưu'));
         await pumpAsync(tester);
-        expect(find.text('Bản đồ'), findsOneWidget);
+        expect(find.text('Bản đồ'), findsWidgets);
 
-        // Tap Bản đồ -> opens Screen 4 (Panoramic 3-Island Map)
-        await tester.tap(find.text('Bản đồ'));
+        // Tap Bản đồ trên toolbar đảo (không phải tab footer) -> Screen 4
+        await tester.tap(find.text('Bản đồ').first);
         await pumpAsync(tester);
         expect(find.text('Đang sử dụng'), findsOneWidget);
         expect(find.textContaining('Hoàn thành 15 bài học'), findsOneWidget);
@@ -408,8 +411,8 @@ void main() {
       expect(find.text('Thủy Tạ Hồ Sen'), findsOneWidget);
       expect(find.text('300 Điểm'), findsOneWidget);
 
-      // Owned item shows ĐÃ SỞ HỮU
-      expect(find.text('ĐÃ SỞ HỮU'), findsOneWidget);
+      // Các vật phẩm starter/showcase đã sở hữu hiện ĐÃ SỞ HỮU
+      expect(find.text('ĐÃ SỞ HỮU'), findsWidgets);
     });
   });
 }

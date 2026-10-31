@@ -340,32 +340,29 @@ class _ResultBody extends ConsumerWidget {
                   crossAxisAlignment: CrossAxisAlignment.stretch,
                   children: [
                     // 1. Khối Hero Ăn Mừng Chiến Thắng: Thành cổ + Cờ hội + Rùa Kabi cầm chiếu thư (khớp ảnh mẫu #2)
-                    Stack(
-                      alignment: Alignment.topCenter,
+                    Column(
                       children: [
-                        ClipRRect(
-                          borderRadius: BorderRadius.circular(20),
-                          child: Image.asset(
+                        Image.asset(
                             'assets/images/kabi_celebration_victory.png',
                             width: double.infinity,
-                            height: 220,
-                            fit: BoxFit.cover,
-                            alignment: Alignment.bottomCenter,
+                            height: 292,
+                            fit: BoxFit.contain,
+                            alignment: Alignment.topCenter,
                             filterQuality: FilterQuality.high,
                             errorBuilder: (_, _, _) => const SizedBox(
-                              height: 180,
+                              height: 200,
                               child: Center(
                                 child: KabiMascotWidget(
                                   mood: KabiMood.victory,
-                                  width: 124,
-                                  height: 124,
+                                  width: 140,
+                                  height: 140,
                                 ),
                               ),
                             ),
-                          ),
                         ),
+                        const SizedBox(height: 10),
                         Padding(
-                          padding: const EdgeInsets.fromLTRB(12, 6, 12, 0),
+                          padding: const EdgeInsets.fromLTRB(8, 0, 8, 0),
                           child: Column(
                             mainAxisSize: MainAxisSize.min,
                             children: [
@@ -377,9 +374,9 @@ class _ResultBody extends ConsumerWidget {
                                 style: DauVietTypography.headlineMedium
                                     .copyWith(
                                       color: const Color(0xFF8E1B15),
-                                      fontWeight: FontWeight.w900,
+                                      fontWeight: FontWeight.w800,
                                       fontSize: 22,
-                                      letterSpacing: 0.4,
+                                      letterSpacing: 0,
                                       height: 1.15,
                                     ),
                               ),

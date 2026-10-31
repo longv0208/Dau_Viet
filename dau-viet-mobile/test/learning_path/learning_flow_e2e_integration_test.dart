@@ -91,13 +91,14 @@ void main() {
 
   group('F1 (Issue #26) — Tích hợp End-to-End, UX States & Đổi thời kỳ', () {
     test(
-      'MainBottomNav maps /journey to tab 1 (Hành trình) and /map+/heritage to tab 2 (Bản đồ)',
+      'MainBottomNav maps /island to tab 2 (Đảo) and /map+/heritage to tab 3 (Bản đồ)',
       () {
-        // Issue #42: 2 trục tách biệt — /journey = luồng học, /map = di tích.
         expect(MainBottomNav.tabForLocation('/journey'), 1);
         expect(MainBottomNav.tabForLocation('/journey/EARLY_INDEPENDENCE'), 1);
-        expect(MainBottomNav.tabForLocation('/map'), 2);
-        expect(MainBottomNav.tabForLocation('/heritage/loc-1'), 2);
+        expect(MainBottomNav.tabForLocation('/island'), 2);
+        expect(MainBottomNav.tabForLocation('/island/shop'), 2);
+        expect(MainBottomNav.tabForLocation('/map'), 3);
+        expect(MainBottomNav.tabForLocation('/heritage/loc-1'), 3);
       },
     );
 
@@ -232,37 +233,46 @@ void main() {
         expect(find.text('CHỌN THỜI KỲ LỊCH SỬ'), findsOneWidget);
         expect(find.text('0/1 sự kiện • 1/3 bài học'), findsOneWidget);
 
-        // 5. Chọn lại Thời nhà Lý -> bấm mở sự kiện Chiếu Dời Đô -> vào CampaignDetailScreen -> mở bài học Sẵn sàng
+        // 5. Chọn lại Thời nhà Lý -> bấm sự kiện Chiếu Dời Đô -> mở Bottom Sheet thông tin sự kiện -> bấm bài học mở trực tiếp /learning/lesson/{id}
         await tester.scrollUntilVisible(find.text('Thời nhà Lý'), 150);
         await tester.tap(find.text('Thời nhà Lý'));
         await tester.pumpAndSettle();
         await tester.tap(find.text('Lý Thái Tổ Dời Đô Về Thăng Long'));
         await tester.pumpAndSettle();
 
-        expect(find.text('CHI TIẾT CHIẾN DỊCH'), findsOneWidget);
         expect(
-          find.text('Vì sao Lý Công Uẩn chọn thành Đại La?'),
+          find.byKey(
+            const Key(
+              'event-details-sheet-00000000-0000-0000-0000-000000000003',
+            ),
+          ),
           findsOneWidget,
         );
-        expect(find.text('Dấu tích Hoàng thành Thăng Long'), findsOneWidget);
-        expect(find.text('Sẵn sàng học'), findsWidgets);
-        expect(find.text('Đang khóa'), findsWidgets);
+        expect(find.text('CHI TIẾT SỰ KIỆN'), findsNothing);
 
-        // Bấm bài học Đang khóa -> bị chặn và không điều hướng
+        // Đóng Bottom Sheet bằng nút Đóng để tiếp tục bấm bài học trên canvas
+        await tester.tap(find.text('Đóng'));
+        await tester.pumpAndSettle();
+
+        // Bấm bài học "Đang khóa" trực tiếp trên canvas -> hiện SnackBar, không điều hướng
         await tester.scrollUntilVisible(
-          find.text('Dấu tích Hoàng thành Thăng Long'),
+          find.byKey(const Key('lesson-milestone-demo-lesson-thang-long-2')),
           150,
         );
-        await tester.tap(find.text('Dấu tích Hoàng thành Thăng Long'));
-        await tester.pumpAndSettle();
+        await tester.tap(
+          find.byKey(const Key('lesson-milestone-demo-lesson-thang-long-2')),
+        );
+        await tester.pump();
         expect(enteredLessonId, isNull);
 
         // Bấm bài học Sẵn sàng học -> điều hướng sang /learning/lesson/demo-lesson-thang-long-1
         await tester.scrollUntilVisible(
-          find.text('Vì sao Lý Công Uẩn chọn thành Đại La?'),
+          find.byKey(const Key('lesson-milestone-demo-lesson-thang-long-1')),
           -150,
         );
-        await tester.tap(find.text('Vì sao Lý Công Uẩn chọn thành Đại La?'));
+        await tester.tap(
+          find.byKey(const Key('lesson-milestone-demo-lesson-thang-long-1')),
+        );
         await tester.pumpAndSettle();
         expect(enteredLessonId, 'demo-lesson-thang-long-1');
         // 6. Kiểm tra route /heritage/:locationId chuyển hướng sang Bản đồ Di sản kèm locationId

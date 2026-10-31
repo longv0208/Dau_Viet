@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../core/theme/dau_viet_theme.dart';
+import '../core/widgets/snackbar_route_observer.dart';
 import '../features/energy/data/energy_providers.dart';
 import '../features/streak/data/streak_providers.dart';
 import 'router.dart';
@@ -46,6 +47,7 @@ class _DauVietAppState extends ConsumerState<DauVietApp>
       title: 'Dấu Việt',
       debugShowCheckedModeBanner: false,
       theme: DauVietTheme.lightTheme,
+      scaffoldMessengerKey: rootScaffoldMessengerKey,
       routerConfig: appRouter,
     );
   }

@@ -11,6 +11,7 @@ import '../../../core/widgets/dong_son_button.dart';
 import '../../../core/widgets/empty_state_card.dart';
 import '../../../core/widgets/gold_confetti_overlay.dart';
 import '../../../core/widgets/kabi_mascot_widget.dart';
+import '../../../core/widgets/main_bottom_nav.dart';
 import '../../../core/widgets/rare_frame_badge.dart';
 import '../../auth/data/auth_state.dart';
 import '../../learning/data/learning_providers.dart';
@@ -18,13 +19,15 @@ import '../../rewards/data/reward_dtos.dart';
 import '../../rewards/data/reward_providers.dart';
 import '../data/island_dto.dart';
 import '../data/island_providers.dart';
+import 'widgets/island_action_toolbar.dart';
+import 'widgets/island_header.dart';
 import 'widgets/island_inventory_sheet.dart';
 import 'widgets/island_inventory_tray.dart';
 import 'widgets/island_scene.dart';
 import 'widgets/island_tier_tabs.dart';
+import 'widgets/island_visual_asset_manager.dart';
 import 'widgets/island_tile_sheet.dart';
 import 'widgets/island_upgrade_panel.dart';
-import 'widgets/island_visual_asset_manager.dart';
 
 /// Màn hình chính Đảo Di Sản Cá Nhân 2.5D (`/island`).
 /// Bổ sung trong ISLAND-07:
@@ -245,16 +248,49 @@ class _IslandScreenState extends ConsumerState<IslandScreen>
 
     return Scaffold(
       backgroundColor: DauVietColors.paperBackground,
+      bottomNavigationBar: const MainBottomNav(),
       body: GoldConfettiOverlay(
         trigger: false,
         triggerCount: _confettiTriggerCount,
         child: SafeArea(
           child: Column(
             children: [
-              _buildHeader(
-                context,
-                islandAsync.asData?.value,
-                walletAsync.asData?.value,
+              IslandHeader(
+                island: islandAsync.asData?.value,
+                wallet: walletAsync.asData?.value,
+                previewTier: _previewTier,
+                onBack: () {
+                  if (_isPanoramicMapOpen) {
+                    setState(() => _isPanoramicMapOpen = false);
+                    return;
+                  }
+                  if (_selectedTrayItemId != null) {
+                    setState(() {
+                      _selectedTrayItemId = null;
+                      _previewFlipHorizontally = false;
+                    });
+                    return;
+                  }
+                  if (_isEditMode) {
+                    setState(() {
+                      _isEditMode = false;
+                      _selectedSlotId = null;
+                    });
+                    return;
+                  }
+                  if (context.canPop()) {
+                    context.pop();
+                  }
+                },
+                onHelp: () {
+                  setState(() {
+                    _showWelcomeCard = true;
+                  });
+                },
+                onShop: () => context.push('/island/shop'),
+                onUpgrade: islandAsync.asData?.value != null
+                    ? () => _openUpgradePanel(islandAsync.asData!.value)
+                    : null,
               ),
               Expanded(
                 child: islandAsync.when(
@@ -281,199 +317,14 @@ class _IslandScreenState extends ConsumerState<IslandScreen>
     );
   }
 
-  Widget _buildHeader(
-    BuildContext context,
-    IslandDto? island,
-    WalletDto? wallet,
-  ) {
-    final bool isCompactHeader = MediaQuery.sizeOf(context).width < 480;
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
-      decoration: const BoxDecoration(
-        color: Color(0xFFF6ECD9),
-        border: Border(
-          bottom: BorderSide(color: Color(0xFFDEC9A8), width: 1.2),
-        ),
-      ),
-      child: Row(
-        children: [
-          // Nút quay lại (<) bo tròn nền kem bên trái (Issue #46 AC-1)
-          InkWell(
-            onTap: () {
-              if (_isPanoramicMapOpen) {
-                setState(() => _isPanoramicMapOpen = false);
-                return;
-              }
-              if (_selectedTrayItemId != null) {
-                setState(() {
-                  _selectedTrayItemId = null;
-                  _previewFlipHorizontally = false;
-                });
-                return;
-              }
-              if (_isEditMode) {
-                setState(() {
-                  _isEditMode = false;
-                  _selectedSlotId = null;
-                });
-                return;
-              }
-              if (context.canPop()) {
-                context.pop();
-              } else {
-                context.go('/dashboard');
-              }
-            },
-            borderRadius: BorderRadius.circular(20),
-            child: Container(
-              width: 34,
-              height: 34,
-              decoration: BoxDecoration(
-                color: const Color(0xFFFAF3E4),
-                shape: BoxShape.circle,
-                border: Border.all(color: const Color(0xFFDEC9A8), width: 1.3),
-              ),
-              child: const Icon(
-                Icons.chevron_left_rounded,
-                color: Color(0xFF4A3728),
-                size: 22,
-              ),
-            ),
-          ),
-
-          // Tiêu đề ĐẢO DI SẢN chính giữa màu đỏ chu sa (Issue #46 AC-1)
-          Expanded(
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                Text(
-                  'ĐẢO DI SẢN',
-                  textAlign: TextAlign.center,
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                  style: DauVietTypography.headlineSmall.copyWith(
-                    color: DauVietColors.cinnabarRed,
-                    fontWeight: FontWeight.w800,
-                    fontSize: 18,
-                    letterSpacing: 0.6,
-                  ),
-                ),
-                if (island != null)
-                  Text(
-                    '${IslandDto.tierHeritageName(_previewTier)} · ${island.legacyTierScaleLabel} (LV${island.currentLevel})',
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                    style: DauVietTypography.bodySmall.copyWith(
-                      color: const Color(0xFF7D6B59),
-                      fontSize: 10,
-                      fontWeight: FontWeight.w600,
-                    ),
-                  ),
-              ],
-            ),
-          ),
-
-          // Cụm bên phải: Huy hiệu Điểm Sử Ký (⭐ 250) + Nút trợ giúp (?) (Issue #50 AC-1)
-          GestureDetector(
-            onTap: () => context.push('/island/shop'),
-            child: Container(
-              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
-              decoration: BoxDecoration(
-                color: const Color(0xFFFAF3E4),
-                borderRadius: BorderRadius.circular(16),
-                border: Border.all(
-                  color: const Color(0xFFDEC9A8),
-                  width: 1.3,
-                ),
-              ),
-              child: Row(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  const Icon(
-                    Icons.stars_rounded,
-                    color: Color(0xFFE6A117),
-                    size: 17,
-                  ),
-                  const SizedBox(width: 4),
-                  Text(
-                    wallet != null ? '${wallet.historyPoints}' : '...',
-                    style: DauVietTypography.bodySmall.copyWith(
-                      fontWeight: FontWeight.w800,
-                      color: const Color(0xFF3E2D20),
-                      fontSize: 12.5,
-                    ),
-                  ),
-                ],
-              ),
-            ),
-          ),
-          const SizedBox(width: 6),
-          InkWell(
-            onTap: () {
-              setState(() {
-                _showWelcomeCard = true;
-              });
-            },
-            borderRadius: BorderRadius.circular(18),
-            child: Container(
-              width: 30,
-              height: 30,
-              decoration: BoxDecoration(
-                color: const Color(0xFFFAF3E4),
-                shape: BoxShape.circle,
-                border: Border.all(color: const Color(0xFFDEC9A8), width: 1.2),
-              ),
-              child: const Icon(
-                Icons.help_outline_rounded,
-                color: Color(0xFF4A3728),
-                size: 17,
-              ),
-            ),
-          ),
-          if (!isCompactHeader) ...[
-            const SizedBox(width: 4),
-            IconButton(
-              visualDensity: VisualDensity.compact,
-              tooltip: 'Cửa Hàng Di Sản',
-              icon: const Icon(
-                Icons.storefront_rounded,
-                color: DauVietColors.cinnabarRed,
-                size: 20,
-              ),
-              onPressed: () => context.push('/island/shop'),
-            ),
-            IconButton(
-              visualDensity: VisualDensity.compact,
-              tooltip: 'Mở Rộng Đảo',
-              icon: const Icon(
-                Icons.landscape_rounded,
-                color: DauVietColors.heritageGreen,
-                size: 20,
-              ),
-              onPressed:
-                  island != null ? () => _openUpgradePanel(island) : null,
-            ),
-          ],
-        ],
-      ),
-    );
-  }
-
   Widget _buildIslandContent(IslandDto island) {
-    if (_previewTier < 1) _previewTier = 1;
+    if (_previewTier < island.tier) _previewTier = island.tier;
     if (_previewTier > island.maxTier) _previewTier = island.maxTier;
 
-    final catalogList =
-        ref.watch(inventoryCatalogProvider).asData?.value ??
-        const <CatalogItemDto>[];
-    final shopList =
-        ref.watch(islandShopItemsProvider).asData?.value ??
-        const <ShopItemDto>[];
-    final allPlaceable = IslandInventoryTray.mergePlaceableItems(
-      catalogList,
-      shopList,
-      island,
-    );
+    ref.watch(inventoryCatalogProvider);
+    ref.watch(islandShopItemsProvider);
+    ref.watch(inventoryItemsProvider);
+    final allPlaceable = _mergedPlaceable(island);
 
     final previewCatalogItem = _selectedTrayItemId == null
         ? null
@@ -598,26 +449,58 @@ class _IslandScreenState extends ConsumerState<IslandScreen>
             child: _buildTopTurtleGuideBubble(island),
           ),
 
-        // 4. Màn 1: Nút nổi `Bản đồ` ở góc dưới bên phải cạnh đảo để mở Màn 4 Bản đồ Toàn cảnh 3 Đảo (Issue #50 AC-1 & AC-4)
         if (!isAnimatingExpansion &&
             !_showWelcomeCard &&
             !_isPanoramicMapOpen &&
             !isPlacementPreviewMode &&
-            selectedSlot == null)
+            (showManageToolbar || selectedSlot == null))
           Positioned(
-            right: 14,
-            bottom: 162,
-            child: _buildMapFloatingButton(),
-          ),
-
-        // 5. Màn 3 & Màn 5: Cụm 3 nút công cụ nổi dọc bên phải (`Lưu` / `Thu hồi` / `Xoay`) (Issue #50 AC-3)
-        if (!isAnimatingExpansion &&
-            !_showWelcomeCard &&
-            showManageToolbar)
-          Positioned(
-            top: 62,
             right: 12,
-            child: _buildManageFloatingTools(island, selectedSlot),
+            top: showManageToolbar ? 62 : null,
+            bottom: showManageToolbar ? null : 162,
+            child: IslandActionToolbar(
+              showManageActions: showManageToolbar,
+              hasSelectedPlacement: selectedSlot?.placement != null,
+              onSave: () {
+                setState(() {
+                  _isEditMode = false;
+                  _selectedSlotId = null;
+                  _selectedTrayItemId = null;
+                });
+                ScaffoldMessenger.of(context)
+                  ..hideCurrentSnackBar()
+                  ..showSnackBar(
+                    const SnackBar(
+                      content: Text('Đã lưu bố cục Đảo Di Sản!'),
+                      backgroundColor: Color(0xFF1A5642),
+                      behavior: SnackBarBehavior.floating,
+                      duration: Duration(seconds: 2),
+                    ),
+                  );
+              },
+              onRecall: () => _recallSelectedOrHint(island, selectedSlot),
+              onRotate: () {
+                if (selectedSlot != null && selectedSlot.placement != null) {
+                  setState(() {
+                    if (_flippedSlotIds.contains(selectedSlot.slotId)) {
+                      _flippedSlotIds.remove(selectedSlot.slotId);
+                    } else {
+                      _flippedSlotIds.add(selectedSlot.slotId);
+                    }
+                  });
+                } else {
+                  _rotateCameraRight();
+                }
+              },
+              onDelete: () => _recallSelectedOrHint(island, selectedSlot),
+              onMap: () {
+                setState(() {
+                  _isPanoramicMapOpen = true;
+                  _selectedSlotId = null;
+                  _selectedTrayItemId = null;
+                });
+              },
+            ),
           ),
 
         // 6. Nút "BỎ QUA" khi chuỗi animation mở rộng đảo đang chạy
@@ -717,11 +600,16 @@ class _IslandScreenState extends ConsumerState<IslandScreen>
               selectedItemId: _selectedTrayItemId,
               onSelectItem: (itemId) =>
                   _startPlacementPreview(itemId, visibleIsland),
+              onLockedItemTap: _showLockedItemHint,
               onOpenExpandedInventory: () =>
                   _openExpandedInventoryModal(visibleIsland),
               onConfirmPlacement: () => _confirmPreviewPlacement(island),
-              onInspectItem: (item) =>
-                  _openItemDetailModal(item, visibleIsland, shopList),
+              onInspectItem: (item) => _openItemDetailModal(
+                item,
+                visibleIsland,
+                ref.read(islandShopItemsProvider).asData?.value ??
+                    const <ShopItemDto>[],
+              ),
             ),
           ),
 
@@ -739,9 +627,11 @@ class _IslandScreenState extends ConsumerState<IslandScreen>
     );
   }
 
-  /// Chuyển tab cấp đảo (`Đảo Nhỏ` / `Đảo Vừa` / `Đảo Lớn`).
-  /// Nếu chạm vào tab cấp đảo đang khóa -> mở Modal 3 `NÂNG CẤP ĐẢO` (hoặc cho phép xem trước).
+  /// Chỉ xem đảo hiện tại hoặc đảo chưa mở. Đảo cũ sau khi nâng cấp bị khóa xem.
   void _handleSelectTier(int tier, [IslandDto? island]) {
+    if (island != null && tier < island.tier) {
+      return;
+    }
     if (island != null && tier > island.tier) {
       setState(() {
         _previewTier = tier;
@@ -762,6 +652,45 @@ class _IslandScreenState extends ConsumerState<IslandScreen>
     });
   }
 
+  void _showLockedItemHint() {
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(
+        content: Text(
+          'Vật phẩm này chưa mở khóa. Hãy hoàn thành bài học hoặc mua tại Cửa hàng.',
+        ),
+        backgroundColor: Color(0xFF5A4635),
+        behavior: SnackBarBehavior.floating,
+        margin: EdgeInsets.only(left: 20, right: 20, bottom: 220),
+      ),
+    );
+  }
+
+  void _recallSelectedOrHint(IslandDto island, IslandSlotDto? selectedSlot) {
+    final target = (selectedSlot != null && selectedSlot.placement != null)
+        ? selectedSlot
+        : island.slots.cast<IslandSlotDto?>().firstWhere(
+            (s) =>
+                s != null &&
+                s.unlocked &&
+                s.unlockTier <= _previewTier &&
+                s.placement != null,
+            orElse: () => null,
+          );
+    if (target != null) {
+      _removePlacement(target);
+    } else {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text(
+            'Hãy chạm chọn một vật phẩm đang đặt trên đảo để thu hồi về kho.',
+          ),
+          backgroundColor: Color(0xFF5A4635),
+          behavior: SnackBarBehavior.floating,
+        ),
+      );
+    }
+  }
+
   /// Bắt đầu chế độ Đặt Vật Phẩm lên Đảo (Màn 2 Placement Preview).
   void _startPlacementPreview(String? itemId, IslandDto visibleIsland) {
     if (itemId == null) {
@@ -769,6 +698,15 @@ class _IslandScreenState extends ConsumerState<IslandScreen>
         _selectedTrayItemId = null;
         _previewFlipHorizontally = false;
       });
+      return;
+    }
+    final allPlaceable = _mergedPlaceable(visibleIsland);
+    final matched = allPlaceable.cast<CatalogItemDto?>().firstWhere(
+      (it) => it?.itemId == itemId,
+      orElse: () => null,
+    );
+    if (matched != null && !matched.owned) {
+      _showLockedItemHint();
       return;
     }
     String? targetSlotId = _selectedSlotId;
@@ -813,17 +751,7 @@ class _IslandScreenState extends ConsumerState<IslandScreen>
     if (slot == null) return;
 
     // Giải phóng các ô con trong vùng đế 2x2 nếu có vật phẩm cũ đang chiếm chỗ
-    final catalogList =
-        ref.read(inventoryCatalogProvider).asData?.value ??
-        const <CatalogItemDto>[];
-    final shopList =
-        ref.read(islandShopItemsProvider).asData?.value ??
-        const <ShopItemDto>[];
-    final allPlaceable = IslandInventoryTray.mergePlaceableItems(
-      catalogList,
-      shopList,
-      island,
-    );
+    final allPlaceable = _mergedPlaceable(island);
     final matchedItem = allPlaceable.cast<CatalogItemDto?>().firstWhere(
       (it) => it?.itemId == itemId,
       orElse: () => null,
@@ -964,177 +892,6 @@ class _IslandScreenState extends ConsumerState<IslandScreen>
     );
   }
 
-  /// Màn 1 (Issue #50 AC-1 & AC-4): Nút nổi `Bản đồ` ở góc dưới bên phải cạnh đảo.
-  Widget _buildMapFloatingButton() {
-    return InkWell(
-      onTap: () {
-        setState(() {
-          _isPanoramicMapOpen = true;
-          _selectedSlotId = null;
-          _selectedTrayItemId = null;
-        });
-      },
-      borderRadius: BorderRadius.circular(16),
-      child: Container(
-        width: 58,
-        padding: const EdgeInsets.symmetric(vertical: 8, horizontal: 6),
-        decoration: BoxDecoration(
-          color: const Color(0xFFFBF3E4).withValues(alpha: 0.96),
-          borderRadius: BorderRadius.circular(16),
-          border: Border.all(color: const Color(0xFFDEC8A4), width: 1.4),
-          boxShadow: [
-            BoxShadow(
-              color: Colors.black.withValues(alpha: 0.14),
-              blurRadius: 8,
-              offset: const Offset(0, 3),
-            ),
-          ],
-        ),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            const Icon(
-              Icons.map_rounded,
-              color: Color(0xFF1A5642),
-              size: 22,
-            ),
-            const SizedBox(height: 3),
-            Text(
-              'Bản đồ',
-              textAlign: TextAlign.center,
-              style: DauVietTypography.bodySmall.copyWith(
-                fontSize: 10.5,
-                fontWeight: FontWeight.w800,
-                color: const Color(0xFF3A2618),
-              ),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-
-  /// Màn 3 & Màn 5 (Issue #50 AC-3): Cụm 3 nút công cụ nổi dọc bên phải (`Lưu` / `Thu hồi` / `Xoay`).
-  Widget _buildManageFloatingTools(
-    IslandDto island,
-    IslandSlotDto? selectedSlot,
-  ) {
-    return Column(
-      mainAxisSize: MainAxisSize.min,
-      children: [
-        _buildFloatingToolButton(
-          icon: Icons.save_outlined,
-          label: 'Lưu',
-          onTap: () {
-            setState(() {
-              _isEditMode = false;
-              _selectedSlotId = null;
-              _selectedTrayItemId = null;
-            });
-            ScaffoldMessenger.of(context).showSnackBar(
-              const SnackBar(
-                content: Text('Đã lưu bố cục Đảo Di Sản!'),
-                backgroundColor: Color(0xFF1A5642),
-                behavior: SnackBarBehavior.floating,
-              ),
-            );
-          },
-        ),
-        const SizedBox(height: 8),
-        _buildFloatingToolButton(
-          icon: Icons.unarchive_outlined,
-          label: 'Thu hồi',
-          onTap: () {
-            final target = (selectedSlot != null && selectedSlot.placement != null)
-                ? selectedSlot
-                : island.slots.cast<IslandSlotDto?>().firstWhere(
-                    (s) =>
-                        s != null &&
-                        s.unlocked &&
-                        s.unlockTier <= _previewTier &&
-                        s.placement != null,
-                    orElse: () => null,
-                  );
-            if (target != null) {
-              _removePlacement(target);
-            } else {
-              ScaffoldMessenger.of(context).showSnackBar(
-                const SnackBar(
-                  content: Text(
-                    'Hãy chạm chọn một vật phẩm đang đặt trên đảo để thu hồi về kho.',
-                  ),
-                  backgroundColor: Color(0xFF5A4635),
-                  behavior: SnackBarBehavior.floating,
-                ),
-              );
-            }
-          },
-        ),
-        const SizedBox(height: 8),
-        _buildFloatingToolButton(
-          icon: Icons.rotate_right_rounded,
-          label: 'Xoay',
-          onTap: () {
-            if (selectedSlot != null && selectedSlot.placement != null) {
-              setState(() {
-                if (_flippedSlotIds.contains(selectedSlot.slotId)) {
-                  _flippedSlotIds.remove(selectedSlot.slotId);
-                } else {
-                  _flippedSlotIds.add(selectedSlot.slotId);
-                }
-              });
-            } else {
-              _rotateCameraRight();
-            }
-          },
-        ),
-      ],
-    );
-  }
-
-  Widget _buildFloatingToolButton({
-    required IconData icon,
-    required String label,
-    required VoidCallback onTap,
-  }) {
-    return InkWell(
-      onTap: onTap,
-      borderRadius: BorderRadius.circular(16),
-      child: Container(
-        width: 56,
-        padding: const EdgeInsets.symmetric(vertical: 8, horizontal: 4),
-        decoration: BoxDecoration(
-          color: const Color(0xFFFBF3E4).withValues(alpha: 0.96),
-          borderRadius: BorderRadius.circular(16),
-          border: Border.all(color: const Color(0xFFDEC8A4), width: 1.4),
-          boxShadow: [
-            BoxShadow(
-              color: Colors.black.withValues(alpha: 0.14),
-              blurRadius: 8,
-              offset: const Offset(0, 3),
-            ),
-          ],
-        ),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Icon(icon, color: const Color(0xFF4A3728), size: 20),
-            const SizedBox(height: 2),
-            Text(
-              label,
-              textAlign: TextAlign.center,
-              style: DauVietTypography.bodySmall.copyWith(
-                fontSize: 10,
-                fontWeight: FontWeight.w800,
-                color: const Color(0xFF3A2618),
-              ),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-
   /// Màn 4 (Issue #50 AC-4): Bản đồ Toàn cảnh 3 Cấp Đảo xếp dọc trên biển mây
   /// (`✅ Đảo Nhỏ — Đang sử dụng`, `🔒 Đảo Vừa — Hoàn thành 15 bài học để mở khóa`,
   /// `🔒 Đảo Lớn — Hoàn thành 30 bài học để mở khóa`).
@@ -1177,25 +934,27 @@ class _IslandScreenState extends ConsumerState<IslandScreen>
             child: Column(
               mainAxisAlignment: MainAxisAlignment.spaceEvenly,
               children: [
-                _buildPanoramicIslandNode(
-                  island: island,
-                  tier: 1,
-                  title: 'Đảo Nhỏ',
-                  unlockedSubtitle: 'Đang sử dụng',
-                  lockedSubtitle: 'Đang sử dụng',
-                  thumbWidth: 146,
-                  thumbHeight: 104,
-                ),
-                _buildPanoramicIslandNode(
-                  island: island,
-                  tier: 2,
-                  title: 'Đảo Vừa',
-                  unlockedSubtitle:
-                      island.tier == 2 ? 'Đang sử dụng' : 'Đã mở khóa',
-                  lockedSubtitle: 'Hoàn thành 15 bài học\nđể mở khóa',
-                  thumbWidth: 162,
-                  thumbHeight: 116,
-                ),
+                if (island.tier <= 1)
+                  _buildPanoramicIslandNode(
+                    island: island,
+                    tier: 1,
+                    title: 'Đảo Nhỏ',
+                    unlockedSubtitle: 'Đang sử dụng',
+                    lockedSubtitle: 'Đang sử dụng',
+                    thumbWidth: 146,
+                    thumbHeight: 104,
+                  ),
+                if (island.tier <= 2)
+                  _buildPanoramicIslandNode(
+                    island: island,
+                    tier: 2,
+                    title: 'Đảo Vừa',
+                    unlockedSubtitle:
+                        island.tier == 2 ? 'Đang sử dụng' : 'Đã mở khóa',
+                    lockedSubtitle: 'Hoàn thành 15 bài học\nđể mở khóa',
+                    thumbWidth: 162,
+                    thumbHeight: 116,
+                  ),
                 _buildPanoramicIslandNode(
                   island: island,
                   tier: 3,
@@ -1248,6 +1007,9 @@ class _IslandScreenState extends ConsumerState<IslandScreen>
 
     return GestureDetector(
       onTap: () {
+        if (tier < island.tier) {
+          return;
+        }
         if (isUnlocked) {
           setState(() {
             _previewTier = tier;
@@ -1707,6 +1469,9 @@ class _IslandScreenState extends ConsumerState<IslandScreen>
   /// - Khi xem Đảo An Lạc (viewTier == 1), lọc gọn vùng đất để đảo vừa vặn, rõ nét trên mobile
   ///   (giữ kèm vành đai Cấp 2 liền kề để hiển thị trạng thái khóa trực quan).
   IslandDto _islandForTier(IslandDto island, int viewTier) {
+    if (viewTier < island.tier) {
+      viewTier = island.tier;
+    }
     if (island.board == null) return island;
     final bool isLegacyFixtureWithFewSlots = island.slots.length <= 20;
     final maxVisibleTier =
@@ -1740,14 +1505,40 @@ class _IslandScreenState extends ConsumerState<IslandScreen>
     );
   }
 
+  List<CatalogItemDto> _mergedPlaceable(IslandDto island) {
+    final catalogList =
+        ref.read(inventoryCatalogProvider).asData?.value ??
+        const <CatalogItemDto>[];
+    final shopList =
+        ref.read(islandShopItemsProvider).asData?.value ??
+        const <ShopItemDto>[];
+    final inventoryList =
+        ref.read(inventoryItemsProvider).asData?.value ??
+        const <InventoryItemDto>[];
+    return IslandInventoryTray.mergePlaceableItems(
+      catalogList,
+      shopList,
+      island,
+      inventoryItems: inventoryList,
+    );
+  }
+
   Future<void> _placeItem(IslandSlotDto slot, String itemId) async {
     if (_isMutating) return;
+    final island = ref.read(islandControllerProvider).asData?.value;
+    final ownedId = island == null
+        ? null
+        : IslandInventoryTray.ownedItemIdFor(itemId, _mergedPlaceable(island));
+    if (ownedId == null) {
+      _showLockedItemHint();
+      return;
+    }
     setState(() => _isMutating = true);
 
     try {
       await ref
           .read(islandControllerProvider.notifier)
-          .placeItem(slotId: slot.slotId, itemId: itemId);
+          .placeItem(slotId: slot.slotId, itemId: ownedId);
 
       if (!mounted) return;
       setState(() {
@@ -1799,16 +1590,17 @@ class _IslandScreenState extends ConsumerState<IslandScreen>
         _removalEffectToken++;
       });
 
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text(
-            'Đã cất vật phẩm về kho. Bạn có thể chọn vật phẩm khác cho ô này.',
+      ScaffoldMessenger.of(context)
+        ..hideCurrentSnackBar()
+        ..showSnackBar(
+          const SnackBar(
+            content: Text('Đã cất vật phẩm về kho.'),
+            backgroundColor: DauVietColors.heritageGreen,
+            behavior: SnackBarBehavior.floating,
+            duration: Duration(seconds: 2),
+            margin: EdgeInsets.only(left: 20, right: 20, bottom: 220),
           ),
-          backgroundColor: DauVietColors.heritageGreen,
-          behavior: SnackBarBehavior.floating,
-          margin: EdgeInsets.only(left: 20, right: 20, bottom: 220),
-        ),
-      );
+        );
     } on ApiException catch (e) {
       if (!mounted) return;
       final msg = e.statusCode == 409

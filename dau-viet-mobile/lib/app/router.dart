@@ -1,5 +1,6 @@
 import 'package:go_router/go_router.dart';
 import '../core/api/api_config.dart';
+import '../core/widgets/snackbar_route_observer.dart';
 import '../features/auth/data/auth_state.dart';
 import '../features/auth/presentation/auth_screen.dart';
 import '../features/auth/presentation/register_screen.dart';
@@ -72,6 +73,7 @@ const _demoOnlyPrefixes = [
 final appRouter = GoRouter(
   initialLocation: '/',
   refreshListenable: authRouterRefreshNotifier,
+  observers: [snackBarRouteObserver],
   redirect: (context, state) {
     // Đọc auth state qua container toàn cục (router tạo trước ProviderScope).
     final container = appContainer;
@@ -85,16 +87,16 @@ final appRouter = GoRouter(
     // Đang restore phiên (splash) → giữ nguyên; splash tự điều hướng.
     if (auth.status == AuthStatus.unknown) return null;
 
-    // Đã login mà vào /auth hoặc /register → về dashboard.
+    // Đã login mà vào /auth hoặc /register → về Đảo Di Sản.
     if (auth.status == AuthStatus.authenticated &&
         (loc == '/auth' || loc == '/register')) {
-      return '/dashboard';
+      return '/island';
     }
 
-    // Đã login mà vào màn phụ của auth flow → về dashboard.
+    // Đã login mà vào màn phụ của auth flow → về Đảo Di Sản.
     if (auth.status == AuthStatus.authenticated &&
         (loc == '/auth/otp' || loc == '/auth/forgot' || loc == '/auth/reset-password')) {
-      return '/dashboard';
+      return '/island';
     }
 
     // Real mode: màn nội dung demo-only không có dữ liệu thật → dashboard.

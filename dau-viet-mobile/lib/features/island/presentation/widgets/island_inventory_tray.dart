@@ -8,6 +8,7 @@ import '../../../rewards/data/reward_providers.dart';
 import '../../data/island_dto.dart';
 import '../../data/island_providers.dart';
 import 'island_heritage_building.dart';
+import 'island_inventory_item_card.dart';
 
 /// Khay `🧰 Kho vật phẩm` rút gọn ở đáy màn hình (Màn 1, Màn 3, Màn 5)
 /// và Thẻ Đặt Vật Phẩm (Màn 2) theo thiết kế mẫu 9 màn hình (Issue #50 AC-1 & AC-3).
@@ -15,6 +16,7 @@ class IslandInventoryTray extends ConsumerStatefulWidget {
   final IslandDto island;
   final String? selectedItemId;
   final ValueChanged<String?> onSelectItem;
+  final VoidCallback? onLockedItemTap;
   final VoidCallback? onOpenExpandedInventory;
   final VoidCallback? onConfirmPlacement;
   final ValueChanged<CatalogItemDto>? onInspectItem;
@@ -24,6 +26,7 @@ class IslandInventoryTray extends ConsumerStatefulWidget {
     required this.island,
     required this.selectedItemId,
     required this.onSelectItem,
+    this.onLockedItemTap,
     this.onOpenExpandedInventory,
     this.onConfirmPlacement,
     this.onInspectItem,
@@ -32,11 +35,49 @@ class IslandInventoryTray extends ConsumerStatefulWidget {
   /// Hợp nhất danh sách vật phẩm có thể đặt lên đảo từ catalog, shop và các slot đang đặt,
   /// ưu tiên thứ tự chuẩn trong thiết kế mẫu (`Cây đa`, `Nhà rông`, `Cột cờ`, `Bức tượng`,
   /// `Đình làng`, `Chùa cổ`, `Tháp Chăm`, `Tre trúc`...).
+  /// Trả `itemId` đã sở hữu để gửi lên API đặt đồ; `null` nếu chưa mở khóa.
+  static String? ownedItemIdFor(
+    String itemId,
+    List<CatalogItemDto> items,
+  ) {
+    for (final it in items) {
+      if (it.itemId == itemId) {
+        return it.owned ? it.itemId : null;
+      }
+    }
+    return null;
+  }
+
   static List<CatalogItemDto> mergePlaceableItems(
     List<CatalogItemDto> catalogItems,
     List<ShopItemDto> shopItems,
-    IslandDto island,
-  ) {
+    IslandDto island, {
+    List<InventoryItemDto> inventoryItems = const [],
+  }) {
+    final ownedIds = <String>{
+      for (final it in inventoryItems)
+        if (it.itemId.isNotEmpty) it.itemId,
+    };
+    final ownedIdByCode = <String, String>{
+      for (final it in inventoryItems)
+        if (it.code.isNotEmpty && it.itemId.isNotEmpty)
+          it.code.toUpperCase(): it.itemId,
+    };
+
+    bool isOwned(String itemId, String code, bool flagged) {
+      if (itemId.isNotEmpty && ownedIds.contains(itemId)) return true;
+      if (code.isNotEmpty &&
+          ownedIdByCode.containsKey(code.toUpperCase())) {
+        return true;
+      }
+      return flagged;
+    }
+
+    String resolveId(String itemId, String code) {
+      if (itemId.isNotEmpty && ownedIds.contains(itemId)) return itemId;
+      return ownedIdByCode[code.toUpperCase()] ?? itemId;
+    }
+
     final byShortName = <String, CatalogItemDto>{};
     void addPlaceable(CatalogItemDto item) {
       final shortKey = shortIslandItemDisplayName(
@@ -44,19 +85,41 @@ class IslandInventoryTray extends ConsumerStatefulWidget {
         item.code,
         item.renderKey,
       ).toLowerCase();
-      byShortName.putIfAbsent(shortKey, () => item);
+      final existing = byShortName[shortKey];
+      if (existing == null || (!existing.owned && item.owned)) {
+        byShortName[shortKey] = item;
+      }
     }
 
     for (final it in catalogItems) {
-      if (it.owned && it.placeable) {
-        addPlaceable(it);
+      if (it.placeable && isOwned(it.itemId, it.code, it.owned)) {
+        addPlaceable(
+          CatalogItemDto(
+            itemId: resolveId(it.itemId, it.code),
+            code: it.code,
+            name: it.name,
+            description: it.description,
+            category: it.category,
+            itemType: it.itemType,
+            rarity: it.rarity,
+            assetId: it.assetId,
+            renderKey: it.renderKey,
+            placeable: true,
+            placedSlotId: it.placedSlotId,
+            owned: true,
+            acquiredAt: it.acquiredAt,
+            requirement: it.requirement,
+            sourceNote: it.sourceNote,
+          ),
+        );
       }
     }
     for (final s in shopItems) {
       if (s.placeable) {
+        final owned = isOwned(s.itemId, s.code, s.owned);
         addPlaceable(
           CatalogItemDto(
-            itemId: s.itemId,
+            itemId: resolveId(s.itemId, s.code),
             code: s.code,
             name: s.name,
             description: s.description,
@@ -66,14 +129,33 @@ class IslandInventoryTray extends ConsumerStatefulWidget {
             renderKey: s.renderKey,
             assetId: s.assetId,
             placeable: true,
-            owned: s.owned,
+            owned: owned,
           ),
         );
       }
     }
     for (final it in catalogItems) {
       if (it.placeable) {
-        addPlaceable(it);
+        final owned = isOwned(it.itemId, it.code, it.owned);
+        addPlaceable(
+          CatalogItemDto(
+            itemId: resolveId(it.itemId, it.code),
+            code: it.code,
+            name: it.name,
+            description: it.description,
+            category: it.category,
+            itemType: it.itemType,
+            rarity: it.rarity,
+            assetId: it.assetId,
+            renderKey: it.renderKey,
+            placeable: true,
+            placedSlotId: it.placedSlotId,
+            owned: owned,
+            acquiredAt: it.acquiredAt,
+            requirement: it.requirement,
+            sourceNote: it.sourceNote,
+          ),
+        );
       }
     }
     for (final slot in island.slots) {
@@ -120,17 +202,23 @@ class IslandInventoryTray extends ConsumerStatefulWidget {
 }
 
 class _IslandInventoryTrayState extends ConsumerState<IslandInventoryTray> {
+  bool _expanded = false;
+
   @override
   Widget build(BuildContext context) {
     final catalogAsync = ref.watch(inventoryCatalogProvider);
     final shopAsync = ref.watch(islandShopItemsProvider);
+    final inventoryAsync = ref.watch(inventoryItemsProvider);
 
     final catalogList = catalogAsync.asData?.value ?? const <CatalogItemDto>[];
     final shopList = shopAsync.asData?.value ?? const <ShopItemDto>[];
+    final inventoryList =
+        inventoryAsync.asData?.value ?? const <InventoryItemDto>[];
     final allPlaceable = IslandInventoryTray.mergePlaceableItems(
       catalogList,
       shopList,
       widget.island,
+      inventoryItems: inventoryList,
     );
 
     final selectedItem = widget.selectedItemId == null
@@ -146,99 +234,152 @@ class _IslandInventoryTrayState extends ConsumerState<IslandInventoryTray> {
     }
 
     // Màn 1, Màn 3, Màn 5: Khay `🧰 Kho vật phẩm` rút gọn ở đáy màn hình
-    return Container(
-      decoration: BoxDecoration(
-        color: const Color(0xFFFBF3E4),
-        borderRadius: const BorderRadius.vertical(top: Radius.circular(24)),
-        border: Border.all(color: const Color(0xFFDEC8A4), width: 1.5),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withValues(alpha: 0.14),
-            blurRadius: 16,
-            offset: const Offset(0, -4),
-          ),
-        ],
-      ),
-      child: SafeArea(
-        top: false,
-        child: Padding(
-          padding: const EdgeInsets.fromLTRB(14, 10, 14, 12),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            crossAxisAlignment: CrossAxisAlignment.stretch,
-            children: [
-              // Tiêu đề `🧰 Kho vật phẩm` + mũi tên `⌄` mở rộng Kho vật phẩm (Modal 1)
-              InkWell(
-                onTap: widget.onOpenExpandedInventory,
-                borderRadius: BorderRadius.circular(12),
-                child: Padding(
-                  padding: const EdgeInsets.symmetric(
-                    horizontal: 2,
-                    vertical: 2,
-                  ),
-                  child: Row(
-                    children: [
-                      Container(
-                        width: 24,
-                        height: 24,
-                        decoration: BoxDecoration(
-                          color: const Color(0xFF8C5332),
-                          borderRadius: BorderRadius.circular(6),
-                        ),
-                        child: const Icon(
-                          Icons.inventory_2_rounded,
-                          color: Color(0xFFFCE8C5),
-                          size: 15,
-                        ),
-                      ),
-                      const SizedBox(width: 8),
-                      Expanded(
-                        child: Text(
-                          'Kho vật phẩm',
-                          style: DauVietTypography.titleSmall.copyWith(
-                            fontSize: 14,
-                            fontWeight: FontWeight.w800,
-                            color: const Color(0xFF3A2618),
-                          ),
-                        ),
-                      ),
-                      const Icon(
-                        Icons.keyboard_arrow_down_rounded,
-                        color: Color(0xFF5D4632),
-                        size: 22,
-                      ),
-                    ],
+    return GestureDetector(
+      onVerticalDragEnd: (details) {
+        final dy = details.velocity.pixelsPerSecond.dy;
+        if (dy < -240) {
+          setState(() => _expanded = true);
+        } else if (dy > 240) {
+          setState(() => _expanded = false);
+        }
+      },
+      child: AnimatedContainer(
+        duration: const Duration(milliseconds: 220),
+        curve: Curves.easeOutCubic,
+        decoration: BoxDecoration(
+          color: const Color(0xF8FBF3E4),
+          borderRadius: const BorderRadius.vertical(top: Radius.circular(24)),
+          border: Border.all(color: const Color(0xFFDEC8A4), width: 1.5),
+          boxShadow: [
+            BoxShadow(
+              color: Colors.black.withValues(alpha: 0.16),
+              blurRadius: 18,
+              offset: const Offset(0, -4),
+            ),
+          ],
+        ),
+        child: SafeArea(
+          top: false,
+          child: Padding(
+            padding: const EdgeInsets.fromLTRB(14, 8, 14, 12),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                Center(
+                  child: Container(
+                    width: 36,
+                    height: 4,
+                    margin: const EdgeInsets.only(bottom: 8),
+                    decoration: BoxDecoration(
+                      color: const Color(0xFFD4C0A2),
+                      borderRadius: BorderRadius.circular(8),
+                    ),
                   ),
                 ),
-              ),
-              const SizedBox(height: 8),
-
-              // Hàng ngang các thẻ vật phẩm có sẵn: Cây đa (x3), Nhà rông (x2), Cột cờ (x1), Bức tượng (x2)...
-              SizedBox(
-                height: 88,
-                child: (catalogAsync.isLoading && allPlaceable.isEmpty)
-                    ? const Center(
-                        child: SizedBox(
-                          width: 22,
-                          height: 22,
-                          child: CircularProgressIndicator(
-                            strokeWidth: 2,
-                            color: DauVietColors.cinnabarRed,
+                InkWell(
+                  onTap: widget.onOpenExpandedInventory,
+                  borderRadius: BorderRadius.circular(12),
+                  child: Padding(
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 2,
+                      vertical: 2,
+                    ),
+                    child: Row(
+                      children: [
+                        Container(
+                          width: 24,
+                          height: 24,
+                          decoration: BoxDecoration(
+                            color: const Color(0xFF8C5332),
+                            borderRadius: BorderRadius.circular(6),
+                          ),
+                          child: const Icon(
+                            Icons.inventory_2_rounded,
+                            color: Color(0xFFFCE8C5),
+                            size: 15,
                           ),
                         ),
-                      )
-                    : ListView.separated(
-                        scrollDirection: Axis.horizontal,
-                        itemCount: allPlaceable.length,
-                        separatorBuilder: (_, _) => const SizedBox(width: 8),
-                        itemBuilder: (context, index) => _buildCompactTrayCard(
-                          allPlaceable[index],
-                          widget.island,
-                          index,
+                        const SizedBox(width: 8),
+                        Expanded(
+                          child: Text(
+                            'Kho vật phẩm',
+                            style: DauVietTypography.titleSmall.copyWith(
+                              fontSize: 14,
+                              fontWeight: FontWeight.w800,
+                              color: const Color(0xFF3A2618),
+                            ),
+                          ),
                         ),
-                      ),
-              ),
-            ],
+                        IconButton(
+                          visualDensity: VisualDensity.compact,
+                          tooltip: _expanded ? 'Thu gọn kho' : 'Mở rộng kho',
+                          onPressed: () {
+                            setState(() => _expanded = !_expanded);
+                          },
+                          icon: Icon(
+                            _expanded
+                                ? Icons.keyboard_arrow_down_rounded
+                                : Icons.keyboard_arrow_up_rounded,
+                            color: const Color(0xFF5D4632),
+                            size: 22,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+                const SizedBox(height: 8),
+                AnimatedSize(
+                  duration: const Duration(milliseconds: 220),
+                  curve: Curves.easeOutCubic,
+                  child: SizedBox(
+                    height: _expanded ? 188 : 88,
+                    child: (catalogAsync.isLoading && allPlaceable.isEmpty)
+                        ? const Center(
+                            child: SizedBox(
+                              width: 22,
+                              height: 22,
+                              child: CircularProgressIndicator(
+                                strokeWidth: 2,
+                                color: DauVietColors.cinnabarRed,
+                              ),
+                            ),
+                          )
+                        : _expanded
+                        ? GridView.builder(
+                            padding: EdgeInsets.zero,
+                            gridDelegate:
+                                const SliverGridDelegateWithFixedCrossAxisCount(
+                                  crossAxisCount: 4,
+                                  mainAxisSpacing: 8,
+                                  crossAxisSpacing: 8,
+                                  childAspectRatio: 0.86,
+                                ),
+                            itemCount: allPlaceable.length,
+                            itemBuilder: (context, index) =>
+                                _buildCompactTrayCard(
+                                  allPlaceable[index],
+                                  widget.island,
+                                  index,
+                                ),
+                          )
+                        : ListView.separated(
+                            scrollDirection: Axis.horizontal,
+                            itemCount: allPlaceable.length,
+                            separatorBuilder: (_, _) =>
+                                const SizedBox(width: 8),
+                            itemBuilder: (context, index) =>
+                                _buildCompactTrayCard(
+                                  allPlaceable[index],
+                                  widget.island,
+                                  index,
+                                ),
+                          ),
+                  ),
+                ),
+              ],
+            ),
           ),
         ),
       ),
@@ -441,88 +582,18 @@ class _IslandInventoryTrayState extends ConsumerState<IslandInventoryTray> {
       1,
       9,
     );
-    final shortLabel = shortIslandItemDisplayName(
-      item.name,
-      item.code,
-      item.renderKey,
-    );
-
-    return GestureDetector(
-      onTap: () => widget.onSelectItem(item.itemId),
-      behavior: HitTestBehavior.opaque,
-      child: Container(
-        width: 78,
-        decoration: BoxDecoration(
-          color: const Color(0xFFF3E5CC),
-          borderRadius: BorderRadius.circular(14),
-          border: Border.all(
-            color: const Color(0xFFDEC6A2),
-            width: 1.2,
-          ),
-        ),
-        child: Stack(
-          children: [
-            Padding(
-              padding: const EdgeInsets.fromLTRB(4, 6, 4, 5),
-              child: Column(
-                mainAxisAlignment: MainAxisAlignment.center,
-                children: [
-                  Expanded(
-                    child: Center(
-                      child: IgnorePointer(
-                        child: IslandHeritageBuilding(
-                          placement: IslandPlacementDto(
-                            itemId: item.itemId,
-                            code: item.code,
-                            name: item.name,
-                            renderKey: item.renderKey,
-                            assetId: item.assetId,
-                          ),
-                          tileWidth: 44,
-                          tileHeight: 23,
-                          useProportionalScale: false,
-                        ),
-                      ),
-                    ),
-                  ),
-                  const SizedBox(height: 2),
-                  Text(
-                    shortLabel,
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                    textAlign: TextAlign.center,
-                    style: DauVietTypography.bodySmall.copyWith(
-                      fontSize: 10.5,
-                      fontWeight: FontWeight.w700,
-                      color: const Color(0xFF3A2A1E),
-                    ),
-                  ),
-                ],
-              ),
-            ),
-            Positioned(
-              top: 4,
-              right: 4,
-              child: Container(
-                padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 1.5),
-                decoration: BoxDecoration(
-                  color: const Color(0xFFE7D1AC),
-                  borderRadius: BorderRadius.circular(10),
-                  border: Border.all(color: const Color(0xFFCBA978), width: 0.9),
-                ),
-                child: Text(
-                  'x$badgeCount',
-                  style: const TextStyle(
-                    color: Color(0xFF4A3423),
-                    fontSize: 9.5,
-                    fontWeight: FontWeight.w800,
-                  ),
-                ),
-              ),
-            ),
-          ],
-        ),
-      ),
+    return InventoryItemCard(
+      item: item,
+      quantity: badgeCount,
+      isLocked: !item.owned,
+      isSelected: widget.selectedItemId == item.itemId,
+      onTap: () {
+        if (!item.owned) {
+          widget.onLockedItemTap?.call();
+          return;
+        }
+        widget.onSelectItem(item.itemId);
+      },
     );
   }
 }

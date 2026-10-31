@@ -54,10 +54,19 @@ class IslandController extends AsyncNotifier<IslandDto> {
     _sessionKey = _islandSessionKey(ref.watch(authSessionProvider));
     assert(_sessionKey.isNotEmpty);
     final repo = ref.watch(islandRepositoryProvider);
+    final IslandDto island;
     if (ApiConfig.useMock) {
-      return repo.getIsland();
+      island = await repo.getIsland();
+    } else {
+      island = await ref.read(authRepositoryProvider).withAuth(repo.getIsland);
+      // GET /me/island cấp bộ starter — làm mới kho để khay khớp sở hữu thật.
+      Future<void>.microtask(() {
+        ref.invalidate(inventoryCatalogProvider);
+        ref.invalidate(inventoryItemsProvider);
+        ref.invalidate(islandShopItemsProvider);
+      });
     }
-    return ref.read(authRepositoryProvider).withAuth(repo.getIsland);
+    return island;
   }
 
   /// Tải lại dữ liệu đảo.

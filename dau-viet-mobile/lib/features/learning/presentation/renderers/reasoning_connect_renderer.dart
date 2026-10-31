@@ -20,6 +20,7 @@ class ReasoningConnectRenderer extends StatefulWidget {
   final void Function(bool hasUnsentInput)? onInputChanged;
   /// Evaluation mới nhất khi retry-in-place (nullable).
   final EvaluationDto? lastEvaluation;
+  final SubmitSpecCallback? onSubmitSpec;
 
   const ReasoningConnectRenderer({
     super.key,
@@ -28,6 +29,7 @@ class ReasoningConnectRenderer extends StatefulWidget {
     required this.onSubmit,
     this.onInputChanged,
     this.lastEvaluation,
+    this.onSubmitSpec,
   });
 
   @override
@@ -45,6 +47,17 @@ class _ReasoningConnectRendererState extends State<ReasoningConnectRenderer> {
     _relations.isNotEmpty || _from != null || _to != null || _relation != null,
   );
 
+  void _notifySpec() {
+    notifySubmitSpec(
+      callback: widget.onSubmitSpec,
+      spec: RendererSubmitSpec(
+        enabled: _relations.isNotEmpty,
+        label: 'GỬI CÂU TRẢ LỜI',
+        payload: () => {'relations': _relations},
+      ),
+    );
+  }
+
   void _add() {
     if (_from == null || _to == null || _relation == null) return;
     HapticFeedback.selectionClick();
@@ -55,6 +68,7 @@ class _ReasoningConnectRendererState extends State<ReasoningConnectRenderer> {
       _relation = null;
       _dirty();
     });
+    _notifySpec();
   }
 
   void _tapNode(String id, List<Map<String, dynamic>> rels) {
@@ -120,6 +134,15 @@ class _ReasoningConnectRendererState extends State<ReasoningConnectRenderer> {
 
     final bool wrong = _hasWrongEval;
 
+    emitSubmitSpec(
+      callback: widget.onSubmitSpec,
+      spec: RendererSubmitSpec(
+        enabled: _relations.isNotEmpty,
+        label: 'GỬI CÂU TRẢ LỜI',
+        payload: () => {'relations': _relations},
+      ),
+    );
+
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
@@ -127,20 +150,23 @@ class _ReasoningConnectRendererState extends State<ReasoningConnectRenderer> {
           alignment: Alignment.centerLeft,
           child: SectionEyebrow('MỐI LIÊN HỆ · SUY LUẬN'),
         ),
-        const SizedBox(height: 10),
+        const SizedBox(height: 8),
         if (prompt != null) ...[
           ActivityCard(
+            padding: const EdgeInsets.fromLTRB(10, 8, 10, 8),
             child: Text(
               prompt,
-              style: DauVietTypography.bodyMedium.copyWith(height: 1.5),
+              maxLines: 3,
+              overflow: TextOverflow.ellipsis,
+              style: DauVietTypography.bodyMedium.copyWith(height: 1.4),
             ),
           ),
-          const SizedBox(height: 12),
+          const SizedBox(height: 8),
         ],
 
-        // Danh sách các Node suy luận
-        const SectionLabel('CÁC MẤU CHỐT SỰ KIỆN (NODES)'),
-        const SizedBox(height: 8),
+        // Danh sách các Node suy luận — card thấp, không lặp lại mô tả dài.
+        const SectionLabel('CÁC MẤU CHỐT SỰ KIỆN'),
+        const SizedBox(height: 6),
         for (int i = 0; i < nodes.length; i++) ...[
           Builder(
             builder: (context) {
@@ -160,39 +186,43 @@ class _ReasoningConnectRendererState extends State<ReasoningConnectRenderer> {
               }
 
               return TactileCard(
-                margin: const EdgeInsets.only(bottom: 8),
+                margin: const EdgeInsets.only(bottom: 6),
                 padding: const EdgeInsets.symmetric(
-                  horizontal: 12,
-                  vertical: 10,
+                  horizontal: 10,
+                  vertical: 8,
                 ),
-                borderRadius: 12,
+                borderRadius: 10,
                 enabled: !widget.submitting,
                 backgroundColor: (active || connected)
                     ? DauVietColors.paperCardHi
                     : DauVietColors.paperCard,
                 borderColor: borderColor,
-                borderWidth: (active || connected || wrong) ? 1.8 : 1.4,
+                borderWidth: (active || connected || wrong) ? 1.6 : 1.2,
                 onTap: () => _tapNode(id, rels),
                 child: Row(
                   children: [
                     ChapterNumberBadge(
                       (i + 1).toString().padLeft(2, '0'),
-                      size: 32,
+                      size: 26,
                       color: wrong && connected
                           ? DauVietColors.cinnabarRed
                           : (active || connected
                                 ? DauVietColors.jade
                                 : DauVietColors.chapterGreen),
                     ),
-                    const SizedBox(width: 10),
+                    const SizedBox(width: 8),
                     Expanded(
                       child: Text(
                         label,
+                        maxLines: 2,
+                        overflow: TextOverflow.ellipsis,
                         style: DauVietTypography.bodyMedium.copyWith(
                           color: DauVietColors.inkText,
                           fontWeight: (active || connected)
                               ? FontWeight.w700
                               : FontWeight.w500,
+                          fontSize: 13.5,
+                          height: 1.3,
                         ),
                       ),
                     ),
@@ -207,7 +237,7 @@ class _ReasoningConnectRendererState extends State<ReasoningConnectRenderer> {
                       const SizedBox(width: 6),
                       StampSealBadge(
                         '✓',
-                        size: 24,
+                        size: 20,
                         color: wrong
                             ? DauVietColors.cinnabarRed
                             : DauVietColors.jade,
@@ -220,14 +250,14 @@ class _ReasoningConnectRendererState extends State<ReasoningConnectRenderer> {
           ),
         ],
 
-        const SizedBox(height: 8),
+        const SizedBox(height: 6),
         TactileCard(
-          padding: const EdgeInsets.all(14),
+          padding: const EdgeInsets.fromLTRB(10, 10, 10, 8),
           backgroundColor: DauVietColors.paperCard,
           borderColor: wrong
               ? DauVietColors.cinnabarRed
               : DauVietColors.outlineVariant,
-          borderWidth: wrong ? 1.8 : 1.4,
+          borderWidth: wrong ? 1.6 : 1.2,
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
@@ -313,86 +343,86 @@ class _ReasoningConnectRendererState extends State<ReasoningConnectRenderer> {
         ),
 
         if (_relations.isNotEmpty) ...[
-          const SizedBox(height: 12),
-          const SectionLabel('CÁC MỐI LIÊN HỆ ĐÃ NỐI'),
           const SizedBox(height: 6),
-          for (int i = 0; i < _relations.length; i++)
-            TactileCard(
-              margin: const EdgeInsets.only(bottom: 8),
-              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-              borderRadius: 12,
-              backgroundColor: DauVietColors.paperCardHi,
-              borderColor: wrong
-                  ? DauVietColors.cinnabarRed
-                  : DauVietColors.jade,
-              borderWidth: 1.6,
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.stretch,
-                children: [
-                  Row(
-                    children: [
-                      StampSealBadge(
-                        '✓',
-                        size: 24,
-                        color: wrong
-                            ? DauVietColors.cinnabarRed
-                            : DauVietColors.jade,
-                      ),
-                      const SizedBox(width: 8),
-                      Expanded(
-                        child: Text(
-                          '${nodeLabel(_relations[i]['from'])} '
-                          '—${relLabel(_relations[i]['relation'])}→ '
-                          '${nodeLabel(_relations[i]['to'])}',
-                          style: DauVietTypography.bodySmall.copyWith(
-                            fontSize: 13,
-                            fontWeight: FontWeight.w600,
-                            color: DauVietColors.inkText,
+          Theme(
+            data: Theme.of(context).copyWith(dividerColor: Colors.transparent),
+            child: ExpansionTile(
+              initiallyExpanded: _relations.length <= 2,
+              tilePadding: EdgeInsets.zero,
+              childrenPadding: EdgeInsets.zero,
+              visualDensity: VisualDensity.compact,
+              title: Text(
+                'CÁC MỐI LIÊN HỆ ĐÃ NỐI (${_relations.length})',
+                style: DauVietTypography.labelSmall.copyWith(
+                  color: DauVietColors.inkMuted,
+                  fontWeight: FontWeight.w800,
+                  letterSpacing: 0.6,
+                ),
+              ),
+              children: [
+                for (int i = 0; i < _relations.length; i++)
+                  Padding(
+                    padding: const EdgeInsets.only(bottom: 4),
+                    child: Row(
+                      children: [
+                        Icon(
+                          Icons.subdirectory_arrow_right_rounded,
+                          size: 16,
+                          color: wrong
+                              ? DauVietColors.cinnabarRed
+                              : DauVietColors.jade,
+                        ),
+                        const SizedBox(width: 6),
+                        Expanded(
+                          child: Text(
+                            '${nodeLabel(_relations[i]['from'])} '
+                            '—${relLabel(_relations[i]['relation'])}→ '
+                            '${nodeLabel(_relations[i]['to'])}',
+                            maxLines: 2,
+                            overflow: TextOverflow.ellipsis,
+                            style: DauVietTypography.bodySmall.copyWith(
+                              fontSize: 12.5,
+                              fontWeight: FontWeight.w600,
+                              color: DauVietColors.inkText,
+                            ),
                           ),
                         ),
-                      ),
-                      IconButton(
-                        icon: const Icon(Icons.close, size: 18),
-                        color: DauVietColors.inkMuted,
-                        tooltip: 'Xóa liên kết',
-                        constraints: const BoxConstraints(
-                          minWidth: 44,
-                          minHeight: 44,
+                        IconButton(
+                          icon: const Icon(Icons.close, size: 18),
+                          color: DauVietColors.inkMuted,
+                          tooltip: 'Xóa liên kết',
+                          constraints: const BoxConstraints(
+                            minWidth: 40,
+                            minHeight: 40,
+                          ),
+                          onPressed: widget.submitting
+                              ? null
+                              : () {
+                                  setState(() {
+                                    _relations.removeAt(i);
+                                    _dirty();
+                                  });
+                                  _notifySpec();
+                                },
                         ),
-                        onPressed: widget.submitting
-                            ? null
-                            : () => setState(() {
-                                _relations.removeAt(i);
-                                _dirty();
-                              }),
-                      ),
-                    ],
-                  ),
-                  const SizedBox(height: 4),
-                  SizedBox(
-                    height: 12,
-                    child: CustomPaint(
-                      painter: _RelationEdgePainter(
-                        color: wrong
-                            ? DauVietColors.cinnabarRed
-                            : DauVietColors.jade,
-                      ),
+                      ],
                     ),
                   ),
-                ],
-              ),
+              ],
             ),
+          ),
         ],
-        const SizedBox(height: 12),
+        const SizedBox(height: 8),
         InlineGradingHint(
           evaluation: widget.lastEvaluation,
           maxAttempts: widget.activity.maxAttempts,
         ),
-        SubmitBar(
-          enabled: _relations.isNotEmpty,
-          submitting: widget.submitting,
-          onPressed: () => widget.onSubmit({'relations': _relations}),
-        ),
+        if (widget.onSubmitSpec == null)
+          SubmitBar(
+            enabled: _relations.isNotEmpty,
+            submitting: widget.submitting,
+            onPressed: () => widget.onSubmit({'relations': _relations}),
+          ),
       ],
     );
   }
@@ -427,30 +457,4 @@ class _ReasoningConnectRendererState extends State<ReasoningConnectRenderer> {
       onChanged: widget.submitting ? null : onChanged,
     );
   }
-}
-
-/// CustomPainter vẽ đường nối quan hệ nhân quả 2px màu `jade` kèm mũi tên.
-class _RelationEdgePainter extends CustomPainter {
-  final Color color;
-  const _RelationEdgePainter({this.color = DauVietColors.jade});
-
-  @override
-  void paint(Canvas canvas, Size size) {
-    final paint = Paint()
-      ..color = color
-      ..strokeWidth = 2.0
-      ..style = PaintingStyle.stroke
-      ..strokeCap = StrokeCap.round;
-    final double cy = size.height / 2;
-    canvas.drawLine(Offset(4, cy), Offset(size.width - 4, cy), paint);
-    final Path arrow = Path()
-      ..moveTo(size.width - 10, cy - 4)
-      ..lineTo(size.width - 4, cy)
-      ..lineTo(size.width - 10, cy + 4);
-    canvas.drawPath(arrow, paint);
-  }
-
-  @override
-  bool shouldRepaint(covariant _RelationEdgePainter oldDelegate) =>
-      oldDelegate.color != color;
 }

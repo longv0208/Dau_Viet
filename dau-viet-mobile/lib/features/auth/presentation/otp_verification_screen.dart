@@ -104,7 +104,7 @@ class _OtpVerificationScreenState extends ConsumerState<OtpVerificationScreen> {
         if (!mounted) return;
         final session = ref.read(authSessionProvider);
         if (session.isAuthenticated) {
-          context.go('/dashboard');
+          context.go('/island');
         } else {
           setState(() => _error = 'Xác thực chưa thành công, thử lại nhé.');
         }

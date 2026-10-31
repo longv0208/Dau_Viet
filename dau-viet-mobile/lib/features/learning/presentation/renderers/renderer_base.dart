@@ -8,6 +8,48 @@ import '../../data/attempt_dtos.dart';
 
 /// Helpers chia sẻ cho các activity renderer — giữ file nhỏ, DRY.
 
+/// Spec nút submit mà renderer emit lên player — player render `SubmitBar`
+/// cố định đáy màn hình thay vì nằm trong vùng cuộn. `payload` là closure
+/// đọc trực tiếp state renderer khi người dùng bấm nút — luôn mới nhất.
+class RendererSubmitSpec {
+  final bool enabled;
+  final String label;
+  final Map<String, dynamic> Function() payload;
+
+  const RendererSubmitSpec({
+    required this.enabled,
+    required this.label,
+    required this.payload,
+  });
+}
+
+/// Callback renderer → player. `null` = ẩn nút submit ở bottom bar
+/// (ví dụ: immersive phase của READ tự render overlay riêng, hoặc
+/// activity không có nút submit chung như EXPLORE_MAP / UNSUPPORTED).
+typedef SubmitSpecCallback = void Function(RendererSubmitSpec? spec);
+
+/// Gọi trong `build` của renderer — an toàn (post-frame), không gây
+/// setState-during-build. Player dedupe theo `(enabled,label)` trước khi
+/// rebuild; payload closure được cập nhật mỗi lần emit.
+void emitSubmitSpec({
+  required SubmitSpecCallback? callback,
+  required RendererSubmitSpec? spec,
+}) {
+  if (callback == null) return;
+  WidgetsBinding.instance.addPostFrameCallback((_) => callback(spec));
+}
+
+/// Gọi từ handler tương tác (không phải `build`) — player cập nhật
+/// SubmitBar ngay trong cùng frame với lựa chọn, tránh nút còn disabled
+/// thêm một frame.
+void notifySubmitSpec({
+  required SubmitSpecCallback? callback,
+  required RendererSubmitSpec? spec,
+}) {
+  if (callback == null) return;
+  callback(spec);
+}
+
 /// Đọc text an toàn từ config: thử nhiều key phổ biến theo draft schema.
 String? configText(Map<String, dynamic> config, List<String> keys) {
   for (final k in keys) {

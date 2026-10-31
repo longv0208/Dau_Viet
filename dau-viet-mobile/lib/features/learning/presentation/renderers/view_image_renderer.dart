@@ -19,6 +19,7 @@ class ViewImageRenderer extends StatelessWidget {
   final LessonContentDto content;
   final bool submitting;
   final Future<void> Function(Map<String, dynamic>) onSubmit;
+  final SubmitSpecCallback? onSubmitSpec;
 
   const ViewImageRenderer({
     super.key,
@@ -26,6 +27,7 @@ class ViewImageRenderer extends StatelessWidget {
     required this.content,
     required this.submitting,
     required this.onSubmit,
+    this.onSubmitSpec,
   });
 
   @override

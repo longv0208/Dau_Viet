@@ -72,7 +72,7 @@ class _AuthScreenState extends ConsumerState<AuthScreen> {
       if (!mounted) return;
       final session = ref.read(authSessionProvider);
       if (session.isAuthenticated) {
-        context.go('/dashboard');
+        context.go('/island');
       } else {
         setState(() => _error = 'Đăng nhập chưa thành công, vui lòng thử lại.');
       }
@@ -100,7 +100,7 @@ class _AuthScreenState extends ConsumerState<AuthScreen> {
       if (!mounted) return;
       final session = ref.read(authSessionProvider);
       if (session.isAuthenticated) {
-        context.go('/dashboard');
+        context.go('/island');
       } else {
         setState(() => _error = 'Đăng nhập Google chưa thành công, thử lại.');
       }
@@ -136,7 +136,7 @@ class _AuthScreenState extends ConsumerState<AuthScreen> {
       if (!mounted) return;
       final session = ref.read(authSessionProvider);
       if (session.isAuthenticated) {
-        context.go('/dashboard');
+        context.go('/island');
       } else {
         setState(() => _error = 'Đăng nhập Google chưa thành công, thử lại.');
       }

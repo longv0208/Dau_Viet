@@ -15,6 +15,7 @@ class ReflectionRenderer extends StatefulWidget {
   final void Function(bool hasUnsentInput)? onInputChanged;
   /// Evaluation mới nhất khi retry-in-place (nullable).
   final EvaluationDto? lastEvaluation;
+  final SubmitSpecCallback? onSubmitSpec;
 
   const ReflectionRenderer({
     super.key,
@@ -23,6 +24,7 @@ class ReflectionRenderer extends StatefulWidget {
     required this.onSubmit,
     this.onInputChanged,
     this.lastEvaluation,
+    this.onSubmitSpec,
   });
 
   @override

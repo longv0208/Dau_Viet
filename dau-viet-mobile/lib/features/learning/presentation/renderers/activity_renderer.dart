@@ -14,6 +14,7 @@ import 'read_renderer.dart';
 import 'reasoning_connect_renderer.dart';
 import 'reflection_renderer.dart';
 import 'unsupported_renderer.dart';
+import 'renderer_base.dart';
 import 'verification_renderer.dart';
 import 'view_image_renderer.dart';
 
@@ -45,6 +46,11 @@ class ActivityRenderer extends StatelessWidget {
   /// sửa giả thuyết (selectActivity). Null → ẩn nút "Sửa giả thuyết".
   final VoidCallback? onBackToHypothesis;
 
+  /// Renderer emit spec nút submit để player pin `SubmitBar` đáy màn hình
+  /// thay vì để nút cuộn theo nội dung. `null` → activity không có nút
+  /// submit chung (EXPLORE_MAP / UNSUPPORTED / READ immersive).
+  final SubmitSpecCallback? onSubmitSpec;
+
   const ActivityRenderer({
     super.key,
     required this.activity,
@@ -56,6 +62,7 @@ class ActivityRenderer extends StatelessWidget {
     this.onImmersiveChanged,
     this.lastEvaluation,
     this.onBackToHypothesis,
+    this.onSubmitSpec,
   });
 
   @override
@@ -68,6 +75,7 @@ class ActivityRenderer extends StatelessWidget {
           submitting: submitting,
           onSubmit: onSubmit,
           onImmersiveChanged: onImmersiveChanged,
+          onSubmitSpec: onSubmitSpec,
         );
       case 'VIEW_IMAGE':
         return ViewImageRenderer(
@@ -75,6 +83,7 @@ class ActivityRenderer extends StatelessWidget {
           content: content,
           submitting: submitting,
           onSubmit: onSubmit,
+          onSubmitSpec: onSubmitSpec,
         );
       case 'MULTIPLE_CHOICE':
         return MultipleChoiceRenderer(
@@ -83,6 +92,7 @@ class ActivityRenderer extends StatelessWidget {
           onSubmit: onSubmit,
           onInputChanged: onInputChanged,
           lastEvaluation: lastEvaluation,
+          onSubmitSpec: onSubmitSpec,
         );
       case 'EVIDENCE_SELECT':
         return EvidenceSelectRenderer(
@@ -92,6 +102,7 @@ class ActivityRenderer extends StatelessWidget {
           onSubmit: onSubmit,
           onInputChanged: onInputChanged,
           lastEvaluation: lastEvaluation,
+          onSubmitSpec: onSubmitSpec,
         );
       case 'MATCHING':
         return MatchingRenderer(
@@ -100,6 +111,7 @@ class ActivityRenderer extends StatelessWidget {
           onSubmit: onSubmit,
           onInputChanged: onInputChanged,
           lastEvaluation: lastEvaluation,
+          onSubmitSpec: onSubmitSpec,
         );
       case 'DRAG_ORDER':
         return DragOrderRenderer(
@@ -108,6 +120,7 @@ class ActivityRenderer extends StatelessWidget {
           onSubmit: onSubmit,
           onInputChanged: onInputChanged,
           lastEvaluation: lastEvaluation,
+          onSubmitSpec: onSubmitSpec,
         );
       case 'HYPOTHESIS_CHOICE':
         return HypothesisRenderer(
@@ -117,6 +130,7 @@ class ActivityRenderer extends StatelessWidget {
           onSubmit: onSubmit,
           onInputChanged: onInputChanged,
           lastEvaluation: lastEvaluation,
+          onSubmitSpec: onSubmitSpec,
         );
       case 'VERIFICATION':
         return VerificationRenderer(
@@ -126,6 +140,7 @@ class ActivityRenderer extends StatelessWidget {
           onSubmit: onSubmit,
           lastEvaluation: lastEvaluation,
           onBackToHypothesis: onBackToHypothesis,
+          onSubmitSpec: onSubmitSpec,
         );
       case 'REASONING_CONNECT':
         return ReasoningConnectRenderer(
@@ -134,6 +149,7 @@ class ActivityRenderer extends StatelessWidget {
           onSubmit: onSubmit,
           onInputChanged: onInputChanged,
           lastEvaluation: lastEvaluation,
+          onSubmitSpec: onSubmitSpec,
         );
       case 'EXPLORE_MAP':
         return ExploreMapRenderer(
@@ -151,6 +167,7 @@ class ActivityRenderer extends StatelessWidget {
           onSubmit: onSubmit,
           onInputChanged: onInputChanged,
           lastEvaluation: lastEvaluation,
+          onSubmitSpec: onSubmitSpec,
         );
       case 'CER':
         return CerRenderer(
@@ -160,6 +177,7 @@ class ActivityRenderer extends StatelessWidget {
           onSubmit: onSubmit,
           onInputChanged: onInputChanged,
           lastEvaluation: lastEvaluation,
+          onSubmitSpec: onSubmitSpec,
         );
       case 'REFLECTION_PROMPT':
         return ReflectionRenderer(
@@ -168,6 +186,7 @@ class ActivityRenderer extends StatelessWidget {
           onSubmit: onSubmit,
           onInputChanged: onInputChanged,
           lastEvaluation: lastEvaluation,
+          onSubmitSpec: onSubmitSpec,
         );
       default:
         return UnsupportedRenderer(type: activity.type ?? 'UNKNOWN');

@@ -1,9 +1,13 @@
+// Painters địa hình cũ được giữ lại để fallback / nâng cấp sau, không còn gọi trực tiếp.
+// ignore_for_file: unused_element, unused_element_parameter
+
 import 'dart:math' as math;
 import 'package:flutter/material.dart';
 
 import '../../../../core/theme/dau_viet_colors.dart';
 import '../../data/island_dto.dart';
 import 'island_heritage_building.dart';
+import 'island_illustrated_layout.dart';
 import 'island_visual_asset_manager.dart';
 
 /// Renderer 2:1 Isometric Diorama Cao Cấp cho Đảo Di Sản (ISLAND-12 / 10A / 10B).
@@ -29,6 +33,7 @@ class IslandIsometricRenderer extends StatelessWidget {
   final Set<String> flippedSlotIds;
   final IslandPlacementDto? previewPlacement;
   final bool previewFlipHorizontally;
+  final int previewTier;
   final VoidCallback? onCancelPreviewPlacement;
   final VoidCallback? onRotatePreviewPlacement;
   final VoidCallback? onConfirmPreviewPlacement;
@@ -51,6 +56,7 @@ class IslandIsometricRenderer extends StatelessWidget {
     this.flippedSlotIds = const {},
     this.previewPlacement,
     this.previewFlipHorizontally = false,
+    this.previewTier = 1,
     this.onCancelPreviewPlacement,
     this.onRotatePreviewPlacement,
     this.onConfirmPreviewPlacement,
@@ -136,9 +142,14 @@ class IslandIsometricRenderer extends StatelessWidget {
       maxY = (board.rows + board.cols) * (tileH * 0.5);
     }
 
-    final padX = tileW * 1.05;
-    final padTop = tileH * 2.35;
-    final padBottom = tileH * 1.95;
+    final pad = IslandIllustratedLayout.paddingForTier(
+      tier: previewTier,
+      tileW: tileW,
+      tileH: tileH,
+    );
+    final padX = pad.padX;
+    final padTop = pad.padTop;
+    final padBottom = pad.padBottom;
     minX -= padX;
     maxX += padX;
     minY -= padTop;
@@ -186,87 +197,28 @@ class IslandIsometricRenderer extends StatelessWidget {
       child: Stack(
         clipBehavior: Clip.none,
         children: [
-          // LỚP 1: Vùng nước nông ngọc bích quanh đảo, bóng đổ đại dương và bọt sóng vỗ bờ
+          Positioned.fill(
+            child: IslandIllustratedBackdrop(
+              previewTier: previewTier,
+              isLockedPreview: previewTier > currentTier,
+            ),
+          ),
           Positioned.fill(
             child: CustomPaint(
-              painter: _OrganicWaterAndShorelinePainter(
+              painter: _OrganicShoreOverhangAndSelectionPainter(
                 board: board,
-                originX: originX,
-                originY: originY,
+                sortedTiles: sortedTiles,
                 existingViewCoords: existingViewCoords,
                 cameraDirection: cameraDirection,
                 currentTier: currentTier,
-                animationValue: waterAnimationValue,
-              ),
-            ),
-          ),
-
-          // LỚP 2: Vách bờ địa hình hữu cơ 2.5D + Mặt đất & Đường gạch Autotile Sprite 2:1
-          Positioned.fill(
-            child: RepaintBoundary(
-              child: Stack(
-                clipBehavior: Clip.none,
-                children: [
-                  // 2A: Vách đá/đất hữu cơ dưới rìa đảo và nền lót chống hở mạch
-                  Positioned.fill(
-                    child: CustomPaint(
-                      painter: _HeritageIslandCliffAndUnderlayPainter(
-                        board: board,
-                        sortedTiles: sortedTiles,
-                        existingViewCoords: existingViewCoords,
-                        cameraDirection: cameraDirection,
-                        currentTier: currentTier,
-                        originX: originX,
-                        originY: originY,
-                        expansionProgress: expansionRevealProgress,
-                        expandingFromTier: expandingFromTier,
-                        expandingToTier: expandingToTier,
-                      ),
-                    ),
-                  ),
-
-                  // 2B: Các Sprite mặt đất & đường gạch hình thoi 2:1 được Autotile liền mạch
-                  for (final tile in sortedTiles)
-                    _buildTerrainTileSpriteWidget(
-                      tile: tileMap[(tile.row, tile.col)] ?? tile,
-                      tileMap: tileMap,
-                      originX: originX,
-                      originY: originY,
-                      tileW: tileW,
-                      tileH: tileH,
-                    ),
-
-                  // 2C: Rìa cỏ rủ hữu cơ chờm qua mép vách đất & hiệu ứng viền chọn tile
-                  // 2C: Rìa cỏ rủ hữu cơ, lưới ô isometric sáng & đế xanh lá preview 2x2/1x1
-                  Positioned.fill(
-                    child: CustomPaint(
-                      painter: _OrganicShoreOverhangAndSelectionPainter(
-                        board: board,
-                        sortedTiles: sortedTiles,
-                        existingViewCoords: existingViewCoords,
-                        cameraDirection: cameraDirection,
-                        currentTier: currentTier,
-                        originX: originX,
-                        originY: originY,
-                        selectedCoord: selectedTileCoord,
-                        selectedSlotId: selectedSlotId,
-                        slotById: slotById,
-                        slotByTileKey: slotByTileKey,
-                        isEditMode: isEditMode,
-                        previewPlacement: previewPlacement,
-                      ),
-                    ),
-                  ),
-
-                  // 2D: Quần thể cổ thụ, rặng dừa/tre ở đỉnh đảo & thuyền gỗ neo đậu tại cầu tàu (Issue #50 AC-1)
-                  ..._buildDioramaPerimeterLandmarks(
-                    sortedTiles: sortedTiles,
-                    originX: originX,
-                    originY: originY,
-                    tileW: tileW,
-                    tileH: tileH,
-                  ),
-                ],
+                originX: originX,
+                originY: originY,
+                selectedCoord: selectedTileCoord,
+                selectedSlotId: selectedSlotId,
+                slotById: slotById,
+                slotByTileKey: slotByTileKey,
+                isEditMode: isEditMode,
+                previewPlacement: previewPlacement,
               ),
             ),
           ),
@@ -1807,19 +1759,6 @@ class _OrganicShoreOverhangAndSelectionPainter extends CustomPainter {
       final bottomPt = Offset(center.dx, center.dy + halfH);
       final leftPt = Offset(center.dx - halfW, center.dy);
 
-      final hasSW = existingViewCoords.contains((vRow + 1, vCol));
-      final hasSE = existingViewCoords.contains((vRow, vCol + 1));
-
-      final overhangLight = isLocked ? const Color(0xFF69807E) : const Color(0xFF83B153);
-      final overhangDark = isLocked ? const Color(0xFF536967) : const Color(0xFF618B38);
-
-      if (!hasSW) {
-        _drawGrassOverhangFringe(canvas, leftPt, bottomPt, overhangLight, overhangDark);
-      }
-      if (!hasSE) {
-        _drawGrassOverhangFringe(canvas, bottomPt, rightPt, overhangDark, overhangDark);
-      }
-
       final linkedSlot = slotByTileKey[tile.key] ??
           (tile.slotId != null ? slotById[tile.slotId] : null);
       // Xác định vùng ô thuộc footprint preview (2x2 hoặc 1x1) khi ở Màn 2
@@ -1867,23 +1806,28 @@ class _OrganicShoreOverhangAndSelectionPainter extends CustomPainter {
         ..lineTo(leftPt.dx, leftPt.dy)
         ..close();
 
-      // Kẻ đường lưới ô isometric màu kem sáng rõ nét trên vùng mặt phẳng xây dựng (Issue #50 AC-1 & AC-2)
-      if (!isLocked && tile.buildable) {
-        final isEven = (tile.row + tile.col) % 2 == 0;
+      final bool showSoftGrid = isEditMode || previewPlacement != null;
+      if (showSoftGrid && !isLocked && tile.buildable) {
+        final linked = slotByTileKey[tile.key] ??
+            (tile.slotId != null ? slotById[tile.slotId] : null);
+        final occupied = linked?.placement != null;
+        final invalid = previewPlacement != null && occupied && !isInPreviewFootprint;
         canvas.drawPath(
           diamond,
           Paint()
-            ..color = isEven
-                ? const Color(0x2CFDFBE0)
-                : const Color(0x18E4EE88)
+            ..color = invalid
+                ? const Color(0x33C62828)
+                : const Color(0x14FFF8DC)
             ..style = PaintingStyle.fill,
         );
         canvas.drawPath(
           diamond,
           Paint()
-            ..color = const Color(0xD8FFFDE6)
+            ..color = invalid
+                ? const Color(0x88E57373)
+                : const Color(0x55FFF8E1)
             ..style = PaintingStyle.stroke
-            ..strokeWidth = 1.45,
+            ..strokeWidth = 1.05,
         );
       }
 

@@ -499,13 +499,11 @@ void main() {
         await tester.pumpAndSettle();
 
         expect(find.text('Đã chọn 0/2'), findsOneWidget);
-        // Chọn e1 và e2 qua nút radio/check
-        final checkButtons = find.byIcon(Icons.radio_button_off);
-        await tester.tap(checkButtons.at(0));
+        await tester.tap(find.byKey(const ValueKey('evidence-select-btn-e1')));
         await tester.pump();
         expect(find.text('Đã chọn 1/2'), findsOneWidget);
 
-        await tester.tap(find.byIcon(Icons.radio_button_off).at(0));
+        await tester.tap(find.byKey(const ValueKey('evidence-select-btn-e2')));
         await tester.pump();
         expect(find.text('Đã chọn 2/2'), findsOneWidget);
 

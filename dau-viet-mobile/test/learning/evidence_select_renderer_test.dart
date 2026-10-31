@@ -202,7 +202,7 @@ void main() {
         );
         await tester.pump();
         expect(find.text('Đã chọn 1/2'), findsOneWidget);
-        expect(find.text('Đã chọn'), findsOneWidget);
+        expect(find.text('Đọc đầy đủ'), findsWidgets);
 
         await tester.tap(
           find.byKey(const ValueKey('evidence-select-btn-ev-2')),

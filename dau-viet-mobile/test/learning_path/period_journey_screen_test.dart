@@ -291,7 +291,7 @@ void main() {
   });
 
   group(
-    'PeriodJourneyScreen — touch, ẩn tầng PHASE/LESSON 1 mục & mở CampaignDetailScreen',
+    'PeriodJourneyScreen — touch, ẩn tầng PHASE/LESSON 1 mục & mở sheet thông tin sự kiện',
     () {
       testWidgets(
         'vào thẳng PeriodJourneyScreen tự động gọi touchPeriod 1 lần',
@@ -450,7 +450,7 @@ void main() {
         },
       );
 
-      testWidgets('bấm vào event mở CampaignDetailScreen với đúng eventId', (
+      testWidgets('bấm vào event mở Bottom Sheet thông tin sự kiện', (
         tester,
       ) async {
         final mockRepo = MockLearningPathRepository();
@@ -502,8 +502,15 @@ void main() {
         await tester.tap(eventCard);
         await tester.pumpAndSettle();
 
-        expect(find.byType(CampaignDetailScreen), findsOneWidget);
-        expect(find.text('CHI TIẾT CHIẾN DỊCH'), findsOneWidget);
+        expect(
+          find.byKey(
+            const Key(
+              'event-details-sheet-00000000-0000-0000-0000-000000000001',
+            ),
+          ),
+          findsOneWidget,
+        );
+        expect(find.byType(CampaignDetailScreen), findsNothing);
       });
 
       testWidgets(
@@ -1329,7 +1336,7 @@ void main() {
           await tester.pump();
           expect(openedLessonId, isNull);
           expect(
-            find.text('Hoàn thành bài học đứng trước để mở khóa bài học này.'),
+            find.text('Hãy hoàn thành sự kiện đứng trước rồi mới học tiếp.'),
             findsOneWidget,
           );
 

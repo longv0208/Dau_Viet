@@ -42,7 +42,10 @@ class IslandHeritageBuilding extends StatelessWidget {
     return GestureDetector(
       onTap: onTap,
       behavior: HitTestBehavior.opaque,
-      child: SizedBox(
+      child: AnimatedScale(
+        scale: isSelected ? 1.06 : 1.0,
+        duration: const Duration(milliseconds: 180),
+        child: SizedBox(
         width: modelW,
         height: modelH,
         child: Stack(
@@ -79,6 +82,7 @@ class IslandHeritageBuilding extends StatelessWidget {
             ),
           ],
         ),
+      ),
       ),
     );
   }

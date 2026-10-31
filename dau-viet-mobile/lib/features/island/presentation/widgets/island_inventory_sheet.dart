@@ -8,6 +8,7 @@ import '../../../rewards/data/reward_providers.dart';
 import '../../data/island_dto.dart';
 import '../../data/island_providers.dart';
 import 'island_heritage_building.dart';
+import 'island_inventory_item_card.dart';
 import 'island_inventory_tray.dart';
 
 /// Modal 1 — `KHO VẬT PHẨM` (Expanded Inventory Sheet) theo thiết kế 9 màn hình (Issue #50 AC-5):
@@ -38,15 +39,19 @@ class _IslandInventorySheetState extends ConsumerState<IslandInventorySheet> {
   Widget build(BuildContext context) {
     final catalogAsync = ref.watch(inventoryCatalogProvider);
     final shopAsync = ref.watch(islandShopItemsProvider);
+    final inventoryAsync = ref.watch(inventoryItemsProvider);
     final islandState = ref.watch(islandControllerProvider).asData?.value;
 
     final catalogList = catalogAsync.asData?.value ?? const <CatalogItemDto>[];
     final shopList = shopAsync.asData?.value ?? const <ShopItemDto>[];
+    final inventoryList =
+        inventoryAsync.asData?.value ?? const <InventoryItemDto>[];
     final allPlaceable = islandState != null
         ? IslandInventoryTray.mergePlaceableItems(
             catalogList,
             shopList,
             islandState,
+            inventoryItems: inventoryList,
           )
         : catalogList.where((it) => it.placeable).toList();
 
@@ -215,11 +220,6 @@ class _IslandInventorySheetState extends ConsumerState<IslandInventorySheet> {
     CatalogItemDto item,
     List<ShopItemDto> shopItems,
   ) {
-    final shortName = shortIslandItemDisplayName(
-      item.name,
-      item.code,
-      item.renderKey,
-    );
     final matchedShop = shopItems.cast<ShopItemDto?>().firstWhere(
       (s) =>
           s?.itemId == item.itemId ||
@@ -227,7 +227,10 @@ class _IslandInventorySheetState extends ConsumerState<IslandInventorySheet> {
       orElse: () => null,
     );
 
-    return GestureDetector(
+    return InventoryItemCard(
+      item: item,
+      width: double.infinity,
+      isLocked: !item.owned,
       onTap: () async {
         final confirmed = await showModalBottomSheet<bool>(
           context: context,
@@ -244,50 +247,6 @@ class _IslandInventorySheetState extends ConsumerState<IslandInventorySheet> {
           widget.onSelectItem(item.itemId);
         }
       },
-      behavior: HitTestBehavior.opaque,
-      child: Container(
-        padding: const EdgeInsets.fromLTRB(4, 6, 4, 6),
-        decoration: BoxDecoration(
-          color: const Color(0xFFF4E6CE),
-          borderRadius: BorderRadius.circular(14),
-          border: Border.all(color: const Color(0xFFDFC8A2), width: 1.2),
-        ),
-        child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            Expanded(
-              child: Center(
-                child: IgnorePointer(
-                  child: IslandHeritageBuilding(
-                    placement: IslandPlacementDto(
-                      itemId: item.itemId,
-                      code: item.code,
-                      name: item.name,
-                      renderKey: item.renderKey,
-                      assetId: item.assetId,
-                    ),
-                    tileWidth: 48,
-                    tileHeight: 25,
-                    useProportionalScale: false,
-                  ),
-                ),
-              ),
-            ),
-            const SizedBox(height: 4),
-            Text(
-              shortName,
-              maxLines: 1,
-              overflow: TextOverflow.ellipsis,
-              textAlign: TextAlign.center,
-              style: DauVietTypography.bodySmall.copyWith(
-                fontSize: 11,
-                fontWeight: FontWeight.w700,
-                color: const Color(0xFF3A2618),
-              ),
-            ),
-          ],
-        ),
-      ),
     );
   }
 }
@@ -461,7 +420,19 @@ class IslandItemDetailSheet extends StatelessWidget {
             SizedBox(
               height: 46,
               child: ElevatedButton(
-                onPressed: onPlaceOnIsland,
+                onPressed: item.owned
+                    ? onPlaceOnIsland
+                    : () {
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          const SnackBar(
+                            content: Text(
+                              'Vật phẩm này chưa mở khóa. Hãy hoàn thành bài học hoặc mua tại Cửa hàng.',
+                            ),
+                            backgroundColor: Color(0xFF5A4635),
+                            behavior: SnackBarBehavior.floating,
+                          ),
+                        );
+                      },
                 style: ElevatedButton.styleFrom(
                   backgroundColor: const Color(0xFF1A5642),
                   foregroundColor: Colors.white,

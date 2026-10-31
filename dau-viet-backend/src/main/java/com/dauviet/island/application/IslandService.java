@@ -70,6 +70,20 @@ import com.dauviet.reward.infrastructure.persistence.UserInventoryRepository;
 @Service
 public class IslandService {
 
+    /**
+     * Bộ trang trí khởi đầu của Đảo Di Sản — cấp idempotent khi mở đảo
+     * để learner đặt được các vật phẩm showcase mà không bị ITEM_NOT_OWNED.
+     */
+    private static final List<String> STARTER_ISLAND_ITEM_CODES = List.of(
+            "DECOR_CAY_DA",
+            "DECOR_NHA_RONG",
+            "DECOR_COT_CO",
+            "DECOR_TUONG_LY_THAI_TO",
+            "DECOR_DINH_LANG",
+            "DECOR_CHUA_CO",
+            "DECOR_THAP_CHAM",
+            "DECOR_TRE_TRUC");
+
     private static final Logger log =
             LoggerFactory.getLogger(IslandService.class);
 
@@ -319,6 +333,7 @@ public class IslandService {
                     .orElseThrow(() -> new IllegalStateException(
                             "user_islands insert lost for " + userId));
         }
+        grantStarterIslandItems(userId);
         if (existing.getLayoutVersionId() == null) {
             var defLayout = layoutService.requireDefaultPublishedLayout();
             existing.pinLayoutVersion(
@@ -358,6 +373,7 @@ public class IslandService {
                     .orElseThrow(() -> new IllegalStateException(
                             "user_islands insert lost for " + userId));
         }
+        grantStarterIslandItems(userId);
         if (existing.getLayoutVersionId() == null) {
             var defLayout = layoutService.requireDefaultPublishedLayout();
             existing.pinLayoutVersion(
@@ -379,6 +395,21 @@ public class IslandService {
             }
         }
         return existing;
+    }
+
+    private void grantStarterIslandItems(UUID userId) {
+        for (String code : STARTER_ISLAND_ITEM_CODES) {
+            catalog.findByCode(code).ifPresent(item -> {
+                if (!item.isActive() || !item.isPlaceable()) {
+                    return;
+                }
+                if (inventory.existsByUserIdAndItemId(userId, item.getId())) {
+                    return;
+                }
+                inventory.insertIgnore(userId, item.getId(),
+                        "ADMIN_GRANT", null, null);
+            });
+        }
     }
 
     private void checkRevision(UserIsland island, Long expectedRevision) {

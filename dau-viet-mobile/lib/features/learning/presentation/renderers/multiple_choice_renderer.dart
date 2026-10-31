@@ -18,6 +18,7 @@ class MultipleChoiceRenderer extends StatefulWidget {
   final void Function(bool hasUnsentInput)? onInputChanged;
   /// Evaluation mới nhất khi retry-in-place (nullable).
   final EvaluationDto? lastEvaluation;
+  final SubmitSpecCallback? onSubmitSpec;
 
   const MultipleChoiceRenderer({
     super.key,
@@ -26,6 +27,7 @@ class MultipleChoiceRenderer extends StatefulWidget {
     required this.onSubmit,
     this.onInputChanged,
     this.lastEvaluation,
+    this.onSubmitSpec,
   });
 
   @override
@@ -63,6 +65,14 @@ class _MultipleChoiceRendererState extends State<MultipleChoiceRenderer> {
       }
       widget.onInputChanged?.call(_selected.isNotEmpty);
     });
+    notifySubmitSpec(
+      callback: widget.onSubmitSpec,
+      spec: RendererSubmitSpec(
+        enabled: _selected.isNotEmpty,
+        label: 'GỬI CÂU TRẢ LỜI',
+        payload: () => {'selectedOptionIds': _selected.toList()},
+      ),
+    );
   }
 
   @override
@@ -72,6 +82,16 @@ class _MultipleChoiceRendererState extends State<MultipleChoiceRenderer> {
     final options = configList(config, 'options');
     final bool reduceMotion =
         MediaQuery.maybeDisableAnimationsOf(context) ?? false;
+
+    // Spec nút submit — player pin SubmitBar đáy màn hình.
+    emitSubmitSpec(
+      callback: widget.onSubmitSpec,
+      spec: RendererSubmitSpec(
+        enabled: _selected.isNotEmpty,
+        label: 'GỬI CÂU TRẢ LỜI',
+        payload: () => {'selectedOptionIds': _selected.toList()},
+      ),
+    );
 
     // Kiểm tra xem có phải là dạng câu hỏi Đúng / Sai (Screen 5)
     if (_isTrueFalse(options)) {
@@ -130,13 +150,15 @@ class _MultipleChoiceRendererState extends State<MultipleChoiceRenderer> {
             ],
           ),
         ),
-        const SizedBox(height: 10),
-        SubmitBar(
-          enabled: _selected.isNotEmpty,
-          submitting: widget.submitting,
-          onPressed: () =>
-              widget.onSubmit({'selectedOptionIds': _selected.toList()}),
-        ),
+        if (widget.onSubmitSpec == null) ...[
+          const SizedBox(height: 8),
+          SubmitBar(
+            enabled: _selected.isNotEmpty,
+            submitting: widget.submitting,
+            onPressed: () =>
+                widget.onSubmit({'selectedOptionIds': _selected.toList()}),
+          ),
+        ],
       ],
     );
   }
@@ -396,13 +418,13 @@ class _MultipleChoiceRendererState extends State<MultipleChoiceRenderer> {
           ),
         ),
         const SizedBox(height: 16),
-
-        SubmitBar(
-          enabled: _selected.isNotEmpty,
-          submitting: widget.submitting,
-          onPressed: () =>
-              widget.onSubmit({'selectedOptionIds': _selected.toList()}),
-        ),
+        if (widget.onSubmitSpec == null)
+          SubmitBar(
+            enabled: _selected.isNotEmpty,
+            submitting: widget.submitting,
+            onPressed: () =>
+                widget.onSubmit({'selectedOptionIds': _selected.toList()}),
+          ),
       ],
     );
   }
