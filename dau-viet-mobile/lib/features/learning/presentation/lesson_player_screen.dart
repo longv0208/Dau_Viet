@@ -883,7 +883,7 @@ class _LessonPlayerScreenState extends ConsumerState<LessonPlayerScreen> {
         if (cur.activity == null)
           _buildFinished(st)
         else ...[
-          // Bong bóng thoại Mascot Rùa Kabi đội nón lá
+          // Bong bóng thoại Linh vật Tê Giác Dấu Việt
           MascotSpeechBubble(
             message: _resolveMascotPrompt(st),
             mood: _resolveMascotMood(st),

@@ -44,4 +44,5 @@ View-only - derived from `tasks/*/task.json`. Do not edit task status here.
 | TASK-0038 | bugfix | normal | done | Chá» ngÆ°á»i dĂ¹ng review vĂ  á»§y quyá»n commit/push trĂªn nhĂ¡nh fix/issue-49-dashboard-buttons-and-logo. |
 | TASK-0039 | feature | high-risk | done | Chá» ngÆ°á»i dĂ¹ng review vĂ  á»§y quyá»n commit/push. |
 | TASK-0040 | feature | high-risk | done | Chá» ngÆ°á»i dĂ¹ng review vĂ  á»§y quyá»n commit/push trĂªn nhĂ¡nh feat/issue-50-heritage-island-overhaul. |
+| TASK-0041 | feature | normal | verifying | Chờ người dùng review và ủy quyền commit/push trên nhánh feat/issue-53-logo-and-rhino-mascot. |
 

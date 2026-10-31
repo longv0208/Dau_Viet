@@ -5,7 +5,7 @@ import '../theme/dau_viet_typography.dart';
 import 'kabi_mascot_widget.dart';
 import 'tactile_card.dart';
 
-/// Trạng thái trống chuẩn — mascot + tiêu đề + mô tả + CTA tùy chọn.
+/// Trạng thái trống chuẩn — linh vật Tê Giác Dấu Việt + tiêu đề + mô tả + CTA tùy chọn.
 ///
 /// Thay thế mọi `Center(Text('Chưa có dữ liệu'))` thô.
 class EmptyStateCard extends StatelessWidget {

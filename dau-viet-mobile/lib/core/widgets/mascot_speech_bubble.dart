@@ -3,7 +3,7 @@ import 'package:flutter/material.dart';
 import '../theme/dau_viet_typography.dart';
 import 'kabi_mascot_widget.dart';
 
-/// Khung thoại khích lệ và hướng dẫn của linh vật Rùa Kabi đội nón lá
+/// Khung thoại khích lệ và hướng dẫn của Linh vật Tê Giác Dấu Việt
 /// Chuẩn UI/UX Pro Max cho ứng dụng lịch sử Dấu Việt.
 class MascotSpeechBubble extends StatelessWidget {
   final String message;
@@ -23,13 +23,13 @@ class MascotSpeechBubble extends StatelessWidget {
   Widget build(BuildContext context) {
     return Semantics(
       container: true,
-      label: 'Hướng dẫn từ Kabi: $message',
+      label: 'Hướng dẫn từ Tê Giác: $message',
       child: Padding(
         padding: const EdgeInsets.fromLTRB(14, 2, 16, 4),
         child: Row(
           crossAxisAlignment: CrossAxisAlignment.center,
           children: [
-            // Linh vật Rùa Kabi đội nón lá cầm sách lịch sử (khớp ảnh mẫu #3, #4, #5, #6)
+            // Linh vật Tê Giác Dấu Việt — ảnh tĩnh sắc nét
             SizedBox(
               width: avatarSize + 8,
               height: avatarSize,
