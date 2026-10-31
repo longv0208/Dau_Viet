@@ -371,5 +371,98 @@ export function validateDraftLocally(
       validateFeedback(ctx);
     }
   }
+  validateFourStepFlow(draft, out);
   return out;
+}
+
+/* ---- 4-step flow validation (DISCOVERY with 4 clues + HYPOTHESIS +
+ * VERIFICATION + RECONSTRUCTION) — mirrors DraftValidator.validateFourStepModel. */
+
+const FOUR_STEP_TYPES = ["DISCOVERY", "HYPOTHESIS", "VERIFICATION", "RECONSTRUCTION"] as const;
+const CLUE_TYPES = ["CONTEXT", "CHARACTERS", "DEVELOPMENT", "SIGNIFICANCE"] as const;
+
+function isFourStep(draft: Draft): boolean {
+  if (draft.flowModel === "FOUR_STEP") return true;
+  return draft.stages.some(
+    (s) => s.type === "DISCOVERY" && s.activities.some((a) => a.clueType != null),
+  );
+}
+
+function validateFourStepFlow(draft: Draft, out: LocalFieldError[]) {
+  if (!isFourStep(draft)) return;
+
+  if (draft.flowModel === "FOUR_STEP") {
+    if (draft.stages.length !== FOUR_STEP_TYPES.length) {
+      out.push({
+        path: "stages",
+        code: "INVALID_FOUR_STEP_STRUCTURE",
+        detail: `Bài học 4 bước phải có đúng 4 giai đoạn: Truy tìm dấu vết, Đặt giả thuyết, Kiểm chứng, Tái hiện — hiện có ${draft.stages.length}.`,
+      });
+      return;
+    }
+    for (let i = 0; i < FOUR_STEP_TYPES.length; i++) {
+      const stage = draft.stages[i];
+      if (!stage) continue;
+      const expected = FOUR_STEP_TYPES[i];
+      if (stage.type !== expected) {
+        out.push({
+          path: `stages[${i}].type`,
+          code: "INVALID_FOUR_STEP_STRUCTURE",
+          detail: `Bước ${i + 1} phải là ${expected === "DISCOVERY" ? "Truy tìm dấu vết" : expected === "HYPOTHESIS" ? "Đặt giả thuyết" : expected === "VERIFICATION" ? "Kiểm chứng" : "Tái hiện"} — hiện là "${stage.type}".`,
+        });
+      }
+    }
+  }
+
+  // Validate DISCOVERY stage: exactly 4 clue activities, all clue types, all required.
+  const discoveryStage = draft.stages.find((s) => s.type === "DISCOVERY");
+  if (discoveryStage) {
+    const clueActs = discoveryStage.activities.filter((a) => a.clueType != null);
+    const seenTypes = new Set(clueActs.map((a) => a.clueType));
+    for (const ct of CLUE_TYPES) {
+      if (!seenTypes.has(ct)) {
+        out.push({
+          path: `stages[id=${discoveryStage.id}].activities`,
+          code: "MISSING_CLUE_TYPES",
+          detail: `Bước 1 thiếu dấu vết "${ct === "CONTEXT" ? "Bối cảnh" : ct === "CHARACTERS" ? "Nhân vật" : ct === "DEVELOPMENT" ? "Diễn biến" : "Ý nghĩa"}".`,
+        });
+      }
+    }
+    if (clueActs.length > 0 && discoveryStage.activities.length !== CLUE_TYPES.length) {
+      out.push({
+        path: `stages[id=${discoveryStage.id}].activities`,
+        code: "INVALID_CLUE_COUNT",
+        detail: `Bước 1 có ${discoveryStage.activities.length} hoạt động — mỗi dấu vết chỉ có 1 hoạt động chính (tổng 4).`,
+      });
+    }
+    for (const a of discoveryStage.activities) {
+      if (a.clueType == null) {
+        out.push({
+          path: `stages[id=${discoveryStage.id}].activities[].clueType`,
+          code: "MISSING_FIELD",
+          detail: "Mỗi hoạt động trong Bước 1 phải gán một loại dấu vết.",
+        });
+      }
+      if (!a.required) {
+        out.push({
+          path: `stages[id=${discoveryStage.id}].activities[].required`,
+          code: "INVALID_CONFIG",
+          detail: "Mỗi dấu vết trong Bước 1 phải là bắt buộc.",
+        });
+      }
+    }
+  }
+
+  // Non-DISCOVERY steps must each have exactly 1 activity.
+  for (const expected of ["HYPOTHESIS", "VERIFICATION", "RECONSTRUCTION"] as const) {
+    const idx = draft.stages.findIndex((s) => s.type === expected);
+    const stage = idx >= 0 ? draft.stages[idx] : undefined;
+    if (stage && stage.activities.length !== 1) {
+      out.push({
+        path: `stages[id=${stage.id}].activities`,
+        code: "INVALID_FOUR_STEP_STRUCTURE",
+        detail: `Bước "${expected === "HYPOTHESIS" ? "Đặt giả thuyết" : expected === "VERIFICATION" ? "Kiểm chứng" : "Tái hiện"}" phải có đúng 1 hoạt động chính — hiện có ${stage.activities.length}.`,
+      });
+    }
+  }
 }

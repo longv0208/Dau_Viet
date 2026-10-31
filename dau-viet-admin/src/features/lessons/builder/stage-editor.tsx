@@ -61,6 +61,22 @@ export function StageEditor({
             onChange={(e) => onUpdate({ title: e.target.value })}
           />
         </div>
+        <div className="flex flex-col gap-1.5 sm:col-span-2">
+          <Label htmlFor="stage-desc" className="font-medium text-ink-secondary">
+            Mô tả cho học viên <span className="text-ink-muted">(tùy chọn)</span>
+          </Label>
+          <Input
+            id="stage-desc"
+            value={stage.description ?? ""}
+            disabled={readOnly}
+            placeholder={
+              stage.type === "DISCOVERY"
+                ? "VD: Tìm đủ 4 dấu vết để mở khoá bước tiếp theo"
+                : "Mô tả ngắn hiển thị trên giao diện học viên"
+            }
+            onChange={(e) => onUpdate({ description: e.target.value || undefined })}
+          />
+        </div>
         <div className="flex flex-col gap-1.5">
           <Label htmlFor="stage-type" className="font-medium text-ink-secondary">Loại giai đoạn</Label>
           <Select
@@ -125,9 +141,17 @@ export function StageEditor({
       {/* Activities */}
       <div className="flex flex-col gap-2">
         <SectionDivider
-          eyebrow="HOẠT ĐỘNG"
+          eyebrow={
+            stage.type === "DISCOVERY" && stage.activities.some((a) => a.clueType != null)
+              ? "DẤU VẾT"
+              : "HOẠT ĐỘNG"
+          }
           eyebrowColor="jade"
-          title={`Hoạt động (${stage.activities.length})`}
+          title={
+            stage.type === "DISCOVERY" && stage.activities.some((a) => a.clueType != null)
+              ? `Dấu vết (${stage.activities.length}/4)`
+              : `Hoạt động (${stage.activities.length})`
+          }
           action={
             !readOnly ? (
               <Button
