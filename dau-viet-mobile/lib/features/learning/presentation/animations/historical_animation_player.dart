@@ -689,15 +689,30 @@ class _HistoricalAnimationPlayerState
               'Sơ đồ minh họa ${def.title}. Bước ${_stepIndex + 1}: '
               '${_step.label}',
           image: true,
-          child: AspectRatio(
-            aspectRatio: def.aspectRatio,
-            child: ClipRRect(
-              borderRadius: BorderRadius.circular(10),
-              child: Container(
-                color: DauVietColors.parchmentHigh,
-                child: _skipped ? const SkippedScene() : _buildSceneCanvas(def),
-              ),
-            ),
+          child: LayoutBuilder(
+            builder: (context, constraints) {
+              // Issue #1: canvas tối thiểu 55% viewport height (không phụ
+              // thuộc parent có bound height — SingleChildScrollView cho
+              // unbounded). Giữ aspect scene nếu nó đã đủ cao.
+              final mediaH = MediaQuery.sizeOf(context).height;
+              final aspectH = constraints.maxWidth / def.aspectRatio;
+              final targetH = aspectH > mediaH * 0.55
+                  ? aspectH
+                  : mediaH * 0.55;
+              final effectiveAspect = constraints.maxWidth / targetH;
+              return SizedBox(
+                height: targetH,
+                child: ClipRRect(
+                  borderRadius: BorderRadius.circular(10),
+                  child: Container(
+                    color: DauVietColors.parchmentHigh,
+                    child: _skipped
+                        ? const SkippedScene()
+                        : _buildSceneCanvas(def, effectiveAspect),
+                  ),
+                ),
+              );
+            },
           ),
         ),
         const SizedBox(height: 10),
@@ -816,7 +831,10 @@ class _HistoricalAnimationPlayerState
     return (mp.markerVisibility[id] ?? 0) > 0.02;
   }
 
-  Widget _buildSceneCanvas(HistoricalAnimationDefinition def) {
+  Widget _buildSceneCanvas(
+    HistoricalAnimationDefinition def,
+    double effectiveAspect,
+  ) {
     final paint = CustomPaint(painter: _painter);
     // Map scene: overlay marker TẤP được trên canvas — touch target ≥
     // 44px, semantics tiếng Việt, không dùng raw canvas hit-testing.
@@ -853,13 +871,15 @@ class _HistoricalAnimationPlayerState
       );
     }
     // v2 — bọc scene canvas trong ManifestAssetLayers: camera transform
-    // chỉ áp lên vùng bounded (AspectRatio parent), UI điều khiển bên
-    // dưới KHÔNG bị transform. Đây là fix P0 layout §2.
+    // chỉ áp lên vùng bounded, UI điều khiển bên dưới KHÔNG bị transform.
+    // Issue #1: aspectRatio truyền là aspect THỰC TẾ của khung đã mở
+    // rộng (≥55% viewport), không phải def.aspectRatio gốc — object/
+    // effect/label định vị chuẩn hóa theo khung hiển thị thật.
     final manifest = widget.manifest;
     if (manifest == null) return canvas;
     return ManifestAssetLayers(
       manifest: manifest,
-      aspectRatio: def.aspectRatio,
+      aspectRatio: effectiveAspect,
       frameListenable: widget.cinematicFrame,
       child: canvas,
     );
