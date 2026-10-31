@@ -77,6 +77,17 @@ Future<void> _tap(WidgetTester tester, Finder finder) async {
   await tester.pump();
 }
 
+/// Issue #1-immersive: READ có animation → phase 0 "Xem hoạt ảnh"
+/// (animation + nút TIẾP TỤC riêng, KHÔNG submit) → tap TIẾP TỤC để
+/// sang phase 1 "Đọc tư liệu" (CỔ THƯ + nút ĐÃ ĐỌC XONG → submit).
+Future<void> _enterReadingPhase(WidgetTester tester) async {
+  await tester.ensureVisible(find.text('TIẾP TỤC ›'));
+  await tester.pump();
+  await tester.tap(find.text('TIẾP TỤC ›'));
+  await tester.pump();
+  await tester.pump();
+}
+
 /// Finder vùng chạm của một địa điểm trên map theo id — overlay là vùng
 /// chạm ≥44px chồng lên canvas. Node semantics của overlay nằm dưới node
 /// `image` của khung cảnh nên `bySemanticsLabel` không ổn định trong
@@ -504,7 +515,8 @@ void main() {
   });
 
   group('ReadRenderer + animationKey', () {
-    testWidgets('known key renders the player above the reading card', (
+    testWidgets('known key renders the immersive player, then the '
+        'reading card', (
       tester,
     ) async {
       await _pumpRead(tester, const {
@@ -512,8 +524,15 @@ void main() {
         'animationKey': 'bach_dang_938_tide_v1',
       }, onSubmit: (_) async {});
       await tester.pump();
+      // Phase 0 "Xem hoạt ảnh": chỉ player + nút TIẾP TỤC.
       expect(find.byType(HistoricalAnimationPlayer), findsOneWidget);
+      expect(find.text('Đoạn đọc.'), findsNothing);
+      expect(find.text('TIẾP TỤC ›'), findsOneWidget);
+      // Phase 1 "Đọc tư liệu": nội dung đọc + nút submit.
+      await _enterReadingPhase(tester);
+      expect(find.byType(HistoricalAnimationPlayer), findsNothing);
       expect(find.text('Đoạn đọc.'), findsOneWidget);
+      expect(find.text('ĐÃ ĐỌC XONG, TIẾP TỤC'), findsOneWidget);
     });
 
     testWidgets('unknown key falls back to plain READ — no crash', (
@@ -546,6 +565,9 @@ void main() {
         'animationKey': 'bach_dang_938_tide_v1',
       }, onSubmit: (payload) async => sent = payload);
       await tester.pump();
+      // Nút TIẾP TỤC phase 0 KHÔNG submit — chỉ chuyển sang phase đọc.
+      await _enterReadingPhase(tester);
+      expect(sent, isNull);
       await _tap(tester, find.text('ĐÃ ĐỌC XONG, TIẾP TỤC'));
       expect(sent, isNotNull);
       expect(sent, isEmpty);
@@ -1294,7 +1316,9 @@ void main() {
         findsOneWidget,
       );
       expect(sent, isNull);
-      // READ ack vẫn submit {} như thường.
+      // Sang phase đọc (TIẾP TỤC không submit) → READ ack submit {} như thường.
+      await _enterReadingPhase(tester);
+      expect(sent, isNull);
       await _tap(tester, find.text('ĐÃ ĐỌC XONG, TIẾP TỤC'));
       expect(sent, isEmpty);
     });

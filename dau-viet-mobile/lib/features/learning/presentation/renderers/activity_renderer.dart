@@ -32,6 +32,11 @@ class ActivityRenderer extends StatelessWidget {
   /// chặn thoát/khôi phục draft. Chỉ renderer nhập liệu tự do mới gọi.
   final void Function(bool hasUnsentInput)? onInputChanged;
 
+  /// Issue #1-immersive: renderer báo đang ở chế độ immersive (màn
+  /// "Xem hoạt ảnh" fullscreen) → player ẩn top bar/mascot/submit
+  /// chrome để animation chiếm toàn màn hình. Chỉ READ có animation gọi.
+  final void Function(bool immersive)? onImmersiveChanged;
+
   /// Evaluation mới nhất khi retry-in-place — renderer tự chọn hiển thị
   /// inline progress (k/n đúng, lượt còn) nếu có. null lần render đầu.
   final EvaluationDto? lastEvaluation;
@@ -44,6 +49,7 @@ class ActivityRenderer extends StatelessWidget {
     this.hasSubmitError = false,
     required this.onSubmit,
     this.onInputChanged,
+    this.onImmersiveChanged,
     this.lastEvaluation,
   });
 
@@ -56,6 +62,7 @@ class ActivityRenderer extends StatelessWidget {
           activity: activity,
           submitting: submitting,
           onSubmit: onSubmit,
+          onImmersiveChanged: onImmersiveChanged,
         );
       case 'VIEW_IMAGE':
         return ViewImageRenderer(

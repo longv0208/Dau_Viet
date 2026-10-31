@@ -155,6 +155,17 @@ Future<void> _pumpRead(WidgetTester tester, Map<String, dynamic> config) {
   );
 }
 
+/// Issue #1-immersive: READ có animation → phase 0 "Xem hoạt ảnh"
+/// (animation + nút TIẾP TỤC riêng, KHÔNG submit) → tap TIẾP TỤC để
+/// sang phase 1 "Đọc tư liệu" (CỔ THƯ + nút ĐÃ ĐỌC XONG → submit).
+Future<void> _enterReadingPhase(WidgetTester tester) async {
+  await tester.ensureVisible(find.text('TIẾP TỤC ›'));
+  await tester.pump();
+  await tester.tap(find.text('TIẾP TỤC ›'));
+  await tester.pump();
+  await tester.pump();
+}
+
 void main() {
   group('AnimationManifestDto parsing', () {
     test('parses a river manifest with stakes, steps and prediction', () {
@@ -637,7 +648,8 @@ void main() {
   });
 
   group('ReadRenderer + embedded animationManifest', () {
-    testWidgets('river manifest renders the player above the reading card', (
+    testWidgets('river manifest renders the immersive player, then the '
+        'reading card', (
       tester,
     ) async {
       await _pumpRead(tester, {
@@ -645,11 +657,20 @@ void main() {
         'animationManifest': _embedded(_riverManifest()),
       });
       await tester.pump();
+      // Phase 0 "Xem hoạt ảnh": chỉ player + nút TIẾP TỤC — nội dung đọc
+      // và nút submit chưa hiện (2-phase, không cùng một màn).
       expect(find.byType(HistoricalAnimationPlayer), findsOneWidget);
-      expect(find.text('Đoạn đọc.'), findsOneWidget);
+      expect(find.text('Đoạn đọc.'), findsNothing);
+      expect(find.text('ĐÃ ĐỌC XONG, TIẾP TỤC'), findsNothing);
+      expect(find.text('TIẾP TỤC ›'), findsOneWidget);
       // Bước 0 không khai báo allowedInteractions → vẫn definition-level
       // (WATER_LEVEL_CONTROL scene-global) → slider hiện.
       expect(find.byType(Slider), findsOneWidget);
+      // Tap TIẾP TỤC (không submit) → phase 1 hiện nội dung đọc.
+      await _enterReadingPhase(tester);
+      expect(find.byType(HistoricalAnimationPlayer), findsNothing);
+      expect(find.text('Đoạn đọc.'), findsOneWidget);
+      expect(find.text('ĐÃ ĐỌC XONG, TIẾP TỤC'), findsOneWidget);
     });
 
     /* ---------- P0 — prediction checkpoint gating (manifest-driven) ------ */
@@ -692,9 +713,8 @@ void main() {
         'animationManifest': _embedded(m),
       });
       await tester.pump();
-      // Bước 1: không được hiện khối dự đoán (scroll để widget dựng).
-      await tester.ensureVisible(find.text('Đoạn đọc.'));
-      await tester.pump();
+      // Phase 0 "Xem hoạt ảnh" — player đã hiện (không cần cuộn nội dung
+      // đọc). Bước 1: không được hiện khối dự đoán.
       expect(find.text('DỰ ĐOÁN KHÁM PHÁ'), findsNothing);
       // Sang bước checkpoint → khối xuất hiện.
       await tester.ensureVisible(find.bySemanticsLabel('Bước tiếp').first);
@@ -954,6 +974,9 @@ void main() {
         ),
       );
       await tester.pump();
+      // Nút TIẾP TỤC phase 0 KHÔNG submit — chỉ chuyển sang phase đọc.
+      await _enterReadingPhase(tester);
+      expect(sent, isNull);
       await tester.ensureVisible(find.text('ĐÃ ĐỌC XONG, TIẾP TỤC'));
       await tester.pump();
       await tester.tap(find.text('ĐÃ ĐỌC XONG, TIẾP TỤC'));
@@ -981,8 +1004,8 @@ void main() {
       });
       await tester.pump();
       expect(find.byType(HistoricalAnimationPlayer), findsOneWidget);
-      // Bước 1 (rỗng) → KHÔNG slider.
-      await tester.ensureVisible(find.text('Đoạn đọc.'));
+      // Bước 1 (rỗng) → KHÔNG slider (phase 0 — player hiện sẵn).
+      await tester.ensureVisible(find.byType(HistoricalAnimationPlayer));
       await tester.pump();
       expect(find.byType(Slider), findsNothing);
       // Sang bước 2 (WATER_LEVEL_CONTROL) → slider hiện.
@@ -1004,7 +1027,7 @@ void main() {
         'animationManifest': _embedded(_riverManifest()),
       });
       await tester.pump();
-      await tester.ensureVisible(find.text('Đoạn đọc.'));
+      await tester.ensureVisible(find.byType(HistoricalAnimationPlayer));
       await tester.pump();
       expect(find.byType(Slider), findsOneWidget);
       expect(tester.takeException(), isNull);
@@ -1053,7 +1076,7 @@ void main() {
           'animationKey': 'bach_dang_938_tide_v1',
         });
         await tester.pump();
-        await tester.ensureVisible(find.text('x'));
+        await tester.ensureVisible(find.byType(HistoricalAnimationPlayer));
         await tester.pump();
         expect(find.byType(Slider), findsOneWidget);
         // Bước 0 không whitelist gì cả → slider vẫn hiện (legacy semantics).

@@ -19,7 +19,7 @@ import '../lesson_cover_resolver.dart';
 /// Không chấm điểm phía client; server trả COMPLETED.
 /// Typography theo hướng "sử liệu": title nổi bật, đoạn văn thoáng, dễ đọc
 /// dài trên màn nhỏ. Hỗ trợ `body`/`text`/`content`/`passage` + `paragraphs[]`.
-class ReadRenderer extends StatelessWidget {
+class ReadRenderer extends StatefulWidget {
   final ActivityRefDto activity;
   final bool submitting;
   final Future<void> Function(Map<String, dynamic>) onSubmit;
@@ -29,13 +29,60 @@ class ReadRenderer extends StatelessWidget {
   final Widget Function(String sceneVersionId, AnimationManifestDto manifest)?
   htmlPlayerFactory;
 
+  /// Issue #1-immersive: báo Lesson Player khi renderer đang ở phase
+  /// "Xem hoạt ảnh" fullscreen → player ẩn top bar/mascot/submit chrome.
+  /// null = renderer không hỗ trợ immersive (player giữ chrome thường).
+  final void Function(bool immersive)? onImmersiveChanged;
+
   const ReadRenderer({
     super.key,
     required this.activity,
     required this.submitting,
     required this.onSubmit,
     this.htmlPlayerFactory,
+    this.onImmersiveChanged,
   });
+
+  @override
+  State<ReadRenderer> createState() => _ReadRendererState();
+}
+
+class _ReadRendererState extends State<ReadRenderer> {
+  /// Phase hiển thị khi activity READ có animation:
+  ///   true  = "Xem hoạt ảnh" fullscreen (chỉ nút TIẾP TỤC → sang false),
+  ///   false = "Đọc tư liệu" CỔ THƯ + nút ĐÃ ĐỌC XONG → submit.
+  /// Khi không có animation → luôn false (chỉ đọc).
+  bool _showAnimationPhase = true;
+
+  ActivityRefDto get activity => widget.activity;
+  bool get submitting => widget.submitting;
+  Future<void> Function(Map<String, dynamic>) get onSubmit => widget.onSubmit;
+
+  @override
+  void initState() {
+    super.initState();
+    // Báo immersive ban đầu sau khi biết có animation hay không — quyết
+    // định trong build (cần parse manifest). Gọi ở first build.
+  }
+
+  void _enterReadingPhase() {
+    if (!_showAnimationPhase) return;
+    setState(() => _showAnimationPhase = false);
+    widget.onImmersiveChanged?.call(false);
+  }
+
+  @override
+  void dispose() {
+    // Unmount (activity đổi/complete) → báo player khôi phục chrome,
+    // tránh _immersive kẹt khi renderer mới không gọi lại callback.
+    // addPostFrameCallback: KHÔNG được setState parent trong dispose —
+    // trì hoãn sang frame sau (player vẫn mounted nếu chỉ đổi activity).
+    final cb = widget.onImmersiveChanged;
+    if (cb != null) {
+      WidgetsBinding.instance.addPostFrameCallback((_) => cb(false));
+    }
+    super.dispose();
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -190,31 +237,98 @@ class ReadRenderer extends StatelessWidget {
             manifestRenderer == null ||
             !manifestRenderer.canRender(manifestDto));
 
+    // Issue #1-immersive: READ có animation thật (native player hoặc
+    // HTML_WEBVIEW) → tách 2 phase. Phase "Xem hoạt ảnh" = animation
+    // fullscreen + nút TIẾP TỤC riêng (KHÔNG submit); phase "Đọc tư
+    // liệu" = thẻ CỔ THƯ + nút ĐÃ ĐỌC XONG → submit. Unsupported manifest
+    // (animation lỗi) KHÔNG immersive — rơi về đọc luôn.
+    final bool hasAnimation = isHtmlScene || animation != null;
+    final bool immersive = hasAnimation && _showAnimationPhase;
+    // Báo player mỗi lần build để đồng bộ chrome (idempotent — player
+    // chỉ setState khi cờ đổi). addPostFrameCallback tránh gọi setState
+    // của parent trong lúc build.
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted) widget.onImmersiveChanged?.call(immersive);
+    });
+
+    if (immersive) {
+      return _buildImmersivePhase(
+        config: config,
+        isHtmlScene: isHtmlScene,
+        manifestDto: manifestDto,
+        animation: animation,
+      );
+    }
+
+    return _buildReadingPhase(
+      config: config,
+      title: title,
+      subtitle: subtitle,
+      source: source,
+      body: body,
+      blocks: blocks,
+      isHtmlScene: isHtmlScene,
+      animation: animation,
+      unsupportedManifest: unsupportedManifest,
+      manifestDto: manifestDto,
+    );
+  }
+
+  /// Phase 0 — "Xem hoạt ảnh" fullscreen: chỉ canvas + narration/controls
+  /// + nút TIẾP TỤC. Player ẩn top bar/mascot/submit khi phase này hiện.
+  Widget _buildImmersivePhase({
+    required Map<String, dynamic> config,
+    required bool isHtmlScene,
+    required AnimationManifestDto? manifestDto,
+    required HistoricalAnimationDefinition? animation,
+  }) {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
-        if (isHtmlScene) ...[
+        if (isHtmlScene)
           _HtmlSceneSlot(
             key: ValueKey('html_anim_${activity.id}'),
             config: config,
             manifest: manifestDto!,
-            playerFactory: htmlPlayerFactory,
-          ),
-          const SizedBox(height: 14),
-        ] else if (animation != null) ...[
-          // Keyed theo animationKey + activity id: đổi activity → dispose
-          // controller cũ, không rò state giữa các bài.
-          //
-          // P0-4: manifest mang assets[]/objects[] → bọc player bằng lớp
-          // ảnh (background dưới + object trên). Manifest KHÔNG khai báo
-          // ảnh nào → widget trả về `child` nguyên trạng, không đổi layout.
+            playerFactory: widget.htmlPlayerFactory,
+            immersive: true,
+          )
+        else
           _CinematicBoundPlayer(
-            key: ValueKey('anim_${animation.key}_${activity.id}'),
+            key: ValueKey('anim_${animation!.key}_${activity.id}'),
             manifest: manifestDto ?? AnimationManifestDto.empty,
             definition: animation,
+            immersive: true,
           ),
-          const SizedBox(height: 14),
-        ] else if (unsupportedManifest) ...[
+        const SizedBox(height: 16),
+        // Nút chuyển tiếp DUY NHẤT — sang phase đọc, KHÔNG submit.
+        SubmitBar(
+          enabled: true,
+          submitting: false,
+          label: 'TIẾP TỤC ›',
+          onPressed: _enterReadingPhase,
+        ),
+      ],
+    );
+  }
+
+  /// Phase 1 — "Đọc tư liệu": thẻ CỔ THƯ + nút ĐÃ ĐỌC XONG → submit {}.
+  Widget _buildReadingPhase({
+    required Map<String, dynamic> config,
+    required String? title,
+    required String? subtitle,
+    required String? source,
+    required String? body,
+    required List<Widget> blocks,
+    required bool isHtmlScene,
+    required HistoricalAnimationDefinition? animation,
+    required bool unsupportedManifest,
+    required AnimationManifestDto? manifestDto,
+  }) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        if (unsupportedManifest) ...[
           // ANIM-03: app cũ gặp manifest của renderer chưa hỗ trợ —
           // fallback rõ ràng thay vì crash hay im lặng trắng.
           _UnsupportedAnimationNotice(title: manifestDto?.title ?? ''),
@@ -377,10 +491,16 @@ class _CinematicBoundPlayer extends StatefulWidget {
   final AnimationManifestDto manifest;
   final HistoricalAnimationDefinition definition;
 
+  /// Issue #1-immersive: phase "Xem hoạt ảnh" → canvas full-height
+  /// viewport; false = 55% (khi render cùng nội dung đọc — không còn
+  /// dùng vì 2-phase, giữ cho tương thích/fallback).
+  final bool immersive;
+
   const _CinematicBoundPlayer({
     super.key,
     required this.manifest,
     required this.definition,
+    this.immersive = false,
   });
 
   @override
@@ -410,6 +530,7 @@ class _CinematicBoundPlayerState extends State<_CinematicBoundPlayer> {
       definition: widget.definition,
       manifest: widget.manifest,
       cinematicFrame: _frame,
+      immersive: widget.immersive,
     );
   }
 }
@@ -464,11 +585,16 @@ class _HtmlSceneSlot extends StatelessWidget {
   final Widget Function(String sceneVersionId, AnimationManifestDto manifest)?
   playerFactory;
 
+  /// Issue #1-immersive: phase "Xem hoạt ảnh" → canvas ~full viewport
+  /// thay vì 55%. false = giữ 55% (fallback/tương thích).
+  final bool immersive;
+
   const _HtmlSceneSlot({
     super.key,
     required this.config,
     required this.manifest,
     this.playerFactory,
+    this.immersive = false,
   });
 
   @override
@@ -490,10 +616,12 @@ class _HtmlSceneSlot extends StatelessWidget {
             : (constraints.maxWidth > 0 && constraints.maxWidth < 600
                   ? 0.66
                   : 16 / 10);
-        // Issue #1: giống player native — canvas tối thiểu 55% viewport.
+        // Issue #1: canvas tối thiểu 55% viewport; immersive (phase "Xem
+        // hoạt ảnh") → ~full viewport (trừ chỗ nút TIẾP TỤC + padding).
         final mediaH = MediaQuery.sizeOf(context).height;
         final aspectH = constraints.maxWidth / baseAspect;
-        final targetH = aspectH > mediaH * 0.55 ? aspectH : mediaH * 0.55;
+        final frac = immersive ? 0.92 : 0.55;
+        final targetH = aspectH > mediaH * frac ? aspectH : mediaH * frac;
         final resolvedAspectRatio = constraints.maxWidth / targetH;
         return HtmlAnimationPlayer(
           sceneVersionId: versionId,
