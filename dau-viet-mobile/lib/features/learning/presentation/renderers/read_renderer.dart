@@ -54,21 +54,27 @@ class _ReadRendererState extends State<ReadRenderer> {
   /// Khi không có animation → luôn false (chỉ đọc).
   bool _showAnimationPhase = true;
 
+  /// Giá trị immersive đã báo player lần cuối — chỉ gọi callback khi
+  /// ĐỔI, KHÔNG mỗi build (tránh postFrame loop → rebuild liên tục →
+  /// màn nhấp nháy). `null` = chưa báo lần nào.
+  bool? _lastReportedImmersive;
+
   ActivityRefDto get activity => widget.activity;
   bool get submitting => widget.submitting;
   Future<void> Function(Map<String, dynamic>) get onSubmit => widget.onSubmit;
 
-  @override
-  void initState() {
-    super.initState();
-    // Báo immersive ban đầu sau khi biết có animation hay không — quyết
-    // định trong build (cần parse manifest). Gọi ở first build.
+  /// Báo player cờ immersive MỚI — chỉ khi khác lần báo trước (idempotent
+  /// chặt). Gọi từ các điểm biết chắc trạng thái, KHÔNG từ build().
+  void _reportImmersive(bool immersive) {
+    if (_lastReportedImmersive == immersive) return;
+    _lastReportedImmersive = immersive;
+    widget.onImmersiveChanged?.call(immersive);
   }
 
   void _enterReadingPhase() {
     if (!_showAnimationPhase) return;
     setState(() => _showAnimationPhase = false);
-    widget.onImmersiveChanged?.call(false);
+    _reportImmersive(false);
   }
 
   @override
@@ -244,12 +250,14 @@ class _ReadRendererState extends State<ReadRenderer> {
     // (animation lỗi) KHÔNG immersive — rơi về đọc luôn.
     final bool hasAnimation = isHtmlScene || animation != null;
     final bool immersive = hasAnimation && _showAnimationPhase;
-    // Báo player mỗi lần build để đồng bộ chrome (idempotent — player
-    // chỉ setState khi cờ đổi). addPostFrameCallback tránh gọi setState
-    // của parent trong lúc build.
-    WidgetsBinding.instance.addPostFrameCallback((_) {
-      if (mounted) widget.onImmersiveChanged?.call(immersive);
-    });
+    // Báo player cờ immersive CHỈ khi đổi (không mỗi build — đăng
+    // postFrame mỗi frame tạo rebuild loop → màn nhấp nháy). Vẫn
+    // postFrame vì build không được setState parent đồng bộ.
+    if (_lastReportedImmersive != immersive) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (mounted) _reportImmersive(immersive);
+      });
+    }
 
     if (immersive) {
       return _buildImmersivePhase(
