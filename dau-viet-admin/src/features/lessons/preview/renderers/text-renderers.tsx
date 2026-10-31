@@ -25,10 +25,15 @@ export function ReadActivityView({ activity }: PreviewActivityProps) {
   // version; scene chưa publish không bao giờ lọt vào snapshot lesson
   // nên không có đường "fetch unpublished for learner".
   const embeddedManifest = parseEmbeddedManifest(activity.config?.animationManifest);
+  const sceneVersionId = parseSceneVersionId(activity.config?.animationManifest);
+  const isHtmlScene = embeddedManifest?.rendererCode === "HTML_WEBVIEW"
+      && Boolean(sceneVersionId);
   const paragraphs = text.split(/\n{2,}/).filter(Boolean);
   return (
     <div className="flex flex-col gap-3">
-      {embeddedManifest ? (
+      {isHtmlScene && sceneVersionId ? (
+        <HtmlSceneFrame versionId={sceneVersionId} />
+      ) : embeddedManifest ? (
         <ScenePreview manifest={embeddedManifest} />
       ) : animationKey ? (
         <p className="rounded-md border border-dashed border-border bg-surface-alt px-3 py-2 text-xs italic text-ink-muted">
@@ -58,6 +63,48 @@ function parseEmbeddedManifest(raw: unknown): AnimationManifest | null {
   if (!inner || typeof inner !== "object") return null;
   const m = inner as AnimationManifest;
   return typeof m.rendererCode === "string" && m.rendererCode ? m : null;
+}
+
+/** Trích `sceneVersionId` từ envelope animationManifest — null khi không có. */
+function parseSceneVersionId(raw: unknown): string | null {
+  if (!raw || typeof raw !== "object") return null;
+  const env = raw as Record<string, unknown>;
+  const vid = env.sceneVersionId;
+  return typeof vid === "string" && vid ? vid : null;
+}
+
+/** HTML_WEBVIEW scene — iframe fetch bytes từ published version. */
+function HtmlSceneFrame({ versionId }: { versionId: string }) {
+  const query = useQuery({
+    queryKey: ["animationHtml", versionId],
+    queryFn: async () => {
+      const res = await fetch(
+        `${process.env.NEXT_PUBLIC_API_BASE}/api/v1/animation-versions/${versionId}/html`,
+        { headers: { Authorization: `Bearer ${localStorage.getItem("dv_token")}` } },
+      );
+      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+      return res.text();
+    },
+    staleTime: 60_000,
+  });
+  if (query.isLoading) {
+    return <p className="text-xs text-ink-muted">Đang tải hoạt họa…</p>;
+  }
+  if (query.isError || !query.data) {
+    return (
+      <p className="rounded-md border border-dashed border-border bg-surface-alt px-3 py-2 text-xs italic text-ink-muted">
+        Không tải được hoạt họa HTML — mở trên app để xem.
+      </p>
+    );
+  }
+  return (
+    <iframe
+      title="Hoạt họa lịch sử"
+      sandbox="allow-scripts"
+      srcDoc={query.data}
+      className="aspect-video w-full rounded-md border border-border bg-surface-alt"
+    />
+  );
 }
 
 /** VIEW_IMAGE — image via authenticated blob fetch + caption. */

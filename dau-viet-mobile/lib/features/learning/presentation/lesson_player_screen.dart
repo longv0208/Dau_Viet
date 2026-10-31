@@ -240,8 +240,16 @@ class _LessonPlayerScreenState extends ConsumerState<LessonPlayerScreen> {
   /// clueType → learner đang ở trong 1 clue → activity view.
   /// Server trả current.activity null hoặc không có clueType → grid.
   /// (stepProgress.shouldShowGrid sẽ là false nếu đã xong 4/4 → stage sau.)
+  /// Resume/load trong DISCOVERY step:
+  /// - shouldShowGrid (server) → chưa đủ clue → LUÔN hiện lưới trước
+  ///   (learner tự chọn dấu vết, không auto-mở).
+  /// - Đã đủ 4/4 → !shouldShowGrid → activity (cursor ở stage khác).
+  /// - Cursor đang ở clue cụ thể → chỉ hiện activity khi KHÔNG còn clue
+  ///   nào để chọn (edge: re-submit completed clue).
   _DiscoveryView? _resolveDiscoveryView(CurrentActivityDto cur) {
     if (!cur.isDiscoveryStep) return null;
+    // Server-authoritative: còn clue chưa xong → grid (learner chọn).
+    if (cur.stepProgress?.shouldShowGrid == true) return _DiscoveryView.grid;
     final act = cur.activity;
     if (act == null || act.clueType == null) return _DiscoveryView.grid;
     // Kiểm tra clue đã completed chưa — nếu completed → review, chưa → activity.

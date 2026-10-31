@@ -212,6 +212,12 @@ class StepProgressDto {
   final int currentStepNumber;
   final List<ClueStatusDto> clues;
 
+  /// Server trả cờ snapshot-authoritative. `null` (server cũ) → false.
+  final bool isFourStep;
+
+  /// Server trả cờ hiển thị lưới. `null` → false.
+  final bool shouldShowGrid;
+
   const StepProgressDto({
     required this.discoveryCompleted,
     required this.discoveryTotal,
@@ -220,6 +226,8 @@ class StepProgressDto {
     required this.reconstructionCompleted,
     required this.currentStepNumber,
     required this.clues,
+    this.isFourStep = false,
+    this.shouldShowGrid = false,
   });
 
   factory StepProgressDto.fromJson(Map<String, dynamic>? json) =>
@@ -237,16 +245,9 @@ class StepProgressDto {
             .whereType<Map>()
             .map((e) => ClueStatusDto.fromJson(e.cast<String, dynamic>()))
             .toList(),
+        isFourStep: json?['isFourStep'] as bool? ?? false,
+        shouldShowGrid: json?['shouldShowGrid'] as bool? ?? false,
       );
-
-  /// true khi đây là bài học 4 bước (có dữ liệu dấu vết).
-  bool get isFourStep => discoveryTotal > 0 && clues.isNotEmpty;
-
-  /// true khi đang ở Bước 1 và chưa hết dấu vết — render lưới chọn.
-  bool get shouldShowGrid =>
-      isFourStep &&
-      !hypothesisCompleted &&
-      discoveryCompleted < discoveryTotal;
 }
 
 /// GET /attempts/{id}/current — activity null khi hết required.

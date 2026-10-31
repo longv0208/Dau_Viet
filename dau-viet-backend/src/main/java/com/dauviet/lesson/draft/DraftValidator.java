@@ -654,6 +654,7 @@ public class DraftValidator {
      * evidence from the upstream EVIDENCE_SELECT output, not config lists.
      */
     private void validateFourStepVerification(JsonNode act, String path,
+                                               Map<String, JsonNode> stageById,
                                                ValidationContext ctx,
                                                List<FieldError> errors) {
         JsonNode config = act.get("config");
@@ -662,8 +663,17 @@ public class DraftValidator {
                     "VERIFICATION activity must have a config object"));
             return;
         }
-        // Legacy mode — evidenceSource present → skip interactive validation.
-        if (config.hasNonNull("evidenceSource")) return;
+        // FOUR_STEP: interactive selection is REQUIRED — evidenceSource is a
+        // legacy-only mechanism (upstream EVIDENCE_SELECT output). Publishing
+        // a FOUR_STEP lesson with evidenceSource set is a bug: the runtime
+        // handler rejects it, so catch it here.
+        if (config.hasNonNull("evidenceSource")) {
+            errors.add(new FieldError(path + ".config.evidenceSource",
+                    "INVALID_CONFIG",
+                    "FOUR_STEP VERIFICATION does not support evidenceSource — "
+                    + "use interactive selectedEvidenceIds (visibleSourceIds + requiredEvidenceIds)"));
+            return;
+        }
 
         Set<String> visible = stringIds(config.get("visibleSourceIds"));
         if (visible.isEmpty()) {
@@ -681,16 +691,41 @@ public class DraftValidator {
                     "INVALID_CONFIG",
                     "requiredEvidenceIds must be a subset of visibleSourceIds"));
         }
-        // expectedHypothesis must reference a real hypothesis id from the
-        // HYPOTHESIS_CHOICE activity in the same draft.
+        // expectedHypothesis must reference a hypothesis id declared in the
+        // HYPOTHESIS_CHOICE activity of the same draft (cross-stage check).
         if (config.hasNonNull("expectedHypothesis")) {
             String expected = config.get("expectedHypothesis").asText();
             if (!expected.isBlank()) {
-                // hypotheses live in config.hypotheses[] of HYPOTHESIS stage act
-                // We only check format — actual cross-stage lookup is complex;
-                // the handler does it at runtime.
+                Set<String> hypothesisIds = hypothesisIds(stageById);
+                if (!hypothesisIds.isEmpty() && !hypothesisIds.contains(expected)) {
+                    errors.add(new FieldError(path + ".config.expectedHypothesis",
+                            "INVALID_REFERENCE",
+                            "expectedHypothesis '" + expected + "' is not a declared hypothesis id "
+                            + "in the HYPOTHESIS stage (known: " + hypothesisIds + ")"));
+                }
             }
         }
+    }
+
+    /** Collects every hypothesis id from HYPOTHESIS_CHOICE activities. */
+    private static Set<String> hypothesisIds(Map<String, JsonNode> stageById) {
+        Set<String> out = new LinkedHashSet<>();
+        if (stageById == null) return out;
+        for (JsonNode stage : stageById.values()) {
+            if (!"HYPOTHESIS".equals(stage.path("type").asText(null))) continue;
+            JsonNode acts = stage.get("activities");
+            if (acts == null || !acts.isArray()) continue;
+            for (JsonNode a : acts) {
+                if (!"HYPOTHESIS_CHOICE".equals(a.path("type").asText(null))) continue;
+                JsonNode hyps = a.path("config").path("hypotheses");
+                if (hyps == null || !hyps.isArray()) continue;
+                for (JsonNode h : hyps) {
+                    JsonNode id = h.get("id");
+                    if (id != null && id.isTextual()) out.add(id.asText());
+                }
+            }
+        }
+        return out;
     }
 
     private static Set<String> stringIds(JsonNode arr) {
@@ -773,7 +808,8 @@ public class DraftValidator {
                 }
                 if (expected == StageType.VERIFICATION
                         && "VERIFICATION".equals(actType)) {
-                    validateFourStepVerification(act, "stages[" + i + "].activities[0]", ctx, errors);
+                    validateFourStepVerification(act, "stages[" + i + "].activities[0]",
+                            stageById, ctx, errors);
                 }
             }
         }

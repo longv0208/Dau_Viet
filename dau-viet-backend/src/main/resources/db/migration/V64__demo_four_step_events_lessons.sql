@@ -264,7 +264,7 @@ BEGIN
     -- =========================================================================
     -- 3. LESSON 1 — HAI BÀ TRƯNG (FOUR_STEP draft)
     -- =========================================================================
-    d := $draft${
+    d := $json$ {
       "schemaVersion": 1,
       "flowModel": "FOUR_STEP",
       "keyTakeaways": [
@@ -363,7 +363,7 @@ BEGIN
          ]}
       ],
       "completion":{"requireAllRequiredStages":true}
-    }$draft$::jsonb;
+    }$json$::jsonb;
 
     IF asset_me_linh IS NOT NULL THEN
         d := jsonb_set(d,'{stages,0,activities,0,coverAssetId}',to_jsonb(asset_me_linh::text),true);
@@ -388,7 +388,7 @@ BEGIN
     -- =========================================================================
     -- 4. LESSON 2 — BÀ TRIỆU (FOUR_STEP draft)
     -- =========================================================================
-    d := $draft${
+    d := $json$ {
       "schemaVersion": 1,
       "flowModel": "FOUR_STEP",
       "keyTakeaways": [
@@ -479,7 +479,7 @@ BEGIN
          ]}
       ],
       "completion":{"requireAllRequiredStages":true}
-    }$draft$::jsonb;
+    }$json$::jsonb;
 
     INSERT INTO lessons (id, event_id, template_id, title, central_question,
         objectives_json, draft_json, status, created_by, updated_by)
@@ -497,7 +497,7 @@ BEGIN
     -- =========================================================================
     -- 5. LESSON 3 — LÝ BÍ / VẠN XUÂN (FOUR_STEP draft)
     -- =========================================================================
-    d := $draft${
+    d := $json$ {
       "schemaVersion": 1,
       "flowModel": "FOUR_STEP",
       "keyTakeaways": [
@@ -597,7 +597,7 @@ BEGIN
          ]}
       ],
       "completion":{"requireAllRequiredStages":true}
-    }$draft$::jsonb;
+    }$json$::jsonb;
 
     INSERT INTO lessons (id, event_id, template_id, title, central_question,
         objectives_json, draft_json, status, created_by, updated_by)
@@ -617,7 +617,7 @@ BEGIN
     --    Animation: gắn animationSceneId của production scene PUBLISHED vào
     --    dấu vết Bối cảnh (khám phá thủy triều) — đúng contract validator.
     -- =========================================================================
-    d := $draft${
+    d := $json$ {
       "schemaVersion": 1,
       "flowModel": "FOUR_STEP",
       "keyTakeaways": [
@@ -720,7 +720,7 @@ BEGIN
          ]}
       ],
       "completion":{"requireAllRequiredStages":true}
-    }$draft$::jsonb;
+    }$json$::jsonb;
 
     IF asset_bach_dang_coc IS NOT NULL THEN
         d := jsonb_set(d,'{stages,0,activities,0,coverAssetId}',to_jsonb(asset_bach_dang_coc::text),true);

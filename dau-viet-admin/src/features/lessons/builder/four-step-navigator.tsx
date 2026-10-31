@@ -91,10 +91,17 @@ export function FourStepNavigator({
               : "border-border bg-surface hover:bg-surface-alt")
           }
         >
-          <button
-            type="button"
+          <div
+            role="button"
+            tabIndex={0}
             onClick={() => onSelect(stage.id)}
-            className="flex w-full items-start gap-2 text-left"
+            onKeyDown={(e) => {
+              if (e.key === "Enter" || e.key === " ") {
+                e.preventDefault();
+                onSelect(stage.id);
+              }
+            }}
+            className="flex w-full cursor-pointer items-start gap-2 text-left"
           >
             <ChapterBadge
               label={stepNum}
@@ -189,7 +196,7 @@ export function FourStepNavigator({
                 </p>
               )}
             </span>
-          </button>
+          </div>
         </div>
       </li>
     );

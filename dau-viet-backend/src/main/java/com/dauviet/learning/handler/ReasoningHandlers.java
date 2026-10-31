@@ -204,11 +204,27 @@ public final class ReasoningHandlers {
             // Interactive Step 3 Verification: when no upstream evidenceSource
             // is forced and the learner submits selectedEvidenceIds directly,
             // validate the submitted evidence against snapshot/visibleSourceIds.
+            boolean isFourStep = ctx.snapshot() != null
+                    && "FOUR_STEP".equals(
+                            ctx.snapshot().path("flowModel").asText(null));
             boolean interactiveSelection = (source == null || source.isBlank())
                     && sub.answer() != null
                     && sub.answer().isObject()
                     && sub.answer().has("selectedEvidenceIds")
                     && sub.answer().get("selectedEvidenceIds").isArray();
+
+            // FOUR_STEP snapshot: interactive verification is REQUIRED —
+            // reject legacy evidenceSource fallback. Legacy snapshots keep
+            // the old evidenceSource / priorOutputs path.
+            if (isFourStep && !interactiveSelection) {
+                throw new IllegalArgumentException(
+                        "FOUR_STEP VERIFICATION requires answer.selectedEvidenceIds array");
+            }
+            if (isFourStep && source != null && !source.isBlank()) {
+                throw new IllegalArgumentException(
+                        "FOUR_STEP VERIFICATION does not support evidenceSource — "
+                        + "use interactive selectedEvidenceIds");
+            }
 
             Set<String> interactiveSelected = Set.of();
             if (interactiveSelection) {

@@ -220,7 +220,11 @@ public class LearnerAttemptService {
         SnapshotModel model = snapshotOf(versionId);
         AttemptState state = new AttemptState();
         state.setCurrentStageId(model.entryStageId());
-        state.setCurrentActivityId(model.firstRequiredActivityId(model.entryStageId()));
+        // FOUR_STEP: learner chọn clue tự do từ grid — không auto-cursor vào
+        // clue đầu tiên. Legacy flows: cursor vào required activity đầu tiên.
+        if (!model.isFourStepFlow()) {
+            state.setCurrentActivityId(model.firstRequiredActivityId(model.entryStageId()));
+        }
         LearnerAttempt attempt = LearnerAttempt.start(userId, versionId);
         attempt.recordProgress(state);
         attempts.saveAndFlush(attempt);

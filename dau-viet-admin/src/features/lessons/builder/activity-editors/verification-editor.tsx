@@ -42,7 +42,14 @@ export function VerificationEditor(props: EditorProps) {
   });
   const hypothesisCandidates = (draft?.stages ?? [])
     .flatMap((s) => s.activities)
-    .filter((a) => a.type === "HYPOTHESIS_CHOICE" && a.id !== activity.id);
+  const hypothesisIds = (draft?.stages ?? [])
+    .filter((s) => s.type === "HYPOTHESIS")
+    .flatMap((s) => s.activities)
+    .filter((a) => a.type === "HYPOTHESIS_CHOICE")
+    .flatMap((a) => (a.config?.hypotheses as { id?: string; label?: string }[] | undefined) ?? [])
+    .filter((h) => h?.id)
+    .map((h) => ({ id: String(h.id), label: String(h.label ?? h.id) }));
+  const expectedHypothesis = String(config.expectedHypothesis ?? "");
 
   return (
     <div className="flex flex-col gap-3 rounded-md border border-border bg-white p-3">
@@ -224,6 +231,37 @@ export function VerificationEditor(props: EditorProps) {
           &ldquo;Khi hết lượt thử&rdquo; ở phần trên sẽ hiển thị cho học viên.
         </p>
       </div>
+
+      {/* Giả thuyết đúng — chọn từ hypotheses của Bước 2 */}
+      {isFourStep && hypothesisIds.length > 0 && (
+        <div className="flex flex-col gap-1.5">
+          <Label htmlFor={`exphyp-${activity.id}`}>Giả thuyết đúng (expected)</Label>
+          <Select
+            id={`exphyp-${activity.id}`}
+            value={expectedHypothesis}
+            disabled={readOnly}
+            onChange={(e) =>
+              onChange({
+                config: {
+                  ...config,
+                  expectedHypothesis: e.target.value || undefined,
+                },
+              })
+            }
+          >
+            <option value="">— chọn giả thuyết đúng —</option>
+            {hypothesisIds.map((h) => (
+              <option key={h.id} value={h.id}>
+                {h.id} — {h.label.slice(0, 60)}
+              </option>
+            ))}
+          </Select>
+          <p className="text-xs text-ink-muted">
+            Server đánh CONTRADICTED nếu học viên chọn giả thuyết khác.
+            Để trống → chấp nhận mọi giả thuyết (không phân biệt đúng/sai).
+          </p>
+        </div>
+      )}
     </div>
   );
 }
