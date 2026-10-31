@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -640,6 +641,20 @@ class _LessonPlayerScreenState extends ConsumerState<LessonPlayerScreen> {
         res.next != null &&
         res.next!.activityId == st.current.activity?.id;
     if ((res.activityCompleted || res.next != null) && !retryInPlace) {
+      if (st.current.activity?.hasAnimation == true) {
+        // Hoạt ảnh: learner đã bấm "Tiếp tục" trên màn fullscreen để submit
+        // -> tự động fetch activity mới / grid ngay lập tức, không kẹt lại ở awaitingContinue.
+        setState(() {
+          _state = st.copyWith(
+            submitting: true,
+            awaitingContinue: true,
+          );
+          _pendingAnswer = null;
+          _hasUnsentInput = false;
+        });
+        unawaited(_onContinue());
+        return;
+      }
       // Cursor đã nhảy phía server nhưng giữ activity hiện tại + feedback
       // trên màn cho tới khi learner bấm "Tiếp tục" (không auto-advance).
       setState(() {

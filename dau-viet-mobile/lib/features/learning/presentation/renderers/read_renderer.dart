@@ -48,11 +48,6 @@ class ReadRenderer extends StatefulWidget {
 }
 
 class _ReadRendererState extends State<ReadRenderer> {
-  /// Phase hiển thị khi activity READ có animation:
-  ///   true  = "Xem hoạt ảnh" fullscreen (chỉ nút TIẾP TỤC → sang false),
-  ///   false = "Đọc tư liệu" CỔ THƯ + nút ĐÃ ĐỌC XONG → submit.
-  /// Khi không có animation → luôn false (chỉ đọc).
-  bool _showAnimationPhase = true;
 
   /// Giá trị immersive đã báo player lần cuối — chỉ gọi callback khi
   /// ĐỔI, KHÔNG mỗi build (tránh postFrame loop → rebuild liên tục →
@@ -71,14 +66,11 @@ class _ReadRendererState extends State<ReadRenderer> {
     widget.onImmersiveChanged?.call(immersive);
   }
 
-  /// Nút TIẾP TỤC trong màn immersive — submit completion cho READ ngay,
-  /// KHÔNG chuyển sang phase đọc (yêu cầu: animation fullscreen → tiếp tục
-  /// → bước sau, không kẹt màn đọc dài). Reading phase vẫn render khi
-  /// không có animation hoặc manifest lỗi (fallback).
-  void _enterReadingPhase() {
-    if (!_showAnimationPhase || submitting) return;
-    setState(() => _showAnimationPhase = false);
-    _reportImmersive(false);
+  /// Nút TIẾP TỤC trong màn hoạt ảnh fullscreen — submit completion cho READ ngay.
+  /// Giữ nguyên màn hoạt ảnh ở trạng thái loading, LessonPlayerScreen sẽ tự động
+  /// advance chuyển bước sau khi hoàn tất.
+  void _onContinueAnimation() {
+    if (submitting) return;
     onSubmit(const {});
   }
 
@@ -246,17 +238,14 @@ class _ReadRendererState extends State<ReadRenderer> {
     // cảnh). Notice KHÔNG chứa JSON/nội bộ — chỉ title + thông báo.
     final bool unsupportedManifest =
         manifestPresent &&
+        !isHtmlScene &&
         (manifestDto == null ||
             manifestRenderer == null ||
             !manifestRenderer.canRender(manifestDto));
 
-    // Issue #1-immersive: READ có animation thật (native player hoặc
-    // HTML_WEBVIEW) → tách 2 phase. Phase "Xem hoạt ảnh" = animation
-    // fullscreen + nút TIẾP TỤC riêng (KHÔNG submit); phase "Đọc tư
-    // liệu" = thẻ CỔ THƯ + nút ĐÃ ĐỌC XONG → submit. Unsupported manifest
-    // (animation lỗi) KHÔNG immersive — rơi về đọc luôn.
-    final bool hasAnimation = isHtmlScene || animation != null;
-    final bool immersive = hasAnimation && _showAnimationPhase;
+    // Hoạt ảnh (HTML_WEBVIEW hoặc native) → luôn full screen, không rơi về đọc
+    final bool hasAnimation = isHtmlScene || (animation != null && !unsupportedManifest);
+    final bool immersive = hasAnimation;
     // Báo player cờ immersive CHỈ khi đổi (không mỗi build — đăng
     // postFrame mỗi frame tạo rebuild loop → màn nhấp nháy). Vẫn
     // postFrame vì build không được setState parent đồng bộ.
@@ -337,7 +326,7 @@ class _ReadRendererState extends State<ReadRenderer> {
                   enabled: !submitting,
                   submitting: submitting,
                   label: 'Tiếp tục',
-                  onPressed: _enterReadingPhase,
+                  onPressed: _onContinueAnimation,
                 ),
               ),
             ),
