@@ -94,3 +94,23 @@ java.lang.IllegalArgumentException: The HTTP header line [authorization:Bearer e
 	at org.apache.tomcat.util.threads.TaskThread$WrappingRunnable.run(TaskThread.java:63) ~[tomcat-embed-core-10.1.50.jar:10.1.50]
 	at java.base/java.lang.Thread.run(Thread.java:1583) ~[na:na]
 
+2026-10-31T16:55:33.629+07:00  INFO 34064 --- [dau-viet-backend] [nio-8080-exec-5] c.d.energy.application.EnergyService     : energy penalty user=9eb81b85-1562-457d-8bfa-9a98d06d6d50 attempt=b1c99e5c-e8e1-4fae-8b2f-0d0bc31c04a6 activity=clue-significance attemptNo=1 amount=10 balance=90
+2026-10-31T16:55:35.757+07:00  INFO 34064 --- [dau-viet-backend] [nio-8080-exec-4] c.d.energy.application.EnergyService     : energy penalty user=9eb81b85-1562-457d-8bfa-9a98d06d6d50 attempt=b1c99e5c-e8e1-4fae-8b2f-0d0bc31c04a6 activity=clue-significance attemptNo=2 amount=10 balance=80
+2026-10-31T17:14:41.324+07:00  INFO 34064 --- [dau-viet-backend] [nio-8080-exec-7] o.apache.coyote.http11.Http11Processor   : Error parsing HTTP request header
+ Note: further occurrences of HTTP request parsing errors will be logged at DEBUG level.
+
+java.lang.IllegalArgumentException: The HTTP header line [authorization:Bearer eyJhbGciOiJIUzI1NiJ9.eyJpc3MiOiJkYXUtdmlldC1iYWNrZW5kIiwic3ViIjoiNjdlMGYzOTItMzNiMC00NDZhLThmMjMtN2M5OGI5OGMxMGMzIiwicm9sZSI6IkNPTlRFTlRfQURNSU4iLCJleHAiOjE3OTM0NDI1ODEsImlhdCI6MTc5MzQ0MTY4MX0.q-SVMuvMHheEfBf3VI-FokfHchnMhJh16JQ-zSoNet44] does not conform to RFC 7230. The request has been rejected.
+	at org.apache.coyote.http11.Http11InputBuffer.skipLine(Http11InputBuffer.java:1075) ~[tomcat-embed-core-10.1.50.jar:10.1.50]
+	at org.apache.coyote.http11.Http11InputBuffer.parseHeader(Http11InputBuffer.java:975) ~[tomcat-embed-core-10.1.50.jar:10.1.50]
+	at org.apache.coyote.http11.Http11InputBuffer.parseHeaders(Http11InputBuffer.java:588) ~[tomcat-embed-core-10.1.50.jar:10.1.50]
+	at org.apache.coyote.http11.Http11Processor.service(Http11Processor.java:295) ~[tomcat-embed-core-10.1.50.jar:10.1.50]
+	at org.apache.coyote.AbstractProcessorLight.process(AbstractProcessorLight.java:63) ~[tomcat-embed-core-10.1.50.jar:10.1.50]
+	at org.apache.coyote.AbstractProtocol$ConnectionHandler.process(AbstractProtocol.java:903) ~[tomcat-embed-core-10.1.50.jar:10.1.50]
+	at org.apache.tomcat.util.net.NioEndpoint$SocketProcessor.doRun(NioEndpoint.java:1774) ~[tomcat-embed-core-10.1.50.jar:10.1.50]
+	at org.apache.tomcat.util.net.SocketProcessorBase.run(SocketProcessorBase.java:52) ~[tomcat-embed-core-10.1.50.jar:10.1.50]
+	at org.apache.tomcat.util.threads.ThreadPoolExecutor.runWorker(ThreadPoolExecutor.java:973) ~[tomcat-embed-core-10.1.50.jar:10.1.50]
+	at org.apache.tomcat.util.threads.ThreadPoolExecutor$Worker.run(ThreadPoolExecutor.java:491) ~[tomcat-embed-core-10.1.50.jar:10.1.50]
+	at org.apache.tomcat.util.threads.TaskThread$WrappingRunnable.run(TaskThread.java:63) ~[tomcat-embed-core-10.1.50.jar:10.1.50]
+	at java.base/java.lang.Thread.run(Thread.java:1583) ~[na:na]
+
+2026-10-31T17:37:23.147+07:00  INFO 34064 --- [dau-viet-backend] [nio-8080-exec-1] c.d.r.application.RewardGrantService     : reward granted user=9eb81b85-1562-457d-8bfa-9a98d06d6d50 lesson=d7b20000-0000-4000-8000-000000000001 attempt=b1c99e5c-e8e1-4fae-8b2f-0d0bc31c04a6 rows=2

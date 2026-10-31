@@ -28,7 +28,7 @@ Got dependencies!
 24 packages have newer versions incompatible with dependency constraints.
 Try `flutter pub outdated` for more information.
 Launching lib\main.dart on Chrome in debug mode...
-Waiting for connection from debug service on Chrome...             47.8s
+Waiting for connection from debug service on Chrome...             45.4s
 
 Flutter run key commands.
 r Hot reload. 
@@ -38,10 +38,10 @@ d Detach (terminate "flutter run" but leave application running).
 c Clear the screen
 q Quit (terminate the application on the device).
 
-This app is linked to the debug service: ws://127.0.0.1:63021/wcUEepxbcWg=/ws
-Debug service listening on ws://127.0.0.1:63021/wcUEepxbcWg=/ws
-A Dart VM Service on Chrome is available at: http://127.0.0.1:63021/wcUEepxbcWg=
-The Flutter DevTools debugger and profiler on Chrome is available at: http://127.0.0.1:63021/wcUEepxbcWg=/devtools/?uri=ws://127.0.0.1:63021/wcUEepxbcWg=/ws
+This app is linked to the debug service: ws://127.0.0.1:46233/oxFJhxD6f8U=/ws
+Debug service listening on ws://127.0.0.1:46233/oxFJhxD6f8U=/ws
+A Dart VM Service on Chrome is available at: http://127.0.0.1:46233/oxFJhxD6f8U=
+The Flutter DevTools debugger and profiler on Chrome is available at: http://127.0.0.1:46233/oxFJhxD6f8U=/devtools/?uri=ws://127.0.0.1:46233/oxFJhxD6f8U=/ws
 Starting application from main method in: org-dartlang-app:///web_entrypoint.dart.
 [GSI_LOGGER]: google.accounts.id.initialize() is called multiple times. This could cause unexpected behavior and only the last initialized instance will be used.
 [GSI_LOGGER]: Experiment cache expired.
@@ -55,10 +55,43 @@ Starting application from main method in: org-dartlang-app:///web_entrypoint.dar
 [GSI_LOGGER]: Setting new experiment values.
 [GSI_LOGGER]: Experiment enable_itp_optimization set to 24.
 [GSI_LOGGER]: Your client application uses one of the Google One Tap prompt UI status methods that may stop functioning when FedCM becomes mandatory. Refer to the migration guide to update your code accordingly and opt-in to FedCM to test your changes. Learn more: https://developers.google.com/identity/gsi/web/guides/fedcm-migration?s=dc#display_moment and https://developers.google.com/identity/gsi/web/guides/fedcm-migration?s=dc#skipped_moment
-[GSI_LOGGER]: Starting FedCM call. Mode: widget | callId: gsi_216891_766244.
-[GSI_LOGGER]: Generating FedCM options. callId: gsi_216891_766244.
-[GSI_LOGGER]: FedCM options generated. callId: gsi_216891_766244. [object Object]
-[GSI_LOGGER]: Error received. callId: gsi_216891_766244.
+[GSI_LOGGER]: Starting FedCM call. Mode: widget | callId: gsi_218759_430112.
+[GSI_LOGGER]: Generating FedCM options. callId: gsi_218759_430112.
+[GSI_LOGGER]: FedCM options generated. callId: gsi_218759_430112. [object Object]
+══╡ EXCEPTION CAUGHT BY RENDERING LIBRARY ╞═════════════════════════════════════════════════════════
+The following assertion was thrown during layout:
+A RenderFlex overflowed by 51 pixels on the bottom.
+
+The relevant error-causing widget was:
+  Column
+  Column:file:///E:/Telegram%20Desktop/Dau%20viet/Dau_Viet/dau-viet-mobile/lib/features/auth/presentation/auth_screen.dart:241:24
+
+The overflowing RenderFlex has an orientation of Axis.vertical.
+The edge of the RenderFlex that is overflowing has been marked in the rendering with a yellow and
+black striped pattern. This is usually caused by the contents being too big for the RenderFlex.
+Consider applying a flex factor (e.g. using an Expanded widget) to force the children of the
+RenderFlex to fit within the available space instead of being sized to their natural size.
+This is considered an error condition because it indicates that there is content that cannot be
+seen. If the content is legitimately bigger than the available space, consider clipping it with a
+ClipRect widget before putting it in the flex, or using a scrollable container rather than a Flex,
+like a ListView.
+The specific RenderFlex in question is: RenderFlex#88b56 relayoutBoundary=up5 OVERFLOWING:
+  needs compositing
+  creator: Column ← ConstrainedBox ← Center ← MediaQuery ← Padding ← SafeArea ← Stack ←
+    KeyedSubtree-[GlobalKey#de3ee] ← _BodyBuilder ← MediaQuery ← LayoutId-[<_ScaffoldSlot.body>] ←
+    CustomMultiChildLayout ← ⋯
+  parentData: <none> (can use size)
+  constraints: BoxConstraints(0.0<=w<=1.0, 0.0<=h<=1.0)
+  size: Size(1.0, 1.0)
+  direction: vertical
+  mainAxisAlignment: start
+  mainAxisSize: max
+  crossAxisAlignment: center
+  verticalDirection: down
+  spacing: 0.0
+◢◤◢◤◢◤◢◤◢◤◢◤◢◤◢◤◢◤◢◤◢◤◢◤◢◤◢◤◢◤◢◤◢◤◢◤◢◤◢◤◢◤◢◤◢◤◢◤◢◤◢◤◢◤◢◤◢◤◢◤◢◤◢◤◢◤◢◤◢◤◢◤◢◤◢◤◢◤◢◤◢◤◢◤◢◤◢◤◢◤◢◤◢◤◢◤◢◤◢◤
+════════════════════════════════════════════════════════════════════════════════════════════════════
+[GSI_LOGGER]: Error received. callId: gsi_218759_430112.
 [GSI_LOGGER]: FedCM get() rejects with NetworkError: Error retrieving a token.
 [google_sign_in_web] Error on CredentialResponse: unknown_reason
 [google_sign_in_web] Removing error from `userDataEvents`: unknown_reason
