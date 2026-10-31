@@ -300,9 +300,18 @@ class _LessonPlayerScreenState extends ConsumerState<LessonPlayerScreen> {
         st.submitting ||
         st.awaitingContinue ||
         st.completionReady ||
-        st.current.activity == null ||
-        // Review mode: chỉ xem lại clue đã hoàn thành — không submit.
-        st.discoveryView == _DiscoveryView.review) {
+        st.current.activity == null) {
+      return;
+    }
+
+    // Review mode: chỉ xem lại clue đã hoàn thành — không submit lên server,
+    // mà đưa learner quay về lưới dấu vết (hoặc tiến bước nếu đã xong 4/4).
+    if (st.discoveryView == _DiscoveryView.review) {
+      if (st.current.stepProgress?.shouldShowGrid == true) {
+        _backToClueGrid();
+      } else {
+        unawaited(_onContinue());
+      }
       return;
     }
 
@@ -1304,6 +1313,7 @@ class _LessonPlayerScreenState extends ConsumerState<LessonPlayerScreen> {
         activeClueActivityId: () => null,
       );
       _hasUnsentInput = false;
+      _immersive = false;
     });
   }
 
