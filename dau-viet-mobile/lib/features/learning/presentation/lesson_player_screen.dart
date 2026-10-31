@@ -156,6 +156,11 @@ class _LessonPlayerScreenState extends ConsumerState<LessonPlayerScreen> {
   /// eventProgressProvider sau complete (null = lesson không gắn event).
   String? _lessonEventId;
 
+  /// Issue #1-immersive: renderer báo đang ở phase "Xem hoạt ảnh"
+  /// fullscreen → ẩn top bar/mascot/submit chrome để animation chiếm
+  /// toàn màn. Reset khi activity đổi (renderer mới báo lại).
+  bool _immersive = false;
+
   /// Renderer báo input thay đổi — chỉ nhận khi còn được phép sửa.
   /// setState để PopScope rebuild và cập nhật canPop; sau khi server đã
   /// ghi nhận answer, edit mới sẽ bật dirty trở lại.
@@ -163,6 +168,14 @@ class _LessonPlayerScreenState extends ConsumerState<LessonPlayerScreen> {
     if (_state?.awaitingContinue == true || _state?.submitting == true) return;
     if (_hasUnsentInput == hasInput) return;
     setState(() => _hasUnsentInput = hasInput);
+  }
+
+  /// Issue #1-immersive: renderer báo đổi chế độ immersive. Chỉ setState
+  /// khi cờ thật sự đổi — addPostFrameCallback của renderer gọi mỗi
+  /// build, không được rebuild vô hạn.
+  void _onImmersiveChanged(bool immersive) {
+    if (_immersive == immersive || !mounted) return;
+    setState(() => _immersive = immersive);
   }
 
   @override
@@ -608,6 +621,7 @@ class _LessonPlayerScreenState extends ConsumerState<LessonPlayerScreen> {
       setState(() {
         _state = _PlayerState(current: cur, content: st.content);
         _hasUnsentInput = false;
+        _immersive = false; // activity mới → renderer báo lại chế độ
       });
     } catch (_) {
       if (!mounted) return;
@@ -879,27 +893,33 @@ class _LessonPlayerScreenState extends ConsumerState<LessonPlayerScreen> {
     final cur = st.current;
     return Column(
       children: [
-        _buildTopBar(st),
+        // Issue #1-immersive: phase "Xem hoạt ảnh" → ẩn toàn bộ chrome
+        // (top bar + mascot + bottom submit). Renderer tự hiển thị nút
+        // "TIẾP TỤC" riêng; chỉ giữ scroll container để narration/
+        // controls của animation cuộn được nếu tràn.
+        if (!_immersive) _buildTopBar(st),
         if (cur.activity == null)
           _buildFinished(st)
         else ...[
           // Bong bóng thoại Linh vật Tê Giác Dấu Việt
-          MascotSpeechBubble(
-            message: _resolveMascotPrompt(st),
-            mood: _resolveMascotMood(st),
-          ),
+          if (!_immersive)
+            MascotSpeechBubble(
+              message: _resolveMascotPrompt(st),
+              mood: _resolveMascotMood(st),
+            ),
           Expanded(
             child: SingleChildScrollView(
               padding: EdgeInsets.fromLTRB(
-                16,
-                4,
-                16,
+                _immersive ? 0 : 16,
+                _immersive ? 0 : 4,
+                _immersive ? 0 : 16,
                 16 + MediaQuery.of(context).viewInsets.bottom,
               ),
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.stretch,
                 children: [
-                  if (cur.activity!.graded &&
+                  if (!_immersive &&
+                      cur.activity!.graded &&
                       (cur.activity!.incorrectPenalty ?? 0) > 0)
                     Padding(
                       padding: const EdgeInsets.only(bottom: 10),
@@ -907,7 +927,8 @@ class _LessonPlayerScreenState extends ConsumerState<LessonPlayerScreen> {
                         penalty: cur.activity!.incorrectPenalty!,
                       ),
                     ),
-                  if (cur.activity?.instruction != null &&
+                  if (!_immersive &&
+                      cur.activity?.instruction != null &&
                       cur.activity!.instruction!.trim().isNotEmpty) ...[
                     Padding(
                       padding: const EdgeInsets.only(
@@ -937,13 +958,14 @@ class _LessonPlayerScreenState extends ConsumerState<LessonPlayerScreen> {
                     hasSubmitError: st.feedback?.tone == _FeedbackTone.error,
                     onSubmit: _submit,
                     onInputChanged: _onInputChanged,
+                    onImmersiveChanged: _onImmersiveChanged,
                     lastEvaluation: st.lastEvaluation,
                   ),
                 ],
               ),
             ),
           ),
-          _buildBottomBar(st),
+          if (!_immersive) _buildBottomBar(st),
         ],
       ],
     );

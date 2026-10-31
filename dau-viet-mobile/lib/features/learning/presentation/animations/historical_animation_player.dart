@@ -70,11 +70,16 @@ class HistoricalAnimationPlayer extends ConsumerStatefulWidget {
   /// không phải tự tính timeline.
   final ValueNotifier<CinematicFrame>? cinematicFrame;
 
+  /// Issue #1-immersive: phase "Xem hoạt ảnh" → canvas ~full viewport
+  /// (0.92·mediaH) thay vì 55%. false = 55% (khi render cùng nội dung).
+  final bool immersive;
+
   const HistoricalAnimationPlayer({
     super.key,
     required this.definition,
     this.manifest,
     this.cinematicFrame,
+    this.immersive = false,
   });
 
   @override
@@ -691,14 +696,16 @@ class _HistoricalAnimationPlayerState
           image: true,
           child: LayoutBuilder(
             builder: (context, constraints) {
-              // Issue #1: canvas tối thiểu 55% viewport height (không phụ
-              // thuộc parent có bound height — SingleChildScrollView cho
-              // unbounded). Giữ aspect scene nếu nó đã đủ cao.
+              // Issue #1: canvas tối thiểu một phần viewport height
+              // (không phụ thuộc parent bound — SingleChildScrollView
+              // cho unbounded). immersive (phase "Xem hoạt ảnh") → 0.92
+              // ~full; thường → 0.55. Giữ aspect scene nếu đã đủ cao.
               final mediaH = MediaQuery.sizeOf(context).height;
               final aspectH = constraints.maxWidth / def.aspectRatio;
-              final targetH = aspectH > mediaH * 0.55
+              final frac = widget.immersive ? 0.92 : 0.55;
+              final targetH = aspectH > mediaH * frac
                   ? aspectH
-                  : mediaH * 0.55;
+                  : mediaH * frac;
               final effectiveAspect = constraints.maxWidth / targetH;
               return SizedBox(
                 height: targetH,
