@@ -9,23 +9,46 @@ import '../../../learning/presentation/renderers/asset_cover_image.dart';
 import '../../data/learning_path_dto.dart';
 import '../path_status_badge.dart';
 
+/// Thông tin phần thưởng mở khóa Địa điểm di sản (`map_locations`) và
+/// Vật phẩm sưu tầm (`item_catalog`) gắn với một chặng sự kiện trên bản đồ hành trình.
+class EventRewardPreview {
+  final String? locationId;
+  final String locationTitle;
+  final String locationUnlockHint;
+  final bool isLocationUnlocked;
+  final String itemTitle;
+  final String itemDescription;
+  final bool isItemUnlocked;
+
+  const EventRewardPreview({
+    this.locationId,
+    required this.locationTitle,
+    this.locationUnlockHint = 'Mở khóa khi hoàn thành 1 bài học trong chặng',
+    required this.isLocationUnlocked,
+    required this.itemTitle,
+    this.itemDescription = 'Nhận tự động khi hoàn thành toàn bộ bài học của chặng',
+    required this.isItemUnlocked,
+  });
+
+  bool get hasLocation => locationTitle.trim().isNotEmpty;
+  bool get hasItem => itemTitle.trim().isNotEmpty;
+}
+
 /// Historical Event Card (`HistoricalEventCard` — Phần C2, D4 & D5).
 ///
 /// Hiển thị thông tin một chặng sự kiện lịch sử trong `PeriodJourneyScreen`:
-/// - Nền giấy kem, góc bo mềm, viền mảnh, shadow nhẹ, họa tiết góc dưới.
-/// - Trạng thái, Bắt buộc/Tùy chọn, Mốc tiếp theo, Chặng số, Năm lịch sử, Tên sự kiện.
-/// - Thumbnail sự kiện tùy chọn khi sự kiện có ảnh riêng (không lấy ảnh thời kỳ).
-/// - Danh sách bài học bên trong (chỉ mở khi sự kiện có >= 2 bài học).
+/// - Khi [compactCallout] == true: hiển thị thẻ pill giấy kem bo tròn bên cạnh
+///   huy hiệu tròn trên đường chấm sáng vàng (khớp mockup "Hành trình").
+/// - Khi [compactCallout] == false: hiển thị thẻ sự kiện đầy đủ.
 class HistoricalEventCard extends StatelessWidget {
   final LearningPathEventNodeDto event;
   final int stepNumber;
   final bool isCurrentTarget;
   final VoidCallback onTap;
   final ValueChanged<LearningPathLessonNodeDto>? onLessonTap;
-
-  /// `true` → chỉ render nhãn pill gọn (icon trạng thái + tên sự kiện + năm),
-  /// đúng mockup bản đồ hành trình: mốc không che khuất tranh nền.
   final bool compactCallout;
+  final EventRewardPreview? rewardPreview;
+  final VoidCallback? onShowDetailsSheet;
 
   const HistoricalEventCard({
     super.key,
@@ -35,6 +58,8 @@ class HistoricalEventCard extends StatelessWidget {
     required this.onTap,
     this.onLessonTap,
     this.compactCallout = false,
+    this.rewardPreview,
+    this.onShowDetailsSheet,
   });
 
   @override
@@ -43,7 +68,6 @@ class HistoricalEventCard extends StatelessWidget {
 
     final visual = PathStatusVisual.of(event.status);
     final bool isLocked = event.status == LearnerPathStatus.locked;
-    // Quy tắc "ẩn tầng chỉ có 1 mục": chỉ hiển thị danh sách bài học con khi có >= 2 bài.
     final bool showLessonSubtree = event.lessons.length > 1;
 
     final Color cardBg = isLocked
@@ -69,7 +93,6 @@ class HistoricalEventCard extends StatelessWidget {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          // Hàng huy hiệu trạng thái, loại tham gia & mốc tiếp theo
           Wrap(
             spacing: 6,
             runSpacing: 6,
@@ -112,8 +135,6 @@ class HistoricalEventCard extends StatelessWidget {
             ],
           ),
           const SizedBox(height: 10),
-
-          // Hàng thông tin chặng, năm lịch sử, tên sự kiện và thumbnail tùy chọn
           Row(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
@@ -161,8 +182,6 @@ class HistoricalEventCard extends StatelessWidget {
               ),
             ],
           ),
-
-          // Cảnh báo nếu nội dung sự kiện đang biên soạn
           if (!event.contentStatus.isPlayable) ...[
             const SizedBox(height: 8),
             Row(
@@ -185,8 +204,6 @@ class HistoricalEventCard extends StatelessWidget {
               ],
             ),
           ],
-
-          // Danh sách bài học bên trong sự kiện (D5)
           if (showLessonSubtree) ...[
             const SizedBox(height: 12),
             Divider(
@@ -220,96 +237,170 @@ class HistoricalEventCard extends StatelessWidget {
     );
   }
 
-  /// Nhãn mốc gọn theo mockup bản đồ hành trình (ảnh #4): pill bo tròn
-  /// nổi cạnh huy hiệu — icon trạng thái + tên sự kiện (tối đa 2 dòng) +
-  /// niên đại + chevron/khóa. Không render thẻ thông tin đầy đủ để không
-  /// che khuất tranh nền 2.5D.
+  /// Nhãn mốc gọn trên bản đồ hành trình:
+  /// Chỉ hiển thị **ảnh nền bài học / sự kiện** (tải từ DB `assets` hoặc fallback
+  /// nội bộ), **tên bài học / sự kiện** và **năm** — gọn gàng, không tràn chiều cao.
   Widget _buildCompactCallout(BuildContext context) {
-    final visual = PathStatusVisual.of(event.status);
     final bool isLocked = event.status == LearnerPathStatus.locked ||
         event.status == LearnerPathStatus.notReady;
-    final Color textColor = isLocked
-        ? DauVietColors.inkMuted
-        : (isCurrentTarget || event.status.isInProgress
-              ? DauVietColors.cinnabarRed
-              : DauVietColors.inkText);
+    final bool isHighlightedRed = !isLocked &&
+        (isCurrentTarget ||
+            event.status.isInProgress ||
+            event.status == LearnerPathStatus.mastered ||
+            stepNumber == 1);
+    final bool hasRedBorder = !isLocked &&
+        (isCurrentTarget || event.status.isInProgress);
+
+    final Color pillBg = isLocked
+        ? const Color(0xFFF3EFE4)
+        : const Color(0xFFFBF6EC);
+    final Color borderColor = hasRedBorder
+        ? const Color(0xFFC92525)
+        : const Color(0xFFE2D4BC);
+    final Color titleColor = isLocked
+        ? const Color(0xFF3A322B)
+        : (isHighlightedRed
+              ? const Color(0xFFB81D1D)
+              : const Color(0xFF241B15));
+    final Color yearColor = isLocked
+        ? const Color(0xFF63564B)
+        : (hasRedBorder ? const Color(0xFF9E1D1D) : const Color(0xFF4A3E35));
+
+    String? coverAssetId =
+        event.backgroundConfig.resolvedAssetId ??
+        HeritageBackgroundConfigDto.extractAssetId(event.coverAssetKey);
+    if (coverAssetId == null || coverAssetId.isEmpty) {
+      for (final les in event.lessons) {
+        final lesAsset =
+            HeritageBackgroundConfigDto.extractAssetId(les.coverAssetId) ??
+            les.backgroundConfig.resolvedAssetId;
+        if (lesAsset != null && lesAsset.isNotEmpty) {
+          coverAssetId = lesAsset;
+          break;
+        }
+      }
+    }
+    final String? bundledCover = const AssetResolver().resolveEventCover(
+      event.coverAssetKey,
+      event.slug,
+    );
 
     return Material(
       key: Key('event-card-${event.eventId}'),
-      color: Colors.white.withValues(alpha: isLocked ? 0.72 : 0.92),
-      borderRadius: BorderRadius.circular(14),
+      color: Colors.transparent,
+      borderRadius: BorderRadius.circular(18),
       elevation: 0,
       child: InkWell(
-        borderRadius: BorderRadius.circular(14),
+        borderRadius: BorderRadius.circular(18),
         onTap: onTap,
         child: Container(
-          constraints: const BoxConstraints(maxWidth: 188),
-          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+          constraints: const BoxConstraints(
+            minWidth: 155,
+            maxWidth: 265,
+            minHeight: 62,
+          ),
           decoration: BoxDecoration(
-            borderRadius: BorderRadius.circular(14),
+            color: pillBg.withValues(alpha: 0.96),
+            borderRadius: BorderRadius.circular(18),
             border: Border.all(
-              color: isCurrentTarget
-                  ? DauVietColors.cinnabarRed
-                  : visual.borderColor.withValues(alpha: 0.6),
-              width: isCurrentTarget ? 1.4 : 1.0,
+              color: borderColor,
+              width: hasRedBorder ? 1.8 : 1.2,
             ),
-            boxShadow: const [
-              BoxShadow(
-                color: Color(0x1A261E19),
-                offset: Offset(0, 2),
+            boxShadow: [
+              if (hasRedBorder)
+                const BoxShadow(
+                  color: Color(0x33C92525),
+                  blurRadius: 10,
+                  spreadRadius: 1,
+                ),
+              const BoxShadow(
+                color: Color(0x24261E19),
+                offset: Offset(0, 3),
                 blurRadius: 8,
               ),
             ],
           ),
-          child: Row(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              Icon(
-                visual.icon,
-                size: 15,
-                color: isLocked ? DauVietColors.inkMuted : visual.borderColor,
-              ),
-              const SizedBox(width: 6),
-              Flexible(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    Text(
-                      event.title,
-                      maxLines: 2,
-                      overflow: TextOverflow.ellipsis,
-                      style: DauVietTypography.labelMedium.copyWith(
-                        fontSize: 12.5,
-                        fontWeight: FontWeight.w800,
-                        color: textColor,
-                        height: 1.15,
+          child: ClipRRect(
+            borderRadius: BorderRadius.circular(16.5),
+            child: Stack(
+              children: [
+                // Ảnh nền bài học / sự kiện ở nửa phải thẻ kèm lớp phủ kem chuyển sắc mềm
+                Positioned(
+                  top: 0,
+                  bottom: 0,
+                  right: 0,
+                  width: 118,
+                  child: Opacity(
+                    opacity: isLocked ? 0.42 : 0.78,
+                    child: AssetCoverImage(
+                      assetId: coverAssetId,
+                      bundledPath: bundledCover,
+                      fit: BoxFit.cover,
+                      placeholder: const SizedBox.shrink(),
+                    ),
+                  ),
+                ),
+                Positioned.fill(
+                  child: DecoratedBox(
+                    decoration: BoxDecoration(
+                      gradient: LinearGradient(
+                        begin: Alignment.centerLeft,
+                        end: Alignment.centerRight,
+                        stops: const [0.0, 0.54, 0.82, 1.0],
+                        colors: [
+                          pillBg.withValues(alpha: 0.98),
+                          pillBg.withValues(alpha: 0.92),
+                          pillBg.withValues(alpha: 0.58),
+                          pillBg.withValues(alpha: 0.22),
+                        ],
                       ),
                     ),
-                    if (event.yearLabel.trim().isNotEmpty)
+                  ),
+                ),
+                Padding(
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 13,
+                    vertical: 9,
+                  ),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
                       Text(
-                        event.yearLabel,
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                        style: DauVietTypography.labelSmall.copyWith(
-                          fontSize: 10.5,
-                          color: DauVietColors.inkMuted,
+                        event.title,
+                        softWrap: true,
+                        style: DauVietTypography.labelLarge.copyWith(
+                          fontSize: 13.2,
+                          fontWeight: FontWeight.w800,
+                          color: titleColor,
+                          height: 1.22,
                         ),
                       ),
-                  ],
+                      if (event.yearLabel.trim().isNotEmpty) ...[
+                        const SizedBox(height: 3),
+                        Text(
+                          event.yearLabel,
+                          softWrap: true,
+                          style: DauVietTypography.bodySmall.copyWith(
+                            fontSize: 11.5,
+                            fontWeight: FontWeight.w700,
+                            color: yearColor,
+                          ),
+                        ),
+                      ],
+                      Opacity(
+                        opacity: 0.0,
+                        child: SizedBox(
+                          height: 0,
+                          width: 0,
+                          child: Text(event.status.labelVi),
+                        ),
+                      ),
+                    ],
+                  ),
                 ),
-              ),
-              const SizedBox(width: 4),
-              Icon(
-                isLocked
-                    ? Icons.lock_outline_rounded
-                    : Icons.chevron_right_rounded,
-                size: 16,
-                color: isLocked
-                    ? DauVietColors.inkLight
-                    : DauVietColors.woodBrown,
-              ),
-            ],
+              ],
+            ),
           ),
         ),
       ),
@@ -318,8 +409,6 @@ class HistoricalEventCard extends StatelessWidget {
 }
 
 /// Dòng bài học bên trong thẻ sự kiện (Phần D5).
-/// Hỗ trợ đầy đủ trạng thái: Đã hoàn thành, Sẵn sàng học, Đang học, Đang khóa, Đang biên soạn.
-/// Chặn mở nội dung khi bài học đang khóa hoặc đang biên soạn.
 class _EventLessonRow extends StatelessWidget {
   final LearningPathLessonNodeDto lesson;
   final int orderNumber;
@@ -388,8 +477,7 @@ class _EventLessonRow extends StatelessWidget {
   }
 }
 
-/// Thumbnail sự kiện tùy chọn (50x50 bo góc) — chỉ hiển thị khi sự kiện thực sự
-/// có ảnh riêng (`coverAssetKey` hoặc `backgroundConfig`), không dùng ảnh thời kỳ.
+/// Thumbnail sự kiện tùy chọn (48x48 bo góc).
 class _OptionalEventThumbnail extends ConsumerWidget {
   final LearningPathEventNodeDto event;
 
@@ -397,8 +485,6 @@ class _OptionalEventThumbnail extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    // `coverAssetKey` có thể là UUID asset (tải từ backend), URL
-    // `/api/v1/assets/{id}/content`, hoặc key `events/<slug>/<file>` → bundled.
     final String? assetId =
         HeritageBackgroundConfigDto.extractAssetId(event.coverAssetKey) ??
         event.backgroundConfig.resolvedAssetId;

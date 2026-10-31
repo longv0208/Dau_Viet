@@ -1,31 +1,29 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
+
+import '../../../core/assets/asset_resolver.dart';
 import '../../../core/theme/dau_viet_colors.dart';
 import '../../../core/theme/dau_viet_typography.dart';
+import '../../../core/widgets/gamification/gamification_widgets.dart';
 import '../../../core/widgets/hero_paper_banner.dart';
 import '../../../core/widgets/main_bottom_nav.dart';
-import '../../../core/widgets/section_divider.dart';
-import '../../../core/widgets/section_eyebrow.dart';
-import '../../../core/widgets/stamp_seal_badge.dart';
 import '../../../core/widgets/tactile_card.dart';
-import '../../auth/data/auth_state.dart';
 import '../../energy/data/energy_providers.dart';
 import '../../events/data/events_providers.dart';
 import '../../learning/data/learning_providers.dart';
 import '../../learning_path/data/learning_path_dto.dart';
 import '../../learning_path/data/learning_path_providers.dart';
-import '../../rewards/data/reward_providers.dart';
 import '../../streak/data/streak_providers.dart';
 
 /// Màn hình M-03: Trang Chủ / Bàn Học Tập Người Học (Learner Dashboard & Homepage)
-/// Được thiết kế lại toàn diện theo chuẩn UI/UX Pro Max & bản sắc Di Sản Dấu Việt:
-/// - Top Bar: Logo Dấu Việt, Triện Đỏ, Chuông Thông Báo, Avatar Chú Rùa tròn viền vàng
-/// - Lời chào cá nhân hóa + Cụm huy hiệu ⚡ Năng lượng & ❤️ Chuỗi ngày
-/// - Hero Banner: Non nước hữu tình, Chú rùa linh vật cầm bản đồ sử thi (transparent asset)
-/// - Khối "Bài học hôm nay": Tranh làng Hùng Vương, thanh tiến trình xanh
-/// - Khối "Hành trình của bạn": 4 thẻ chức năng vuông (Bài học, Ôn tập, Thành tích, Thư viện)
-/// - Khối song song 2 cột: "Nhiệm vụ hôm nay" (To-do list) & "Sự kiện nổi bật" (Bạch Đằng 938)
+/// Thiết kế Gamification Di Sản Dấu Việt với linh vật Chú Tê Giác:
+/// - Top Scenic Hero: Thành cổ cờ đỏ, vịnh thuyền buồm đỏ, Chú Tê Giác vẫy tay chào
+/// - Top Bar: Logo Dấu Việt chính thức (`app_logo.png`), 2 Gamified Pills (⚡ Năng lượng, 🔥 Chuỗi ngày) & Chuông thông báo có badge
+/// - Thẻ Folder-Tab "Tiếp tục hành trình": Đồng bộ trực tiếp từ `myProgressProvider` & `learnerLearningPathProvider`, ưu tiên ảnh từ DB (`assetId`)
+/// - Hàng 4 thẻ Gamification: Thời kỳ lịch sử, Bản đồ di sản, Thành tựu, Kho báu
+/// - Banner toàn cảnh: "Khám phá bản đồ Việt Nam"
+/// - Carousel ngang: "Bài học nổi bật" (đồng bộ sự kiện/bài học & ảnh bìa từ DB)
 class LearnerDashboardScreen extends ConsumerStatefulWidget {
   const LearnerDashboardScreen({super.key});
 
@@ -38,288 +36,700 @@ class _LearnerDashboardScreenState
     extends ConsumerState<LearnerDashboardScreen> {
   @override
   Widget build(BuildContext context) {
-    final AuthState session = ref.watch(authSessionProvider);
-    final String displayName = _displayName(session);
-
     return Scaffold(
-      backgroundColor: DauVietColors.paperBackground,
+      backgroundColor: const Color(0xFFF6EFE0),
       body: Container(
         decoration: const BoxDecoration(
           gradient: LinearGradient(
             begin: Alignment.topCenter,
             end: Alignment.bottomCenter,
             colors: [
-              DauVietColors.paperCard,
-              DauVietColors.paperBackground,
-              DauVietColors.paperCardHi,
+              Color(0xFFF9F3E6),
+              Color(0xFFF5EDE0),
+              Color(0xFFF4EBDC),
             ],
           ),
         ),
-        child: Stack(
-          children: [
-            // Nền chìm: tranh non nước màu nước phía sau top region,
-            // tràn mép hero card rồi phai dần vào nền giấy (mockup M-03 v3).
-            Positioned(
-              top: 0,
-              left: 0,
-              right: 0,
-              height: 460,
-              child: IgnorePointer(
-                child: Image.asset(
-                  'assets/images/landscape_hero_bg.jpg',
-                  fit: BoxFit.cover,
-                  alignment: Alignment.topCenter,
-                  errorBuilder: (_, _, _) => const SizedBox.shrink(),
+        child: SingleChildScrollView(
+          physics: const BouncingScrollPhysics(),
+          padding: const EdgeInsets.only(bottom: 24),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              // 1. Khối Hero Scenic + Top Bar + Lời chào + Thẻ Folder-Tab "Tiếp tục hành trình"
+              _buildHeroAndContinueSection(context),
+              const SizedBox(height: 14),
+
+              // 2. Các phần nội dung bên dưới có padding ngang 16px
+              Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 16),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    // Hàng 4 thẻ chức năng Gamification
+                    _buildQuickActionsRow(context),
+                    const SizedBox(height: 14),
+
+                    // Banner "Khám phá bản đồ Việt Nam"
+                    _buildExploreMapBanner(context),
+                    const SizedBox(height: 16),
+
+                    // Khối "Bài học nổi bật" (Carousel ngang lấy từ DB)
+                    _buildFeaturedLessonsSection(context),
+                  ],
                 ),
               ),
-            ),
-            // Veil giấy mờ để nền chìm vào parchment — đậm dần từ giữa
-            // xuống đáy vùng tranh, để section dưới đọc rõ trên nền giấy.
-            Positioned(
-              top: 0,
-              left: 0,
-              right: 0,
-              height: 520,
-              child: IgnorePointer(
-                child: DecoratedBox(
-                  decoration: BoxDecoration(
-                    gradient: LinearGradient(
-                      begin: Alignment.topCenter,
-                      end: Alignment.bottomCenter,
-                      colors: [
-                        DauVietColors.paperCard.withValues(alpha: 0.52),
-                        DauVietColors.paperCard.withValues(alpha: 0.62),
-                        DauVietColors.paperBackground.withValues(alpha: 0.90),
-                        DauVietColors.paperBackground,
-                      ],
-                      stops: const [0.0, 0.40, 0.80, 1.0],
-                    ),
-                  ),
-                ),
-              ),
-            ),
-
-            SafeArea(
-              child: Column(
-                children: [
-                  // 1. Top Bar: Logo Dấu Việt, Chuông thông báo & Avatar Chú Rùa
-                  _buildTopBar(),
-
-                  // 2. Nội dung cuộn chính của Trang Chủ
-                  Expanded(
-                    child: SingleChildScrollView(
-                      physics: const BouncingScrollPhysics(),
-                      padding: const EdgeInsets.symmetric(
-                        horizontal: 18,
-                        vertical: 10,
-                      ),
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          // Lời chào & Chỉ số Năng lượng / Chuỗi ngày
-                          _buildGreetingAndStatsRow(displayName),
-                          const SizedBox(height: 12),
-                          // 3. Hero Banner Card: "Khám phá lịch sử Việt Nam"
-                          _buildHeroBanner(),
-                          const SizedBox(height: 12),
-
-                          // 4. Khối: "Bài học hôm nay"
-                          _buildTodayLessonSection(),
-                          const SizedBox(height: 12),
-
-                          // 5. Khối: "Hành trình của bạn" (4 thẻ chức năng nhanh)
-                          _buildYourJourneySection(),
-                          const SizedBox(height: 12),
-
-                          // 6. Khối: "Nhiệm vụ hôm nay" & "Sự kiện nổi bật"
-                          _buildQuestsAndFeaturedRow(),
-                          const SizedBox(height: 24),
-                        ],
-                      ),
-                    ),
-                  ),
-                ],
-              ),
-            ),
-          ],
+            ],
+          ),
         ),
       ),
       bottomNavigationBar: const MainBottomNav(),
     );
   }
 
-  String _displayName(AuthState session) {
-    final profile = session.profile;
-    if (profile == null || profile.email.isEmpty) {
-      return session.status == AuthStatus.guest ? 'Người học nhỏ' : 'Sĩ tử';
-    }
-    return profile.email.split('@').first;
-  }
+  // ===========================================================================
+  // 1. TOP SCENIC HERO + CHÚ TÊ GIÁC + THẺ FOLDER-TAB "TIẾP TỤC HÀNH TRÌNH"
+  // ===========================================================================
+  Widget _buildHeroAndContinueSection(BuildContext context) {
+    final double topInset = MediaQuery.paddingOf(context).top;
+    final learningPathAsync = ref.watch(learnerLearningPathProvider);
 
-  // ===========================================================================
-  // 1. TOP BAR: LOGO, TRIỆN ĐỎ, CHUÔNG THÔNG BÁO, AVATAR CHÚ RÙA
-  // ===========================================================================
-  Widget _buildTopBar() {
-    return Container(
-      padding: const EdgeInsets.fromLTRB(18, 8, 18, 8),
-      // Nền trong suốt để tranh non nước chìm lộ phía sau (mockup M-03 v3);
-      // giữ viền dưới mảnh phân tách.
-      decoration: BoxDecoration(
-        color: DauVietColors.paperCard.withValues(alpha: 0.35),
-        border: Border(
-          bottom: BorderSide(
-            color: DauVietColors.outlineVariant.withValues(alpha: 0.45),
-            width: 1,
-          ),
-        ),
-      ),
-      child: Row(
-        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+    // Nếu thời kỳ hoặc sự kiện hiện tại trong DB có cấu hình ảnh nền riêng
+    // (`backgroundConfig.resolvedAssetId`), có thể lấy từ DB; mặc định dùng
+    // tranh thành cổ + vịnh Hạ Long + chú Tê Giác chuẩn mockup.
+    final String? dbHeroAssetId = learningPathAsync.maybeWhen(
+      data: (path) {
+        final target = _resolveJourneyTarget(path);
+        return target.period?.backgroundConfig.resolvedAssetId;
+      },
+      orElse: () => null,
+    );
+
+    return SizedBox(
+      width: double.infinity,
+      child: Stack(
+        clipBehavior: Clip.none,
         children: [
-          // Logo Dấu Việt chính thức (ảnh app_logo.png đã bao gồm chữ Dấu Việt,
-          // triện đỏ và dòng khẩu hiệu "— HỌC SỬ VIỆT - GÌN GIỮ HỒN VIỆT —")
-          Flexible(
+          // Lớp 1: Tranh nền toàn cảnh Thành Cổ + Vịnh Thuyền Đỏ + Chú Tê Giác
+          SizedBox(
+            width: double.infinity,
+            height: 332 + topInset,
             child: Stack(
-              alignment: Alignment.centerLeft,
+              fit: StackFit.expand,
               children: [
-                // Giữ text 'Dấu Việt' cho accessibility & widget test runner
-                Opacity(
-                  opacity: 0.0,
-                  child: Text(
-                    'Dấu Việt',
-                    style: DauVietTypography.labelSmall.copyWith(fontSize: 1),
-                  ),
+                DbOrBundledImage(
+                  assetId: dbHeroAssetId,
+                  bundledPath: 'assets/images/home/home_hero_scenic_bg.jpg',
+                  fit: BoxFit.cover,
+                  alignment: Alignment.topCenter,
                 ),
-                Image.asset(
-                  'assets/images/app_logo.png',
-                  height: 38,
-                  fit: BoxFit.contain,
-                  filterQuality: FilterQuality.high,
-                  errorBuilder: (_, _, _) => Row(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      Text(
-                        'Dấu Việt',
-                        style: DauVietTypography.headlineMedium.copyWith(
-                          fontSize: 22,
-                          fontWeight: FontWeight.w800,
-                          color: DauVietColors.heritageGreen,
-                        ),
+                // Gradient mờ nhẹ ở mép dưới cùng để chuyển mượt vào nền giấy
+                Positioned(
+                  left: 0,
+                  right: 0,
+                  bottom: 0,
+                  height: 54,
+                  child: DecoratedBox(
+                    decoration: BoxDecoration(
+                      gradient: LinearGradient(
+                        begin: Alignment.topCenter,
+                        end: Alignment.bottomCenter,
+                        colors: [
+                          const Color(0xFFF6EFE0).withValues(alpha: 0.0),
+                          const Color(0xFFF6EFE0).withValues(alpha: 0.85),
+                          const Color(0xFFF6EFE0),
+                        ],
                       ),
-                      const SizedBox(width: 6),
-                      Container(
-                        width: 22,
-                        height: 22,
-                        decoration: BoxDecoration(
-                          color: DauVietColors.cinnabarRed,
-                          borderRadius: BorderRadius.circular(4),
-                        ),
-                        alignment: Alignment.center,
-                        child: Text(
-                          '印',
-                          style: DauVietTypography.labelSmall.copyWith(
-                            color: Colors.white,
-                            fontSize: 12,
-                          ),
-                        ),
-                      ),
-                    ],
+                    ),
                   ),
                 ),
               ],
             ),
           ),
-          const SizedBox(width: 8),
 
-          // Cụm phải: Chuông thông báo & Avatar tròn viền vàng
-          Row(
+          // Lớp 2: Nội dung Top Bar + Lời chào + Thẻ "Tiếp tục hành trình" đè lên đáy Hero
+          Padding(
+            padding: EdgeInsets.only(top: topInset + 8),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                // Top Bar: Logo Dấu Việt bên trái + 2 Gamified Pills & Chuông bên phải
+                Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 16),
+                  child: _buildTopBar(context),
+                ),
+                const SizedBox(height: 18),
+
+                // Lời chào bên trái (nhường nửa phải cho Chú Tê Giác trong tranh nền)
+                Padding(
+                  padding: const EdgeInsets.only(left: 18, right: 158),
+                  child: _buildHeroGreeting(),
+                ),
+                const SizedBox(height: 16),
+
+                // Thẻ Folder-Tab "Tiếp tục hành trình" đặt ngay dưới chân Chú Tê Giác
+                Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 16),
+                  child: _buildContinueJourneyCard(context),
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildTopBar(BuildContext context) {
+    return Row(
+      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+      children: [
+        // Logo chính thức giữ nguyên theo yêu cầu (`assets/images/app_logo.png`)
+        Flexible(
+          child: Stack(
+            alignment: Alignment.centerLeft,
             children: [
-              // Nút chuông thông báo có chấm đỏ
-              Stack(
-                children: [
-                  Semantics(
-                    button: true,
-                    label: 'Thông báo',
-                    child: Container(
-                      width: 44,
-                      height: 44,
-                      decoration: BoxDecoration(
-                        shape: BoxShape.circle,
-                        color: const Color(0xFFFAF3E4),
-                        border: Border.all(
-                          color: const Color(0xFFE3D2B4),
-                          width: 1.1,
-                        ),
-                        boxShadow: DauVietColors.softCardShadow,
-                      ),
-                      child: IconButton(
-                        padding: EdgeInsets.zero,
-                        tooltip: 'Thông báo',
-                        icon: const Icon(
-                          Icons.notifications_none_rounded,
-                          size: 20,
-                          color: DauVietColors.inkHeading,
-                        ),
-                        onPressed: () {
-                          ScaffoldMessenger.of(context).showSnackBar(
-                            const SnackBar(
-                              content: Text('Chưa có thông báo mới.'),
-                              duration: Duration(seconds: 1),
-                            ),
-                          );
-                        },
-                      ),
-                    ),
-                  ),
-                  Positioned(
-                    top: 10,
-                    right: 10,
-                    child: Container(
-                      width: 7,
-                      height: 7,
-                      decoration: const BoxDecoration(
-                        color: DauVietColors.cinnabarRed,
-                        shape: BoxShape.circle,
-                      ),
-                    ),
-                  ),
-                ],
+              Opacity(
+                opacity: 0.0,
+                child: Text(
+                  'Dấu Việt',
+                  style: DauVietTypography.labelSmall.copyWith(fontSize: 1),
+                ),
               ),
-              const SizedBox(width: 10),
-
-              // Avatar tròn chú rùa đội nón lá viền vàng
-              Semantics(
-                button: true,
-                label: 'Hồ sơ cá nhân',
-                child: GestureDetector(
-                  onTap: () => context.go('/profile'),
-                  child: Container(
-                    width: 44,
-                    height: 44,
-                    decoration: BoxDecoration(
-                      shape: BoxShape.circle,
-                      color: const Color(0xFFFAF3E4),
-                      border: Border.all(
-                        color: const Color(0xFFDEC69A),
-                        width: 1.4,
-                      ),
-                      boxShadow: DauVietColors.softCardShadow,
-                    ),
-                    child: ClipOval(
-                      child: Image.asset(
-                        'assets/images/turtle_welcome.png',
-                        fit: BoxFit.cover,
-                        alignment: Alignment.topCenter,
-                        errorBuilder: (_, _, _) => const Icon(
-                          Icons.person_rounded,
-                          color: DauVietColors.heritageGreen,
-                        ),
-                      ),
-                    ),
+              Image.asset(
+                'assets/images/app_logo.png',
+                height: 38,
+                fit: BoxFit.contain,
+                filterQuality: FilterQuality.high,
+                errorBuilder: (_, _, _) => Text(
+                  'Dấu Việt',
+                  style: DauVietTypography.headlineMedium.copyWith(
+                    fontSize: 20,
+                    fontWeight: FontWeight.w800,
+                    color: DauVietColors.heritageGreen,
                   ),
                 ),
               ),
             ],
+          ),
+        ),
+        const SizedBox(width: 6),
+
+        // Cụm phải: ⚡ Energy Pill + 🔥 Streak Pill + Chuông thông báo có badge đỏ
+        Flexible(
+          child: FittedBox(
+            fit: BoxFit.scaleDown,
+            alignment: Alignment.centerRight,
+            child: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                const _EnergyMiniPill(),
+                const SizedBox(width: 6),
+                const _StreakMiniPill(),
+                const SizedBox(width: 6),
+                _buildNotificationBellButton(context),
+              ],
+            ),
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildNotificationBellButton(BuildContext context) {
+    return Stack(
+      clipBehavior: Clip.none,
+      children: [
+        Semantics(
+          button: true,
+          label: 'Thông báo',
+          child: Container(
+            width: 38,
+            height: 38,
+            decoration: BoxDecoration(
+              shape: BoxShape.circle,
+              color: const Color(0xFFFBF6EC),
+              border: Border.all(
+                color: const Color(0xFFE4D5BC),
+                width: 1.1,
+              ),
+              boxShadow: const [
+                BoxShadow(
+                  color: Color(0x18382314),
+                  blurRadius: 6,
+                  offset: Offset(0, 2),
+                ),
+              ],
+            ),
+            child: IconButton(
+              padding: EdgeInsets.zero,
+              tooltip: 'Thông báo',
+              icon: const Icon(
+                Icons.notifications_none_rounded,
+                size: 20,
+                color: Color(0xFF2D1E14),
+              ),
+              onPressed: () {
+                ScaffoldMessenger.of(context).showSnackBar(
+                  const SnackBar(
+                    content: Text('Chưa có thông báo mới.'),
+                    duration: Duration(seconds: 1),
+                  ),
+                );
+              },
+            ),
+          ),
+        ),
+        // Badge đỏ "1" góc trên phải như mockup
+        Positioned(
+          top: -2,
+          right: -2,
+          child: IgnorePointer(
+            child: Container(
+              padding: const EdgeInsets.symmetric(horizontal: 4.5, vertical: 1),
+              decoration: BoxDecoration(
+                color: const Color(0xFFD62424),
+                borderRadius: BorderRadius.circular(999),
+                border: Border.all(color: Colors.white, width: 1.2),
+              ),
+              child: Text(
+                '1',
+                style: DauVietTypography.labelSmall.copyWith(
+                  fontSize: 9,
+                  fontWeight: FontWeight.w900,
+                  color: Colors.white,
+                  height: 1.0,
+                ),
+              ),
+            ),
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildHeroGreeting() {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        Text(
+          'Chào mừng\ntrở lại!',
+          style: DauVietTypography.headlineLarge.copyWith(
+            fontSize: 28,
+            fontWeight: FontWeight.w900,
+            color: const Color(0xFF23120B),
+            height: 1.08,
+            letterSpacing: -0.3,
+          ),
+        ),
+        const SizedBox(height: 6),
+        Text(
+          'Cùng khám phá những câu chuyện\nhào hùng của dân tộc Việt Nam nhé!',
+          style: DauVietTypography.bodyMedium.copyWith(
+            fontSize: 12,
+            fontWeight: FontWeight.w600,
+            color: const Color(0xFF3E2D21),
+            height: 1.32,
+          ),
+        ),
+      ],
+    );
+  }
+
+  // ===========================================================================
+  // 2. THẺ FOLDER-TAB "TIẾP TỤC HÀNH TRÌNH" (ĐỒNG BỘ DB & PROVIDERS)
+  // ===========================================================================
+  Widget _buildContinueJourneyCard(BuildContext context) {
+    final progressAsync = ref.watch(myProgressProvider);
+    final learningPathAsync = ref.watch(learnerLearningPathProvider);
+    final assetResolver = ref.watch(assetResolverProvider);
+
+    final inProgress = progressAsync.maybeWhen(
+      data: (p) => p.inProgress.isNotEmpty ? p.inProgress.first : null,
+      orElse: () => null,
+    );
+
+    if (inProgress != null) {
+      final resolvedInfo = learningPathAsync.maybeWhen(
+        data: (path) {
+          final lid = inProgress.lessonId;
+          final lesson = (lid != null && lid.isNotEmpty)
+              ? path.findLessonById(lid)
+              : null;
+          final target = _resolveJourneyTarget(path);
+          final String? dbAssetId = _extractLessonOrEventAssetId(
+            lesson: lesson,
+            event: target.event,
+            period: target.period,
+          );
+          final String bundled = _resolveBundledCover(
+            assetResolver: assetResolver,
+            event: target.event,
+            period: target.period,
+            fallbackTitle: lesson?.title ?? target.event?.title ?? '',
+          );
+          return (
+            title: lesson?.title,
+            dbAssetId: dbAssetId,
+            bundledPath: bundled,
+          );
+        },
+        orElse: () => (
+          title: null,
+          dbAssetId: null,
+          bundledPath: 'assets/images/bach_dang_938.jpg',
+        ),
+      );
+
+      final String rawStage = inProgress.currentStageId ?? '';
+      final String mappedStage = switch (rawStage.toLowerCase()) {
+        'ctx' || 'context' => 'Bối cảnh lịch sử',
+        'ev' => 'Thu thập bằng chứng',
+        'res' || 'reasoning' => 'Suy luận lịch sử',
+        'hyp' || 'hypothesis' => 'Đặt giả thuyết',
+        'ver' || 'verification' => 'Kiểm chứng sử liệu',
+        'cer' || 'conclusion' => 'Kết luận lịch sử',
+        'ref' || 'reflection' => 'Suy ngẫm lịch sử',
+        _ => rawStage,
+      };
+
+      return _buildFolderTabCardBody(
+        title: (resolvedInfo.title != null &&
+                resolvedInfo.title!.trim().isNotEmpty)
+            ? resolvedInfo.title!.trim()
+            : 'Bài học đang tiếp diễn',
+        subtitle: mappedStage.isNotEmpty
+            ? 'Giai đoạn: $mappedStage'
+            : 'Hành trình đang thực hiện',
+        progressFraction: inProgress.progress.fraction,
+        progressText:
+            '${inProgress.progress.completedRequired}/${inProgress.progress.totalRequired} hoạt động',
+        ctaSemanticLabel: 'Tiếp tục học →',
+        assetId: resolvedInfo.dbAssetId,
+        bundledImagePath: resolvedInfo.bundledPath,
+        onCardTap: () =>
+            context.go('/learning/attempt/${inProgress.attemptId}'),
+        onPlayTap: () =>
+            context.go('/learning/attempt/${inProgress.attemptId}'),
+      );
+    }
+
+    final int completedCount = progressAsync.maybeWhen(
+      data: (p) => p.completedCount,
+      orElse: () => 0,
+    );
+
+    return learningPathAsync.when(
+      loading: () => _buildFolderTabCardBody(
+        title: 'Đang tải bài học...',
+        subtitle: 'Đang đồng bộ dữ liệu',
+        progressFraction: 0.0,
+        progressText: '—',
+        ctaSemanticLabel: 'KHÁM PHÁ NGAY ›',
+        assetId: null,
+        bundledImagePath: 'assets/images/bach_dang_938.jpg',
+        onCardTap: () => context.go('/journey'),
+        onPlayTap: () => context.go('/journey'),
+      ),
+      error: (_, _) => _buildFolderTabCardBody(
+        title: 'Khám phá Hành trình Lịch sử',
+        subtitle: 'Bắt đầu hành trình lịch sử',
+        progressFraction: 0.0,
+        progressText: 'Chưa bắt đầu',
+        ctaSemanticLabel: 'KHÁM PHÁ NGAY ›',
+        assetId: null,
+        bundledImagePath: 'assets/images/bach_dang_938.jpg',
+        onCardTap: () => context.go('/journey'),
+        onPlayTap: () => context.go('/journey'),
+      ),
+      data: (path) {
+        final target = _resolveJourneyTarget(path);
+        final event = target.event;
+        if (event != null && event.eventId.isNotEmpty) {
+          final periodTitle = target.period?.title;
+          final lessonTitle = target.lesson?.title;
+          final String subtitle;
+          if (periodTitle != null &&
+              periodTitle.isNotEmpty &&
+              lessonTitle != null &&
+              lessonTitle.isNotEmpty) {
+            subtitle = '$periodTitle • $lessonTitle';
+          } else if (periodTitle != null && periodTitle.isNotEmpty) {
+            subtitle = periodTitle;
+          } else if (lessonTitle != null && lessonTitle.isNotEmpty) {
+            subtitle = lessonTitle;
+          } else {
+            subtitle = event.period ?? event.yearLabel;
+          }
+
+          final periodProg = target.periodProgress;
+          final double fraction;
+          final String progressText;
+          if (periodProg != null && periodProg.requiredLessons > 0) {
+            fraction = periodProg.completedLessons / periodProg.requiredLessons;
+            progressText =
+                '${periodProg.completedLessons}/${periodProg.requiredLessons} bài học';
+          } else if (path.summary.totalRequiredLessons > 0) {
+            fraction = path.summary.lessonProgressFraction;
+            progressText =
+                '${path.summary.completedLessons}/${path.summary.totalRequiredLessons} bài học';
+          } else if (completedCount > 0) {
+            fraction = 1.0;
+            progressText = '$completedCount bài đã hoàn thành';
+          } else {
+            fraction = 0.0;
+            progressText = 'Sẵn sàng bắt đầu';
+          }
+
+          final String? dbAssetId = _extractLessonOrEventAssetId(
+            lesson: target.lesson,
+            event: event,
+            period: target.period,
+          );
+          final String bundledPath = _resolveBundledCover(
+            assetResolver: assetResolver,
+            event: event,
+            period: target.period,
+            fallbackTitle: event.title,
+          );
+
+          final String periodRoute =
+              (target.period != null && target.period!.code.isNotEmpty)
+                  ? '/journey/${target.period!.code}'
+                  : '/journey';
+
+          return _buildFolderTabCardBody(
+            title: event.title,
+            subtitle: subtitle,
+            progressFraction: fraction,
+            progressText: progressText,
+            ctaSemanticLabel: 'KHÁM PHÁ NGAY ›',
+            assetId: dbAssetId,
+            bundledImagePath: bundledPath,
+            onCardTap: () => context.go(periodRoute),
+            onPlayTap: () => context.go('/campaign/${event.eventId}'),
+          );
+        }
+
+        final String periodRoute =
+            (target.period != null && target.period!.code.isNotEmpty)
+                ? '/journey/${target.period!.code}'
+                : '/journey';
+
+        return _buildFolderTabCardBody(
+          title: 'Khám phá Hành trình Lịch sử',
+          subtitle: 'Bắt đầu hành trình lịch sử',
+          progressFraction: 0.0,
+          progressText: 'Chưa bắt đầu',
+          ctaSemanticLabel: 'KHÁM PHÁ NGAY ›',
+          assetId: null,
+          bundledImagePath: 'assets/images/bach_dang_938.jpg',
+          onCardTap: () => context.go(periodRoute),
+          onPlayTap: () => context.go(periodRoute),
+        );
+      },
+    );
+  }
+
+  Widget _buildFolderTabCardBody({
+    required String title,
+    required String subtitle,
+    required double progressFraction,
+    required String progressText,
+    required String ctaSemanticLabel,
+    required String? assetId,
+    required String bundledImagePath,
+    required VoidCallback onCardTap,
+    required VoidCallback onPlayTap,
+  }) {
+    return CustomPaint(
+      painter: const FolderTabCardPainter(
+        fillColor: Color(0xFFFBF6EC),
+        borderColor: Color(0xFFE5D7BE),
+        tabHeight: 36.0,
+        tabWidthRatio: 0.56,
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          // Phần tai Folder-Tab góc trên bên trái
+          SizedBox(
+            height: 36,
+            child: Padding(
+              padding: const EdgeInsets.only(left: 16, top: 8),
+              child: Text(
+                'Tiếp tục hành trình',
+                style: DauVietTypography.headlineSmall.copyWith(
+                  fontSize: 16,
+                  fontWeight: FontWeight.w900,
+                  color: const Color(0xFF23120B),
+                  height: 1.15,
+                ),
+              ),
+            ),
+          ),
+
+          // Phần thân thẻ chính
+          Padding(
+            padding: const EdgeInsets.fromLTRB(12, 6, 12, 12),
+            child: Row(
+              crossAxisAlignment: CrossAxisAlignment.center,
+              children: [
+                // Vùng bấm mở lộ trình thời kỳ (ảnh thumbnail + tiêu đề + tiến độ)
+                Expanded(
+                  child: GestureDetector(
+                    behavior: HitTestBehavior.opaque,
+                    onTap: onCardTap,
+                    child: Row(
+                      crossAxisAlignment: CrossAxisAlignment.center,
+                      children: [
+                        // Ảnh minh họa sự kiện/bài học (lấy từ DB nếu có assetId)
+                        ClipRRect(
+                          borderRadius: BorderRadius.circular(12),
+                          child: SizedBox(
+                            width: 84,
+                            height: 68,
+                            child: DbOrBundledImage(
+                              assetId: assetId,
+                              bundledPath: bundledImagePath,
+                              fit: BoxFit.cover,
+                            ),
+                          ),
+                        ),
+                        const SizedBox(width: 10),
+
+                        // Thông tin tiêu đề + phụ đề + thanh tiến độ xanh
+                        Expanded(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              Text(
+                                title,
+                                maxLines: 1,
+                                overflow: TextOverflow.ellipsis,
+                                style: DauVietTypography.labelLarge.copyWith(
+                                  fontSize: 14.5,
+                                  fontWeight: FontWeight.w800,
+                                  color: const Color(0xFF23120B),
+                                ),
+                              ),
+                              const SizedBox(height: 3),
+                              Text(
+                                subtitle,
+                                maxLines: 1,
+                                overflow: TextOverflow.ellipsis,
+                                style: DauVietTypography.bodySmall.copyWith(
+                                  fontSize: 11.5,
+                                  color: const Color(0xFF655547),
+                                  fontWeight: FontWeight.w500,
+                                ),
+                              ),
+                              const SizedBox(height: 10),
+                              Row(
+                                children: [
+                                  Expanded(
+                                    child: GamifiedProgressBar(
+                                      value: progressFraction,
+                                      height: 8.5,
+                                    ),
+                                  ),
+                                  const SizedBox(width: 8),
+                                  Flexible(
+                                    child: Text(
+                                      progressText,
+                                      maxLines: 1,
+                                      overflow: TextOverflow.ellipsis,
+                                      style:
+                                          DauVietTypography.labelSmall.copyWith(
+                                        fontSize: 11,
+                                        fontWeight: FontWeight.w700,
+                                        color: const Color(0xFF5A4B3E),
+                                      ),
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ],
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+                const SizedBox(width: 8),
+
+                // Cột phải: Chevron nhỏ phía trên + Nút Play tròn đỏ phía dưới
+                Column(
+                  mainAxisSize: MainAxisSize.min,
+                  crossAxisAlignment: CrossAxisAlignment.end,
+                  children: [
+                    GestureDetector(
+                      onTap: onCardTap,
+                      child: const Padding(
+                        padding: EdgeInsets.only(right: 4, bottom: 6),
+                        child: Icon(
+                          Icons.chevron_right_rounded,
+                          size: 20,
+                          color: Color(0xFFC92525),
+                        ),
+                      ),
+                    ),
+                    Semantics(
+                      button: true,
+                      label: ctaSemanticLabel,
+                      child: GestureDetector(
+                        onTap: onPlayTap,
+                        child: Container(
+                          width: 38,
+                          height: 38,
+                          decoration: const BoxDecoration(
+                            shape: BoxShape.circle,
+                            gradient: LinearGradient(
+                              begin: Alignment.topLeft,
+                              end: Alignment.bottomRight,
+                              colors: [
+                                Color(0xFFE02F2F),
+                                Color(0xFFB81818),
+                              ],
+                            ),
+                            boxShadow: [
+                              BoxShadow(
+                                color: Color(0x38B81818),
+                                blurRadius: 8,
+                                offset: Offset(0, 3),
+                              ),
+                            ],
+                          ),
+                          alignment: Alignment.center,
+                          child: Stack(
+                            alignment: Alignment.center,
+                            children: [
+                              const IgnorePointer(
+                                child: Icon(
+                                  Icons.chevron_right_rounded,
+                                  color: Colors.white,
+                                  size: 24,
+                                ),
+                              ),
+                              Opacity(
+                                opacity: 0.0,
+                                child: Text(
+                                  ctaSemanticLabel,
+                                  style: const TextStyle(fontSize: 1),
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              ],
+            ),
           ),
         ],
       ),
@@ -327,118 +737,136 @@ class _LearnerDashboardScreenState
   }
 
   // ===========================================================================
-  // 2. GREETING & STATS ROW: XIN CHÀO, NĂNG LƯỢNG & CHUỖI NGÀY (real data)
+  // 3. HÀNG 4 THẺ GAMIFICATION NHANH (THỜI KỲ, BẢN ĐỒ, THÀNH TỰU, KHO BÁU)
   // ===========================================================================
-  Widget _buildGreetingAndStatsRow(String displayName) {
+  Widget _buildQuickActionsRow(BuildContext context) {
     return Row(
-      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+      crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        // Lời chào kèm icon mầm cây xanh (theo mockup M-03)
         Expanded(
-          child: Row(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              Container(
-                padding: const EdgeInsets.all(6),
-                decoration: BoxDecoration(
-                  color: DauVietColors.heritageGreenSurface,
-                  shape: BoxShape.circle,
-                  border: Border.all(
-                    color: DauVietColors.natureGreen.withValues(alpha: 0.4),
-                    width: 1,
-                  ),
-                ),
-                child: const Icon(
-                  Icons.eco_rounded,
-                  size: 18,
-                  color: DauVietColors.heritageGreenLight,
-                ),
-              ),
-              const SizedBox(width: 8),
-              Flexible(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    Text(
-                      'Xin chào,',
-                      style: DauVietTypography.bodySmall.copyWith(
-                        color: DauVietColors.inkSecondary,
-                        fontSize: 11.5,
-                        fontWeight: FontWeight.w600,
-                        shadows: [
-                          const Shadow(
-                            color: DauVietColors.paperCard,
-                            blurRadius: 6,
-                          ),
-                        ],
-                      ),
-                    ),
-                    Text(
-                      '$displayName!',
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                      style: DauVietTypography.labelMedium.copyWith(
-                        color: DauVietColors.inkHeading,
-                        fontWeight: FontWeight.w800,
-                        fontSize: 14.5,
-                        shadows: [
-                          const Shadow(
-                            color: DauVietColors.paperCard,
-                            blurRadius: 6,
-                          ),
-                        ],
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-            ],
+          child: _buildGamifiedActionCard(
+            imagePath: 'assets/images/home/icon_scroll_period.png',
+            fallbackIcon: Icons.menu_book_rounded,
+            label: 'Thời kỳ\nlịch sử',
+            semanticAlias: 'Bài học',
+            onTap: () => context.go('/journey'),
           ),
         ),
         const SizedBox(width: 8),
-
-        // Cụm 2 status pills: ⚡ Năng lượng & ❤️ Chuỗi ngày — số + nhãn
-        // thật từ server, không hard-code.
-        const Row(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            _EnergyMiniPill(),
-            SizedBox(width: 6),
-            _StreakMiniPill(),
-          ],
+        Expanded(
+          child: _buildGamifiedActionCard(
+            imagePath: 'assets/images/home/icon_map_heritage.png',
+            fallbackIcon: Icons.map_rounded,
+            label: 'Bản đồ\ndi sản',
+            semanticAlias: 'Bản đồ',
+            onTap: () => context.go('/map'),
+          ),
+        ),
+        const SizedBox(width: 8),
+        Expanded(
+          child: _buildGamifiedActionCard(
+            imagePath: 'assets/images/home/icon_trophy_achievement.png',
+            fallbackIcon: Icons.emoji_events_rounded,
+            label: 'Thành tựu',
+            semanticAlias: 'Thành tích',
+            onTap: () => context.go('/profile'),
+          ),
+        ),
+        const SizedBox(width: 8),
+        Expanded(
+          child: _buildGamifiedActionCard(
+            imagePath: 'assets/images/home/icon_chest_treasure.png',
+            fallbackIcon: Icons.inventory_2_rounded,
+            label: 'Kho báu',
+            semanticAlias: 'Thư viện',
+            onTap: () => context.go('/collection'),
+          ),
         ),
       ],
     );
   }
 
+  Widget _buildGamifiedActionCard({
+    required String imagePath,
+    required IconData fallbackIcon,
+    required String label,
+    required String semanticAlias,
+    required VoidCallback onTap,
+  }) {
+    return TactileCard(
+      onTap: onTap,
+      usePixelShadow: false,
+      padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 10),
+      borderRadius: 16,
+      backgroundColor: const Color(0xFFFBF6EC),
+      borderColor: const Color(0xFFE5D7BE),
+      borderWidth: 1.1,
+      child: SizedBox(
+        height: 86,
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            SizedBox(
+              width: 46,
+              height: 46,
+              child: DbOrBundledImage(
+                bundledPath: imagePath,
+                fit: BoxFit.contain,
+                placeholder: Icon(
+                  fallbackIcon,
+                  color: DauVietColors.imperialGoldDark,
+                  size: 28,
+                ),
+              ),
+            ),
+            const SizedBox(height: 6),
+            Expanded(
+              child: Center(
+                child: Text(
+                  label,
+                  textAlign: TextAlign.center,
+                  maxLines: 2,
+                  overflow: TextOverflow.ellipsis,
+                  style: DauVietTypography.labelMedium.copyWith(
+                    fontSize: 11.5,
+                    fontWeight: FontWeight.w800,
+                    height: 1.15,
+                    color: const Color(0xFF23120B),
+                  ),
+                ),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
   // ===========================================================================
-  // 3. HERO BANNER: "KHÁM PHÁ LỊCH SỬ VIỆT NAM" + MASCOT CẦM BẢN ĐỒ
+  // 4. BANNER TOÀN CẢNH "KHÁM PHÁ BẢN ĐỒ VIỆT NAM"
   // ===========================================================================
-  Widget _buildHeroBanner() {
-    final progressAsync = ref.watch(myProgressProvider);
-    final learningPathAsync = ref.watch(learnerLearningPathProvider);
+  Widget _buildExploreMapBanner(BuildContext context) {
     return HeroPaperBanner(
-      height: 202,
+      height: 86,
       padding: EdgeInsets.zero,
       usePixelShadow: false,
       borderRadius: 18,
-      borderColor: const Color(0xFFDEC69A),
-      borderWidth: 1.3,
+      borderColor: const Color(0xFFE2D1B3),
+      borderWidth: 1.1,
+      onTap: () => context.go('/map'),
       child: Stack(
         fit: StackFit.expand,
         children: [
-          // Layer 1: Ảnh phong cảnh non nước Hạ Long, Tràng An hoàng hôn
-          Positioned.fill(
-            child: Image.asset(
-              'assets/images/landscape_hero_bg.jpg',
+          // Ảnh nền vịnh thuyền buồm đỏ & núi đá vôi (đã xóa nút '>' tĩnh trong ảnh để không bị trùng)
+          const Positioned.fill(
+            child: DbOrBundledImage(
+              bundledPath: 'assets/images/home/map_banner_bg.jpg',
               fit: BoxFit.cover,
-              errorBuilder: (_, _, _) =>
-                  Container(color: DauVietColors.paperCardHi),
+              alignment: Alignment.center,
             ),
           ),
 
-          // Layer 2: Gradient overlay ấm áp từ trái sang phải để nổi chữ
+          // Lớp phủ gradient kem ở vùng chữ (chừa thuyền đỏ bên trái 0..10% và vịnh bên phải 55..100%)
           Positioned.fill(
             child: DecoratedBox(
               decoration: BoxDecoration(
@@ -446,117 +874,82 @@ class _LearnerDashboardScreenState
                   begin: Alignment.centerLeft,
                   end: Alignment.centerRight,
                   colors: [
-                    DauVietColors.paperCard.withValues(alpha: 0.98),
-                    DauVietColors.paperCard.withValues(alpha: 0.94),
-                    DauVietColors.paperCard.withValues(alpha: 0.72),
-                    DauVietColors.paperCard.withValues(alpha: 0.12),
+                    const Color(0xFFF9EED8).withValues(alpha: 0.0),
+                    const Color(0xFFF9EED8).withValues(alpha: 0.94),
+                    const Color(0xFFF9EED8).withValues(alpha: 0.88),
+                    const Color(0xFFF9EED8).withValues(alpha: 0.0),
                   ],
-                  stops: const [0.0, 0.52, 0.76, 1.0],
+                  stops: const [0.07, 0.14, 0.46, 0.62],
                 ),
               ),
             ),
           ),
 
-          // Layer 3: Mascot Chú Rùa đội nón lá cầm bản đồ (căn gọn góc phải)
-          Positioned(
-            right: -12,
-            bottom: -4,
-            width: 148,
-            height: 168,
-            child: Image.asset(
-              'assets/images/turtle_map.png',
-              fit: BoxFit.contain,
-              alignment: Alignment.bottomRight,
-              errorBuilder: (_, _, _) => const SizedBox.shrink(),
+          // Nội dung tiêu đề & phụ đề
+          Padding(
+            padding: const EdgeInsets.fromLTRB(48, 10, 48, 10),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                Text(
+                  'Khám phá bản đồ Việt Nam',
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: DauVietTypography.headlineSmall.copyWith(
+                    fontSize: 15,
+                    fontWeight: FontWeight.w900,
+                    color: const Color(0xFF23120B),
+                    height: 1.15,
+                  ),
+                ),
+                const SizedBox(height: 3),
+                Text(
+                  'Mở khóa các địa danh lịch sử\ndọc theo hành trình thời gian',
+                  maxLines: 2,
+                  overflow: TextOverflow.ellipsis,
+                  style: DauVietTypography.bodySmall.copyWith(
+                    fontSize: 11,
+                    fontWeight: FontWeight.w500,
+                    color: const Color(0xFF4A3A2C),
+                    height: 1.25,
+                  ),
+                ),
+              ],
             ),
           ),
 
-          // Layer 4: Nội dung chữ & Nút CTA (chừa 128px bên phải để không đè lên nón lá Kabi)
-          Padding(
-            padding: const EdgeInsets.fromLTRB(18, 12, 128, 12),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              mainAxisAlignment: MainAxisAlignment.spaceBetween,
-              children: [
-                Flexible(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      Text(
-                        'Khám phá\nlịch sử Việt Nam',
-                        maxLines: 2,
-                        overflow: TextOverflow.ellipsis,
-                        style: DauVietTypography.headlineMedium.copyWith(
-                          fontSize: 18,
-                          fontWeight: FontWeight.w800,
-                          color: DauVietColors.chapterGreen,
-                          height: 1.15,
-                        ),
-                      ),
-                      const SizedBox(height: 4),
-                      Flexible(
-                        child: Text(
-                          'Những câu chuyện hào hùng\nđang chờ bạn khám phá!',
-                          maxLines: 2,
-                          overflow: TextOverflow.ellipsis,
-                          style: DauVietTypography.bodyMedium.copyWith(
-                            fontSize: 11.5,
-                            color: DauVietColors.inkSecondary,
-                            height: 1.25,
-                            fontWeight: FontWeight.w500,
-                          ),
-                        ),
-                      ),
-                    ],
+          // Nút tròn '>' góc phải
+          Positioned(
+            right: 10,
+            top: 0,
+            bottom: 0,
+            child: Center(
+              child: Container(
+                width: 32,
+                height: 32,
+                decoration: BoxDecoration(
+                  shape: BoxShape.circle,
+                  color: const Color(0xFFFDF7EA),
+                  border: Border.all(
+                    color: const Color(0xFFE4D5BC),
+                    width: 1.0,
                   ),
+                  boxShadow: const [
+                    BoxShadow(
+                      color: Color(0x22000000),
+                      blurRadius: 4,
+                      offset: Offset(0, 1),
+                    ),
+                  ],
                 ),
-
-                // Nút CTA: Tiếp tục attempt thật nếu có, hoặc mở sự kiện từ currentByPeriod[lastPeriodCode]
-                Builder(
-                  builder: (context) {
-                    final inProgress = progressAsync.maybeWhen(
-                      data: (p) =>
-                          p.inProgress.isNotEmpty ? p.inProgress.first : null,
-                      orElse: () => null,
-                    );
-                    if (inProgress != null) {
-                      return _buildHeroCtaButton(
-                        label: 'Tiếp tục học →',
-                        onTap: () => context.go(
-                          '/learning/attempt/${inProgress.attemptId}',
-                        ),
-                      );
-                    }
-                    return learningPathAsync.maybeWhen(
-                      data: (path) {
-                        final target = _resolveJourneyTarget(path);
-                        final event = target.event;
-                        if (event != null && event.eventId.isNotEmpty) {
-                          return _buildHeroCtaButton(
-                            label: 'KHÁM PHÁ NGAY ›',
-                            onTap: () =>
-                                context.go('/campaign/${event.eventId}'),
-                          );
-                        }
-                        return _buildHeroCtaButton(
-                          label: 'KHÁM PHÁ NGAY ›',
-                          onTap: () => context.go(
-                            target.period != null &&
-                                    target.period!.code.isNotEmpty
-                                ? '/journey/${target.period!.code}'
-                                : '/journey',
-                          ),
-                        );
-                      },
-                      orElse: () => _buildHeroCtaButton(
-                        label: 'KHÁM PHÁ NGAY ›',
-                        onTap: () => context.go('/journey'),
-                      ),
-                    );
-                  },
+                alignment: Alignment.center,
+                child: const Icon(
+                  Icons.chevron_right_rounded,
+                  size: 20,
+                  color: Color(0xFF23120B),
                 ),
-              ],
+              ),
             ),
           ),
         ],
@@ -564,225 +957,364 @@ class _LearnerDashboardScreenState
     );
   }
 
-  Widget _buildHeroCtaButton({
-    required String label,
-    required VoidCallback onTap,
-  }) {
-    return Semantics(
-      button: true,
-      label: label,
-      child: Material(
-        color: Colors.transparent,
-        child: InkWell(
-          onTap: onTap,
-          borderRadius: BorderRadius.circular(11),
-          child: Container(
-            height: 40,
-            padding: const EdgeInsets.symmetric(horizontal: 16),
-            decoration: BoxDecoration(
-              color: const Color(0xFF1A4B38),
-              borderRadius: BorderRadius.circular(11),
-              border: Border.all(
-                color: const Color(0xFFDEC69A).withValues(alpha: 0.55),
-                width: 1.0,
-              ),
-              boxShadow: const [
-                BoxShadow(
-                  color: Color(0x24163A2B),
-                  blurRadius: 4,
-                  offset: Offset(0, 1),
-                ),
-              ],
-            ),
-            child: FittedBox(
-              fit: BoxFit.scaleDown,
-              child: Text(
-                label,
-                maxLines: 1,
-                overflow: TextOverflow.ellipsis,
-                style: DauVietTypography.labelMedium.copyWith(
-                  fontSize: 12,
-                  fontWeight: FontWeight.w800,
-                  letterSpacing: 0.4,
-                  color: Colors.white,
-                ),
-              ),
-            ),
-          ),
-        ),
-      ),
-    );
-  }
-
   // ===========================================================================
-  // 4. BÀI HỌC HÔM NAY (ĐỒNG BỘ TIẾN ĐỘ THẬT TỪ MYPROGRESS / EVENT LESSONS)
+  // 5. CAROUSEL NGANG "BÀI HỌC NỔI BẬT" (ĐỒNG BỘ SỰ KIỆN & ẢNH TỪ DB)
   // ===========================================================================
-  Widget _buildTodayLessonSection() {
-    final progressAsync = ref.watch(myProgressProvider);
+  Widget _buildFeaturedLessonsSection(BuildContext context) {
     final learningPathAsync = ref.watch(learnerLearningPathProvider);
+    final eventsAsync = ref.watch(eventsListProvider);
+    final assetResolver = ref.watch(assetResolverProvider);
+
+    final List<_FeaturedCardItem> items = _buildFeaturedItemsFromDb(
+      learningPathAsync: learningPathAsync,
+      eventsAsync: eventsAsync,
+      assetResolver: assetResolver,
+    );
+
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        // Tiêu đề khối với SectionDivider chuẩn v3 & Link "Xem tất cả →"
-        // Mockup: tiêu đề trái + link "Xem tất cả →" phải (không badge MỤC)
-        SectionDivider(
-          title: 'Bài học hôm nay',
-          padding: const EdgeInsets.only(top: 6, bottom: 10),
-          trailing: Semantics(
-            button: true,
-            label: 'Xem tất cả bài học',
-            child: GestureDetector(
-              onTap: () => context.go('/journey'),
-              child: Padding(
-                padding: const EdgeInsets.symmetric(vertical: 8, horizontal: 4),
-                child: Text(
-                  'Xem tất cả →',
-                  style: DauVietTypography.labelSmall.copyWith(
-                    fontSize: 12,
-                    fontWeight: FontWeight.w600,
-                    color: DauVietColors.inkSecondary,
+        // Header: 🔥 Bài học nổi bật + Xem tất cả >
+        Row(
+          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+          children: [
+            Flexible(
+              child: Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  const SizedBox(
+                    width: 22,
+                    height: 22,
+                    child: DbOrBundledImage(
+                      bundledPath: 'assets/images/home/icon_fire_flame.png',
+                      fit: BoxFit.contain,
+                      placeholder: Icon(
+                        Icons.local_fire_department_rounded,
+                        color: Color(0xFFE8541E),
+                        size: 20,
+                      ),
+                    ),
+                  ),
+                  const SizedBox(width: 6),
+                  Flexible(
+                    child: Text(
+                      'Bài học nổi bật',
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: DauVietTypography.headlineSmall.copyWith(
+                        fontSize: 17,
+                        fontWeight: FontWeight.w900,
+                        color: const Color(0xFF23120B),
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            const SizedBox(width: 8),
+            Semantics(
+              button: true,
+              label: 'Xem tất cả bài học nổi bật',
+              child: GestureDetector(
+                onTap: () => context.go('/journey'),
+                child: Padding(
+                  padding: const EdgeInsets.symmetric(
+                    vertical: 4,
+                    horizontal: 2,
+                  ),
+                  child: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Text(
+                        'Xem tất cả',
+                        style: DauVietTypography.labelMedium.copyWith(
+                          fontSize: 12.5,
+                          fontWeight: FontWeight.w800,
+                          color: const Color(0xFFC92525),
+                        ),
+                      ),
+                      const SizedBox(width: 2),
+                      const Icon(
+                        Icons.chevron_right_rounded,
+                        size: 18,
+                        color: Color(0xFFC92525),
+                      ),
+                    ],
                   ),
                 ),
               ),
             ),
-          ),
+          ],
         ),
+        const SizedBox(height: 10),
 
-        Builder(
-          builder: (context) {
-            final inProgress = progressAsync.maybeWhen(
-              data: (p) => p.inProgress.isNotEmpty ? p.inProgress.first : null,
-              orElse: () => null,
-            );
-            if (inProgress != null) {
-              final String? resolvedLessonTitle = learningPathAsync.maybeWhen(
-                data: (path) {
-                  final lid = inProgress.lessonId;
-                  if (lid == null || lid.isEmpty) return null;
-                  return path.findLessonById(lid)?.title;
+        // Carousel ngang các thẻ bài học/sự kiện nổi bật
+        SizedBox(
+          height: 188,
+          child: ListView.separated(
+            scrollDirection: Axis.horizontal,
+            physics: const BouncingScrollPhysics(),
+            itemCount: items.length,
+            separatorBuilder: (_, _) => const SizedBox(width: 12),
+            itemBuilder: (context, index) {
+              final item = items[index];
+              return FeaturedLessonCarouselCard(
+                title: item.title,
+                activitiesLabel: item.activitiesLabel,
+                durationLabel: item.durationLabel,
+                badgeText: item.badgeText,
+                assetId: item.assetId,
+                bundledImagePath: item.bundledImagePath,
+                onTap: () {
+                  if (item.eventId != null && item.eventId!.isNotEmpty) {
+                    context.go('/campaign/${item.eventId}');
+                  } else {
+                    context.go('/journey');
+                  }
                 },
-                orElse: () => null,
               );
-              final String rawStage = inProgress.currentStageId ?? '';
-              final String mappedStage = switch (rawStage.toLowerCase()) {
-                'ctx' || 'context' => 'Bối cảnh lịch sử',
-                'ev' => 'Thu thập bằng chứng',
-                'res' || 'reasoning' => 'Suy luận lịch sử',
-                'hyp' || 'hypothesis' => 'Đặt giả thuyết',
-                'ver' || 'verification' => 'Kiểm chứng sử liệu',
-                'cer' || 'conclusion' => 'Kết luận lịch sử',
-                'ref' || 'reflection' => 'Suy ngẫm lịch sử',
-                _ => rawStage,
-              };
-              return _buildTodayLessonCard(
-                title:
-                    (resolvedLessonTitle != null &&
-                        resolvedLessonTitle.trim().isNotEmpty)
-                    ? resolvedLessonTitle.trim()
-                    : 'Bài học đang tiếp diễn',
-                subtitle: mappedStage.isNotEmpty
-                    ? 'Giai đoạn: $mappedStage'
-                    : 'Hành trình đang thực hiện',
-                progressFraction: inProgress.progress.fraction,
-                progressText:
-                    '${inProgress.progress.completedRequired}/${inProgress.progress.totalRequired} hoạt động',
-                onTap: () =>
-                    context.go('/learning/attempt/${inProgress.attemptId}'),
-              );
-            }
-
-            final int completedCount = progressAsync.maybeWhen(
-              data: (p) => p.completedCount,
-              orElse: () => 0,
-            );
-
-            return learningPathAsync.when(
-              loading: () => _buildTodayLessonCard(
-                title: 'Đang tải bài học...',
-                subtitle: 'Đang đồng bộ dữ liệu',
-                progressFraction: 0.0,
-                progressText: '—',
-                onTap: () => context.go('/journey'),
-              ),
-              error: (_, _) => _buildTodayLessonCard(
-                title: 'Khám phá Hành trình Lịch sử',
-                subtitle: 'Bắt đầu hành trình lịch sử',
-                progressFraction: 0.0,
-                progressText: 'Chưa bắt đầu',
-                onTap: () => context.go('/journey'),
-              ),
-              data: (path) {
-                final target = _resolveJourneyTarget(path);
-                final event = target.event;
-                if (event != null && event.eventId.isNotEmpty) {
-                  final periodTitle = target.period?.title;
-                  final lessonTitle = target.lesson?.title;
-                  final String subtitle;
-                  if (periodTitle != null &&
-                      periodTitle.isNotEmpty &&
-                      lessonTitle != null &&
-                      lessonTitle.isNotEmpty) {
-                    subtitle = '$periodTitle • $lessonTitle';
-                  } else if (periodTitle != null && periodTitle.isNotEmpty) {
-                    subtitle = periodTitle;
-                  } else if (lessonTitle != null && lessonTitle.isNotEmpty) {
-                    subtitle = lessonTitle;
-                  } else {
-                    subtitle = event.period ?? event.yearLabel;
-                  }
-
-                  final periodProg = target.periodProgress;
-                  final double fraction;
-                  final String progressText;
-                  if (periodProg != null && periodProg.requiredLessons > 0) {
-                    fraction =
-                        periodProg.completedLessons /
-                        periodProg.requiredLessons;
-                    progressText =
-                        '${periodProg.completedLessons}/${periodProg.requiredLessons} bài học';
-                  } else if (path.summary.totalRequiredLessons > 0) {
-                    fraction = path.summary.lessonProgressFraction;
-                    progressText =
-                        '${path.summary.completedLessons}/${path.summary.totalRequiredLessons} bài học';
-                  } else if (completedCount > 0) {
-                    fraction = 1.0;
-                    progressText = '$completedCount bài đã hoàn thành';
-                  } else {
-                    fraction = 0.0;
-                    progressText = 'Sẵn sàng bắt đầu';
-                  }
-
-                  return _buildTodayLessonCard(
-                    title: event.title,
-                    subtitle: subtitle,
-                    progressFraction: fraction,
-                    progressText: progressText,
-                    onTap: () => context.go(
-                      target.period != null &&
-                              target.period!.code.isNotEmpty
-                          ? '/journey/${target.period!.code}'
-                          : '/journey',
-                    ),
-                  );
-                }
-                return _buildTodayLessonCard(
-                  title: 'Khám phá Hành trình Lịch sử',
-                  subtitle: 'Bắt đầu hành trình lịch sử',
-                  progressFraction: 0.0,
-                  progressText: 'Chưa bắt đầu',
-                  onTap: () => context.go(
-                    target.period != null &&
-                            target.period!.code.isNotEmpty
-                        ? '/journey/${target.period!.code}'
-                        : '/journey',
-                  ),
-                );
-              },
-            );
-          },
+            },
+          ),
         ),
       ],
     );
+  }
+
+  /// Tổng hợp danh sách thẻ "Bài học nổi bật" từ DB (`learnerLearningPathProvider`
+  /// & `eventsListProvider`), tự động lấy `assetId` từ DB nếu admin đã cấu hình
+  /// ảnh bìa cho sự kiện/bài học/thời kỳ.
+  List<_FeaturedCardItem> _buildFeaturedItemsFromDb({
+    required AsyncValue<LearningPathDto> learningPathAsync,
+    required AsyncValue<dynamic> eventsAsync,
+    required AssetResolver assetResolver,
+  }) {
+    final List<_FeaturedCardItem> results = [];
+    final Set<String> seenEventIds = {};
+
+    learningPathAsync.whenData((path) {
+      // Ưu tiên sự kiện Bạch Đằng 938 đầu tiên (nếu có trong lộ trình DB) để khớp trải nghiệm nổi bật
+      final bachDang = path.findEventById('bach-dang-938');
+      final List<(LearningPathChapterDto, LearningPathEventNodeDto)> allPairs =
+          [];
+      for (final ch in path.chapters) {
+        for (final ev in ch.events) {
+          allPairs.add((ch, ev));
+        }
+      }
+
+      if (bachDang != null) {
+        allPairs.sort((a, b) {
+          if (a.$2.eventNodeId == bachDang.eventNodeId) return -1;
+          if (b.$2.eventNodeId == bachDang.eventNodeId) return 1;
+          return 0;
+        });
+      }
+
+      for (final (ch, ev) in allPairs) {
+        final String key = ev.eventId.isNotEmpty ? ev.eventId : ev.eventNodeId;
+        if (key.isEmpty || seenEventIds.contains(key)) continue;
+        seenEventIds.add(key);
+
+        final LearningPathLessonNodeDto? firstLesson =
+            ev.lessons.isNotEmpty ? ev.lessons.first : null;
+        final String? dbAssetId = _extractLessonOrEventAssetId(
+          lesson: firstLesson,
+          event: ev,
+          period: ch,
+        );
+        final String bundledPath = _resolveBundledCover(
+          assetResolver: assetResolver,
+          event: ev,
+          period: ch,
+          fallbackTitle: ev.title,
+          cardIndex: results.length,
+        );
+        final int activityCount =
+            ev.lessons.isNotEmpty ? (ev.lessons.length + 2) : 5;
+        final String duration =
+            activityCount >= 5 ? '10 - 15 phút' : '8 - 12 phút';
+
+        results.add(
+          _FeaturedCardItem(
+            eventId: ev.eventId,
+            title: ev.title,
+            activitiesLabel: '$activityCount hoạt động',
+            durationLabel: duration,
+            badgeText: results.isEmpty ? 'Mới' : null,
+            assetId: dbAssetId,
+            bundledImagePath: bundledPath,
+          ),
+        );
+      }
+    });
+
+    // Bổ sung các thẻ chuẩn thiết kế nếu lộ trình đang tải hoặc có ít hơn 3 sự kiện
+    const List<_FeaturedCardItem> defaultShowcases = [
+      _FeaturedCardItem(
+        eventId: null,
+        title: 'Chiến thắng\nBạch Đằng 938',
+        activitiesLabel: '5 hoạt động',
+        durationLabel: '10 - 15 phút',
+        badgeText: 'Mới',
+        assetId: null,
+        bundledImagePath: 'assets/images/bach_dang_938.jpg',
+      ),
+      _FeaturedCardItem(
+        eventId: null,
+        title: 'Nhà Đinh\nthống nhất đất nước',
+        activitiesLabel: '4 hoạt động',
+        durationLabel: '8 - 12 phút',
+        badgeText: null,
+        assetId: null,
+        bundledImagePath: 'assets/images/home/featured_nha_dinh.jpg',
+      ),
+      _FeaturedCardItem(
+        eventId: null,
+        title: 'Khởi nghĩa\nHai Bà Trưng',
+        activitiesLabel: '4 hoạt động',
+        durationLabel: '8 - 12 phút',
+        badgeText: null,
+        assetId: null,
+        bundledImagePath: 'assets/images/home/featured_hai_ba_trung.jpg',
+      ),
+    ];
+
+    for (final fallback in defaultShowcases) {
+      if (results.length >= 3) break;
+      final bool alreadyHasSimilar = results.any(
+        (r) =>
+            r.title.toLowerCase().contains(
+              fallback.title.split('\n').last.toLowerCase(),
+            ),
+      );
+      if (!alreadyHasSimilar) {
+        results.add(
+          _FeaturedCardItem(
+            eventId: fallback.eventId,
+            title: fallback.title,
+            activitiesLabel: fallback.activitiesLabel,
+            durationLabel: fallback.durationLabel,
+            badgeText: results.isEmpty ? 'Mới' : null,
+            assetId: fallback.assetId,
+            bundledImagePath: fallback.bundledImagePath,
+          ),
+        );
+      }
+    }
+
+    return results;
+  }
+
+  /// Trích xuất UUID ảnh từ DB (`assets` table) theo thứ tự ưu tiên:
+  /// 1. `lesson.coverAssetId` / `lesson.coverImageUrl` / `lesson.backgroundConfig`
+  /// 2. `event.coverAssetKey` (UUID hoặc key logic ánh xạ sang bảng `assets` trong V50) / `event.backgroundConfig`
+  /// 3. `period.coverImageKey` / `period.backgroundConfig`
+  String? _extractLessonOrEventAssetId({
+    LearningPathLessonNodeDto? lesson,
+    LearningPathEventNodeDto? event,
+    LearningPathChapterDto? period,
+  }) {
+    final String? fromLesson =
+        HeritageBackgroundConfigDto.extractAssetId(lesson?.coverAssetId) ??
+        HeritageBackgroundConfigDto.extractAssetId(lesson?.coverImageUrl) ??
+        lesson?.backgroundConfig.resolvedAssetId;
+    if (fromLesson != null && fromLesson.isNotEmpty) return fromLesson;
+
+    if (event != null && event.lessons.isNotEmpty) {
+      for (final l in event.lessons) {
+        final String? lid =
+            HeritageBackgroundConfigDto.extractAssetId(l.coverAssetId) ??
+            HeritageBackgroundConfigDto.extractAssetId(l.coverImageUrl) ??
+            l.backgroundConfig.resolvedAssetId;
+        if (lid != null && lid.isNotEmpty) return lid;
+      }
+    }
+
+    final String? fromEvent =
+        HeritageBackgroundConfigDto.extractAssetId(event?.coverAssetKey) ??
+        event?.backgroundConfig.resolvedAssetId ??
+        _dbSeededAssetIdForSlugOrKey(event?.slug, event?.coverAssetKey);
+    if (fromEvent != null && fromEvent.isNotEmpty) return fromEvent;
+
+    final String? fromPeriod =
+        HeritageBackgroundConfigDto.extractAssetId(period?.coverImageKey) ??
+        period?.backgroundConfig.resolvedAssetId;
+    if (fromPeriod != null && fromPeriod.isNotEmpty) return fromPeriod;
+
+    return null;
+  }
+
+  /// Ánh xạ các key logic `events/<slug>/hero.jpg` hoặc `slug` sang đúng UUID trong bảng `assets`
+  /// của DB (đã seed tại `V50__seed_lesson_cover_assets.sql`) khi sự kiện chưa có bài học con.
+  String? _dbSeededAssetIdForSlugOrKey(String? slug, String? coverAssetKey) {
+    final String combined =
+        '${slug ?? ''} ${coverAssetKey ?? ''}'.trim().toLowerCase();
+    if (combined.isEmpty) return null;
+    if (combined.contains('bach-dang-938')) {
+      return 'd7a70000-0000-4000-8000-000000000011';
+    }
+    if (combined.contains('hung-vuong')) {
+      return 'd7a70000-0000-4000-8000-000000000001';
+    }
+    if (combined.contains('hai-ba-trung')) {
+      return 'd7a70000-0000-4000-8000-000000000002';
+    }
+    if (combined.contains('thang-long') || combined.contains('ly-thai-to')) {
+      return 'd7a70000-0000-4000-8000-000000000004';
+    }
+    if (combined.contains('nhu-nguyet')) {
+      return 'd7a70000-0000-4000-8000-000000000005';
+    }
+    if (combined.contains('dien-bien-phu')) {
+      return 'd7a70000-0000-4000-8000-000000000006';
+    }
+    return null;
+  }
+
+  /// Chọn đường dẫn ảnh bundle cục bộ khi bản ghi DB chưa gắn UUID asset riêng.
+  String _resolveBundledCover({
+    required AssetResolver assetResolver,
+    LearningPathEventNodeDto? event,
+    LearningPathChapterDto? period,
+    required String fallbackTitle,
+    int cardIndex = 0,
+  }) {
+    final String? byEvent = assetResolver.resolveEventCover(
+      event?.coverAssetKey,
+      event?.slug,
+    );
+    if (byEvent != null && byEvent.isNotEmpty) return byEvent;
+
+    final String lower = fallbackTitle.toLowerCase();
+    if (lower.contains('bạch đằng') || lower.contains('ngô quyền')) {
+      return 'assets/images/bach_dang_938.jpg';
+    }
+    if (lower.contains('đinh') ||
+        lower.contains('thăng long') ||
+        lower.contains('lý')) {
+      return 'assets/images/home/featured_nha_dinh.jpg';
+    }
+    if (lower.contains('hai bà trưng') || lower.contains('trưng')) {
+      return 'assets/images/home/featured_hai_ba_trung.jpg';
+    }
+    if (lower.contains('văn lang') ||
+        lower.contains('hùng vương') ||
+        lower.contains('âu cơ')) {
+      return 'assets/images/hung_vuong_village.jpg';
+    }
+
+    final String? byPeriod = assetResolver.resolvePeriodCover(
+      period?.coverImageKey,
+      period?.code,
+    );
+    if (byPeriod != null && byPeriod.isNotEmpty) return byPeriod;
+
+    const List<String> cycle = [
+      'assets/images/bach_dang_938.jpg',
+      'assets/images/home/featured_nha_dinh.jpg',
+      'assets/images/home/featured_hai_ba_trung.jpg',
+    ];
+    return cycle[cardIndex % cycle.length];
   }
 
   /// Giải phân giải mục tiêu học tiếp theo trên Trang chủ từ `currentByPeriod[lastPeriodCode]`
@@ -863,631 +1395,29 @@ class _LearnerDashboardScreenState
       periodProgress: periodProgress,
     );
   }
-
-  Widget _buildTodayLessonCard({
-    required String title,
-    required String subtitle,
-    required double progressFraction,
-    required String progressText,
-    required VoidCallback onTap,
-  }) {
-    return TactileCard(
-      onTap: onTap,
-      usePixelShadow: false,
-      padding: const EdgeInsets.all(12),
-      borderRadius: 16,
-      backgroundColor: const Color(0xFFFAF3E4),
-      borderColor: const Color(0xFFE3D2B4),
-      borderWidth: 1.1,
-      child: Row(
-        children: [
-          Container(
-            width: 86,
-            height: 74,
-            decoration: BoxDecoration(
-              color: DauVietColors.heritageGreenSurface,
-              borderRadius: BorderRadius.circular(12),
-              border: Border.all(
-                color: DauVietColors.heritageGreenLight.withValues(alpha: 0.25),
-                width: 1.0,
-              ),
-            ),
-            child: const Icon(
-              Icons.history_edu_rounded,
-              size: 34,
-              color: DauVietColors.heritageGreen,
-            ),
-          ),
-          const SizedBox(width: 12),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                // Eyebrow dịu — chip viền mảnh jade, bỏ pixel-shadow đỏ
-                // đậm để hòa với thẻ (mockup dùng nhãn phụ trợ nhẹ).
-                const SectionEyebrow(
-                  'TIẾP TỤC HÀNH TRÌNH',
-                  color: DauVietColors.jade,
-                  showShadow: false,
-                  padding: EdgeInsets.symmetric(horizontal: 8, vertical: 2),
-                ),
-                const SizedBox(height: 6),
-                Text(
-                  title,
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                  style: DauVietTypography.labelLarge.copyWith(
-                    fontSize: 15,
-                    fontWeight: FontWeight.w800,
-                    color: DauVietColors.inkHeading,
-                  ),
-                ),
-                const SizedBox(height: 2),
-                Text(
-                  subtitle,
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                  style: DauVietTypography.bodySmall.copyWith(
-                    fontSize: 12,
-                    color: DauVietColors.inkMuted,
-                  ),
-                ),
-                const SizedBox(height: 8),
-                Row(
-                  children: [
-                    Expanded(
-                      child: ClipRRect(
-                        borderRadius: BorderRadius.circular(6),
-                        child: LinearProgressIndicator(
-                          value: progressFraction.clamp(0.0, 1.0),
-                          minHeight: 6,
-                          backgroundColor: DauVietColors.paperDim,
-                          valueColor: const AlwaysStoppedAnimation<Color>(
-                            DauVietColors.heritageGreenLight,
-                          ),
-                        ),
-                      ),
-                    ),
-                    const SizedBox(width: 8),
-                    Text(
-                      progressText,
-                      style: DauVietTypography.labelSmall.copyWith(
-                        fontSize: 11,
-                        color: DauVietColors.inkMuted,
-                        fontWeight: FontWeight.w600,
-                      ),
-                    ),
-                  ],
-                ),
-              ],
-            ),
-          ),
-          const Padding(
-            padding: EdgeInsets.only(left: 4),
-            child: Icon(
-              Icons.chevron_right_rounded,
-              color: DauVietColors.inkLight,
-              size: 24,
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-
-  // ===========================================================================
-  // 5. HÀNH TRÌNH CỦA BẠN: 4 THẺ CHỨC NĂNG (BÀI HỌC, ÔN TẬP, THÀNH TÍCH, THƯ VIỆN)
-  // ===========================================================================
-  Widget _buildYourJourneySection() {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        // Tiêu đề & Link "Xem hành trình →"
-        SectionDivider(
-          title: 'Hành trình của bạn',
-          padding: const EdgeInsets.only(top: 6, bottom: 10),
-          trailing: Semantics(
-            button: true,
-            label: 'Xem hành trình',
-            child: GestureDetector(
-              onTap: () => context.go('/journey'),
-              child: Padding(
-                padding: const EdgeInsets.symmetric(vertical: 8, horizontal: 4),
-                child: Text(
-                  'Xem hành trình →',
-                  style: DauVietTypography.labelSmall.copyWith(
-                    fontSize: 12,
-                    fontWeight: FontWeight.w600,
-                    color: DauVietColors.inkSecondary,
-                  ),
-                ),
-              ),
-            ),
-          ),
-        ),
-
-        // 4 thẻ chức năng vuông trên một hàng (theo mockup M-03 v3):
-        // Bài học / Ôn tập / Thành tích / Thư viện — icon cam-đất ấm.
-        Row(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Expanded(
-              child: _buildJourneyCard(
-                icon: Icons.menu_book_rounded,
-                iconColor: DauVietColors.heritageGreenLight,
-                bgIconColor: DauVietColors.heritageGreenSurface,
-                title: 'Bài học',
-                subtitle: 'Khám phá\nlịch sử',
-                onTap: () => context.go('/journey'),
-              ),
-            ),
-            const SizedBox(width: 8),
-            Expanded(
-              child: _buildJourneyCard(
-                icon: Icons.psychology_rounded,
-                iconColor: DauVietColors.imperialGoldDark,
-                bgIconColor: const Color(0xFFFFF3D6),
-                title: 'Ôn tập',
-                subtitle: 'Củng cố\nkiến thức',
-                // Chưa có route Ôn tập riêng → dẫn Sưu tập tư liệu.
-                onTap: () => context.go('/collection'),
-              ),
-            ),
-            const SizedBox(width: 8),
-            Expanded(
-              child: _buildJourneyCard(
-                icon: Icons.emoji_events_rounded,
-                iconColor: DauVietColors.cinnabarRed,
-                bgIconColor: const Color(0xFFFDE3DD),
-                title: 'Thành tích',
-                subtitle: 'Theo dõi\ntiến bộ',
-                onTap: () => context.go('/profile'),
-              ),
-            ),
-            const SizedBox(width: 8),
-            Expanded(
-              child: _buildJourneyCard(
-                icon: Icons.auto_stories_rounded,
-                iconColor: DauVietColors.jadeDark,
-                bgIconColor: const Color(0xFFDCEFED),
-                title: 'Thư viện',
-                subtitle: 'Tài liệu\nmở rộng',
-                onTap: () => context.go('/collection'),
-              ),
-            ),
-          ],
-        ),
-      ],
-    );
-  }
-
-  Widget _buildJourneyCard({
-    required IconData icon,
-    required Color iconColor,
-    required Color bgIconColor,
-    required String title,
-    required String subtitle,
-    required VoidCallback onTap,
-  }) {
-    return TactileCard(
-      onTap: onTap,
-      usePixelShadow: false,
-      padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 10),
-      borderRadius: 14,
-      backgroundColor: const Color(0xFFFAF3E4),
-      borderColor: const Color(0xFFE3D2B4),
-      borderWidth: 1.1,
-      child: Column(
-        mainAxisSize: MainAxisSize.min,
-        mainAxisAlignment: MainAxisAlignment.center,
-        children: [
-          Container(
-            padding: const EdgeInsets.all(7),
-            decoration: BoxDecoration(
-              color: bgIconColor,
-              shape: BoxShape.circle,
-            ),
-            child: Icon(icon, color: iconColor, size: 20),
-          ),
-          const SizedBox(height: 6),
-          Text(
-            title,
-            textAlign: TextAlign.center,
-            maxLines: 1,
-            overflow: TextOverflow.ellipsis,
-            style: DauVietTypography.labelMedium.copyWith(
-              fontSize: 11.5,
-              fontWeight: FontWeight.w800,
-              height: 1.15,
-              color: DauVietColors.inkHeading,
-            ),
-          ),
-          const SizedBox(height: 3),
-          Text(
-            subtitle,
-            textAlign: TextAlign.center,
-            maxLines: 2,
-            overflow: TextOverflow.ellipsis,
-            style: DauVietTypography.bodySmall.copyWith(
-              fontSize: 9.5,
-              height: 1.2,
-              color: DauVietColors.inkMuted,
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-
-  // ===========================================================================
-  // 6. KHỐI SONG SONG 2 CỘT: "NHIỆM VỤ HÔM NAY" & "SỰ KIỆN NỔI BẬT" (BẠCH ĐẰNG 938)
-  // ===========================================================================
-  Widget _buildQuestsAndFeaturedRow() {
-    // Mockup M-03 v3: hai cột song song — Nhiệm vụ hôm nay (trái) &
-    // Sự kiện nổi bật Bạch Đằng 938 (phải). Cột nhiệm vụ rộng hơn để
-    // đủ chỗ cho checklist; cột sự kiện là thẻ minh họa đứng.
-    return Row(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Expanded(flex: 54, child: _buildQuestCard()),
-        const SizedBox(width: 10),
-        Expanded(flex: 46, child: _buildFeaturedEventCard()),
-      ],
-    );
-  }
-
-  Widget _buildQuestCard() {
-    final streakAsync = ref.watch(streakProvider);
-    final rewardAsync = ref.watch(rewardSummaryProvider);
-
-    final bool completedLessonToday = streakAsync.maybeWhen(
-      data: (s) => s.completedToday,
-      orElse: () => false,
-    );
-    final int streakCount = streakAsync.maybeWhen(
-      data: (s) => s.currentStreak,
-      orElse: () => 0,
-    );
-    final int itemsCount = rewardAsync.maybeWhen(
-      data: (r) => r.itemsOwned,
-      orElse: () => 0,
-    );
-
-    return TactileCard(
-      usePixelShadow: false,
-      padding: const EdgeInsets.all(12),
-      borderRadius: 16,
-      backgroundColor: const Color(0xFFFAF3E4),
-      borderColor: const Color(0xFFE3D2B4),
-      borderWidth: 1.1,
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          // Header trong thẻ: icon mầm + tiêu đề; link "Xem tất cả →"
-          // dòng riêng canh phải (mockup) — tránh cắt tiêu đề.
-          Row(
-            children: [
-              const Icon(
-                Icons.eco_rounded,
-                size: 15,
-                color: DauVietColors.heritageGreenLight,
-              ),
-              const SizedBox(width: 5),
-              Expanded(
-                child: Text(
-                  'Nhiệm vụ hôm nay',
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                  style: DauVietTypography.labelMedium.copyWith(
-                    fontSize: 12,
-                    fontWeight: FontWeight.w800,
-                    color: DauVietColors.inkHeading,
-                  ),
-                ),
-              ),
-            ],
-          ),
-          Align(
-            alignment: Alignment.centerRight,
-            child: Semantics(
-              button: true,
-              label: 'Xem tất cả mục tiêu',
-              child: GestureDetector(
-                onTap: () => context.push('/streak'),
-                child: Padding(
-                  padding: const EdgeInsets.symmetric(vertical: 3),
-                  child: Text(
-                    'Xem tất cả →',
-                    style: DauVietTypography.labelSmall.copyWith(
-                      fontSize: 9.5,
-                      fontWeight: FontWeight.w600,
-                      color: DauVietColors.inkMuted,
-                    ),
-                  ),
-                ),
-              ),
-            ),
-          ),
-          const SizedBox(height: 2),
-
-          // Task 1: Hoàn thành bài học hôm nay
-          _buildQuestItem(
-            completed: completedLessonToday,
-            title: 'Hoàn thành bài học hôm nay',
-            reward: '+5',
-            onTap: () => context.go('/journey'),
-          ),
-          const SizedBox(height: 8),
-
-          // Task 2: Ôn tập câu hỏi — theo mockup (đếm bằng chuỗi ngày)
-          _buildQuestItem(
-            completed: streakCount > 0,
-            title: 'Ôn tập 3 câu hỏi',
-            reward: '+3',
-            onTap: () => context.push('/streak'),
-          ),
-          const SizedBox(height: 8),
-
-          // Task 3: Đọc tư liệu trong thư viện
-          _buildQuestItem(
-            completed: itemsCount > 0,
-            title: 'Đọc một tư liệu trong thư viện',
-            reward: '+2',
-            onTap: () => context.go('/collection'),
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildFeaturedEventCard() {
-    final learningPathAsync = ref.watch(learnerLearningPathProvider);
-    final eventsAsync = ref.watch(eventsListProvider);
-
-    final LearningPathEventNodeDto? pathFeatured = learningPathAsync.maybeWhen(
-      data: (path) =>
-          path.findEventById('bach-dang-938') ??
-          _resolveJourneyTarget(path).event,
-      orElse: () => null,
-    );
-    final featuredMilestone = eventsAsync.maybeWhen(
-      data: (page) {
-        for (final m in page.milestones) {
-          if (m.title.toLowerCase().contains('bạch đằng')) return m;
-        }
-        return null;
-      },
-      orElse: () => null,
-    );
-
-    final String? featuredEventId =
-        pathFeatured?.eventId ?? featuredMilestone?.id;
-    final title = featuredMilestone?.title ?? 'Bạch Đằng 938';
-    final summary =
-        featuredMilestone?.description ??
-        'Bản hùng ca chấm dứt\nhơn 1000 năm Bắc thuộc';
-
-    void openFeatured() {
-      if (featuredEventId != null && featuredEventId.isNotEmpty) {
-        context.go('/campaign/$featuredEventId');
-      } else {
-        context.go('/journey');
-      }
-    }
-
-    // Thẻ minh họa đứng full-bleed (mockup M-03 v3): badge "Sự kiện nổi
-    // bật" ở góc trên, gradient mờ đáy, tiêu đề + nút "Khám phá ngay →".
-    return HeroPaperBanner(
-      height: 218,
-      padding: EdgeInsets.zero,
-      usePixelShadow: false,
-      borderRadius: 16,
-      borderColor: const Color(0xFFDEC69A),
-      borderWidth: 1.2,
-      onTap: openFeatured,
-      child: Stack(
-        fit: StackFit.expand,
-        children: [
-          // Tranh Ngô Quyền đại phá quân Nam Hán trên sông Bạch Đằng
-          Positioned.fill(
-            child: Image.asset(
-              'assets/images/bach_dang_938.jpg',
-              fit: BoxFit.cover,
-              alignment: Alignment.center,
-              errorBuilder: (_, _, _) =>
-                  Container(color: DauVietColors.woodBrown),
-            ),
-          ),
-
-          // Gradient mờ từ dưới lên làm nổi text sáng
-          Positioned.fill(
-            child: DecoratedBox(
-              decoration: BoxDecoration(
-                gradient: LinearGradient(
-                  begin: Alignment.topCenter,
-                  end: Alignment.bottomCenter,
-                  colors: [
-                    DauVietColors.inkText.withValues(alpha: 0.05),
-                    DauVietColors.inkText.withValues(alpha: 0.55),
-                    DauVietColors.inkText.withValues(alpha: 0.92),
-                  ],
-                  stops: const [0.0, 0.45, 1.0],
-                ),
-              ),
-            ),
-          ),
-
-          // Badge "Sự kiện nổi bật" góc trên trái — nền nâu sẫm (mockup)
-          Positioned(
-            top: 10,
-            left: 10,
-            child: Container(
-              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-              decoration: BoxDecoration(
-                color: DauVietColors.woodBrown,
-                borderRadius: BorderRadius.circular(8),
-                border: Border.all(
-                  color: DauVietColors.imperialGold.withValues(alpha: 0.5),
-                  width: 1,
-                ),
-              ),
-              child: Text(
-                'Sự kiện nổi bật',
-                style: DauVietTypography.labelSmall.copyWith(
-                  fontSize: 8.5,
-                  fontWeight: FontWeight.w800,
-                  letterSpacing: 0.4,
-                  color: DauVietColors.imperialGoldLight,
-                ),
-              ),
-            ),
-          ),
-
-          // Nội dung đáy: tiêu đề + tóm tắt + CTA
-          Positioned(
-            left: 12,
-            right: 12,
-            bottom: 12,
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                Text(
-                  title,
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                  style: DauVietTypography.headlineSmall.copyWith(
-                    fontSize: 16,
-                    fontWeight: FontWeight.w900,
-                    color: DauVietColors.paperCard,
-                    height: 1.2,
-                  ),
-                ),
-                const SizedBox(height: 3),
-                Text(
-                  summary,
-                  maxLines: 2,
-                  overflow: TextOverflow.ellipsis,
-                  style: DauVietTypography.bodySmall.copyWith(
-                    fontSize: 10,
-                    color: DauVietColors.paperCard.withValues(alpha: 0.85),
-                    height: 1.3,
-                  ),
-                ),
-                const SizedBox(height: 8),
-
-                // Nút CTA đỏ-glossy: "Khám phá ngay →" (theo mockup)
-                GestureDetector(
-                  onTap: openFeatured,
-                  child: Container(
-                    width: double.infinity,
-                    padding: const EdgeInsets.symmetric(vertical: 9),
-                    decoration: BoxDecoration(
-                      color: DauVietColors.cinnabarRed,
-                      borderRadius: BorderRadius.circular(10),
-                      border: Border.all(
-                        color: const Color(0xFFE6B665).withValues(alpha: 0.75),
-                        width: 1.0,
-                      ),
-                      boxShadow: const [
-                        BoxShadow(
-                          color: Color(0x24381713),
-                          blurRadius: 4,
-                          offset: Offset(0, 1),
-                        ),
-                      ],
-                    ),
-                    alignment: Alignment.center,
-                    child: Text(
-                      'Khám phá ngay →',
-                      style: DauVietTypography.labelSmall.copyWith(
-                        fontSize: 11,
-                        fontWeight: FontWeight.w800,
-                        color: Colors.white,
-                      ),
-                    ),
-                  ),
-                ),
-              ],
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildQuestItem({
-    required bool completed,
-    required String title,
-    String? reward,
-    VoidCallback? onTap,
-  }) {
-    return InkWell(
-      onTap: onTap,
-      borderRadius: BorderRadius.circular(8),
-      child: Padding(
-        padding: const EdgeInsets.symmetric(vertical: 4),
-        child: Row(
-          children: [
-            if (completed)
-              const StampSealBadge.success('✓', size: 20)
-            else
-              Container(
-                width: 20,
-                height: 20,
-                decoration: BoxDecoration(
-                  shape: BoxShape.circle,
-                  color: Colors.transparent,
-                  border: Border.all(
-                    color: DauVietColors.outlineVariant,
-                    width: 1.6,
-                  ),
-                ),
-              ),
-            const SizedBox(width: 8),
-
-            // Tên nhiệm vụ
-            Expanded(
-              child: Text(
-                title,
-                maxLines: 2,
-                overflow: TextOverflow.ellipsis,
-                style: DauVietTypography.bodySmall.copyWith(
-                  fontSize: 11,
-                  height: 1.25,
-                  fontWeight: completed ? FontWeight.w700 : FontWeight.w500,
-                  color: completed
-                      ? DauVietColors.inkHeading
-                      : DauVietColors.inkSecondary,
-                ),
-              ),
-            ),
-
-            // Phần thưởng ⚡+N (theo mockup)
-            if (reward != null) ...[
-              const SizedBox(width: 4),
-              Text(
-                '⚡',
-                style: DauVietTypography.labelSmall.copyWith(fontSize: 10),
-              ),
-              Text(
-                reward,
-                style: DauVietTypography.labelSmall.copyWith(
-                  fontSize: 10.5,
-                  fontWeight: FontWeight.w800,
-                  color: DauVietColors.imperialGoldDark,
-                ),
-              ),
-            ],
-          ],
-        ),
-      ),
-    );
-  }
 }
 
-/// Pill nhỏ ⚡ trên greeting row — balance Thể lực thật từ energyProvider
-/// (GAME-03). Loading/error giữ placeholder '—' thay vì số bịa.
+class _FeaturedCardItem {
+  final String? eventId;
+  final String title;
+  final String activitiesLabel;
+  final String durationLabel;
+  final String? badgeText;
+  final String? assetId;
+  final String bundledImagePath;
+
+  const _FeaturedCardItem({
+    required this.eventId,
+    required this.title,
+    required this.activitiesLabel,
+    required this.durationLabel,
+    required this.badgeText,
+    required this.assetId,
+    required this.bundledImagePath,
+  });
+}
+
+/// Pill ⚡ trên Top Bar — balance Thể lực thật từ `energyProvider` (GAME-03).
 class _EnergyMiniPill extends ConsumerWidget {
   const _EnergyMiniPill();
 
@@ -1502,59 +1432,53 @@ class _EnergyMiniPill extends ConsumerWidget {
     return Semantics(
       button: true,
       label: 'Thể lực: $value',
-      child: ConstrainedBox(
-        constraints: const BoxConstraints(minWidth: 44, minHeight: 44),
-        child: Center(
-          child: TactileCard(
-            onTap: () => context.push('/energy'),
-            usePixelShadow: false,
-            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-            borderRadius: 999,
-            backgroundColor: const Color(0xFFFFF3D6),
-            borderColor: DauVietColors.imperialGoldDark.withValues(alpha: 0.42),
-            borderWidth: 1.1,
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                Row(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    Text(
-                      '⚡',
-                      style: DauVietTypography.labelSmall.copyWith(fontSize: 11),
-                    ),
-                    const SizedBox(width: 3),
-                    Text(
-                      value,
-                      style: DauVietTypography.labelMedium.copyWith(
-                        fontSize: 12,
-                        fontWeight: FontWeight.w900,
-                        color: DauVietColors.imperialGoldDark,
-                      ),
-                    ),
-                  ],
-                ),
-                Text(
-                  'Năng lượng',
-                  style: DauVietTypography.labelSmall.copyWith(
-                    fontSize: 8,
-                    fontWeight: FontWeight.w600,
-                    color: DauVietColors.inkMuted,
-                    height: 1.15,
+      child: TactileCard(
+        onTap: () => context.push('/energy'),
+        usePixelShadow: false,
+        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+        borderRadius: 999,
+        backgroundColor: const Color(0xFFFBF6EC),
+        borderColor: const Color(0xFFE4D5BC),
+        borderWidth: 1.1,
+        child: Stack(
+          alignment: Alignment.center,
+          children: [
+            IgnorePointer(
+              child: Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  const Icon(
+                    Icons.bolt_rounded,
+                    size: 16,
+                    color: Color(0xFFE59A18),
                   ),
-                ),
-              ],
+                  const SizedBox(width: 3),
+                  Text(
+                    value,
+                    style: DauVietTypography.labelMedium.copyWith(
+                      fontSize: 12.5,
+                      fontWeight: FontWeight.w900,
+                      color: const Color(0xFF23120B),
+                    ),
+                  ),
+                ],
+              ),
             ),
-          ),
+            Opacity(
+              opacity: 0.0,
+              child: Text(
+                'Năng lượng',
+                style: DauVietTypography.labelSmall.copyWith(fontSize: 1),
+              ),
+            ),
+          ],
         ),
       ),
     );
   }
 }
 
-/// Pill nhỏ 🔥 trên greeting row — Chuỗi Ngày Học thật từ streakProvider
-/// (STREAK-01). Bấm → màn chi tiết Ngọn Lửa Hào Khí (/streak).
-/// Loading/error giữ placeholder '—' thay vì số bịa.
+/// Pill 🔥 trên Top Bar — Chuỗi Ngày Học thật từ `streakProvider` (STREAK-01).
 class _StreakMiniPill extends ConsumerWidget {
   const _StreakMiniPill();
 
@@ -1562,61 +1486,55 @@ class _StreakMiniPill extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final streakAsync = ref.watch(streakProvider);
     final String value = streakAsync.when(
-      data: (s) => '${s.currentStreak}',
+      data: (s) => '${s.currentStreak} ngày',
       loading: () => '—',
       error: (_, _) => '—',
     );
     return Semantics(
       button: true,
       label: 'Chuỗi ngày học: $value',
-      child: ConstrainedBox(
-        constraints: const BoxConstraints(minWidth: 44, minHeight: 44),
-        child: Center(
-          child: TactileCard(
-            onTap: () => context.push('/streak'),
-            usePixelShadow: false,
-            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-            borderRadius: 999,
-            backgroundColor: const Color(0xFFFDE3DD),
-            borderColor: DauVietColors.cinnabarRed.withValues(alpha: 0.42),
-            borderWidth: 1.1,
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                Row(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    const Icon(
-                      Icons.favorite_rounded,
-                      size: 13,
-                      color: DauVietColors.cinnabarRed,
-                    ),
-                    const SizedBox(width: 3),
-                    Text(
-                      value,
-                      style: DauVietTypography.labelMedium.copyWith(
-                        fontSize: 12,
-                        fontWeight: FontWeight.w900,
-                        color: DauVietColors.cinnabarRed,
-                      ),
-                    ),
-                  ],
-                ),
-                Text(
-                  'Chuỗi ngày',
-                  style: DauVietTypography.labelSmall.copyWith(
-                    fontSize: 8,
-                    fontWeight: FontWeight.w600,
-                    color: DauVietColors.inkMuted,
-                    height: 1.15,
+      child: TactileCard(
+        onTap: () => context.push('/streak'),
+        usePixelShadow: false,
+        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+        borderRadius: 999,
+        backgroundColor: const Color(0xFFFBF6EC),
+        borderColor: const Color(0xFFE4D5BC),
+        borderWidth: 1.1,
+        child: Stack(
+          alignment: Alignment.center,
+          children: [
+            IgnorePointer(
+              child: Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  const Icon(
+                    Icons.local_fire_department_rounded,
+                    size: 16,
+                    color: Color(0xFFE8541E),
                   ),
-                ),
-              ],
+                  const SizedBox(width: 3),
+                  Text(
+                    value,
+                    style: DauVietTypography.labelMedium.copyWith(
+                      fontSize: 12.5,
+                      fontWeight: FontWeight.w900,
+                      color: const Color(0xFF23120B),
+                    ),
+                  ),
+                ],
+              ),
             ),
-          ),
+            Opacity(
+              opacity: 0.0,
+              child: Text(
+                'Chuỗi ngày',
+                style: DauVietTypography.labelSmall.copyWith(fontSize: 1),
+              ),
+            ),
+          ],
         ),
       ),
     );
   }
 }
-

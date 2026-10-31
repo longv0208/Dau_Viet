@@ -5,10 +5,11 @@ import 'package:flutter/widgets.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:google_sign_in/google_sign_in.dart';
 import 'package:google_sign_in_platform_interface/google_sign_in_platform_interface.dart';
-import 'package:google_sign_in_web/google_sign_in_web.dart'
-    if (dart.library.io) 'google_sign_in_provider_stub.dart';
-import 'package:google_sign_in_web/web_only.dart' as web_only
-    if (dart.library.io) 'google_sign_in_provider_stub.dart';
+import 'google_sign_in_provider_stub.dart'
+    if (dart.library.js_interop) 'package:google_sign_in_web/google_sign_in_web.dart';
+import 'google_sign_in_provider_stub.dart'
+    if (dart.library.js_interop) 'package:google_sign_in_web/web_only.dart'
+    as web_only;
 
 /// Bộ thông tin đăng nhập Google trả về từ plugin.
 /// - Android/iOS: [idToken] là JWT ký bởi Google (aud = OAuth client app).

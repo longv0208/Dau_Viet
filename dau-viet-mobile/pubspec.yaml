@@ -75,6 +75,9 @@ flutter:
   assets:
     - assets/images/
     - assets/images/heritage/
+    - assets/images/home/
+    - assets/images/journey/
+    - assets/images/rewards/
     - assets/images/map_van_lang.jpg
     - assets/images/map_hai_ba_trung.jpg
     - assets/images/dv_MAP_ngoquyen_bachdang-base_v01.jpg

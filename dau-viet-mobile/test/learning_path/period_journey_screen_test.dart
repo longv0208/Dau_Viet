@@ -11,12 +11,17 @@ import 'package:dau_viet_mobile/features/learning_path/data/learning_path_provid
 import 'package:dau_viet_mobile/features/learning_path/data/learning_path_repository.dart';
 import 'package:dau_viet_mobile/features/learning_path/data/mock_learning_path_repository.dart';
 import 'package:dau_viet_mobile/features/learning_path/presentation/learning_path_presentation.dart';
+import 'package:dau_viet_mobile/features/map/data/map_location_dto.dart';
+import 'package:dau_viet_mobile/features/map/data/map_providers.dart';
+import 'package:dau_viet_mobile/features/rewards/data/reward_dtos.dart';
+import 'package:dau_viet_mobile/features/rewards/data/reward_providers.dart';
 import 'package:dau_viet_mobile/mock/models/lesson_models.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:go_router/go_router.dart';
 import 'package:google_fonts/google_fonts.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 
 import '../fakes/fake_attempt_repository.dart';
 
@@ -688,7 +693,7 @@ void main() {
           // Mốc sự kiện render dạng nhãn pill gọn (mockup đường đi): chỉ có
           // tên + niên đại, không bung thẻ đầy đủ che tranh nền.
           expect(find.text('Dời đô ra Thăng Long năm 1010'), findsOneWidget);
-          expect(find.text('Năm 1010'), findsOneWidget);
+          expect(find.text('Năm 1010'), findsWidgets);
           expect(find.text('Chiến thắng Như Nguyệt 1077'), findsOneWidget);
 
           // Nhấn nhãn sự kiện đang khóa -> vẫn gọi onEventSelected (màn chiến
@@ -841,8 +846,8 @@ void main() {
       );
 
       testWidgets(
-        'AC-1: /journey/:periodCode hiển thị tiến độ X/Y sự kiện, % và thanh '
-        'chuyển nhanh thời kỳ tự do',
+        'AC-1: /journey/:periodCode chỉ hiển thị nội dung thời kỳ đã chọn '
+        '(không có thanh chip chuyển thời kỳ khác)',
         (tester) async {
           final mockRepo = MockLearningPathRepository();
           final snapshot = await mockRepo.getMyLearningPath();
@@ -867,12 +872,632 @@ void main() {
             find.text('Tiến độ thời kỳ: 0/2 sự kiện • 0/3 bài học'),
             findsOneWidget,
           );
-          // Nút mốc sự kiện khóa tuần tự (Như Nguyệt 1077) vẫn hiển thị
-          // ổ khóa xám như mockup — khóa chỉ áp dụng nội bộ thời kỳ.
+          // Nút mốc khóa tuần tự vẫn hiển thị ổ khóa xám như mockup.
           expect(find.byIcon(Icons.lock_rounded), findsWidgets);
-          // Chuyển nhanh sang thời kỳ khác từ thanh tab (tự do chọn).
+          // Không còn thanh chip chuyển sang thời kỳ khác trên màn Hành trình.
           final antiFrenchTab = find.text('Kháng chiến chống thực dân Pháp');
-          expect(antiFrenchTab, findsOneWidget);
+          expect(antiFrenchTab, findsNothing);
+          expect(find.text('Buổi đầu dựng nước'), findsNothing);
+        },
+      );
+
+      testWidgets(
+        'Showcase NORTHERN_DOMINATION: cấu hình ảnh nền riêng từ DB, 2 PHASE, '
+        '3 nhãn sự kiện, 6 mốc bài học, mốc rương từ API và Bottom Sheet Địa điểm + Vật phẩm',
+        (tester) async {
+          SharedPreferences.setMockInitialValues({});
+          tester.view.physicalSize = const Size(390, 844);
+          tester.view.devicePixelRatio = 1.0;
+          addTearDown(tester.view.resetPhysicalSize);
+          addTearDown(tester.view.resetDevicePixelRatio);
+
+          const showcasePath = LearningPathDto(
+            pathCode: 'HISTORY_MAIN',
+            pathVersion: 3,
+            enrolled: true,
+            chapters: [
+              LearningPathChapterDto(
+                chapterId: 'era-1',
+                nodeType: PathNodeType.era,
+                code: 'ERA_ANCIENT_MEDIEVAL',
+                title: 'Thời kỳ Cổ – Trung đại',
+                sortOrder: 1,
+              ),
+              LearningPathChapterDto(
+                chapterId: 'p-nd',
+                parentId: 'era-1',
+                nodeType: PathNodeType.period,
+                code: 'NORTHERN_DOMINATION',
+                title: 'Bắc thuộc và đấu tranh giành độc lập',
+                periodLabel: 'Năm 179 TCN – năm 938',
+                sortOrder: 2,
+                backgroundConfig: HeritageBackgroundConfigDto(
+                  backgroundAssetId: 'd7a90000-0000-4000-8000-000000000007',
+                  backgroundImageUrl:
+                      '/api/v1/assets/d7a90000-0000-4000-8000-000000000007/content',
+                  backgroundMode: HeritageBackgroundMode.heritageFade,
+                  enabled: true,
+                ),
+              ),
+              LearningPathChapterDto(
+                chapterId: 'ph-nd-1',
+                parentId: 'p-nd',
+                nodeType: PathNodeType.phase,
+                code: 'PHASE_ND_EARLY',
+                title: 'Giai đoạn I: Ngọn lửa khởi nghĩa đầu Công nguyên',
+                periodLabel: 'Năm 40 – năm 248',
+                sortOrder: 1,
+                events: [
+                  LearningPathEventNodeDto(
+                    eventNodeId: 'en-hbt',
+                    eventId: 'd7b00000-0000-4000-8000-000000000002',
+                    slug: 'hai-ba-trung-40',
+                    title: 'Khởi Nghĩa Hai Bà Trưng (40 – 43)',
+                    yearLabel: 'Năm 40 – 43',
+                    sortOrder: 1,
+                    status: LearnerPathStatus.completed,
+                    backgroundConfig: HeritageBackgroundConfigDto(
+                      focusX: 0.26,
+                      focusY: 0.28,
+                      enabled: true,
+                    ),
+                    lessons: [
+                      LearningPathLessonNodeDto(
+                        lessonId: '63100000-0000-4000-8000-000000000001',
+                        title: 'Lời thề Hát Môn & Tiếng trống Mê Linh',
+                        sortOrder: 1,
+                        status: LearnerPathStatus.completed,
+                      ),
+                      LearningPathLessonNodeDto(
+                        lessonId: '63100000-0000-4000-8000-000000000002',
+                        title: 'Thu phục 65 thành Lĩnh Ngoại & Quốc đô Mê Linh',
+                        sortOrder: 2,
+                        status: LearnerPathStatus.completed,
+                      ),
+                    ],
+                  ),
+                  LearningPathEventNodeDto(
+                    eventNodeId: 'en-bt',
+                    eventId: '1f01f2e5-ee07-4b86-a534-061dcad8134f',
+                    slug: 'history-ba-trieu',
+                    title: 'Khởi Nghĩa Bà Triệu (248)',
+                    yearLabel: 'Năm 248',
+                    sortOrder: 2,
+                    status: LearnerPathStatus.available,
+                    backgroundConfig: HeritageBackgroundConfigDto(
+                      focusX: 0.74,
+                      focusY: 0.32,
+                      enabled: true,
+                    ),
+                    lessons: [
+                      LearningPathLessonNodeDto(
+                        lessonId: 'b2222222-2222-2222-2222-222222222201',
+                        title: 'Khởi nghĩa Bà Triệu — Khí phách cưỡi sóng dữ',
+                        sortOrder: 1,
+                        status: LearnerPathStatus.available,
+                      ),
+                      LearningPathLessonNodeDto(
+                        lessonId: '63100000-0000-4000-8000-000000000004',
+                        title: 'Căn cứ Núi Nưa & Làn sóng khởi nghĩa Cửu Chân',
+                        sortOrder: 2,
+                        status: LearnerPathStatus.locked,
+                      ),
+                    ],
+                  ),
+                ],
+              ),
+              LearningPathChapterDto(
+                chapterId: 'ph-nd-2',
+                parentId: 'p-nd',
+                nodeType: PathNodeType.phase,
+                code: 'PHASE_ND_LATE',
+                title: 'Giai đoạn II: Khúc tráng ca tự chủ & Đại thắng Bạch Đằng 938',
+                periodLabel: 'Năm 544 – năm 938',
+                sortOrder: 2,
+                events: [
+                  LearningPathEventNodeDto(
+                    eventNodeId: 'en-bd',
+                    eventId: '635d6143-ffe1-4770-91e4-a4e4194fb1b7',
+                    slug: 'history-bach-dang-938',
+                    title: 'Chiến Thắng Bạch Đằng Năm 938',
+                    yearLabel: 'Năm 938',
+                    sortOrder: 3,
+                    status: LearnerPathStatus.locked,
+                    backgroundConfig: HeritageBackgroundConfigDto(
+                      focusX: 0.28,
+                      focusY: 0.30,
+                      enabled: true,
+                    ),
+                    lessons: [
+                      LearningPathLessonNodeDto(
+                        lessonId: 'b2222222-2222-2222-2222-222222222202',
+                        title: 'Bạch Đằng 938 — Trận địa cọc ngầm phá quân Nam Hán',
+                        sortOrder: 1,
+                        status: LearnerPathStatus.locked,
+                      ),
+                      LearningPathLessonNodeDto(
+                        lessonId: '63100000-0000-4000-8000-000000000006',
+                        title: 'Ngô Quyền xưng Vương & Kinh đô Cổ Loa độc lập',
+                        sortOrder: 2,
+                        status: LearnerPathStatus.locked,
+                      ),
+                    ],
+                  ),
+                ],
+              ),
+            ],
+          );
+
+          final repo = _RecordingLearningPathRepository(showcasePath);
+
+          final testCatalog = <CatalogItemDto>[
+            const CatalogItemDto(
+              itemId: 'item-hbt',
+              code: 'HUY_HIEU_TRONG_DONG_ME_LINH',
+              name: 'Huy hiệu Tiếng Trống Mê Linh',
+              description: 'Kỷ vật đồng khắc hình Trống đồng Mê Linh.',
+              category: 'HUY_HIEU',
+              itemType: 'BADGE',
+              rarity: 'RARE',
+              owned: true,
+              requirement: ItemRequirementDto(
+                type: 'EVENT_COMPLETED',
+                eventId: 'd7b00000-0000-4000-8000-000000000002',
+                satisfied: true,
+                status: 'SATISFIED',
+              ),
+            ),
+            const CatalogItemDto(
+              itemId: 'item-bt',
+              code: 'HUY_HIEU_LENH_CO_BA_TRIEU',
+              name: 'Huy hiệu Lệnh Cờ Bà Triệu 248',
+              description: 'Huy hiệu chiến tượng Cửu Chân năm 248.',
+              category: 'HUY_HIEU',
+              itemType: 'BADGE',
+              rarity: 'RARE',
+              owned: false,
+              requirement: ItemRequirementDto(
+                operator: 'ALL',
+                conditions: [
+                  ItemRequirementDto(
+                    type: 'EVENT_COMPLETED',
+                    eventId: '1f01f2e5-ee07-4b86-a534-061dcad8134f',
+                    satisfied: false,
+                    status: 'PENDING',
+                  ),
+                ],
+              ),
+            ),
+          ];
+
+          final testLocations = <MapLocationDto>[
+            const MapLocationDto(
+              id: '63200000-0000-4000-8000-000000000001',
+              eventId: 'd7b00000-0000-4000-8000-000000000002',
+              eventIds: ['d7b00000-0000-4000-8000-000000000002'],
+              title: 'Kinh đô Mê Linh & Đền Hát Môn',
+              latitude: 21.18,
+              longitude: 105.71,
+              unlocked: true,
+              unlockState: MapUnlockState.unlocked,
+            ),
+            const MapLocationDto(
+              id: '63200000-0000-4000-8000-000000000002',
+              eventId: '1f01f2e5-ee07-4b86-a534-061dcad8134f',
+              eventIds: ['1f01f2e5-ee07-4b86-a534-061dcad8134f'],
+              title: 'Căn cứ Núi Nưa & Đền Bà Triệu',
+              latitude: 19.80,
+              longitude: 105.62,
+              unlocked: false,
+              unlockState: MapUnlockState.locked,
+            ),
+          ];
+
+          await tester.pumpWidget(
+            ProviderScope(
+              overrides: [
+                learningPathRepositoryProvider.overrideWithValue(repo),
+                inventoryCatalogProvider.overrideWith((ref) async => testCatalog),
+                mapLocationsProvider.overrideWith((ref) async => testLocations),
+              ],
+              child: const MaterialApp(
+                home: PeriodJourneyScreen(periodCode: 'NORTHERN_DOMINATION'),
+              ),
+            ),
+          );
+          await tester.pumpAndSettle();
+
+          final canvas = tester.widget<WindingLandscapeJourneyCanvas>(
+            find.byType(WindingLandscapeJourneyCanvas),
+          );
+          expect(
+            canvas.backgroundAssetId,
+            'd7a90000-0000-4000-8000-000000000007',
+          );
+          expect(
+            canvas.backgroundAsset,
+            'assets/images/journey/heritage_scroll_bg.jpg',
+          );
+
+          // Hiển thị 2 PHASE headers gọn gàng
+          expect(
+            find.byKey(const Key('phase-header-PHASE_ND_EARLY')),
+            findsOneWidget,
+          );
+          expect(
+            find.byKey(const Key('phase-header-PHASE_ND_LATE')),
+            findsOneWidget,
+          );
+
+          // 3 nhãn sự kiện + 6 mốc bài học
+          expect(find.text('Khởi Nghĩa Hai Bà Trưng (40 – 43)'), findsOneWidget);
+          expect(find.text('Khởi Nghĩa Bà Triệu (248)'), findsOneWidget);
+          expect(find.text('Chiến Thắng Bạch Đằng Năm 938'), findsOneWidget);
+          for (final lessonId in const [
+            '63100000-0000-4000-8000-000000000001',
+            '63100000-0000-4000-8000-000000000002',
+            'b2222222-2222-2222-2222-222222222201',
+            '63100000-0000-4000-8000-000000000004',
+            'b2222222-2222-2222-2222-222222222202',
+            '63100000-0000-4000-8000-000000000006',
+          ]) {
+            expect(
+              find.byKey(Key('lesson-milestone-$lessonId')),
+              findsOneWidget,
+            );
+          }
+
+          // Mốc rương chỉ xuất hiện cho 2 sự kiện có phần thưởng từ API; sự kiện thứ 3 không có phần thưởng thì ẩn rương.
+          expect(
+            find.byKey(
+              const Key('event-chest-d7b00000-0000-4000-8000-000000000002'),
+            ),
+            findsOneWidget,
+          );
+          expect(
+            find.byKey(
+              const Key('event-chest-1f01f2e5-ee07-4b86-a534-061dcad8134f'),
+            ),
+            findsOneWidget,
+          );
+          expect(
+            find.byKey(
+              const Key('event-chest-635d6143-ffe1-4770-91e4-a4e4194fb1b7'),
+            ),
+            findsNothing,
+          );
+
+          // Trạng thái rương: Sự kiện 1 đã xong + chưa xem -> "Rương di sản • Chạm để mở!"
+          // Sự kiện 2 chưa xong -> "Rương di sản • Đang khóa"
+          expect(find.text('Rương di sản • Chạm để mở!'), findsOneWidget);
+          expect(find.text('Rương di sản • Đang khóa'), findsOneWidget);
+
+          // Bấm vào rương sáng của Sự kiện 1 -> chạy hiệu ứng ăn mừng rồi mở Bottom Sheet và đổi thành "Đã mở"
+          final chest1 = find.byKey(
+            const Key('event-chest-d7b00000-0000-4000-8000-000000000002'),
+          );
+          await tester.ensureVisible(chest1);
+          await tester.tap(chest1);
+          await tester.pump(const Duration(milliseconds: 200));
+          expect(
+            find.byKey(const Key('chest-celebration-overlay')),
+            findsOneWidget,
+          );
+          await tester.pumpAndSettle();
+
+          expect(
+            find.byKey(
+              const Key(
+                'event-details-sheet-d7b00000-0000-4000-8000-000000000002',
+              ),
+            ),
+            findsOneWidget,
+          );
+          expect(find.text('ĐÃ MỞ KHÓA ĐỊA ĐIỂM'), findsOneWidget);
+          expect(find.text('ĐÃ NHẬN KỶ VẬT'), findsOneWidget);
+          expect(find.text('Kinh đô Mê Linh & Đền Hát Môn'), findsWidgets);
+          expect(find.text('Huy hiệu Tiếng Trống Mê Linh'), findsWidgets);
+
+          // Đóng Bottom Sheet -> rương đã chuyển sang trạng thái "Rương di sản • Đã mở"
+          Navigator.of(
+            tester.element(
+              find.byKey(
+                const Key(
+                  'event-details-sheet-d7b00000-0000-4000-8000-000000000002',
+                ),
+              ),
+            ),
+          ).pop();
+          await tester.pumpAndSettle();
+          expect(find.text('Rương di sản • Đã mở'), findsOneWidget);
+        },
+      );
+
+      testWidgets(
+        'Khi thời kỳ có nhiều mốc sự kiện/bài học vượt quá chiều cao 1 khung ảnh, '
+        'nền tranh tự động nối dài nhiều đoạn mà không vỡ bố cục',
+        (tester) async {
+          tester.view.physicalSize = const Size(360, 740);
+          tester.view.devicePixelRatio = 1.0;
+          addTearDown(tester.view.resetPhysicalSize);
+          addTearDown(tester.view.resetDevicePixelRatio);
+
+          final manyEvents = List.generate(
+            12,
+            (idx) => LearningPathEventNodeDto(
+              eventNodeId: 'node-$idx',
+              eventId: 'evt-long-$idx',
+              title: 'Mốc lịch sử thứ ${idx + 1}: Chiến công giữ nước vẻ vang',
+              yearLabel: 'Năm ${100 + idx * 50}',
+              sortOrder: idx + 1,
+              status: idx == 0
+                  ? LearnerPathStatus.available
+                  : LearnerPathStatus.locked,
+            ),
+          );
+
+          final longPath = LearningPathDto(
+            pathCode: 'HISTORY_MAIN',
+            pathVersion: 3,
+            enrolled: true,
+            chapters: [
+              LearningPathChapterDto(
+                chapterId: 'p-long',
+                nodeType: PathNodeType.period,
+                code: 'LONG_PERIOD',
+                title: 'Thời kỳ có nhiều bài học kéo dài',
+                sortOrder: 1,
+                events: manyEvents,
+              ),
+            ],
+          );
+
+          final repo = _RecordingLearningPathRepository(longPath);
+          await tester.pumpWidget(
+            ProviderScope(
+              overrides: [
+                learningPathRepositoryProvider.overrideWithValue(repo),
+              ],
+              child: const MaterialApp(
+                home: PeriodJourneyScreen(periodCode: 'LONG_PERIOD'),
+              ),
+            ),
+          );
+          await tester.pumpAndSettle();
+
+          expect(
+            find.text('Mốc lịch sử thứ 1: Chiến công giữ nước vẻ vang'),
+            findsOneWidget,
+          );
+          await tester.scrollUntilVisible(
+            find.text('Mốc lịch sử thứ 12: Chiến công giữ nước vẻ vang'),
+            250,
+          );
+          await tester.pumpAndSettle();
+          expect(
+            find.text('Mốc lịch sử thứ 12: Chiến công giữ nước vẻ vang'),
+            findsOneWidget,
+          );
+        },
+      );
+
+      testWidgets(
+        'Bấm bài học khóa hiện thông báo không điều hướng; bấm bài sẵn sàng điều hướng vào đúng lessonId',
+        (tester) async {
+          final mockRepo = MockLearningPathRepository();
+          final snapshot = await mockRepo.getMyLearningPath();
+          final repo = _RecordingLearningPathRepository(snapshot);
+          String? openedLessonId;
+
+          final router = GoRouter(
+            initialLocation: '/journey/LY_DYNASTY',
+            routes: [
+              GoRoute(
+                path: '/journey/:periodCode',
+                builder: (context, state) => PeriodJourneyScreen(
+                  periodCode: state.pathParameters['periodCode']!,
+                ),
+              ),
+              GoRoute(
+                path: '/learning/lesson/:lessonId',
+                builder: (context, state) {
+                  openedLessonId = state.pathParameters['lessonId'];
+                  return Scaffold(
+                    body: Center(child: Text('LESSON:$openedLessonId')),
+                  );
+                },
+              ),
+            ],
+          );
+
+          await tester.pumpWidget(
+            ProviderScope(
+              overrides: [
+                learningPathRepositoryProvider.overrideWithValue(repo),
+              ],
+              child: MaterialApp.router(routerConfig: router),
+            ),
+          );
+          await tester.pumpAndSettle();
+
+          // Bấm bài học khóa trong LY_DYNASTY ('demo-lesson-nhu-nguyet-1') -> hiện SnackBar, không điều hướng
+          final lockedLesson = find.byKey(
+            const Key('lesson-milestone-demo-lesson-nhu-nguyet-1'),
+          );
+          await tester.ensureVisible(lockedLesson);
+          await tester.tap(lockedLesson);
+          await tester.pump();
+          expect(openedLessonId, isNull);
+          expect(
+            find.text('Hoàn thành bài học đứng trước để mở khóa bài học này.'),
+            findsOneWidget,
+          );
+
+          // Bấm bài học sẵn sàng ('demo-lesson-thang-long-1') -> điều hướng sang /learning/lesson/demo-lesson-thang-long-1
+          final unlockedLesson = find.byKey(
+            const Key('lesson-milestone-demo-lesson-thang-long-1'),
+          );
+          await tester.ensureVisible(unlockedLesson);
+          await tester.tap(unlockedLesson);
+          await tester.pumpAndSettle();
+          expect(openedLessonId, 'demo-lesson-thang-long-1');
+          expect(find.text('LESSON:demo-lesson-thang-long-1'), findsOneWidget);
+        },
+      );
+
+      testWidgets(
+        'Khi API phần thưởng lỗi thì ẩn rương; khi bật giảm chuyển động thì mở thẳng Bottom Sheet không chạy pháo hoa',
+        (tester) async {
+          SharedPreferences.setMockInitialValues({});
+          final mockRepo = MockLearningPathRepository();
+          final snapshot = await mockRepo.getMyLearningPath();
+          final repo = _RecordingLearningPathRepository(snapshot);
+
+          // 1) API lỗi -> ẩn mốc rương, màn vẫn chạy bình thường
+          await tester.pumpWidget(
+            ProviderScope(
+              overrides: [
+                learningPathRepositoryProvider.overrideWithValue(repo),
+                inventoryCatalogProvider.overrideWith(
+                  (ref) async => throw Exception('API 500'),
+                ),
+                mapLocationsProvider.overrideWith(
+                  (ref) async => throw Exception('API 500'),
+                ),
+              ],
+              child: const MaterialApp(
+                home: PeriodJourneyScreen(periodCode: 'FOUNDING_ERA'),
+              ),
+            ),
+          );
+          await tester.pumpAndSettle();
+          expect(
+            find.byKey(
+              const Key('event-chest-00000000-0000-0000-0000-000000000005'),
+            ),
+            findsNothing,
+          );
+          expect(
+            find.text('Văn minh lúa nước & Trống đồng Đông Sơn'),
+            findsOneWidget,
+          );
+
+          // 2) Khi có phần thưởng nhưng bật disableAnimations -> bấm rương mở thẳng Bottom Sheet, không hiện overlay pháo hoa
+          await tester.pumpWidget(
+            ProviderScope(
+              key: UniqueKey(),
+              overrides: [
+                learningPathRepositoryProvider.overrideWithValue(repo),
+                inventoryCatalogProvider.overrideWith(
+                  (ref) async => const [
+                    CatalogItemDto(
+                      itemId: 'item-vl',
+                      code: 'TRONG_DONG',
+                      name: 'Trống đồng Đông Sơn',
+                      category: 'MO_HINH',
+                      itemType: 'REPLICA',
+                      rarity: 'RARE',
+                      owned: true,
+                      requirement: ItemRequirementDto(
+                        type: 'EVENT_COMPLETED',
+                        eventId: '00000000-0000-0000-0000-000000000005',
+                        satisfied: true,
+                        status: 'SATISFIED',
+                      ),
+                    ),
+                  ],
+                ),
+                mapLocationsProvider.overrideWith((ref) async => const []),
+              ],
+              child: MaterialApp(
+                builder: (context, child) => MediaQuery(
+                  data: MediaQuery.of(context).copyWith(disableAnimations: true),
+                  child: child!,
+                ),
+                home: const PeriodJourneyScreen(periodCode: 'FOUNDING_ERA'),
+              ),
+            ),
+          );
+          await tester.pumpAndSettle();
+
+          final chest = find.byKey(
+            const Key('event-chest-00000000-0000-0000-0000-000000000005'),
+          );
+          expect(chest, findsOneWidget);
+          await tester.tap(chest);
+          await tester.pump();
+          expect(
+            find.byKey(const Key('chest-celebration-overlay')),
+            findsNothing,
+          );
+          await tester.pumpAndSettle();
+          expect(
+            find.byKey(
+              const Key(
+                'event-details-sheet-00000000-0000-0000-0000-000000000005',
+              ),
+            ),
+            findsOneWidget,
+          );
+        },
+      );
+
+      testWidgets(
+        'Tab lọc Đại thời kỳ (ERA) ở PeriodSelectionScreen có cỡ chữ 13 và không nằm trong FittedBox',
+        (tester) async {
+          final mockRepo = MockLearningPathRepository();
+          final snapshot = await mockRepo.getMyLearningPath();
+          final repo = _RecordingLearningPathRepository(snapshot);
+
+          await tester.pumpWidget(
+            ProviderScope(
+              overrides: [
+                learningPathRepositoryProvider.overrideWithValue(repo),
+              ],
+              child: const MaterialApp(
+                home: PeriodSelectionScreen(showBottomNav: false),
+              ),
+            ),
+          );
+          await tester.pumpAndSettle();
+
+          final allTab = find.byKey(const Key('era-tab-ALL'));
+          expect(allTab, findsOneWidget);
+          expect(
+            find.ancestor(of: allTab, matching: find.byType(FittedBox)),
+            findsNothing,
+          );
+
+          final textWidget = tester.widget<Text>(
+            find.descendant(of: allTab, matching: find.byType(Text)),
+          );
+          expect(textWidget.style?.fontSize, 13);
+        },
+      );
+
+      test(
+        'WindingStonePathPainter.buildCatmullRomPath hoạt động đúng với 1, 2 và 20 điểm',
+        () {
+          final path1 = WindingStonePathPainter.buildCatmullRomPath(
+            const [Offset(100, 120)],
+          );
+          expect(path1.computeMetrics().toList(), isNotEmpty);
+
+          final path2 = WindingStonePathPainter.buildCatmullRomPath(
+            const [Offset(80, 100), Offset(220, 220)],
+          );
+          final metrics2 = path2.computeMetrics().toList();
+          expect(metrics2.length, 1);
+          expect(metrics2.first.length, greaterThan(150));
+
+          final points20 = List<Offset>.generate(
+            20,
+            (i) => Offset(i.isEven ? 90.0 : 250.0, 80.0 + i * 95.0),
+          );
+          final path20 = WindingStonePathPainter.buildCatmullRomPath(points20);
+          final metrics20 = path20.computeMetrics().toList();
+          expect(metrics20.length, 1);
+          expect(metrics20.first.length, greaterThan(1800));
         },
       );
     },

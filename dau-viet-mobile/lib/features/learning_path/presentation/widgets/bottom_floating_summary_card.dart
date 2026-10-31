@@ -2,39 +2,23 @@ import 'package:flutter/material.dart';
 
 import '../../../../core/theme/dau_viet_colors.dart';
 import '../../../../core/theme/dau_viet_typography.dart';
+import '../../../../core/widgets/gamification/gamification_widgets.dart';
 
-/// Thẻ Tổng quan Nổi ở chân màn hình (`BottomFloatingSummaryCard` — Issue #48).
-///
-/// Theo mockup: thẻ giấy kem `#FBF7EF` bo góc 22, đổ bóng mềm, nổi ngay phía
-/// trên Bottom Navigation Bar:
-/// - Trái: ảnh đại diện tròn 56x56 của thời kỳ (fallback
-///   `assets/images/journey_period_avatar_default.jpg`).
-/// - Giữa: tên thời kỳ đậm + niên đại `(startYear – endYear)`, thanh tiến độ
-///   xanh `#2E7D47` trên nền `#E4DDD0`, dòng chỉ số `X/Y sự kiện` + `Z%`.
-/// - Phải: nút tròn chevron `>` để vào `/journey/:periodCode` hoặc tiếp tục học.
+/// Thẻ Tổng quan Nổi ở chân màn hình (`BottomFloatingSummaryCard`),
+/// đồng bộ hoàn toàn với theme Heritage Cream & Crimson Gamification mới:
+/// - Trái: ảnh đại diện bo góc mềm (ưu tiên tải từ DB `assets` qua [assetId],
+///   fallback về [imageAsset]).
+/// - Giữa: tên thời kỳ đậm + niên đại, thanh tiến độ ngọc bích [GamifiedProgressBar],
+///   dòng chỉ số `X/Y sự kiện` + `Z%`.
+/// - Phải: nút tròn đỏ chu sa `#C92525` với mũi tên trắng `>`.
 class BottomFloatingSummaryCard extends StatelessWidget {
-  /// Tên thời kỳ (hiển thị đậm, tối đa 1 dòng).
   final String title;
-
-  /// Niên đại hiển thị sau tên, ví dụ `(938 – 1009)` — có thể null.
   final String? yearLabel;
-
-  /// Dòng chỉ số tiến độ, ví dụ `1/4 sự kiện` hoặc
-  /// `Tiến độ thời kỳ: 0/2 sự kiện • 1/3 bài học`.
   final String statsText;
-
-  /// Phần trăm hoàn thành `0..100` — hiển thị dạng `Z%` bên phải thanh tiến độ.
   final int percent;
-
-  /// Asset ảnh đại diện đã resolve (coverImageKey → bundled path); null dùng
-  /// ảnh mặc định `journey_period_avatar_default.jpg`.
+  final String? assetId;
   final String? imageAsset;
-
-  /// Nhãn CTA ngắn hiển thị dưới nút `>` (ví dụ `Học tiếp`) — null thì chỉ
-  /// hiển thị nút chevron tròn.
   final String? ctaLabel;
-
-  /// Chạm vào thẻ hoặc nút `>` — thường điều hướng sang `/journey/:periodCode`.
   final VoidCallback? onTap;
 
   const BottomFloatingSummaryCard({
@@ -43,6 +27,7 @@ class BottomFloatingSummaryCard extends StatelessWidget {
     this.yearLabel,
     required this.statsText,
     required this.percent,
+    this.assetId,
     this.imageAsset,
     this.ctaLabel,
     this.onTap,
@@ -56,14 +41,21 @@ class BottomFloatingSummaryCard extends StatelessWidget {
     final int clampedPercent = percent.clamp(0, 100);
     return Container(
       decoration: BoxDecoration(
-        color: const Color(0xFFFBF7EF),
+        gradient: const LinearGradient(
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+          colors: [
+            Color(0xFFFCF8EE),
+            Color(0xFFF6ECDA),
+          ],
+        ),
         borderRadius: BorderRadius.circular(22),
-        border: Border.all(color: const Color(0xFFE8DFD1), width: 1),
+        border: Border.all(color: const Color(0xFFE0CAA0), width: 1.3),
         boxShadow: const [
           BoxShadow(
-            color: Color(0x33261E19),
+            color: Color(0x2E2B1B12),
             offset: Offset(0, 6),
-            blurRadius: 18,
+            blurRadius: 16,
           ),
         ],
       ),
@@ -74,35 +66,33 @@ class BottomFloatingSummaryCard extends StatelessWidget {
           borderRadius: BorderRadius.circular(22),
           onTap: onTap,
           child: Padding(
-            padding: const EdgeInsets.all(13),
+            padding: const EdgeInsets.symmetric(horizontal: 13, vertical: 11),
             child: Row(
               children: [
-                // Ảnh đại diện tròn 56x56.
-                ClipOval(
-                  child: SizedBox(
-                    width: 56,
-                    height: 56,
-                    child: Image.asset(
-                      imageAsset ?? defaultAvatarAsset,
+                // Ảnh đại diện bo góc mềm (ưu tiên lấy từ DB assets).
+                Container(
+                  width: 54,
+                  height: 54,
+                  decoration: BoxDecoration(
+                    borderRadius: BorderRadius.circular(14),
+                    border: Border.all(
+                      color: const Color(0xFFD9BE8A),
+                      width: 1.2,
+                    ),
+                  ),
+                  child: ClipRRect(
+                    borderRadius: BorderRadius.circular(12.5),
+                    child: DbOrBundledImage(
+                      assetId: assetId,
+                      bundledPath: imageAsset ?? defaultAvatarAsset,
+                      width: 54,
+                      height: 54,
                       fit: BoxFit.cover,
-                      errorBuilder: (_, _, _) => Image.asset(
-                        defaultAvatarAsset,
-                        fit: BoxFit.cover,
-                        errorBuilder: (_, _, _) => Container(
-                          color: DauVietColors.paperDim,
-                          alignment: Alignment.center,
-                          child: const Icon(
-                            Icons.account_balance_rounded,
-                            size: 26,
-                            color: DauVietColors.inkLight,
-                          ),
-                        ),
-                      ),
                     ),
                   ),
                 ),
                 const SizedBox(width: 12),
-                // Tên thời kỳ + niên đại + tiến độ.
+                // Tên thời kỳ + niên đại + thanh tiến độ ngọc bích.
                 Expanded(
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
@@ -112,11 +102,12 @@ class BottomFloatingSummaryCard extends StatelessWidget {
                         TextSpan(
                           children: [
                             TextSpan(
-                              text: title,
+                              text: '$title\u200B',
                               style: DauVietTypography.labelLarge.copyWith(
-                                fontSize: 14.5,
+                                fontSize: 13.2,
                                 fontWeight: FontWeight.w800,
-                                color: const Color(0xFF261E19),
+                                color: const Color(0xFF2B1B12),
+                                height: 1.18,
                               ),
                             ),
                             if (yearLabel != null &&
@@ -124,38 +115,35 @@ class BottomFloatingSummaryCard extends StatelessWidget {
                               TextSpan(
                                 text: ' $yearLabel',
                                 style: DauVietTypography.bodySmall.copyWith(
-                                  fontSize: 11.5,
-                                  color: DauVietColors.inkMuted,
+                                  fontSize: 11.0,
+                                  color: const Color(0xFF5A4A3B),
                                 ),
                               ),
                           ],
                         ),
                         maxLines: 2,
-                        overflow: TextOverflow.ellipsis,
-                      ),
-                      const SizedBox(height: 7),
-                      ClipRRect(
-                        borderRadius: BorderRadius.circular(5),
-                        child: LinearProgressIndicator(
-                          value: clampedPercent / 100.0,
-                          minHeight: 7,
-                          backgroundColor: const Color(0xFFE4DDD0),
-                          valueColor: const AlwaysStoppedAnimation<Color>(
-                            Color(0xFF2E7D47),
-                          ),
-                        ),
                       ),
                       const SizedBox(height: 5),
+                      GamifiedProgressBar(
+                        value: clampedPercent / 100.0,
+                        height: 7.0,
+                      ),
+                      const SizedBox(height: 4),
                       Row(
+                        crossAxisAlignment: CrossAxisAlignment.center,
                         children: [
                           Expanded(
-                            child: Text(
-                              statsText,
-                              maxLines: 1,
-                              overflow: TextOverflow.ellipsis,
-                              style: DauVietTypography.bodySmall.copyWith(
-                                fontSize: 11.5,
-                                color: DauVietColors.inkMuted,
+                            child: FittedBox(
+                              fit: BoxFit.scaleDown,
+                              alignment: Alignment.centerLeft,
+                              child: Text(
+                                statsText,
+                                maxLines: 1,
+                                style: DauVietTypography.bodySmall.copyWith(
+                                  fontSize: 11.2,
+                                  fontWeight: FontWeight.w600,
+                                  color: const Color(0xFF5A4A3B),
+                                ),
                               ),
                             ),
                           ),
@@ -165,7 +153,7 @@ class BottomFloatingSummaryCard extends StatelessWidget {
                             style: DauVietTypography.labelSmall.copyWith(
                               fontSize: 11.5,
                               fontWeight: FontWeight.w800,
-                              color: const Color(0xFF2E7D47),
+                              color: const Color(0xFF2B9364),
                             ),
                           ),
                         ],
@@ -174,7 +162,7 @@ class BottomFloatingSummaryCard extends StatelessWidget {
                   ),
                 ),
                 const SizedBox(width: 10),
-                // Nút tròn chevron `>` (kèm nhãn CTA nhỏ nếu có).
+                // Nút tròn đỏ chu sa `>` đồng bộ theme.
                 Column(
                   mainAxisSize: MainAxisSize.min,
                   children: [
@@ -182,18 +170,32 @@ class BottomFloatingSummaryCard extends StatelessWidget {
                       width: 38,
                       height: 38,
                       decoration: BoxDecoration(
-                        color: const Color(0xFFF3EDE0),
+                        gradient: const LinearGradient(
+                          begin: Alignment.topLeft,
+                          end: Alignment.bottomRight,
+                          colors: [
+                            Color(0xFFDA322A),
+                            Color(0xFFB51B16),
+                          ],
+                        ),
                         shape: BoxShape.circle,
                         border: Border.all(
-                          color: const Color(0xFFE0D4BF),
-                          width: 1,
+                          color: const Color(0xFFFFF4DC),
+                          width: 1.5,
                         ),
+                        boxShadow: const [
+                          BoxShadow(
+                            color: Color(0x38B51B16),
+                            blurRadius: 8,
+                            offset: Offset(0, 3),
+                          ),
+                        ],
                       ),
                       alignment: Alignment.center,
                       child: const Icon(
                         Icons.chevron_right_rounded,
                         size: 22,
-                        color: Color(0xFF4A3F37),
+                        color: Colors.white,
                       ),
                     ),
                     if (ctaLabel != null && ctaLabel!.trim().isNotEmpty) ...[
@@ -202,7 +204,7 @@ class BottomFloatingSummaryCard extends StatelessWidget {
                         ctaLabel!,
                         style: DauVietTypography.labelSmall.copyWith(
                           fontSize: 9.5,
-                          fontWeight: FontWeight.w700,
+                          fontWeight: FontWeight.w800,
                           color: DauVietColors.cinnabarRed,
                         ),
                       ),

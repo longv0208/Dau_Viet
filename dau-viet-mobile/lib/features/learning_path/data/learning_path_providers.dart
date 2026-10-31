@@ -10,6 +10,8 @@ import 'learning_path_dto.dart';
 import 'learning_path_repository.dart';
 import 'mock_learning_path_repository.dart';
 
+export 'event_rewards_provider.dart';
+
 /// Không auto-retry — lỗi hiển thị rõ để người dùng bấm "Thử lại".
 Duration? _noRetry(int retryCount, Object error) => null;
 
