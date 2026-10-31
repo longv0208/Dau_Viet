@@ -1199,10 +1199,16 @@ public class LearnerAttemptService {
             currentStep = hypothesisDone ? (verificationDone ? 4 : 3) : 2;
         }
 
+        boolean isFourStep = model.isFourStepFlow();
+        boolean shouldShowGrid = isFourStep
+                && !hypothesisDone
+                && (discoveryTotal == 0 || discoveryDone < discoveryTotal);
+
         return new CurrentActivityResponse.StepProgress(
                 discoveryDone, discoveryTotal,
                 hypothesisDone, verificationDone, reconstructionDone,
-                currentStep, List.copyOf(clues));
+                currentStep, List.copyOf(clues),
+                isFourStep, shouldShowGrid);
     }
 
     private JsonNode parse(String json) {

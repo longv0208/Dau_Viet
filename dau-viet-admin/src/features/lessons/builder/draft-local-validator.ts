@@ -30,6 +30,7 @@ interface Ctx {
   actIdx: number;
   out: LocalFieldError[];
   cat?: ValidationCatalog;
+  draft?: Draft;
 }
 
 function evidenceLabel(cat: ValidationCatalog | undefined, id: string): string {
@@ -213,10 +214,32 @@ function validateHypothesisChoice(c: Ctx) {
 }
 
 function validateVerification(c: Ctx) {
-  // Backend VerificationValidator chỉ kiểm id/ref + maxAttempts — không bắt
-  // buộc expectedHypothesis (vắng → auto-SUPPORT khi evidence đủ). Bỏ check
-  // required ở đây để không chặn draft hợp lệ.
   checkMaxAttempts(c);
+  // FOUR_STEP interactive: cần visibleSourceIds + requiredEvidenceIds
+  // (publish-level). Legacy (evidenceSource) bỏ qua — server resolve từ output.
+  if (!c.draft || !isFourStep(c.draft)) return;
+  const cfg = c.act.config ?? {};
+  const isLegacy = typeof cfg.evidenceSource === "string" && cfg.evidenceSource.length > 0;
+  if (isLegacy) return;
+  const visible = getArray(cfg.visibleSourceIds) ?? [];
+  const required = getArray(cfg.requiredEvidenceIds) ?? [];
+  if (visible.length === 0) {
+    push(c, "visibleSourceIds", "MISSING_FIELD",
+      "Kiểm chứng tương tác cần ít nhất 1 bằng chứng để học viên chọn.");
+  }
+  if (required.length === 0) {
+    push(c, "requiredEvidenceIds", "MISSING_FIELD",
+      "Kiểm chứng tương tác cần ít nhất 1 bằng chứng bắt buộc.");
+  } else if (visible.length > 0) {
+    const visSet = new Set(visible.map(String));
+    for (const rid of required.map(String)) {
+      if (!visSet.has(rid)) {
+        push(c, "requiredEvidenceIds", "INVALID_CONFIG",
+          `Bằng chứng bắt buộc "${rid}" không nằm trong danh sách cho học viên chọn.`);
+        break;
+      }
+    }
+  }
 }
 
 function validateReasoningConnect(c: Ctx) {
@@ -356,7 +379,7 @@ export function validateDraftLocally(
     for (let a = 0; a < stage.activities.length; a++) {
       const act = stage.activities[a];
       if (!act) continue;
-      const ctx: Ctx = { stage, stageIdx: s, act, actIdx: a, out, cat: catalog };
+      const ctx: Ctx = { stage, stageIdx: s, act, actIdx: a, out, cat: catalog, draft };
       switch (act.type) {
         case "VIEW_IMAGE": validateViewImage(ctx); break;
         case "EVIDENCE_SELECT": validateEvidenceSelect(ctx); break;
@@ -457,11 +480,21 @@ function validateFourStepFlow(draft: Draft, out: LocalFieldError[]) {
   for (const expected of ["HYPOTHESIS", "VERIFICATION", "RECONSTRUCTION"] as const) {
     const idx = draft.stages.findIndex((s) => s.type === expected);
     const stage = idx >= 0 ? draft.stages[idx] : undefined;
-    if (stage && stage.activities.length !== 1) {
+    if (!stage) continue;
+    if (stage.activities.length !== 1) {
       out.push({
         path: `stages[id=${stage.id}].activities`,
         code: "INVALID_FOUR_STEP_STRUCTURE",
         detail: `Bước "${expected === "HYPOTHESIS" ? "Đặt giả thuyết" : expected === "VERIFICATION" ? "Kiểm chứng" : "Tái hiện"}" phải có đúng 1 hoạt động chính — hiện có ${stage.activities.length}.`,
+      });
+      continue;
+    }
+    // HYPOTHESIS stage must use HYPOTHESIS_CHOICE — output contract for VERIFICATION.
+    if (expected === "HYPOTHESIS" && stage.activities[0]?.type !== "HYPOTHESIS_CHOICE") {
+      out.push({
+        path: `stages[id=${stage.id}].activities[0].type`,
+        code: "INVALID_FOUR_STEP_STRUCTURE",
+        detail: `Bước Đặt giả thuyết phải dùng hoạt động "Đặt giả thuyết" (HYPOTHESIS_CHOICE) — hiện là "${stage.activities[0]?.type}".`,
       });
     }
   }

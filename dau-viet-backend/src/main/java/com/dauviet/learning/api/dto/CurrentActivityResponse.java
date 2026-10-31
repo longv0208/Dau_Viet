@@ -69,6 +69,20 @@ public record CurrentActivityResponse(
             boolean verificationCompleted,
             boolean reconstructionCompleted,
             int currentStepNumber,
-            List<ClueStatus> clues) {
+            List<ClueStatus> clues,
+            /** true khi flowModel=FOUR_STEP hoặc DISCOVERY dùng clueType (không theo thứ tự). */
+            boolean isFourStep,
+            /** Learner nên xem grid (chưa hoàn thành đủ clue, chưa đặt giả thuyết). */
+            boolean shouldShowGrid) {
+
+        /** Backward-compat constructor — isFourStep/shouldShowGrid=false. */
+        public StepProgress(int discoveryCompleted, int discoveryTotal,
+                            boolean hypothesisCompleted, boolean verificationCompleted,
+                            boolean reconstructionCompleted, int currentStepNumber,
+                            List<ClueStatus> clues) {
+            this(discoveryCompleted, discoveryTotal, hypothesisCompleted,
+                    verificationCompleted, reconstructionCompleted, currentStepNumber,
+                    clues, false, false);
+        }
     }
 }

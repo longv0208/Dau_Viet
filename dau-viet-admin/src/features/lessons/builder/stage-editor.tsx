@@ -82,7 +82,7 @@ export function StageEditor({
           <Select
             id="stage-type"
             value={stage.type}
-            disabled={readOnly}
+            disabled={readOnly || draft?.flowModel === "FOUR_STEP"}
             onChange={(e) => onUpdate({ type: e.target.value as StageType })}
           >
             {STAGE_TYPES.map((t) => (
@@ -91,7 +91,11 @@ export function StageEditor({
               </option>
             ))}
           </Select>
-          <p className="text-xs text-ink-muted">{STAGE_LABELS[stage.type].description}</p>
+          {draft?.flowModel === "FOUR_STEP" ? (
+            <p className="text-xs text-ink-muted">Bài học 4 bước — loại giai đoạn cố định.</p>
+          ) : (
+            <p className="text-xs text-ink-muted">{STAGE_LABELS[stage.type].description}</p>
+          )}
         </div>
       </div>
 
@@ -117,7 +121,7 @@ export function StageEditor({
                   <input
                     type="checkbox"
                     checked={checked}
-                    disabled={readOnly}
+                    disabled={readOnly || draft?.flowModel === "FOUR_STEP"}
                     className="size-3.5 accent-brand"
                     onChange={(e) => {
                       const cur = stage.nextStageIds ?? [];
@@ -153,7 +157,12 @@ export function StageEditor({
               : `Hoạt động (${stage.activities.length})`
           }
           action={
-            !readOnly ? (
+            !readOnly && !(
+              draft?.flowModel === "FOUR_STEP" &&
+              (stage.type === "DISCOVERY"
+                ? stage.activities.length >= 4
+                : stage.activities.length >= 1)
+            ) ? (
               <Button
                 variant="secondary"
                 size="sm"
@@ -173,6 +182,7 @@ export function StageEditor({
             </p>
             <ActivityPicker
               stageType={stage.type}
+              isFourStep={draft?.flowModel === "FOUR_STEP"}
               onPick={(t: ActivityType) => {
                 onAddActivity(
                   makeActivity(t, [
@@ -214,58 +224,66 @@ export function StageEditor({
                       </span>
                     </span>
                   </button>
-                  {!readOnly && (
-                    <div className="flex items-center gap-1">
-                      <Button
-                        variant="secondary"
-                        className="h-7 px-1.5"
-                        disabled={i === 0}
-                        onClick={() => onMoveActivity(a.id, -1)}
-                        aria-label={`Chuyển hoạt động ${i + 1} lên`}
-                      >
-                        <ArrowUp className="size-3.5" />
-                      </Button>
-                      <Button
-                        variant="secondary"
-                        className="h-7 px-1.5"
-                        disabled={i === stage.activities.length - 1}
-                        onClick={() => onMoveActivity(a.id, 1)}
-                        aria-label={`Chuyển hoạt động ${i + 1} xuống`}
-                      >
-                        <ArrowDown className="size-3.5" />
-                      </Button>
-                      {confirmActId === a.id ? (
-                        <>
-                          <Button
-                            variant="secondary"
-                            className="h-7 px-2 text-xs text-error"
-                            onClick={() => {
-                              onRemoveActivity(a.id);
-                              setConfirmActId(null);
-                            }}
-                          >
-                            Xoá
-                          </Button>
-                          <Button
-                            variant="secondary"
-                            className="h-7 px-2 text-xs"
-                            onClick={() => setConfirmActId(null)}
-                          >
-                            Giữ
-                          </Button>
-                        </>
-                      ) : (
+                  {!readOnly && (() => {
+                    const isFourStep = draft?.flowModel === "FOUR_STEP";
+                    // FOUR_STEP: clues và single-activity steps không thể xoá/di chuyển —
+                    // cấu trúc bắt buộc (4 clueType trong DISCOVERY, 1 act mỗi step khác).
+                    const isClueAct = a.clueType != null && stage.type === "DISCOVERY";
+                    const isSingleStep = stage.type !== "DISCOVERY" && stage.activities.length === 1;
+                    if (isFourStep && (isClueAct || isSingleStep)) return null;
+                    return (
+                      <div className="flex items-center gap-1">
                         <Button
                           variant="secondary"
-                          className="h-7 px-1.5 text-error"
-                          onClick={() => setConfirmActId(a.id)}
-                          aria-label={`Xoá hoạt động ${i + 1}`}
+                          className="h-7 px-1.5"
+                          disabled={i === 0}
+                          onClick={() => onMoveActivity(a.id, -1)}
+                          aria-label={`Chuyển hoạt động ${i + 1} lên`}
                         >
-                          <Trash2 className="size-3.5" />
+                          <ArrowUp className="size-3.5" />
                         </Button>
-                      )}
-                    </div>
-                  )}
+                        <Button
+                          variant="secondary"
+                          className="h-7 px-1.5"
+                          disabled={i === stage.activities.length - 1}
+                          onClick={() => onMoveActivity(a.id, 1)}
+                          aria-label={`Chuyển hoạt động ${i + 1} xuống`}
+                        >
+                          <ArrowDown className="size-3.5" />
+                        </Button>
+                        {confirmActId === a.id ? (
+                          <>
+                            <Button
+                              variant="secondary"
+                              className="h-7 px-2 text-xs text-error"
+                              onClick={() => {
+                                onRemoveActivity(a.id);
+                                setConfirmActId(null);
+                              }}
+                            >
+                              Xoá
+                            </Button>
+                            <Button
+                              variant="secondary"
+                              className="h-7 px-2 text-xs"
+                              onClick={() => setConfirmActId(null)}
+                            >
+                              Giữ
+                            </Button>
+                          </>
+                        ) : (
+                          <Button
+                            variant="secondary"
+                            className="h-7 px-1.5 text-error"
+                            onClick={() => setConfirmActId(a.id)}
+                            aria-label={`Xoá hoạt động ${i + 1}`}
+                          >
+                            <Trash2 className="size-3.5" />
+                          </Button>
+                        )}
+                      </div>
+                    );
+                  })()}
                 </div>
               </li>
             );

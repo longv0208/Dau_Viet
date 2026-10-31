@@ -33,6 +33,7 @@ export function VerificationEditor(props: EditorProps) {
   const evidenceSource = String(config.evidenceSource ?? "");
   const hypothesisSource = String(config.hypothesisSource ?? "");
   const isLegacy = Boolean(evidenceSource);
+  const isFourStep = draft?.flowModel === "FOUR_STEP";
 
   const sourceCandidates = evidenceSelectActivities(draft, activity.id, {
     stageId: stage.id,
@@ -78,63 +79,70 @@ export function VerificationEditor(props: EditorProps) {
         </div>
       )}
 
-      {/* Chế độ kiểm chứng */}
-      <div className="flex flex-col gap-1.5">
-        <Label>Chế độ kiểm chứng</Label>
-        <div className="flex gap-2">
-          <label
-            className={
-              "flex flex-1 cursor-pointer items-start gap-2 rounded-md border px-3 py-2.5 text-sm " +
-              (!isLegacy ? "border-brand bg-brand/5 text-ink" : "border-border text-ink-muted")
-            }
-          >
-            <input
-              type="radio"
-              name={`vfmode-${activity.id}`}
-              checked={!isLegacy}
-              disabled={readOnly}
-              className="mt-0.5 accent-brand"
-              onChange={() => {
-                const next = { ...config };
-                delete next.evidenceSource;
-                onChange({ config: next });
-              }}
-            />
-            <span>
-              <span className="block font-medium">Tương tác</span>
-              <span className="block text-xs">
-                Học viên tự chọn bằng chứng ủng hộ giả thuyết — server chấm
-                lựa chọn của học viên.
+      {/* Chế độ kiểm chứng — FOUR_STEP luôn interactive; legacy chỉ cho bài cũ */}
+      {!isFourStep && (
+        <div className="flex flex-col gap-1.5">
+          <Label>Chế độ kiểm chứng</Label>
+          <div className="flex gap-2">
+            <label
+              className={
+                "flex flex-1 cursor-pointer items-start gap-2 rounded-md border px-3 py-2.5 text-sm " +
+                (!isLegacy ? "border-brand bg-brand/5 text-ink" : "border-border text-ink-muted")
+              }
+            >
+              <input
+                type="radio"
+                name={`vfmode-${activity.id}`}
+                checked={!isLegacy}
+                disabled={readOnly}
+                className="mt-0.5 accent-brand"
+                onChange={() => {
+                  const next = { ...config };
+                  delete next.evidenceSource;
+                  onChange({ config: next });
+                }}
+              />
+              <span>
+                <span className="block font-medium">Tương tác</span>
+                <span className="block text-xs">
+                  Học viên tự chọn bằng chứng ủng hộ giả thuyết — server chấm
+                  lựa chọn của học viên.
+                </span>
               </span>
-            </span>
-          </label>
-          <label
-            className={
-              "flex flex-1 cursor-pointer items-start gap-2 rounded-md border px-3 py-2.5 text-sm " +
-              (isLegacy ? "border-brand bg-brand/5 text-ink" : "border-border text-ink-muted")
-            }
-          >
-            <input
-              type="radio"
-              name={`vfmode-${activity.id}`}
-              checked={isLegacy}
-              disabled={readOnly}
-              className="mt-0.5 accent-brand"
-              onChange={() => {
-                // Keep existing evidenceSource or show candidate picker
-                onChange({ config: { ...config } });
-              }}
-            />
-            <span>
-              <span className="block font-medium">Tự động (legacy)</span>
-              <span className="block text-xs">
-                Server dùng bằng chứng đã thu thập từ EVIDENCE_SELECT trước
-                đó — không cần tương tác thêm.
+            </label>
+            <label
+              className={
+                "flex flex-1 cursor-pointer items-start gap-2 rounded-md border px-3 py-2.5 text-sm " +
+                (isLegacy ? "border-brand bg-brand/5 text-ink" : "border-border text-ink-muted")
+              }
+            >
+              <input
+                type="radio"
+                name={`vfmode-${activity.id}`}
+                checked={isLegacy}
+                disabled={readOnly}
+                className="mt-0.5 accent-brand"
+                onChange={() => {
+                  // Chuyển sang legacy: cần evidenceSource hợp lệ — auto-pick
+                  // candidate đầu tiên nếu chưa có, hoặc giữ giá trị đã lưu.
+                  const next = { ...config };
+                  if (!next.evidenceSource && sourceCandidates.length > 0) {
+                    next.evidenceSource = sourceCandidates[0]?.id;
+                  }
+                  onChange({ config: next });
+                }}
+              />
+              <span>
+                <span className="block font-medium">Tự động (legacy)</span>
+                <span className="block text-xs">
+                  Server dùng bằng chứng đã thu thập từ EVIDENCE_SELECT trước
+                  đó — không cần tương tác thêm.
+                </span>
               </span>
-            </span>
-          </label>
+            </label>
+          </div>
         </div>
-      </div>
+      )}
 
       {/* Legacy mode: chọn EVIDENCE_SELECT nguồn */}
       {isLegacy && (
@@ -167,7 +175,7 @@ export function VerificationEditor(props: EditorProps) {
       )}
 
       {/* Interactive mode: bằng chứng hiển thị cho học viên chọn */}
-      {!isLegacy && (
+      {(!isLegacy || isFourStep) && (
         <EvidenceRefPicker
           label="Bằng chứng học viên được xem và chọn"
           hint="Học viên sẽ chọn từ các nguồn này để ủng hộ giả thuyết của mình — đây là UI chọn bằng chứng ở Bước 3."

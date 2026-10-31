@@ -143,6 +143,7 @@ export function PreviewPage({ lessonId }: { lessonId: string }) {
                       onActivityChange={setActivityIndex}
                       evidence={embedded.evidence}
                       assets={embedded.assets}
+                      isFourStep={draft?.flowModel === "FOUR_STEP"}
                     />
                   )}
                 </MobileFrame>

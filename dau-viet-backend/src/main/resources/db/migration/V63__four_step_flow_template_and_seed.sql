@@ -82,7 +82,44 @@ BEGIN
               "required": true,
               "allowFreeOrder": true,
               "description": "Tìm hiểu bốn dấu vết cốt lõi về sự kiện lịch sử theo bất kỳ thứ tự nào.",
-              "activities": [],
+              "activities": [
+                {
+                  "id": "clue-context",
+                  "type": "READ",
+                  "required": true,
+                  "clueType": "CONTEXT",
+                  "title": "Bối cảnh lịch sử",
+                  "instruction": "Đọc tư liệu bối cảnh sự kiện",
+                  "config": {"text": "Nhập nội dung bối cảnh lịch sử tại đây."}
+                },
+                {
+                  "id": "clue-characters",
+                  "type": "READ",
+                  "required": true,
+                  "clueType": "CHARACTERS",
+                  "title": "Nhân vật lịch sử",
+                  "instruction": "Tìm hiểu các nhân vật chính",
+                  "config": {"text": "Nhập nội dung về nhân vật lịch sử tại đây."}
+                },
+                {
+                  "id": "clue-development",
+                  "type": "READ",
+                  "required": true,
+                  "clueType": "DEVELOPMENT",
+                  "title": "Diễn biến sự kiện",
+                  "instruction": "Theo dõi các mốc diễn biến chính",
+                  "config": {"text": "Nhập nội dung diễn biến sự kiện tại đây."}
+                },
+                {
+                  "id": "clue-significance",
+                  "type": "READ",
+                  "required": true,
+                  "clueType": "SIGNIFICANCE",
+                  "title": "Ý nghĩa lịch sử",
+                  "instruction": "Đúc kết ý nghĩa của sự kiện",
+                  "config": {"text": "Nhập nội dung ý nghĩa lịch sử tại đây."}
+                }
+              ],
               "nextStageIds": ["hypothesis"]
             },
             {
@@ -90,7 +127,21 @@ BEGIN
               "type": "HYPOTHESIS",
               "title": "Đặt Giả thuyết",
               "required": true,
-              "activities": [],
+              "activities": [
+                {
+                  "id": "hc",
+                  "type": "HYPOTHESIS_CHOICE",
+                  "required": true,
+                  "instruction": "Chọn giả thuyết giải thích sự kiện",
+                  "config": {
+                    "prompt": "Giả thuyết nào phản ánh đúng nguyên nhân của sự kiện?",
+                    "hypotheses": [
+                      {"id": "h-a", "label": "Giả thuyết A — nhập nội dung tại đây"},
+                      {"id": "h-b", "label": "Giả thuyết B — nhập nội dung tại đây"}
+                    ]
+                  }
+                }
+              ],
               "nextStageIds": ["verification"]
             },
             {
@@ -98,7 +149,20 @@ BEGIN
               "type": "VERIFICATION",
               "title": "Kiểm chứng Giả thuyết",
               "required": true,
-              "activities": [],
+              "activities": [
+                {
+                  "id": "vf",
+                  "type": "VERIFICATION",
+                  "required": true,
+                  "instruction": "Chọn bằng chứng ủng hộ giả thuyết của bạn",
+                  "config": {
+                    "expectedHypothesis": "h-a",
+                    "visibleSourceIds": [],
+                    "requiredEvidenceIds": [],
+                    "maxAttempts": 3
+                  }
+                }
+              ],
               "nextStageIds": ["reconstruction"]
             },
             {
@@ -106,7 +170,19 @@ BEGIN
               "type": "RECONSTRUCTION",
               "title": "Tái hiện Sự kiện",
               "required": true,
-              "activities": [],
+              "activities": [
+                {
+                  "id": "do",
+                  "type": "DRAG_ORDER",
+                  "required": true,
+                  "instruction": "Sắp xếp các sự kiện theo đúng trình tự thời gian",
+                  "config": {
+                    "items": [],
+                    "expectedOrder": [],
+                    "maxAttempts": 3
+                  }
+                }
+              ],
               "nextStageIds": []
             }
           ],
@@ -149,7 +225,8 @@ BEGIN
               "coverAssetId": null,
               "instruction": "Đọc bối cảnh trận Bạch Đằng năm 938",
               "config": {
-                "text": "Năm 938, quân Nam Hán sai tướng Lưu Hoằng Tháo đem thủy quân vượt biển sang đánh nước ta. Ngô Quyền lãnh đạo nghĩa quân chuẩn bị trận đánh lớn tại cửa sông Bạch Đằng — nơi địa hình cửa sông và quy luật thủy triều trở thành vũ khí chiến lược."
+                "text": "Năm 938, quân Nam Hán sai tướng Lưu Hoằng Tháo đem thủy quân vượt biển sang đánh nước ta. Ngô Quyền lãnh đạo nghĩa quân chuẩn bị trận đánh lớn tại cửa sông Bạch Đằng — nơi địa hình cửa sông và quy luật thủy triều trở thành vũ khí chiến lược.",
+                "animationSceneId": "d7a20000-0000-4000-8000-000000000001"
               }
             },
             {
@@ -272,7 +349,7 @@ BEGIN
               "type": "VERIFICATION",
               "required": true,
               "instruction": "Chọn các dấu vết chứng minh giả thuyết bạn vừa đặt",
-              "onPartial": "discovery",
+              "onPartial": "verification",
               "onContradicted": "hypothesis",
               "config": {
                 "expectedHypothesis": "h-tide",
@@ -526,7 +603,7 @@ BEGIN
               "type": "VERIFICATION",
               "required": true,
               "instruction": "Chọn các dấu vết chứng minh giả thuyết bạn vừa đặt",
-              "onPartial": "discovery",
+              "onPartial": "verification",
               "onContradicted": "hypothesis",
               "config": {
                 "expectedHypothesis": "h-unity",

@@ -6,12 +6,19 @@ import { ACTIVITY_LABELS } from "./labels";
 
 interface Props {
   stageType: StageType;
+  /** Khi bài học ở chế độ FOUR_STEP — một số stage bị khoá type. */
+  isFourStep?: boolean;
   onPick: (type: ActivityType) => void;
 }
 
 /** Grid of activity types allowed for the current stage type. */
-export function ActivityPicker({ stageType, onPick }: Props) {
-  const allowed = STAGE_ALLOWED_ACTIVITIES[stageType] ?? ["READ"];
+export function ActivityPicker({ stageType, isFourStep, onPick }: Props) {
+  let allowed = STAGE_ALLOWED_ACTIVITIES[stageType] ?? ["READ"];
+  // FOUR_STEP: Bước 2 HYPOTHESIS phải dùng HYPOTHESIS_CHOICE — output contract
+  // của Kiểm chứng yêu cầu hypothesisId trong output.
+  if (isFourStep && stageType === "HYPOTHESIS") {
+    allowed = ["HYPOTHESIS_CHOICE"];
+  }
   return (
     <div className="grid gap-2 sm:grid-cols-2">
       {allowed.map((t) => {

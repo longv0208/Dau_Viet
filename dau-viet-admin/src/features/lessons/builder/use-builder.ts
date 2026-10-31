@@ -44,6 +44,7 @@ type Action =
   | { type: "moveStage"; id: string; dir: -1 | 1 }
   | { type: "duplicateStage"; id: string }
   | { type: "mergeStages"; stages: Stage[] }
+  | { type: "replaceStages"; stages: Stage[] }
   | { type: "addActivity"; stageId: string; activity: Activity }
   | { type: "updateActivity"; stageId: string; activityId: string; patch: Partial<Activity> }
   | { type: "removeActivity"; stageId: string; activityId: string }
@@ -150,6 +151,13 @@ function reducer(state: BuilderState, a: Action): BuilderState {
         dirty: true,
         revision: state.revision + 1,
         draft: { ...state.draft, stages: [...state.draft.stages, ...a.stages] },
+      };
+    case "replaceStages":
+      return {
+        ...state,
+        dirty: true,
+        revision: state.revision + 1,
+        draft: { ...state.draft, stages: a.stages },
       };
     case "addActivity":
       return {
@@ -292,6 +300,7 @@ export function useBuilder(initial: Draft, rowVersion: number) {
       moveStage: (id: string, dir: -1 | 1) => dispatch({ type: "moveStage", id, dir }),
       duplicateStage: (id: string) => dispatch({ type: "duplicateStage", id }),
       mergeStages: (stages: Stage[]) => dispatch({ type: "mergeStages", stages }),
+      replaceStages: (stages: Stage[]) => dispatch({ type: "replaceStages", stages }),
       addActivity: (stageId: string, activity: Activity) =>
         dispatch({ type: "addActivity", stageId, activity }),
       updateActivity: (stageId: string, activityId: string, patch: Partial<Activity>) =>

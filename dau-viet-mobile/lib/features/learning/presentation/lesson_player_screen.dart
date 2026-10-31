@@ -38,6 +38,9 @@ import '../../../core/widgets/mascot_speech_bubble.dart';
 /// Mức độ feedback sau submit — map đúng outcome backend trả về.
 enum _FeedbackTone { success, info, warning, error }
 
+/// Chế độ hiển thị của Bước 1 DISCOVERY — điều hướng UI, tách khỏi server cursor.
+enum _DiscoveryView { grid, activity, review }
+
 class _Feedback {
   final String text;
   final _FeedbackTone tone;
@@ -62,6 +65,17 @@ class _PlayerState {
   final bool awaitingContinue;
   final bool completionReady;
 
+  /// Chế độ hiển thị Bước 1 — UI navigation state, không phải server cursor.
+  /// null = chưa quyết định (resume → server quyết định);
+  /// grid = đang xem lưới 4 dấu vết;
+  /// activity = đang làm activity của 1 clue;
+  /// review = đang xem lại clue đã hoàn thành.
+  final _DiscoveryView? discoveryView;
+
+  /// ID clue đang được chọn trong Bước 1 — dùng để biết learner đang ở
+  /// activity nào khi quay lại grid sau (không dùng để selectActivity lại).
+  final String? activeClueActivityId;
+
   const _PlayerState({
     required this.current,
     required this.content,
@@ -70,6 +84,8 @@ class _PlayerState {
     this.lastEvaluation,
     this.awaitingContinue = false,
     this.completionReady = false,
+    this.discoveryView,
+    this.activeClueActivityId,
   });
 
   _PlayerState copyWith({
@@ -79,6 +95,8 @@ class _PlayerState {
     EvaluationDto? Function()? lastEvaluation,
     bool? awaitingContinue,
     bool? completionReady,
+    _DiscoveryView? Function()? discoveryView,
+    String? Function()? activeClueActivityId,
   }) => _PlayerState(
     current: current ?? this.current,
     content: content,
@@ -88,8 +106,13 @@ class _PlayerState {
         lastEvaluation == null ? this.lastEvaluation : lastEvaluation(),
     awaitingContinue: awaitingContinue ?? this.awaitingContinue,
     completionReady: completionReady ?? this.completionReady,
+    discoveryView: discoveryView == null ? this.discoveryView : discoveryView(),
+    activeClueActivityId: activeClueActivityId == null
+        ? this.activeClueActivityId
+        : activeClueActivityId(),
   );
 }
+
 
 /// Lesson Player — render activity theo server cursor, submit + feedback,
 /// điều hướng theo `next`/`current` từ backend. Không tự tính stage/cursor.
@@ -213,6 +236,24 @@ class _LessonPlayerScreenState extends ConsumerState<LessonPlayerScreen> {
     }
   }
 
+  /// Quyết định discoveryView khi resume/load: server trả current.activity có
+  /// clueType → learner đang ở trong 1 clue → activity view.
+  /// Server trả current.activity null hoặc không có clueType → grid.
+  /// (stepProgress.shouldShowGrid sẽ là false nếu đã xong 4/4 → stage sau.)
+  _DiscoveryView? _resolveDiscoveryView(CurrentActivityDto cur) {
+    if (!cur.isDiscoveryStep) return null;
+    final act = cur.activity;
+    if (act == null || act.clueType == null) return _DiscoveryView.grid;
+    // Kiểm tra clue đã completed chưa — nếu completed → review, chưa → activity.
+    final clues = cur.stepProgress?.clues ?? const <ClueStatusDto>[];
+    final clue = clues.cast<ClueStatusDto?>().firstWhere(
+          (c) => c?.activityId == act.id,
+          orElse: () => null,
+        );
+    if (clue?.completed == true) return _DiscoveryView.review;
+    return _DiscoveryView.activity;
+  }
+
   Future<void> _load() async {
     try {
       final results = await Future.wait([
@@ -223,10 +264,17 @@ class _LessonPlayerScreenState extends ConsumerState<LessonPlayerScreen> {
       final content = results[1] as LessonContentDto;
       // Resolve event từ lesson metadata (không block load — lỗi → null).
       _lessonEventId = await _resolveEventId(content.lessonId);
+      final cur = results[0] as CurrentActivityDto;
       setState(() {
         _state = _PlayerState(
-          current: results[0] as CurrentActivityDto,
+          current: cur,
           content: content,
+          // Resume: server cursor đang ở clue activity → khôi phục activity view.
+          // Server cursor ở DISCOVERY nhưng chưa vào clue → grid.
+          discoveryView: _resolveDiscoveryView(cur),
+          activeClueActivityId: cur.activity?.clueType != null
+              ? cur.activity!.id
+              : null,
         );
         _loadError = null;
       });
@@ -243,7 +291,9 @@ class _LessonPlayerScreenState extends ConsumerState<LessonPlayerScreen> {
         st.submitting ||
         st.awaitingContinue ||
         st.completionReady ||
-        st.current.activity == null) {
+        st.current.activity == null ||
+        // Review mode: chỉ xem lại clue đã hoàn thành — không submit.
+        st.discoveryView == _DiscoveryView.review) {
       return;
     }
 
@@ -894,12 +944,16 @@ class _LessonPlayerScreenState extends ConsumerState<LessonPlayerScreen> {
     final cur = st.current;
     final isFourStep = cur.stepProgress?.isFourStep == true;
     final stepProgress = cur.stepProgress;
-    // Bước 1 hiện lưới khi đang ở DISCOVERY stage VÀ server vẫn đang
-    // trỏ vào một clue chưa xong (shouldShowGrid = còn clue chưa complete).
-    // Khi learner đã chọn clue (server trả current.activity có clueType),
-    // showDiscoveryGrid = false → render activity bình thường.
-    final showDiscoveryGrid =
-        cur.isDiscoveryStep && (stepProgress?.shouldShowGrid ?? false);
+    // Bước 1 hiện lưới khi discoveryView == grid hoặc review.
+    // discoveryView = null → resume/chưa quyết định → server quyết:
+    //   shouldShowGrid = còn clue chưa complete → hiện grid.
+    //   !shouldShowGrid → đã xong 4/4 → không hiện (cursor sẽ ở stage sau).
+    // discoveryView = activity → đang làm clue → render activity.
+    // discoveryView = review → đang xem lại clue → render activity.
+    final showDiscoveryGrid = cur.isDiscoveryStep &&
+        (st.discoveryView == _DiscoveryView.grid ||
+            st.discoveryView == null &&
+                (stepProgress?.shouldShowGrid ?? false));
 
     return Column(
       children: [
@@ -955,7 +1009,7 @@ class _LessonPlayerScreenState extends ConsumerState<LessonPlayerScreen> {
                     ),
                   // Header "DẤU VẾT X/4" khi đang làm clue trong DISCOVERY.
                   if (isFourStep && cur.activity?.clueType != null)
-                    _buildClueActivityHeader(cur, stepProgress),
+                    _buildClueActivityHeader(cur, stepProgress, st),
                   if (!_immersive &&
                       cur.activity?.instruction != null &&
                       cur.activity!.instruction!.trim().isNotEmpty) ...[
@@ -1007,7 +1061,9 @@ class _LessonPlayerScreenState extends ConsumerState<LessonPlayerScreen> {
   Widget _buildClueActivityHeader(
     CurrentActivityDto cur,
     StepProgressDto? stepProgress,
+    _PlayerState st,
   ) {
+    final isReview = st.discoveryView == _DiscoveryView.review;
     final index = stepProgress != null
         ? stepProgress.clues.indexWhere(
             (c) => c.activityId == cur.activity?.id,
@@ -1060,9 +1116,11 @@ class _LessonPlayerScreenState extends ConsumerState<LessonPlayerScreen> {
                 borderRadius: BorderRadius.circular(6),
               ),
               child: Text(
-                'TẤT CẢ DẤU VẾT',
+                isReview ? 'ĐÃ XONG' : 'TẤT CẢ DẤU VẾT',
                 style: DauVietTypography.labelSmall.copyWith(
-                  color: DauVietColors.imperialGoldDark,
+                  color: isReview
+                      ? DauVietColors.natureGreen
+                      : DauVietColors.imperialGoldDark,
                   fontWeight: FontWeight.w800,
                   fontSize: 9,
                 ),
@@ -1127,6 +1185,9 @@ class _LessonPlayerScreenState extends ConsumerState<LessonPlayerScreen> {
 
   /// Chọn dấu vết từ lưới — POST /attempts/{id}/cursor để server chuyển
   /// cursor sang clue được chọn (unordered DISCOVERY stage).
+  /// Sau khi server trả activity, đặt discoveryView = activity → render
+  /// ActivityRenderer ngay, không quay lại grid.
+  /// Nếu clue đã completed → discoveryView = review (chỉ xem, không submit).
   Future<void> _selectClue(ClueStatusDto clue, _PlayerState st) async {
     if (st.submitting) return;
     _dismissEnergyPenaltyToast();
@@ -1137,7 +1198,14 @@ class _LessonPlayerScreenState extends ConsumerState<LessonPlayerScreen> {
       );
       if (!mounted) return;
       setState(() {
-        _state = _PlayerState(current: cur, content: st.content);
+        _state = _PlayerState(
+          current: cur,
+          content: st.content,
+          discoveryView: clue.completed
+              ? _DiscoveryView.review
+              : _DiscoveryView.activity,
+          activeClueActivityId: clue.activityId,
+        );
         _hasUnsentInput = false;
       });
     } catch (_) {
@@ -1154,22 +1222,22 @@ class _LessonPlayerScreenState extends ConsumerState<LessonPlayerScreen> {
     }
   }
 
-  /// Quay lại lưới dấu vết từ trong một clue activity — GET /current để
-  /// server trả cursor hiện tại (unordered stage → luôn có clue hiển thị).
-  Future<void> _backToClueGrid() async {
+  /// Quay lại lưới dấu vết từ trong một clue activity.
+  /// discoveryView = grid → hiện DiscoveryClueGrid.
+  /// Không gọi API — server cursor vẫn ở clue đang mở; khi learner chọn
+  /// clue khác, _selectClue sẽ gọi selectActivity mới.
+  void _backToClueGrid() {
     final st = _state;
     if (st == null || st.submitting) return;
-    try {
-      final cur = await _call(() => _repo.getCurrent(widget.attemptId));
-      if (!mounted) return;
-      setState(() {
-        _state = _PlayerState(current: cur, content: st.content);
-        _hasUnsentInput = false;
-      });
-    } catch (_) {
-      // Im lặng — learner vẫn submit được dù không quay lại grid.
-    }
+    setState(() {
+      _state = st.copyWith(
+        discoveryView: () => _DiscoveryView.grid,
+        activeClueActivityId: () => null,
+      );
+      _hasUnsentInput = false;
+    });
   }
+
 
   /// true khi activity hiện tại là VERIFICATION trong bài học 4 bước —
   /// chỉ khi đó nút "Sửa giả thuyết" mới có nghĩa.
