@@ -644,15 +644,7 @@ class _LessonPlayerScreenState extends ConsumerState<LessonPlayerScreen> {
       if (st.current.activity?.hasAnimation == true) {
         // Hoạt ảnh: learner đã bấm "Tiếp tục" trên màn fullscreen để submit
         // -> tự động fetch activity mới / grid ngay lập tức, không kẹt lại ở awaitingContinue.
-        setState(() {
-          _state = st.copyWith(
-            submitting: true,
-            awaitingContinue: true,
-          );
-          _pendingAnswer = null;
-          _hasUnsentInput = false;
-        });
-        unawaited(_onContinue());
+        unawaited(_advanceAfterAnimation(st));
         return;
       }
       // Cursor đã nhảy phía server nhưng giữ activity hiện tại + feedback
@@ -677,6 +669,38 @@ class _LessonPlayerScreenState extends ConsumerState<LessonPlayerScreen> {
           lastEvaluation: () => res.evaluation,
         );
         _hasUnsentInput = false;
+      });
+    }
+  }
+
+  /// Tự động chuyển bước sau khi learner bấm Tiếp tục ở màn hoạt ảnh fullscreen.
+  Future<void> _advanceAfterAnimation(_PlayerState st) async {
+    _dismissEnergyPenaltyToast();
+    try {
+      final cur = await _call(() => _repo.getCurrent(widget.attemptId));
+      if (!mounted) return;
+      setState(() {
+        _state = _PlayerState(
+          current: cur,
+          content: st.content,
+          discoveryView: _resolveDiscoveryView(cur),
+          activeClueActivityId:
+              cur.activity?.clueType != null ? cur.activity!.id : null,
+        );
+        _hasUnsentInput = false;
+        _immersive = false;
+        _pendingAnswer = null;
+      });
+    } catch (_) {
+      if (!mounted) return;
+      setState(() {
+        _state = st.copyWith(
+          submitting: false,
+          feedback: () => const _Feedback(
+            'Không tải được hoạt động tiếp theo. Thử lại.',
+            _FeedbackTone.error,
+          ),
+        );
       });
     }
   }
