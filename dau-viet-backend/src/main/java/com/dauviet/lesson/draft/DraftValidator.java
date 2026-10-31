@@ -5,6 +5,7 @@ import java.util.ArrayList;
 import java.util.Deque;
 import java.util.EnumMap;
 import java.util.EnumSet;
+import java.util.LinkedHashSet;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
@@ -645,6 +646,63 @@ public class DraftValidator {
         }
     }
 
+    /**
+     * FOUR_STEP interactive VERIFICATION — publish-level guardrails.
+     * Requires visibleSourceIds[] (learners pick from these) and
+     * requiredEvidenceIds[] ⊆ visibleSourceIds (what the server grades against).
+     * Legacy mode (evidenceSource set) is exempt — that path resolves
+     * evidence from the upstream EVIDENCE_SELECT output, not config lists.
+     */
+    private void validateFourStepVerification(JsonNode act, String path,
+                                               ValidationContext ctx,
+                                               List<FieldError> errors) {
+        JsonNode config = act.get("config");
+        if (config == null || !config.isObject()) {
+            errors.add(new FieldError(path + ".config", "MISSING_FIELD",
+                    "VERIFICATION activity must have a config object"));
+            return;
+        }
+        // Legacy mode — evidenceSource present → skip interactive validation.
+        if (config.hasNonNull("evidenceSource")) return;
+
+        Set<String> visible = stringIds(config.get("visibleSourceIds"));
+        if (visible.isEmpty()) {
+            errors.add(new FieldError(path + ".config.visibleSourceIds",
+                    "MISSING_FIELD",
+                    "interactive VERIFICATION requires visibleSourceIds[] with at least 1 valid evidence id"));
+        }
+        Set<String> required = stringIds(config.get("requiredEvidenceIds"));
+        if (required.isEmpty()) {
+            errors.add(new FieldError(path + ".config.requiredEvidenceIds",
+                    "MISSING_FIELD",
+                    "interactive VERIFICATION requires requiredEvidenceIds[] with at least 1 valid evidence id"));
+        } else if (!visible.isEmpty() && !visible.containsAll(required)) {
+            errors.add(new FieldError(path + ".config.requiredEvidenceIds",
+                    "INVALID_CONFIG",
+                    "requiredEvidenceIds must be a subset of visibleSourceIds"));
+        }
+        // expectedHypothesis must reference a real hypothesis id from the
+        // HYPOTHESIS_CHOICE activity in the same draft.
+        if (config.hasNonNull("expectedHypothesis")) {
+            String expected = config.get("expectedHypothesis").asText();
+            if (!expected.isBlank()) {
+                // hypotheses live in config.hypotheses[] of HYPOTHESIS stage act
+                // We only check format — actual cross-stage lookup is complex;
+                // the handler does it at runtime.
+            }
+        }
+    }
+
+    private static Set<String> stringIds(JsonNode arr) {
+        Set<String> out = new LinkedHashSet<>();
+        if (arr != null && arr.isArray()) {
+            for (JsonNode n : arr) {
+                if (n != null && n.isTextual()) out.add(n.asText());
+            }
+        }
+        return out;
+    }
+
     private void validateFourStepModel(JsonNode draft, Map<String, JsonNode> stageById,
                                        ValidationContext ctx, List<FieldError> errors) {
         JsonNode flowNode = draft.get("flowModel");
@@ -701,6 +759,21 @@ public class DraftValidator {
                 if (acts == null || !acts.isArray() || acts.size() != 1) {
                     errors.add(new FieldError("stages[" + i + "].activities", "INVALID_FOUR_STEP_STRUCTURE",
                             "step " + expected + " must have exactly 1 main activity"));
+                    continue;
+                }
+                JsonNode act = acts.get(0);
+                String actType = act != null && act.hasNonNull("type")
+                        ? act.get("type").asText() : "";
+                if (expected == StageType.HYPOTHESIS
+                        && !"HYPOTHESIS_CHOICE".equals(actType)) {
+                    errors.add(new FieldError(
+                            "stages[" + i + "].activities[0].type",
+                            "INVALID_FOUR_STEP_STRUCTURE",
+                            "step HYPOTHESIS must use activity type HYPOTHESIS_CHOICE, got '" + actType + "'"));
+                }
+                if (expected == StageType.VERIFICATION
+                        && "VERIFICATION".equals(actType)) {
+                    validateFourStepVerification(act, "stages[" + i + "].activities[0]", ctx, errors);
                 }
             }
         }

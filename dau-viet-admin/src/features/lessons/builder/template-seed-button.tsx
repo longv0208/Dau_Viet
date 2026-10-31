@@ -17,6 +17,8 @@ interface Props {
   draft: Draft;
   readOnly?: boolean;
   onMerge: (stages: Stage[]) => void;
+  /** FOUR_STEP: replace toàn bộ stages (không append) khi seed từ template. */
+  onReplace?: (stages: Stage[]) => void;
 }
 
 /**
@@ -25,7 +27,7 @@ interface Props {
  * rồi APPEND vào draft hiện tại. Luôn hỏi xác nhận — không bao giờ
  * thay thế âm thầm công việc đang có.
  */
-export function TemplateSeedButton({ templateId, draft, readOnly, onMerge }: Props) {
+export function TemplateSeedButton({ templateId, draft, readOnly, onMerge, onReplace }: Props) {
   const [error, setError] = useState<string | null>(null);
   const templatesQuery = useQuery({
     queryKey: qk.templates.list(),
@@ -44,19 +46,23 @@ export function TemplateSeedButton({ templateId, draft, readOnly, onMerge }: Pro
     }
   }
 
+  const isFourStep = draft.flowModel === "FOUR_STEP";
+
   function handleSeed() {
     if (!seedStages) return;
     const hasExisting = draft.stages.length > 0;
     const ok = window.confirm(
-      hasExisting
-        ? `Thêm ${seedStages.length} giai đoạn từ khung "${template?.name ?? ""}" vào CUỐI bản nháp? Các giai đoạn hiện có được giữ nguyên.`
-        : `Tạo ${seedStages.length} giai đoạn từ khung "${template?.name ?? ""}"?`,
+      isFourStep
+        ? `Tạo lại cấu trúc 4 bước từ khung "${template?.name ?? ""}"?` +
+          (hasExisting ? "\n\nCác giai đoạn hiện có sẽ bị THAY THẾ." : "")
+        : hasExisting
+          ? `Thêm ${seedStages.length} giai đoạn từ khung "${template?.name ?? ""}" vào CUỐI bản nháp? Các giai đoạn hiện có được giữ nguyên.`
+          : `Tạo ${seedStages.length} giai đoạn từ khung "${template?.name ?? ""}"?`,
     );
     if (!ok) return;
     try {
       const taken = allIds(draft);
       const idMap = new Map<string, string>();
-      // Pass 1 — cấp id mới cho stage + activity.
       const remapped = seedStages.map((s) => {
         const newStageId = genSlugId("stage", taken);
         taken.push(newStageId);
@@ -68,7 +74,6 @@ export function TemplateSeedButton({ templateId, draft, readOnly, onMerge }: Pro
         });
         return { ...s, id: newStageId, activities };
       });
-      // Pass 2 — remap nextStageIds sang id mới (bỏ tham chiếu ngoài preset).
       for (const s of remapped) {
         if (Array.isArray(s.nextStageIds)) {
           s.nextStageIds = s.nextStageIds
@@ -76,7 +81,11 @@ export function TemplateSeedButton({ templateId, draft, readOnly, onMerge }: Pro
             .filter((n): n is string => Boolean(n));
         }
       }
-      onMerge(remapped);
+      if (isFourStep && onReplace) {
+        onReplace(remapped);
+      } else {
+        onMerge(remapped);
+      }
       setError(null);
     } catch {
       setError("Không thể tạo cấu trúc từ khung bài học — preset không hợp lệ.");

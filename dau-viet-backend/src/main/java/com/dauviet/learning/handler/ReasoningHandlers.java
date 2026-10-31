@@ -231,10 +231,11 @@ public final class ReasoningHandlers {
                     subOutcome = "HYPOTHESIS_CONTRADICTED";
                 } else if (interactiveSelection) {
                     if (required.isEmpty()) {
-                        outcome = !interactiveSelected.isEmpty()
-                                ? ActivityResult.SUPPORTED : ActivityResult.PARTIAL;
-                        subOutcome = outcome;
-                        matchedCount = interactiveSelected.size();
+                        // Publish-level validation requires requiredEvidenceIds.
+                        // Reaching here means a draft bypassed publish validation —
+                        // do NOT silently SUPPORTED any selection.
+                        throw new IllegalArgumentException(
+                                "interactive VERIFICATION requires config.requiredEvidenceIds");
                     } else {
                         Set<String> hits = new LinkedHashSet<>(interactiveSelected);
                         hits.retainAll(required);

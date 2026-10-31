@@ -26,6 +26,7 @@ import { LessonArchiveButton } from "../publish/lesson-archive-button";
 import { PublishReadinessCard } from "./publish-readiness-card";
 import { StageEditor } from "./stage-editor";
 import { StageNavigator } from "./stage-navigator";
+import { FourStepNavigator } from "./four-step-navigator";
 import { TemplateSeedButton } from "./template-seed-button";
 import { UnlockedLocationsCard } from "./unlocked-locations-card";
 import { makeStage, useBuilder, type FieldError } from "./use-builder";
@@ -316,18 +317,31 @@ function BuilderInner({
       {/* 3-pane */}
       <div className="grid gap-4 lg:grid-cols-[260px_1fr_300px]">
         <PaperCard className="p-3">
-          <StageNavigator
-            draft={state.draft}
-            selectedStageId={state.selectedStageId}
-            readOnly={readOnly}
-            onSelect={(id) => actions.selectStage(id)}
-            onAdd={(type) =>
-              actions.addStage(makeStage(type, allIds(state.draft)))
-            }
-            onMove={(id, dir) => actions.moveStage(id, dir)}
-            onDuplicate={(id) => actions.duplicateStage(id)}
-            onRemove={(id) => actions.removeStage(id)}
-          />
+          {state.draft.flowModel === "FOUR_STEP" ? (
+            <FourStepNavigator
+              draft={state.draft}
+              selectedStageId={state.selectedStageId}
+              selectedActivityId={state.selectedActivityId}
+              readOnly={readOnly}
+              onSelect={(stageId, activityId) => {
+                actions.selectStage(stageId);
+                if (activityId) actions.selectActivity(activityId);
+              }}
+            />
+          ) : (
+            <StageNavigator
+              draft={state.draft}
+              selectedStageId={state.selectedStageId}
+              readOnly={readOnly}
+              onSelect={(id) => actions.selectStage(id)}
+              onAdd={(type) =>
+                actions.addStage(makeStage(type, allIds(state.draft)))
+              }
+              onMove={(id, dir) => actions.moveStage(id, dir)}
+              onDuplicate={(id) => actions.duplicateStage(id)}
+              onRemove={(id) => actions.removeStage(id)}
+            />
+          )}
         </PaperCard>
 
         <PaperCard className="min-w-0 p-4">
@@ -403,6 +417,7 @@ function BuilderInner({
             draft={state.draft}
             readOnly={readOnly}
             onMerge={(stages) => actions.mergeStages(stages)}
+            onReplace={(stages) => actions.replaceStages(stages)}
           />
           <CompletionEditor
             draft={state.draft}
