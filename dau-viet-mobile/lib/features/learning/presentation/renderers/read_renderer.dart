@@ -81,11 +81,13 @@ class _ReadRendererState extends State<ReadRenderer> {
   void dispose() {
     // Unmount (activity đổi/complete) → báo player khôi phục chrome,
     // tránh _immersive kẹt khi renderer mới không gọi lại callback.
-    // addPostFrameCallback: KHÔNG được setState parent trong dispose —
-    // trì hoãn sang frame sau (player vẫn mounted nếu chỉ đổi activity).
-    final cb = widget.onImmersiveChanged;
-    if (cb != null) {
-      WidgetsBinding.instance.addPostFrameCallback((_) => cb(false));
+    // CHỈ báo false khi renderer này ĐANG giữ immersive — nếu dispose
+    // của instance cũ chạy sau khi instance mới đã báo true, không được
+    // kéo cờ về false (tránh đảo cờ → flicker khi đổi activity).
+    if (_lastReportedImmersive == true) {
+      _lastReportedImmersive = false;
+      final cb = widget.onImmersiveChanged;
+      WidgetsBinding.instance.addPostFrameCallback((_) => cb?.call(false));
     }
     super.dispose();
   }
