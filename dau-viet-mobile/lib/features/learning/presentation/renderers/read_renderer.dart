@@ -297,52 +297,61 @@ class _ReadRendererState extends State<ReadRenderer> {
     required AnimationManifestDto? manifestDto,
     required HistoricalAnimationDefinition? animation,
   }) {
-    return Container(
-      color: DauVietColors.parchmentContainer,
-      child: Stack(
-        children: [
-          // Animation layer — full screen, chừa 68px đáy cho nút Tiếp tục
-          Positioned(
-            left: 0,
-            right: 0,
-            top: 0,
-            bottom: 68,
-            child: isHtmlScene
-                ? _HtmlSceneSlot(
-                    key: ValueKey('html_anim_${activity.id}'),
-                    config: config,
-                    manifest: manifestDto!,
-                    playerFactory: widget.htmlPlayerFactory,
-                    immersive: true,
-                  )
-                : _CinematicBoundPlayer(
-                    key: ValueKey('anim_${animation!.key}_${activity.id}'),
-                    manifest: manifestDto ?? AnimationManifestDto.empty,
-                    definition: animation,
-                    immersive: true,
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final double viewportH = constraints.maxHeight.isFinite
+            ? constraints.maxHeight
+            : MediaQuery.sizeOf(context).height;
+        return Container(
+          color: DauVietColors.parchmentContainer,
+          width: constraints.maxWidth,
+          height: viewportH,
+          child: Stack(
+            children: [
+              // Animation layer — full screen, chừa 68px đáy cho nút Tiếp tục
+              Positioned(
+                left: 0,
+                right: 0,
+                top: 0,
+                bottom: 68,
+                child: isHtmlScene
+                    ? _HtmlSceneSlot(
+                        key: ValueKey('html_anim_${activity.id}'),
+                        config: config,
+                        manifest: manifestDto!,
+                        playerFactory: widget.htmlPlayerFactory,
+                        immersive: true,
+                      )
+                    : _CinematicBoundPlayer(
+                        key: ValueKey('anim_${animation!.key}_${activity.id}'),
+                        manifest: manifestDto ?? AnimationManifestDto.empty,
+                        definition: animation,
+                        immersive: true,
+                      ),
+              ),
+              // Nút TIẾP TỤC duy nhất — overlay cố định đáy, safe area.
+              Positioned(
+                left: 16,
+                right: 16,
+                bottom: 0,
+                height: 68,
+                child: SafeArea(
+                  top: false,
+                  child: Padding(
+                    padding: const EdgeInsets.only(bottom: 12),
+                    child: SubmitBar(
+                      enabled: !submitting,
+                      submitting: submitting,
+                      label: 'Tiếp tục',
+                      onPressed: _onFinishAnimation,
+                    ),
                   ),
-          ),
-          // Nút TIẾP TỤC duy nhất — overlay cố định đáy, safe area.
-          Positioned(
-            left: 16,
-            right: 16,
-            bottom: 0,
-            height: 68,
-            child: SafeArea(
-              top: false,
-              child: Padding(
-                padding: const EdgeInsets.only(bottom: 12),
-                child: SubmitBar(
-                  enabled: !submitting,
-                  submitting: submitting,
-                  label: 'Tiếp tục',
-                  onPressed: _onFinishAnimation,
                 ),
               ),
-            ),
+            ],
           ),
-        ],
-      ),
+        );
+      },
     );
   }
 
@@ -359,6 +368,7 @@ class _ReadRendererState extends State<ReadRenderer> {
     required bool unsupportedManifest,
     required AnimationManifestDto? manifestDto,
   }) {
+    final String? effectiveTitle = title ?? activity.title ?? activity.instruction;
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
@@ -376,42 +386,38 @@ class _ReadRendererState extends State<ReadRenderer> {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
-              if (!isHtmlScene &&
-                  animation == null &&
-                  !unsupportedManifest) ...[
-                Container(
-                  height: 168,
-                  width: double.infinity,
-                  decoration: BoxDecoration(
-                    borderRadius: BorderRadius.circular(12),
-                    border: Border.all(
-                      color: const Color(0xFFD8C29D),
-                      width: 1.3,
-                    ),
-                    boxShadow: const [
-                      BoxShadow(
-                        color: Color(0x184A3219),
-                        blurRadius: 8,
-                        offset: Offset(0, 3),
-                      ),
-                    ],
+              Container(
+                height: 168,
+                width: double.infinity,
+                decoration: BoxDecoration(
+                  borderRadius: BorderRadius.circular(12),
+                  border: Border.all(
+                    color: const Color(0xFFD8C29D),
+                    width: 1.3,
                   ),
-                  clipBehavior: Clip.antiAlias,
-                  child: Image.asset(
-                    resolveLessonFallbackAsset(
-                      title ?? '',
-                      '${subtitle ?? ''} ${activity.instruction ?? ''} ${body ?? ''}',
+                  boxShadow: const [
+                    BoxShadow(
+                      color: Color(0x184A3219),
+                      blurRadius: 8,
+                      offset: Offset(0, 3),
                     ),
-                    width: double.infinity,
-                    fit: BoxFit.cover,
-                    errorBuilder: (_, _, _) => const SizedBox.shrink(),
-                  ),
+                  ],
                 ),
-                const SizedBox(height: 14),
-              ],
-              if (title != null) ...[
+                clipBehavior: Clip.antiAlias,
+                child: Image.asset(
+                  resolveLessonFallbackAsset(
+                    effectiveTitle ?? '',
+                    '${subtitle ?? ''} ${activity.instruction ?? ''} ${body ?? ''}',
+                  ),
+                  width: double.infinity,
+                  fit: BoxFit.cover,
+                  errorBuilder: (_, _, _) => const SizedBox.shrink(),
+                ),
+              ),
+              const SizedBox(height: 14),
+              if (effectiveTitle != null) ...[
                 Text(
-                  title,
+                  effectiveTitle,
                   textAlign: TextAlign.center,
                   style: DauVietTypography.headlineMedium.copyWith(
                     fontSize: 18.5,

@@ -1107,7 +1107,7 @@ class _LessonPlayerScreenState extends ConsumerState<LessonPlayerScreen> {
                       ),
                     ],
                     ActivityRenderer(
-                      key: ValueKey(cur.activity!.id),
+                      key: ValueKey('scroll_${cur.activity!.id}'),
                       activity: cur.activity!,
                       content: st.content,
                       submitting:
