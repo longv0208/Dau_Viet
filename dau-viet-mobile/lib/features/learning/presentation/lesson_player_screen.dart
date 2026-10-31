@@ -962,15 +962,14 @@ class _LessonPlayerScreenState extends ConsumerState<LessonPlayerScreen> {
         (st.discoveryView == _DiscoveryView.grid ||
             st.discoveryView == null &&
                 (stepProgress?.shouldShowGrid ?? false));
+    // Hoạt ảnh: tự nhận diện đồng bộ từ cur.activity.hasAnimation để ẩn chrome
+    // ngay từ frame 0 (không chờ callback bất đồng bộ gây lỗi layout/nhấp nháy).
+    final bool isAnimation = !showDiscoveryGrid && cur.activity?.hasAnimation == true;
+    final bool isImmersive = isAnimation || _immersive;
 
     return Column(
       children: [
-        // Issue #1-immersive: phase "Xem hoạt ảnh" → ẩn toàn bộ chrome
-        // (top bar + mascot + bottom submit). Renderer tự hiển thị nút
-        // "TIẾP TỤC" riêng; chỉ giữ scroll container để narration/
-        // controls của animation cuộn được nếu tràn.
-        if (!_immersive) _buildTopBar(st),
-        // ── Bước 1: lưới 2×2 dấu vết ───────────────────────────────────
+        if (!isImmersive) _buildTopBar(st),
         if (showDiscoveryGrid) ...[
           _buildDiscoveryGridHeader(stepProgress!),
           Expanded(
@@ -992,7 +991,7 @@ class _LessonPlayerScreenState extends ConsumerState<LessonPlayerScreen> {
           // Immersive (Xem hoạt ảnh): renderer tự render SizedBox.expand +
           // fixed button — KHÔNG SingleChildScrollView (tránh cuộn trong
           // cuộn + khoảng trống). Mọi chrome (mascot/clue header/hint) ẩn.
-          if (_immersive)
+          if (isImmersive)
             Expanded(
               child: ActivityRenderer(
                 key: ValueKey(cur.activity!.id),

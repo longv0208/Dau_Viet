@@ -155,6 +155,14 @@ class ActivityRefDto {
   /// Số lượt thử tối đa được cấu hình cho activity (auto-graded).
   /// Đọc từ config.maxAttempts; null khi handler không giới hạn.
   int? get maxAttempts => (config['maxAttempts'] as num?)?.toInt();
+  /// True khi activity mang cấu hình hoạt ảnh (HTML hoặc native).
+  bool get hasAnimation {
+    if (config['animationManifest'] != null) return true;
+    if (config['animationSceneId'] != null) return true;
+    if (config['animationSceneVersionId'] != null) return true;
+    if (config['animationKey'] != null) return true;
+    return false;
+  }
 
   /// Resolve feedbackCode → text từ feedback map (key có thể null).
   String? feedbackText(String? code) {

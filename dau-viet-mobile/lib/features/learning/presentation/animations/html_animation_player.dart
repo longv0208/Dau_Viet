@@ -348,51 +348,53 @@ class _HtmlAnimationPlayerState extends ConsumerState<HtmlAnimationPlayer> {
 
   @override
   Widget build(BuildContext context) {
-    return AspectRatio(
-      aspectRatio: widget.aspectRatio,
-      child: ClipRRect(
-        borderRadius: BorderRadius.circular(10),
-        child: Container(
-          color: DauVietColors.parchmentContainer,
-          child: switch (_state) {
-            _HtmlLoadState.loading => const Center(
-              child: SizedBox(
-                width: 28,
-                height: 28,
-                child: CircularProgressIndicator(strokeWidth: 2.5),
-              ),
+    final Widget content = Container(
+      color: DauVietColors.parchmentContainer,
+      child: switch (_state) {
+        _HtmlLoadState.loading => const Center(
+            child: SizedBox(
+              width: 28,
+              height: 28,
+              child: CircularProgressIndicator(strokeWidth: 2.5),
             ),
-            _HtmlLoadState.error => _ErrorPane(
-              message: _error,
-              onRetry: () {
-                _finishedFired = false;
-                unawaited(_load());
-              },
-            ),
-            _HtmlLoadState.ready =>
-              widget.webViewBuilder != null
-                  ? widget.webViewBuilder!(context, _ctrlOrNull)
-                  : kIsWeb && widget.controllerOverride == null
-                  ? buildWebHtmlIframe(
-                      key: ValueKey<String>(
-                        'web-iframe-$_controllerGen-${widget.sceneVersionId}',
-                      ),
-                      html: _loadedHtml,
-                      channelTag: 'dv-$_controllerGen',
-                      onJsMessage: (msg) =>
-                          _onJsMessage(JavaScriptMessage(message: msg)),
-                    )
-                  // Key theo controller identity → khi session đổi,
-                  // platform view cũ bị dispose và document cũ chết theo;
-                  // không dùng document phiên trước cho phiên mới.
-                  : WebViewWidget(
-                      key: ValueKey<Object>(_ctrlOrNull ?? _ctrl),
-                      controller: _ctrl,
-                    ),
-          },
-        ),
-      ),
+          ),
+        _HtmlLoadState.error => _ErrorPane(
+            message: _error,
+            onRetry: () {
+              _finishedFired = false;
+              unawaited(_load());
+            },
+          ),
+        _HtmlLoadState.ready =>
+          widget.webViewBuilder != null
+              ? widget.webViewBuilder!(context, _ctrlOrNull)
+              : kIsWeb && widget.controllerOverride == null
+              ? buildWebHtmlIframe(
+                  key: ValueKey<String>(
+                    'web-iframe-$_controllerGen-${widget.sceneVersionId}',
+                  ),
+                  html: _loadedHtml,
+                  channelTag: 'dv-$_controllerGen',
+                  onJsMessage: (msg) =>
+                      _onJsMessage(JavaScriptMessage(message: msg)),
+                )
+              : WebViewWidget(
+                  key: ValueKey<Object>(_ctrlOrNull ?? _ctrl),
+                  controller: _ctrl,
+                ),
+      },
     );
+
+    if (widget.aspectRatio > 0) {
+      return AspectRatio(
+        aspectRatio: widget.aspectRatio,
+        child: ClipRRect(
+          borderRadius: BorderRadius.circular(10),
+          child: content,
+        ),
+      );
+    }
+    return content;
   }
 }
 

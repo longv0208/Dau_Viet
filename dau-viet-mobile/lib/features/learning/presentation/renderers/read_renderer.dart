@@ -298,11 +298,16 @@ class _ReadRendererState extends State<ReadRenderer> {
     required AnimationManifestDto? manifestDto,
     required HistoricalAnimationDefinition? animation,
   }) {
-    return SizedBox.expand(
+    return Container(
+      color: DauVietColors.parchmentContainer,
       child: Stack(
         children: [
-          // Animation layer — full body, không card viền dày.
-          Positioned.fill(
+          // Animation layer — full screen, chừa 68px đáy cho nút Tiếp tục
+          Positioned(
+            left: 0,
+            right: 0,
+            top: 0,
+            bottom: 68,
             child: isHtmlScene
                 ? _HtmlSceneSlot(
                     key: ValueKey('html_anim_${activity.id}'),
@@ -323,6 +328,7 @@ class _ReadRendererState extends State<ReadRenderer> {
             left: 16,
             right: 16,
             bottom: 0,
+            height: 68,
             child: SafeArea(
               top: false,
               child: Padding(
@@ -330,7 +336,7 @@ class _ReadRendererState extends State<ReadRenderer> {
                 child: SubmitBar(
                   enabled: !submitting,
                   submitting: submitting,
-                  label: 'TIẾP TỤC ›',
+                  label: 'Tiếp tục',
                   onPressed: _enterReadingPhase,
                 ),
               ),
@@ -637,6 +643,13 @@ class _HtmlSceneSlot extends StatelessWidget {
     }
     if (playerFactory != null) {
       return playerFactory!(versionId, manifest);
+    }
+    if (immersive) {
+      return HtmlAnimationPlayer(
+        sceneVersionId: versionId,
+        manifest: manifest,
+        aspectRatio: 0,
+      );
     }
     return LayoutBuilder(
       builder: (context, constraints) {
