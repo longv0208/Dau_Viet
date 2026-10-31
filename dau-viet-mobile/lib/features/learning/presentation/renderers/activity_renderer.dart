@@ -41,6 +41,10 @@ class ActivityRenderer extends StatelessWidget {
   /// inline progress (k/n đúng, lượt còn) nếu có. null lần render đầu.
   final EvaluationDto? lastEvaluation;
 
+  /// Optional — player inject quay lại HYPOTHESIS khi verification cần
+  /// sửa giả thuyết (selectActivity). Null → ẩn nút "Sửa giả thuyết".
+  final VoidCallback? onBackToHypothesis;
+
   const ActivityRenderer({
     super.key,
     required this.activity,
@@ -51,6 +55,7 @@ class ActivityRenderer extends StatelessWidget {
     this.onInputChanged,
     this.onImmersiveChanged,
     this.lastEvaluation,
+    this.onBackToHypothesis,
   });
 
   @override
@@ -120,6 +125,7 @@ class ActivityRenderer extends StatelessWidget {
           submitting: submitting,
           onSubmit: onSubmit,
           lastEvaluation: lastEvaluation,
+          onBackToHypothesis: onBackToHypothesis,
         );
       case 'REASONING_CONNECT':
         return ReasoningConnectRenderer(

@@ -42,6 +42,9 @@ export function StageView({
         <h3 className="text-base font-semibold text-ink">
           {stage.title || stageLabel(stage.type)}
         </h3>
+        {stage.description && (
+          <p className="text-xs text-ink-muted">{stage.description}</p>
+        )}
       </header>
 
       {activity ? (

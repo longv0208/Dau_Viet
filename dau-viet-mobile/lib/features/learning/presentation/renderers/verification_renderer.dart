@@ -13,19 +13,28 @@ import '../../data/attempt_dtos.dart';
 import '../../data/learning_dtos.dart';
 import 'renderer_base.dart';
 
-/// VERIFICATION — Learning Flow 2.0 (TASK-0020 §P7): màn hình hiển thị lại
-/// giả thuyết đã chọn (output HYPOTHESIS_CHOICE) cùng bằng chứng đã thu thập
-/// (output của EVIDENCE_SELECT được khai báo qua `config.evidenceSource`, hoặc
-/// bằng chứng kèm giả thuyết ở snapshot cũ), cộng với `visibleSourceIds` để
-/// đối chiếu. Học viên thực hiện một hành động kiểm chứng có chủ đích —
-/// submit `{action: "verify"}`; server chấm SUPPORTED/PARTIAL/CONTRADICTED.
-/// Không có chọn verdict phía client trong payload (verdict do backend quyết định).
+/// VERIFICATION — Bước 3 "Kiểm chứng" của bài học 4 bước.
+///
+/// Hai chế độ:
+///   • Interactive (mặc định, không `evidenceSource` trong config):
+///     học viên chọn bằng chứng ủng hộ giả thuyết từ `visibleSourceIds` /
+///     `visibleEvidenceIds`, submit `{selectedEvidenceIds: [...]}`.
+///     Server chấm SUPPORTED/PARTIAL/CONTRADICTED + subOutcome.
+///   • Legacy (có `evidenceSource`): server tự chấm từ output
+///     EVIDENCE_SELECT upstream — UI read-only như cũ.
+///
+/// Nút "Sửa giả thuyết" → onBackToHypothesis callback (player gọi
+/// selectActivity để quay về Bước 2 HYPOTHESIS).
 class VerificationRenderer extends StatefulWidget {
   final ActivityRefDto activity;
   final LessonContentDto content;
   final bool submitting;
   final Future<void> Function(Map<String, dynamic>) onSubmit;
   final EvaluationDto? lastEvaluation;
+
+  /// Quay về Bước 2 để sửa giả thuyết — player inject selectActivity.
+  /// Null → ẩn nút "Sửa giả thuyết" (server cũ / mock).
+  final VoidCallback? onBackToHypothesis;
 
   const VerificationRenderer({
     super.key,
@@ -34,6 +43,7 @@ class VerificationRenderer extends StatefulWidget {
     required this.submitting,
     required this.onSubmit,
     this.lastEvaluation,
+    this.onBackToHypothesis,
   });
 
   @override
@@ -41,10 +51,10 @@ class VerificationRenderer extends StatefulWidget {
 }
 
 class _VerificationRendererState extends State<VerificationRenderer> {
-  String? _selectedVerdict;
+  String? _selectedVerdict; // legacy verdict mode
+  final Set<String> _selectedEvidenceIds = {}; // interactive mode
 
-  /// Id giả thuyết đã chọn — đọc từ priorOutputs (bất kỳ output nào mang
-  /// `hypothesisId`), cùng contract VerificationHandler dùng để chấm.
+  /// Id giả thuyết đã chọn — đọc từ priorOutputs.
   String? _priorHypothesisId(Map<String, dynamic> config) {
     final prior = config['priorOutputs'];
     if (prior is! Map) return null;
@@ -56,10 +66,9 @@ class _VerificationRendererState extends State<VerificationRenderer> {
     return null;
   }
 
-  /// Tra cứu nhãn tiếng Việt của giả thuyết trong `content.stages` nếu có;
+  /// Tra cứu nhãn tiếng Việt của giả thuyết trong `content.stages` nếu có.
   String _resolveHypothesisLabel(String hypothesisId) {
-    final content = widget.content;
-    for (final s in content.stages) {
+    for (final s in widget.content.stages) {
       final acts = s['activities'];
       if (acts is! List) continue;
       for (final a in acts.whereType<Map>()) {
@@ -70,9 +79,7 @@ class _VerificationRendererState extends State<VerificationRenderer> {
         for (final h in hyps.whereType<Map>()) {
           if (h['id'] == hypothesisId) {
             final text = (h['text'] ?? h['label']) as String?;
-            if (text != null && text.trim().isNotEmpty) {
-              return text.trim();
-            }
+            if (text != null && text.trim().isNotEmpty) return text.trim();
           }
         }
       }
@@ -80,6 +87,7 @@ class _VerificationRendererState extends State<VerificationRenderer> {
     return hypothesisId;
   }
 
+  /// Bằng chứng đã thu thập — fallback từ priorOutputs khi evidenceSource khai báo.
   List<String> _evidenceGiven(Map<String, dynamic> config) {
     final prior = config['priorOutputs'];
     if (prior is! Map) return const [];
@@ -92,8 +100,6 @@ class _VerificationRendererState extends State<VerificationRenderer> {
         if (list.isNotEmpty) return list;
       }
     }
-    // Snapshot cũ không khai báo evidenceSource: bằng chứng đi kèm output
-    // HYPOTHESIS_CHOICE (legacy contract).
     for (final out in prior.values) {
       if (out is Map && out['hypothesisId'] is String) {
         final ids = out['evidenceIds'];
@@ -103,7 +109,6 @@ class _VerificationRendererState extends State<VerificationRenderer> {
         }
       }
     }
-    // Fallback: quét priorOutputs.values lấy selectedEvidenceIds từ Stage 1 (EVIDENCE_SELECT).
     for (final out in prior.values) {
       if (out is Map) {
         final ids = out['selectedEvidenceIds'] ?? out['evidenceIds'];
@@ -119,6 +124,7 @@ class _VerificationRendererState extends State<VerificationRenderer> {
   @override
   Widget build(BuildContext context) {
     final config = widget.activity.config;
+    final bool isLegacy = config['evidenceSource'] != null;
     final String? prompt = configText(
       config,
       ['prompt', 'question', 'text', 'claim', 'statement'],
@@ -159,10 +165,43 @@ class _VerificationRendererState extends State<VerificationRenderer> {
                 ),
                 const SizedBox(height: 8),
               ],
+              // Giả thuyết đã chọn — luôn hiển thị + nút sửa khi cần.
               if (hypothesisId != null) ...[
-                const Align(
-                  alignment: Alignment.centerLeft,
-                  child: SectionEyebrow('GIẢ THUYẾT ĐÃ CHỌN'),
+                Row(
+                  children: [
+                    const Expanded(
+                      child: SectionEyebrow('GIẢ THUYẾT ĐÃ CHỌN'),
+                    ),
+                    if (widget.onBackToHypothesis != null && !widget.submitting)
+                      GestureDetector(
+                        onTap: widget.onBackToHypothesis,
+                        child: Container(
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 8,
+                            vertical: 4,
+                          ),
+                          decoration: BoxDecoration(
+                            color: DauVietColors.imperialGold.withValues(
+                              alpha: 0.15,
+                            ),
+                            borderRadius: BorderRadius.circular(6),
+                            border: Border.all(
+                              color: DauVietColors.imperialGold.withValues(
+                                alpha: 0.4,
+                              ),
+                            ),
+                          ),
+                          child: Text(
+                            'SỬA GIẢ THUYẾT',
+                            style: DauVietTypography.labelSmall.copyWith(
+                              color: DauVietColors.imperialGoldDark,
+                              fontWeight: FontWeight.w800,
+                              fontSize: 9,
+                            ),
+                          ),
+                        ),
+                      ),
+                  ],
                 ),
                 const SizedBox(height: 6),
                 _PickedTile(
@@ -188,7 +227,46 @@ class _VerificationRendererState extends State<VerificationRenderer> {
                   ),
                 const SizedBox(height: 8),
               ],
-              if (sourceIds.isNotEmpty) ...[
+              // ── Interactive mode: chọn bằng chứng ủng hộ giả thuyết ─────
+              if (!isLegacy && sourceIds.isNotEmpty) ...[
+                const Align(
+                  alignment: Alignment.centerLeft,
+                  child: SectionEyebrow(
+                    'CHỌN BẰNG CHỨNG ỦNG HỘ GIẢ THUYẾT',
+                    color: DauVietColors.chapterGreen,
+                  ),
+                ),
+                const SizedBox(height: 4),
+                Text(
+                  'Chọn những bằng chứng đã thu thập hoặc đối chiếu được để '
+                  'kiểm chứng giả thuyết của bạn:',
+                  style: DauVietTypography.bodySmall.copyWith(
+                    color: DauVietColors.inkSecondary,
+                    fontSize: 12,
+                  ),
+                ),
+                const SizedBox(height: 6),
+                for (final id in sourceIds)
+                  _InteractiveSourceTile(
+                    id: id,
+                    content: widget.content,
+                    selected: _selectedEvidenceIds.contains(id),
+                    enabled: !widget.submitting,
+                    onToggle: (selected) {
+                      HapticFeedback.selectionClick();
+                      setState(() {
+                        if (selected) {
+                          _selectedEvidenceIds.add(id);
+                        } else {
+                          _selectedEvidenceIds.remove(id);
+                        }
+                      });
+                    },
+                  ),
+                const SizedBox(height: 8),
+              ],
+              // ── Legacy mode: đối chiếu nguồn + chọn verdict ──────────────
+              if (isLegacy && sourceIds.isNotEmpty) ...[
                 const Align(
                   alignment: Alignment.centerLeft,
                   child: SectionEyebrow(
@@ -200,28 +278,35 @@ class _VerificationRendererState extends State<VerificationRenderer> {
                 for (final id in sourceIds)
                   _SourceTile(id: id, content: widget.content),
                 const SizedBox(height: 8),
-              ],
-              Text(
-                'Đối chiếu giả thuyết với các bằng chứng đã thu thập và chọn 1 kết luận kiểm chứng:',
-                style: DauVietTypography.bodySmall.copyWith(
-                  color: DauVietColors.inkSecondary,
-                  fontWeight: FontWeight.w600,
+                Text(
+                  'Đối chiếu giả thuyết với các bằng chứng đã thu thập và chọn 1 kết luận kiểm chứng:',
+                  style: DauVietTypography.bodySmall.copyWith(
+                    color: DauVietColors.inkSecondary,
+                    fontWeight: FontWeight.w600,
+                  ),
                 ),
-              ),
-              const SizedBox(height: 8),
-              _buildVerdictRow(),
+                const SizedBox(height: 8),
+                _buildVerdictRow(),
+              ],
             ],
           ),
         ),
         const SizedBox(height: 12),
         SubmitBar(
-          label: 'KIỂM CHỨNG',
-          enabled: _selectedVerdict != null,
+          label: isLegacy ? 'KIỂM CHỨNG' : 'KIỂM CHỨNG',
+          enabled: isLegacy
+              ? _selectedVerdict != null
+              : _selectedEvidenceIds.isNotEmpty,
           submitting: widget.submitting,
-          onPressed: () => widget.onSubmit({
-            'action': 'verify',
-            'verdict': _selectedVerdict,
-          }),
+          onPressed: () {
+            if (isLegacy) {
+              widget.onSubmit({'action': 'verify', 'verdict': _selectedVerdict});
+            } else {
+              widget.onSubmit({
+                'selectedEvidenceIds': _selectedEvidenceIds.toList(),
+              });
+            }
+          },
         ),
       ],
     );
@@ -253,9 +338,7 @@ class _VerificationRendererState extends State<VerificationRenderer> {
       children: [
         for (int i = 0; i < items.length; i++) ...[
           if (i > 0) const SizedBox(width: 8),
-          Expanded(
-            child: _buildVerdictCard(items[i]),
-          ),
+          Expanded(child: _buildVerdictCard(items[i])),
         ],
       ],
     );
@@ -272,9 +355,8 @@ class _VerificationRendererState extends State<VerificationRenderer> {
               setState(() => _selectedVerdict = spec.code);
             },
       padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 8),
-      backgroundColor: selected
-          ? DauVietColors.paperCardHi
-          : DauVietColors.paperCard,
+      backgroundColor:
+          selected ? DauVietColors.paperCardHi : DauVietColors.paperCard,
       borderColor: selected ? spec.color : DauVietColors.outlineVariant,
       borderWidth: selected ? 2.2 : 1.2,
       borderRadius: 12,
@@ -295,7 +377,8 @@ class _VerificationRendererState extends State<VerificationRenderer> {
               overflow: TextOverflow.ellipsis,
               style: DauVietTypography.labelSmall.copyWith(
                 color: selected ? spec.color : DauVietColors.inkText,
-                fontWeight: selected ? FontWeight.w800 : FontWeight.w600,
+                fontWeight:
+                    selected ? FontWeight.w800 : FontWeight.w600,
               ),
             ),
           ),
@@ -307,6 +390,142 @@ class _VerificationRendererState extends State<VerificationRenderer> {
   String _evidenceTitle(String id) {
     final e = widget.content.evidenceById(id);
     return (e?['title'] as String?) ?? id;
+  }
+}
+
+/// Ô bằng chứng có thể chọn — hiển thị checkbox + nội dung bằng chứng.
+class _InteractiveSourceTile extends StatelessWidget {
+  final String id;
+  final LessonContentDto content;
+  final bool selected;
+  final bool enabled;
+  final void Function(bool selected) onToggle;
+
+  const _InteractiveSourceTile({
+    required this.id,
+    required this.content,
+    required this.selected,
+    required this.enabled,
+    required this.onToggle,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final e = content.evidenceById(id);
+    final String title = (e?['title'] as String?) ?? id;
+    final String? desc = e?['description'] as String?;
+    final Object? source = e?['source'];
+    String? sourceText;
+    if (source is Map) {
+      sourceText = (source['title'] ?? source['author']) as String?;
+    } else if (source is String) {
+      sourceText = source;
+    }
+
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 8),
+      child: GestureDetector(
+        onTap: enabled ? () => onToggle(!selected) : null,
+        child: AnimatedContainer(
+          duration: const Duration(milliseconds: 150),
+          decoration: BoxDecoration(
+            color: selected
+                ? DauVietColors.imperialGold.withValues(alpha: 0.08)
+                : DauVietColors.paperCard,
+            borderRadius: BorderRadius.circular(12),
+            border: Border.all(
+              color: selected
+                  ? DauVietColors.imperialGold
+                  : DauVietColors.outlineVariant,
+              width: selected ? 2.0 : 1.2,
+            ),
+          ),
+          padding: const EdgeInsets.all(12),
+          child: Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              // Checkbox icon
+              Container(
+                width: 20,
+                height: 20,
+                margin: const EdgeInsets.only(top: 1),
+                decoration: BoxDecoration(
+                  color: selected
+                      ? DauVietColors.imperialGold
+                      : Colors.transparent,
+                  borderRadius: BorderRadius.circular(4),
+                  border: Border.all(
+                    color: selected
+                        ? DauVietColors.imperialGold
+                        : DauVietColors.outlineVariant,
+                    width: 1.5,
+                  ),
+                ),
+                child: selected
+                    ? const Icon(
+                        Icons.check_rounded,
+                        size: 14,
+                        color: Colors.white,
+                      )
+                    : null,
+              ),
+              const SizedBox(width: 10),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Row(
+                      children: [
+                        const Icon(
+                          Icons.menu_book_outlined,
+                          size: 16,
+                          color: DauVietColors.jade,
+                        ),
+                        const SizedBox(width: 6),
+                        Expanded(
+                          child: Text(
+                            title,
+                            style: DauVietTypography.labelMedium.copyWith(
+                              fontWeight: FontWeight.w700,
+                              color: DauVietColors.inkText,
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                    if (desc != null && desc.isNotEmpty)
+                      Padding(
+                        padding: const EdgeInsets.only(top: 5),
+                        child: Text(
+                          desc,
+                          style: DauVietTypography.ancientCitation.copyWith(
+                            fontSize: 12.5,
+                            color: DauVietColors.inkSecondary,
+                            height: 1.4,
+                          ),
+                          maxLines: 3,
+                          overflow: TextOverflow.ellipsis,
+                        ),
+                      ),
+                    if (sourceText != null && sourceText.isNotEmpty)
+                      Padding(
+                        padding: const EdgeInsets.only(top: 3),
+                        child: Text(
+                          'Nguồn: $sourceText',
+                          style: DauVietTypography.labelSmall.copyWith(
+                            fontStyle: FontStyle.italic,
+                            color: DauVietColors.inkMuted,
+                          ),
+                        ),
+                      ),
+                  ],
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
   }
 }
 
@@ -324,20 +543,42 @@ class _VerdictOptionSpec {
   });
 }
 
-/// Phản hồi 3 mức khi `lastEvaluation != null`:
-/// SUPPORTED -> Chính xác | PARTIAL -> Gần chính xác | CONTRADICTED -> Cần xem lại.
+/// Phản hồi khi `lastEvaluation != null`:
+/// SUPPORTED → Chính xác | PARTIAL → Gần chính xác | CONTRADICTED → Cần xem lại.
+/// subOutcome đưa thêm chi tiết lý do (MISSING_HYPOTHESIS, INSUFFICIENT_EVIDENCE…).
 class _VerificationFeedbackCard extends StatelessWidget {
   final EvaluationDto evaluation;
 
   const _VerificationFeedbackCard({required this.evaluation});
 
+  String _subOutcomeDetail(String? subOutcome) {
+    switch (subOutcome) {
+      case 'MISSING_HYPOTHESIS':
+        return 'Chưa có giả thuyết để kiểm chứng — hãy quay lại Bước 2.';
+      case 'HYPOTHESIS_CONTRADICTED':
+        return 'Các bằng chứng đã chọn không ủng hộ giả thuyết này.';
+      case 'EVIDENCE_CONTRADICTED':
+        return 'Bằng chứng được chọn mâu thuẫn với giả thuyết.';
+      case 'INSUFFICIENT_EVIDENCE':
+        return 'Chưa đủ bằng chứng cần thiết để kết luận.';
+      case 'PARTIAL_SUPPORT':
+        return 'Bằng chứng đã chọn ủng hộ giả thuyết ở mức độ một phần.';
+      case 'SUPPORTED':
+        return 'Bằng chứng đã chọn hoàn toàn ủng hộ giả thuyết.';
+      default:
+        return '';
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     final String outcome = (evaluation.outcome ?? '').toUpperCase();
+    final String? subOutcome =
+        evaluation.output?['subOutcome'] as String?;
     late final Widget tag;
     late final Widget seal;
     late final Color borderColor;
-    late final String detail;
+    String detail;
 
     if (outcome == 'SUPPORTED' || outcome == 'COMPLETED') {
       tag = const ClueTag(
@@ -375,6 +616,10 @@ class _VerificationFeedbackCard extends StatelessWidget {
       borderColor = DauVietColors.cinnabarRed;
       detail = 'Giả thuyết mâu thuẫn với các nguồn sử liệu đối chiếu.';
     }
+
+    // Ghi đè chi tiết theo subOutcome khi có — chính xác hơn default text.
+    final subDetail = _subOutcomeDetail(subOutcome);
+    if (subDetail.isNotEmpty) detail = subDetail;
 
     return TactileCard(
       backgroundColor: DauVietColors.paperCardHi,

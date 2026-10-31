@@ -638,6 +638,14 @@ class _ResultBody extends ConsumerWidget {
                         periodCode: continueTarget.periodCode,
                       ),
                     ],
+                    // ── 4-step flow: danh sách 4 dấu vết đã thu thập ────
+                    if (_isFourStepContent(recapContent)) ...[
+                      const SizedBox(height: 12),
+                      _FourStepSummarySection(
+                        content: recapContent!,
+                        result: result,
+                      ),
+                    ],
 
                     // Ôn lại bài học & Tư liệu (khớp ảnh mẫu #2)
                     if (recapContent != null) ...[
@@ -708,6 +716,7 @@ class _ResultBody extends ConsumerWidget {
       ),
     );
   }
+
 
   Widget _buildResultBadge({
     required IconData icon,
@@ -1531,6 +1540,195 @@ class _ErrorView extends StatelessWidget {
             ),
           ],
         ),
+      ),
+    );
+  }
+}
+
+/// true khi content là snapshot 4-step flow (có DISCOVERY stage chứa clueType).
+bool _isFourStepContent(LessonContentDto? content) {
+  if (content == null) return false;
+  for (final s in content.stages) {
+    if ((s['type'] as String?)?.toUpperCase() != 'DISCOVERY') continue;
+    final acts = s['activities'];
+    if (acts is! List) continue;
+    for (final a in acts.whereType<Map>()) {
+      if (a['clueType'] is String) return true;
+    }
+  }
+  return false;
+}
+
+/// Tổng kết 4 bước — 4 dấu vết đã thu thập + keyTakeaways.
+class _FourStepSummarySection extends StatelessWidget {
+  final LessonContentDto content;
+  final LessonResultDto result;
+
+  const _FourStepSummarySection({required this.content, required this.result});
+
+  @override
+  Widget build(BuildContext context) {
+    final discoveryStage = content.stages.firstWhere(
+      (s) => (s['type'] as String?)?.toUpperCase() == 'DISCOVERY',
+      orElse: () => <String, dynamic>{},
+    );
+    final activities = discoveryStage['activities'];
+    final clues = activities is List
+        ? activities.whereType<Map>().toList()
+        : const <Map>[];
+
+    final rawTakeaways = content.content['keyTakeaways'];
+    final takeaways = rawTakeaways is List
+        ? rawTakeaways.whereType<String>().toList()
+        : const <String>[];
+
+    return ImperialScrollFrame(
+      plaqueTitle: 'TÓM TẮT KHÁM PHÁ',
+      hiddenPlaqueTestText: 'TÓM TẮT KHÁM PHÁ',
+      padding: const EdgeInsets.fromLTRB(14, 14, 14, 16),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          for (int i = 0; i < clues.length; i++) ...[
+            _ClueResultTile(
+              clue: clues[i].cast<String, dynamic>(),
+              index: i + 1,
+            ),
+            if (i < clues.length - 1) const SizedBox(height: 6),
+          ],
+          if (clues.isNotEmpty && takeaways.isNotEmpty) ...[
+            const SizedBox(height: 12),
+            const Divider(height: 1),
+            const SizedBox(height: 10),
+          ],
+          if (takeaways.isNotEmpty) ...[
+            const Align(
+              alignment: Alignment.centerLeft,
+              child: Text(
+                'BÀI HỌC RÚT RA',
+                style: TextStyle(
+                  fontSize: 10,
+                  fontWeight: FontWeight.w800,
+                  letterSpacing: 0.6,
+                  color: Color(0xFF8A5E1A),
+                ),
+              ),
+            ),
+            const SizedBox(height: 6),
+            for (final t in takeaways)
+              Padding(
+                padding: const EdgeInsets.only(bottom: 4),
+                child: Row(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    const Icon(
+                      Icons.circle,
+                      size: 6,
+                      color: Color(0xFFB88A3A),
+                    ),
+                    const SizedBox(width: 6),
+                    Expanded(
+                      child: Text(
+                        t,
+                        style: DauVietTypography.bodySmall.copyWith(
+                          color: DauVietColors.inkSecondary,
+                          fontSize: 12.5,
+                          height: 1.4,
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+          ],
+        ],
+      ),
+    );
+  }
+}
+
+/// Ô hiển thị 1 dấu vết đã thu thập trên màn kết quả.
+class _ClueResultTile extends StatelessWidget {
+  final Map<String, dynamic> clue;
+  final int index;
+
+  const _ClueResultTile({required this.clue, required this.index});
+
+  static const _clueLabels = <String, String>{
+    'CONTEXT': 'Bối cảnh',
+    'CHARACTERS': 'Nhân vật',
+    'DEVELOPMENT': 'Diễn biến',
+    'SIGNIFICANCE': 'Ý nghĩa',
+  };
+
+  @override
+  Widget build(BuildContext context) {
+    final clueType = clue['clueType'] as String? ?? '';
+    final title =
+        (clue['title'] as String?) ?? _clueLabels[clueType] ?? 'Dấu vết $index';
+    final desc = clue['description'] as String? ?? '';
+
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+      decoration: BoxDecoration(
+        color: const Color(0xFFEDF6EC),
+        borderRadius: BorderRadius.circular(10),
+        border: Border.all(color: const Color(0xFFBBD9B8), width: 1.1),
+      ),
+      child: Row(
+        children: [
+          Container(
+            width: 26,
+            height: 26,
+            decoration: const BoxDecoration(
+              color: DauVietColors.natureGreen,
+              shape: BoxShape.circle,
+            ),
+            child: const Icon(
+              Icons.check_rounded,
+              size: 16,
+              color: Colors.white,
+            ),
+          ),
+          const SizedBox(width: 8),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  'DẤU VẾT $index · ${_clueLabels[clueType]?.toUpperCase() ?? clueType.toUpperCase()}',
+                  style: DauVietTypography.labelSmall.copyWith(
+                    color: DauVietColors.natureGreen,
+                    fontWeight: FontWeight.w800,
+                    fontSize: 9,
+                    letterSpacing: 0.4,
+                  ),
+                ),
+                Text(
+                  title,
+                  style: DauVietTypography.labelMedium.copyWith(
+                    color: DauVietColors.inkText,
+                    fontWeight: FontWeight.w700,
+                    fontSize: 12.5,
+                  ),
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                ),
+                if (desc.isNotEmpty)
+                  Text(
+                    desc,
+                    style: DauVietTypography.bodySmall.copyWith(
+                      color: DauVietColors.inkMuted,
+                      fontSize: 11,
+                      height: 1.3,
+                    ),
+                    maxLines: 2,
+                    overflow: TextOverflow.ellipsis,
+                  ),
+              ],
+            ),
+          ),
+        ],
       ),
     );
   }

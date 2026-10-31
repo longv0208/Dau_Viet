@@ -63,9 +63,18 @@ class FakeAttemptRepository implements AttemptRepository {
   }
 
   @override
-  Future<CurrentActivityDto> getCurrent(String attemptId) async {
+  Future<CurrentActivityDto> getCurrent(String attemptId, {String? activityId}) async {
     getCurrentCalls++;
     if (nextError != null) throw nextError!;
+    return onGetCurrent?.call() ??
+        const CurrentActivityDto(progress: AttemptProgressDto.empty);
+  }
+
+  @override
+  Future<CurrentActivityDto> selectActivity(
+    String attemptId,
+    String activityId,
+  ) async {
     return onGetCurrent?.call() ??
         const CurrentActivityDto(progress: AttemptProgressDto.empty);
   }

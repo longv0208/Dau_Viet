@@ -109,6 +109,19 @@ class ActivityRefDto {
   /// hoặc server cũ — chỉ dùng để hiển thị hint, không tự suy lại.
   final int? incorrectPenalty;
 
+  // ---- 4-step flow fields (additive, null-safe) ----
+  /// Loại dấu vết (CONTEXT/CHARACTERS/DEVELOPMENT/SIGNIFICANCE) — chỉ có
+  /// ở activities trong DISCOVERY stage của bài học 4 bước.
+  final String? clueType;
+  /// Tên hiển thị của dấu vết / hoạt động (admin thay thế mặc định).
+  final String? title;
+  /// Mô tả ngắn của dấu vết / hoạt động.
+  final String? description;
+  /// Asset id ảnh đại diện dấu vết (hiển thị trên lưới Bước 1).
+  final String? coverAssetId;
+  /// Activity đã hoàn thành (dùng để render completed badge ở clue grid).
+  final bool completed;
+
   const ActivityRefDto({
     required this.id,
     this.type,
@@ -117,6 +130,11 @@ class ActivityRefDto {
     required this.feedback,
     this.graded = false,
     this.incorrectPenalty,
+    this.clueType,
+    this.title,
+    this.description,
+    this.coverAssetId,
+    this.completed = false,
   });
 
   factory ActivityRefDto.fromJson(Map<String, dynamic>? json) => ActivityRefDto(
@@ -127,6 +145,11 @@ class ActivityRefDto {
     feedback: (json?['feedback'] as Map?)?.cast<String, dynamic>() ?? const {},
     graded: json?['graded'] as bool? ?? false,
     incorrectPenalty: (json?['incorrectPenalty'] as num?)?.toInt(),
+    clueType: json?['clueType'] as String?,
+    title: json?['title'] as String?,
+    description: json?['description'] as String?,
+    coverAssetId: json?['coverAssetId'] as String?,
+    completed: json?['completed'] as bool? ?? false,
   );
 
   /// Số lượt thử tối đa được cấu hình cho activity (auto-graded).
@@ -145,13 +168,102 @@ class ActivityRefDto {
   }
 }
 
+/// Trạng thái từng dấu vết trong Bước 1 DISCOVERY của bài học 4 bước.
+class ClueStatusDto {
+  final String activityId;
+  final String? clueType;
+  final String? title;
+  final String? description;
+  final String? coverAssetId;
+  final String? activityType;
+  final String status;
+  final bool completed;
+
+  const ClueStatusDto({
+    required this.activityId,
+    this.clueType,
+    this.title,
+    this.description,
+    this.coverAssetId,
+    this.activityType,
+    required this.status,
+    required this.completed,
+  });
+
+  factory ClueStatusDto.fromJson(Map<String, dynamic>? json) => ClueStatusDto(
+    activityId: json?['activityId'] as String? ?? '',
+    clueType: json?['clueType'] as String?,
+    title: json?['title'] as String?,
+    description: json?['description'] as String?,
+    coverAssetId: json?['coverAssetId'] as String?,
+    activityType: json?['activityType'] as String?,
+    status: json?['status'] as String? ?? 'NOT_STARTED',
+    completed: json?['completed'] as bool? ?? false,
+  );
+}
+
+/// Tiến độ từng bước trong bài học 4 bước — null khi backend chưa hỗ trợ.
+class StepProgressDto {
+  final int discoveryCompleted;
+  final int discoveryTotal;
+  final bool hypothesisCompleted;
+  final bool verificationCompleted;
+  final bool reconstructionCompleted;
+  final int currentStepNumber;
+  final List<ClueStatusDto> clues;
+
+  const StepProgressDto({
+    required this.discoveryCompleted,
+    required this.discoveryTotal,
+    required this.hypothesisCompleted,
+    required this.verificationCompleted,
+    required this.reconstructionCompleted,
+    required this.currentStepNumber,
+    required this.clues,
+  });
+
+  factory StepProgressDto.fromJson(Map<String, dynamic>? json) =>
+      StepProgressDto(
+        discoveryCompleted:
+            (json?['discoveryCompleted'] as num?)?.toInt() ?? 0,
+        discoveryTotal: (json?['discoveryTotal'] as num?)?.toInt() ?? 0,
+        hypothesisCompleted: json?['hypothesisCompleted'] as bool? ?? false,
+        verificationCompleted:
+            json?['verificationCompleted'] as bool? ?? false,
+        reconstructionCompleted:
+            json?['reconstructionCompleted'] as bool? ?? false,
+        currentStepNumber: (json?['currentStepNumber'] as num?)?.toInt() ?? 1,
+        clues: (json?['clues'] as List? ?? const [])
+            .whereType<Map>()
+            .map((e) => ClueStatusDto.fromJson(e.cast<String, dynamic>()))
+            .toList(),
+      );
+
+  /// true khi đây là bài học 4 bước (có dữ liệu dấu vết).
+  bool get isFourStep => discoveryTotal > 0 && clues.isNotEmpty;
+
+  /// true khi đang ở Bước 1 và chưa hết dấu vết — render lưới chọn.
+  bool get shouldShowGrid =>
+      isFourStep &&
+      !hypothesisCompleted &&
+      discoveryCompleted < discoveryTotal;
+}
+
 /// GET /attempts/{id}/current — activity null khi hết required.
 class CurrentActivityDto {
   final StageRefDto? stage;
   final ActivityRefDto? activity;
   final AttemptProgressDto progress;
 
-  const CurrentActivityDto({this.stage, this.activity, required this.progress});
+  /// 4-step flow additive: tiến độ từng bước — null trên server cũ.
+  final StepProgressDto? stepProgress;
+
+  const CurrentActivityDto({
+    this.stage,
+    this.activity,
+    required this.progress,
+    this.stepProgress,
+  });
 
   factory CurrentActivityDto.fromJson(Map<String, dynamic> json) =>
       CurrentActivityDto(
@@ -168,7 +280,17 @@ class CurrentActivityDto {
         progress: AttemptProgressDto.fromJson(
           (json['progress'] as Map?)?.cast<String, dynamic>(),
         ),
+        stepProgress: json['stepProgress'] is Map
+            ? StepProgressDto.fromJson(
+                (json['stepProgress'] as Map).cast<String, dynamic>(),
+              )
+            : null,
       );
+
+  /// true khi đây là bài học 4 bước và đang ở DISCOVERY stage.
+  bool get isDiscoveryStep =>
+      stepProgress?.isFourStep == true &&
+      (stage?.type?.toUpperCase() == 'DISCOVERY');
 }
 
 /// evaluation {outcome, completed, output, feedbackCode}.

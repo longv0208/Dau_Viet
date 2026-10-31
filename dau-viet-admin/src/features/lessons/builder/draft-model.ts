@@ -39,15 +39,61 @@ export type ActivityType = (typeof ACTIVITY_TYPES)[number];
 /** Mirrors DraftSchema.STAGE_ALLOWED_ACTIVITIES — READ is universal. */
 export const STAGE_ALLOWED_ACTIVITIES: Record<StageType, ActivityType[]> = {
   CONTEXT: ["READ", "VIEW_IMAGE"],
-  DISCOVERY: ["EXPLORE_MAP", "VIEW_IMAGE", "MULTIPLE_CHOICE", "READ"],
+  DISCOVERY: [
+    "READ", "VIEW_IMAGE", "MULTIPLE_CHOICE", "MATCHING",
+    "DRAG_ORDER", "REASONING_CONNECT", "EXPLORE_MAP", "EVIDENCE_SELECT",
+  ],
   EVIDENCE: ["EVIDENCE_SELECT", "MULTIPLE_CHOICE", "VIEW_IMAGE", "READ"],
   REASONING: ["MATCHING", "REASONING_CONNECT", "MULTIPLE_CHOICE", "READ"],
-  HYPOTHESIS: ["HYPOTHESIS_CHOICE", "MULTIPLE_CHOICE", "READ"],
-  RECONSTRUCTION: ["DRAG_ORDER", "READ"],
-  VERIFICATION: ["VERIFICATION", "MULTIPLE_CHOICE", "READ"],
+  HYPOTHESIS: ["HYPOTHESIS_CHOICE", "MULTIPLE_CHOICE", "MATCHING", "REASONING_CONNECT", "READ"],
+  RECONSTRUCTION: [
+    "DRAG_ORDER", "MATCHING", "REASONING_CONNECT", "MULTIPLE_CHOICE",
+    "VIEW_IMAGE", "READ", "CER_CHOICE", "CER", "REFLECTION_PROMPT",
+  ],
+  VERIFICATION: ["VERIFICATION", "EVIDENCE_SELECT", "MULTIPLE_CHOICE", "READ"],
   CONCLUSION: ["CER", "CER_CHOICE", "READ"],
   REFLECTION: ["REFLECTION_PROMPT", "READ"],
 };
+
+/** Canonical 4 clue types for Step 1 (DISCOVERY) of the 4-step learning flow. */
+export const CLUE_TYPES = ["CONTEXT", "CHARACTERS", "DEVELOPMENT", "SIGNIFICANCE"] as const;
+export type ClueType = (typeof CLUE_TYPES)[number];
+
+export const CLUE_LABELS: Record<ClueType, { label: string; description: string; hint: string }> = {
+  CONTEXT: {
+    label: "Bối cảnh",
+    description: "Tìm hiểu hoàn cảnh lịch sử dẫn đến sự kiện",
+    hint: "Bối cảnh xã hội, chính trị, kinh tế thời kỳ này",
+  },
+  CHARACTERS: {
+    label: "Nhân vật",
+    description: "Khám phá các nhân vật lịch sử và vai trò",
+    hint: "Những nhân vật tham gia chính và vai trò của họ",
+  },
+  DEVELOPMENT: {
+    label: "Diễn biến",
+    description: "Theo dõi các mốc diễn biến chính của sự kiện",
+    hint: "Trình tự diễn biến, mốc thời gian quan trọng",
+  },
+  SIGNIFICANCE: {
+    label: "Ý nghĩa",
+    description: "Đúc kết kết quả và ý nghĩa lịch sử",
+    hint: "Kết quả, tầm ảnh hưởng và ý nghĩa của sự kiện",
+  },
+};
+
+/** 4-step flow stage types in canonical order. */
+export const FOUR_STEP_STAGE_ORDER: StageType[] = [
+  "DISCOVERY", "HYPOTHESIS", "VERIFICATION", "RECONSTRUCTION",
+];
+
+/** Detect whether a draft follows the 4-step flow (clue activities in DISCOVERY). */
+export function isFourStepDraft(draft: Draft): boolean {
+  if (draft.flowModel === "FOUR_STEP") return true;
+  return draft.stages.some(
+    (s) => s.type === "DISCOVERY" && s.activities.some((a) => a.clueType != null),
+  );
+}
 
 /**
  * Issue #47: Bộ câu phản hồi học viên mặc định chuẩn văn phong Dấu Việt
@@ -167,6 +213,10 @@ export interface Activity {
   validation?: Record<string, unknown>;
   feedback?: Record<string, unknown>;
   evidenceRefs?: string[];
+  clueType?: ClueType;
+  title?: string;
+  description?: string;
+  coverAssetId?: string;
   [key: string]: unknown;
 }
 
@@ -174,7 +224,9 @@ export interface Stage {
   id: string;
   type: StageType;
   title?: string;
+  description?: string;
   required?: boolean;
+  allowFreeOrder?: boolean;
   activities: Activity[];
   nextStageIds?: string[];
   requiredEvidenceIds?: string[];
@@ -190,6 +242,8 @@ export interface Completion {
 
 export interface Draft {
   schemaVersion?: number;
+  flowModel?: string;
+  keyTakeaways?: string[];
   stages: Stage[];
   completion?: Completion;
   objectives?: unknown;
