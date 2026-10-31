@@ -179,32 +179,106 @@ public final class ReasoningHandlers {
                     : stringIds(config.get("requiredEvidenceIds"));
             String expected = config != null && config.hasNonNull("expectedHypothesis")
                     ? config.get("expectedHypothesis").asText() : null;
+            String source = config != null && config.hasNonNull("evidenceSource")
+                    ? config.get("evidenceSource").asText() : null;
 
-            // Locate the most recent HYPOTHESIS_CHOICE output in priorOutputs.
+            // Locate the most recent HYPOTHESIS_CHOICE output in priorOutputs
+            // (or explicit config.hypothesisSource if authored).
             JsonNode hypothesis = null;
-            for (JsonNode out : ctx.priorOutputs().values()) {
-                if (out != null && out.isObject() && out.hasNonNull("hypothesisId")) {
-                    hypothesis = out;
+            if (config != null && config.hasNonNull("hypothesisSource")) {
+                JsonNode explicitHyp = ctx.priorOutputs()
+                        .get(config.get("hypothesisSource").asText());
+                if (explicitHyp != null && explicitHyp.isObject()
+                        && explicitHyp.hasNonNull("hypothesisId")) {
+                    hypothesis = explicitHyp;
+                }
+            }
+            if (hypothesis == null) {
+                for (JsonNode out : ctx.priorOutputs().values()) {
+                    if (out != null && out.isObject() && out.hasNonNull("hypothesisId")) {
+                        hypothesis = out;
+                    }
                 }
             }
 
+            // Interactive Step 3 Verification: when no upstream evidenceSource
+            // is forced and the learner submits selectedEvidenceIds directly,
+            // validate the submitted evidence against snapshot/visibleSourceIds.
+            boolean interactiveSelection = (source == null || source.isBlank())
+                    && sub.answer() != null
+                    && sub.answer().isObject()
+                    && sub.answer().has("selectedEvidenceIds")
+                    && sub.answer().get("selectedEvidenceIds").isArray();
+
+            Set<String> interactiveSelected = Set.of();
+            if (interactiveSelection) {
+                List<String> rawIds = readIdList(sub.answer(), "selectedEvidenceIds");
+                interactiveSelected = new LinkedHashSet<>(rawIds);
+                validateInteractiveEvidence(ctx, config, interactiveSelected);
+            }
+
             String outcome;
+            String subOutcome = null;
+            int matchedCount = 0;
+            int falseCount = 0;
             if (hypothesis == null) {
                 outcome = ActivityResult.CONTRADICTED;
+                subOutcome = "MISSING_HYPOTHESIS";
             } else {
                 String chosen = hypothesis.get("hypothesisId").asText();
                 if (expected != null && !expected.equals(chosen)) {
                     outcome = ActivityResult.CONTRADICTED;
+                    subOutcome = "HYPOTHESIS_CONTRADICTED";
+                } else if (interactiveSelection) {
+                    if (required.isEmpty()) {
+                        outcome = !interactiveSelected.isEmpty()
+                                ? ActivityResult.SUPPORTED : ActivityResult.PARTIAL;
+                        subOutcome = outcome;
+                        matchedCount = interactiveSelected.size();
+                    } else {
+                        Set<String> hits = new LinkedHashSet<>(interactiveSelected);
+                        hits.retainAll(required);
+                        matchedCount = hits.size();
+                        falseCount = interactiveSelected.size() - hits.size();
+                        if (interactiveSelected.equals(required)) {
+                            outcome = ActivityResult.SUPPORTED;
+                            subOutcome = "SUPPORTED";
+                        } else if (hits.isEmpty() && !interactiveSelected.isEmpty()) {
+                            outcome = ActivityResult.CONTRADICTED;
+                            subOutcome = "EVIDENCE_CONTRADICTED";
+                        } else if (hits.size() < required.size() && falseCount == 0) {
+                            outcome = ActivityResult.PARTIAL;
+                            subOutcome = "INSUFFICIENT_EVIDENCE";
+                        } else {
+                            outcome = ActivityResult.PARTIAL;
+                            subOutcome = "PARTIAL_SUPPORT";
+                        }
+                    }
                 } else {
-                    outcome = evidenceGiven(ctx, config, hypothesis)
-                            .containsAll(required)
+                    Set<String> given = evidenceGiven(ctx, config, hypothesis);
+                    outcome = given.containsAll(required)
                             ? ActivityResult.SUPPORTED : ActivityResult.PARTIAL;
+                    subOutcome = outcome;
                 }
             }
 
             JsonNodeFactory f = JsonNodeFactory.instance;
             ObjectNode out = f.objectNode();
             out.put("verification", outcome);
+            if (subOutcome != null) {
+                out.put("subOutcome", subOutcome);
+            }
+            if (hypothesis != null && hypothesis.hasNonNull("hypothesisId")) {
+                out.put("hypothesisId", hypothesis.get("hypothesisId").asText());
+            }
+            if (interactiveSelection) {
+                ArrayNode selArr = out.putArray("selectedEvidenceIds");
+                interactiveSelected.forEach(selArr::add);
+                out.put("selectedCount", interactiveSelected.size());
+                out.put("matchedCount", matchedCount);
+                out.put("falseCount", falseCount);
+                out.put("requiredCount", required.size());
+            }
             int attemptNo = priorAttempts(ctx) + 1;
             out.put("attemptCount", attemptNo);
             int maxAttempts = config == null ? 0
@@ -225,6 +299,33 @@ public final class ReasoningHandlers {
             }
             return result(outcome, completed, out,
                     feedbackFor(ctx.activity(), outcome));
+        }
+
+        private void validateInteractiveEvidence(AttemptContext ctx, JsonNode config,
+                                                 Set<String> selected) {
+            Set<String> snapshotEvidence = new LinkedHashSet<>();
+            JsonNode ev = ctx.snapshot().get("evidence");
+            if (ev != null && ev.isArray()) {
+                ev.forEach(e -> {
+                    JsonNode id = e.get("id");
+                    if (id != null && id.isTextual()) snapshotEvidence.add(id.asText());
+                });
+            }
+            Set<String> visible = new LinkedHashSet<>();
+            if (config != null) {
+                visible.addAll(stringIds(config.get("visibleSourceIds")));
+                visible.addAll(stringIds(config.get("visibleEvidenceIds")));
+            }
+            for (String id : selected) {
+                if (!snapshotEvidence.isEmpty() && !snapshotEvidence.contains(id)) {
+                    throw new IllegalArgumentException(
+                            "evidence '" + id + "' not in published snapshot");
+                }
+                if (!visible.isEmpty() && !visible.contains(id)) {
+                    throw new IllegalArgumentException(
+                            "evidence '" + id + "' is not selectable here");
+                }
+            }
         }
 
         /**

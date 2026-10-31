@@ -1,5 +1,7 @@
 package com.dauviet.learning.api.dto;
 
+import java.util.List;
+
 import com.fasterxml.jackson.databind.JsonNode;
 
 /**
@@ -11,9 +13,20 @@ import com.fasterxml.jackson.databind.JsonNode;
 public record CurrentActivityResponse(
         Stage stage,
         Activity activity,
-        AttemptProgressResponse.Progress progress) {
+        AttemptProgressResponse.Progress progress,
+        StepProgress stepProgress) {
 
-    public record Stage(String id, String type, String title) {
+    public CurrentActivityResponse(
+            Stage stage,
+            Activity activity,
+            AttemptProgressResponse.Progress progress) {
+        this(stage, activity, progress, null);
+    }
+
+    public record Stage(String id, String type, String title, String description) {
+        public Stage(String id, String type, String title) {
+            this(id, type, title, null);
+        }
     }
 
     public record Activity(String id, String type, String instruction,
@@ -24,6 +37,38 @@ public record CurrentActivityResponse(
                            boolean graded,
                            // Số Thể lực trừ khi verdict INCORRECT (clamp ở số
                            // dư). Chỉ có nghĩa khi graded=true.
-                           Integer incorrectPenalty) {
+                           Integer incorrectPenalty,
+                           String clueType,
+                           String title,
+                           String description,
+                           String coverAssetId,
+                           boolean completed) {
+        public Activity(String id, String type, String instruction,
+                        JsonNode config, JsonNode feedback,
+                        boolean graded, Integer incorrectPenalty) {
+            this(id, type, instruction, config, feedback, graded, incorrectPenalty,
+                    null, null, null, null, false);
+        }
+    }
+
+    public record ClueStatus(
+            String activityId,
+            String clueType,
+            String title,
+            String description,
+            String coverAssetId,
+            String activityType,
+            String status,
+            boolean completed) {
+    }
+
+    public record StepProgress(
+            int discoveryCompleted,
+            int discoveryTotal,
+            boolean hypothesisCompleted,
+            boolean verificationCompleted,
+            boolean reconstructionCompleted,
+            int currentStepNumber,
+            List<ClueStatus> clues) {
     }
 }

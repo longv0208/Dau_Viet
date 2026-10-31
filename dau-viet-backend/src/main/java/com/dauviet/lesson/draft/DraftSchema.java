@@ -19,17 +19,20 @@ public final class DraftSchema {
 
     /** Top-level field names allowed in draft_json. Unknown keys are SAVE errors. */
     public static final Set<String> TOP_LEVEL_KEYS =
-            Set.of("schemaVersion", "stages", "completion", "objectives");
+            Set.of("schemaVersion", "stages", "completion", "objectives",
+                    "flowModel", "keyTakeaways");
 
     /** Allowed stage field names. */
     public static final Set<String> STAGE_KEYS =
-            Set.of("id", "type", "title", "required", "activities",
-                    "nextStageIds", "requiredEvidenceIds");
+            Set.of("id", "type", "title", "description", "required", "activities",
+                    "nextStageIds", "requiredEvidenceIds", "allowFreeOrder");
 
     /** Allowed activity field names. */
     public static final Set<String> ACTIVITY_KEYS =
             Set.of("id", "type", "required", "instruction", "config",
                     "validation", "feedback", "evidenceRefs",
+                    // 4-step learning flow clue metadata
+                    "clueType", "title", "description", "coverAssetId",
                     // optional revise-hop stage targets consumed by
                     // StageTransitionResolver (outcome-driven routing)
                     "onPartial", "onContradicted");
@@ -39,21 +42,46 @@ public final class DraftSchema {
             Set.of("requireAllRequiredStages", "requiredStageIds", "minScore");
 
     /**
-     * Stage → allowed activity types per LEARNING_ENGINE_DESIGN §2.
-     * READ is a universal supporting activity allowed in every stage.
+     * Stage → allowed activity types.
+     * In the 4-step flow (DISCOVERY -> HYPOTHESIS -> VERIFICATION -> RECONSTRUCTION),
+     * each clue in DISCOVERY and the synthesis activity in RECONSTRUCTION can use
+     * any compatible activity type selected by Admin.
      */
     public static final Map<StageType, Set<ActivityType>> STAGE_ALLOWED_ACTIVITIES = Map.of(
             StageType.CONTEXT, Set.of(ActivityType.READ, ActivityType.VIEW_IMAGE),
-            StageType.DISCOVERY, Set.of(ActivityType.EXPLORE_MAP, ActivityType.VIEW_IMAGE,
-                    ActivityType.MULTIPLE_CHOICE, ActivityType.READ),
+            StageType.DISCOVERY, Set.of(
+                    ActivityType.READ,
+                    ActivityType.VIEW_IMAGE,
+                    ActivityType.MULTIPLE_CHOICE,
+                    ActivityType.MATCHING,
+                    ActivityType.DRAG_ORDER,
+                    ActivityType.REASONING_CONNECT,
+                    ActivityType.EXPLORE_MAP,
+                    ActivityType.EVIDENCE_SELECT),
             StageType.EVIDENCE, Set.of(ActivityType.EVIDENCE_SELECT, ActivityType.MULTIPLE_CHOICE,
                     ActivityType.VIEW_IMAGE, ActivityType.READ),
             StageType.REASONING, Set.of(ActivityType.MATCHING, ActivityType.REASONING_CONNECT,
                     ActivityType.MULTIPLE_CHOICE, ActivityType.READ),
-            StageType.HYPOTHESIS, Set.of(ActivityType.HYPOTHESIS_CHOICE, ActivityType.MULTIPLE_CHOICE,
+            StageType.HYPOTHESIS, Set.of(
+                    ActivityType.HYPOTHESIS_CHOICE,
+                    ActivityType.MULTIPLE_CHOICE,
+                    ActivityType.MATCHING,
+                    ActivityType.REASONING_CONNECT,
                     ActivityType.READ),
-            StageType.RECONSTRUCTION, Set.of(ActivityType.DRAG_ORDER, ActivityType.READ),
-            StageType.VERIFICATION, Set.of(ActivityType.VERIFICATION, ActivityType.MULTIPLE_CHOICE,
+            StageType.RECONSTRUCTION, Set.of(
+                    ActivityType.DRAG_ORDER,
+                    ActivityType.MATCHING,
+                    ActivityType.REASONING_CONNECT,
+                    ActivityType.MULTIPLE_CHOICE,
+                    ActivityType.VIEW_IMAGE,
+                    ActivityType.READ,
+                    ActivityType.CER_CHOICE,
+                    ActivityType.CER,
+                    ActivityType.REFLECTION_PROMPT),
+            StageType.VERIFICATION, Set.of(
+                    ActivityType.VERIFICATION,
+                    ActivityType.EVIDENCE_SELECT,
+                    ActivityType.MULTIPLE_CHOICE,
                     ActivityType.READ),
             StageType.CONCLUSION, Set.of(ActivityType.CER, ActivityType.CER_CHOICE, ActivityType.READ),
             StageType.REFLECTION, Set.of(ActivityType.REFLECTION_PROMPT, ActivityType.READ));

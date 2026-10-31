@@ -248,44 +248,135 @@ public class LearnerAttemptService {
         AttemptState state = AttemptState.fromJson(parse(a.getStateJson()));
         return new AttemptProgressResponse(a.getId(), a.getLessonVersionId(),
                 a.getStatus().name(), state.currentStageId(), state.currentActivityId(),
-                progressOf(model, state), completionEvaluator.evaluate(model, state));
+                progressOf(model, state), completionEvaluator.evaluate(model, state),
+                List.copyOf(state.completedActivityIds()),
+                stepProgressOf(model, state));
     }
 
     /** Learner-safe view of the activity the cursor points at. */
     @Transactional(readOnly = true)
     public CurrentActivityResponse getCurrent(UUID userId, UUID attemptId) {
+        return getCurrent(userId, attemptId, null);
+    }
+
+    /**
+     * Learner-safe view of the current activity, or a specific allowed
+     * activity (e.g. a clue in Step 1 DISCOVERY or reviewing a completed clue).
+     */
+    @Transactional(readOnly = true)
+    public CurrentActivityResponse getCurrent(UUID userId, UUID attemptId,
+                                              String requestedActivityId) {
         LearnerAttempt a = loadOwned(userId, attemptId);
         SnapshotModel model = snapshotOf(a.getLessonVersionId());
         AttemptState state = AttemptState.fromJson(parse(a.getStateJson()));
 
-        JsonNode stage = state.currentStageId() == null
-                ? null : model.stageById(state.currentStageId());
-        JsonNode activity = state.currentActivityId() == null
-                ? null : model.activityById(state.currentActivityId());
+        String activeStageId = state.currentStageId();
+        String activeActivityId = state.currentActivityId();
+        if (requestedActivityId != null && !requestedActivityId.isBlank()) {
+            JsonNode reqAct = model.activityById(requestedActivityId);
+            String reqStageId = model.stageIdOf(requestedActivityId);
+            if (reqAct == null || reqStageId == null) {
+                throw new ActivityNotAvailableException(
+                        "activity not in pinned snapshot: " + requestedActivityId);
+            }
+            boolean allowed = requestedActivityId.equals(state.currentActivityId())
+                    || state.isCompleted(requestedActivityId)
+                    || (reqStageId.equals(state.currentStageId())
+                        && (model.isUnorderedStage(reqStageId)
+                            || !reqAct.path("required").asBoolean(false)))
+                    || isHypothesisRevisionAllowed(model, state, reqStageId, requestedActivityId);
+            if (!allowed) {
+                throw new ActivityNotAvailableException(
+                        "activity " + requestedActivityId + " is not available in current step");
+            }
+            activeStageId = reqStageId;
+            activeActivityId = requestedActivityId;
+        }
+
+        return buildCurrentActivityResponse(model, state, activeStageId, activeActivityId);
+    }
+
+    /**
+     * Select an active clue in Step 1 (DISCOVERY) or step back to HYPOTHESIS
+     * from VERIFICATION to revise the chosen hypothesis.
+     */
+    @Transactional
+    public CurrentActivityResponse selectActivity(UUID userId, UUID attemptId,
+                                                  String activityId) {
+        LearnerAttempt a = attempts.findForUpdate(attemptId)
+                .orElseThrow(() -> new AttemptNotFoundException("attempt not found: " + attemptId));
+        if (!a.getUserId().equals(userId)) {
+            throw new AttemptNotOwnedException("attempt not owned by user: " + attemptId);
+        }
+        if (a.getStatus() == LearnerAttemptStatus.COMPLETED) {
+            throw new AttemptAlreadyCompletedException("attempt " + a.getId() + " is COMPLETED");
+        }
+        if (a.getStatus() != LearnerAttemptStatus.IN_PROGRESS) {
+            throw new AttemptNotInProgressException("attempt " + a.getId() + " is " + a.getStatus());
+        }
+        SnapshotModel model = snapshotOf(a.getLessonVersionId());
+        AttemptState state = AttemptState.fromJson(parse(a.getStateJson()));
+        JsonNode targetAct = model.activityById(activityId);
+        String targetStageId = model.stageIdOf(activityId);
+        if (targetAct == null || targetStageId == null) {
+            throw new ActivityNotAvailableException(
+                    "activity " + activityId + " is not in the pinned snapshot");
+        }
+        boolean sameUnorderedStage = targetStageId.equals(state.currentStageId())
+                && model.isUnorderedStage(targetStageId);
+        boolean onCursor = activityId.equals(state.currentActivityId());
+        boolean hypothesisRevision = isHypothesisRevisionAllowed(
+                model, state, targetStageId, activityId);
+        boolean completedReview = state.isCompleted(activityId);
+
+        if (!onCursor && !sameUnorderedStage && !hypothesisRevision && !completedReview) {
+            throw new ActivityNotAvailableException(
+                    "activity " + activityId + " is not available in current step");
+        }
+        // Persist cursor change when selecting an incomplete clue in the active
+        // DISCOVERY stage or stepping back from VERIFICATION to HYPOTHESIS.
+        if ((sameUnorderedStage && !state.isCompleted(activityId)) || hypothesisRevision) {
+            state.setCurrentStageId(targetStageId);
+            state.setCurrentActivityId(activityId);
+            a.recordProgress(state);
+            attempts.save(a);
+        }
+        return buildCurrentActivityResponse(model, state, targetStageId, activityId);
+    }
+
+    private CurrentActivityResponse buildCurrentActivityResponse(
+            SnapshotModel model, AttemptState state,
+            String stageId, String activityId) {
+        JsonNode stage = stageId == null ? null : model.stageById(stageId);
+        JsonNode activity = activityId == null ? null : model.activityById(activityId);
 
         CurrentActivityResponse.Stage stageDto = stage == null ? null
                 : new CurrentActivityResponse.Stage(
                         stage.path("id").asText(),
                         stage.path("type").asText(null),
-                        stage.hasNonNull("title") ? stage.get("title").asText() : null);
+                        stage.hasNonNull("title") ? stage.get("title").asText() : null,
+                        stage.hasNonNull("description") ? stage.get("description").asText() : null);
         CurrentActivityResponse.Activity activityDto = null;
         if (activity != null) {
             ObjectNode projected = projection.projectActivity(activity, state.outputs());
-            // GAME-03 additive: expose graded flag + penalty để client hiển
-            // thị chi phí Thể lực trước khi submit — additive, server cũ
-            // trả null/false và client fallback ẩn hint.
             boolean graded = gradedClassifier.isGraded(activity);
+            String actId = activity.path("id").asText();
             activityDto = new CurrentActivityResponse.Activity(
-                    activity.path("id").asText(),
+                    actId,
                     activity.path("type").asText(null),
                     activity.hasNonNull("instruction")
                             ? activity.get("instruction").asText() : null,
                     projected.get("config"), projected.get("feedback"),
                     graded,
-                    graded ? energyProps.incorrectPenalty() : null);
+                    graded ? energyProps.incorrectPenalty() : null,
+                    activity.hasNonNull("clueType") ? activity.get("clueType").asText() : null,
+                    activity.hasNonNull("title") ? activity.get("title").asText() : null,
+                    activity.hasNonNull("description") ? activity.get("description").asText() : null,
+                    activity.hasNonNull("coverAssetId") ? activity.get("coverAssetId").asText() : null,
+                    state.isCompleted(actId));
         }
         return new CurrentActivityResponse(stageDto, activityDto,
-                progressOf(model, state));
+                progressOf(model, state), stepProgressOf(model, state));
     }
 
     /**
@@ -333,6 +424,7 @@ public class LearnerAttemptService {
         SnapshotModel model = snapshotOf(a.getLessonVersionId());
         AttemptState state = AttemptState.fromJson(parse(a.getStateJson()));
         JsonNode activity = model.activityById(activityId);
+        String targetStageId = model.stageIdOf(activityId);
         boolean onCursor = activityId != null
                 && activityId.equals(state.currentActivityId());
         // Optional activities in the CURRENT stage are submittable without
@@ -340,8 +432,19 @@ public class LearnerAttemptService {
         boolean optionalInStage = !onCursor && activity != null
                 && !activity.path("required").asBoolean(false)
                 && state.currentStageId() != null
-                && state.currentStageId().equals(model.stageIdOf(activityId));
-        if (!onCursor && !optionalInStage) {
+                && state.currentStageId().equals(targetStageId);
+        // Unordered stage (Step 1 DISCOVERY with 4 clues): any clue in the
+        // current DISCOVERY stage can be selected and completed in any order.
+        boolean inUnorderedCurrentStage = !onCursor && activity != null
+                && state.currentStageId() != null
+                && state.currentStageId().equals(targetStageId)
+                && model.isUnorderedStage(targetStageId);
+        // Step 2 <-> Step 3 linkage: while in VERIFICATION (or later), the
+        // learner may revise their HYPOTHESIS choice; doing so invalidates
+        // downstream VERIFICATION/RECONSTRUCTION outputs and re-routes to VERIFICATION.
+        boolean hypothesisRevision = !onCursor && activity != null
+                && isHypothesisRevisionAllowed(model, state, targetStageId, activityId);
+        if (!onCursor && !optionalInStage && !inUnorderedCurrentStage && !hypothesisRevision) {
             throw new ActivityNotAvailableException(
                     "activity " + activityId + " is not the current activity");
         }
@@ -349,7 +452,36 @@ public class LearnerAttemptService {
             throw new SnapshotCorruptException(
                     "current activity missing from pinned snapshot: " + activityId);
         }
-
+        // Guard against re-submitting an already-completed clue in an unordered
+        // DISCOVERY stage: reviewing a completed clue must never deduct energy,
+        // inflate attempt counts, or grant duplicate collection/rewards.
+        if (targetStageId != null
+                && model.isUnorderedStage(targetStageId)
+                && state.isCompleted(activityId)) {
+            JsonNode prevOut = state.outputs().get(activityId);
+            ActivityResult cached = new ActivityResult(
+                    ActivityResult.COMPLETED, true, prevOut, null);
+            StageTransitionResolver.Transition transition =
+                    transitionResolver.resolve(model, state, activityId, ActivityResult.COMPLETED);
+            if (transition != null && transition.nextStage() != null) {
+                state.setCurrentStageId(transition.nextStage().stageId());
+                state.setCurrentActivityId(model.firstIncompleteRequiredActivityId(
+                        transition.nextStage().stageId(), state));
+            } else if (transition != null && transition.nextActivity() != null) {
+                state.setCurrentActivityId(transition.nextActivity().activityId());
+            }
+            a.recordProgress(state);
+            attempts.save(a);
+            LessonCompletion completion = completionEvaluator.evaluate(model, state);
+            SubmitActivityResponse.Next next = nextDto(model, state, transition, false);
+            return new SubmitActivityResponse("ACCEPTED", cached, true,
+                    progressOf(model, state), next, completion, 0,
+                    energyService.snapshot(userId));
+        }
+        if (inUnorderedCurrentStage || hypothesisRevision) {
+            state.setCurrentStageId(targetStageId);
+            state.setCurrentActivityId(activityId);
+        }
         ActivityType type = ActivityType.valueOf(activity.path("type").asText());
         // GAME-02: zero-energy gate chỉ áp cho activity có chấm điểm — chạy
         // sau khi xác định activity hợp lệ + trước evaluate (lazy-recover
@@ -387,8 +519,10 @@ public class LearnerAttemptService {
         // được chấp nhận — cùng transaction, upsert idempotent. Chỉ
         // EVIDENCE_SELECT (EXPLORE_MAP/clue chưa có evidence reference tường
         // minh trong contract → không suy diễn markerId).
-        if (result.completed() && type == ActivityType.EVIDENCE_SELECT
-                && result.output() != null) {
+        if (result.completed()
+                && (type == ActivityType.EVIDENCE_SELECT || type == ActivityType.VERIFICATION)
+                && result.output() != null
+                && result.output().has("selectedEvidenceIds")) {
             LessonVersion pinned = versions.findById(a.getLessonVersionId())
                     .orElse(null);
             collectionRecorder.record(userId, a.getId(),
@@ -422,7 +556,8 @@ public class LearnerAttemptService {
         if (!optionalInStage && transition != null && transition.nextStage() != null) {
             state.setCurrentStageId(transition.nextStage().stageId());
             state.setCurrentActivityId(
-                    model.firstRequiredActivityId(transition.nextStage().stageId()));
+                    model.firstIncompleteRequiredActivityId(
+                            transition.nextStage().stageId(), state));
         } else if (!optionalInStage && transition != null && transition.nextActivity() != null) {
             state.setCurrentActivityId(transition.nextActivity().activityId());
         }
@@ -791,7 +926,8 @@ public class LearnerAttemptService {
         }
         return new SubmitActivityResponse.Next(
                 transition.nextStage().stageId(),
-                model.firstRequiredActivityId(transition.nextStage().stageId()),
+                model.firstIncompleteRequiredActivityId(
+                        transition.nextStage().stageId(), state),
                 null, null);
     }
 
@@ -890,27 +1026,41 @@ public class LearnerAttemptService {
         for (JsonNode stage : model.stages()) {
             String sid = stage.path("id").asText(null);
             if (sid == null) continue;
-            String prevId = null;
-            for (JsonNode act : model.activitiesOf(sid)) {
-                String id = act.path("id").asText(null);
-                if (id == null) continue;
-                if (prevId != null) addEdge(edges, prevId, id);
-                else {
-                    // first declared activity consumes the stage boundary
+            if (model.isUnorderedStage(sid)) {
+                // Unordered stage (4 clues in DISCOVERY): clues are independent
+                // peers — completing clue 1 after clue 4 must never invalidate
+                // clue 4, while all clues feed downstream stages.
+                for (JsonNode act : model.activitiesOf(sid)) {
+                    String id = act.path("id").asText(null);
+                    if (id == null) continue;
                     addEdge(edges, "stage:" + sid, id);
+                    for (String nextSid : model.nextStageIds(sid)) {
+                        addEdge(edges, id, "stage:" + nextSid);
+                    }
                 }
-                prevId = id;
+            } else {
+                String prevId = null;
+                for (JsonNode act : model.activitiesOf(sid)) {
+                    String id = act.path("id").asText(null);
+                    if (id == null) continue;
+                    if (prevId != null) addEdge(edges, prevId, id);
+                    else {
+                        // first declared activity consumes the stage boundary
+                        addEdge(edges, "stage:" + sid, id);
+                    }
+                    prevId = id;
+                }
+                if (prevId != null) lastActByStage.put(sid, prevId);
             }
-            if (prevId != null) lastActByStage.put(sid, prevId);
         }
-        // stage boundary pseudo-node: last activity of each predecessor
+        // stage boundary pseudo-node: last activity of each ordered predecessor
         // stage feeds this stage's first activity.
         for (JsonNode stage : model.stages()) {
             String sid = stage.path("id").asText(null);
             if (sid == null) continue;
             for (JsonNode up : model.stages()) {
                 String upId = up.path("id").asText(null);
-                if (upId == null) continue;
+                if (upId == null || model.isUnorderedStage(upId)) continue;
                 if (!model.nextStageIds(upId).contains(sid)) continue;
                 String last = lastActByStage.get(upId);
                 if (last != null) addEdge(edges, last, "stage:" + sid);
@@ -954,6 +1104,105 @@ public class LearnerAttemptService {
             }
         }
         return new AttemptProgressResponse.Progress(done, total);
+    }
+
+    private boolean isHypothesisRevisionAllowed(SnapshotModel model, AttemptState state,
+                                                String targetStageId, String activityId) {
+        if (targetStageId == null || activityId == null) return false;
+        JsonNode targetStage = model.stageById(targetStageId);
+        if (targetStage == null
+                || !"HYPOTHESIS".equals(targetStage.path("type").asText(""))) {
+            return false;
+        }
+        // Only allow revising HYPOTHESIS once the learner has already reached
+        // HYPOTHESIS/VERIFICATION/RECONSTRUCTION (i.e. all preceding DISCOVERY
+        // stages are complete).
+        for (JsonNode stage : model.stages()) {
+            String sid = stage.path("id").asText("");
+            if (sid.equals(targetStageId)) break;
+            for (JsonNode req : model.requiredActivities(sid)) {
+                if (!state.isCompleted(req.path("id").asText(""))) {
+                    return false;
+                }
+            }
+        }
+        String curStageId = state.currentStageId();
+        if (curStageId == null) return false;
+        JsonNode curStage = model.stageById(curStageId);
+        String curType = curStage == null ? "" : curStage.path("type").asText("");
+        return "HYPOTHESIS".equals(curType)
+                || "VERIFICATION".equals(curType)
+                || "RECONSTRUCTION".equals(curType);
+    }
+
+    private CurrentActivityResponse.StepProgress stepProgressOf(
+            SnapshotModel model, AttemptState state) {
+        int discoveryDone = 0;
+        int discoveryTotal = 0;
+        boolean hypothesisDone = false;
+        boolean verificationDone = false;
+        boolean reconstructionDone = false;
+        List<CurrentActivityResponse.ClueStatus> clues = new java.util.ArrayList<>();
+
+        for (JsonNode stage : model.stages()) {
+            String sid = stage.path("id").asText("");
+            String stype = stage.path("type").asText("");
+            List<JsonNode> reqActs = model.requiredActivities(sid);
+            boolean allStageDone = !reqActs.isEmpty()
+                    && reqActs.stream().allMatch(a -> state.isCompleted(a.path("id").asText("")));
+
+            if ("DISCOVERY".equals(stype)) {
+                for (JsonNode act : model.activitiesOf(sid)) {
+                    String aid = act.path("id").asText("");
+                    boolean req = act.path("required").asBoolean(false);
+                    boolean done = state.isCompleted(aid);
+                    if (req) {
+                        discoveryTotal++;
+                        if (done) discoveryDone++;
+                    }
+                    String clueType = act.hasNonNull("clueType")
+                            ? act.get("clueType").asText() : null;
+                    String title = act.hasNonNull("title")
+                            ? act.get("title").asText() : null;
+                    String desc = act.hasNonNull("description")
+                            ? act.get("description").asText() : null;
+                    String coverId = act.hasNonNull("coverAssetId")
+                            ? act.get("coverAssetId").asText() : null;
+                    String actType = act.path("type").asText(null);
+                    String status = done ? "COMPLETED"
+                            : (aid.equals(state.currentActivityId())
+                                || state.outputs().containsKey(aid))
+                                ? "IN_PROGRESS" : "NOT_STARTED";
+                    clues.add(new CurrentActivityResponse.ClueStatus(
+                            aid, clueType, title, desc, coverId, actType, status, done));
+                }
+            } else if ("HYPOTHESIS".equals(stype)) {
+                hypothesisDone = allStageDone;
+            } else if ("VERIFICATION".equals(stype)) {
+                verificationDone = allStageDone;
+            } else if ("RECONSTRUCTION".equals(stype)) {
+                reconstructionDone = allStageDone;
+            }
+        }
+
+        int currentStep = 1;
+        JsonNode curStage = state.currentStageId() == null
+                ? null : model.stageById(state.currentStageId());
+        String curType = curStage == null ? "" : curStage.path("type").asText("");
+        if ("RECONSTRUCTION".equals(curType) || reconstructionDone) {
+            currentStep = 4;
+        } else if ("VERIFICATION".equals(curType)) {
+            currentStep = 3;
+        } else if ("HYPOTHESIS".equals(curType)) {
+            currentStep = 2;
+        } else if (discoveryTotal > 0 && discoveryDone >= discoveryTotal) {
+            currentStep = hypothesisDone ? (verificationDone ? 4 : 3) : 2;
+        }
+
+        return new CurrentActivityResponse.StepProgress(
+                discoveryDone, discoveryTotal,
+                hypothesisDone, verificationDone, reconstructionDone,
+                currentStep, List.copyOf(clues));
     }
 
     private JsonNode parse(String json) {

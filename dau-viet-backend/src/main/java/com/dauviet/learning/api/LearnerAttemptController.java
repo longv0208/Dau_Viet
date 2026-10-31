@@ -68,11 +68,21 @@ public class LearnerAttemptController {
         return service.getAttempt(subjects.userId(jwt), attemptId);
     }
 
-    /** Learner-safe view of the activity the cursor points at. */
+    /** Learner-safe view of the activity the cursor points at (or requested clue/activity). */
     @GetMapping("/attempts/{attemptId}/current")
     public CurrentActivityResponse current(@PathVariable UUID attemptId,
+                                           @RequestParam(required = false) String activityId,
                                            @AuthenticationPrincipal Jwt jwt) {
-        return service.getCurrent(subjects.userId(jwt), attemptId);
+        return service.getCurrent(subjects.userId(jwt), attemptId, activityId);
+    }
+
+    /** Select an active clue in Step 1 (DISCOVERY) or step back to HYPOTHESIS to revise. */
+    @PostMapping("/attempts/{attemptId}/cursor")
+    public CurrentActivityResponse selectCursor(@PathVariable UUID attemptId,
+                                                @RequestBody java.util.Map<String, String> body,
+                                                @AuthenticationPrincipal Jwt jwt) {
+        String activityId = body == null ? null : body.get("activityId");
+        return service.selectActivity(subjects.userId(jwt), attemptId, activityId);
     }
 
     /**

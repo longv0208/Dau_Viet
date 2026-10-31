@@ -170,7 +170,11 @@ public class StageTransitionResolver {
         return null;
     }
 
-    /** First required activity after lastActivityId that is not completed. */
+    /**
+     * First required activity after lastActivityId that is not completed;
+     * wraps around to the start of the stage when earlier required activities
+     * (e.g. non-linear clues in DISCOVERY) are still incomplete.
+     */
     private String nextIncompleteRequired(List<JsonNode> activities,
                                           AttemptState state, String lastActivityId) {
         boolean seen = lastActivityId == null;
@@ -183,6 +187,16 @@ public class StageTransitionResolver {
             }
             if (a.path("required").asBoolean(false) && !state.isCompleted(id)) {
                 return id;
+            }
+        }
+        if (lastActivityId != null) {
+            for (JsonNode a : activities) {
+                String id = a.path("id").asText(null);
+                if (id == null) continue;
+                if (id.equals(lastActivityId)) break;
+                if (a.path("required").asBoolean(false) && !state.isCompleted(id)) {
+                    return id;
+                }
             }
         }
         return null;

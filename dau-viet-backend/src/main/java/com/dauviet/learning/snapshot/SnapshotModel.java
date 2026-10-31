@@ -140,6 +140,52 @@ public class SnapshotModel {
         return req.isEmpty() ? null : text(req.get(0), "id");
     }
 
+    /**
+     * First INCOMPLETE required activity id of a stage; falls back to
+     * {@link #firstRequiredActivityId(String)} when all are completed.
+     */
+    public String firstIncompleteRequiredActivityId(
+            String stageId, com.dauviet.learning.domain.AttemptState state) {
+        List<JsonNode> req = requiredActivities(stageId);
+        if (req.isEmpty()) return null;
+        if (state != null) {
+            for (JsonNode a : req) {
+                String id = text(a, "id");
+                if (id != null && !state.isCompleted(id)) {
+                    return id;
+                }
+            }
+        }
+        return text(req.get(0), "id");
+    }
+
+    /**
+     * True when the stage allows its required activities (e.g. the 4 clues in
+     * Step 1 DISCOVERY) to be selected and completed in any order.
+     */
+    public boolean isUnorderedStage(String stageId) {
+        JsonNode stage = stageById.get(stageId);
+        if (stage == null) return false;
+        if (stage.path("allowFreeOrder").asBoolean(false)) return true;
+        if ("DISCOVERY".equals(text(stage, "type"))) {
+            for (JsonNode a : activitiesOf(stageId)) {
+                if (a.hasNonNull("clueType")) return true;
+            }
+        }
+        return false;
+    }
+
+    /** True when the snapshot uses the 4-step / 4-clue learning flow. */
+    public boolean isFourStepFlow() {
+        if ("FOUR_STEP".equals(text(root, "flowModel"))) return true;
+        for (JsonNode s : stages) {
+            if ("DISCOVERY".equals(text(s, "type"))
+                    && isUnorderedStage(text(s, "id"))) {
+                return true;
+            }
+        }
+        return false;
+    }
     /** All activities of a stage, in array order. */
     public List<JsonNode> activitiesOf(String stageId) {
         List<JsonNode> out = new ArrayList<>();

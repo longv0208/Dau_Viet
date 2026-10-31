@@ -84,6 +84,12 @@ public class SnapshotBuilder {
         ArrayNode stagesCopy = stagesNode.deepCopy();
         embedAnimationScenes(stagesCopy);
         snapshot.set("stages", stagesCopy);
+        if (draft.has("flowModel")) {
+            snapshot.set("flowModel", draft.get("flowModel"));
+        }
+        if (draft.has("keyTakeaways")) {
+            snapshot.set("keyTakeaways", draft.get("keyTakeaways"));
+        }
         if (draft.has("completion")) {
             snapshot.set("completion", draft.get("completion"));
         }
@@ -197,10 +203,18 @@ public class SnapshotBuilder {
             JsonNode acts = stage.get("activities");
             if (acts == null || !acts.isArray()) continue;
             for (JsonNode act : acts) {
+                if (act.hasNonNull("coverAssetId")) {
+                    UUID coverId = parseUuid(act.get("coverAssetId").asText());
+                    if (coverId != null) ids.add(coverId);
+                }
                 JsonNode config = act.get("config");
                 if (config == null || !config.isObject()) continue;
                 if (config.hasNonNull("imageAssetId")) {
                     UUID id = parseUuid(config.get("imageAssetId").asText());
+                    if (id != null) ids.add(id);
+                }
+                if (config.hasNonNull("coverAssetId")) {
+                    UUID id = parseUuid(config.get("coverAssetId").asText());
                     if (id != null) ids.add(id);
                 }
                 // Animation manifest assets — pinned into the snapshot so a

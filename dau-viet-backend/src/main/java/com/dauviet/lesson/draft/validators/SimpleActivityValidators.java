@@ -59,9 +59,9 @@ public final class SimpleActivityValidators {
          * the scene's current version at publish). playbackMode is whitelisted.
          * Mutually exclusive with the legacy animationKey.
          */
-        private void validateAnimationRef(JsonNode config, String path,
-                                          ValidationContext ctx,
-                                          List<FieldError> errors) {
+        public static void validateAnimationRef(JsonNode config, String path,
+                                                ValidationContext ctx,
+                                                List<FieldError> errors) {
             JsonNode anim = config.get("animationKey");
             if (anim != null && !anim.isNull()) {
                 if (!anim.isTextual()) {

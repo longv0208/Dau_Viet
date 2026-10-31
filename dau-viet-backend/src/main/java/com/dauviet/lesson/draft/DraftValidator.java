@@ -4,6 +4,7 @@ import java.util.ArrayDeque;
 import java.util.ArrayList;
 import java.util.Deque;
 import java.util.EnumMap;
+import java.util.EnumSet;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
@@ -98,6 +99,7 @@ public class DraftValidator {
 
         validateStageGraph(draft, stageIds, transitions, level, errors);
         validateCompletion(draft.get("completion"), stageIds, level, errors);
+        validateFourStepModel(draft, stageById, ctx, errors);
         if (level == ValidationLevel.PUBLISH) {
             validatePublishGuardrails(stageIds, stageById, draft.get("completion"), errors);
         }
@@ -352,6 +354,8 @@ public class DraftValidator {
                                     List<FieldError> errors) {
         JsonNode acts = stage.get("activities");
         if (acts == null || !acts.isArray()) return;
+        Set<ClueType> seenClues = EnumSet.noneOf(ClueType.class);
+        boolean anyClueTagged = false;
         for (int j = 0; j < acts.size(); j++) {
             JsonNode act = acts.get(j);
             String apath = stagePath + ".activities[" + j + "]";
@@ -372,9 +376,34 @@ public class DraftValidator {
                 errors.add(new FieldError(apath + ".type", "STAGE_ACTIVITY_MISMATCH",
                         "activity type " + at + " not allowed in stage " + stageType));
             }
+            if (act.hasNonNull("clueType")) {
+                anyClueTagged = true;
+                ClueType ct = parseEnum(ClueType.class, act.get("clueType"),
+                        apath + ".clueType", "UNKNOWN_CLUE_TYPE", errors);
+                if (ct != null && !seenClues.add(ct)) {
+                    errors.add(new FieldError(apath + ".clueType", "DUPLICATE_CLUE_TYPE",
+                            "duplicate clueType '" + ct + "' in stage"));
+                }
+            }
+            if (act.hasNonNull("coverAssetId")) {
+                JsonNode coverNode = act.get("coverAssetId");
+                if (!coverNode.isTextual() || !isUuidString(coverNode.asText())) {
+                    errors.add(new FieldError(apath + ".coverAssetId", "INVALID_ID",
+                            "coverAssetId must be a valid UUID string"));
+                } else if (ctx.isPublish() && !ctx.assetUsable(coverNode.asText())) {
+                    errors.add(new FieldError(apath + ".coverAssetId", "ASSET_NOT_FOUND",
+                            "asset '" + coverNode.asText() + "' not active"));
+                }
+            }
             ActivityConfigValidator v = at == null ? null : registry.get(at);
             if (v != null) {
                 v.validate(act, apath, ctx, errors);
+            }
+            // Validate optional animation refs on non-READ activities as well
+            if (at != null && at != ActivityType.READ
+                    && act.has("config") && act.get("config").isObject()) {
+                com.dauviet.lesson.draft.validators.SimpleActivityValidators.ReadValidator
+                        .validateAnimationRef(act.get("config"), apath, ctx, errors);
             }
             // Stage-level evidence refs inside an activity
             JsonNode evRefs = act.get("evidenceRefs");
@@ -388,6 +417,9 @@ public class DraftValidator {
                     }
                 }
             }
+        }
+        if (stageType == StageType.DISCOVERY && anyClueTagged && ctx.isPublish()) {
+            validateDiscoveryClueStage(acts, seenClues, stagePath, errors);
         }
     }
 
@@ -585,6 +617,102 @@ public class DraftValidator {
                             + "flag or make the stage required"));
                 }
             }
+        }
+    }
+
+    private void validateDiscoveryClueStage(JsonNode acts, Set<ClueType> seenClues,
+                                            String stagePath, List<FieldError> errors) {
+        for (ClueType requiredClue : ClueType.values()) {
+            if (!seenClues.contains(requiredClue)) {
+                errors.add(new FieldError(stagePath + ".activities", "MISSING_CLUE_TYPES",
+                        "discovery stage is missing required clue '" + requiredClue + "'"));
+            }
+        }
+        if (acts.size() != ClueType.values().length) {
+            errors.add(new FieldError(stagePath + ".activities", "INVALID_CLUE_COUNT",
+                    "discovery stage with clues must contain exactly 4 clue activities (one per clue type)"));
+        }
+        for (int j = 0; j < acts.size(); j++) {
+            JsonNode act = acts.get(j);
+            if (act.isObject() && !act.hasNonNull("clueType")) {
+                errors.add(new FieldError(stagePath + ".activities[" + j + "].clueType",
+                        "MISSING_FIELD", "every activity in the 4-clue discovery stage must declare clueType"));
+            }
+            if (act.isObject() && !act.path("required").asBoolean(false)) {
+                errors.add(new FieldError(stagePath + ".activities[" + j + "].required",
+                        "INVALID_CONFIG", "every clue activity in the discovery stage must be required"));
+            }
+        }
+    }
+
+    private void validateFourStepModel(JsonNode draft, Map<String, JsonNode> stageById,
+                                       ValidationContext ctx, List<FieldError> errors) {
+        JsonNode flowNode = draft.get("flowModel");
+        if (flowNode == null || flowNode.isNull()) return;
+        if (!flowNode.isTextual() || !"FOUR_STEP".equals(flowNode.asText())) {
+            errors.add(new FieldError("flowModel", "INVALID_VALUE",
+                    "flowModel must be 'FOUR_STEP' when specified"));
+            return;
+        }
+        if (!ctx.isPublish()) return;
+        JsonNode stages = draft.get("stages");
+        if (stages == null || !stages.isArray()) return;
+
+        List<StageType> expectedOrder = List.of(
+                StageType.DISCOVERY,
+                StageType.HYPOTHESIS,
+                StageType.VERIFICATION,
+                StageType.RECONSTRUCTION);
+        if (stages.size() != expectedOrder.size()) {
+            errors.add(new FieldError("stages", "INVALID_FOUR_STEP_STRUCTURE",
+                    "FOUR_STEP lesson must contain exactly 4 stages: DISCOVERY, HYPOTHESIS, VERIFICATION, RECONSTRUCTION"));
+            return;
+        }
+        for (int i = 0; i < expectedOrder.size(); i++) {
+            JsonNode s = stages.get(i);
+            if (!s.isObject()) continue;
+            String typeStr = s.path("type").asText("");
+            StageType expected = expectedOrder.get(i);
+            if (!expected.name().equals(typeStr)) {
+                errors.add(new FieldError("stages[" + i + "].type", "INVALID_FOUR_STEP_STRUCTURE",
+                        "step " + (i + 1) + " must be of type " + expected + ", got '" + typeStr + "'"));
+            }
+            JsonNode acts = s.get("activities");
+            if (expected == StageType.DISCOVERY) {
+                Set<ClueType> clues = EnumSet.noneOf(ClueType.class);
+                if (acts != null && acts.isArray()) {
+                    for (JsonNode a : acts) {
+                        if (a.hasNonNull("clueType")) {
+                            try {
+                                clues.add(ClueType.valueOf(a.get("clueType").asText()));
+                            } catch (IllegalArgumentException ignored) {
+                            }
+                        }
+                    }
+                    // Only emit if validateActivities did not already emit for anyClueTagged
+                    if (clues.isEmpty()) {
+                        validateDiscoveryClueStage(acts, clues, "stages[" + i + "]", errors);
+                    }
+                } else {
+                    errors.add(new FieldError("stages[" + i + "].activities", "MISSING_CLUE_TYPES",
+                            "discovery stage must contain the 4 required clues"));
+                }
+            } else {
+                if (acts == null || !acts.isArray() || acts.size() != 1) {
+                    errors.add(new FieldError("stages[" + i + "].activities", "INVALID_FOUR_STEP_STRUCTURE",
+                            "step " + expected + " must have exactly 1 main activity"));
+                }
+            }
+        }
+    }
+
+    private static boolean isUuidString(String value) {
+        if (value == null || value.isBlank()) return false;
+        try {
+            UUID.fromString(value);
+            return true;
+        } catch (RuntimeException e) {
+            return false;
         }
     }
 
