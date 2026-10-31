@@ -1,0 +1,79 @@
+{
+  "schemaVersion": 1,
+  "id": "TASK-0041",
+  "type": "feature",
+  "risk": "normal",
+  "status": "verifying",
+  "goal": "[BRAND & UI/UX] Issue #53 — Đồng bộ Logo dự án mới (logo_fianl.svg — Chim Lạc & Mặt Trời) và thống nhất Linh vật Tê Giác Dấu Việt (ảnh tĩnh, thay thế toàn bộ Trâu đỏ & Rùa xanh) trên Mobile & Web Admin",
+  "owner": "claude",
+  "modules": ["mobile", "admin"],
+  "scope": [
+    "logo_fianl.svg",
+    "mascot.jpg",
+    "dau-viet-mobile/assets/images/app_logo.png",
+    "dau-viet-mobile/assets/images/app_seal.png",
+    "dau-viet-mobile/assets/images/logo2.svg",
+    "dau-viet-mobile/assets/images/kabi_reading_book.png",
+    "dau-viet-mobile/assets/images/kabi_celebration_victory.png",
+    "dau-viet-mobile/assets/images/kabi_sync_scroll.png",
+    "dau-viet-mobile/assets/images/turtle_welcome.png",
+    "dau-viet-mobile/assets/images/turtle_map.png",
+    "dau-viet-mobile/assets/island/scenery/turtle_hat_avatar.png",
+    "dau-viet-mobile/assets/images/profile_buffalo_mascot.png",
+    "dau-viet-mobile/assets/images/streak_card_buffalo_right.png",
+    "dau-viet-mobile/assets/images/streak_torch_buffalo_right.png",
+    "dau-viet-mobile/web/logo2.svg",
+    "dau-viet-mobile/web/favicon.png",
+    "dau-viet-mobile/web/icons/",
+    "dau-viet-mobile/lib/core/widgets/kabi_mascot_widget.dart",
+    "dau-viet-mobile/lib/core/widgets/interactive_historical_mascot_widget.dart",
+    "dau-viet-mobile/lib/core/widgets/mascot_speech_bubble.dart",
+    "dau-viet-mobile/lib/core/widgets/mascot_slot.dart",
+    "dau-viet-mobile/lib/core/widgets/empty_state_card.dart",
+    "dau-viet-mobile/pubspec.yaml",
+    "dau-viet-mobile/assets/rive/kabi.riv",
+    "dau-viet-admin/public/logo.svg",
+    "dau-viet-admin/public/logo2.svg",
+    "dau-viet-admin/public/logo-seal.svg",
+    "docs/PROJECT_OVERVIEW.md",
+    "tasks/TASK-0041/",
+    "plans/261031-issue-53-logo-and-rhino-mascot/"
+  ],
+  "acceptanceCriteria": [
+    {
+      "id": "AC-1",
+      "text": "Đồng bộ 100% Logo mới `logo_fianl.svg` — Chim Lạc & Mặt Trời: Toàn bộ vị trí hiển thị logo trên Mobile App, Flutter Web và Web Admin đều chuyển sang mẫu logo mới, hiển thị rõ nét, đúng tỷ lệ, không bị méo hay quá nhỏ trên TopBar/Sidebar/Splash/Login."
+    },
+    {
+      "id": "AC-2",
+      "text": "Thay thế toàn bộ Con Trâu đỏ & Con Rùa xanh bằng Chú Tê Giác `mascot.jpg`: Không còn bất kỳ màn hình nào hiển thị hình con trâu đỏ hoặc con rùa xanh cũ; toàn bộ (Auth, Dashboard, Profile, Streak, Lesson Player, Lesson Result, Campaign Progress, Đảo Di Sản, Empty State) đều hiển thị thống nhất hình ảnh Chú Tê Giác Dấu Việt."
+    },
+    {
+      "id": "AC-3",
+      "text": "Hiển thị Ảnh Tĩnh sắc nét, bỏ Animation cũ: Mascot chỉ sử dụng ảnh tĩnh chất lượng cao đã tách nền trong suốt mượt mà, bỏ hoàn toàn animation nhún nhảy/Rive của con trâu cũ; các khung avatar tròn và bong bóng thoại được crop/căn chỉnh đẹp mắt."
+    },
+    {
+      "id": "AC-4",
+      "text": "Kiểm thử & Không lỗi UI: Không phát sinh lỗi thiếu asset hoặc tràn khung (`RenderFlex overflow`) trên các kích thước màn hình chuẩn (`360×800`, `390×844`), pass toàn bộ `flutter analyze` và các widget tests liên quan."
+    }
+  ],
+  "dependencies": ["TASK-0040"],
+  "planPath": "plans/261031-issue-53-logo-and-rhino-mascot/plan.md",
+  "evidenceRefs": [
+    "plans/261031-issue-53-logo-and-rhino-mascot/plan.md",
+    "tasks/TASK-0041/handoff.md"
+  ],
+  "reviewRefs": [
+    "tasks/TASK-0041/handoff.md"
+  ],
+  "handoffRef": "tasks/TASK-0041/handoff.md",
+  "acEvidence": {
+    "AC-1": ["tasks/TASK-0041/handoff.md"],
+    "AC-2": ["tasks/TASK-0041/handoff.md"],
+    "AC-3": ["tasks/TASK-0041/handoff.md"],
+    "AC-4": ["tasks/TASK-0041/handoff.md"]
+  },
+  "nextAction": "Chờ người dùng review và ủy quyền commit/push trên nhánh feat/issue-53-logo-and-rhino-mascot.",
+  "createdAt": "2026-10-31T00:00:00+07:00",
+  "updatedAt": "2026-10-31T01:00:00+07:00"
+}

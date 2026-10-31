@@ -3,7 +3,7 @@ import 'package:flutter/material.dart';
 import 'kabi_mascot_widget.dart';
 import 'mascot_speech_bubble.dart';
 
-/// Slot chuẩn cho linh vật — lắp `KabiMascotWidget` + `MascotSpeechBubble`
+/// Slot chuẩn cho linh vật Tê Giác Dấu Việt — lắp `KabiMascotWidget` + `MascotSpeechBubble`
 /// theo tư thế nhất quán trên mọi màn.
 ///
 /// Dùng:

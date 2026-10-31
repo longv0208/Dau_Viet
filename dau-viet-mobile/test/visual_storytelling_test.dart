@@ -78,7 +78,7 @@ void main() {
         ),
       );
 
-      expect(find.text('SĨ TỬ KHEN NGỢI'), findsOneWidget);
+      expect(find.text('TÊ GIÁC KHEN NGỢI'), findsOneWidget);
       expect(find.text('Khải hoàn thắng lợi!'), findsOneWidget);
     });
 
@@ -94,7 +94,7 @@ void main() {
         ),
       );
 
-      expect(find.text('SĨ TỬ GỢI Ý'), findsOneWidget);
+      expect(find.text('TÊ GIÁC GỢI Ý'), findsOneWidget);
       expect(find.text('Gợi ý: Cọc gỗ lim vót nhọn.'), findsOneWidget);
     });
 

@@ -11,8 +11,9 @@ enum MascotState {
 }
 
 /// Nhân vật đại diện đồng hành (Interactive Historical Guide / Mascot)
-/// Lấy hình tượng Bé Sĩ Tử Dấu Việt thông thái, phản hồi tức thì theo trạng thái học tập chuẩn Duolingo.
-class InteractiveHistoricalMascotWidget extends StatefulWidget {
+/// Lấy hình tượng Tê Giác Dấu Việt, phản hồi tức thì theo trạng thái học tập.
+/// Issue #53: bỏ animation nhún nhảy, chỉ dùng ảnh tĩnh sắc nét.
+class InteractiveHistoricalMascotWidget extends StatelessWidget {
   final MascotState state;
   final String? message;
   final double avatarSize;
@@ -28,61 +29,8 @@ class InteractiveHistoricalMascotWidget extends StatefulWidget {
     this.onTap,
   });
 
-  @override
-  State<InteractiveHistoricalMascotWidget> createState() =>
-      _InteractiveHistoricalMascotWidgetState();
-}
-
-class _InteractiveHistoricalMascotWidgetState
-    extends State<InteractiveHistoricalMascotWidget>
-    with SingleTickerProviderStateMixin {
-  late AnimationController _bounceController;
-  late Animation<double> _scaleAnimation;
-
-  @override
-  void initState() {
-    super.initState();
-    _bounceController = AnimationController(
-      vsync: this,
-      duration: const Duration(milliseconds: 320),
-    );
-    _scaleAnimation = TweenSequence<double>([
-      TweenSequenceItem(
-        tween: Tween(
-          begin: 1.0,
-          end: 1.15,
-        ).chain(CurveTween(curve: Curves.easeOut)),
-        weight: 50,
-      ),
-      TweenSequenceItem(
-        tween: Tween(
-          begin: 1.15,
-          end: 1.0,
-        ).chain(CurveTween(curve: Curves.bounceOut)),
-        weight: 50,
-      ),
-    ]).animate(_bounceController);
-  }
-
-  @override
-  void didUpdateWidget(covariant InteractiveHistoricalMascotWidget oldWidget) {
-    super.didUpdateWidget(oldWidget);
-    if (oldWidget.state != widget.state &&
-        !DauVietAudioService.isTestEnvironment) {
-      _bounceController.forward(from: 0.0);
-    }
-  }
-
-  @override
-  void dispose() {
-    _bounceController.dispose();
-    super.dispose();
-  }
-
-
-
   String _getDefaultMessage() {
-    switch (widget.state) {
+    switch (state) {
       case MascotState.cheering:
         return 'Tuyệt đỉnh! Ngươi quả có nhãn quan của một nhà sử học chân chính!';
       case MascotState.thinking:
@@ -93,7 +41,7 @@ class _InteractiveHistoricalMascotWidgetState
   }
 
   Color _getStatusColor() {
-    switch (widget.state) {
+    switch (state) {
       case MascotState.cheering:
         return DauVietColors.natureGreen;
       case MascotState.thinking:
@@ -104,11 +52,11 @@ class _InteractiveHistoricalMascotWidgetState
   }
 
   String _getStatusLabel() {
-    switch (widget.state) {
+    switch (state) {
       case MascotState.cheering:
-        return 'SĨ TỬ KHEN NGỢI';
+        return 'TÊ GIÁC KHEN NGỢI';
       case MascotState.thinking:
-        return 'SĨ TỬ GỢI Ý';
+        return 'TÊ GIÁC GỢI Ý';
       case MascotState.guiding:
         return 'BẠN ĐỒNG HÀNH';
     }
@@ -117,7 +65,7 @@ class _InteractiveHistoricalMascotWidgetState
   @override
   Widget build(BuildContext context) {
     final statusColor = _getStatusColor();
-    final messageText = widget.message ?? _getDefaultMessage();
+    final messageText = message ?? _getDefaultMessage();
 
     return Padding(
       padding: const EdgeInsets.symmetric(vertical: 8),
@@ -125,27 +73,21 @@ class _InteractiveHistoricalMascotWidgetState
         behavior: HitTestBehavior.opaque,
         onTap: () {
           DauVietAudioService.instance.playTap();
-          if (!DauVietAudioService.isTestEnvironment) {
-            _bounceController.forward(from: 0.0);
-          }
-          widget.onTap?.call();
+          onTap?.call();
         },
         child: Row(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            // 1. Avatar Kabi Mascot có hiệu ứng nhảy lò xo khi chuyển trạng thái
-            ScaleTransition(
-              scale: _scaleAnimation,
-              child: KabiMascotWidget(
-                mood: widget.state == MascotState.cheering
-                    ? KabiMood.cheering
-                    : (widget.state == MascotState.thinking
-                        ? KabiMood.thinking
-                        : KabiMood.guiding),
-                width: widget.avatarSize,
-                height: widget.avatarSize,
-                headOnly: true,
-              ),
+            // 1. Avatar Tê Giác Dấu Việt — ảnh tĩnh sắc nét
+            KabiMascotWidget(
+              mood: state == MascotState.cheering
+                  ? KabiMood.cheering
+                  : (state == MascotState.thinking
+                      ? KabiMood.thinking
+                      : KabiMood.guiding),
+              width: avatarSize,
+              height: avatarSize,
+              headOnly: true,
             ),
             const SizedBox(width: 12),
 

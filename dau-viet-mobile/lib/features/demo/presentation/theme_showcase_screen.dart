@@ -334,7 +334,7 @@ class ThemeShowcaseScreen extends StatelessWidget {
             ),
             const SizedBox(height: 8),
             const MascotSlot(
-              message: 'Chọn một dấu vết để Kabi giúp bạn suy luận nhé!',
+              message: 'Chọn một dấu vết để Tê Giác giúp bạn suy luận nhé!',
               mood: KabiMood.guiding,
             ),
             const SizedBox(height: 12),

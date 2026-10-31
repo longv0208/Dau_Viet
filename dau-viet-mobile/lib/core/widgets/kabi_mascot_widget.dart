@@ -4,7 +4,7 @@ import 'package:flutter/material.dart';
 import '../audio/dau_viet_audio_service.dart';
 import '../theme/dau_viet_colors.dart';
 
-/// Các trạng thái cảm xúc của Mascot Kabi theo chuẩn gamification Duolingo
+/// Các trạng thái cảm xúc của Linh vật Tê Giác Dấu Việt theo chuẩn gamification Duolingo
 enum KabiMood {
   idle, // Nghỉ ngơi / Chờ đợi
   guiding, // Đang dẫn nhập / Chỉ tay hướng dẫn sử liệu
@@ -14,9 +14,8 @@ enum KabiMood {
   victory, // Hoàn thành bài học! Ôm cúp vàng vinh quang
 }
 
-/// Widget hiển thị Linh vật Kabi (Capybara Mascot) từ repository bryllim/kabi-mascot
-/// Rive 0.14.x: dùng FileLoader + RiveWidgetController + RiveWidget (API mới,
-/// input lấy qua stateMachine.number/boolean/trigger thay SMI* cũ).
+/// Widget hiển thị Linh vật Tê Giác Dấu Việt — ảnh tĩnh chất lượng cao,
+/// thay thế toàn bộ Rive animation của con trâu cũ theo Issue #53.
 class KabiMascotWidget extends StatefulWidget {
   final KabiMood mood;
   final double width;
@@ -46,29 +45,30 @@ class _KabiMascotWidgetState extends State<KabiMascotWidget> {
     }
     widget.onTap?.call();
   }
+
   @override
   Widget build(BuildContext context) {
-    // Ưu tiên hiển thị linh vật Rùa Kabi đội nón lá truyền thống Việt Nam
+    // Hiển thị linh vật Tê Giác Dấu Việt bằng ảnh tĩnh sắc nét,
     // đồng bộ 100% với bộ thiết kế chuẩn Di sản Dấu Việt.
-    return _buildFallbackMascot();
+    return _buildMascot();
   }
 
-  Widget _buildFallbackMascot() {
+  Widget _buildMascot() {
     return Semantics(
-      label: 'Linh vật Kabi',
+      label: 'Tê Giác Dấu Việt',
       child: GestureDetector(
         onTap: _handleTap,
         behavior: HitTestBehavior.opaque,
         child: SizedBox(
           width: widget.width,
           height: widget.height,
-          child: _buildFallbackAvatar(),
+          child: _buildAvatar(),
         ),
       ),
     );
   }
 
-  Widget _buildFallbackAvatar() {
+  Widget _buildAvatar() {
     final String assetPath =
         (widget.mood == KabiMood.victory || widget.mood == KabiMood.cheering)
         ? 'assets/images/kabi_celebration_victory.png'

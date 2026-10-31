@@ -44,7 +44,6 @@ dependencies:
   uuid: ^4.6.0
   webview_flutter: ^4.10.0
   crypto: ^3.0.5
-  rive: ^0.14.11
   google_sign_in: ^6.2.2
   google_sign_in_platform_interface: ^2.5.0
   google_sign_in_web: ^0.12.4
@@ -101,7 +100,6 @@ flutter:
     - assets/island/buildings/
     - assets/island/effects/
     - assets/audio/
-    - assets/rive/
 
   # An image asset can refer to one or more resolution-specific "variants", see
   # https://flutter.dev/to/resolution-aware-images
