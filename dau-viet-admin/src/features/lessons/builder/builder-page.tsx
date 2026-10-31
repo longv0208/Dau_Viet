@@ -355,6 +355,49 @@ function BuilderInner({
         </PaperCard>
 
         <PaperCard className="flex flex-col gap-3 p-3">
+          {/* 4-step flow toggle + clue summary */}
+          <div className="flex flex-col gap-2 rounded-md border border-border p-3">
+            <p className="text-xs font-semibold text-ink">Mô hình học tập</p>
+            <div className="flex gap-1.5">
+              <button
+                type="button"
+                disabled={readOnly}
+                className={
+                  "flex-1 rounded-md border px-2 py-1.5 text-xs font-medium transition-colors " +
+                  (state.draft.flowModel !== "FOUR_STEP"
+                    ? "border-brand bg-brand/5 text-ink"
+                    : "border-border text-ink-muted hover:border-brand/50")
+                }
+                onClick={() => {
+                  const next = { ...state.draft };
+                  delete next.flowModel;
+                  actions.setDraft(next, state.rowVersion);
+                }}
+              >
+                Tuyến tính
+              </button>
+              <button
+                type="button"
+                disabled={readOnly}
+                className={
+                  "flex-1 rounded-md border px-2 py-1.5 text-xs font-medium transition-colors " +
+                  (state.draft.flowModel === "FOUR_STEP"
+                    ? "border-brand bg-brand/5 text-ink"
+                    : "border-border text-ink-muted hover:border-brand/50")
+                }
+                onClick={() =>
+                  actions.setDraft({ ...state.draft, flowModel: "FOUR_STEP" }, state.rowVersion)
+                }
+              >
+                4 bước
+              </button>
+            </div>
+            {state.draft.flowModel === "FOUR_STEP" && (
+              <p className="text-xs text-ink-muted">
+                Bước 1 cần đúng 4 dấu vết · Bước 2–4 mỗi bước 1 hoạt động
+              </p>
+            )}
+          </div>
           <TemplateSeedButton
             templateId={lesson.templateId}
             draft={state.draft}

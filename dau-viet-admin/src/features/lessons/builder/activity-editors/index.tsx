@@ -15,6 +15,7 @@ import type { EditorProps } from "./shared-fields";
 import { UnsupportedEditor } from "./unsupported-editor";
 import { VerificationEditor } from "./verification-editor";
 import { ViewImageEditor } from "./view-image-editor";
+import { ClueMetadataEditor } from "../clue-metadata-editor";
 
 /**
  * Registry loại hoạt động → trình soạn. Loại chưa hỗ trợ dùng
@@ -37,5 +38,20 @@ const EDITORS: Partial<Record<ActivityType, ComponentType<EditorProps>>> = {
 
 export function ActivityEditor(props: EditorProps) {
   const Editor = EDITORS[props.activity.type] ?? UnsupportedEditor;
-  return <Editor {...props} />;
+  const isDiscoveryClue =
+    props.stage.type === "DISCOVERY" && props.activity.clueType != null;
+
+  return (
+    <>
+      {isDiscoveryClue && (
+        <ClueMetadataEditor
+          activity={props.activity}
+          draft={props.draft ?? { stages: [] }}
+          readOnly={props.readOnly}
+          onChange={props.onChange}
+        />
+      )}
+      <Editor {...props} />
+    </>
+  );
 }

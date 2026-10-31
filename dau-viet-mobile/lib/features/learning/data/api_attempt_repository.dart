@@ -27,8 +27,12 @@ class ApiAttemptRepository implements AttemptRepository {
       _api.startOrResumeAttempt(lessonId);
 
   @override
-  Future<CurrentActivityDto> getCurrent(String attemptId) =>
-      _api.getCurrent(attemptId);
+  Future<CurrentActivityDto> getCurrent(String attemptId, {String? activityId}) =>
+      _api.getCurrent(attemptId, activityId: activityId);
+
+  @override
+  Future<CurrentActivityDto> selectActivity(String attemptId, String activityId) =>
+      _api.selectActivity(attemptId, activityId);
 
   @override
   Future<SubmitResultDto> submit(

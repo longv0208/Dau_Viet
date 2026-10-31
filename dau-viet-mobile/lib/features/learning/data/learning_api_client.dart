@@ -46,8 +46,22 @@ class LearningApiClient {
     return AttemptStartDto.fromJson(json);
   }
 
-  Future<CurrentActivityDto> getCurrent(String attemptId) async {
-    final json = await _client.get('/api/v1/attempts/$attemptId/current');
+  Future<CurrentActivityDto> getCurrent(String attemptId, {String? activityId}) async {
+    final qs = activityId != null ? '?activityId=${Uri.encodeComponent(activityId)}' : '';
+    final json = await _client.get('/api/v1/attempts/$attemptId/current$qs');
+    return CurrentActivityDto.fromJson(json);
+  }
+
+  /// Chọn dấu vết trong Bước 1 DISCOVERY hoặc quay lại giả thuyết để sửa.
+  /// POST /attempts/{attemptId}/cursor — server kiểm quyền truy cập activity.
+  Future<CurrentActivityDto> selectActivity(
+    String attemptId,
+    String activityId,
+  ) async {
+    final json = await _client.post(
+      '/api/v1/attempts/$attemptId/cursor',
+      body: {'activityId': activityId},
+    );
     return CurrentActivityDto.fromJson(json);
   }
 

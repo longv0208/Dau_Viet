@@ -11,7 +11,12 @@ abstract class AttemptRepository {
   Future<LessonContentDto> getAttemptContent(String attemptId);
 
   Future<AttemptStartDto> startOrResume(String lessonId);
-  Future<CurrentActivityDto> getCurrent(String attemptId);
+  Future<CurrentActivityDto> getCurrent(String attemptId, {String? activityId});
+
+  /// Chọn dấu vết ở Bước 1 DISCOVERY hoặc quay lại giả thuyết để sửa.
+  /// Backend kiểm quyền: chỉ cho phép trong unordered stage (clue grid) hoặc
+  /// bước lùi từ VERIFICATION sang HYPOTHESIS.
+  Future<CurrentActivityDto> selectActivity(String attemptId, String activityId);
   Future<SubmitResultDto> submit(
     String attemptId,
     String activityId,

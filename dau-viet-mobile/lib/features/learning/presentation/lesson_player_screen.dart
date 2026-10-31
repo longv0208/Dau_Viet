@@ -31,6 +31,7 @@ import '../data/attempt_dtos.dart';
 import '../data/attempt_repository.dart';
 import '../data/learning_dtos.dart';
 import '../data/learning_providers.dart';
+import 'discovery_clue_grid.dart';
 import 'renderers/activity_renderer.dart';
 import '../../../core/widgets/mascot_speech_bubble.dart';
 
@@ -877,10 +878,35 @@ class _LessonPlayerScreenState extends ConsumerState<LessonPlayerScreen> {
 
   Widget _buildPlayer(_PlayerState st) {
     final cur = st.current;
+    final isFourStep = cur.stepProgress?.isFourStep == true;
+    final stepProgress = cur.stepProgress;
+    // Bước 1 hiện lưới khi đang ở DISCOVERY stage VÀ server vẫn đang
+    // trỏ vào một clue chưa xong (shouldShowGrid = còn clue chưa complete).
+    // Khi learner đã chọn clue (server trả current.activity có clueType),
+    // showDiscoveryGrid = false → render activity bình thường.
+    final showDiscoveryGrid =
+        cur.isDiscoveryStep && (stepProgress?.shouldShowGrid ?? false);
+
     return Column(
       children: [
         _buildTopBar(st),
-        if (cur.activity == null)
+        // ── Bước 1: lưới 2×2 dấu vết ───────────────────────────────────
+        if (showDiscoveryGrid) ...[
+          _buildDiscoveryGridHeader(stepProgress!),
+          Expanded(
+            child: SingleChildScrollView(
+              padding: const EdgeInsets.fromLTRB(16, 8, 16, 16),
+              child: DiscoveryClueGrid(
+                clues: stepProgress.clues,
+                submitting: st.submitting,
+                onSelectClue: (clue) => _selectClue(clue, st),
+              ),
+            ),
+          ),
+          _buildBottomBar(st),
+        ]
+        // ── Activity bình thường ─────────────────────────────────────────
+        else if (cur.activity == null)
           _buildFinished(st)
         else ...[
           // Bong bóng thoại Mascot Rùa Kabi đội nón lá
@@ -907,6 +933,9 @@ class _LessonPlayerScreenState extends ConsumerState<LessonPlayerScreen> {
                         penalty: cur.activity!.incorrectPenalty!,
                       ),
                     ),
+                  // Header "DẤU VẾT X/4" khi đang làm clue trong DISCOVERY.
+                  if (isFourStep && cur.activity?.clueType != null)
+                    _buildClueActivityHeader(cur, stepProgress),
                   if (cur.activity?.instruction != null &&
                       cur.activity!.instruction!.trim().isNotEmpty) ...[
                     Padding(
@@ -938,6 +967,9 @@ class _LessonPlayerScreenState extends ConsumerState<LessonPlayerScreen> {
                     onSubmit: _submit,
                     onInputChanged: _onInputChanged,
                     lastEvaluation: st.lastEvaluation,
+                    onBackToHypothesis: _isVerificationActivity(cur)
+                        ? () => _backToHypothesis(st)
+                        : null,
                   ),
                 ],
               ),
@@ -947,6 +979,222 @@ class _LessonPlayerScreenState extends ConsumerState<LessonPlayerScreen> {
         ],
       ],
     );
+  }
+
+  /// Header "DẤU VẾT X/4 · [tên]" + nút quay lại lưới khi đang làm clue.
+  Widget _buildClueActivityHeader(
+    CurrentActivityDto cur,
+    StepProgressDto? stepProgress,
+  ) {
+    final index = stepProgress != null
+        ? stepProgress.clues.indexWhere(
+            (c) => c.activityId == cur.activity?.id,
+          ) + 1
+        : 0;
+    final total = stepProgress?.discoveryTotal ?? 4;
+    final clueTitle = cur.activity?.title ?? 'Dấu vết';
+
+    return Container(
+      margin: const EdgeInsets.only(bottom: 8),
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+      decoration: BoxDecoration(
+        color: DauVietColors.imperialGold.withValues(alpha: 0.10),
+        borderRadius: BorderRadius.circular(10),
+        border: Border.all(
+          color: DauVietColors.imperialGold.withValues(alpha: 0.45),
+          width: 1.2,
+        ),
+      ),
+      child: Row(
+        children: [
+          Text(
+            'DẤU VẾT $index/$total',
+            style: DauVietTypography.labelSmall.copyWith(
+              color: DauVietColors.imperialGold,
+              fontWeight: FontWeight.w800,
+              fontSize: 10,
+              letterSpacing: 0.5,
+            ),
+          ),
+          const SizedBox(width: 4),
+          Expanded(
+            child: Text(
+              '· $clueTitle',
+              style: DauVietTypography.labelMedium.copyWith(
+                color: DauVietColors.inkText,
+                fontWeight: FontWeight.w700,
+                fontSize: 12,
+              ),
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+            ),
+          ),
+          GestureDetector(
+            onTap: () => _backToClueGrid(),
+            child: Container(
+              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+              decoration: BoxDecoration(
+                color: DauVietColors.imperialGold.withValues(alpha: 0.15),
+                borderRadius: BorderRadius.circular(6),
+              ),
+              child: Text(
+                'TẤT CẢ DẤU VẾT',
+                style: DauVietTypography.labelSmall.copyWith(
+                  color: DauVietColors.imperialGoldDark,
+                  fontWeight: FontWeight.w800,
+                  fontSize: 9,
+                ),
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  /// Header phía trên lưới dấu vết: progress N/4.
+  Widget _buildDiscoveryGridHeader(StepProgressDto sp) {
+    final done = sp.discoveryCompleted;
+    final total = sp.discoveryTotal;
+    return Container(
+      margin: const EdgeInsets.fromLTRB(16, 8, 16, 0),
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+      decoration: BoxDecoration(
+        color: DauVietColors.imperialGold.withValues(alpha: 0.08),
+        borderRadius: BorderRadius.circular(10),
+        border: Border.all(
+          color: DauVietColors.imperialGold.withValues(alpha: 0.4),
+          width: 1.2,
+        ),
+      ),
+      child: Row(
+        children: [
+          Expanded(
+            child: Text(
+              'Chọn dấu vết để khám phá',
+              style: DauVietTypography.labelMedium.copyWith(
+                color: DauVietColors.inkText,
+                fontWeight: FontWeight.w700,
+                fontSize: 13,
+              ),
+            ),
+          ),
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+            decoration: BoxDecoration(
+              color: done >= total
+                  ? DauVietColors.natureGreen.withValues(alpha: 0.15)
+                  : DauVietColors.imperialGold.withValues(alpha: 0.15),
+              borderRadius: BorderRadius.circular(8),
+            ),
+            child: Text(
+              '$done/$total',
+              style: DauVietTypography.labelSmall.copyWith(
+                color: done >= total
+                    ? DauVietColors.natureGreen
+                    : DauVietColors.imperialGoldDark,
+                fontWeight: FontWeight.w800,
+                fontSize: 11,
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  /// Chọn dấu vết từ lưới — POST /attempts/{id}/cursor để server chuyển
+  /// cursor sang clue được chọn (unordered DISCOVERY stage).
+  Future<void> _selectClue(ClueStatusDto clue, _PlayerState st) async {
+    if (st.submitting) return;
+    _dismissEnergyPenaltyToast();
+    setState(() => _state = st.copyWith(submitting: true));
+    try {
+      final cur = await _call(
+        () => _repo.selectActivity(widget.attemptId, clue.activityId),
+      );
+      if (!mounted) return;
+      setState(() {
+        _state = _PlayerState(current: cur, content: st.content);
+        _hasUnsentInput = false;
+      });
+    } catch (_) {
+      if (!mounted) return;
+      setState(() {
+        _state = st.copyWith(
+          submitting: false,
+          feedback: () => const _Feedback(
+            'Không mở được dấu vết này. Thử lại.',
+            _FeedbackTone.error,
+          ),
+        );
+      });
+    }
+  }
+
+  /// Quay lại lưới dấu vết từ trong một clue activity — GET /current để
+  /// server trả cursor hiện tại (unordered stage → luôn có clue hiển thị).
+  Future<void> _backToClueGrid() async {
+    final st = _state;
+    if (st == null || st.submitting) return;
+    try {
+      final cur = await _call(() => _repo.getCurrent(widget.attemptId));
+      if (!mounted) return;
+      setState(() {
+        _state = _PlayerState(current: cur, content: st.content);
+        _hasUnsentInput = false;
+      });
+    } catch (_) {
+      // Im lặng — learner vẫn submit được dù không quay lại grid.
+    }
+  }
+
+  /// true khi activity hiện tại là VERIFICATION trong bài học 4 bước —
+  /// chỉ khi đó nút "Sửa giả thuyết" mới có nghĩa.
+  bool _isVerificationActivity(CurrentActivityDto cur) =>
+      cur.stepProgress?.isFourStep == true &&
+      (cur.stage?.type?.toUpperCase() == 'VERIFICATION');
+
+  /// Quay về Bước 2 HYPOTHESIS để sửa giả thuyết — POST /attempts/{id}/cursor
+  /// trỏ vào HYPOTHESIS_CHOICE activity (server cho phép từ VERIFICATION).
+  Future<void> _backToHypothesis(_PlayerState st) async {
+    if (st.submitting) return;
+    String? hypothesisActivityId;
+    outer:
+    for (final s in st.content.stages) {
+      final acts = s['activities'];
+      if (acts is! List) continue;
+      for (final a in acts.whereType<Map>()) {
+        if ((a['type'] as String?)?.toUpperCase() == 'HYPOTHESIS_CHOICE') {
+          hypothesisActivityId = a['id'] as String?;
+          break outer;
+        }
+      }
+    }
+    if (hypothesisActivityId == null) return;
+    _dismissEnergyPenaltyToast();
+    setState(() => _state = st.copyWith(submitting: true));
+    try {
+      final cur = await _call(
+        () => _repo.selectActivity(widget.attemptId, hypothesisActivityId!),
+      );
+      if (!mounted) return;
+      setState(() {
+        _state = _PlayerState(current: cur, content: st.content);
+        _hasUnsentInput = false;
+      });
+    } catch (_) {
+      if (!mounted) return;
+      setState(() {
+        _state = st.copyWith(
+          submitting: false,
+          feedback: () => const _Feedback(
+            'Không quay lại được bước giả thuyết. Thử lại.',
+            _FeedbackTone.error,
+          ),
+        );
+      });
+    }
   }
 
   Widget _buildTopBar(_PlayerState st) {
@@ -1002,15 +1250,43 @@ class _LessonPlayerScreenState extends ConsumerState<LessonPlayerScreen> {
               crossAxisAlignment: CrossAxisAlignment.center,
               children: [
                 Expanded(
-                  child: StepProgressBar(
-                    currentStep: cur.progress.completedRequired.clamp(
-                      0,
-                      cur.progress.totalRequired,
-                    ),
-                    totalSteps: cur.progress.totalRequired.clamp(1, 12),
-                    showLabels: true,
-                    height: 48,
-                  ),
+                  child: cur.stepProgress?.isFourStep == true
+                      ? StepProgressBar(
+                          // 4-step flow: luôn 4 chấm cho 4 bước, nhãn
+                          // tiếng Việt theo đúng tên bước.
+                          currentStep:
+                              (cur.stepProgress!.currentStepNumber - 1).clamp(0, 3),
+                          totalSteps: 4,
+                          steps: const [
+                            StepProgressItem(
+                              icon: Icons.search_rounded,
+                              label: 'Truy tìm',
+                            ),
+                            StepProgressItem(
+                              icon: Icons.lightbulb_outline_rounded,
+                              label: 'Giả thuyết',
+                            ),
+                            StepProgressItem(
+                              icon: Icons.fact_check_outlined,
+                              label: 'Kiểm chứng',
+                            ),
+                            StepProgressItem(
+                              icon: Icons.auto_awesome_rounded,
+                              label: 'Tái hiện',
+                            ),
+                          ],
+                          showLabels: true,
+                          height: 48,
+                        )
+                      : StepProgressBar(
+                          currentStep: cur.progress.completedRequired.clamp(
+                            0,
+                            cur.progress.totalRequired,
+                          ),
+                          totalSteps: cur.progress.totalRequired.clamp(1, 12),
+                          showLabels: true,
+                          height: 48,
+                        ),
                 ),
                 const SizedBox(width: 10),
                 Container(
