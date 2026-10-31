@@ -48,6 +48,8 @@ class ReadRenderer extends StatefulWidget {
 }
 
 class _ReadRendererState extends State<ReadRenderer> {
+  /// Phase 1: Xem hoạt ảnh fullscreen (true) -> Phase 2: Đọc tư liệu (false)
+  bool _showAnimationPhase = true;
 
   /// Giá trị immersive đã báo player lần cuối — chỉ gọi callback khi
   /// ĐỔI, KHÔNG mỗi build (tránh postFrame loop → rebuild liên tục →
@@ -58,6 +60,15 @@ class _ReadRendererState extends State<ReadRenderer> {
   bool get submitting => widget.submitting;
   Future<void> Function(Map<String, dynamic>) get onSubmit => widget.onSubmit;
 
+  @override
+  void didUpdateWidget(ReadRenderer oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.activity.id != widget.activity.id) {
+      _showAnimationPhase = true;
+      _lastReportedImmersive = null;
+    }
+  }
+
   /// Báo player cờ immersive MỚI — chỉ khi khác lần báo trước (idempotent
   /// chặt). Gọi từ các điểm biết chắc trạng thái, KHÔNG từ build().
   void _reportImmersive(bool immersive) {
@@ -66,14 +77,13 @@ class _ReadRendererState extends State<ReadRenderer> {
     widget.onImmersiveChanged?.call(immersive);
   }
 
-  /// Nút TIẾP TỤC trong màn hoạt ảnh fullscreen — submit completion cho READ ngay.
-  /// Giữ nguyên màn hoạt ảnh ở trạng thái loading, LessonPlayerScreen sẽ tự động
-  /// advance chuyển bước sau khi hoàn tất.
-  void _onContinueAnimation() {
-    if (submitting) return;
-    onSubmit(const {});
+  /// Hoàn tất xem hoạt ảnh -> chuyển sang Phase 2: Đọc tư liệu & xem ảnh.
+  void _onFinishAnimation() {
+    setState(() {
+      _showAnimationPhase = false;
+    });
+    _reportImmersive(false);
   }
-
   @override
   void dispose() {
     // Unmount (activity đổi/complete) → báo player khôi phục chrome,
@@ -243,9 +253,9 @@ class _ReadRendererState extends State<ReadRenderer> {
             manifestRenderer == null ||
             !manifestRenderer.canRender(manifestDto));
 
-    // Hoạt ảnh (HTML_WEBVIEW hoặc native) → luôn full screen, không rơi về đọc
+    // Hoạt ảnh (HTML_WEBVIEW hoặc native) -> Phase 1 fullscreen, Phase 2 đọc tư liệu
     final bool hasAnimation = isHtmlScene || (animation != null && !unsupportedManifest);
-    final bool immersive = hasAnimation;
+    final bool immersive = hasAnimation && _showAnimationPhase;
     // Báo player cờ immersive CHỈ khi đổi (không mỗi build — đăng
     // postFrame mỗi frame tạo rebuild loop → màn nhấp nháy). Vẫn
     // postFrame vì build không được setState parent đồng bộ.
@@ -326,7 +336,7 @@ class _ReadRendererState extends State<ReadRenderer> {
                   enabled: !submitting,
                   submitting: submitting,
                   label: 'Tiếp tục',
-                  onPressed: _onContinueAnimation,
+                  onPressed: _onFinishAnimation,
                 ),
               ),
             ),
@@ -484,7 +494,7 @@ class _ReadRendererState extends State<ReadRenderer> {
         ),
         const SizedBox(height: 14),
         SubmitBar(
-          enabled: true,
+          enabled: !submitting,
           submitting: submitting,
           label: 'ĐÃ ĐỌC XONG, TIẾP TỤC',
           onPressed: () => onSubmit(const {}),

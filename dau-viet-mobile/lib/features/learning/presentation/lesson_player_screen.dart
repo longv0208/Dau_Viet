@@ -285,6 +285,7 @@ class _LessonPlayerScreenState extends ConsumerState<LessonPlayerScreen> {
               ? cur.activity!.id
               : null,
         );
+        _immersive = cur.activity?.hasAnimation == true;
         _loadError = null;
       });
     } catch (e) {
@@ -1010,10 +1011,9 @@ class _LessonPlayerScreenState extends ConsumerState<LessonPlayerScreen> {
         (st.discoveryView == _DiscoveryView.grid ||
             st.discoveryView == null &&
                 (stepProgress?.shouldShowGrid ?? false));
-    // Hoạt ảnh: tự nhận diện đồng bộ từ cur.activity.hasAnimation để ẩn chrome
-    // ngay từ frame 0 (không chờ callback bất đồng bộ gây lỗi layout/nhấp nháy).
-    final bool isAnimation = !showDiscoveryGrid && cur.activity?.hasAnimation == true;
-    final bool isImmersive = isAnimation || _immersive;
+    // Chế độ immersive (hoạt ảnh full screen) do renderer điều khiển chính xác
+    // (tắt khi chuyển sang phase đọc văn bản & hình ảnh).
+    final bool isImmersive = !showDiscoveryGrid && _immersive;
 
     return Column(
       children: [
@@ -1285,6 +1285,7 @@ class _LessonPlayerScreenState extends ConsumerState<LessonPlayerScreen> {
           activeClueActivityId: clue.activityId,
         );
         _hasUnsentInput = false;
+        _immersive = cur.activity?.hasAnimation == true;
       });
     } catch (_) {
       if (!mounted) return;
