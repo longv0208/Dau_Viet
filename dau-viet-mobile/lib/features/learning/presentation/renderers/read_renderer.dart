@@ -485,11 +485,16 @@ class _HtmlSceneSlot extends StatelessWidget {
     }
     return LayoutBuilder(
       builder: (context, constraints) {
-        final double resolvedAspectRatio = manifest.canvasAspectRatio > 0
+        final double baseAspect = manifest.canvasAspectRatio > 0
             ? manifest.canvasAspectRatio
             : (constraints.maxWidth > 0 && constraints.maxWidth < 600
                   ? 0.66
                   : 16 / 10);
+        // Issue #1: giống player native — canvas tối thiểu 55% viewport.
+        final mediaH = MediaQuery.sizeOf(context).height;
+        final aspectH = constraints.maxWidth / baseAspect;
+        final targetH = aspectH > mediaH * 0.55 ? aspectH : mediaH * 0.55;
+        final resolvedAspectRatio = constraints.maxWidth / targetH;
         return HtmlAnimationPlayer(
           sceneVersionId: versionId,
           manifest: manifest,

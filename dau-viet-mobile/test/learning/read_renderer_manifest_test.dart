@@ -167,8 +167,14 @@ void main() {
       // Player + layers render
       expect(find.byType(HistoricalAnimationPlayer), findsOneWidget);
       expect(find.byType(ManifestAssetLayers), findsOneWidget);
-      // Canvas bounded bởi AspectRatio — không overflow unbounded
-      expect(find.byType(AspectRatio), findsWidgets);
+      // Issue #1: canvas mở rộng ≥55% viewport, vẫn bounded — không
+      // overflow unbounded (không còn AspectRatio wrapper).
+      final sceneBox = tester.renderObject<RenderBox>(
+        find.byType(ClipRRect).first,
+      );
+      expect(sceneBox.hasSize, isTrue);
+      expect(sceneBox.size.height, greaterThan(0));
+      expect(sceneBox.size.width, greaterThan(0));
       // Marker overlay vẽ trong cùng camera transform (MapMarkerOverlay)
       await tester.pump(const Duration(milliseconds: 50));
       // Không render overflow error
