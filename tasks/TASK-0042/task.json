@@ -1,0 +1,79 @@
+{
+  "schemaVersion": 1,
+  "id": "TASK-0042",
+  "type": "fix",
+  "risk": "normal",
+  "status": "done",
+  "goal": "Remove mobile animation header blank space and preserve post-animation reading material on Continue, including completed review.",
+  "owner": "codex",
+  "modules": [
+    "mobile"
+  ],
+  "scope": [
+    "demo/html-animations/bach-dang-938-demo.html",
+    "dau-viet-mobile/lib/features/learning/presentation/renderers/read_renderer.dart",
+    "dau-viet-mobile/test/learning/",
+    "plans/261031-1944-animation-content-fix/",
+    "tasks/TASK-0042/task.json",
+    "dau-viet-mobile/lib/features/learning/presentation/lesson_player_screen.dart",
+    "dau-viet-mobile/test/learning/lesson_player_test.dart",
+    "docs/admin-runbook.md"
+  ],
+  "acceptanceCriteria": [
+    {
+      "id": "AC-1",
+      "text": "Mobile animation header controls follow subtitle without reserved blank height; desktop remains usable."
+    },
+    {
+      "id": "AC-2",
+      "text": "First Continue opens reading material and cover without submitting for new or completed READ activities, including the real LessonPlayerScreen immersive-to-scroll transition."
+    },
+    {
+      "id": "AC-3",
+      "text": "Renderer state survives layout reparenting for the same activity, final acknowledgment submits once, activity ID changes reset renderer state, and related animation/player tests pass."
+    },
+    {
+      "id": "AC-4",
+      "text": "Scoped diff preserves unrelated edits, passes whitespace checks and independent review has no blockers."
+    }
+  ],
+  "dependencies": [],
+  "planPath": "plans/261031-1944-animation-content-fix/plan.md",
+  "evidenceRefs": [
+    "plans/reports/tester-261031-1946-animation-content-fix.md",
+    "plans/261031-1944-animation-content-fix/layout-results.json",
+    "plans/261031-1944-animation-content-fix/validation-fingerprint.json"
+  ],
+  "reviewRefs": [
+    "plans/reports/code-reviewer-261031-1944-animation-content-fix.md"
+  ],
+  "roleReports": [
+    "plans/261031-1944-animation-content-fix/plan.md",
+    "plans/reports/tester-261031-1946-animation-content-fix.md",
+    "plans/reports/code-reviewer-261031-1944-animation-content-fix.md",
+    "plans/261031-1944-animation-content-fix/handoff.md"
+  ],
+  "nextAction": "Operational rollout: upload/publish corrected HTML as a new scene version, bind it in a new lesson version, rebuild the learner app and verify a new attempt. No live rollout, commit or push performed. Native legacy 800x600 overflow remains outside this scoped repair.",
+  "baseCommit": "20abdce82d5c5707f0cf60feca7c07f166fe9500",
+  "createdAt": "2026-10-31T19:48:00+07:00",
+  "updatedAt": "2026-10-31T19:51:40+07:00",
+  "handoffRef": "plans/261031-1944-animation-content-fix/handoff.md",
+  "acEvidence": {
+    "AC-1": [
+      "plans/261031-1944-animation-content-fix/layout-results.json",
+      "plans/reports/tester-261031-1946-animation-content-fix.md"
+    ],
+    "AC-2": [
+      "plans/reports/tester-261031-1946-animation-content-fix.md",
+      "plans/reports/code-reviewer-261031-1944-animation-content-fix.md"
+    ],
+    "AC-3": [
+      "plans/reports/tester-261031-1946-animation-content-fix.md",
+      "plans/261031-1944-animation-content-fix/validation-fingerprint.json"
+    ],
+    "AC-4": [
+      "plans/reports/code-reviewer-261031-1944-animation-content-fix.md",
+      "plans/261031-1944-animation-content-fix/handoff.md"
+    ]
+  }
+}

@@ -161,3 +161,23 @@ read-only. Unsaved-changes guard warns on in-app navigation and tab close.
   `http://localhost`.
 - `sort=updatedAt,desc` is whitelisted on both `/admin/events` and
   `/admin/lessons`; the dashboard "recent lessons" card relies on it.
+
+## READ animation continuation and HTML replacement
+
+In the learner app, animation **Tiếp tục** opens the reading material and
+cover illustration, including when reviewing a completed READ activity.
+Only **ĐÃ ĐỌC XONG, TIẾP TỤC** acknowledges the reading and advances.
+
+For the Bạch Đằng mobile header spacing repair (TASK-0042), the corrected
+source is `demo/html-animations/bach-dang-938-demo.html`. Editing this file
+does not replace HTML already uploaded to the animation library:
+
+1. Replace the scene's draft HTML with the corrected file and preview it at
+   phone width. Controls should follow the subtitle without a large blank gap.
+2. Publish a new scene version. Published HTML versions remain immutable.
+3. Select the new animation version in the lesson draft, save and publish a
+   new lesson version. Existing attempts retain their pinned lesson and scene
+   versions; start a new attempt to verify the replacement.
+
+TASK-0042 validation used local source and widget tests. No live deployment,
+scene replacement or publication was performed by that repair.

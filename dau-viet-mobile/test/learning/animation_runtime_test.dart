@@ -159,9 +159,9 @@ Future<void> _pumpRead(WidgetTester tester, Map<String, dynamic> config) {
 /// (animation + nút TIẾP TỤC riêng, KHÔNG submit) → tap TIẾP TỤC để
 /// sang phase 1 "Đọc tư liệu" (CỔ THƯ + nút ĐÃ ĐỌC XONG → submit).
 Future<void> _enterReadingPhase(WidgetTester tester) async {
-  await tester.ensureVisible(find.text('TIẾP TỤC ›'));
+  await tester.ensureVisible(find.text('Tiếp tục'));
   await tester.pump();
-  await tester.tap(find.text('TIẾP TỤC ›'));
+  await tester.tap(find.text('Tiếp tục'));
   await tester.pump();
   await tester.pump();
 }
@@ -662,7 +662,7 @@ void main() {
       expect(find.byType(HistoricalAnimationPlayer), findsOneWidget);
       expect(find.text('Đoạn đọc.'), findsNothing);
       expect(find.text('ĐÃ ĐỌC XONG, TIẾP TỤC'), findsNothing);
-      expect(find.text('TIẾP TỤC ›'), findsOneWidget);
+      expect(find.text('Tiếp tục'), findsOneWidget);
       // Bước 0 không khai báo allowedInteractions → vẫn definition-level
       // (WATER_LEVEL_CONTROL scene-global) → slider hiện.
       expect(find.byType(Slider), findsOneWidget);

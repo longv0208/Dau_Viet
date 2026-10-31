@@ -1,0 +1,38 @@
+[
+  {
+    "Path": "E:\\Telegram Desktop\\Dau viet\\Dau_Viet\\demo\\html-animations\\bach-dang-938-demo.html",
+    "Hash": "30E9A473FF86D0D74338EBC9A194D84EF66B9CA6BC76AA6B49C3BF45A495F602"
+  },
+  {
+    "Path": "E:\\Telegram Desktop\\Dau viet\\Dau_Viet\\dau-viet-mobile\\lib\\features\\learning\\presentation\\renderers\\read_renderer.dart",
+    "Hash": "20AA337DF7A1B96482D0EC7AA06B9D96FB8EB50E13944A59E308D499256E68AD"
+  },
+  {
+    "Path": "E:\\Telegram Desktop\\Dau viet\\Dau_Viet\\dau-viet-mobile\\lib\\features\\learning\\presentation\\lesson_player_screen.dart",
+    "Hash": "DC8482C3D9E19F7757CD001A15366B26E523CB0F69D01D5C6E70013C06BF5E07"
+  },
+  {
+    "Path": "E:\\Telegram Desktop\\Dau viet\\Dau_Viet\\dau-viet-mobile\\test\\learning\\html_animation_player_test.dart",
+    "Hash": "6F2D77B3DAD1AA517C8D828D025FF194DCFA9303F21759CCAFB5879201AACB04"
+  },
+  {
+    "Path": "E:\\Telegram Desktop\\Dau viet\\Dau_Viet\\dau-viet-mobile\\test\\learning\\animation_runtime_test.dart",
+    "Hash": "A0A6AA353446317592872CF221C583ED19E1BDB394A57332F125099C15CF7383"
+  },
+  {
+    "Path": "E:\\Telegram Desktop\\Dau viet\\Dau_Viet\\dau-viet-mobile\\test\\learning\\historical_animation_test.dart",
+    "Hash": "6EAA5122B6F908D8366F1523D50DE0034F5175DE77E2A287E749DE04F875DA4C"
+  },
+  {
+    "Path": "E:\\Telegram Desktop\\Dau viet\\Dau_Viet\\dau-viet-mobile\\test\\learning\\lesson_player_test.dart",
+    "Hash": "D4CC0ED3CFED6B2AED38B233E8006EED7ED0F8D1272BCE0C155BF3BED077EFBA"
+  },
+  {
+    "Path": "E:\\Telegram Desktop\\Dau viet\\Dau_Viet\\dau-viet-mobile\\test\\learning\\read_renderer_manifest_test.dart",
+    "Hash": "3E16B4889E812FFDD4E89D3554CFA83EE63F183EA3AC69915399AC2B72EFB6D2"
+  },
+  {
+    "Path": "E:\\Telegram Desktop\\Dau viet\\Dau_Viet\\.harness\\config.json",
+    "Hash": "65CE2899F5410C2B592E50DC3B6F71CC6CE0772581C15EE4B1354E33524D86F7"
+  }
+]

@@ -595,6 +595,13 @@ html, body {
     gap: 8px;
   }
 
+  /* Fix khoảng trắng: desktop đặt flex-basis 260px cho cột trái —
+     trong flex COLUMN basis trở thành MIN-HEIGHT 260px -> phần trống
+     giữa subtitle và cụm nút. Về auto trong mobile. */
+  .tide-header__left {
+    flex: 0 0 auto;
+  }
+
   #dv-scene {
     font-size: 9.5px;
     padding: 2px 8px;

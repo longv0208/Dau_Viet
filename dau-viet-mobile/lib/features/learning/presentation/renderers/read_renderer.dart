@@ -77,29 +77,15 @@ class _ReadRendererState extends State<ReadRenderer> {
     widget.onImmersiveChanged?.call(immersive);
   }
 
-  bool get _hasReadingContent {
-    final cfg = activity.config;
-    final text = cfg['text'] ?? cfg['body'] ?? cfg['content'];
-    if (text is String && text.trim().isNotEmpty) return true;
-    if (cfg['paragraphs'] is List && (cfg['paragraphs'] as List).isNotEmpty) return true;
-    if (cfg['sections'] is List && (cfg['sections'] as List).isNotEmpty) return true;
-    return false;
-  }
-
-  /// Hoàn tất xem hoạt ảnh:
-  /// - Nếu không còn văn bản/ảnh cần đọc thêm, HOẶC nếu clue này đã hoàn thành (review):
-  ///   submit/chuyển tiếp ngay lập tức để quay về Lưới Dấu Vết [Image #2]!
-  /// - Nếu còn văn bản/ảnh tư liệu và chưa hoàn thành: chuyển sang Phase 2 đọc tư liệu.
+  /// Animation navigation must preserve the reading phase, including its
+  /// illustration and review content. Only the reading button submits.
   void _onFinishAnimation() {
-    if (!_hasReadingContent || activity.completed) {
-      onSubmit(const {});
-      return;
-    }
     setState(() {
       _showAnimationPhase = false;
     });
     _reportImmersive(false);
   }
+
   @override
   void dispose() {
     // Unmount (activity đổi/complete) → báo player khôi phục chrome,
@@ -270,7 +256,8 @@ class _ReadRendererState extends State<ReadRenderer> {
             !manifestRenderer.canRender(manifestDto));
 
     // Hoạt ảnh (HTML_WEBVIEW hoặc native) -> Phase 1 fullscreen, Phase 2 đọc tư liệu
-    final bool hasAnimation = isHtmlScene || (animation != null && !unsupportedManifest);
+    final bool hasAnimation =
+        isHtmlScene || (animation != null && !unsupportedManifest);
     final bool immersive = hasAnimation && _showAnimationPhase;
     // Báo player cờ immersive CHỈ khi đổi (không mỗi build — đăng
     // postFrame mỗi frame tạo rebuild loop → màn nhấp nháy). Vẫn
@@ -384,7 +371,8 @@ class _ReadRendererState extends State<ReadRenderer> {
     required bool unsupportedManifest,
     required AnimationManifestDto? manifestDto,
   }) {
-    final String? effectiveTitle = title ?? activity.title ?? activity.instruction;
+    final String? effectiveTitle =
+        title ?? activity.title ?? activity.instruction;
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
@@ -686,8 +674,8 @@ class _HtmlSceneSlot extends StatelessWidget {
         final targetH = immersive
             ? constraints.maxHeight
             : (constraints.maxWidth / baseAspect < mediaH * 0.55
-                ? constraints.maxWidth / baseAspect
-                : mediaH * 0.55);
+                  ? constraints.maxWidth / baseAspect
+                  : mediaH * 0.55);
         final resolvedAspectRatio = constraints.maxWidth / targetH;
         return HtmlAnimationPlayer(
           sceneVersionId: versionId,
@@ -714,10 +702,7 @@ class _Paragraph extends StatelessWidget {
     );
     return Padding(
       padding: const EdgeInsets.only(bottom: 12),
-      child: SelectableText(
-        text,
-        style: bodyStyle,
-      ),
+      child: SelectableText(text, style: bodyStyle),
     );
   }
 }

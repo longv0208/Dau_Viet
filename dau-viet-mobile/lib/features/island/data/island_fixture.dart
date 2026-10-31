@@ -1,262 +1,243 @@
 ﻿import 'island_dto.dart';
 
-/// Fixture nội bộ dành riêng cho việc phát triển và xem trước Isometric Renderer
+/// Fixture nội bộ dành riêng cho việc phát triển và xem trước Isometric Renderer.
 /// Độc lập hoàn toàn với ApiIslandRepository và production data provider,
 /// tuân thủ nguyên tắc không tự động fallback khi API sản xuất gặp lỗi.
+///
+/// V65: sinh lưới đồng tâm 10x10 (T1 6x6 / T2 8x8 / T3 10x10) với địa hình
+/// đảo nhiệt đới giống backend — vành cát bờ biển, vách đá & đồi cỏ Bắc,
+/// quảng trường + đường gạch trung tâm. MỌI ô đều có slot buildable để demo
+/// cơ chế "chia đảo thành nhiều ô, đặt vào ô nào cũng được".
 class IslandFixture {
   IslandFixture._();
 
+  /// Vật phẩm mẫu đặt sẵn trên đảo demo (slotId -> placement + anchor tile).
+  static const Map<String, _FixturePlacement> _presetPlacements = {
+    'slot_13': _FixturePlacement( // tile_2_2 — TIER_1
+      itemId: 'item_dinh_lang',
+      code: 'dinh_lang',
+      name: 'Đình Làng Mái Đao',
+      renderKey: 'dinh_lang',
+    ),
+    'slot_23': _FixturePlacement( // tile_3_2
+      itemId: 'item_decor_nha_tranh',
+      code: 'decor_nha_tranh',
+      name: 'Nhà Tranh Vách Đất',
+      renderKey: 'decor_nha_tranh',
+    ),
+    'slot_25': _FixturePlacement( // tile_2_4
+      itemId: 'item_decor_cau_kieu',
+      code: 'decor_cau_kieu',
+      name: 'Cầu Kiều Mái Cong',
+      renderKey: 'decor_cau_kieu',
+    ),
+    'slot_46': _FixturePlacement( // tile_4_5
+      itemId: 'item_decor_ho_sen',
+      code: 'decor_ho_sen',
+      name: 'Thủy Tạ Hồ Sen',
+      renderKey: 'decor_ho_sen',
+    ),
+    'slot_55': _FixturePlacement( // tile_5_4
+      itemId: 'item_decor_gieng_co',
+      code: 'decor_gieng_co',
+      name: 'Giếng Cổ Đá Xanh',
+      renderKey: 'decor_gieng_co',
+    ),
+    'slot_36': _FixturePlacement( // tile_3_5
+      itemId: 'item_decor_cot_co',
+      code: 'decor_cot_co',
+      name: 'Cột cờ truyền thống',
+      renderKey: 'decor_cot_co',
+    ),
+    'slot_63': _FixturePlacement( // tile_6_2 — TIER_2
+      itemId: 'item_decor_cay_da',
+      code: 'decor_cay_da',
+      name: 'Cây Đa Cổ Thụ',
+      renderKey: 'decor_cay_da',
+      tier: 2,
+    ),
+    'slot_14': _FixturePlacement( // tile_1_3 — TIER_2
+      itemId: 'item_cong_lang',
+      code: 'cong_lang',
+      name: 'Cổng Làng Cổ Kính',
+      renderKey: 'cong_lang',
+      tier: 2,
+    ),
+    'slot_77': _FixturePlacement( // tile_7_6 — TIER_3
+      itemId: 'item_khue_van',
+      code: 'khue_van',
+      name: 'Khuê Văn Các',
+      renderKey: 'khue_van',
+      tier: 3,
+    ),
+  };
+
   static IslandDto createHeritageVillageFixture({int tier = 1}) {
-    final slots = <IslandSlotDto>[
-      const IslandSlotDto(
-        slotId: 'SLOT_DINH_LANG',
-        stableSlotKey: 'SLOT_DINH_LANG',
-        x: 0.42,
-        y: 0.42,
-        tileRow: 2,
-        tileCol: 2,
-        tileKey: 'tile_2_2',
-        zIndex: 22,
-        unlockTier: 1,
-        unlocked: true,
-        regionCode: 'TIER_1',
-        allowedCategories: ['DECOR', 'HERITAGE'],
-        placement: IslandPlacementDto(
-          itemId: 'item_dinh_lang',
-          code: 'dinh_lang',
-          name: 'Đình Làng Mái Đao',
-          renderKey: 'dinh_lang',
-        ),
-      ),
-      const IslandSlotDto(
-        slotId: 'SLOT_NHA_TRANH',
-        stableSlotKey: 'SLOT_NHA_TRANH',
-        x: 0.38,
-        y: 0.40,
-        tileRow: 3,
-        tileCol: 2,
-        tileKey: 'tile_3_2',
-        zIndex: 32,
-        unlockTier: 1,
-        unlocked: true,
-        regionCode: 'TIER_1',
-        allowedCategories: ['DECOR'],
-        placement: IslandPlacementDto(
-          itemId: 'item_decor_nha_tranh',
-          code: 'decor_nha_tranh',
-          name: 'Nhà Tranh Vách Đất',
-          renderKey: 'decor_nha_tranh',
-        ),
-      ),
-      const IslandSlotDto(
-        slotId: 'SLOT_CAU_KIEU',
-        stableSlotKey: 'SLOT_CAU_KIEU',
-        x: 0.56,
-        y: 0.52,
-        tileRow: 2,
-        tileCol: 4,
-        tileKey: 'tile_2_4',
-        zIndex: 24,
-        unlockTier: 1,
-        unlocked: true,
-        regionCode: 'TIER_1',
-        allowedCategories: ['DECOR'],
-        placement: IslandPlacementDto(
-          itemId: 'item_decor_cau_kieu',
-          code: 'decor_cau_kieu',
-          name: 'Cầu Kiều Mái Cong',
-          renderKey: 'decor_cau_kieu',
-        ),
-      ),
-      const IslandSlotDto(
-        slotId: 'SLOT_HO_SEN',
-        stableSlotKey: 'SLOT_HO_SEN',
-        x: 0.58,
-        y: 0.62,
-        tileRow: 4,
-        tileCol: 5,
-        tileKey: 'tile_4_5',
-        zIndex: 45,
-        unlockTier: 1,
-        unlocked: true,
-        regionCode: 'TIER_1',
-        allowedCategories: ['DECOR'],
-        placement: IslandPlacementDto(
-          itemId: 'item_decor_ho_sen',
-          code: 'decor_ho_sen',
-          name: 'Thủy Tạ Hồ Sen',
-          renderKey: 'decor_ho_sen',
-        ),
-      ),
-      const IslandSlotDto(
-        slotId: 'SLOT_GIENG_CO',
-        stableSlotKey: 'SLOT_GIENG_CO',
-        x: 0.50,
-        y: 0.66,
-        tileRow: 5,
-        tileCol: 4,
-        tileKey: 'tile_5_4',
-        zIndex: 54,
-        unlockTier: 1,
-        unlocked: true,
-        regionCode: 'TIER_1',
-        allowedCategories: ['DECOR'],
-        placement: IslandPlacementDto(
-          itemId: 'item_decor_gieng_co',
-          code: 'decor_gieng_co',
-          name: 'Giếng Cổ Đá Xanh',
-          renderKey: 'decor_gieng_co',
-        ),
-      ),
-      const IslandSlotDto(
-        slotId: 'SLOT_COT_CO',
-        stableSlotKey: 'SLOT_COT_CO',
-        x: 0.62,
-        y: 0.44,
-        tileRow: 3,
-        tileCol: 5,
-        tileKey: 'tile_3_5',
-        zIndex: 35,
-        unlockTier: 1,
-        unlocked: true,
-        regionCode: 'TIER_1',
-        allowedCategories: ['DECOR'],
-        placement: IslandPlacementDto(
-          itemId: 'item_decor_cot_co',
-          code: 'decor_cot_co',
-          name: 'Cột cờ truyền thống',
-          renderKey: 'decor_cot_co',
-        ),
-      ),
-      const IslandSlotDto(
-        slotId: 'SLOT_EMPTY_01',
-        stableSlotKey: 'SLOT_EMPTY_01',
-        x: 0.45,
-        y: 0.55,
-        tileRow: 5,
-        tileCol: 2,
-        tileKey: 'tile_5_2',
-        zIndex: 52,
-        unlockTier: 1,
-        unlocked: true,
-        regionCode: 'TIER_1',
-        allowedCategories: ['DECOR'],
-        placement: null,
-      ),
-      const IslandSlotDto(
-        slotId: 'SLOT_EMPTY_T1_02',
-        stableSlotKey: 'SLOT_EMPTY_T1_02',
-        x: 0.48,
-        y: 0.48,
-        tileRow: 3,
-        tileCol: 3,
-        tileKey: 'tile_3_3',
-        zIndex: 33,
-        unlockTier: 1,
-        unlocked: true,
-        regionCode: 'TIER_1',
-        allowedCategories: ['DECOR'],
-        placement: null,
-      ),
-      // Tier 2 slots (vành đai 6x6: r/c trong 1..6)
-      IslandSlotDto(
-        slotId: 'SLOT_CAY_DA',
-        stableSlotKey: 'SLOT_CAY_DA',
-        x: 0.30,
-        y: 0.58,
-        tileRow: 6,
-        tileCol: 2,
-        tileKey: 'tile_6_2',
-        zIndex: 62,
-        unlockTier: 2,
-        unlocked: tier >= 2,
-        regionCode: 'TIER_2',
-        allowedCategories: ['DECOR'],
-        placement: tier >= 2
-            ? const IslandPlacementDto(
-                itemId: 'item_decor_cay_da',
-                code: 'decor_cay_da',
-                name: 'Cây Đa Cổ Thụ',
-                renderKey: 'decor_cay_da',
+    const rows = 10;
+    const cols = 10;
+
+    final slots = <IslandSlotDto>[];
+    final tiles = <IslandTileDto>[];
+
+    int slotIndex = 0;
+    for (int r = 0; r < rows; r++) {
+      for (int c = 0; c < cols; c++) {
+        slotIndex++;
+        final int tileTier;
+        final String regionCode;
+        if (r >= 2 && r <= 7 && c >= 2 && c <= 7) {
+          tileTier = 1;
+          regionCode = 'TIER_1';
+        } else if (r >= 1 && r <= 8 && c >= 1 && c <= 8) {
+          tileTier = 2;
+          regionCode = 'TIER_2';
+        } else {
+          tileTier = 3;
+          regionCode = 'TIER_3';
+        }
+
+        // Địa hình đảo nhiệt đới — đồng bộ với migration V65
+        IslandTerrainType terrain = IslandTerrainType.grass;
+        int elevation = 0;
+        String? decorKey;
+        bool buildable = true;
+
+        // Vành cát bờ biển (hàng ngoài Nam + hai mép Đông/Tây)
+        if (r == 9 || c == 9 || c == 0 || (r == 8 && c >= 2 && c <= 8)) {
+          terrain = IslandTerrainType.sand;
+        }
+        // Vách đá & đồi cỏ phía Bắc
+        if (r == 0) {
+          terrain = IslandTerrainType.stone;
+          decorKey = 'rock';
+          elevation = 1;
+          buildable = false;
+        } else if (r == 1 && c >= 1 && c <= 8) {
+          terrain = IslandTerrainType.grass;
+          elevation = 1;
+        }
+        // Cọ nhiệt đới trên đồi cỏ Bắc — cảnh quan cố định
+        if ((r == 1 && (c == 2 || c == 5 || c == 7)) || (r == 2 && c == 8)) {
+          terrain = IslandTerrainType.grass;
+          decorKey = 'palm';
+          elevation = 1;
+          buildable = false;
+        }
+        // Thác + hồ ở sườn Tây Bắc
+        if ((r == 1 && c == 1) || (r == 2 && c == 1)) {
+          terrain = IslandTerrainType.stone;
+          decorKey = 'waterfall';
+          elevation = 1;
+          buildable = false;
+        }
+        if (r == 3 && c == 1) {
+          terrain = IslandTerrainType.water;
+          decorKey = 'pool';
+          buildable = false;
+        }
+        // Cầu tàu gỗ + thuyền ở bờ Tây Nam & Đông Nam
+        if (r == 8 && c == 1) {
+          terrain = IslandTerrainType.sand;
+          decorKey = 'dock';
+          buildable = false;
+        }
+        if ((r == 9 && c == 1) || (r == 9 && c == 7)) {
+          terrain = IslandTerrainType.water;
+          decorKey = 'boat';
+          buildable = false;
+        }
+        if (r == 8 && c == 8) {
+          terrain = IslandTerrainType.sand;
+          decorKey = 'dock';
+          buildable = false;
+        }
+        // Đá phụ / hòn nhỏ trên vành nước ngoài cùng
+        if ((c == 0 && (r == 2 || r == 5 || r == 7)) ||
+            (r == 9 && (c == 3 || c == 6)) ||
+            (c == 9 && (r == 3 || r == 6))) {
+          terrain = IslandTerrainType.water;
+          decorKey = 'islet';
+          buildable = false;
+        }
+        // Quảng trường + đường gạch trung tâm
+        if (r >= 3 && r <= 4 && c >= 3 && c <= 4) {
+          terrain = IslandTerrainType.dirt;
+          elevation = 1;
+          decorKey = null;
+          buildable = true;
+        } else if ((r == 5 && c >= 2 && c <= 7) ||
+            (c == 5 && r >= 2 && r <= 7)) {
+          terrain = IslandTerrainType.path;
+          decorKey = null;
+          buildable = true;
+        }
+        // Thảm hoa dại ven đường trong TIER_1
+        if (terrain == IslandTerrainType.grass &&
+            tileTier == 1 &&
+            decorKey == null &&
+            ((r == 3 && (c == 2 || c == 6)) ||
+                (r == 6 && c == 6) ||
+                (r == 4 && c == 7))) {
+          decorKey = 'flowers';
+        }
+
+        // Chỉ ô buildable mới host slot đặt vật phẩm — ô cảnh quan cố định
+        // (thác/hồ/cầu tàu/thuyền/đá phụ/đá/cọ) không có slot trên đảo.
+        final bool slotOnTile = buildable;
+        final slotId = 'slot_$slotIndex';
+        final preset = _presetPlacements[slotId];
+        final bool slotUnlocked = tier >= tileTier;
+        final placement = (preset != null && tier >= preset.tier)
+            ? IslandPlacementDto(
+                itemId: preset.itemId,
+                code: preset.code,
+                name: preset.name,
+                renderKey: preset.renderKey,
               )
-            : null,
-      ),
-      IslandSlotDto(
-        slotId: 'SLOT_CONG_LANG',
-        stableSlotKey: 'SLOT_CONG_LANG',
-        x: 0.28,
-        y: 0.32,
-        tileRow: 1,
-        tileCol: 3,
-        tileKey: 'tile_1_3',
-        zIndex: 13,
-        unlockTier: 2,
-        unlocked: tier >= 2,
-        regionCode: 'TIER_2',
-        allowedCategories: ['DECOR'],
-        placement: tier >= 2
-            ? const IslandPlacementDto(
-                itemId: 'item_cong_lang',
-                code: 'cong_lang',
-                name: 'Cổng Làng Cổ Kính',
-                renderKey: 'cong_lang',
-              )
-            : null,
-      ),
-      IslandSlotDto(
-        slotId: 'SLOT_EMPTY_02',
-        stableSlotKey: 'SLOT_EMPTY_02',
-        x: 0.70,
-        y: 0.40,
-        tileRow: 2,
-        tileCol: 6,
-        tileKey: 'tile_2_6',
-        zIndex: 26,
-        unlockTier: 2,
-        unlocked: tier >= 2,
-        regionCode: 'TIER_2',
-        allowedCategories: ['DECOR'],
-        placement: null,
-      ),
-      // Tier 3 slots (vành đai 8x8: r/c trong 0..7)
-      IslandSlotDto(
-        slotId: 'SLOT_KHUE_VAN',
-        stableSlotKey: 'SLOT_KHUE_VAN',
-        x: 0.75,
-        y: 0.65,
-        tileRow: 7,
-        tileCol: 6,
-        tileKey: 'tile_7_6',
-        zIndex: 76,
-        unlockTier: 3,
-        unlocked: tier >= 3,
-        regionCode: 'TIER_3',
-        allowedCategories: ['DECOR', 'HERITAGE'],
-        placement: tier >= 3
-            ? const IslandPlacementDto(
-                itemId: 'item_khue_van',
-                code: 'khue_van',
-                name: 'Khuê Văn Các',
-                renderKey: 'khue_van',
-              )
-            : null,
-      ),
-      IslandSlotDto(
-        slotId: 'SLOT_THAP_BUT',
-        stableSlotKey: 'SLOT_THAP_BUT',
-        x: 0.50,
-        y: 0.20,
-        tileRow: 0,
-        tileCol: 4,
-        tileKey: 'tile_0_4',
-        zIndex: 4,
-        unlockTier: 3,
-        unlocked: tier >= 3,
-        regionCode: 'TIER_3',
-        allowedCategories: ['DECOR'],
-        placement: null,
-      ),
-    ];
+            : null;
+
+        if (slotOnTile) {
+          slots.add(
+            IslandSlotDto(
+              slotId: slotId,
+              stableSlotKey: slotId,
+              x: 0.06 + (c / (cols - 1)) * 0.88,
+              y: 0.06 + (r / (rows - 1)) * 0.88,
+              zIndex: slotIndex * 10,
+              unlockTier: tileTier,
+              unlocked: slotUnlocked,
+              regionCode: regionCode,
+              allowedCategories: const [
+                'DECOR',
+                'MO_HINH',
+                'HISTORICAL_REPLICA',
+                'DIGITAL_EDITION',
+              ],
+              tileRow: r,
+              tileCol: c,
+              tileKey: 'tile_${r}_$c',
+              placement: placement,
+            ),
+          );
+        }
+
+        tiles.add(
+          IslandTileDto(
+            key: 'tile_${r}_$c',
+            row: r,
+            col: c,
+            terrainType: terrain,
+            regionCode: regionCode,
+            unlockTier: tileTier,
+            elevation: elevation.toDouble(),
+            decorKey: decorKey,
+            slotId: slotOnTile ? slotId : null,
+            buildable: buildable,
+            unlocked: slotUnlocked,
+          ),
+        );
+      }
+    }
 
     final regions = <IslandLayoutRegionDto>[
       const IslandLayoutRegionDto(
@@ -282,13 +263,13 @@ class IslandFixture {
       ),
     ];
 
-    final board = IslandBoardDto.buildDefaultBoard(
-      slots: slots,
-      regions: regions,
-      rows: 10,
-      cols: 10,
+    final board = IslandBoardDto(
+      rows: rows,
+      cols: cols,
       tileWidth: 84.0,
       tileHeight: 42.0,
+      tiles: tiles,
+      fromBackend: true,
     );
 
     return IslandDto(
@@ -317,32 +298,45 @@ class IslandFixture {
           nameKey: 'tier.small',
           stageLabel: 'Đảo Nhỏ',
           slotCount: 36,
+          requiredCompletedEvents: 0,
           requiredLevel: 1,
-          requiredExp: 0,
           unlocked: true,
-          highlights: ['Nhà rông', 'Đình làng', 'Cây đa', 'Cột cờ'],
         ),
         IslandTierInfoDto(
           tier: 2,
           nameKey: 'tier.medium',
           stageLabel: 'Đảo Vừa',
           slotCount: 64,
+          requiredCompletedEvents: 0,
           requiredLevel: 2,
-          requiredExp: 500,
           unlocked: tier >= 2,
-          highlights: ['Chùa cổ', 'Tháp Chăm', 'Tre trúc', 'Bức tượng'],
         ),
         IslandTierInfoDto(
           tier: 3,
           nameKey: 'tier.grand',
           stageLabel: 'Đảo Lớn',
           slotCount: 100,
+          requiredCompletedEvents: 0,
           requiredLevel: 3,
-          requiredExp: 1200,
           unlocked: tier >= 3,
-          highlights: ['Khuê Văn Các', 'Tháp Bút', 'Thành Cổ Loa'],
         ),
       ],
     );
   }
+}
+
+class _FixturePlacement {
+  final String itemId;
+  final String code;
+  final String name;
+  final String renderKey;
+  final int tier;
+
+  const _FixturePlacement({
+    required this.itemId,
+    required this.code,
+    required this.name,
+    required this.renderKey,
+    this.tier = 1,
+  });
 }

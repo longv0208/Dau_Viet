@@ -286,8 +286,10 @@ class IslandVisualAssetManager {
 
     switch (tile.terrainType) {
       case IslandTerrainType.stone:
-      case IslandTerrainType.sand:
         return stoneTerraceTile;
+      case IslandTerrainType.sand:
+        // Bãi cát vàng ấm ven bờ — dùng nền sân đất ấm áp thay thềm đá lạnh
+        return dirtCourtyardTile;
 
       case IslandTerrainType.dirt:
         // Nếu ô DIRT là nền đặt slot xây dựng đơn lẻ (như trong fixture fallback),
@@ -636,6 +638,84 @@ class IslandVisualAssetManager {
   }) {
     final key = (visualKey ?? '').toLowerCase().trim();
     final scaleJitter = 0.96 + ((row * 5 + col * 3).abs() % 5) * 0.025;
+
+    // Hồ nước ngọc nhận thác — mặt nước phẳng phản quang
+    if (key.contains('pool')) {
+      return const IslandScenerySpriteSpec(
+        assetPath: lotusPondCluster,
+        widthFactor: 1.16,
+        heightFactor: 1.42,
+        bottomPadFactor: 0.02,
+        shadowWidthFactor: 0.86,
+        shadowHeightFactor: 0.44,
+        shadowOpacity: 0.20,
+      );
+    }
+
+    // Cầu tàu gỗ — thềm gỗ thò ra nước, thấp và dẹt
+    if (key.contains('dock')) {
+      return const IslandScenerySpriteSpec(
+        assetPath: terracottaJarsFence,
+        widthFactor: 1.12,
+        heightFactor: 1.10,
+        bottomPadFactor: 0.02,
+        shadowWidthFactor: 0.84,
+        shadowHeightFactor: 0.36,
+        shadowOpacity: 0.22,
+      );
+    }
+
+    // Thuyền gỗ neo cạnh cầu tàu — dáng dài, mạn thuyền cong
+    if (key.contains('boat')) {
+      return const IslandScenerySpriteSpec(
+        assetPath: terracottaJarsFence,
+        widthFactor: 1.22,
+        heightFactor: 1.05,
+        bottomPadFactor: 0.01,
+        shadowWidthFactor: 0.92,
+        shadowHeightFactor: 0.38,
+        shadowOpacity: 0.24,
+      );
+    }
+
+    // Thác nước trên vách đá — dùng cụm đá rêu làm khối nền cho painter vẽ thác
+    if (key.contains('waterfall')) {
+      return IslandScenerySpriteSpec(
+        assetPath: mossyRockCluster,
+        widthFactor: 1.42 * scaleJitter,
+        heightFactor: 2.30 * scaleJitter,
+        bottomPadFactor: 0.04,
+        shadowWidthFactor: 0.90,
+        shadowHeightFactor: 0.42,
+        shadowOpacity: 0.32,
+      );
+    }
+
+    // Cụm cọ / dừa nhiệt đới trên đồi cỏ & rìa đảo — dáng cao, tán tỏa
+    if (key.contains('palm')) {
+      return IslandScenerySpriteSpec(
+        assetPath: banyanSapling,
+        widthFactor: 1.30 * scaleJitter,
+        heightFactor: 2.62 * scaleJitter,
+        bottomPadFactor: 0.05,
+        shadowWidthFactor: 0.82,
+        shadowHeightFactor: 0.44,
+        shadowOpacity: 0.32,
+      );
+    }
+
+    // Cọc đá / hòn phụ trên vành nước — khối đá rêu phong lởm chởm
+    if (key.contains('islet') || key.contains('sea_stack')) {
+      return IslandScenerySpriteSpec(
+        assetPath: mossyRockCluster,
+        widthFactor: 1.18 * scaleJitter,
+        heightFactor: 1.92 * scaleJitter,
+        bottomPadFactor: 0.03,
+        shadowWidthFactor: 0.88,
+        shadowHeightFactor: 0.40,
+        shadowOpacity: 0.30,
+      );
+    }
 
     if (key.contains('bamboo') || key.contains('tre')) {
       final useSmall = (row + col).isOdd;

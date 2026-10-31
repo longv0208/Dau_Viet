@@ -447,6 +447,74 @@ void main() {
   });
 
   group('ReadRenderer HTML dispatch', () {
+    for (final completed in [false, true]) {
+      for (final reading in [
+        {'body': 'Tư liệu sau hoạt ảnh.'},
+        {'passage': 'Đoạn sử liệu cần đọc.'},
+        <String, String>{},
+      ]) {
+        testWidgets('Continue preserves reading before submit: '
+            'completed=$completed, keys=${reading.keys}', (tester) async {
+          var submissions = 0;
+          final immersiveStates = <bool>[];
+          ActivityRefDto activity(String id) => ActivityRefDto(
+            id: id,
+            completed: completed,
+            config: {
+              ...reading,
+              'animationManifest': {
+                'manifest': {
+                  'schemaVersion': 2,
+                  'rendererCode': 'HTML_WEBVIEW',
+                  'rendererVersion': 1,
+                  'title': 'Test scene',
+                  'html': {'sizeBytes': 100, 'sha256': sha256Of(htmlA)},
+                },
+                'sceneVersionId': 'ver-reading',
+              },
+            },
+            feedback: const {},
+          );
+          Widget renderer(String id) => app(
+            ReadRenderer(
+              activity: activity(id),
+              submitting: false,
+              onSubmit: (_) async {
+                submissions++;
+              },
+              onImmersiveChanged: immersiveStates.add,
+              htmlPlayerFactory: (_, _) =>
+                  const SizedBox(key: Key('reading-scene')),
+            ),
+          );
+          await tester.pumpWidget(renderer('read-a'));
+          await tester.pump();
+          expect(find.byKey(const Key('reading-scene')), findsOneWidget);
+          await tester.ensureVisible(find.text('Tiếp tục'));
+          await tester.tap(find.text('Tiếp tục'));
+          await tester.pumpAndSettle();
+          expect(submissions, 0);
+          expect(find.byKey(const Key('reading-scene')), findsNothing);
+          expect(find.byType(Image), findsWidgets);
+          for (final text in reading.values) {
+            expect(find.text(text, findRichText: true), findsOneWidget);
+          }
+          expect(immersiveStates, [true, false]);
+          await tester.ensureVisible(find.text('ĐÃ ĐỌC XONG, TIẾP TỤC'));
+          await tester.tap(find.text('ĐÃ ĐỌC XONG, TIẾP TỤC'));
+          await tester.pump();
+          expect(submissions, 1);
+
+          // Reusing the state for another activity must restore the scene.
+          await tester.pumpWidget(renderer('read-b'));
+          await tester.pump();
+          expect(find.byKey(const Key('reading-scene')), findsOneWidget);
+          expect(immersiveStates.last, isTrue);
+          expect(tester.takeException(), isNull);
+        });
+      }
+    }
+
     testWidgets('config.animationManifest rendererCode=HTML_WEBVIEW → '
         'slot HTML mount và truyền đúng sceneVersionId từ envelope', (
       tester,

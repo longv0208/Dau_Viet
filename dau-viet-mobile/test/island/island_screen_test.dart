@@ -57,38 +57,49 @@ void main() {
       await pumpAsync(tester);
 
       // SLOT_NHA_TRANH has Nhà Tranh Vách Đất
+      // slot_23 (tile_3_2) has Nhà Tranh Vách Đất
       expect(
         find.bySemanticsLabel(RegExp(r'Nhà Tranh Vách Đất')),
         findsOneWidget,
       );
 
-      // SLOT_EMPTY_01 is empty
+      // slot_26 (tile_2_5) is empty
       expect(
-        find.bySemanticsLabel(RegExp(r'Ô trống SLOT_EMPTY_01')),
+        find.bySemanticsLabel(RegExp(r'Ô trống slot_26')),
         findsOneWidget,
       );
 
-      // SLOT_CAY_DA is locked at Tier 2
-      expect(find.text('Cấp 2'), findsWidgets);
+      // Đảo Nhỏ (previewTier=1) chỉ hiển thị các ô TIER_1 — ô TIER_2/TIER_3
+      // không nằm trong viewport nên không có nhãn "Cấp 2/3" ở chế độ này.
+      expect(find.text('Cấp 2'), findsNothing);
     });
 
-    testWidgets('Tapping locked slot shows detail card explaining lock tier', (
+    testWidgets('Đảo Vừa mở ô TIER_2 và không hiển thị ô TIER_3', (
       tester,
     ) async {
       await tester.binding.setSurfaceSize(const Size(1000, 1000));
       addTearDown(() => tester.binding.setSurfaceSize(null));
-      await tester.pumpWidget(buildTestableWidget(const IslandScreen()));
+      // Repo đảo tier=2 → các ô TIER_2 hiển thị mở, ô TIER_3 nằm ngoài viewport
+      await tester.pumpWidget(
+        buildTestableWidget(
+          const IslandScreen(),
+          MockIslandRepository()..debugSetTier(2),
+        ),
+      );
       await pumpAsync(tester);
 
       final handle = tester.ensureSemantics();
       try {
-        tester.semantics.tap(
-          find.semantics.byLabel(RegExp(r'Ô khóa SLOT_CAY_DA Cấp 2')),
+        // Ô TIER_2 (slot_14 — Cổng Làng) được render mở khóa
+        expect(
+          find.semantics.byLabel(RegExp(r'Cổng Làng Cổ Kính')),
+          findsOneWidget,
         );
-        await pumpAsync(tester);
-
-        expect(find.textContaining('Yêu cầu mở rộng Đảo Cấp 2'), findsOneWidget);
-        expect(find.text('XEM ĐIỀU KIỆN MỞ KHÓA'), findsOneWidget);
+        // Không còn nhãn "Ô khóa ... Cấp" nào trong viewport Đảo Vừa
+        expect(
+          find.semantics.byLabel(RegExp(r'Ô khóa slot_\d+ Cấp')),
+          findsNothing,
+        );
       } finally {
         handle.dispose();
       }
@@ -105,7 +116,7 @@ void main() {
       final handle = tester.ensureSemantics();
       try {
         tester.semantics.tap(
-          find.semantics.byLabel(RegExp(r'Ô trống SLOT_EMPTY_01')),
+          find.semantics.byLabel(RegExp(r'Ô trống slot_26')),
         );
         await pumpAsync(tester);
 

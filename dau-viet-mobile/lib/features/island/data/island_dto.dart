@@ -641,8 +641,11 @@ enum IslandTerrainType {
       case 'DECORATIVE':
       case 'DECOR':
         return IslandTerrainType.decorative;
+      case 'POOL':
       case 'WATER':
         return IslandTerrainType.water;
+      case 'DOCK':
+        return IslandTerrainType.decorative;
       case 'GRASS':
       default:
         return IslandTerrainType.grass;

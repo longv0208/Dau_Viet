@@ -89,6 +89,11 @@ class _IslandScreenState extends ConsumerState<IslandScreen>
       if (!mounted) return;
       final island = ref.read(islandControllerProvider).asData?.value;
       if (island != null) {
+        // Khởi tạo tab cấp đảo theo tier hiện tại của user — đảo lớn hơn hiển
+        // thị đúng vùng đất thay vì luôn mở ở Đảo Nhỏ.
+        setState(() {
+          _previewTier = island.tier;
+        });
         _syncOnboardingForCurrentUser(island);
       }
     });
@@ -223,6 +228,14 @@ class _IslandScreenState extends ConsumerState<IslandScreen>
     ref.listen<AsyncValue<IslandDto>>(islandControllerProvider, (previous, next) {
       final island = next.asData?.value;
       if (island != null) {
+        // Khi island resolve lần đầu (hoặc tier đổi sau nâng cấp), đồng bộ
+        // tab cấp đảo theo tier thực của user.
+        final prevTier = previous?.asData?.value.tier;
+        if (prevTier != island.tier && _previewTier != island.tier) {
+          setState(() {
+            _previewTier = island.tier;
+          });
+        }
         _syncOnboardingForCurrentUser(island);
       }
     });

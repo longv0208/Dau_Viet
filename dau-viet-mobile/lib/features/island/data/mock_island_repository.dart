@@ -184,6 +184,11 @@ class MockIslandRepository implements IslandRepository {
     ];
   }
 
+  /// Helper test: đổi đảo sang tier khác để kiểm tra ô khóa / nâng cấp.
+  void debugSetTier(int tier) {
+    _island = IslandFixture.createHeritageVillageFixture(tier: tier);
+  }
+
   @override
   Future<IslandDto> getIsland() async {
     await Future.delayed(const Duration(milliseconds: 150));

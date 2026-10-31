@@ -79,6 +79,60 @@ Future<void> _pump(WidgetTester tester, FakeAttemptRepository repo) async {
 
 void main() {
   group('LessonPlayerScreen', () {
+    for (final completed in [false, true]) {
+      testWidgets('animation Continue keeps reading after parent layout change '
+          '(completed=$completed)', (tester) async {
+        tester.view.devicePixelRatio = 1;
+        tester.view.physicalSize = const Size(390, 844);
+        addTearDown(tester.view.resetDevicePixelRatio);
+        addTearDown(tester.view.resetPhysicalSize);
+        var acknowledgments = 0;
+        final repo = FakeAttemptRepository();
+        repo.onGetCurrent = () => _current({
+          ..._readActivity,
+          'completed': completed,
+          'config': {
+            'title': 'Tư liệu sau hoạt ảnh',
+            'body': 'Nội dung cần giữ lại sau khi tiếp tục.',
+            'animationKey': 'bach_dang_938_tide_v1',
+          },
+        });
+        repo.onSubmit = (_) {
+          acknowledgments++;
+          return const SubmitResultDto(
+            status: 'ACCEPTED',
+            evaluation: EvaluationDto(outcome: 'COMPLETED', completed: true),
+            activityCompleted: true,
+            progress: AttemptProgressDto(
+              completedRequired: 1,
+              totalRequired: 2,
+            ),
+            completion: CompletionVerdictDto(complete: false),
+          );
+        };
+        await _pump(tester, repo);
+        expect(tester.takeException(), isNull, reason: 'initial animation phase');
+        expect(find.text('Tiếp tục'), findsOneWidget);
+        await tester.tap(find.text('Tiếp tục'));
+        await tester.pumpAndSettle();
+        expect(tester.takeException(), isNull, reason: 'reading phase');
+        expect(acknowledgments, 0);
+        expect(find.text('Tiếp tục'), findsNothing);
+        expect(
+          find.text(
+            'Nội dung cần giữ lại sau khi tiếp tục.',
+            findRichText: true,
+          ),
+          findsOneWidget,
+        );
+        await tester.ensureVisible(find.text('ĐÃ ĐỌC XONG, TIẾP TỤC'));
+        await tester.tap(find.text('ĐÃ ĐỌC XONG, TIẾP TỤC'));
+        await tester.pumpAndSettle();
+        expect(acknowledgments, 1);
+        expect(tester.takeException(), isNull);
+      });
+    }
+
     testWidgets('render activity đầu theo server cursor + progress bar', (
       tester,
     ) async {

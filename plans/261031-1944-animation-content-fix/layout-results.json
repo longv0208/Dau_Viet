@@ -1,0 +1,182 @@
+{
+  "browser": "156.0.8078.49",
+  "results": [
+    {
+      "viewport": {
+        "width": 360,
+        "height": 800
+      },
+      "bounds": {
+        "left": {
+          "x": 10,
+          "y": 8,
+          "width": 340,
+          "height": 90.546875,
+          "bottom": 98.546875,
+          "position": "static"
+        },
+        "subtitle": {
+          "x": 10,
+          "y": 69.515625,
+          "width": 340,
+          "height": 29.03125,
+          "bottom": 98.546875,
+          "position": "static"
+        },
+        "actions": {
+          "x": 10,
+          "y": 106.546875,
+          "width": 340,
+          "height": 91.1875,
+          "bottom": 197.734375,
+          "position": "static"
+        },
+        "canvas": {
+          "x": 11,
+          "y": 206.734375,
+          "width": 338,
+          "height": 197.15625,
+          "bottom": 403.890625,
+          "position": "relative"
+        },
+        "caption": {
+          "x": 11,
+          "y": 403.890625,
+          "width": 338,
+          "height": 121.8125,
+          "bottom": 525.703125,
+          "position": "static"
+        },
+        "legend": {
+          "x": 11,
+          "y": 525.703125,
+          "width": 338,
+          "height": 57,
+          "bottom": 582.703125,
+          "position": "static"
+        },
+        "bodyWidth": 360
+      },
+      "errors": [],
+      "screenshot": "layout-360x800.png"
+    },
+    {
+      "viewport": {
+        "width": 390,
+        "height": 844
+      },
+      "bounds": {
+        "left": {
+          "x": 10,
+          "y": 8,
+          "width": 370,
+          "height": 90.546875,
+          "bottom": 98.546875,
+          "position": "static"
+        },
+        "subtitle": {
+          "x": 10,
+          "y": 69.515625,
+          "width": 370,
+          "height": 29.03125,
+          "bottom": 98.546875,
+          "position": "static"
+        },
+        "actions": {
+          "x": 10,
+          "y": 106.546875,
+          "width": 370,
+          "height": 91.1875,
+          "bottom": 197.734375,
+          "position": "static"
+        },
+        "canvas": {
+          "x": 11,
+          "y": 206.734375,
+          "width": 368,
+          "height": 214.65625,
+          "bottom": 421.390625,
+          "position": "relative"
+        },
+        "caption": {
+          "x": 11,
+          "y": 421.390625,
+          "width": 368,
+          "height": 121.8125,
+          "bottom": 543.203125,
+          "position": "static"
+        },
+        "legend": {
+          "x": 11,
+          "y": 543.203125,
+          "width": 368,
+          "height": 57,
+          "bottom": 600.203125,
+          "position": "static"
+        },
+        "bodyWidth": 390
+      },
+      "errors": [],
+      "screenshot": "layout-390x844.png"
+    },
+    {
+      "viewport": {
+        "width": 1280,
+        "height": 840
+      },
+      "bounds": {
+        "left": {
+          "x": 16,
+          "y": 12,
+          "width": 603.5625,
+          "height": 69.015625,
+          "bottom": 81.015625,
+          "position": "static"
+        },
+        "subtitle": {
+          "x": 16,
+          "y": 64.828125,
+          "width": 603.5625,
+          "height": 16.1875,
+          "bottom": 81.015625,
+          "position": "static"
+        },
+        "actions": {
+          "x": 631.5625,
+          "y": 28.5,
+          "width": 632.4375,
+          "height": 36,
+          "bottom": 64.5,
+          "position": "static"
+        },
+        "canvas": {
+          "x": 17,
+          "y": 92.015625,
+          "width": 1246,
+          "height": 611.34375,
+          "bottom": 703.359375,
+          "position": "relative"
+        },
+        "caption": {
+          "x": 29,
+          "y": 604.578125,
+          "width": 530,
+          "height": 86.78125,
+          "bottom": 691.359375,
+          "position": "absolute"
+        },
+        "legend": {
+          "x": 821.5,
+          "y": 667.359375,
+          "width": 429.5,
+          "height": 24,
+          "bottom": 691.359375,
+          "position": "absolute"
+        },
+        "bodyWidth": 1280
+      },
+      "errors": [],
+      "screenshot": "layout-1280x840.png"
+    }
+  ]
+}

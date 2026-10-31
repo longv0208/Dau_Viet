@@ -185,6 +185,10 @@ class _LessonPlayerScreenState extends ConsumerState<LessonPlayerScreen> {
   /// fullscreen → ẩn top bar/mascot/submit chrome để animation chiếm
   /// toàn màn. Reset khi activity đổi (renderer mới báo lại).
   bool _immersive = false;
+  // The renderer moves between fullscreen and scrolling parents. A global
+  // identity preserves its reading phase through that layout change.
+  GlobalKey _activityRendererKey = GlobalKey();
+  String? _rendererActivityId;
 
   /// Renderer báo input thay đổi — chỉ nhận khi còn được phép sửa.
   /// setState để PopScope rebuild và cập nhật canPop; sau khi server đã
@@ -999,6 +1003,10 @@ class _LessonPlayerScreenState extends ConsumerState<LessonPlayerScreen> {
 
   Widget _buildPlayer(_PlayerState st) {
     final cur = st.current;
+    if (_rendererActivityId != cur.activity?.id) {
+      _rendererActivityId = cur.activity?.id;
+      _activityRendererKey = GlobalKey();
+    }
     final isFourStep = cur.stepProgress?.isFourStep == true;
     final stepProgress = cur.stepProgress;
     // Bước 1 hiện lưới khi discoveryView == grid hoặc review.
@@ -1042,7 +1050,7 @@ class _LessonPlayerScreenState extends ConsumerState<LessonPlayerScreen> {
           if (isImmersive)
             Expanded(
               child: ActivityRenderer(
-                key: ValueKey(cur.activity!.id),
+                key: _activityRendererKey,
                 activity: cur.activity!,
                 content: st.content,
                 submitting:
@@ -1107,7 +1115,7 @@ class _LessonPlayerScreenState extends ConsumerState<LessonPlayerScreen> {
                       ),
                     ],
                     ActivityRenderer(
-                      key: ValueKey(cur.activity!.id),
+                      key: _activityRendererKey,
                       activity: cur.activity!,
                       content: st.content,
                       submitting:

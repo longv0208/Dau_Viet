@@ -333,6 +333,14 @@ class IslandIsometricRenderer extends StatelessWidget {
               ? IslandVisualAssetManager.grassTile03
               : IslandVisualAssetManager.grassTile01);
 
+    // Ô mặt nước / bãi cát / vách đá: không vẽ sprite cỏ — để màu underlay
+    // (nước ngọc / cát vàng / đá xám) do painter Lớp 2A lộ ra đúng ảnh mẫu.
+    if (tile.terrainType == IslandTerrainType.water ||
+        tile.terrainType == IslandTerrainType.sand ||
+        tile.terrainType == IslandTerrainType.stone) {
+      return const SizedBox.shrink();
+    }
+
     Widget tileImage = Opacity(
       opacity: 0.34,
       child: Image.asset(
@@ -850,6 +858,40 @@ class IslandIsometricRenderer extends StatelessWidget {
           ),
         ),
       ),
+
+      // 6. Quần đảo đá phụ (sea-stacks) rải quanh bờ — giống các hòn đá nhỏ
+      //    nhô lên mặt nước trong 3 ảnh mẫu ở rìa Tây, Nam & góc Đông Bắc.
+      for (final spec in [
+        // (dx nhân tileW, dy nhân tileH, scale, flipX)
+        (westCenter.dx - tileW * 1.55, westCenter.dy + tileH * 0.55, 0.98, false),
+        (westCenter.dx - tileW * 1.05, westCenter.dy + tileH * 1.05, 0.78, true),
+        (swMid.dx - tileW * 0.45, swMid.dy + tileH * 0.85, 0.82, false),
+        (southCenter.dx - tileW * 1.15, southCenter.dy + tileH * 0.68, 1.05, true),
+        (southCenter.dx + tileW * 0.62, southCenter.dy + tileH * 0.80, 0.86, false),
+        (seMid.dx + tileW * 0.52, seMid.dy + tileH * 0.55, 0.92, true),
+        (eastCenter.dx + tileW * 1.28, eastCenter.dy + tileH * 0.38, 0.80, false),
+        (neMid.dx + tileW * 0.72, neMid.dy - tileH * 0.42, 0.90, true),
+      ])
+        Positioned(
+          left: spec.$1 - (tileW * 0.72 * spec.$3) * 0.5,
+          top: spec.$2 - (tileH * 1.30 * spec.$3) * 0.5,
+          width: tileW * 0.72 * spec.$3,
+          height: tileH * 1.30 * spec.$3,
+          child: IgnorePointer(
+            child: spec.$4
+                ? Transform.flip(
+                    flipX: true,
+                    child: Image.asset(
+                      IslandVisualAssetManager.mossyRockCluster,
+                      fit: BoxFit.contain,
+                    ),
+                  )
+                : Image.asset(
+                    IslandVisualAssetManager.mossyRockCluster,
+                    fit: BoxFit.contain,
+                  ),
+          ),
+        ),
     ];
   }
 
@@ -1343,11 +1385,24 @@ class _HeritageIslandCliffAndUnderlayPainter extends CustomPainter {
         );
       }
 
-      // Nền thảo nguyên xanh nắng ấm chuyển sắc tự nhiên từ đỉnh Bắc (sáng vàng) xuống Nam (xanh ngọc)
+      // Nền mặt đảo theo địa hình: cỏ nắng → cát vàng → đá xám → đường gạch.
       final normDepth = ((vRow + vCol) / math.max(1, board.rows + board.cols - 2)).clamp(0.0, 1.0);
       final Color underlayColor;
       if (isLocked) {
         underlayColor = const Color(0xFF6B857E);
+      } else if (tile.terrainType == IslandTerrainType.sand) {
+        // Bãi cát vàng sáng ấm ven bờ — giống vệt cát trong 3 ảnh mẫu
+        underlayColor = (tile.row + tile.col).isEven
+            ? const Color(0xFFEED28C)
+            : const Color(0xFFE4C476);
+      } else if (tile.terrainType == IslandTerrainType.stone) {
+        underlayColor = (tile.row + tile.col).isEven
+            ? const Color(0xFF8E9B8F)
+            : const Color(0xFF7D8B80);
+      } else if (tile.terrainType == IslandTerrainType.dirt) {
+        underlayColor = const Color(0xFFC9A25C);
+      } else if (tile.terrainType == IslandTerrainType.path) {
+        underlayColor = const Color(0xFFB9905A);
       } else {
         final sunlitGrass = Color.lerp(
           const Color(0xFFC4E25E),
@@ -1358,6 +1413,23 @@ class _HeritageIslandCliffAndUnderlayPainter extends CustomPainter {
             ? sunlitGrass
             : Color.lerp(sunlitGrass, const Color(0xFF6BA334), 0.14)!;
       }
+      // Ô mặt nước (hồ thác/đá phụ/thuyền): không vẽ underlay cỏ — để lagoon
+      // painter phía dưới lộ ra; vẽ thêm lớp nước ngọc mỏng cho hồ trong đảo.
+      if (tile.terrainType == IslandTerrainType.water) {
+        final waterPath = Path()
+          ..moveTo(topPt.dx, topPt.dy - 1.5)
+          ..lineTo(rightPt.dx + 1.8, rightPt.dy)
+          ..lineTo(bottomPt.dx, bottomPt.dy + 1.5)
+          ..lineTo(leftPt.dx - 1.8, leftPt.dy)
+          ..close();
+        canvas.drawPath(
+          waterPath,
+          Paint()
+            ..color = isLocked
+                ? const Color(0xFF4E6E72)
+                : const Color(0xFF4FB6C2),
+        );
+      } else {
       final underlayDiamond = Path()
         ..moveTo(topPt.dx, topPt.dy - 1.5)
         ..lineTo(rightPt.dx + 1.8, rightPt.dy)
@@ -1365,6 +1437,7 @@ class _HeritageIslandCliffAndUnderlayPainter extends CustomPainter {
         ..lineTo(leftPt.dx - 1.8, leftPt.dy)
         ..close();
       canvas.drawPath(underlayDiamond, Paint()..color = underlayColor);
+      }
     }
   }
 
