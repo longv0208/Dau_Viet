@@ -77,8 +77,24 @@ class _ReadRendererState extends State<ReadRenderer> {
     widget.onImmersiveChanged?.call(immersive);
   }
 
-  /// Hoàn tất xem hoạt ảnh -> chuyển sang Phase 2: Đọc tư liệu & xem ảnh.
+  bool get _hasReadingContent {
+    final cfg = activity.config;
+    final text = cfg['text'] ?? cfg['body'] ?? cfg['content'];
+    if (text is String && text.trim().isNotEmpty) return true;
+    if (cfg['paragraphs'] is List && (cfg['paragraphs'] as List).isNotEmpty) return true;
+    if (cfg['sections'] is List && (cfg['sections'] as List).isNotEmpty) return true;
+    return false;
+  }
+
+  /// Hoàn tất xem hoạt ảnh:
+  /// - Nếu không còn văn bản/ảnh cần đọc thêm, HOẶC nếu clue này đã hoàn thành (review):
+  ///   submit/chuyển tiếp ngay lập tức để quay về Lưới Dấu Vết [Image #2]!
+  /// - Nếu còn văn bản/ảnh tư liệu và chưa hoàn thành: chuyển sang Phase 2 đọc tư liệu.
   void _onFinishAnimation() {
+    if (!_hasReadingContent || activity.completed) {
+      onSubmit(const {});
+      return;
+    }
     setState(() {
       _showAnimationPhase = false;
     });
