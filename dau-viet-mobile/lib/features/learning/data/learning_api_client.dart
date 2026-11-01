@@ -46,6 +46,11 @@ class LearningApiClient {
     return AttemptStartDto.fromJson(json);
   }
 
+  /// POST /attempts/{id}/abandon — bỏ phiên đang học để bắt đầu lại.
+  Future<void> abandonAttempt(String attemptId) async {
+    await _client.post('/api/v1/attempts/$attemptId/abandon');
+  }
+
   Future<CurrentActivityDto> getCurrent(String attemptId, {String? activityId}) async {
     final qs = activityId != null ? '?activityId=${Uri.encodeComponent(activityId)}' : '';
     final json = await _client.get('/api/v1/attempts/$attemptId/current$qs');

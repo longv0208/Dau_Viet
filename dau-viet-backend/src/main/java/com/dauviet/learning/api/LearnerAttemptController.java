@@ -17,6 +17,7 @@ import org.springframework.web.bind.annotation.RestController;
 
 import com.dauviet.common.api.PageResponse;
 import com.dauviet.common.security.JwtSubjectExtractor;
+import com.dauviet.learning.api.dto.AttemptAbandonResponse;
 import com.dauviet.learning.api.dto.AttemptProgressResponse;
 import com.dauviet.learning.api.dto.AttemptStartResponse;
 import com.dauviet.learning.api.dto.AttemptSummaryResponse;
@@ -106,6 +107,16 @@ public class LearnerAttemptController {
                                          @AuthenticationPrincipal Jwt jwt) {
         return service.submit(subjects.userId(jwt), attemptId, activityId,
                 body.answer(), idempotencyKey);
+    }
+
+    /**
+     * Abandon an IN_PROGRESS attempt (owner only) so the learner can start
+     * again on the latest published version. Idempotent when already ABANDONED.
+     */
+    @PostMapping("/attempts/{attemptId}/abandon")
+    public AttemptAbandonResponse abandon(@PathVariable UUID attemptId,
+                                          @AuthenticationPrincipal Jwt jwt) {
+        return service.abandon(subjects.userId(jwt), attemptId);
     }
 
     /**

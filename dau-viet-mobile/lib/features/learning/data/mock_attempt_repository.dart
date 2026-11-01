@@ -234,6 +234,13 @@ class MockAttemptRepository implements AttemptRepository {
   }
 
   @override
+  Future<void> abandon(String attemptId) async {
+    await Future<void>.delayed(const Duration(milliseconds: 100));
+    _cursor = 0;
+    _completed = false;
+  }
+
+  @override
   Future<CurrentActivityDto> getCurrent(String attemptId, {String? activityId}) async {
     await Future<void>.delayed(const Duration(milliseconds: 150));
     return _current();

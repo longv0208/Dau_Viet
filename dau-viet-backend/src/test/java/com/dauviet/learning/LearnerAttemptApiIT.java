@@ -163,6 +163,8 @@ class LearnerAttemptApiIT extends AbstractPostgresIT {
         mvc.perform(post("/api/v1/attempts/" + attemptId + "/activities/r1/submissions")
                         .contentType(MediaType.APPLICATION_JSON).content("{\"answer\":{}}"))
                 .andExpect(status().isUnauthorized());
+        mvc.perform(post("/api/v1/attempts/" + attemptId + "/abandon"))
+                .andExpect(status().isUnauthorized());
         mvc.perform(post("/api/v1/attempts/" + attemptId + "/complete"))
                 .andExpect(status().isUnauthorized());
     }
@@ -181,9 +183,40 @@ class LearnerAttemptApiIT extends AbstractPostgresIT {
                 .andExpect(status().isForbidden());
         MvcResult res = submit(otherToken, attemptId, "r1", "{}");
         assertThat(res.getResponse().getStatus()).isEqualTo(403);
+        mvc.perform(post("/api/v1/attempts/" + attemptId + "/abandon")
+                        .header("Authorization", otherToken))
+                .andExpect(status().isForbidden())
+                .andExpect(jsonPath("$.code").value("ATTEMPT_NOT_OWNER"));
         mvc.perform(post("/api/v1/attempts/" + attemptId + "/complete")
                         .header("Authorization", otherToken))
                 .andExpect(status().isForbidden());
+    }
+
+    @Test
+    void abandon_thenStart_createsFreshAttempt() throws Exception {
+        String lessonId = publish();
+        String attemptId = AttemptItFixture.startAttempt(mvc, om, learnerToken, lessonId);
+
+        mvc.perform(post("/api/v1/attempts/" + attemptId + "/abandon")
+                        .header("Authorization", learnerToken))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.attemptId").value(attemptId))
+                .andExpect(jsonPath("$.status").value("ABANDONED"));
+
+        // Idempotent re-abandon
+        mvc.perform(post("/api/v1/attempts/" + attemptId + "/abandon")
+                        .header("Authorization", learnerToken))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.status").value("ABANDONED"));
+
+        MvcResult restart = mvc.perform(post("/api/v1/lessons/" + lessonId + "/attempts")
+                        .header("Authorization", learnerToken))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.resumed").value(false))
+                .andExpect(jsonPath("$.status").value("IN_PROGRESS"))
+                .andReturn();
+        String newAttemptId = AttemptItFixture.body(om, restart).get("attemptId").asText();
+        assertThat(newAttemptId).isNotEqualTo(attemptId);
     }
 
     @Test

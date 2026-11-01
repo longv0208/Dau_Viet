@@ -51,6 +51,7 @@ class LessonEntryScreen extends ConsumerStatefulWidget {
 
 class _LessonEntryScreenState extends ConsumerState<LessonEntryScreen> {
   bool _starting = false;
+  bool _restarting = false;
   String? _startError;
   bool _lockedByPath = false;
 
@@ -71,7 +72,7 @@ class _LessonEntryScreenState extends ConsumerState<LessonEntryScreen> {
   }
 
   Future<void> _start() async {
-    if (_starting) return;
+    if (_starting || _restarting) return;
     setState(() {
       _starting = true;
       _startError = null;
@@ -101,6 +102,71 @@ class _LessonEntryScreenState extends ConsumerState<LessonEntryScreen> {
       setState(() {
         _starting = false;
         _startError = 'Không mở được bài học. Thử lại.';
+        _lockedByPath = false;
+      });
+    }
+  }
+
+  Future<void> _confirmRestartFromScratch(AttemptSummaryDto resume) async {
+    if (_starting || _restarting) return;
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('Học lại từ đầu?'),
+        content: const Text(
+          'Tiến độ lần học hiện tại sẽ bị hủy. Bạn sẽ bắt đầu lại từ đầu '
+          'với phiên bản bài học mới nhất.',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(ctx).pop(false),
+            child: const Text('Hủy'),
+          ),
+          TextButton(
+            onPressed: () => Navigator.of(ctx).pop(true),
+            child: const Text('Học lại từ đầu'),
+          ),
+        ],
+      ),
+    );
+    if (confirmed != true || !mounted) return;
+    await _restartFromScratch(resume.attemptId);
+  }
+
+  Future<void> _restartFromScratch(String attemptId) async {
+    if (_starting || _restarting) return;
+    setState(() {
+      _restarting = true;
+      _startError = null;
+      _lockedByPath = false;
+    });
+    try {
+      final AttemptRepository repo = ref.read(attemptRepositoryProvider);
+      Future<AttemptStartDto> run() async {
+        await repo.abandon(attemptId);
+        return repo.startOrResume(widget.lessonId);
+      }
+
+      final started = ApiConfig.useMock
+          ? await run()
+          : await ref.read(authRepositoryProvider).withAuth(run);
+      if (!mounted) return;
+      ref.invalidate(myProgressProvider);
+      ref.invalidate(learningPathProvider);
+      context.pushReplacement('/learning/attempt/${started.attemptId}');
+    } on ApiException catch (e) {
+      if (!mounted) return;
+      setState(() {
+        _restarting = false;
+        _startError = e.error.message;
+        _lockedByPath =
+            e.error.code == 'LESSON_LOCKED_BY_PATH' || e.statusCode == 403;
+      });
+    } catch (_) {
+      if (!mounted) return;
+      setState(() {
+        _restarting = false;
+        _startError = 'Không học lại được. Thử lại.';
         _lockedByPath = false;
       });
     }
@@ -449,7 +515,7 @@ class _LessonEntryScreenState extends ConsumerState<LessonEntryScreen> {
 
                       // 6. Nút hành động Bắt đầu học nổi khối 3D (Heritage Green)
                       DongSonButton(
-                        label: _starting
+                        label: (_starting || _restarting)
                             ? 'ĐANG MỞ BÀI HỌC...'
                             : (resume != null
                                   ? 'TIẾP TỤC BÀI HỌC ›'
@@ -457,9 +523,53 @@ class _LessonEntryScreenState extends ConsumerState<LessonEntryScreen> {
                         icon: Icons.arrow_forward_rounded,
                         variant: DongSonButtonVariant.natureGreen,
                         height: 52,
-                        isLoading: _starting,
-                        onPressed: _starting ? null : _start,
+                        isLoading: _starting || _restarting,
+                        onPressed: (_starting || _restarting) ? null : _start,
                       ),
+                      // Học lại từ đầu: abandon attempt đang pin version cũ
+                      // rồi startOrResume pin current_version sau republish.
+                      if (resume != null) ...[
+                        const SizedBox(height: 10),
+                        OutlinedButton.icon(
+                          onPressed: (_starting || _restarting)
+                              ? null
+                              : () => _confirmRestartFromScratch(resume),
+                          icon: _restarting
+                              ? const SizedBox(
+                                  width: 18,
+                                  height: 18,
+                                  child: CircularProgressIndicator(
+                                    strokeWidth: 2,
+                                  ),
+                                )
+                              : const Icon(
+                                  Icons.restart_alt_rounded,
+                                  size: 18,
+                                  color: Color(0xFF5C4E42),
+                                ),
+                          label: Text(
+                            _restarting
+                                ? 'Đang bắt đầu lại...'
+                                : 'Học lại từ đầu',
+                            style: DauVietTypography.labelLarge.copyWith(
+                              color: const Color(0xFF2B1F17),
+                              fontWeight: FontWeight.w700,
+                              fontSize: 14,
+                            ),
+                          ),
+                          style: OutlinedButton.styleFrom(
+                            minimumSize: const Size.fromHeight(46),
+                            side: const BorderSide(
+                              color: Color(0xFFD8C39E),
+                              width: 1.2,
+                            ),
+                            shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(22),
+                            ),
+                            backgroundColor: const Color(0xFFFAF3E4),
+                          ),
+                        ),
+                      ],
                     ],
                   ),
                 ),

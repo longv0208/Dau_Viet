@@ -62,6 +62,15 @@ class FakeAttemptRepository implements AttemptRepository {
     );
   }
 
+  int abandonCalls = 0;
+  Object? abandonError;
+
+  @override
+  Future<void> abandon(String attemptId) async {
+    abandonCalls++;
+    if (abandonError != null) throw abandonError!;
+  }
+
   @override
   Future<CurrentActivityDto> getCurrent(String attemptId, {String? activityId}) async {
     getCurrentCalls++;

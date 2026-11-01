@@ -14,6 +14,7 @@ import org.springframework.transaction.annotation.Transactional;
 import org.springframework.transaction.support.TransactionTemplate;
 
 import com.dauviet.common.api.PageResponse;
+import com.dauviet.learning.api.dto.AttemptAbandonResponse;
 import com.dauviet.learning.api.dto.AttemptProgressResponse;
 import com.dauviet.learning.api.dto.AttemptStartResponse;
 import com.dauviet.learning.api.dto.AttemptSummaryResponse;
@@ -574,6 +575,37 @@ public class LearnerAttemptService {
         return new SubmitActivityResponse("ACCEPTED", result, result.completed(),
                 progressOf(model, state), next, completion, energyDeducted,
                 energySnapshot);
+    }
+
+    /**
+     * Learner-initiated restart gate: mark the owned IN_PROGRESS attempt
+     * ABANDONED so a subsequent startOrResume can pin lessons.current_version_id.
+     * Idempotent when already ABANDONED; COMPLETED stays terminal (409).
+     * Does not grant/revoke rewards — abandoned attempts never complete.
+     */
+    @Transactional
+    public AttemptAbandonResponse abandon(UUID userId, UUID attemptId) {
+        LearnerAttempt a = attempts.findForUpdate(attemptId)
+                .orElseThrow(() -> new AttemptNotFoundException("attempt not found: " + attemptId));
+        if (!a.getUserId().equals(userId)) {
+            throw new AttemptNotOwnedException("attempt not owned by user: " + attemptId);
+        }
+        if (a.getStatus() == LearnerAttemptStatus.ABANDONED) {
+            return new AttemptAbandonResponse(a.getId(), a.getLessonVersionId(),
+                    a.getStatus().name());
+        }
+        if (a.getStatus() == LearnerAttemptStatus.COMPLETED) {
+            throw new AttemptAlreadyCompletedException(
+                    "attempt " + a.getId() + " is COMPLETED");
+        }
+        if (a.getStatus() != LearnerAttemptStatus.IN_PROGRESS) {
+            throw new AttemptNotInProgressException(
+                    "attempt " + a.getId() + " is " + a.getStatus());
+        }
+        a.markAbandoned();
+        attempts.save(a);
+        return new AttemptAbandonResponse(a.getId(), a.getLessonVersionId(),
+                a.getStatus().name());
     }
 
     /**
