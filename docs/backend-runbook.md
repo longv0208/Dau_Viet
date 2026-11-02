@@ -77,10 +77,11 @@ Protected: `GET /api/v1/users/me` (any authenticated), `/api/v1/admin/**`
   app fails to start. Generate: `openssl rand -base64 48`.
 - **TTLs** — `app.security.access-token-ttl-seconds` (default 900),
   `app.security.refresh-token-ttl-seconds` (default 1209600 = 14 days).
-- **Admin bootstrap (dev)** — with profile `local` + `app.seed.enabled=true`,
-  set `ADMIN_EMAIL` + `ADMIN_PASSWORD` (optional `ADMIN_DISPLAY_NAME`) env vars
-  before launching: `AdminBootstrapRunner` creates the account insert-only
-  (never overwrites or promotes an existing user).
+- **Admin bootstrap (dev)** — Flyway `V67` seeds `admin@dauviet.local` /
+  `secret` (BCrypt) for shared local/dev login. With profile `local` +
+  `app.seed.enabled=true`, `ADMIN_EMAIL` + `ADMIN_PASSWORD` (optional
+  `ADMIN_DISPLAY_NAME`) still create a *missing* account only
+  (`AdminBootstrapRunner` is insert-only and never overwrites V67).
 - **Admin bootstrap (non-local)** — insert directly, e.g.:
 
   ```sql

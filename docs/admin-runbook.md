@@ -31,8 +31,10 @@ npm run dev
 # → http://localhost:3000
 ```
 
-Log in with the seeded admin (default `admin@dauviet.local` / the password
-from `ADMIN_PASSWORD` in the backend env). A `LEARNER` account reaches the
+Log in with the seeded admin (`admin@dauviet.local` / `secret`, set by
+Flyway `V67__seed_local_admin_password.sql` for local/dev). Override via
+`ADMIN_EMAIL`/`ADMIN_PASSWORD` only creates a missing account
+(`AdminBootstrapRunner` is insert-only). A `LEARNER` account reaches the
 403 page instead of the shell.
 
 ## Auth flow (BFF)
