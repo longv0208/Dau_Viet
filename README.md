@@ -2,8 +2,6 @@
 
 Ứng dụng học lịch sử Việt Nam theo hướng điều tra: người học đọc bối cảnh, chọn bằng chứng, lập giả thuyết, kiểm chứng và kết luận theo mô hình Claim–Evidence–Reasoning. Nội dung bài học là dữ liệu, không phải màn hình gắn cứng từng sự kiện.
 
-Bài mở đầu: **Trận Bạch Đằng năm 938** — *Vì sao Ngô Quyền đánh bại thủy quân Nam Hán trên sông Bạch Đằng?*
-
 ## Bài toán
 
 Sách giáo khoa và quiz trắc nghiệm cho người học một đáp án, nhưng không cho họ thực hành cách sử gia làm việc: phân biệt nguồn, nối bằng chứng với suy luận, và sửa giả thuyết khi nguồn mâu thuẫn. Mỗi sự kiện lịch sử nếu được code thành một luồng riêng sẽ không mở rộng được.
